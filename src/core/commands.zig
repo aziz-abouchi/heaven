@@ -133,6 +133,15 @@ pub const Commands = struct {
         const actual = if (trimmed0.len > 0 and trimmed0[0] == ':') trimmed0[1..] else trimmed0;
         const trimmed = std.mem.trim(u8, actual, " \t\r\n");
 
+        //IGNORER LES DÉCLARATIONS DE TYPES POUR L'INSTANT
+        if (std.mem.startsWith(u8, trimmed, "module ") or
+            std.mem.startsWith(u8, trimmed, "data ") or
+            std.mem.startsWith(u8, trimmed, "zero :") or
+            std.mem.startsWith(u8, trimmed, "succ :"))
+        {
+            return try self.allocator.dupe(u8, "()"); // On avale la ligne sans faire rien
+        }
+
         // INTERCEPTIONS SPÉCIALES
         if (std.mem.startsWith(u8, trimmed, "let actor ")) {
             return self.evalActorDef(trimmed["let actor ".len..]);
@@ -150,7 +159,7 @@ pub const Commands = struct {
         }
         // ======================================================
 
-        // === NOUVELLE INTERCEPTION POUR LES EFFETS ALGÉBRIQUES ===
+        // === INTERCEPTION POUR LES EFFETS ALGÉBRIQUES ===
         if (std.mem.startsWith(u8, trimmed, "(handle ") or std.mem.startsWith(u8, trimmed, "(perform ")) {
             const id = try self.parser.parseSExpr(trimmed);
             self.engine.fuel = 1_000_000;
@@ -158,6 +167,15 @@ pub const Commands = struct {
             return expr.toStringInfix(self.store, result, self.allocator);
         }
         // ========================================================
+
+        // NOUVELLE INTERCEPTION HAUTE : Toutes les S-expr (commençant par '(')
+        // On les délègue au parseur S-expr robuste avant d'appeler les parsers mathématiques ou Tree-sitter
+        if (trimmed.len >= 2 and trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
+            const id = try self.parser.parseSExpr(trimmed);
+            self.engine.fuel = 1_000_000;
+            const result = self.engine.eval(id) catch id;
+            return expr.toStringInfix(self.store, result, self.allocator);
+        }
 
         // Detect function definition: "name pat1 pat2 = body"
         const eq_idx = blk: {
@@ -240,7 +258,11 @@ pub const Commands = struct {
         // ====================================================
 
         // Try function call
-        if (self.tryFnCall(trimmed)) |result| return result;
+        // On n'utilise tryFnCall que s'il n'y a pas de parenthèses
+        // car tryFnCall découpe par espaces et casserait les S-expr comme (succ n)
+        if (std.mem.indexOfScalar(u8, trimmed, '(') == null) {
+            if (self.tryFnCall(trimmed)) |result| return result;
+        }
 
         if (std.mem.eql(u8, trimmed, "help")) return self.evalHelp();
         if (std.mem.eql(u8, trimmed, "stats")) return self.evalStats();
@@ -310,6 +332,7 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "ask ")) return self.evalAsk(trimmed["ask ".len..]);
         if (std.mem.startsWith(u8, trimmed, "equiv ")) return self.evalEquiv(trimmed["equiv ".len..]);
         if (std.mem.startsWith(u8, trimmed, "js ")) return self.evalJs(trimmed["js ".len..]);
+        if (std.mem.startsWith(u8, trimmed, "dumpAstFile ")) return self.dumpAstFile(trimmed["dumpAstFile ".len..]);
 
         // === Parser avec tree-sitter ===
         if (self.parseExpression(trimmed)) |expr_id| {
@@ -322,16 +345,6 @@ pub const Commands = struct {
             // Si parseExpression échoue, continuer vers le fallback
         }
         // ================================================
-
-        // Expressions entre parenthèses - déléguer complètement à importExpr
-        if (trimmed.len >= 2 and trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
-            const id = self.bridge.importExpr(trimmed) catch |err| {
-                return try std.fmt.allocPrint(self.allocator, "parse error: {s}", .{@errorName(err)});
-            };
-            self.engine.fuel = 1_000_000;
-            const result = self.engine.eval(id) catch id;
-            return expr.toStringInfix(self.store, result, self.allocator);
-        }
 
         // Lambda ou Expression mathématique
         self.engine.fuel = 1_000_000;
@@ -699,97 +712,96 @@ pub const Commands = struct {
         return std.fmt.allocPrint(self.allocator, "macro {s} defined", .{name});
     }
 
+    /// Transforme un raccourci lambda (fn(x) body) en une définition de fonction standard (name x = body)
+    fn parseLambdaShortcut(self: *Commands, name: []const u8, expr_str: []const u8) HeavenError![]u8 {
+        const open = std.mem.indexOfScalar(u8, expr_str, '(') orelse return self.allocator.dupe(u8, "syntax error: missing '(' in fn");
+        const close = std.mem.indexOfScalar(u8, expr_str, ')') orelse return self.allocator.dupe(u8, "syntax error: missing ')' in fn");
+
+        const params_str = expr_str[open + 1 .. close];
+        var rest = std.mem.trim(u8, expr_str[close + 1 ..], " \t");
+        if (std.mem.startsWith(u8, rest, "=>")) {
+            rest = std.mem.trim(u8, rest[2..], " \t");
+        }
+
+        const fn_def_str = try std.fmt.allocPrint(self.allocator, "{s} {s} = {s}", .{ name, params_str, rest });
+        defer self.allocator.free(fn_def_str);
+        return self.evalFnDef(fn_def_str);
+    }
+
     fn evalFnDef(self: *Commands, input: []const u8) ![]u8 {
         const eq_pos = std.mem.indexOfScalar(u8, input, '=') orelse return self.allocator.dupe(u8, "syntax error: missing '='");
         if (eq_pos + 1 < input.len and input[eq_pos + 1] == '=') return self.allocator.dupe(u8, "syntax error: use single '='");
-
-        // Gérer la syntaxe := (retirer le : avant le = si présent)
-        const lhs_end = if (eq_pos > 0 and input[eq_pos - 1] == ':') eq_pos - 1 else eq_pos;
-
-        var lhs = std.mem.trim(u8, input[0..lhs_end], " ");
+        var lhs = std.mem.trim(u8, input[0..eq_pos], " ");
         const rhs = std.mem.trim(u8, input[eq_pos + 1 ..], " ");
 
-        // Enlever le préfixe "fn " ou "let "
+        // Gérer le walrus operator := (on enlève le ':' à la fin du nom)
+        if (lhs.len > 0 and lhs[lhs.len - 1] == ':') {
+            lhs = std.mem.trim(u8, lhs[0 .. lhs.len - 1], " ");
+        }
+
         if (std.mem.startsWith(u8, lhs, "fn ")) lhs = std.mem.trim(u8, lhs[3..], " ");
         if (std.mem.startsWith(u8, lhs, "let ")) lhs = std.mem.trim(u8, lhs[4..], " ");
 
-        // === CAS 1 : Syntaxe avec parenthèses `name(args) = body` ===
-        if (std.mem.indexOfScalar(u8, lhs, '(')) |paren_pos| {
-            if (lhs[lhs.len - 1] != ')') return self.allocator.dupe(u8, "syntax error: missing ')'");
+        // Si le côté droit est un raccourci lambda (ex: "fn(x) (* x 3)"), on le transforme !
+        if (std.mem.startsWith(u8, rhs, "fn ") or std.mem.startsWith(u8, rhs, "fn(")) {
+            // On doit extraire le nom de la fonction depuis le lhs
+            const name = if (std.mem.indexOfScalar(u8, lhs, ' ')) |space| lhs[0..space] else lhs;
+            return self.parseLambdaShortcut(name, rhs);
+        }
 
-            const name = std.mem.trim(u8, lhs[0..paren_pos], " ");
-            const args_str = std.mem.trim(u8, lhs[paren_pos + 1 .. lhs.len - 1], " ");
+        // ON PARSE LE CÔTÉ GAUCHE COMME UNE S-EXPR !
+        // On l'enveloppe dans des parenthèses pour que parseSExpr le lise correctement
+        // ex: "add (succ n) m" devient "(add (succ n) m)"
+        const wrapped_lhs = try std.fmt.allocPrint(self.allocator, "({s})", .{lhs});
+        defer self.allocator.free(wrapped_lhs);
 
-            // Découper les arguments
-            var pat_strs: [8][]const u8 = undefined;
-            var num_pats: usize = 0;
-            var it = std.mem.tokenizeAny(u8, args_str, " ,");
-            while (it.next()) |token| {
-                if (num_pats < 8) {
-                    pat_strs[num_pats] = token;
-                    num_pats += 1;
-                }
-            }
+        const lhs_id = self.parser.parseSExpr(wrapped_lhs) catch {
+            return self.allocator.dupe(u8, "syntax error in lhs");
+        };
 
-            const name_found = (name.len > 0);
-            if (!name_found) return self.allocator.dupe(u8, "syntax error: missing function name");
+        const lhs_node = self.store.get(lhs_id);
+
+        // Si c'est juste un symbole (ex: "fac")
+        if (lhs_node.tag == .sym) {
+            const name = self.store.interner.resolve(lhs_node.payload);
+            const body_id = self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
+            self.engine.fns.register(name, &.{}, body_id) catch return self.allocator.dupe(u8, "registration error");
+            const sym = self.store.interner.intern(name) catch return self.allocator.dupe(u8, "intern error");
+            self.engine.env.put(sym, body_id) catch {};
+            return std.fmt.allocPrint(self.allocator, "{s} defined", .{name});
+        }
+
+        // Si c'est une application (ex: add (succ n) m)
+        if (lhs_node.tag == .apply) {
+            const func_sym_node = self.store.get(lhs_node.payload);
+            if (func_sym_node.tag != .sym) return self.allocator.dupe(u8, "syntax error: function name must be a symbol");
+            const name = self.store.interner.resolve(func_sym_node.payload);
+
+            const args = lhs_node.span_a.slice(self.store.pool.items);
+            const num_pats = args.len;
 
             var pat_ids: [8]u32 = undefined;
             for (0..num_pats) |pi| {
-                const raw = pat_strs[pi];
-                pat_ids[pi] = self.bridge.importExpr(raw) catch return self.allocator.dupe(u8, "parse error in pattern");
+                pat_ids[pi] = args[pi]; // On prend directement l'AST des patterns !
             }
 
-            const body_id = if (rhs.len > 0 and rhs[0] == '(')
-                // Syntaxe Lisp : utiliser l'ancien parser
-                self.bridge.importExpr(rhs) catch return self.allocator.dupe(u8, "parse error in body (Lisp)")
+            // Si le corps commence par une parenthèse ou contient des espaces, on utilise parseSExpr
+            // pour éviter que parseApplication ne découpe les S-expr par espaces.
+            const body_id = if (rhs.len > 0 and (rhs[0] == '(' or std.mem.indexOfScalar(u8, rhs, ' ') != null))
+                self.parser.parseSExpr(rhs) catch return self.allocator.dupe(u8, "parse error in body (Lisp)")
+            else if (rhs.len > 0)
+                try self.store.sym(rhs)
             else
-                // Syntaxe infixée : utiliser tree-sitter
-                self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
+                return self.allocator.dupe(u8, "empty body");
 
+            // On enregistre la fonction UNIQUEMENT dans le FunctionRegistry.
+            // La mettre dans env casse l'évaluation car le corps sera évalué hors-contexte.
             self.engine.fns.register(name, pat_ids[0..num_pats], body_id) catch return self.allocator.dupe(u8, "registration error");
 
-            const sym = self.store.interner.intern(name) catch return self.allocator.dupe(u8, "intern error");
-            self.engine.env.put(sym, body_id) catch {};
-
-            if (num_pats == 0) return std.fmt.allocPrint(self.allocator, "{s} defined", .{name}) else return std.fmt.allocPrint(self.allocator, "{s} clause ({d} patterns) registered", .{ name, num_pats });
+            return std.fmt.allocPrint(self.allocator, "{s} clause ({d} patterns) registered", .{ name, num_pats });
         }
 
-        // === CAS 2 : Syntaxe sans parenthèses `name arg1 arg2 = body` (style ML) ===
-        var tokens: [16][]const u8 = undefined;
-        var num_tokens: usize = 0;
-        var tok_it = std.mem.tokenizeScalar(u8, lhs, ' ');
-        while (tok_it.next()) |tok| {
-            if (num_tokens < 16) {
-                tokens[num_tokens] = tok;
-                num_tokens += 1;
-            }
-        }
-
-        if (num_tokens < 2) return self.allocator.dupe(u8, "syntax error: expected 'name args = body'");
-
-        const name = tokens[0];
-        const num_pats = num_tokens - 1;
-
-        var pat_ids: [8]u32 = undefined;
-        for (0..num_pats) |pi| {
-            const raw = tokens[pi + 1];
-            pat_ids[pi] = self.bridge.importExpr(raw) catch return self.allocator.dupe(u8, "parse error in pattern");
-        }
-
-        const body_id = if (rhs.len > 0 and rhs[0] == '(')
-            // Syntaxe Lisp : utiliser l'ancien parser
-            self.bridge.importExpr(rhs) catch return self.allocator.dupe(u8, "parse error in body (Lisp)")
-        else
-            // Syntaxe infixée : utiliser tree-sitter
-            self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
-
-        self.engine.fns.register(name, pat_ids[0..num_pats], body_id) catch return self.allocator.dupe(u8, "registration error");
-
-        const sym = self.store.interner.intern(name) catch return self.allocator.dupe(u8, "intern error");
-        self.engine.env.put(sym, body_id) catch {};
-
-        return std.fmt.allocPrint(self.allocator, "{s} clause ({d} patterns) registered", .{ name, num_pats });
+        return self.allocator.dupe(u8, "syntax error in function definition");
     }
 
     /// Fallback WASM : parse les applications `name arg1 arg2` et appels `name(args)`.
@@ -870,7 +882,6 @@ pub const Commands = struct {
             defer self.shell_parser.reset();
 
             if (!self.hasErrorNode(&matrix)) {
-                // DÉBALLAGE : Si la racine est source_file (.program), prendre le premier enfant
                 const actual_node = if (matrix.kind == .program and matrix.children.len > 0)
                     &matrix.children[0]
                 else
@@ -878,7 +889,6 @@ pub const Commands = struct {
 
                 var bridge = @import("bridge_expr").Bridge.init(self.store, self.allocator);
                 if (bridge.translateOne(actual_node)) |id| {
-                    // Log optionnel pour confirmer que tree-sitter a pris le relais
                     return id;
                 } else |_| {
                     // Bridge a échoué, continuer vers le fallback
@@ -888,13 +898,18 @@ pub const Commands = struct {
             // tree-sitter.parse() a échoué
         }
 
+        // AJOUT : Si ça commence par '(', on utilise le parseur S-expr (Lisp) qui gère les espaces
+        const trimmed = std.mem.trim(u8, input, " \t");
+        if (trimmed.len >= 2 and trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
+            return self.parser.parseSExpr(trimmed);
+        }
+
         // 2. Fallback application/appel (WASM)
         if (self.parseApplication(input)) |id| {
             return id;
         } else |_| {}
 
-        // 3.
-        // 2. Fallback sur l'ancien parser (bridge.importExpr)
+        // 3. Fallback sur l'ancien parser (bridge.importExpr)
         return self.bridge.importExpr(input);
     }
 
@@ -1575,26 +1590,39 @@ pub const Commands = struct {
             const result = self.engine.eval(ast) catch ast;
             return expr.toStringInfix(self.store, result, self.allocator);
         }
+
+        // Gestion du walrus operator :=
+        const op_len: usize = if (std.mem.startsWith(u8, input, ":=")) 2 else 1;
         var eq_pos: ?usize = null;
         var i: usize = input.len;
-        while (i > 0) : (i -= 1) {
+        while (i > 1) : (i -= 1) {
             if (input[i - 1] == '=') {
-                const next_c = if (i < input.len) input[i] else ' ';
                 const prev_c = if (i >= 2) input[i - 2] else ' ';
-                if (next_c != '=' and prev_c != '!' and prev_c != '<' and prev_c != '>') {
-                    eq_pos = i - 1;
-                    break;
+                if (prev_c != '!' and prev_c != '<' and prev_c != '>') {
+                    // Si on a trouvé ':=' on l'enregistre, sinon on prend le '=' simple
+                    if (op_len == 1 or prev_c == ':') {
+                        eq_pos = i - 1;
+                        break;
+                    }
                 }
             }
         }
+
         if (eq_pos) |eq| {
-            // Gérer la syntaxe := (retirer le : avant le = si présent)
-            const name_end = if (eq > 0 and input[eq - 1] == ':') eq - 1 else eq;
-            const name = std.mem.trim(u8, input[0..name_end], " \t");
+            const name = std.mem.trim(u8, input[0..eq], " \t:");
             const expr_str = std.mem.trim(u8, input[eq + 1 ..], " \t");
-            if (std.mem.indexOfScalar(u8, name, '(') != null) return self.evalFnDef(input);
+
+            // Si la valeur commence par 'fn', on enregistre une fonction !
+            if (std.mem.startsWith(u8, expr_str, "fn ") or std.mem.startsWith(u8, expr_str, "fn(")) {
+                // On reconstruit la chaîne pour evalFnDef (ex: "triple x = (* x 3)")
+                const fn_def_str = try std.fmt.allocPrint(self.allocator, "{s} = {s}", .{ name, expr_str });
+                defer self.allocator.free(fn_def_str);
+                return self.evalFnDef(fn_def_str);
+            }
+
             return self.define(name, expr_str);
         }
+
         return try self.allocator.dupe(u8, "syntax error: missing =");
     }
 
@@ -1995,38 +2023,86 @@ pub const Commands = struct {
 
     /// Parse un fichier selon son extension (.hvn, .pie, .c, .zig)
     pub fn parseFileWithLanguage(self: *Commands, path: []const u8) ![]u8 {
-        // Déterminer le langage depuis l'extension
         const ext = std.fs.path.extension(path);
         const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse
             return std.fmt.allocPrint(self.allocator, "unsupported extension: {s}", .{ext});
 
-        // Lire le fichier
         const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
             return std.fmt.allocPrint(self.allocator, "error reading {s}: {}", .{ path, err });
         };
         defer self.allocator.free(content);
 
-        // Parser selon la plateforme (natif: tree-sitter, WASM: fallback)
+        // ✅ Pour Heaven : utiliser importExpr directement (plus fiable que tree-sitter)
+        if (lang == .heaven) {
+            const id = self.bridge.importExpr(content) catch {
+                return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{path});
+            };
+            self.engine.fuel = 1_000_000;
+            const result = self.engine.eval(id) catch id;
+            _ = result;
+            return std.fmt.allocPrint(self.allocator, "✓ parsed and evaluated {s} as heaven", .{path});
+        }
+
+        // Pour les autres langages (C, Zig, Pie) : tree-sitter
         var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
             return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
         };
         defer parser.deinit();
 
         const matrix = parser.parse(content) catch {
-            // Fallback sur importExpr pour WASM
-            return std.fmt.allocPrint(self.allocator, "parse failed for {s} (WASM fallback not implemented)", .{lang.toString()});
+            return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
         };
 
-        // Traduire la Matrix en AST Heaven et évaluer
         var bridge = @import("bridge_expr").Bridge.init(self.store, self.allocator);
-        const root_id = try bridge.translateOne(&matrix);
+        _ = try bridge.translateOne(&matrix);
 
-        // Évaluer l'expression pour que le fichier soit effectivement exécuté
-        self.engine.fuel = 1_000_000;
-        const result = self.engine.eval(root_id) catch root_id;
-        const result_str = expr.toStringInfix(self.store, result, self.allocator) catch "error";
-        defer self.allocator.free(result_str);
+        return std.fmt.allocPrint(self.allocator, "✓ parsed {s} as {s} ({d} nodes)", .{ path, lang.toString(), matrix.children.len });
+    }
 
-        return std.fmt.allocPrint(self.allocator, "✓ parsed and evaluated {s} as {s}", .{ path, lang.toString() });
+    /// Affiche l'AST brut d'un fichier parsé (pour debug du bridge)
+    pub fn dumpAstFile(self: *Commands, path: []const u8) ![]u8 {
+        const ext = std.fs.path.extension(path);
+        const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse
+            return std.fmt.allocPrint(self.allocator, "unsupported extension: {s}", .{ext});
+
+        const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
+            return std.fmt.allocPrint(self.allocator, "error reading {s}: {}", .{ path, err });
+        };
+        defer self.allocator.free(content);
+
+        var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
+            return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
+        };
+        defer parser.deinit();
+
+        const matrix = parser.parse(content) catch {
+            return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
+        };
+
+        var buf: std.ArrayListUnmanaged(u8) = .{};
+        defer buf.deinit(self.allocator);
+        try dumpMatrix(&matrix, 0, &buf, self.allocator);
+        return buf.toOwnedSlice(self.allocator);
+    }
+
+    fn dumpMatrix(matrix: *const platform.shell_parser_types.Matrix, depth: u32, buf: *std.ArrayListUnmanaged(u8), alloc: std.mem.Allocator) !void {
+        var i: u32 = 0;
+        while (i < depth) : (i += 1) try buf.appendSlice(alloc, "  ");
+        try buf.appendSlice(alloc, @tagName(matrix.kind));
+        if (matrix.text) |text| {
+            if (text.len <= 40) {
+                try buf.appendSlice(alloc, " \"");
+                try buf.appendSlice(alloc, text);
+                try buf.appendSlice(alloc, "\"");
+            } else {
+                try buf.appendSlice(alloc, " \"");
+                try buf.appendSlice(alloc, text[0..40]);
+                try buf.appendSlice(alloc, "...\"");
+            }
+        }
+        try buf.append(alloc, '\n');
+        for (matrix.children) |*child| {
+            try dumpMatrix(child, depth + 1, buf, alloc);
+        }
     }
 };

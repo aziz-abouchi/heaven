@@ -65,6 +65,28 @@ pub const Parser = struct {
         }
         // =====================================
 
+        // Syntaxe fn(x) => body ou fn(x) body
+        if (std.mem.startsWith(u8, trimmed, "fn(")) {
+            const close = std.mem.indexOfScalar(u8, trimmed, ')') orelse return self.store.sym(trimmed);
+            const params_str = trimmed[3..close];
+            const rest = std.mem.trim(u8, trimmed[close + 1 ..], " \t");
+
+            const body_str = if (std.mem.startsWith(u8, rest, "=>"))
+                std.mem.trim(u8, rest[2..], " \t")
+            else
+                rest;
+
+            var param_ids: std.ArrayListUnmanaged(Id) = .{};
+            defer param_ids.deinit(self.allocator);
+            var it = std.mem.tokenizeAny(u8, params_str, " ,");
+            while (it.next()) |p| {
+                try param_ids.append(self.allocator, try self.store.sym(p));
+            }
+            const body_id = try self.parseSExpr(body_str);
+            try param_ids.append(self.allocator, body_id);
+            return self.store.call("λ", param_ids.items);
+        }
+
         // Chaîne de caractères (String)
         if (trimmed.len >= 2 and trimmed[0] == '"' and trimmed[trimmed.len - 1] == '"') {
             const str_val = trimmed[1 .. trimmed.len - 1];
@@ -154,17 +176,31 @@ pub const Parser = struct {
                 }
                 // ===================================
 
-                const end = std.mem.lastIndexOfScalar(u8, trimmed, ')') orelse return self.store.sym(trimmed);
+                // ✅ On cherche la parenthèse fermante qui correspond à la bonne profondeur
+                var depth: i32 = 1;
+                var end: usize = 0;
+                for (trimmed[p + 1 ..], 0..) |c, i| {
+                    if (c == '(') depth += 1;
+                    if (c == ')') {
+                        depth -= 1;
+                        if (depth == 0) {
+                            end = p + 1 + i;
+                            break;
+                        }
+                    }
+                }
+                if (end == 0) return self.store.sym(trimmed);
+
                 const args_str = std.mem.trim(u8, trimmed[p + 1 .. end], " \t");
                 var arg_ids: std.ArrayListUnmanaged(Id) = .{};
                 defer arg_ids.deinit(self.allocator);
-                var depth: i32 = 0;
+                var d: i32 = 0;
                 var start: usize = 0;
                 for (args_str, 0..) |ch, i| {
                     switch (ch) {
-                        '(' => depth += 1,
-                        ')' => depth -= 1,
-                        ',' => if (depth == 0) {
+                        '(' => d += 1,
+                        ')' => d -= 1,
+                        ',' => if (d == 0) {
                             const part = std.mem.trim(u8, args_str[start..i], " \t");
                             if (part.len > 0) try arg_ids.append(self.allocator, try self.parseSExpr(part));
                             start = i + 1;

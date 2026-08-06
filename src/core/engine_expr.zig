@@ -250,6 +250,15 @@ pub const Engine = struct {
                             return self.evalIfLazy(args);
                         }
 
+                        // === Intercepter quote et unquote pour déclencher expandQuote ===
+                        if (std.mem.eql(u8, name, "quote") and args.len == 1) {
+                            return try self.expandQuote(args[0]);
+                        }
+                        if (std.mem.eql(u8, name, "unquote") and args.len == 1) {
+                            return try self.eval(args[0]);
+                        }
+                        // ==================================================================
+
                         // === ACTEURS NATIFS DIRECTS ===
                         // platform.debug.print("[ACTOR INTERCEPT] {s}() called\n", .{name});
                         if (std.mem.eql(u8, name, "spawn")) {
@@ -690,6 +699,16 @@ pub const Engine = struct {
             return error.AssertionFailed;
         }
         // ================================
+
+        // === CONSTRUCTEURS PEANO (Bootstrapping) ===
+        if (std.mem.eql(u8, name, "zero")) {
+            return self.store.sym("zero");
+        }
+        if (std.mem.eql(u8, name, "succ") and args.len == 1) {
+            const arg_val = try self.eval(args[0]);
+            return self.store.call("succ", &.{arg_val});
+        }
+        // ==========================================
 
         // === ÉVALUATION STRICTE POUR LES AUTRES BUILTINS ===
         var ea: std.ArrayListUnmanaged(Id) = .{};

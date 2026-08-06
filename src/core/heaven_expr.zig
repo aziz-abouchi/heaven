@@ -2262,12 +2262,7 @@ pub const HeavenExpr = struct {
             if (PROOF_DEBUG) platform.debug.print("DEBUG: loadBootstrap failed to read core/bootstrap.hvn: {s}\n", .{@errorName(err)});
             return;
         };
-
-        // Libérer la source après utilisation !
         defer self.allocator.free(source);
-
-        // WASM n'a pas elab_mod
-        if (@import("builtin").target.cpu.arch == .wasm32) return;
 
         _ = elab_mod.elaborateSource(
             self.allocator,
@@ -2279,24 +2274,22 @@ pub const HeavenExpr = struct {
             return;
         };
 
-        // Pont majuscule → minuscule
-        const aliases = [_][2][]const u8{
-            .{ "add", "add" },
-            .{ "mul", "mul" },
-            .{ "zero", "zero" },
-            .{ "succ", "succ" },
+        // Charger la bibliothèque standard (std.hvn) en Heaven pur
+        const std_source = platform.fs.cwd().readFileAlloc(self.allocator, "core/std.hvn", 64 * 1024) catch |err| {
+            if (PROOF_DEBUG) platform.debug.print("DEBUG: loadBootstrap failed to read core/std.hvn: {s}\n", .{@errorName(err)});
+            return;
         };
-        for (aliases) |pair| {
-            if (self.engine.fns.get(pair[1])) |def| {
-                var i: u8 = 0;
-                while (i < def.num_clauses) : (i += 1) {
-                    const clause = def.clauses[i];
-                    self.engine.fns.register(
-                        pair[0],
-                        clause.patterns[0..clause.num_patterns],
-                        clause.body,
-                    ) catch {};
-                }
+        defer self.allocator.free(std_source);
+
+        var std_lines = std.mem.splitScalar(u8, std_source, '\n');
+        while (std_lines.next()) |line| {
+            const trimmed_line = std.mem.trim(u8, line, " \t\r");
+            if (trimmed_line.len > 0 and trimmed_line[0] != '#') {
+                const result = self.eval(trimmed_line) catch |err| {
+                    if (PROOF_DEBUG) platform.debug.print("DEBUG: std.hvn eval error on '{s}': {}\n", .{ trimmed_line, err });
+                    continue;
+                };
+                self.allocator.free(result);
             }
         }
     }

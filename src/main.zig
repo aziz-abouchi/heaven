@@ -289,8 +289,8 @@ pub fn main() !void {
         platform.debug.print("[BOOT] Ingestion echouee: {s}\n", .{@errorName(err)});
     };
 
-    // --- Chargement du Noyau, de la Logique et de la bibliothèque standard ---
-    const files_to_load = &[_][]const u8{ "core/kernel.hvn", "core/logic.hvn", "core/std.hvn" };
+    // --- Chargement du Noyau et de la Logique ---
+    const files_to_load = &[_][]const u8{ "core/kernel.hvn", "core/logic.hvn" };
 
     for (files_to_load) |filename| {
         const source = platform.fs.cwd().readFileAlloc(allocator, filename, 1024 * 1024) catch |err| {
