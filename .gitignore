@@ -1,5 +1,6 @@
 # Zig build artifacts
 zig-cache/
+.zig-cache/
 zig-out/
 build-*/
 *.o
@@ -26,12 +27,12 @@ core/profiles/
 .idea/
 *.iml
 
-# Tree-sitter generated (si tu génères des parsers localement)
+# Tree-sitter generated
 src/core/tree_sitter/*.c
 src/core/tree_sitter/*.h
 !src/core/tree_sitter/.gitkeep
 
-# WASM artifacts (si tu les build localement en dehors de zig-out)
+# WASM artifacts
 *.wasm
 *.wat
 wasm_dist/
@@ -41,5 +42,9 @@ wasm_dist/
 .env.local
 config.local.json
 
-# Dependencies (managed externally or as git submodules)
+# Dependencies (managed locally or as git submodules)
 vendor/
+
+# Git backups
+.git.bak/
+log.html
