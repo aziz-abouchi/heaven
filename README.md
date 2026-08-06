@@ -146,7 +146,7 @@ Pour les détails techniques, voir [docs/ARCHITECTURE.txt](docs/ARCHITECTURE.txt
 
 ## Documentation
 
-- [docs/TRANSFORM.txt](docs/transform.md) — Interface de transformation
+- [docs/transform.md](docs/transform.md) — Interface de transformation
 - [docs/ARCHITECTURE.txt](docs/ARCHITECTURE.txt) — Architecture technique
 - [docs/TUTORIAL.txt](docs/TUTORIAL.txt) — Tutoriel pas-à-pas
 - [docs/HEAVEN_LANGUAGE.md](docs/HEAVEN_LANGUAGE.md) — Syntaxe du langage
