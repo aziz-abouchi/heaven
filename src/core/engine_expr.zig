@@ -679,6 +679,16 @@ pub const Engine = struct {
             }
             return self.store.unitLit();
         }
+
+        if (std.mem.eql(u8, name, "assert_err")) {
+            if (args.len != 1) return EvalError.ArityMismatch;
+            // On tente d'évaluer. Si ça plante, c'est une réussite !
+            _ = self.eval(args[0]) catch {
+                return self.store.unitLit(); // L'erreur attendue s'est produite
+            };
+            // Si l'évaluation réussit, le test échoue
+            return error.AssertionFailed;
+        }
         // ================================
 
         // === ÉVALUATION STRICTE POUR LES AUTRES BUILTINS ===

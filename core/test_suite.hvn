@@ -28,3 +28,8 @@ type (+ 1 x)
 green (+ 1 (* 2 3))
 theorem add_zero : x + 0 = x
 prove add_zero by simplify
+
+# --- 6. Tests d'Erreurs (Robustesse) ---
+(test "div_by_zero" (assert_err (/ 5 0)))
+(test "actor_not_found" (assert_err (send 999 5)))
+(test "type_mismatch" (assert_err (+ 1 true)))
