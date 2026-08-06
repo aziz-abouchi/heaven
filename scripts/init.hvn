@@ -1,0 +1,2 @@
+Relation: MUST_NOT_OVERFLOW(?Buffer, ?Size)
+on FORGE(?Code) -> Query(Relation.isSatisfied)

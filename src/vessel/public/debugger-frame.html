@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Heaven Debugger</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    body {
+      background: #0a0a0a; color: #e0e0e0;
+      font-family: 'JetBrains Mono', monospace; margin: 0;
+      display: flex; flex-direction: column; height: 100vh;
+    }
+    .panel-header {
+      background: #111; color: #00ff41; padding: 6px 12px;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+      display: flex; justify-content: space-between; border-bottom: 1px solid #222;
+    }
+    .panel-body { flex: 1; overflow: auto; padding: 10px; font-size: 13px; }
+    button {
+      background: #1a3a1a; color: #00ff41; border: 1px solid #00ff41;
+      padding: 4px 12px; font-family: inherit; font-size: 11px;
+      cursor: pointer; border-radius: 3px; margin-right: 6px;
+    }
+    button:hover { background: #00ff41; color: #000; }
+    .trace-line { font-family: monospace; white-space: pre-wrap; margin: 2px 0; }
+    .trace-step { color: #00ff41; }
+    .trace-info { color: #888; }
+    .trace-error { color: #ff4444; }
+    .trace-warn  { color: #ffae00; }
+    #debug-vars { color: #ffae00; }
+    #debug-trace { max-height: 300px; overflow-y: auto; background: #111; padding: 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="panel-header">
+    <span>🐞 Debugger</span>
+    <span id="debug-status">paused</span>
+  </div>
+  <div class="panel-body">
+    <div style="margin-bottom:8px;">
+      <strong>Call stack</strong><br>
+      <span id="debug-callstack">—</span>
+    </div>
+    <div style="margin-bottom:8px;">
+      <strong>Variables</strong><br>
+      <span id="debug-vars">—</span>
+    </div>
+    <div style="margin-bottom:8px;">
+      <button onclick="step()">Step Into</button>
+      <button onclick="continueExec()">Continue</button>
+      <button onclick="resetDebugger()">Reset</button>
+    </div>
+    <div id="debug-trace"></div>
+  </div>
+  <script>
+    let stepCount = 0;
+    const trace = document.getElementById('debug-trace');
+    const callstack = document.getElementById('debug-callstack');
+    const vars = document.getElementById('debug-vars');
+    const status = document.getElementById('debug-status');
+
+    // Fonction pour ajouter une ligne de log
+    function addTrace(text, cls = 'trace-step') {
+      const div = document.createElement('div');
+      div.className = 'trace-line ' + cls;
+      div.textContent = text;
+      trace.appendChild(div);
+      trace.scrollTop = trace.scrollHeight;
+    }
+
+    // Boutons mock (le debug interactif n'est pas encore implémenté)
+    function step() {
+      stepCount++;
+      status.textContent = 'stepping';
+      callstack.textContent = 'mock::eval(5) → mock::eval(4)';
+      vars.textContent = `n = ${5 - stepCount}`;
+      addTrace(`[step ${stepCount}] eval(${5 - stepCount + 1})`, 'trace-step');
+    }
+
+    function continueExec() {
+      status.textContent = 'running';
+      callstack.textContent = '—';
+      vars.textContent = '—';
+      stepCount = 0;
+      addTrace('▶ Continue execution...', 'trace-info');
+      setTimeout(() => { status.textContent = 'paused'; }, 500);
+    }
+
+    function resetDebugger() {
+      stepCount = 0;
+      status.textContent = 'paused';
+      callstack.textContent = '—';
+      vars.textContent = '—';
+      trace.innerHTML = '';
+      addTrace('♻ Debugger reset', 'trace-info');
+    }
+
+    // ═══════════════════════════════════════
+    // RÉCEPTION DES LOGS DU WASM
+    // ═══════════════════════════════════════
+    // Les logs sont envoyés par le REPL via postMessage (type: 'log')
+    window.addEventListener('message', (e) => {
+      if (e.data && e.data.type === 'log') {
+        const text = e.data.text || '';
+        let level = 'info';
+        if (text.includes('[ERROR]') || text.includes('error')) {
+          level = 'error';
+        } else if (text.includes('[WARN]') || text.includes('warn')) {
+          level = 'warn';
+        }
+        const cls = 'trace-' + level;
+        addTrace(text, cls);
+      }
+    });
+
+    // Écouter aussi le BroadcastChannel pour les logs provenant d'autres onglets (optionnel)
+    try {
+      const debugChannel = new BroadcastChannel('heaven-debug');
+      debugChannel.onmessage = (event) => {
+        if (event.data && event.data.text) {
+          const cls = 'trace-' + (event.data.level || 'info');
+          addTrace(event.data.text, cls);
+        }
+      };
+    } catch(e) {
+      // BroadcastChannel non supporté
+    }
+
+    // Message initial
+    addTrace('🐞 Debugger connecté aux logs WASM', 'trace-info');
+  </script>
+</body>
+</html>

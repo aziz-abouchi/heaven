@@ -1,0 +1,9 @@
+module Pair
+
+data Pair
+
+pair : a -> b -> Pair
+
+fst (pair x y) = x
+
+snd (pair x y) = y

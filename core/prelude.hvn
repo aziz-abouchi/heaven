@@ -1,0 +1,39 @@
+# Prelude Heaven
+
+import Nat
+import Bool
+import Option
+import Result
+import List
+import Pair
+
+theorem add_comm : a + b = b + a
+theorem mul_comm : a * b = b * a
+theorem add_assoc : (a + b) + c = a + (b + c)
+theorem mul_assoc : (a * b) * c = a * (b * c)
+
+theorem dist_left :
+    a * (b + c)
+    =
+    a * b + a * c
+
+theorem add_zero :
+    a + 0 = a
+
+theorem mul_one :
+    a * 1 = a
+
+theorem zero_mul :
+    0 * a = 0
+
+prove add_comm by simplify
+prove mul_comm by simplify
+prove add_zero by simplify
+prove mul_one by simplify
+prove zero_mul by simplify
+
+theorem append_nil :
+    append xs nil = xs
+
+theorem length_nil :
+    length nil = 0

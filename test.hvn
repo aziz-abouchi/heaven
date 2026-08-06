@@ -1,0 +1,4 @@
+add zero n = n
+
+add (succ n) m =
+    succ (add n m)

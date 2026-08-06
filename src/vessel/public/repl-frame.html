@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Heaven REPL</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+  <link rel="stylesheet" href="common.css">
+  <style>
+    body {
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    #output {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .line {
+      margin: 2px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .line-input  { color: #00ff41; }
+    .line-result { color: #fff; }
+    .line-error  { color: #ff4444; }
+    .line-info   { color: #888; }
+    .line-proof  { color: #44ff44; }
+    .line-latex  { padding: 8px 0; }
+    #input-row {
+      display: flex;
+      background: #111;
+      border-top: 1px solid #333;
+      padding: 10px 15px;
+      align-items: center;
+    }
+    #prompt {
+      color: #00ff41;
+      margin-right: 8px;
+      font-size: 14px;
+    }
+    #input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #00ff41;
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+    }
+    #status {
+      background: #111;
+      padding: 4px 15px;
+      border-top: 1px solid #222;
+      font-size: 11px;
+      color: #555;
+      display: flex;
+      gap: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="output"></div>
+  <div id="input-row">
+    <span id="prompt">heaven&gt;</span>
+    <input id="input" autofocus placeholder="type expression or :help" />
+  </div>
+  <div id="status">
+    <span id="st-engine">engine: loading</span>
+    <span id="st-rules">rules: 0</span>
+    <span id="st-mem">mem: 0KB</span>
+    <span id="st-peers">peers: 0</span>
+  </div>
+
+  <script src="wasm-core.js"></script>
+  <script>
+    const originalLog = console.log;
+    console.log = function(...args) {
+      originalLog(...args);
+      if (window.parent) {
+        window.parent.postMessage({ type: 'log', text: args.join(' ') }, '*');
+      }
+    };
+
+    console.log('repl-frame.html script start');
+
+    console.log('🔄 VERSION 2026-07-17 - INTERCEPTION PROVE ACTIVE');
+    alert('VERSION CORRIGEE CHARGEE'); // temporaire
+
+    let wasm, memory;
+    let history = [];
+    try {
+      const saved = localStorage.getItem('heaven-repl-history');
+      if (saved) history = JSON.parse(saved);
+    } catch(e) {}
+    let histIdx = -1;
+    let messageQueue = [];
+    let messageMetadata = {};
+    let ws = null;
+    let peerList = [];
+    let peerConnections = {};
+
+    function onRTCMessage(peerId, data) {
+      const view = new Uint8Array(data);
+      const peer_id = view.slice(0, 16);
+      const msg_type = view[16];
+      const timestamp = new DataView(view.buffer, view.byteOffset + 17, 8).getBigUint64(0, true);
+      const payload = view.slice(25);
+      messageQueue.push({ id: Date.now(), peer_id, msg_type, timestamp, payload });
+    }
+
+    const swarmChannel = new BroadcastChannel('heaven-swarm');
+    swarmChannel.onmessage = (event) => {
+      const data = event.data;
+      if (!data || !data.type) return;
+      switch (data.type) {
+        case 'eval':
+          console.log('repl-frame received eval via swarm');
+          processInput(data.code);
+          break;
+        case 'egraph_sync':
+        case 'work_steal_request':
+        case 'work_steal_response':
+          break;
+        case 'proof_request':
+          console.log('🔍 Preuve distribuée reçue:', data.payload);
+          const parts = data.payload.split('|');
+          if (parts.length >= 3) {
+            const theorem = parts[1];
+            const method = parts[2];
+            const varName = parts[3] || 'n';
+            const cmd = `prove ${theorem} by ${method}` + (varName !== 'n' ? ` on ${varName}` : '');
+            lastResult = '';
+            processInput(cmd);
+            setTimeout(() => {
+              if (lastResult) {
+                swarmChannel.postMessage({
+                  type: 'proof_result',
+                  theorem: theorem,
+                  result: lastResult,
+                  timestamp: Date.now()
+                });
+                console.log('📤 Résultat de preuve renvoyé:', lastResult);
+              }
+            }, 500);
+          }
+          break;
+        case 'proof_result':
+          console.log('[PROOF DIST] Received proof_result:', data);
+          if (data.result) {
+            addLine(`📩 Preuve reçue — ${data.theorem}: ${data.result}`, 'proof');
+          }
+          break;
+        default: break;
+      }
+    };
+
+    // Websocket / WebRTC (inchangé)
+    function websocketConnectImpl(url) {
+      try {
+        ws = new WebSocket(url);
+        ws.onopen = () => console.log('[WS] Connected');
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'peer_list') {
+              peerList = msg.peers;
+              document.getElementById('st-peers').textContent = `peers: ${peerList.length}`;
+            } else if (msg.type === 'offer' || msg.type === 'answer' || msg.type === 'ice_candidate') {
+              const peerId = msg.peer_id;
+              if (peerConnections[peerId]) {
+                if (msg.type === 'offer') peerConnections[peerId].pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+                else if (msg.type === 'answer') peerConnections[peerId].pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+                else if (msg.type === 'ice_candidate') peerConnections[peerId].pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+              }
+            }
+          } catch (e) { console.error('[WS] Parse error', e); }
+        };
+        ws.onerror = (e) => console.error('[WS] Error', e);
+        ws.onclose = () => console.log('[WS] Disconnected');
+      } catch (e) { console.error('[WS] Connection failed', e); }
+    }
+    function websocketSendImpl(data) {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(data);
+    }
+
+    const rtcConfig = {
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }]
+    };
+    function rtcConnectImpl(peerId) {
+      if (peerConnections[peerId]) return;
+      const pc = new RTCPeerConnection(rtcConfig);
+      const dc = pc.createDataChannel('heaven-swarm', { ordered: false });
+      dc.onopen = () => console.log('[RTC] Data channel open');
+      dc.onmessage = (e) => onRTCMessage(peerId, e.data);
+      pc.ondatachannel = (event) => {
+        const channel = event.channel;
+        channel.onmessage = (e) => onRTCMessage(peerId, e.data);
+      };
+      pc.onicecandidate = (e) => {
+        if (e.candidate && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ice_candidate', peer_id: peerId, candidate: e.candidate }));
+        }
+      };
+      peerConnections[peerId] = { pc, dc };
+    }
+    function rtcSendImpl(peerId, data) {
+      if (peerConnections[peerId] && peerConnections[peerId].dc.readyState === 'open') {
+        peerConnections[peerId].dc.send(data);
+      }
+    }
+
+    function readWasmString(ptr, len) {
+      return new TextDecoder().decode(new Uint8Array(memory.buffer, ptr, len));
+    }
+    const jsImports = {
+      js_console_log: (ptr, len) => addLine(readWasmString(ptr, len), 'info'),
+      js_console_error: (ptr, len) => {
+        const msg = readWasmString(ptr, len);
+        console.error('[WASM ERROR]', msg);
+        addLine(msg, 'error');
+      },
+      js_websocket_connect: (ptr, len) => websocketConnectImpl(readWasmString(ptr, len)),
+      js_websocket_send: (ptr, len) => websocketSendImpl(readWasmString(ptr, len)),
+      js_rtc_connect: (ptr, len) => rtcConnectImpl(readWasmString(ptr, len)),
+      js_rtc_send: (peerIdPtr, peerIdLen, dataPtr, dataLen) => {
+        const peerId = readWasmString(peerIdPtr, peerIdLen);
+        const data = new Uint8Array(memory.buffer.slice(dataPtr, dataPtr + dataLen));
+        rtcSendImpl(peerId, data);
+      },
+      js_drain_message_queue: () => {
+        if (messageQueue.length === 0) return 0;
+        const msg = messageQueue.shift();
+        messageMetadata[msg.id] = msg;
+        return msg.id;
+      },
+      js_get_peer_id: (msgId, outPtr) => {
+        const meta = messageMetadata[msgId];
+        if (meta) new Uint8Array(memory.buffer, outPtr, 16).set(meta.peer_id);
+      },
+      js_get_msg_type: (msgId) => messageMetadata[msgId]?.msg_type || 0,
+      js_get_timestamp: (msgId) => messageMetadata[msgId]?.timestamp || 0,
+      js_performance_now: () => performance.now(),
+      js_get_payload_ptr: (msgId) => {
+        const meta = messageMetadata[msgId];
+        if (!meta) return 0;
+        const ptr = wasm.get_payload_buffer(meta.payload.length);
+        if (ptr) {
+          new Uint8Array(memory.buffer, ptr, meta.payload.length).set(meta.payload);
+          meta._payload_ptr = ptr;
+        }
+        return ptr;
+      },
+      js_get_payload_len: (msgId) => messageMetadata[msgId]?.payload.length || 0,
+      js_free_message: (msgId) => { delete messageMetadata[msgId]; },
+      js_ollama_query: (promptPtr, promptLen, outPtr, outMax) => {
+        const prompt = readWasmString(promptPtr, promptLen);
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', 'http://localhost:11434/api/generate', false);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        try {
+          xhr.send(JSON.stringify({ model: 'gemma:2b', prompt: prompt, stream: false }));
+          if (xhr.status === 200) {
+            const response = JSON.parse(xhr.responseText);
+            const text = response.response || '';
+            const bytes = new TextEncoder().encode(text);
+            const len = Math.min(bytes.length, outMax);
+            new Uint8Array(memory.buffer, outPtr, len).set(bytes.subarray(0, len));
+            return len;
+          }
+        } catch (e) { console.error('Ollama query failed:', e); }
+        return 0;
+      },
+      js_broadcast_proof_request: (ptr, len) => js_broadcast_proof_request(ptr, len),
+      send_proof_response: () => {},
+    };
+
+    async function loadWasm() {
+      try {
+        console.log('loadWasm called');
+        const resp = await fetch('heaven.wasm?t=' + Date.now());
+        const bytes = await resp.arrayBuffer();
+        const result = await WebAssembly.instantiate(bytes, { env: jsImports });
+        wasm = result.instance.exports;
+        console.log('WASM exports:', Object.keys(wasm).filter(k => k.includes('proof')));
+        window.heavenEngine = wasm;
+        memory = wasm.memory;
+        wasm.init();
+
+        const cmdLen = wasm.getWasmCommands();
+        const cmdPtr = wasm.getOutputPtr();
+        const cmds = new TextDecoder().decode(new Uint8Array(memory.buffer, cmdPtr, cmdLen));
+        const availableCommands = cmds.trim().split(' ');
+        document.getElementById('input').placeholder = `type expression or :${availableCommands.join(', ')}`;
+
+        document.getElementById('st-engine').textContent = 'engine: active';
+        document.getElementById('st-engine').style.color = '#00ff41';
+        addLine(`Heaven WASM REPL — ${(bytes.byteLength/1024).toFixed(0)} KB`, 'info');
+        addLine(`Commandes : ${availableCommands.join(' ')}`, 'info');
+
+        function tickLoop(ts) {
+          if (wasm) wasm.tick_swarm();
+          requestAnimationFrame(tickLoop);
+        }
+        requestAnimationFrame(tickLoop);
+        if (wasm.init_swarm) wasm.init_swarm();
+      } catch (e) {
+        document.getElementById('st-engine').textContent = 'engine: ERROR';
+        addLine('✗ Failed to load WASM: ' + e.message, 'error');
+      }
+    }
+    loadWasm();
+
+    function addLine(text, cls) {
+      const el = document.createElement('div');
+      el.className = 'line line-' + (cls || 'result');
+      el.textContent = text;
+      document.getElementById('output').appendChild(el);
+      el.scrollIntoView();
+    }
+
+    let lastResult = '';
+
+    // ═══════════════════════════════════════════
+    // TRAITEMENT DES ENTRÉES (VERSION AVEC ENVOI IMMÉDIAT)
+    // ═══════════════════════════════════════════
+    async function processInput(line) {
+      console.log('[processInput] line =', line);
+      if (!line.trim()) return;
+
+      // --- INTERCEPTION DES COMMANDES "prove" pour distribution (ENVOI IMMÉDIAT) ---
+      const proveMatch = line.match(/^prove\s+(\w+)\s+by\s+(\w+)(?:\s+on\s+(\w+))?/);
+      if (proveMatch) {
+        console.log('[PROCESS] Interception prove:', proveMatch);
+        const [, theorem, method, varName = 'n'] = proveMatch;
+        const payload = `${theorem}|${method}|${varName}`;
+        // Envoyer immédiatement la requête distribuée
+        swarmChannel.postMessage({
+          type: 'proof_request',
+          payload: payload
+        });
+        console.log('📤 Preuve distribuée demandée (processInput directe):', payload);
+      }
+      // -----------------------------------------------------------
+
+      history.unshift(line);
+      try {
+        localStorage.setItem('heaven-repl-history', JSON.stringify(history.slice(0, 200)));
+      } catch(e) {}
+      histIdx = -1;
+      addLine('heaven> ' + line, 'input');
+
+      if (!wasm) {
+        addLine('✗ WASM not loaded', 'error');
+        return;
+      }
+      try {
+        const encoder = new TextEncoder();
+        const bytes = encoder.encode(line);
+        const ptr = wasm.getInputPtr();
+        new Uint8Array(memory.buffer).set(bytes, ptr);
+        const outLen = wasm.dispatch(bytes.length, 0);
+        if (outLen > 0) {
+          const outPtr = wasm.getOutputPtr();
+          const raw = new TextDecoder().decode(new Uint8Array(memory.buffer, outPtr, outLen));
+          const [type, ...content] = raw.includes('|') ? raw.split('|') : ['info', raw];
+          const text = content.join('|');
+          const clsMap = {
+            'error': 'error', 'proof': 'proof', 'latex': 'latex', 'info': 'info'
+          };
+          addLine(' → ' + text, clsMap[type] || 'result');
+        }
+      } catch (err) {
+        addLine('✗ ' + err.message, 'error');
+      }
+    }
+
+    const originalAddLine = addLine;
+    addLine = function(text, cls) {
+      originalAddLine(text, cls);
+      if (cls === 'result' || cls === 'proof' || cls === 'error') {
+        lastResult = text;
+        console.log('[lastResult] captured:', text);
+      }
+    };
+
+    const inputEl = document.getElementById('input');
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        processInput(inputEl.value);
+        inputEl.value = '';
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        if (!wasm) return;
+        const val = inputEl.value;
+        const encoder = new TextEncoder();
+        const prefixBytes = encoder.encode(val);
+        const inputPtr = wasm.getInputPtr();
+        for (let i = 0; i < prefixBytes.length; i++) inputPtr[i] = prefixBytes[i];
+        const outLen = wasm.getCompletions(prefixBytes.length);
+        if (outLen > 0) {
+          const outPtr = wasm.getOutputPtr();
+          const candidates = new TextDecoder().decode(new Uint8Array(memory.buffer, outPtr, outLen));
+          inputEl.value = candidates.split(' ')[0];
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (histIdx < history.length - 1) { histIdx++; inputEl.value = history[histIdx]; }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (histIdx > 0) { histIdx--; inputEl.value = history[histIdx]; }
+        else { histIdx = -1; inputEl.value = ''; }
+      }
+    });
+
+    window.addEventListener('message', (e) => {
+      console.log('repl-frame received message', JSON.stringify(e.data));
+      if (e.data && e.data.type === 'eval') {
+        processInput(e.data.code);
+      }
+    });
+
+    function js_broadcast_proof_request(ptr, len) {
+      console.log('[JS] js_broadcast_proof_request called with ptr=' + ptr + ', len=' + len);
+      if (!memory || !ptr || len === 0) {
+        console.error('[JS] Invalid arguments for js_broadcast_proof_request');
+        return;
+      }
+      const text = readWasmString(ptr, len);
+      swarmChannel.postMessage({ type: 'proof_request', payload: text });
+      console.log('📤 Preuve distribuée demandée (depuis WASM):', text);
+    }
+
+    if (window.parent) {
+      window.parent.postMessage({ type: 'repl-ready' }, '*');
+    }
+
+    setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'announce', capabilities: 'prover' }));
+      }
+    }, 30000);
+
+    function checkProofRequest() {
+      if (!wasm || !wasm.get_pending_proof_request_ptr) return;
+      const ptr = wasm.get_pending_proof_request_ptr();
+      const len = wasm.get_pending_proof_request_len();
+      if (ptr && len > 0) {
+        const msg = new TextDecoder().decode(new Uint8Array(memory.buffer, ptr, len));
+        console.log('[PROOF DIST] checkProofRequest: ptr=' + ptr + ', len=' + len);
+        console.log('[PROOF DIST] msg=' + msg);
+        swarmChannel.postMessage({ type: 'proof_request', payload: msg });
+        console.log('📤 Preuve distribuée (check):', msg);
+        wasm.clear_pending_proof_request();
+      }
+    }
+    setInterval(checkProofRequest, 500);
+  </script>
+</body>
+</html>

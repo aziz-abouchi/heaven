@@ -1,0 +1,9 @@
+fn add(a: i64, b: i64) -> i64 { return a + b; }
+
+fn factorial(n: i64) -> i64 { if n <= 1 { return 1; } return n * factorial(n - 1); }
+
+struct Point { x: f64, y: f64, }
+
+enum Color { Red(i64), Green(i64), Blue(i64), }
+
+fn main() { let x = 42; let y = add(x, 8); let f = factorial(10); print(y); print(f); for i in 0..10 { print(i); } let max = if x > y then x else y; print(max); }

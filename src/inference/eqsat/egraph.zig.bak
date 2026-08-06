@@ -1,0 +1,60 @@
+const std = @import("std");
+
+pub const NodeId = u32;
+
+pub const EClass = struct {
+    id: NodeId,
+    parents: std.ArrayList(NodeId),
+};
+
+pub const ENode = struct {
+    op: []const u8,
+    children: []NodeId,
+};
+
+pub const EGraph = struct {
+    allocator: std.mem.Allocator,
+    next_id: NodeId,
+    classes: std.AutoHashMap(NodeId, EClass),
+    nodes: std.AutoHashMap(NodeId, ENode),
+
+    pub fn init(allocator: std.mem.Allocator) EGraph {
+        return .{
+            .allocator = allocator,
+            .next_id = 1,
+            .classes = std.AutoHashMap(NodeId, EClass).init(allocator),
+            .nodes = std.AutoHashMap(NodeId, ENode).init(allocator),
+        };
+    }
+
+    pub fn add(self: *EGraph, op: []const u8, children: []NodeId) !NodeId {
+        const id = self.next_id;
+        self.next_id += 1;
+
+        try self.nodes.put(id, .{
+            .op = op,
+            .children = try self.allocator.dupe(NodeId, children),
+        });
+
+        try self.classes.put(id, .{
+            .id = id,
+            .parents = std.ArrayList(NodeId).init(self.allocator),
+        });
+
+        return id;
+    }
+
+    pub fn merge(self: *EGraph, a: NodeId, b: NodeId) !void {
+        if (a == b) return;
+
+        var class_a = self.classes.getPtr(a).?;
+        const class_b = self.classes.getPtr(b).?;
+
+        for (class_b.parents.items) |p| {
+            try class_a.parents.append(p);
+        }
+
+        try class_a.parents.append(b);
+        _ = self.classes.remove(b);
+    }
+};

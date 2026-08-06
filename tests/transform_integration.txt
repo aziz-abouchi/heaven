@@ -1,0 +1,46 @@
+TESTS D'INTÉGRATION TRANSFORM
+==============================
+
+Test 1 : Transformation arithmétique simple
+--------------------------------------------
+Input :
+  theorem add_zero : a + 0 = a
+  transform x + 0 = x
+
+Expected :
+  Success:
+    Result: Refl
+    Certificate: 3 steps
+
+Test 2 : Échec explicite
+-------------------------
+Input :
+  transform x + 0 = y
+
+Expected :
+  Failure: StepFailed
+
+Test 3 : Littéraux numériques
+------------------------------
+Input :
+  transform 2 + 3 = 5
+
+Expected :
+  Success ou Failure selon implémentation évaluation
+
+Test 4 : Pas de dispatch
+-------------------------
+Input :
+  transform f(x) = g(y)
+
+Expected :
+  Failure: NoDispatch
+
+Test 5 : Multiple steps
+------------------------
+Input :
+  theorem add_comm : a + b = b + a
+  transform x + y = y + x
+
+Expected :
+  Success avec certificat montrant l'utilisation de add_comm

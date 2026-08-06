@@ -1,0 +1,14 @@
+-- Logic Heaven v0.1 — Théorèmes de base dérivés du kernel
+import "core/kernel.hvn"
+
+-- add_comm : n + m = m + n
+theorem add_comm : forall (n m : Nat). Eq<Add<n,m>, Add<m,n>>
+
+-- add_assoc : (n + m) + k = n + (m + k)
+theorem add_assoc : forall (n m k : Nat). Eq<Add<Add<n,m>,k>, Add<n,Add<m,k>>>
+
+-- mul_comm : n * m = m * n
+theorem mul_comm : forall (n m : Nat). Eq<Mul<n,m>, Mul<m,n>>
+
+-- zero_add : 0 + n = n (dual de add_zero)
+theorem zero_add : forall (n : Nat). Eq<Add<Zero,n>, n>

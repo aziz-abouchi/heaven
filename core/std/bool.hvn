@@ -1,0 +1,15 @@
+module Bool
+
+data Bool
+
+true : Bool
+false : Bool
+
+not true = false
+not false = true
+
+and true x = x
+and false _ = false
+
+or true _ = true
+or false x = x

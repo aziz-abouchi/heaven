@@ -1,0 +1,7 @@
+module Proofs
+
+theorem sum_zero :
+    ∀ n. add n zero = n
+
+proof sum_zero =
+    induction n

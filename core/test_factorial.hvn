@@ -1,0 +1,2 @@
+let fact(n) = Π(k, 1, n, k)
+mir (Π k 1 5 k)

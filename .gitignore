@@ -1,0 +1,45 @@
+# Zig build artifacts
+zig-cache/
+zig-out/
+build-*/
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+
+# Heaven runtime artifacts
+*.hvnbc
+*.hvnc
+core/test_suite.log
+core/crash_reports/
+core/profiles/
+
+# Editor & OS
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.iml
+
+# Tree-sitter generated (si tu génères des parsers localement)
+src/core/tree_sitter/*.c
+src/core/tree_sitter/*.h
+!src/core/tree_sitter/.gitkeep
+
+# WASM artifacts (si tu les build localement en dehors de zig-out)
+*.wasm
+*.wat
+wasm_dist/
+
+# Secrets / local config
+.env
+.env.local
+config.local.json
+
+# Dependencies (managed externally or as git submodules)
+vendor/

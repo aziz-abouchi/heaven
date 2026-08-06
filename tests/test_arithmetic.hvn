@@ -1,0 +1,16 @@
+# Fonctions arithmétiques
+
+# Soustraction
+sub n zero = n
+sub (succ n) (succ m) = sub n m
+
+# Division entière
+div zero (succ m) = zero
+div (succ n) (succ m) = succ (div (sub n m) (succ m))
+
+# Tests
+sub (succ (succ (succ zero))) (succ zero)
+sub (succ (succ (succ (succ (succ zero))))) (succ (succ zero))
+
+div (succ (succ (succ (succ (succ (succ zero)))))) (succ (succ zero))
+div (succ (succ (succ (succ zero)))) (succ zero)

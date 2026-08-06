@@ -1,0 +1,23 @@
+tag : ℤ → ℤ tag x ≔ x - ((x / 8) * 8)
+
+payload : ℤ → ℤ payload x ≔ x / 8
+
+left_of_raw : ℤ → ℤ left_of_raw p ≔ p / 1024
+
+right_of_raw : ℤ → ℤ right_of_raw p ≔ p - ((p / 1024) * 1024)
+
+mkInt : ℤ → ℤ mkInt n ≔ n * 8
+
+mkVar : ℤ → ℤ mkVar x ≔ x * 8 + 1
+
+mkAdd : ℤ → ℤ → ℤ mkAdd l r ≔ (l * 1024 + r) * 8 + 2
+
+mkMul : ℤ → ℤ → ℤ mkMul l r ≔ (l * 1024 + r) * 8 + 3
+
+mkSub : ℤ → ℤ → ℤ mkSub l r ≔ (l * 1024 + r) * 8 + 6
+
+getenv : ℤ → ℤ → ℤ getenv 0 e0 ≔ e0 getenv n e0 ≔ 0
+
+eval0 : ℤ → ℤ → ℤ eval0 expr env ≔ ev(tag(expr), payload(expr), env)
+
+ev : ℤ → ℤ → ℤ → ℤ ev 0 p env ≔ p ev 1 p env ≔ getenv(p, env) ev 2 p env ≔ eval0(left_of_raw(p) * 8, env) + eval0(right_of_raw(p) * 8, env) ev 3 p env ≔ eval0(left_of_raw(p) * 8, env) * eval0(right_of_raw(p) * 8, env) ev 6 p env ≔ eval0(left_of_raw(p) * 8, env) - eval0(right_of_raw(p) * 8, env) ev t p env ≔ 0

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Heaven Swarm Dashboard</title>
+  <style>
+    body { background: #0a0a0a; color: #00ff41; font-family: monospace; padding: 20px; margin: 0; }
+    h1 { color: #00ff41; font-size: 20px; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+    .metric { background: #111; padding: 15px; border: 1px solid #333; border-radius: 4px; }
+    .metric h3 { margin: 0 0 10px 0; color: #00ff41; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+    .metric .value { font-size: 32px; font-weight: bold; color: #fff; }
+    .metric .sub { font-size: 11px; color: #666; margin-top: 4px; }
+    canvas { background: #001100; border: 1px solid #00ff41; border-radius: 4px; display: block; margin-top: 10px; }
+    .chart-container { background: #111; padding: 15px; border: 1px solid #333; border-radius: 4px; }
+    .chart-container h3 { margin: 0 0 10px 0; color: #00ff41; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+    .nav { margin-top: 20px; border-top: 1px solid #333; padding-top: 15px; display: flex; gap: 20px; }
+    .nav a { color: #00ff41; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; font-size: 12px; }
+    .nav a:hover { color: #fff; }
+    #status { color: #666; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <h1>🌌 HEAVEN SWARM DASHBOARD</h1>
+  <div id="status">Connecting...</div>
+  
+  <div class="grid">
+    <div class="metric">
+      <h3>EGraph Classes</h3>
+      <div class="value" id="egraph-classes">0</div>
+      <div class="sub">Unique equivalence classes</div>
+    </div>
+    <div class="metric">
+      <h3>Store Nodes</h3>
+      <div class="value" id="store-nodes">0</div>
+      <div class="sub">Total AST nodes</div>
+    </div>
+    <div class="metric">
+      <h3>Messages Processed</h3>
+      <div class="value" id="messages-count">0</div>
+      <div class="sub">Since startup</div>
+    </div>
+  </div>
+  
+  <div class="chart-container">
+    <h3>Messages par Type</h3>
+    <canvas id="chart" width="900" height="300"></canvas>
+  </div>
+  
+  <div class="nav">
+      <a href="/">VISION</a>
+      <a href="/repl">REPL</a>
+      <a href="/dashboard" style="color: #fff; font-weight: bold;">DASHBOARD</a>
+      <a href="/ide">IDE</a>
+      <a href="/docs">DOCS</a>
+      <a href="/telemetry">API JSON</a>
+  </div>
+  
+  <script>
+    const metrics = {
+      egraph_classes: 0,
+      store_nodes: 0,
+      messages_count: 0,
+      messages_by_type: {
+        egraph_sync: 0,
+        work_steal_request: 0,
+        work_steal_response: 0,
+        proof_request: 0,
+        proof_result: 0
+      }
+    };
+    
+    // Écouter les métriques depuis les REPLs WASM
+    const metricsChannel = new BroadcastChannel('heaven-metrics');
+    metricsChannel.onmessage = (event) => {
+      if (event.data && typeof event.data === 'object') {
+        Object.assign(metrics, event.data);
+        updateDisplay();
+      }
+    };
+    
+    function updateDisplay() {
+      document.getElementById('status').textContent = 'Connected • Last update: ' + new Date().toLocaleTimeString();
+      document.getElementById('status').style.color = '#00ff41';
+      
+      document.getElementById('egraph-classes').textContent = metrics.egraph_classes;
+      document.getElementById('store-nodes').textContent = metrics.store_nodes;
+      document.getElementById('messages-count').textContent = metrics.messages_count;
+      
+      drawChart();
+    }
+    
+    function drawChart() {
+      const canvas = document.getElementById('chart');
+      const ctx = canvas.getContext('2d');
+      
+      ctx.fillStyle = '#001100';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      const types = Object.keys(metrics.messages_by_type);
+      const values = types.map(t => metrics.messages_by_type[t]);
+      const max = Math.max(...values, 1);
+      
+      const barWidth = canvas.width / types.length;
+      const chartHeight = canvas.height - 50;
+      
+      types.forEach((type, i) => {
+        const value = values[i];
+        const barHeight = (value / max) * chartHeight;
+        
+        // Bar
+        ctx.fillStyle = '#00ff41';
+        ctx.fillRect(i * barWidth + 20, canvas.height - barHeight - 30, barWidth - 40, barHeight);
+        
+        // Value on top
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(value.toString(), i * barWidth + barWidth / 2, canvas.height - barHeight - 35);
+        
+        // Label
+        ctx.fillStyle = '#00ff41';
+        ctx.font = '10px monospace';
+        ctx.fillText(type.replace('_', ' '), i * barWidth + barWidth / 2, canvas.height - 10);
+      });
+    }
+    
+    // Initial draw
+    updateDisplay();
+    
+    // Fallback : si pas de BroadcastChannel, afficher un message
+    setTimeout(() => {
+      if (metrics.messages_count === 0) {
+        document.getElementById('status').textContent = 'Waiting for REPL instances... Open /repl in another tab';
+        document.getElementById('status').style.color = '#ffae00';
+      }
+    }, 2000);
+  </script>
+</body>
+</html>

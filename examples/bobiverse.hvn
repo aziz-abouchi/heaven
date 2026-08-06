@@ -1,0 +1,44 @@
+module Bobiverse
+
+type Personality =
+    Scientist
+  | Architect
+  | Diplomat
+  | Defender
+
+type ShipClass =
+    Explorer
+  | Builder
+  | Dreadnought
+
+struct Vessel {
+  id : Nat
+  name : String
+  class : ShipClass
+  drift : Personality
+}
+
+fn describe(v : Vessel) -> String =
+  match v.drift with
+    Scientist => "curiosity"
+    Architect => "construction"
+    Diplomat => "cooperation"
+    Defender => "security"
+
+fn replicate(v : Vessel) -> Vessel =
+  Vessel {
+    id = v.id + 1
+    name = v.name,
+    class = v.class,
+    drift = Architect
+  }
+
+let bob0 =
+  Vessel {
+    id = 0,
+    name = "The Dude Abides",
+    class = Explorer,
+    drift = Scientist
+  }
+
+let bob1 = replicate(bob0)

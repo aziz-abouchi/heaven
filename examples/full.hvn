@@ -1,0 +1,28 @@
+struct Vec2 { x: f64, y: f64, }
+
+enum Direction { North(i64), South(i64), East(i64), West(i64), }
+
+fn add(a: i64, b: i64) -> i64 { return a + b; }
+
+fn max(a: i64, b: i64) -> i64 { return if a > b then a else b; }
+
+fn my_abs(x: i64) -> i64 { if x < 0 { return 0 - x; } return x; }
+
+fn fib(n: i64) -> i64 { if n <= 1 { return n; } return fib(n - 1) + fib(n - 2); }
+
+fn classify(x: i64) -> i64 { match x { 0 => { return 0; }, 1 => { return 1; }, _ => { return 2; }, } }
+
+fn main() { let a = 10; let b = 20; let sum = add(a, b); let m = max(a, b); let d = my_abs(0 - 42); let f = fib(10); let c = classify(5);
+
+print(sum);
+print(m);
+print(d);
+print(f);
+print(c);
+
+for i in 0..5 {
+    print(fib(i));
+}
+
+print("Hello Heaven!");
+}

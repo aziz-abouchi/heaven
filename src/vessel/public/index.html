@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+    <head> <meta charset="utf-8">
+        <title>HEAVEN — VISION</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+        body { background: #000; color: #00ff41; font-family: 'Courier New', monospace; margin: 0; overflow: hidden; }
+        #canvas { width: 100vw; height: 100vh; display: block; }
+        .node-dot { stroke: #fff; stroke-width: 1.5px; cursor: grab; }
+        .node-dot:hover { stroke: #00ff41; stroke-width: 3px; filter: drop-shadow(0 0 8px #0f0); }
+        .link { stroke: #333; stroke-opacity: 0.6; stroke-width: 1.5px; }
+        .link-p2p { stroke: #00ccff; stroke-opacity: 0.8; stroke-width: 2.5px; }
+        .label { fill: #00ff41; font-size: 10px; pointer-events: none; text-shadow: 1px 1px 2px #000; }
+        #overlay { position: absolute; top: 15px; left: 15px; background: rgba(0,15,0,0.9); border: 1px solid #00ff41; padding: 15px; z-index: 100; font-size: 12px; min-width: 260px; border-radius: 4px; }
+        .stat-row { margin: 8px 0; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-value { float: right; color: #fff; }
+        .bar-bg { width: 100%; height: 6px; background: #002200; border: 1px solid #004400; margin-top: 4px; clear: both; }
+        .bar-fill { height: 100%; transition: width 0.4s ease; }
+        #detail { position: absolute; bottom: 15px; right: 15px; background: rgba(0,15,0,0.9); border: 1px solid #00ff41; padding: 15px; z-index: 100; font-size: 11px; min-width: 200px; border-radius: 4px; display: none; }
+        .nav-links { margin-top: 15px; border-top: 1px dotted #004400; padding-top: 10px; }
+        .nav-links a { color: #00ff41; text-decoration: none; margin-right: 15px; }
+        .nav-links a:hover { text-decoration: underline; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 10px; color: #888; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 10px; }
+        </style>
+    </head>
+    <body>
+        <div id="overlay">
+            <strong style="color: #fff; font-size: 16px;">HEAVEN // VISION</strong>
+            <div style="color: #006622; font-size: 9px; margin-bottom: 10px;" id="status-line">CORE STATUS: CONNECTING...</div>
+    <div class="stat-row">Nodes: <span class="stat-value" id="val-nodes">0</span></div>
+    <div class="stat-row">Symbols: <span class="stat-value" id="val-syms">0</span></div>
+    <div class="stat-row">Links: <span class="stat-value" id="val-links">0</span></div>
+
+    <div class="stat-row">Matrix Load <span class="stat-value" id="val-load">0%</span>
+        <div class="bar-bg"><div id="bar-load" class="bar-fill" style="background: #00ff41;"></div></div>
+    </div>
+
+    <div class="stat-row">Memory <span class="stat-value" id="val-mem">0 KB</span>
+        <div class="bar-bg"><div id="bar-mem" class="bar-fill" style="background: #00ccff;"></div></div>
+    </div>
+
+    <div class="legend" style="margin-top: 15px; border-top: 1px dotted #004400; padding-top: 10px;">
+        <div class="legend-item"><div class="dot" style="background:#00ff41;"></div> FACT (stable)</div>
+        <div class="legend-item"><div class="dot" style="background:#ffae00;"></div> RULE (active)</div>
+        <div class="legend-item"><div class="dot" style="background:#ff00ff;"></div> NATIVE</div>
+        <div class="legend-item"><div class="dot" style="background:#00ccff;"></div> SYMBOL</div>
+    </div>
+
+    <div class="nav-links">
+        <a href="/">VISION</a>
+        <a href="/repl">REPL</a>
+        <a href="/dashboard">DASHBOARD</a>
+        <a href="/ide">IDE</a>
+        <a href="/docs">DOCS</a>
+        <a href="/telemetry">API</a>
+    </div>
+</div>
+
+<div id="detail">
+    <strong style="color:#fff;" id="detail-title">Node</strong>
+    <div id="detail-body" style="margin-top:8px;"></div>
+</div>
+
+<svg id="canvas"></svg>
+
+<script>
+    const svg = d3.select("#canvas");
+    const g = svg.append("g");
+
+    svg.call(d3.zoom()
+        .scaleExtent([0.1, 8])
+        .on("zoom", (event) => g.attr("transform", event.transform)));
+
+    let width = window.innerWidth, height = window.innerHeight;
+
+    const simulation = d3.forceSimulation()
+        .force("link", d3.forceLink().id(d => d.id).distance(80))
+        .force("charge", d3.forceManyBody().strength(-200))
+        .force("x", d3.forceX(width / 2).strength(0.15))
+        .force("y", d3.forceY(height / 2).strength(0.15))
+        .force("collision", d3.forceCollide().radius(25));
+
+    let nodes = [], links = [];
+
+    function getColor(d) {
+        if (d.tag === "Bob") return "#00ffcc";      // Cyan Bobiverse
+        if (d.tag === "SwarmTask") return "#ff0055";  // Rose Swarm actif
+        if (d.tag === "Symbol") return "#aaccff";     // Bleu stable
+        if (d.tag === 'SwarmResult') return '#00ff41';
+        if (d.tag === 'Swarm') return '#ff8800';
+        if (d.label && d.label.includes('RULE')) return '#ffae00';
+        if (d.label && d.label.includes('FACT')) return '#00ff41';
+        if (d.tag === 'NativeCode') return '#ff00ff';
+        return "#999999";
+    }
+
+    function getRadius(d) {
+        if (d.tag === 'SwarmResult') return 10;
+        if (d.tag === 'Swarm') return 8;
+        if (d.tag === 'Bob') return 15;
+        if (d.label && d.label.includes('RULE')) return 14;
+        return 10;
+    }
+
+    async function update() {
+        try {
+            const res = await fetch('/telemetry');
+            const data = await res.json();
+
+            document.getElementById('status-line').textContent = 'CORE STATUS: ACTIVE';
+            document.getElementById('status-line').style.color = '#00ff41';
+
+            if (data.stats) {
+                const nc = data.stats.node_count || 0;
+                const sc = data.stats.symbol_count || 0;
+                const mem = data.stats.approx_bytes || 0;
+                const load = data.stats.hash_map_load || 0;
+                document.getElementById("val-nodes").innerText = nc;
+                document.getElementById("val-syms").innerText = sc;
+                document.getElementById("val-links").innerText = data.links ? data.links.length : 0;
+                document.getElementById("val-load").innerText = Math.round(load * 100) + "%";
+                document.getElementById("val-mem").innerText = (mem / 1024).toFixed(1) + " KB";
+                document.getElementById("bar-load").style.width = (load * 100) + "%";
+                document.getElementById("bar-mem").style.width = Math.min((mem / 50000) * 100, 100) + "%";
+            }
+
+            const nodeMap = new Map(nodes.map(n => [n.id, n]));
+            nodes = data.nodes.map(d => {
+                const old = nodeMap.get(d.id);
+                return old ? Object.assign(old, d) : d;
+            });
+
+            links = (data.links || []).map(l => ({
+                source: nodes.find(n => n.id === l.source),
+                target: nodes.find(n => n.id === l.target),
+                label: l.label
+            })).filter(l => l.source && l.target);
+
+            // Links
+            const lSel = g.selectAll(".link").data(links, d => d.source.id + "-" + d.target.id);
+            lSel.exit().remove();
+            lSel.enter().append("line").attr("class", "link");
+
+            // Nodes
+            const nSel = g.selectAll(".node-dot").data(nodes, d => d.id);
+            nSel.exit().remove();
+            const nEnter = nSel.enter().append("circle")
+                .attr("class", "node-dot")
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended))
+                .on("click", (event, d) => {
+                    document.getElementById('detail').style.display = 'block';
+                    document.getElementById('detail-title').textContent = d.label || 'Node ' + d.id;
+                    document.getElementById('detail-body').innerHTML =
+                        'ID: ' + d.id + '<br>Tag: ' + d.tag + '<br>Status: ' + d.status;
+                });
+
+            nSel.merge(nEnter)
+                .attr("r", d => getRadius(d))
+                .style("fill", d => getColor(d));
+
+            // Labels
+            const tSel = g.selectAll(".label").data(nodes, d => d.id);
+            tSel.exit().remove();
+            tSel.enter().append("text")
+                .attr("class", "label")
+                .attr("dy", -18).attr("text-anchor", "middle")
+                .merge(tSel)
+                .text(d => {
+                    const l = d.label || '';
+                    return l.length > 30 ? l.substring(0, 30) + '...' : l;
+                });
+
+            simulation.nodes(nodes);
+            simulation.force("link").links(links);
+            simulation.alphaTarget(0.01).restart();
+
+        } catch (e) {
+            document.getElementById('status-line').textContent = 'CORE STATUS: OFFLINE';
+            document.getElementById('status-line').style.color = '#ff4444';
+        }
+    }
+
+    simulation.on("tick", () => {
+        g.selectAll(".link")
+            .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+        g.selectAll(".node-dot")
+            .attr("cx", d => d.x).attr("cy", d => d.y);
+        g.selectAll(".label")
+            .attr("x", d => d.x).attr("y", d => d.y);
+    });
+
+    setInterval(update, 1500);
+    update();
+
+    function dragstarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+    }
+    function dragged(event) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+    }
+    function dragended(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+    }
+</script>
+</body> </html>

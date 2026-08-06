@@ -1,0 +1,6 @@
+// Un fait (minuscule = constante)
+fact ping().
+
+// Une règle (Majuscule = variable)
+// "Si ping() est vrai, alors pong() est vrai"
+rule pong() :- ping().

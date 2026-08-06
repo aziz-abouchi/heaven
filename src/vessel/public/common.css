@@ -1,0 +1,92 @@
+/* common.css – Base partagée pour l'IDE Heaven */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #0a0a0a;
+  color: #e0e0e0;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+/* Barres de navigation et statut */
+#top-bar, #status-bar {
+  background: #0f0f0f;
+  padding: 6px 16px;
+  border-bottom: 1px solid #1f1f1f;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 11px;
+  color: #aaa;
+}
+
+#top-bar h1 { color: #00ff41; font-size: 15px; font-weight: 700; }
+
+#top-bar .nav a {
+  color: #666; text-decoration: none; text-transform: uppercase;
+  letter-spacing: 1px; font-size: 10px;
+}
+#top-bar .nav a:hover, #top-bar .nav a.active { color: #00ff41; }
+
+#status-bar { border-top: 1px solid #1f1f1f; }
+
+/* Panneaux */
+.panel {
+  background: #0c0c0c;
+  border: 1px solid #1a1a1a;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  background: #111;
+  padding: 5px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #00ff41;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1px solid #1a1a1a;
+  display: flex;
+  justify-content: space-between;
+}
+
+.panel-body {
+  flex: 1;
+  overflow: auto;
+  padding: 10px;
+}
+
+/* Boutons */
+button {
+  background: #1a2a1a;
+  color: #00ff41;
+  border: 1px solid #00ff41;
+  padding: 4px 12px;
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+button:hover { background: #00ff41; color: #000; }
+
+/* Liens */
+a { color: #00ff41; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Scrollbar uniforme */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #0a0a0a; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #555; }

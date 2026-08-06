@@ -1,0 +1,142 @@
+ARCHITECTURE HEAVEN
+===================
+
+COUCHES
+-------
+
+1. Noyau (expr.zig)
+   - Store : conteneur d'expressions
+   - Id : index dans le store
+   - Node : nœud d'expression (tag, payload, spans)
+   - Primitives : sym(), int(), apply(), bind()
+
+2. Moteur (engine_expr.zig)
+   - Engine : évaluateur
+   - Env : environnement (bindings)
+   - eval() : évaluation récursive
+   - evalFunction() : appel de fonctions avec pattern matching
+
+3. Surface (heaven_expr.zig)
+   - HeavenExpr : REPL
+   - Parsing texte → Store
+   - Commandes utilisateur
+   - Intégration des moteurs externes
+
+FLUX D'EXECUTION
+----------------
+
+Utilisateur tape : "factorial (succ (succ zero))"
+  ↓
+heaven_expr.zig : parse → "factorial", "succ(succ(zero))"
+  ↓
+engine_expr.zig : evalFunction("factorial", [arg])
+  - Pattern matching : (succ n) matche
+  - Binding : n = succ(zero)
+  - Substitution dans le corps
+  - Évaluation récursive
+  ↓
+expr.zig : Store manipulé (création de nœuds .apply)
+  ↓
+engine_expr.zig : evalPeano() : succ(succ(zero)) → 2
+  ↓
+heaven_expr.zig : toString() → "2"
+
+TRANSFORM
+---------
+
+transform source = target
+  ↓
+buildPlan() : détecte le type de but
+  - isArithmeticGoal() : contient des opérateurs arithmétiques ?
+  - isOntologyGoal() : concepts ontologiques ?
+  - isRelationalGoal() : relations logiques ?
+  ↓
+executeStep() : exécute chaque étape
+  - WASM : mode simulé (no-op)
+  - Natif : vraie exécution
+    - saturateEGraph() : saturation avec règles
+    - normalize() : canon AC
+    - checkRefl() : vérification réflexivité
+  ↓
+extractProof() : construit la preuve
+  ↓
+format() : affiche résultat + certificat
+
+MODULES
+-------
+
+src/core/
+  expr.zig           : noyau (store, id, node)
+  engine_expr.zig    : moteur (évaluation)
+  heaven_expr.zig    : surface (REPL)
+  transform.zig      : interface de transformation
+  pattern.zig        : pattern matching
+  canon.zig          : canon AC
+  proof.zig          : preuves
+
+src/inference/
+  eqsat/egraph.zig   : E-graph complet
+
+src/codegen/
+  expr_c.zig         : codegen C
+  expr_latex.zig     : codegen LaTeX
+
+src/platform/
+  native.zig         : plateforme native
+  wasm.zig           : plateforme WASM
+
+PARITÉ NATIF / WASM
+===================
+
+Natif :
+  input → tree-sitter → Matrix → Bridge → AST → eval
+
+WASM :
+  input → ShellParser.parse (NotSupported)
+        → parseApplication (fallback)
+        → bridge.importExpr (fallback final)
+        → AST → eval
+
+Séparation platform :
+  src/platform/native.zig           : tree-sitter + libc + WebRTC + fs réel
+  src/platform/wasm.zig             : stubs + imports JS + fallbacks
+  src/platform/shell_parser_types.zig : types partagés + fabrique TreeSitterParser
+
+Règles d'or :
+  - JAMAIS de "if (builtin.cpu_arch == .wasm32)" dans src/core/
+  - Toute logique spécifique plateforme dans src/platform/
+  - Utiliser platform.debug.print / platform.fs / platform.io
+  - En WASM, std.debug.print est INTERDIT (casse le build freestanding)
+
+SUPPORT MULTI-LANGAGE
+=====================
+
+Le MultiParser supporte 4 grammaires tree-sitter :
+  - heaven (.hvn)
+  - pie    (.pie)
+  - c      (.c)
+  - zig    (.zig)
+
+Détection automatique par extension via Language.fromExtension().
+
+Commande REPL :
+  parseFileWithLanguage <chemin>
+
+Architecture :
+  MultiParser = union(Language) {
+      heaven: TreeSitterParser(ts, tree_sitter_heaven),
+      pie:    TreeSitterParser(ts, tree_sitter_pie),
+      c:      TreeSitterParser(ts, tree_sitter_c),
+      zig:    TreeSitterParser(ts, tree_sitter_zig),
+  }
+
+En WASM : stub qui retourne NotSupported (fallback à implémenter).
+
+Fonctionnalités validées sur les deux plateformes :
+  ✓ Évaluation d'expressions (1 + 2 → 3)
+  ✓ Fonctions utilisateur (double x = x * 2)
+  ✓ Opérateur := (triple x := x * 3)
+  ✓ Macros (let macro inc(x) = ...)
+  ✓ Acteurs (let actor Adder = 0 with adderHandler)
+  ✓ Théorèmes et preuves (theorem / prove by eval)
+  ✓ Parsing multi-langage (parseFileWithLanguage)

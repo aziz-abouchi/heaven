@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Heaven REPL</title>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background: #0a0a0a;
+        color: #e0e0e0;
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      #header {
+        background: #111;
+        padding: 12px 20px;
+        border-bottom: 1px solid #333;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+
+      #header h1 {
+        color: #00ff41;
+        font-size: 18px;
+      }
+
+      #header .tag {
+        background: #1a3a1a;
+        color: #00ff41;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+      }
+
+      #output {
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px 20px;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .line {
+        margin: 2px 0;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .line-input {
+        color: #00ff41;
+      }
+
+      .line-result {
+        color: #fff;
+      }
+
+      .line-error {
+        color: #ff4444;
+      }
+
+      .line-info {
+        color: #888;
+      }
+
+      .line-proof {
+        color: #44ff44;
+      }
+
+      .line-latex {
+        padding: 8px 0;
+      }
+
+      #input-row {
+        display: flex;
+        background: #111;
+        border-top: 1px solid #333;
+        padding: 10px 20px;
+        align-items: center;
+      }
+
+      #prompt {
+        color: #00ff41;
+        margin-right: 8px;
+        font-size: 14px;
+      }
+
+      #input {
+        flex: 1;
+        background: transparent;
+        border: none;
+        color: #00ff41;
+        font-family: inherit;
+        font-size: 14px;
+        outline: none;
+      }
+
+      #status {
+        background: #111;
+        padding: 4px 20px;
+        border-top: 1px solid #222;
+        font-size: 11px;
+        color: #555;
+        display: flex;
+        gap: 20px;
+      }
+      #nav-bar {
+        background: #0a0a0a;
+        padding: 6px 20px;
+        border-bottom: 1px solid #222;
+        font-size: 11px;
+        display: flex;
+        gap: 15px;
+    }
+
+    #nav-bar a {
+        color: #555;
+        text-decoration: none;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    #nav-bar a:hover {
+        color: #00ff41;
+    }
+
+    #nav-bar a.active {
+        color: #00ff41;
+    }
+    </style>
+  </head>
+  <body>
+    <div id="nav-bar">
+        <a href="/">Vision</a>
+        <a href="/repl" class="active">REPL</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/ide">IDE</a>
+        <a href="/docs">DOCS</a>
+        <a href="/telemetry">API</a>
+    </div>
+    <div id="header">
+      <h1>HEAVEN</h1>
+      <span class="tag">WASM</span>
+      <span class="tag" id="wasm-size">... KB</span>
+      <span class="tag" id="tag-status">loading...</span>
+    </div>
+    <div id="output"></div>
+    <div id="input-row">
+      <span id="prompt">heaven&gt;</span>
+      <input id="input" autofocus placeholder="type expression or :help" />
+    </div>
+    <div id="status">
+      <span id="st-engine">engine: loading</span>
+      <span id="st-rules">rules: 0</span>
+      <span id="st-mem">mem: 0KB</span>
+      <span id="st-peers">peers: 0</span>
+    </div>
+    <script>
+      let wasm, memory;
+      let history = [];
+      try {
+          const saved = localStorage.getItem('heaven-repl-history');
+          if (saved) {
+              history = JSON.parse(saved);
+          }
+      } catch(e) {}
+      let histIdx = -1;
+      let availableCommands = [];
+
+      // ═══════════════════════════════════════════════════════════
+      // MESSAGE QUEUE (pour le swarm distribué)
+      // ═══════════════════════════════════════════════════════════
+
+      let messageQueue = [];
+      let messageMetadata = {};
+      let messageIdCounter = 1;
+
+      function onRTCMessage(peerId, data) {
+        const view = new Uint8Array(data);
+        
+        const peer_id = view.slice(0, 16);
+        const msg_type = view[16];
+        const timestamp = new DataView(view.buffer, view.byteOffset + 17, 8).getBigUint64(0, true);
+        const payload = view.slice(25);
+
+        messageQueue.push({ id: Date.now(), peer_id, msg_type, timestamp, payload });
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // BROADCAST CHANNEL (communication inter-onglets)
+      // ═══════════════════════════════════════════════════════════
+
+      const swarmChannel = new BroadcastChannel('heaven-swarm');
+      
+      swarmChannel.onmessage = (event) => {
+        const data = event.data;
+        if (!data || !data.type) return;
+        
+        console.log(`📥 [Swarm] Received ${data.type}`);
+        console.log('  data keys:', Object.keys(data));
+        console.log('  payload:', data.payload);
+        console.log('  payload.length:', data.payload?.length);
+        console.log('  msg_type:', data.msg_type);
+        console.log('  peer_id:', data.peer_id);
+        
+        switch (data.type) {
+          case 'egraph_sync':
+          case 'work_steal_request':
+          case 'work_steal_response':
+          case 'proof_request':
+          case 'proof_result': {
+            const payload = data.payload;
+            const peer_id = data.peer_id || new Uint8Array(16);
+            const msg_type = data.msg_type;
+            
+            if (!payload || payload.length === 0) {
+              console.warn('[Swarm] Empty payload, skipping');
+              return;
+            }
+            
+            if (msg_type === undefined) {
+              console.warn('[Swarm] Missing msg_type, skipping');
+              return;
+            }
+            
+            const msg = new Uint8Array(16 + 1 + 8 + payload.length);
+            msg.set(peer_id, 0);
+            msg[16] = msg_type;
+            new DataView(msg.buffer).setBigUint64(17, BigInt(Date.now()), true);
+            msg.set(payload, 25);
+            
+            console.log(`  → Injecting ${msg.length} bytes into WASM queue (msg_type=${msg_type})`);
+            onRTCMessage("broadcast-peer", msg.buffer);
+            
+            // Forcer un tick immédiat
+            if (wasm) {
+              wasm.tick_swarm();
+            }
+            break;
+          }
+          default:
+            console.warn(`[Swarm] Unknown message type: ${data.type}`);
+        }
+      };
+      // ═══════════════════════════════════════════════════════════
+      // WEBSOCKET (signaling server)
+      // ═══════════════════════════════════════════════════════════
+
+      let ws = null;
+      let peerList = [];
+
+      function websocketConnectImpl(url) {
+        try {
+          ws = new WebSocket(url);
+          ws.onopen = () => console.log('[WS] Connected to', url);
+          ws.onmessage = (event) => {
+            try {
+              const msg = JSON.parse(event.data);
+              if (msg.type === 'peer_list') {
+                peerList = msg.peers;
+                document.getElementById('st-peers').textContent = `peers: ${peerList.length}`;
+              } else if (msg.type === 'offer' || msg.type === 'answer' || msg.type === 'ice_candidate') {
+                const peerId = msg.peer_id;
+                if (peerConnections[peerId]) {
+                  if (msg.type === 'offer') {
+                    peerConnections[peerId].pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+                  } else if (msg.type === 'answer') {
+                    peerConnections[peerId].pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+                  } else if (msg.type === 'ice_candidate') {
+                    peerConnections[peerId].pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('[WS] Parse error:', e);
+            }
+          };
+          ws.onerror = (e) => console.error('[WS] Error:', e);
+          ws.onclose = () => console.log('[WS] Disconnected');
+        } catch (e) {
+          console.error('[WS] Connection failed:', e);
+        }
+      }
+
+      function websocketSendImpl(data) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(data);
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // WEBRTC (data plane P2P)
+      // ═══════════════════════════════════════════════════════════
+
+      let peerConnections = {};
+      const rtcConfig = {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+      };
+
+      function rtcConnectImpl(peerId) {
+        if (peerConnections[peerId]) return;
+
+        const pc = new RTCPeerConnection(rtcConfig);
+        
+        const dc = pc.createDataChannel('heaven-swarm', { ordered: false });
+        dc.onopen = () => console.log('[RTC] Data channel open with', peerId);
+        dc.onmessage = (event) => onRTCMessage(peerId, event.data);
+        dc.onclose = () => console.log('[RTC] Data channel closed with', peerId);
+
+        pc.ondatachannel = (event) => {
+          const channel = event.channel;
+          channel.onmessage = (e) => onRTCMessage(peerId, e.data);
+        };
+
+        pc.onicecandidate = (event) => {
+          if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'ice_candidate',
+              peer_id: peerId,
+              candidate: event.candidate
+            }));
+          }
+        };
+
+        peerConnections[peerId] = { pc, dc };
+        console.log('[RTC] Created connection to', peerId);
+      }
+
+      function rtcSendImpl(peerId, data) {
+        if (peerConnections[peerId] && peerConnections[peerId].dc.readyState === 'open') {
+          peerConnections[peerId].dc.send(data);
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // FONCTIONS JS APPELÉES PAR ZIG (via imports WASM)
+      // ═══════════════════════════════════════════════════════════
+
+      function readWasmString(ptr, len) {
+        const bytes = new Uint8Array(memory.buffer, ptr, len);
+        return new TextDecoder().decode(bytes);
+      }
+
+      let pendingProofResponse = null;
+      let pendingProofPeerId = null;
+
+      const jsImports = {
+        // Console
+        js_console_log: (ptr, len) => {
+          console.log(readWasmString(ptr, len));
+        },
+        js_console_error: (ptr, len) => {
+          const msg = readWasmString(ptr, len);
+          console.error('[WASM ERROR]', msg);
+          addLine(msg, 'error');
+        },
+
+        // WebSocket
+        js_websocket_connect: (ptr, len) => {
+          const url = readWasmString(ptr, len);
+          websocketConnectImpl(url);
+        },
+        js_websocket_send: (ptr, len) => {
+          const data = readWasmString(ptr, len);
+          websocketSendImpl(data);
+        },
+
+        // WebRTC
+        js_rtc_connect: (ptr, len) => {
+          const peerId = readWasmString(ptr, len);
+          rtcConnectImpl(peerId);
+        },
+        js_rtc_send: (peerIdPtr, peerIdLen, dataPtr, dataLen) => {
+          const peerId = readWasmString(peerIdPtr, peerIdLen);
+          const data = new Uint8Array(memory.buffer.slice(dataPtr, dataPtr + dataLen));
+          rtcSendImpl(peerId, data);
+        },
+
+        // Message Queue polling
+        js_drain_message_queue: () => {
+          if (messageQueue.length === 0) return 0;
+          const msg = messageQueue.shift();
+          messageMetadata[msg.id] = msg;
+          return msg.id;
+        },
+        js_get_peer_id: (msgId, outPtr) => {
+          const meta = messageMetadata[msgId];
+          if (meta) {
+            const view = new Uint8Array(memory.buffer, outPtr, 16);
+            view.set(meta.peer_id);
+          }
+        },
+        js_get_msg_type: (msgId) => {
+          return messageMetadata[msgId]?.msg_type || 0;
+        },
+        js_get_timestamp: (msgId) => {
+          return messageMetadata[msgId]?.timestamp || 0;
+        },
+        js_performance_now: () => {
+          return performance.now();
+        },
+
+        js_get_payload_ptr: (msgId) => {
+          const meta = messageMetadata[msgId];
+          if (!meta) return 0;
+          
+          const ptr = wasm.get_payload_buffer(meta.payload.length);
+          if (ptr) {
+            const view = new Uint8Array(memory.buffer, ptr, meta.payload.length);
+            view.set(meta.payload);
+            meta._payload_ptr = ptr;
+          }
+          return ptr;
+        },
+
+        js_free_message: (msgId) => {
+          const meta = messageMetadata[msgId];
+          if (meta) {
+            delete messageMetadata[msgId];
+          }
+        },
+
+        js_get_payload_len: (msgId) => {
+          return messageMetadata[msgId]?.payload.length || 0;
+        },
+
+        send_proof_response: (peerIdPtr, peerIdLen, dataPtr, dataLen) => {
+          const peerId = new Uint8Array(memory.buffer.slice(peerIdPtr, peerIdPtr + peerIdLen));
+          const data = new Uint8Array(memory.buffer.slice(dataPtr, dataPtr + dataLen));
+          
+          pendingProofResponse = data;
+          pendingProofPeerId = peerId;
+          
+          console.log('🔐 Proof response stored in WASM memory');
+        },
+        
+        get_pending_proof_ptr: () => {
+          return pendingProofResponse ? pendingProofResponse.ptr : 0;
+        },
+        
+        get_pending_proof_len: () => {
+          return pendingProofResponse ? pendingProofResponse.length : 0;
+        },
+        
+        get_pending_proof_peer_id_ptr: () => {
+          return pendingProofPeerId ? pendingProofPeerId.ptr : 0;
+        },
+
+        js_ollama_query: (promptPtr, promptLen, outPtr, outMax) => {
+          const prompt = readWasmString(promptPtr, promptLen);
+          // Appel synchrone via XMLHttpRequest (bloquant, mais acceptable pour le WASM)
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', 'http://localhost:11434/api/generate', false); // false = synchrone
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          try {
+              xhr.send(JSON.stringify({ model: 'gemma:2b', prompt: prompt, stream: false }));
+              if (xhr.status === 200) {
+                  const response = JSON.parse(xhr.responseText);
+                  const text = response.response || '';
+                  const bytes = new TextEncoder().encode(text);
+                  const len = Math.min(bytes.length, outMax);
+                  new Uint8Array(memory.buffer, outPtr, len).set(bytes.subarray(0, len));
+                  return len;
+              }
+          } catch (e) {
+              console.error('Ollama query failed:', e);
+          }
+          return 0;
+      },
+      
+      js_broadcast_proof_request: (ptr, len) => js_broadcast_proof_request(ptr, len),
+        
+        clear_pending_proof_response: () => {
+          pendingProofResponse = null;
+          pendingProofPeerId = null;
+        },
+      };
+
+      // ═══════════════════════════════════════════════════════════
+      // CHARGEMENT DU MODULE WASM
+      // ═══════════════════════════════════════════════════════════
+
+      async function loadWasm() {
+        const resp = await fetch('heaven.wasm?t=' + Date.now());
+        const bytes = await resp.arrayBuffer();
+
+        const size = bytes.byteLength;
+        document.getElementById('wasm-size').textContent = `${(size / 1024).toFixed(0)} KB`;
+
+        const { instance } = await WebAssembly.instantiate(bytes, { env: jsImports });
+
+        wasm = instance.exports;
+        memory = wasm.memory;
+        wasm.init();
+
+        await initIndexedDB();
+        await loadEGraphState();
+
+        wasm.init_swarm();
+        document.getElementById('tag-status').textContent = 'ready';
+
+
+        if (wasm.getBuildTimestamp) {
+          const ts = wasm.getBuildTimestamp();
+          const date = new Date(ts * 1000);
+          document.getElementById('wasm-size').textContent += ` | Build: ${date.toLocaleString()}`;
+        } else {
+          document.getElementById('wasm-size').textContent += ' | Build: unknown';
+        }
+
+        window.wasm = wasm;
+        window.memory = memory;
+        
+        // Découverte dynamique des commandes
+        const len = wasm.getWasmCommands();
+        const ptr = wasm.getOutputPtr();
+        const cmdString = new TextDecoder().decode(mem().slice(ptr, ptr + len));
+        availableCommands = cmdString.trim().split(' ');
+        
+        document.getElementById('input').placeholder = `type expression or :${availableCommands.join(', ')}`;
+
+        document.getElementById('tag-status').textContent = 'ready';
+        document.getElementById('tag-status').style.background = '#1a3a1a';
+        document.getElementById('st-engine').textContent = 'engine: active';
+        
+        const sizeKB = (size / 1024).toFixed(0);
+        addLine(` Heaven WASM REPL — ${sizeKB}KB`, 'info');
+        addLine(' Type expressions directly: 2 + 3 * 4', 'info');
+        
+        const quickList = availableCommands.map(cmd => `:${cmd}`).join(' ');
+        addLine(` Commands: ${quickList}`, 'info');
+        addLine('', 'info');
+
+        // Au démarrage, après wasm.init()
+        async function start() {
+          await initIndexedDB();
+          // Chargement restauration
+          const tx = db.transaction('egraph_state', 'readonly');
+          const req = tx.objectStore('egraph_state').get('current');
+          req.onsuccess = () => {
+            if(req.result) {
+              const ptr = wasm.allocate_state_buffer(req.result.data.length);
+              new Uint8Array(memory.buffer).set(req.result.data, ptr);
+              wasm.load_egraph_state(ptr, req.result.data.length);
+            }
+          };
+          // Initialiser le swarm
+          wasm.init_swarm();
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // CHECK PENDING RESPONSE (bridge WASM → BroadcastChannel)
+        // ═══════════════════════════════════════════════════════════
+        
+        function checkPendingResponse() {
+          if (!wasm.get_pending_response_ptr) return;
+          
+          const ptr = wasm.get_pending_response_ptr();
+          if (ptr === 0) return;
+          
+          const len = wasm.get_pending_response_len();
+          const peerIdPtr = wasm.get_pending_peer_id_ptr();
+          
+          // Lire les données depuis la mémoire WASM
+          const response = new Uint8Array(memory.buffer.slice(ptr, ptr + len));
+          const peerId = new Uint8Array(memory.buffer.slice(peerIdPtr, peerIdPtr + 16));
+          
+          // Déterminer le type de message (premier byte du payload)
+          const msgType = response[0];
+          let type = 'unknown';
+          switch (msgType) {
+            case 4: type = 'proof_result'; break;
+            case 6: type = 'work_steal_response'; break;
+            default: type = `msg_${msgType}`;
+          }
+          
+          // Envoyer via BroadcastChannel
+          swarmChannel.postMessage({
+            type: type,
+            peer_id: peerId,
+            msg_type: msgType,
+            payload: response
+          });
+          
+          console.log(`📤 [Swarm] Sent ${type} (${len} bytes)`);
+          
+          // Nettoyer le buffer WASM
+          wasm.clear_pending_response();
+        }
+
+        function checkPendingProofResponse() {
+          if (!wasm.get_pending_proof_ptr) return;
+          
+          const ptr = wasm.get_pending_proof_ptr();
+          if (ptr === 0) return;
+          
+          const len = wasm.get_pending_proof_len();
+          const peerIdPtr = wasm.get_pending_proof_peer_id_ptr();
+          
+          const response = new Uint8Array(memory.buffer.slice(ptr, ptr + len));
+          const peerId = new Uint8Array(memory.buffer.slice(peerIdPtr, peerIdPtr + 16));
+          
+          swarmChannel.postMessage({
+            type: 'proof_result',
+            peer_id: peerId,
+            msg_type: 4,
+            payload: response
+          });
+          
+          console.log(`📤 [Swarm] Sent proof_result (${len} bytes)`);
+          
+          wasm.clear_pending_proof_response();
+        }
+        // ═══════════════════════════════════════════════════════════
+        // BOUCLE DE TICK (60 FPS)
+        // ═══════════════════════════════════════════════════════════
+
+        let lastTick = 0;
+        function tickLoop(timestamp) {
+            if (timestamp - lastTick >= 16) {
+                wasm.tick_swarm();
+                checkPendingResponse();
+                checkPendingProofResponse();
+                lastTick = timestamp;
+            }
+            requestAnimationFrame(tickLoop);
+        }
+        requestAnimationFrame(tickLoop);
+      }
+
+      function mem() {
+        return new Uint8Array(memory.buffer);
+      }
+
+      async function processInput(line) {
+        console.log('WASM status:', wasm ? 'OK' : 'NULL');
+        if (!wasm) {
+          alert('Le moteur WASM n\'est pas chargé !');
+          return;
+        }
+
+        if (!line.trim()) return;
+        history.unshift(line);
+        // Sauvegarder dans localStorage (max 200 entrées)
+        try {
+            localStorage.setItem('heaven-repl-history', JSON.stringify(history.slice(0, 200)));
+        } catch(e) {}
+        histIdx = -1;
+        addLine('heaven> ' + line, 'input');
+
+        const isCommand = line.startsWith(':');
+        const fullContent = isCommand ? line.substring(1) : line;
+        const firstSpace = fullContent.indexOf(' ');
+
+        const cmd = isCommand
+          ? (firstSpace === -1 ? fullContent : fullContent.substring(0, firstSpace))
+          : fullContent;
+        const args = isCommand
+          ? (firstSpace === -1 ? "" : fullContent.substring(firstSpace + 1))
+          : "";
+
+        const encoder = new TextEncoder();
+        const cmdBytes = encoder.encode(cmd);
+        const argBytes = encoder.encode(args);
+        
+        const ptr = wasm.getInputPtr();
+        mem().set(cmdBytes, ptr);
+        mem().set(argBytes, ptr + cmdBytes.length);
+        
+        let outLen = 0;
+        try {
+          outLen = wasm.dispatch(cmdBytes.length, argBytes.length);
+        } catch (e) {
+          console.error('Erreur critique WASM :', e);
+          addLine(' ✗ Erreur WASM: ' + e.message, 'error');
+          return;
+        }
+        
+        if (outLen === 0) {
+          addLine(' (no output)', 'info');
+          return;
+        }
+                
+        const outPtr = wasm.getOutputPtr();
+        const rawResult = new TextDecoder().decode(mem().slice(outPtr, outPtr + outLen));
+
+        const [type, ...contentParts] = rawResult.includes('|')
+          ? rawResult.split('|')
+          : ['info', rawResult];
+        const content = contentParts.join('|');
+
+        const renderMap = {
+          'error': (data) => addLine(' ✗ ' + data, 'error'),
+          'latex': (data) => addLatex(data),
+          'plot':  (data) => addPlot(data),
+          'proof': (data) => addLine(' ' + data, 'proof'),
+          'info':  (data) => addLine(' ' + data, 'info'),
+          'default': (data) => addLine(' → ' + data, 'result')
+        };
+
+        const renderer = renderMap[type] || renderMap['default'];
+        renderer(content);
+
+        const cmdCount = availableCommands.length;
+        document.getElementById('st-rules').textContent = `rules: ${cmdCount}`;
+        if (memory) {
+          const memKB = (memory.buffer.byteLength / 1024).toFixed(0);
+          document.getElementById('st-mem').textContent = `mem: ${memKB}KB`;
+        }
+      }
+
+      function addLine(text, cls) {
+        text.split('\n').forEach(line => {
+          if (line === '') return;
+          const el = document.createElement('div');
+          el.className = 'line line-' + cls;
+          el.textContent = line;
+          document.getElementById('output').appendChild(el);
+          el.scrollIntoView();
+        });
+      }
+
+      function addPlot(expr) {
+        const el = document.createElement('div');
+        el.className = 'line';
+        const w = 400, h = 250, pad = 40;
+        let svg = '<svg width="' + w + '" height="' + h + '" style="background:#001100;border:1px solid #00ff41;border-radius:4px;margin:8px 0;">';
+
+        const points = [];
+        let minY = Infinity, maxY = -Infinity;
+        
+        for (let i = 0; i <= 80; i++) {
+          const xv = -10 + i * 20 / 80;
+          const xstr = xv.toFixed(4);
+          const exprEval = expr.replace(/x/g, '(' + xstr + ')');
+          
+          const encoder = new TextEncoder();
+          const cmdBytes = encoder.encode(exprEval);
+          mem().set(cmdBytes, wasm.getInputPtr());
+          const outLen = wasm.dispatch(cmdBytes.length, 0);
+          
+          if (outLen > 0 && outLen < 100) {
+            const outPtr = wasm.getOutputPtr();
+            const raw = new TextDecoder().decode(mem().slice(outPtr, outPtr + outLen));
+            const y = parseFloat(raw);
+            if (!isNaN(y) && isFinite(y) && Math.abs(y) < 1e8) {
+              points.push({x: xv, y: y});
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        
+        if (points.length < 2 || maxY === minY) {
+          addLine('  (cannot plot)', 'error');
+          return;
+        }
+        
+        const rangeY = maxY - minY;
+        const scaleX = (x) => pad + (x + 10) / 20 * (w - 2*pad);
+        const scaleY = (y) => h - pad - (y - minY) / rangeY * (h - 2*pad);
+        
+        svg += '<line x1="' + pad + '" y1="' + (h-pad) + '" x2="' + (w-pad) + '" y2="' + (h-pad) + '" stroke="#003300" stroke-width="1"/>';
+        svg += '<line x1="' + pad + '" y1="' + pad + '" x2="' + pad + '" y2="' + (h-pad) + '" stroke="#003300" stroke-width="1"/>';
+        
+        if (minY <= 0 && maxY >= 0) {
+          const zy = scaleY(0);
+          svg += '<line x1="' + pad + '" y1="' + zy + '" x2="' + (w-pad) + '" y2="' + zy + '" stroke="#004400" stroke-width="1" stroke-dasharray="4"/>';
+        }
+        const zx = scaleX(0);
+        if (zx > pad && zx < w - pad) {
+          svg += '<line x1="' + zx + '" y1="' + pad + '" x2="' + zx + '" y2="' + (h-pad) + '" stroke="#004400" stroke-width="1" stroke-dasharray="4"/>';
+        }
+        
+        let pathD = '';
+        points.forEach((p, i) => {
+          const px = scaleX(p.x).toFixed(1);
+          const py = scaleY(p.y).toFixed(1);
+          pathD += (i === 0 ? 'M' : 'L') + px + ',' + py;
+        });
+        svg += '<path d="' + pathD + '" fill="none" stroke="#00ff41" stroke-width="2"/>';
+        
+        svg += '<text x="' + (w/2) + '" y="' + (h-5) + '" fill="#00ff41" font-size="10" text-anchor="middle" font-family="monospace">x</text>';
+        svg += '<text x="' + (pad-5) + '" y="' + (pad-5) + '" fill="#00ff41" font-size="9" text-anchor="end" font-family="monospace">' + maxY.toFixed(1) + '</text>';
+        svg += '<text x="' + (pad-5) + '" y="' + (h-pad+12) + '" fill="#00ff41" font-size="9" text-anchor="end" font-family="monospace">' + minY.toFixed(1) + '</text>';
+        svg += '<text x="' + pad + '" y="' + (h-pad+12) + '" fill="#006622" font-size="9" font-family="monospace">-10</text>';
+        svg += '<text x="' + (w-pad) + '" y="' + (h-pad+12) + '" fill="#006622" font-size="9" text-anchor="end" font-family="monospace">10</text>';
+        svg += '<text x="' + (w/2) + '" y="' + 15 + '" fill="#00ff41" font-size="11" text-anchor="middle" font-family="monospace">' + expr + '</text>';
+        
+        svg += '</svg>';
+        el.innerHTML = svg;
+        document.getElementById('output').appendChild(el);
+        el.scrollIntoView();
+      }
+
+      function addLatex(tex) {
+        const el = document.createElement('div');
+        el.className = 'line line-latex';
+        try {
+          katex.render(tex, el, { displayMode: true });
+        } catch(e) {
+          el.textContent = '$$ ' + tex + '$$';
+        }
+        document.getElementById('output').appendChild(el);
+        el.scrollIntoView();
+      }
+
+      document.getElementById('input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          processInput(e.target.value);
+          e.target.value = '';
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          const val = e.target.value;
+          const encoder = new TextEncoder();
+          const prefixBytes = encoder.encode(val);
+          
+          // Copier le préfixe dans la mémoire WASM
+          const inputPtr = wasm.getInputPtr();
+          for (let i = 0; i < prefixBytes.length; i++) {
+            inputPtr[i] = prefixBytes[i];
+          }
+          
+          // Demander les complétions au moteur Zig
+          const outLen = wasm.getCompletions(prefixBytes.length);
+          if (outLen > 0) {
+            const outPtr = wasm.getOutputPtr();
+            const candidates = new TextDecoder().decode(new Uint8Array(wasm.memory.buffer, outPtr, outLen));
+            // Prendre la première proposition
+            e.target.value = candidates.split(' ')[0];
+          }
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (histIdx < history.length - 1) {
+            histIdx++;
+            e.target.value = history[histIdx];
+          }
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (histIdx > 0) {
+            histIdx--;
+            e.target.value = history[histIdx];
+          } else {
+            histIdx = -1;
+            e.target.value = '';
+          }
+        }
+      });
+
+      loadWasm();
+
+      // ═══════════════════════════════════════════════════════════
+      // LOGIQUE WEBRTC (Rétablie fidèlement)
+      // ═══════════════════════════════════════════════════════════
+      function onRTCMessage(peerId, data) {
+        const view = new Uint8Array(data);
+        const peer_id = view.slice(0, 16);
+        const msg_type = view[16];
+        const timestamp = new DataView(view.buffer, view.byteOffset + 17, 8).getBigUint64(0, true);
+        const payload = view.slice(25);
+        messageQueue.push({ id: Date.now(), peer_id, msg_type, timestamp, payload });
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // INDEXEDDB (Persistance E-Graph)
+      // ═══════════════════════════════════════════════════════════
+      const DB_NAME = 'heaven_swarm';
+      const DB_VERSION = 1;
+      const STORE_NAME = 'egraph_state';
+
+      let db = null;
+
+      async function initIndexedDB() {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+              db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            }
+          };
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            const db = request.result;
+            resolve(db);
+          };
+
+        });
+      }
+
+async function saveEGraphState() {
+  if (!db || !wasm) return;
+  
+  // Récupérer l'état via des exports WASM
+  const statePtr = wasm.get_egraph_state_ptr();
+  const stateLen = wasm.get_egraph_state_len();
+  
+  if (stateLen === 0) return;
+  
+  const state = new Uint8Array(memory.buffer.slice(statePtr, statePtr + stateLen));
+  
+  const transaction = db.transaction([STORE_NAME], 'readwrite');
+  const store = transaction.objectStore(STORE_NAME);
+  
+  const data = {
+    id: 'main',
+    timestamp: Date.now(),
+    state: Array.from(state)
+  };
+  
+  store.put(data);
+  
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => {
+      console.log('💾 EGraph saved to IndexedDB');
+      resolve();
+    };
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+async function loadEGraphState() {
+  if (!db || !wasm) return false;
+  
+  const transaction = db.transaction([STORE_NAME], 'readonly');
+  const store = transaction.objectStore(STORE_NAME);
+  const request = store.get('main');
+  
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => {
+      if (request.result) {
+        const state = new Uint8Array(request.result.state);
+        wasm.restore_egraph_state(state.ptr, state.length);
+        console.log('📂 EGraph loaded from IndexedDB');
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Auto-save toutes les 30 secondes
+setInterval(saveEGraphState, 30000);
+
+// Envoyer les métriques au dashboard toutes les secondes
+setInterval(() => {
+  if (!wasm || !wasm.get_metrics_json) return;
+  
+  const ptr = wasm.get_metrics_json();
+  const len = wasm.get_metrics_json_len();
+  
+  if (ptr > 0 && len > 0) {
+    const json = new TextDecoder().decode(new Uint8Array(memory.buffer, ptr, len));
+    try {
+      const metrics = JSON.parse(json);
+      const metricsChannel = new BroadcastChannel('heaven-metrics');
+      metricsChannel.postMessage(metrics);
+    } catch (e) {
+      console.error('Metrics parse error:', e);
+    }
+  }
+}, 1000);
+
+
+    function js_broadcast_proof_request(ptr, len) {
+        console.log('[JS] js_broadcast_proof_request called with ptr=' + ptr + ', len=' + len);
+        if (!memory || !ptr || len === 0) {
+          console.error('[JS] Invalid arguments for js_broadcast_proof_request');
+          return;
+        }
+        const text = readWasmString(ptr, len);
+        swarmChannel.postMessage({ type: 'proof_request', payload: text });
+        console.log('📤 Preuve distribuée demandée:', text);
+    }
+
+
+    setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'announce', capabilities: 'prover' }));
+      }
+    }, 30000);
+
+    function checkProofRequest() {
+      if (!wasm || !wasm.get_pending_proof_request_ptr) return;
+      const ptr = wasm.get_pending_proof_request_ptr();
+      const len = wasm.get_pending_proof_request_len();
+      if (ptr && len > 0) {
+        const msg = new TextDecoder().decode(new Uint8Array(memory.buffer, ptr, len));
+        swarmChannel.postMessage({ type: 'proof_request', payload: msg });
+        console.log('📤 Preuve distribuée:', msg);
+        wasm.clear_pending_proof_request();
+      }
+    }
+    setInterval(checkProofRequest, 500);
+
+    </script>
+  </body>
+</html>

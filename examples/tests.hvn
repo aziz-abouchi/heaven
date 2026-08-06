@@ -1,0 +1,9 @@
+fn add(a: i64, b: i64) -> i64 { return a + b; }
+
+fn mul(a: i64, b: i64) -> i64 { return a * b; }
+
+test "add works" { let r = add(2, 3); assert r == 5; }
+
+test "mul works" { let r = mul(4, 5); assert r == 20; }
+
+test "add negative" { let r = add(10, 0 - 3); assert r == 7; }

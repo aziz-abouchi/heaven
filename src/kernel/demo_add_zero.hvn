@@ -1,0 +1,16 @@
+-- kernel/demo_add_zero.hvn
+
+-- Déclaration de la KB
+axiom add_zero : forall n. n + 0 = n
+
+-- La cible est un TTA (Tree/Expr)
+target : x + 0 = x
+
+-- Test d'exécution
+test "Arithmétique de base" {
+    let result = transform (var "x") target kb_arithmetic
+    
+    assert (isSuccess result)
+    assert (hasProvenance result "add_zero")
+    assert (verifyResult result "x = x")
+}

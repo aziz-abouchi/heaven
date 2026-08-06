@@ -1,0 +1,14 @@
+{
+  "type": "FunctionDeclaration",
+  "name": "add",
+  "params": [{"name": "x", "type": "int"}, {"name": "y", "type": "int"}],
+  "body": {
+    "type": "ReturnStatement",
+    "argument": {
+      "type": "BinaryExpression",
+      "operator": "+",
+      "left": {"type": "Identifier", "name": "x"},
+      "right": {"type": "Identifier", "name": "y"}
+    }
+  }
+}

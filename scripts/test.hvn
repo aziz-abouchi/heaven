@@ -1,0 +1,9 @@
+// Définition d'une spec pour Python
+spec python print_msg = print("Légion dit : {payload}")
+
+// Création d'un effet qui utilise cette spec
+effect print_msg : String
+Core_Message = "Système Heaven en ligne"
+
+Ensuite, dans ton terminal heaven, lance :
+extract Core_Message python

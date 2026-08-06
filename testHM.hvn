@@ -1,0 +1,28 @@
+-- Signatures
+id : α -> α
+id x = x
+
+add : Int -> Int -> Int
+add x y = x + y
+
+-- Constantes pour le pattern matching
+zero : Int
+zero = 0
+
+one : Int
+one = 1
+
+-- fib avec pattern matching sur littéraux
+fib : Int -> Int
+fib 0 = 0
+fib 1 = 1
+fib n = add (fib (add n (0 - 1))) (fib (add n (0 - 2)))
+
+-- Sans signature (inférence auto)
+double x = add x x
+
+-- Logique
+fact parent(tom, bob).
+fact parent(bob, ann).
+rule ancestor(X, Y) :- parent(X, Y).
+rule ancestor(X, Y) :- parent(X, Z), ancestor(Z, Y).

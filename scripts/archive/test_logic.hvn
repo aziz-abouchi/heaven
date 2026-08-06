@@ -1,0 +1,5 @@
+# Définition
+External_Breach_Alpha : Threat
+
+# Règle : Si quelque chose est une Threat, alors on Forge
+?X : Threat -> HeavenTrigger(?X)

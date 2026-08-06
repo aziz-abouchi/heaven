@@ -1,0 +1,21 @@
+// 1. TEST RÉSONANCE (Force la JIT sur un calcul lourd)
+@compute_pi = native_code {
+    extern int printf(const char *format, ...);
+    void kernel_task() {
+        double p = 0;
+        for(int i=0; i<1000000; i++) p += 1.0; 
+        printf("[RESONANCE] Atome lourd validé: %f\n", p);
+    }
+}
+
+// 2. TEST HOLE FILLING (Le Synthesizer doit boucher '?' avec 'identity')
+identity = lambda x : x
+target_val = 42
+result = ?(target_val) // Le '?' est un Hole. Le noyau doit déduire 'identity'
+
+// 3. TEST INFECTION (Signal pour les Bobs distants)
+@network_node = effect {
+    name: "ping_relay",
+    signature: universe(1)
+}
+broadcast(@network_node)

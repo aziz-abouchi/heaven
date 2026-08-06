@@ -1,0 +1,22 @@
+# Tests pour factorial et add
+
+# Définir les fonctions
+factorial zero = succ zero
+factorial (succ n) = mul (succ n) (factorial n)
+
+add zero n = n
+add (succ n) m = succ (add n m)
+
+# Tests
+factorial zero
+factorial (succ zero)
+factorial (succ (succ zero))
+factorial (succ (succ (succ zero)))
+factorial (succ (succ (succ (succ zero))))
+factorial (succ (succ (succ (succ (succ zero)))))
+
+add zero zero
+add (succ zero) zero
+add zero (succ zero)
+add (succ zero) (succ zero)
+add (succ (succ zero)) (succ (succ (succ zero)))

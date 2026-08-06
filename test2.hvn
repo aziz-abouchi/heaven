@@ -1,0 +1,1 @@
+add (succ n) m = succ (add n m)

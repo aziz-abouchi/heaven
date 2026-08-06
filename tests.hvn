@@ -1,0 +1,51 @@
+─── Types de base ───
+
+id : ∀ α → α → α
+id x ≔ x
+
+compose : ∀ α β γ → (β → γ) → (α → β) → (α → γ)
+compose f g x ≔ f (g x)
+
+─── Arithmétique ───
+
+add : ℤ → ℤ → ℤ
+add x y ≔ x + y
+
+mul : ℤ → ℤ → ℤ
+mul x y ≔ x × y
+
+─── Fibonacci ───
+
+fib : ℕ → ℕ
+fib 0 ≔ 0
+fib 1 ≔ 1
+fib n ≔ add(fib(n - 1), fib(n - 2))
+
+─── Factorielle ───
+
+factorial : ℕ → ℕ
+factorial 0 ≔ 1
+factorial n ≔ mul(n, factorial(n - 1))
+
+─── Logique (Prolog intégré) ───
+
+fact parent(socrate, platon).
+fact parent(platon, aristote).
+fact parent(aristote, alexandre).
+
+rule ancestor(X, Y) :- parent(X, Y).
+rule ancestor(X, Y) :- parent(X, Z), ancestor(Z, Y).
+
+fact mortal(socrate). fact mortal(platon).
+
+rule philosopher(X) :- mortal(X), parent(X, Y).
+
+─── Inférence automatique ───
+
+double x ≔ add(x, x)
+square x ≔ mul(x, x)
+cube x ≔ mul(x, mul(x, x))
+
+── Relations avec listes ──
+
+fact append([], Ys, Ys). fact append([X|Xs], Ys, [X|Zs]) :- append(Xs, Ys, Zs).

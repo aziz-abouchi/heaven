@@ -1,0 +1,602 @@
+// src/core/elab.zig
+const std = @import("std");
+const Allocator = std.mem.Allocator;
+const expr = @import("expr");
+const Store = expr.Store;
+const Id = expr.Id;
+const platform = @import("platform");
+const ts = platform.ts;
+const engine_expr = @import("engine_expr");
+
+pub const ElabError = error{
+    UnsupportedNode,
+    MissingField,
+    InvalidLiteral,
+    OutOfMemory,
+    NoSpaceLeft,
+};
+
+pub const Elaborator = struct {
+    allocator: Allocator,
+    store: *Store,
+    source: []const u8,
+    registry: ?*engine_expr.FunctionRegistry = null,
+
+    pub fn init(allocator: Allocator, store: *Store, source: []const u8) Elaborator {
+        return .{ .allocator = allocator, .store = store, .source = source };
+    }
+
+    // ─── Helpers Tree-sitter ───
+
+    fn text(self: *const Elaborator, node: ts.TSNode) []const u8 {
+        const start = ts.ts_node_start_byte(node);
+        const end = ts.ts_node_end_byte(node);
+        return self.source[start..end];
+    }
+
+    fn kind(node: ts.TSNode) []const u8 {
+        return std.mem.span(ts.ts_node_type(node));
+    }
+
+    fn field(node: ts.TSNode, name: []const u8) ?ts.TSNode {
+        const n = ts.ts_node_child_by_field_name(node, name.ptr, @intCast(name.len));
+        if (ts.ts_node_is_null(n)) return null;
+        return n;
+    }
+
+    fn namedChildCount(node: ts.TSNode) u32 {
+        return ts.ts_node_named_child_count(node);
+    }
+
+    fn namedChild(node: ts.TSNode, i: u32) ts.TSNode {
+        return ts.ts_node_named_child(node, i);
+    }
+
+    // ─── Dispatch ───
+
+    pub fn elaborate(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const k = kind(node);
+
+        if (std.mem.eql(u8, k, "source_file")) return self.elabSourceFile(node);
+        if (std.mem.eql(u8, k, "block")) return self.elabBlock(node);
+        if (std.mem.eql(u8, k, "fn_decl")) return self.elabFnDecl(node);
+        if (std.mem.eql(u8, k, "eq_decl")) return self.elabEqDecl(node);
+        if (std.mem.eql(u8, k, "var_decl")) return self.elabVarDecl(node);
+        if (std.mem.eql(u8, k, "assign")) return self.elabAssign(node);
+        if (std.mem.eql(u8, k, "if_stmt")) return self.elabIfStmt(node);
+        if (std.mem.eql(u8, k, "if_expr")) return self.elabIfExpr(node);
+        if (std.mem.eql(u8, k, "while_stmt")) return self.elabWhileStmt(node);
+        if (std.mem.eql(u8, k, "ret")) return self.elabRet(node);
+        if (std.mem.eql(u8, k, "call")) return self.elabCall(node);
+        if (std.mem.eql(u8, k, "member")) return self.elabMember(node);
+        if (std.mem.eql(u8, k, "app_expr")) return self.elabAppExpr(node);
+        if (std.mem.eql(u8, k, "binary")) return self.elabBinary(node);
+        if (std.mem.eql(u8, k, "simple_expr")) return self.elaborate(namedChild(node, 0));
+        if (std.mem.eql(u8, k, "paren_expr")) return self.elaborate(namedChild(node, 0));
+        if (std.mem.eql(u8, k, "identifier")) return self.store.sym(self.text(node));
+        if (std.mem.eql(u8, k, "type_name")) return self.store.sym(self.text(node));
+        if (std.mem.eql(u8, k, "int")) return self.elabInt(node);
+        if (std.mem.eql(u8, k, "float")) return self.elabFloat(node);
+        if (std.mem.eql(u8, k, "str")) return self.elabStr(node);
+        if (std.mem.eql(u8, k, "bool_lit")) return self.elabBool(node);
+        if (std.mem.eql(u8, k, "theorem_decl")) return self.elabTheoremDecl(node);
+        if (std.mem.eql(u8, k, "data_decl")) return self.elabDataDecl(node);
+        if (std.mem.eql(u8, k, "data_constructor")) return self.elabDataConstructor(node);
+        if (std.mem.eql(u8, k, "ctor_arg_type")) return self.elaborate(namedChild(node, 0));
+        if (std.mem.eql(u8, k, "axiom_decl")) return self.elabAxiomDecl(node);
+        if (std.mem.eql(u8, k, "forall_type")) return self.elabForallType(node);
+        if (std.mem.eql(u8, k, "exists_type")) return self.elabExistsType(node);
+        if (std.mem.eql(u8, k, "generic_type")) return self.elabHeadArgs(node);
+        if (std.mem.eql(u8, k, "applied_type")) return self.elabHeadArgs(node);
+        if (std.mem.eql(u8, k, "arrow_type")) return self.elabArrowType(node);
+        if (std.mem.eql(u8, k, "prim_type")) return self.store.sym(self.text(node));
+        if (std.mem.eql(u8, k, "type_ident")) return self.elaborate(namedChild(node, 0));
+        if (std.mem.eql(u8, k, "sig_decl")) return self.elabSigDecl(node);
+        if (std.mem.eql(u8, k, "import_decl")) return self.elabImportDecl(node);
+        if (std.mem.eql(u8, k, "pattern")) return self.elaborate(namedChild(node, 0));
+        if (std.mem.eql(u8, k, "ctor_pat")) return self.elabCtorPat(node);
+        if (std.mem.eql(u8, k, "list_pat")) return self.elabListPat(node);
+        if (std.mem.eql(u8, k, "tuple_pat")) return self.elabTuplePat(node);
+        if (std.mem.eql(u8, k, "atom")) return self.store.sym(self.text(node));
+        if (std.mem.eql(u8, k, "_")) return self.store.hole(0);
+        if (std.mem.eql(u8, k, "ERROR")) {
+            const start = ts.ts_node_start_byte(node);
+            const end = ts.ts_node_end_byte(node);
+            const snippet = self.source[start..end];
+            platform.debug.print("\n[!!!] SYNTAX ERROR DETECTED in: '{s}'\n", .{snippet});
+            return ElabError.UnsupportedNode;
+        }
+
+        const type_ptr = ts.ts_node_type(node);
+        platform.debug.print("\n[CRITICAL] Elaboration failed. Unsupported node type found: '{s}'\n", .{type_ptr});
+        return ElabError.UnsupportedNode;
+    }
+
+    // ─── Containers ───
+
+    fn elabSourceFile(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        return self.elabChildrenAs(node, .source_file);
+    }
+
+    fn elabBlock(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        return self.elabChildrenAs(node, .block);
+    }
+
+    fn elabChildrenAs(self: *Elaborator, node: ts.TSNode, tag: expr.Tag) ElabError!Id {
+        const n = namedChildCount(node);
+        var items: std.ArrayListUnmanaged(Id) = .{};
+        defer items.deinit(self.allocator);
+        var i: u32 = 0;
+        while (i < n) : (i += 1) {
+            const child = namedChild(node, i);
+            if (std.mem.eql(u8, kind(child), "comment")) continue;
+            try items.append(self.allocator, try self.elaborate(child));
+        }
+        return self.store.push(.{ .tag = tag, .span_a = try self.store.pushSpan(items.items) });
+    }
+
+    // ─── Déclarations ───
+
+    fn elabFnDecl(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const name_node = field(node, "name") orelse return ElabError.MissingField;
+        const name = self.text(name_node);
+
+        var param_names: std.ArrayListUnmanaged([]const u8) = .{};
+        defer param_names.deinit(self.allocator);
+        if (field(node, "params")) |params_node| {
+            const pc = namedChildCount(params_node);
+            var i: u32 = 0;
+            while (i < pc) : (i += 1) {
+                const param_node = namedChild(params_node, i);
+                const pname: []const u8 = if (namedChildCount(param_node) > 0)
+                    self.text(namedChild(param_node, 0))
+                else
+                    self.text(ts.ts_node_child(param_node, 0)); // cas "self"
+                try param_names.append(self.allocator, pname);
+            }
+        }
+
+        const n = namedChildCount(node);
+        const body_node = namedChild(node, n - 1); // $.block est toujours en dernière position
+        const body = try self.elaborate(body_node);
+
+        const fn_value = if (param_names.items.len > 0)
+            try self.store.lambda(param_names.items, body)
+        else
+            body;
+
+        return self.store.bind(name, fn_value);
+    }
+
+    fn elabEqDecl(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const name_node = field(node, "name") orelse return ElabError.MissingField;
+        const name = self.text(name_node);
+        const n = namedChildCount(node);
+        if (n < 1) return ElabError.MissingField;
+
+        // Le dernier enfant nommé est toujours le corps (_expr après "=")
+        const body = try self.elaborate(namedChild(node, n - 1));
+
+        // Les enfants entre "name" (index 0) et le corps (index n-1)
+        // sont les patterns du LHS — on les collecte s'il y en a.
+        var patterns: std.ArrayListUnmanaged(Id) = .{};
+        defer patterns.deinit(self.allocator);
+
+        // index 0 = name (champ nommé, pas un enfant "pattern")
+        // index 1..n-2 = patterns (si présents)
+        // index n-1 = body
+        var i: u32 = 1;
+        while (i < n - 1) : (i += 1) {
+            const child = namedChild(node, i);
+            const k = kind(child);
+            // Ignorer guard (|/when), annotation de type — garder les patterns
+            if (std.mem.eql(u8, k, "comment")) continue;
+            if (std.mem.eql(u8, k, "type_ident")) continue; // annotation ":"
+            // Tout le reste est un pattern : identifier, int, ctor_pat, etc.
+            try patterns.append(self.allocator, try self.elaborate(child));
+        }
+
+        if (self.registry) |reg| {
+            // Enregistre la clause dans le FunctionRegistry (multi-clause safe)
+            reg.register(name, patterns.items, body) catch {};
+            // Retourne un nœud symbolique neutre (le registre est la vraie source)
+            return self.store.sym(name);
+        } else {
+            // Fallback sans registre : bind naïf (comportement actuel)
+            return self.store.bind(name, body);
+        }
+    }
+
+    fn elabVarDecl(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const name_node = field(node, "name") orelse return ElabError.MissingField;
+        const name = self.text(name_node);
+        const n = namedChildCount(node);
+        // TODO: distinguer annotation de type vs valeur — pour l'instant on prend
+        // juste le dernier enfant nommé comme valeur (couvre let x = e et let x: T = e).
+        if (n <= 1) return self.store.bind(name, try self.store.unitLit());
+        const value = try self.elaborate(namedChild(node, n - 1));
+        return self.store.bind(name, value);
+    }
+
+    fn elabAssign(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const target = try self.elaborate(namedChild(node, 0));
+        const value = try self.elaborate(namedChild(node, 1));
+        // TODO: désucrer += -= *= /= en assign(target, target op value)
+        return self.store.call("assign", &.{ target, value });
+    }
+
+    // ─── Contrôle de flux ───
+
+    fn elabIfExpr(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const cond = try self.elaborate(namedChild(node, 0));
+        const then_b = try self.elaborate(namedChild(node, 1));
+        const else_b = try self.elaborate(namedChild(node, 2));
+        return self.store.call("if", &.{ cond, then_b, else_b });
+    }
+
+    fn elabIfStmt(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const n = namedChildCount(node);
+        const cond = try self.elaborate(namedChild(node, 0));
+        const then_b = try self.elaborate(namedChild(node, 1));
+        if (n >= 3) {
+            const else_b = try self.elaborate(namedChild(node, 2));
+            return self.store.call("if", &.{ cond, then_b, else_b });
+        }
+        return self.store.call("if", &.{ cond, then_b });
+    }
+
+    fn elabWhileStmt(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const cond = try self.elaborate(namedChild(node, 0));
+        const body = try self.elaborate(namedChild(node, 1));
+        return self.store.call("while", &.{ cond, body });
+    }
+
+    fn elabRet(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        if (namedChildCount(node) == 0) return self.store.call("return", &.{});
+        const value = try self.elaborate(namedChild(node, 0));
+        return self.store.call("return", &.{value});
+    }
+
+    // ─── Appels & binaire ───
+
+    fn elabCall(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const n = namedChildCount(node);
+        if (n == 0) return ElabError.MissingField;
+        const callee = try self.elaborate(namedChild(node, 0));
+        var args: std.ArrayListUnmanaged(Id) = .{};
+        defer args.deinit(self.allocator);
+        var i: u32 = 1;
+        while (i < n) : (i += 1) {
+            const child = namedChild(node, i);
+
+            platform.debug.print(
+                "\nCALL ARG\nkind='{s}'\ntext='{s}'\n",
+                .{
+                    kind(child),
+                    self.text(child),
+                },
+            );
+            try args.append(self.allocator, try self.elaborate(namedChild(node, i)));
+        }
+        return self.store.apply(callee, args.items);
+    }
+
+    fn elabAppExpr(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        // Même traitement que call, en n-aire plat (cohérent avec la résolution
+        // d'ambiguïté call/app_expr faite dans la grammaire : les deux doivent
+        // produire la même forme d'IR).
+        return self.elabCall(node);
+    }
+
+    fn elabBinary(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        // binary = seq(_expr, <op anonyme>, _expr) — l'opérateur n'est PAS un
+        // enfant nommé, il faut ts_node_child (pas named_child) pour l'atteindre.
+        const lhs_node = ts.ts_node_child(node, 0);
+        const op_node = ts.ts_node_child(node, 1);
+        const rhs_node = ts.ts_node_child(node, 2);
+        const lhs = try self.elaborate(lhs_node);
+        const rhs = try self.elaborate(rhs_node);
+        const op = self.text(op_node);
+        return self.store.binop(op, lhs, rhs);
+    }
+
+    // ─── Littéraux ───
+
+    fn elabInt(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const raw = self.text(node);
+        var buf: [64]u8 = undefined;
+        var len: usize = 0;
+        for (raw) |c| {
+            if (c == '_') continue; // la grammaire autorise 1_000_000
+            buf[len] = c;
+            len += 1;
+        }
+        const v = std.fmt.parseInt(i64, buf[0..len], 0) catch return ElabError.InvalidLiteral;
+        return self.store.int(v);
+    }
+
+    fn elabFloat(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const v = std.fmt.parseFloat(f64, self.text(node)) catch return ElabError.InvalidLiteral;
+        return self.store.float(v);
+    }
+
+    fn elabStr(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const t = self.text(node);
+        const inner = if (t.len >= 2) t[1 .. t.len - 1] else t; // retire les guillemets
+        const s = try self.store.interner.intern(inner);
+        return self.store.lit(.{ .str = s });
+    }
+
+    fn elabBool(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        return self.store.boolean(std.mem.eql(u8, self.text(node), "true"));
+    }
+
+    // ─── Preuves (squelette minimal) ───
+
+    fn elabTheoremDecl(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const name_node = field(node, "name") orelse return ElabError.MissingField;
+        const name = self.text(name_node);
+        const stmt = try self.elaborate(namedChild(node, 1)); // 0=name, 1=statement
+        // TODO: namedChild(node, 2) = proof_block (case/apply/rewrite/qed) —
+        // à brancher sur proof.zig/ProofEnv quand evalTheorem en aura besoin.
+        return self.store.bind(name, stmt);
+    }
+
+    fn elabDataDecl(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const name_node = field(node, "name") orelse return ElabError.MissingField;
+        const name = self.text(name_node);
+        const n = namedChildCount(node);
+        var ctors: std.ArrayListUnmanaged(Id) = .{};
+        defer ctors.deinit(self.allocator);
+        var i: u32 = 0;
+        while (i < n) : (i += 1) {
+            const child = namedChild(node, i);
+            if (std.mem.eql(u8, kind(child), "data_constructor")) {
+                try ctors.append(self.allocator, try self.elaborate(child));
+            }
+            // TODO: tparams ignoré pour l'instant — pas utilisé dans kernel.hvn actuel
+        }
+        const body = try self.store.call("data", ctors.items);
+        return self.store.bind(name, body);
+    }
+
+    fn elabDataConstructor(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const n = namedChildCount(node);
+        if (n == 0) return ElabError.MissingField;
+        const ctor_name = self.text(namedChild(node, 0));
+        var args: std.ArrayListUnmanaged(Id) = .{};
+        defer args.deinit(self.allocator);
+        var i: u32 = 1;
+        while (i < n) : (i += 1) {
+            try args.append(self.allocator, try self.elaborate(namedChild(node, i)));
+        }
+        return self.store.call(ctor_name, args.items);
+    }
+
+    fn elabHeadArgs(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        // generic_type (Eq<a,b>) et applied_type (Foo Bar Baz) ont la même forme :
+        // tête + liste d'arguments _type, donc même encodage en .apply.
+        const n = namedChildCount(node);
+        if (n == 0) return ElabError.MissingField;
+        const head = self.text(namedChild(node, 0));
+        var args: std.ArrayListUnmanaged(Id) = .{};
+        defer args.deinit(self.allocator);
+        var i: u32 = 1;
+        while (i < n) : (i += 1) {
+            try args.append(self.allocator, try self.elaborate(namedChild(node, i)));
+        }
+        return self.store.call(head, args.items);
+    }
+
+    fn elabArrowType(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const lhs = try self.elaborate(namedChild(node, 0));
+        const rhs = try self.elaborate(namedChild(node, 1));
+        return self.store.call("->", &.{ lhs, rhs });
+    }
+
+    fn elabAxiomDecl(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const n = namedChildCount(node);
+        if (n < 2) return ElabError.MissingField;
+        const name = self.text(namedChild(node, 0));
+        const ty = try self.elaborate(namedChild(node, n - 1));
+        // TODO: tparams ignoré (idem data_decl)
+        return self.store.bind(name, ty);
+    }
+
+    fn elabExistsType(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const n = namedChildCount(node);
+        if (n == 0) return ElabError.MissingField;
+        var args: std.ArrayListUnmanaged(Id) = .{};
+        defer args.deinit(self.allocator);
+        var i: u32 = 0;
+        while (i < n - 1) : (i += 1) {
+            try args.append(self.allocator, try self.store.sym(self.text(namedChild(node, i))));
+        }
+        try args.append(self.allocator, try self.elaborate(namedChild(node, n - 1)));
+        return self.store.call("exists", args.items);
+    }
+
+    fn elabForallType(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        // Style 1 du kernel : repeat1("(" repeat1(identifier) ":" _type ")") "." _type
+        // Le dernier enfant nommé est toujours le corps ; chaque groupe de parenthèses
+        // accumule des identifiants jusqu'à rencontrer le _type qui les type tous.
+        const n = namedChildCount(node);
+        if (n == 0) return ElabError.MissingField;
+        var binders: std.ArrayListUnmanaged(Id) = .{};
+        defer binders.deinit(self.allocator);
+        var pending_names: std.ArrayListUnmanaged([]const u8) = .{};
+        defer pending_names.deinit(self.allocator);
+
+        var i: u32 = 0;
+        while (i < n - 1) : (i += 1) {
+            const child = namedChild(node, i);
+            if (std.mem.eql(u8, kind(child), "identifier")) {
+                try pending_names.append(self.allocator, self.text(child));
+            } else {
+                const ty = try self.elaborate(child);
+                for (pending_names.items) |pname| {
+                    try binders.append(self.allocator, try self.store.bind(pname, ty));
+                }
+                pending_names.clearRetainingCapacity();
+            }
+        }
+        const body = try self.elaborate(namedChild(node, n - 1));
+        try binders.append(self.allocator, body);
+        return self.store.call("forall", binders.items);
+    }
+
+    fn elabSigDecl(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const name_node = field(node, "name") orelse return ElabError.MissingField;
+        const name = self.text(name_node);
+        const n = namedChildCount(node);
+        const ty = try self.elaborate(namedChild(node, n - 1));
+        return self.store.bind(name, ty);
+    }
+
+    fn elabImportDecl(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        // import_decl: seq("import", $.str) — un seul enfant nommé (str)
+        return self.elaborate(namedChild(node, 0));
+    }
+
+    fn elabMember(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const object_node = namedChild(node, 0);
+        const field_node = namedChild(node, 1);
+
+        const object_name = self.text(object_node);
+        const field_name = self.text(field_node);
+
+        var buf: [256]u8 = undefined;
+
+        const qualified =
+            try std.fmt.bufPrint(
+                &buf,
+                "{s}.{s}",
+                .{ object_name, field_name },
+            );
+
+        return self.store.sym(qualified);
+    }
+
+    fn elabCtorPat(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        // ctor_pat : (type_name | identifier) repeat1(_pat)
+        // ou : (type_name | identifier) "(" sep1(_pat, ",") ")"
+        const n = namedChildCount(node);
+        if (n == 0) return ElabError.MissingField;
+        const head = self.text(namedChild(node, 0));
+        var args: std.ArrayListUnmanaged(Id) = .{};
+        defer args.deinit(self.allocator);
+        var i: u32 = 1;
+        while (i < n) : (i += 1) {
+            try args.append(self.allocator, try self.elaborate(namedChild(node, i)));
+        }
+        return self.store.call(head, args.items);
+    }
+
+    fn elabListPat(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        // list_pat : "[" sep1(pattern, ",") "]"
+        // Encode comme (list p1 p2 ...) pour l'instant
+        const n = namedChildCount(node);
+        var items: std.ArrayListUnmanaged(Id) = .{};
+        defer items.deinit(self.allocator);
+        var i: u32 = 0;
+        while (i < n) : (i += 1) {
+            try items.append(self.allocator, try self.elaborate(namedChild(node, i)));
+        }
+        return self.store.call("list", items.items);
+    }
+
+    fn elabTuplePat(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        const n = namedChildCount(node);
+        var items: std.ArrayListUnmanaged(Id) = .{};
+        defer items.deinit(self.allocator);
+        var i: u32 = 0;
+        while (i < n) : (i += 1) {
+            try items.append(self.allocator, try self.elaborate(namedChild(node, i)));
+        }
+        return self.store.call("tuple", items.items);
+    }
+};
+
+// ─── Point d'entrée ───
+
+pub fn elaborateSource(
+    allocator: std.mem.Allocator,
+    store: *expr.Store,
+    source: []const u8,
+    opts: ?anytype,
+) !expr.Id {
+    // WASM stub : retourne une erreur
+    if (@import("builtin").target.cpu.arch == .wasm32) return error.NotSupported;
+    return elaborateSourceImpl(allocator, store, source, opts);
+}
+
+fn elaborateSourceImpl(
+    allocator: Allocator,
+    store: *Store,
+    source: []const u8,
+    registry: ?*engine_expr.FunctionRegistry,
+) !Id {
+    const parser = ts.ts_parser_new();
+    defer ts.ts_parser_delete(parser);
+    _ = ts.ts_parser_set_language(parser, platform.tree_sitter_heaven());
+
+    const tree = ts.ts_parser_parse_string(parser, null, source.ptr, @intCast(source.len));
+    defer ts.ts_tree_delete(tree);
+
+    const root = ts.ts_tree_root_node(tree);
+    var elab = Elaborator{ .allocator = allocator, .store = store, .source = source, .registry = registry };
+    return elab.elaborate(root);
+}
+
+test "elab — kernel.hvn" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const source = platform.fs.cwd().readFileAlloc(allocator, "core/kernel.hvn", 1024 * 1024) catch |err| {
+        platform.debug.print("skip: could not read core/kernel.hvn ({})\n", .{err});
+        return error.SkipZigTest;
+    };
+    defer allocator.free(source);
+
+    var registry = engine_expr.FunctionRegistry.init(allocator);
+    defer registry.deinit();
+    const id = try elaborateSource(allocator, &store, source, &registry);
+    const s = try expr.toString(&store, id, allocator);
+    defer allocator.free(s);
+    platform.debug.print("{s}\n", .{s});
+}
+
+test "elab — bootstrap.hvn" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    const source = platform.fs.cwd().readFileAlloc(allocator, "core/bootstrap.hvn", 1024 * 1024) catch |err| {
+        platform.debug.print("skip: {}\n", .{err});
+        return error.SkipZigTest;
+    };
+    defer allocator.free(source);
+    var registry = engine_expr.FunctionRegistry.init(allocator);
+    defer registry.deinit();
+    const id = try elaborateSource(allocator, &store, source, &registry);
+    const s = try expr.toString(&store, id, allocator);
+    defer allocator.free(s);
+    platform.debug.print("{s}\n", .{s});
+}
+
+test "elab — logic.hvn" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    const source = platform.fs.cwd().readFileAlloc(allocator, "core/logic.hvn", 1024 * 1024) catch |err| {
+        platform.debug.print("skip: {}\n", .{err});
+        return error.SkipZigTest;
+    };
+    defer allocator.free(source);
+    var registry = engine_expr.FunctionRegistry.init(allocator);
+    defer registry.deinit();
+    const id = try elaborateSource(allocator, &store, source, &registry);
+    const s = try expr.toString(&store, id, allocator);
+    defer allocator.free(s);
+    platform.debug.print("{s}\n", .{s});
+}

@@ -1,0 +1,18 @@
+-- kernel/transform.hvn
+
+-- Provenance explicite pour la traçabilité
+data Provenance = 
+    Axiom String 
+  | Rule String 
+  | Sensor String 
+  | Agent String 
+  | User String
+
+-- Résultat typé pour garantir l'absence d'échec silencieux
+data TransformResult a =
+    Success { result : a, certificate : List TraceStep }
+  | Failure { error : String, certificate : List TraceStep }
+
+-- Signature de l'interface Transform
+-- Toute transformation DOIT être totale
+transform : (s : TTA) -> (t : TTA) -> (kb : KB) -> TransformResult Proof

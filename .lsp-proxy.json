@@ -1,0 +1,10 @@
+[
+  {
+    "languageId": "pie",
+    "command": "true",
+    "transport": "tcp",
+    "host": "127.0.0.1",
+    "tcpPort": 10999,
+    "fileExtensions": [".pie"]
+  }
+]

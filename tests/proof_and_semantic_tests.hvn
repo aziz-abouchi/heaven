@@ -1,0 +1,38 @@
+-- tests/proof_and_semantic_tests.hv
+
+-- 1. Test de la tactique d'induction sur les entiers naturels
+data Nat = Zero | Succ Nat
+
+:theorem add_zero_r : forall (n : Nat). n + Zero = n
+:proof
+  by induction n
+  | Zero => by eval
+  | Succ k => 
+      -- Hypothèse d'induction : k + Zero = k
+      by simplify
+;
+
+-- 2. Test du World Model : Pipeline linguistique -> Validation Ontologique -> Preuve
+entity Vivant
+entity Chat : Vivant
+entity Souris : Vivant
+
+data EtatPhysique = Eveille | Mort
+
+:axiom regle_predateur : forall (x : Vivant) (y : Vivant). mange(x, y) -> etat(y) = Mort
+
+-- Simulation du pipeline Tree-sitter FR -> AST -> Fact
+:test "Pipeline Sémantique : Le chat mange la souris" =
+  let cst = :parse "Le chat mange la souris" in
+  let ast_linguistique = :cst_to_ast cst in 
+  
+  -- L'AST doit s'unifier avec le fait relationnel
+  assert_eq(ast_linguistique, mange(Chat, Souris)),
+
+  -- Injection dans la base de faits du World Model
+  :meta assert_fact(mange(Chat, Souris)),
+
+  -- Vérification par le moteur de preuve que la souris est morte
+  let preuve_etat = :prove (etat(Souris) = Mort) by simplify in
+  assert(:is_valid(preuve_etat))
+;

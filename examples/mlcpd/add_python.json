@@ -1,0 +1,14 @@
+{
+  "type": "FunctionDef",
+  "name": "add",
+  "params": [{"name": "a", "type": "Int"}, {"name": "b", "type": "Int"}],
+  "body": {
+    "type": "Return",
+    "value": {
+      "type": "BinOp",
+      "op": "+",
+      "left": {"type": "Identifier", "value": "a"},
+      "right": {"type": "Identifier", "value": "b"}
+    }
+  }
+}

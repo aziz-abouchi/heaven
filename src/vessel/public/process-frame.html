@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Heaven Process Manager</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    body {
+      background: #0a0a0a; color: #e0e0e0;
+      font-family: 'JetBrains Mono', monospace; margin: 0;
+      display: flex; flex-direction: column; height: 100vh;
+    }
+    .panel-header {
+      background: #111; color: #00ff41; padding: 6px 12px;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+      display: flex; justify-content: space-between; border-bottom: 1px solid #222;
+    }
+    .panel-body { flex: 1; overflow: auto; padding: 10px; font-size: 13px; }
+    .metric-row {
+      display: flex; justify-content: space-between;
+      padding: 4px 0; border-bottom: 1px solid #1a1a1a;
+    }
+    .metric-label { color: #888; }
+    .metric-value { color: #00ff41; font-weight: bold; }
+    .section { margin-top: 15px; }
+    .section h3 { color: #00ff41; font-size: 12px; margin: 0 0 5px 0; text-transform: uppercase; }
+    .task { background: #111; padding: 6px; margin: 4px 0; border-radius: 3px; border-left: 3px solid #ffae00; }
+    .task.done { border-left-color: #00ff41; }
+    .task.failed { border-left-color: #ff4444; }
+    #task-list { max-height: 200px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <div class="panel-header">
+    <span>📊 Process & Memory</span>
+    <span id="pm-status" style="color:#00ff41;">idle</span>
+  </div>
+  <div class="panel-body">
+    <div class="metric-row">
+      <span class="metric-label">WASM Memory</span>
+      <span class="metric-value" id="pm-mem">0 KB</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Store Nodes</span>
+      <span class="metric-value" id="pm-nodes">0</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">EGraph Classes</span>
+      <span class="metric-value" id="pm-egraph">0</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Messages traités</span>
+      <span class="metric-value" id="pm-msgs">0</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Pairs connectés</span>
+      <span class="metric-value" id="pm-peers">0</span>
+    </div>
+
+    <div class="section">
+      <h3>Tâches de preuve distribuées</h3>
+      <div id="task-list">Aucune tâche en cours</div>
+    </div>
+  </div>
+
+  <script>
+    const memEl = document.getElementById('pm-mem');
+    const nodesEl = document.getElementById('pm-nodes');
+    const egraphEl = document.getElementById('pm-egraph');
+    const msgsEl = document.getElementById('pm-msgs');
+    const peersEl = document.getElementById('pm-peers');
+    const statusEl = document.getElementById('pm-status');
+    const taskList = document.getElementById('task-list');
+    let tasks = {};
+
+    // Écouter les métriques du BroadcastChannel (envoyées par le REPL WASM)
+    const metricsChannel = new BroadcastChannel('heaven-metrics');
+    metricsChannel.onmessage = (event) => {
+      if (event.data) {
+        const m = event.data;
+        nodesEl.textContent = m.store_nodes || 0;
+        egraphEl.textContent = m.egraph_classes || 0;
+        msgsEl.textContent = m.messages_count || 0;
+        statusEl.textContent = m.messages_count > 0 ? 'processing' : 'idle';
+        statusEl.style.color = m.messages_count > 0 ? '#ffae00' : '#00ff41';
+      }
+    };
+
+    // Écouter les événements du swarm pour les tâches de preuve
+    const swarmChannel = new BroadcastChannel('heaven-swarm');
+    swarmChannel.onmessage = (event) => {
+      const data = event.data;
+      if (!data || !data.type) return;
+      switch (data.type) {
+        case 'proof_request':
+          const parts = data.payload.split('|');
+          if (parts.length >= 3) {
+            const id = Date.now();
+            const taskEl = document.createElement('div');
+            taskEl.className = 'task';
+            taskEl.id = 'task-' + id;
+            taskEl.innerHTML = `<strong>Preuve</strong> ${parts[1]} by ${parts[2]} <span style="color:#888;">(en cours)</span>`;
+            if (taskList.children.length === 1 && taskList.children[0].textContent === 'Aucune tâche en cours') {
+              taskList.innerHTML = '';
+            }
+            taskList.appendChild(taskEl);
+            tasks[id] = { el: taskEl, theorem: parts[1] };
+            statusEl.textContent = 'active';
+            statusEl.style.color = '#ffae00';
+          }
+          break;
+        case 'proof_result':
+          if (data.result) {
+            // Trouver la tâche correspondante et la marquer comme terminée
+            const taskEntries = Object.entries(tasks);
+            for (const [id, task] of taskEntries) {
+              if (data.theorem === task.theorem) {
+                task.el.className = 'task ' + (data.result.includes('✓') ? 'done' : 'failed');
+                task.el.innerHTML = `<strong>Preuve</strong> ${task.theorem} <span style="color:#00ff41;">(terminé)</span>`;
+                delete tasks[id];
+                break;
+              }
+            }
+            if (Object.keys(tasks).length === 0) {
+              statusEl.textContent = 'idle';
+              statusEl.style.color = '#00ff41';
+            }
+          }
+          break;
+      }
+    };
+
+    // Tenter d'obtenir la mémoire WASM via le parent (pour l'affichage)
+    function updateMemory() {
+      try {
+        if (window.parent && window.parent.wasm) {
+          const wasm = window.parent.wasm;
+          const memory = window.parent.memory;
+          if (memory) {
+            memEl.textContent = (memory.buffer.byteLength / 1024).toFixed(0) + ' KB';
+          }
+        }
+      } catch(e) {}
+    }
+    setInterval(updateMemory, 2000);
+    updateMemory();
+  </script>
+</body>
+</html>

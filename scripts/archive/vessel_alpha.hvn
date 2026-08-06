@@ -1,0 +1,15 @@
+// Configuration initiale de la matrice
+Core_Node = "Bob_1"
+Hardware_Type = "Heaven_Vessel"
+
+// Définition des capacités (Effects)
+effect Scan : Sensor_Data
+effect Maneuver : Delta_V
+
+// Points d'entrée pour l'Engine (Holes)
+hole primary_objective : Mission_Type
+hole current_status : System_State
+
+// Liaisons logiques
+type Mission_Type
+type System_State

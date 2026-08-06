@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Heaven Editor</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    /* ========== STYLES PROPRES À L'ÉDITEUR ========== */
+    body {
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      background: #111;
+      color: #00ff41;
+      padding: 6px 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #222;
+    }
+
+    .editor-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #editor-wrapper {
+      position: relative;
+      flex: 1;
+      overflow: auto;
+      background: #0a0a0a;
+    }
+
+    #editor-highlight {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: 15px;
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      color: transparent;
+      pointer-events: none;
+    }
+
+    #editor {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      color: transparent;
+      caret-color: #00ff41;
+      font-family: inherit;
+      font-size: 14px;
+      border: none;
+      outline: none;
+      resize: none;
+      padding: 15px;
+      line-height: 1.6;
+      z-index: 2;
+    }
+
+    /* Classes de coloration syntaxique */
+    .hl-comment  { color: #555; font-style: italic; }
+    .hl-keyword  { color: #ff8800; font-weight: bold; }
+    .hl-type     { color: #00ccff; }
+    .hl-number   { color: #ffae00; }
+    .hl-string   { color: #aaffaa; }
+    .hl-paren    { color: #888; font-weight: bold; }
+    .hl-operator { color: #ff00ff; }
+    .hl-function { color: #00ff41; }
+    .hl-symbol   { color: #ff4444; }
+
+    /* Barre d'outils simple */
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      padding: 6px 12px;
+      background: #111;
+      border-top: 1px solid #222;
+    }
+    .toolbar button {
+      background: #1a3a1a;
+      color: #00ff41;
+      border: 1px solid #00ff41;
+      padding: 4px 12px;
+      font-family: inherit;
+      font-size: 11px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    .toolbar button:hover { background: #00ff41; color: #000; }
+  </style>
+</head>
+<body>
+  <div class="panel-header">
+    <span>📝 Editor — <span id="filename">untitled.hvn</span></span>
+    <span id="cursor-pos">Ln 1, Col 1</span>
+  </div>
+  <div class="editor-container">
+    <div id="editor-wrapper">
+      <div id="editor-highlight"></div>
+      <textarea id="editor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+        placeholder="-- Écrivez votre code Heaven ici..."></textarea>
+    </div>
+    <div class="toolbar">
+      <button onclick="runCode()" title="Ctrl+Enter">▶ Run</button>
+      <button onclick="proveTheorem()">🔒 Prove</button>
+      <button onclick="saveFile()">💾 Save</button>
+      <button onclick="loadFile()">📂 Load</button>
+    </div>
+  </div>
+
+  <script src="wasm-core.js"></script>
+  <script>
+    // ═══════════════════════════════════════════
+    // ÉLÉMENTS DU DOM
+    // ═══════════════════════════════════════════
+    const editor = document.getElementById('editor');
+    const filename = document.getElementById('filename');
+    const cursorPos = document.getElementById('cursor-pos');
+    const highlight = document.getElementById('editor-highlight');
+
+    // ═══════════════════════════════════════════
+    // COLORATION SYNTAXIQUE
+    // ═══════════════════════════════════════════
+    const KEYWORDS = ['theorem','proof','data','forall','match','with','let','in','if','then','else','import','module','axiom','by','induction','auto','rewrite','simp','trivial'];
+    const TYPES = ['Nat','Int','Bool','String','List','Type','Prop','Unit','Maybe'];
+    const OPERATORS = ['=','+','-','*','/','→','->',':','|','∀','∃','λ'];
+
+    function escapeHtml(text) {
+      return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function highlightCode(code) {
+      let result = '';
+      let i = 0;
+      const len = code.length;
+      while (i < len) {
+        // Commentaires --
+        if (code[i] === '-' && code[i+1] === '-') {
+          let end = code.indexOf('\n', i);
+          if (end === -1) end = len;
+          result += '<span class="hl-comment">' + escapeHtml(code.substring(i, end)) + '</span>';
+          i = end;
+          continue;
+        }
+        // Chaînes "..."
+        if (code[i] === '"') {
+          let end = i + 1;
+          while (end < len && code[end] !== '"') { if (code[end] === '\\') end++; end++; }
+          end = Math.min(end + 1, len);
+          result += '<span class="hl-string">' + escapeHtml(code.substring(i, end)) + '</span>';
+          i = end;
+          continue;
+        }
+        // Nombres
+        if (/[0-9]/.test(code[i]) && (i === 0 || /[^a-zA-Z_]/.test(code[i-1]))) {
+          let end = i;
+          while (end < len && /[0-9.]/.test(code[end])) end++;
+          result += '<span class="hl-number">' + code.substring(i, end) + '</span>';
+          i = end;
+          continue;
+        }
+        // Identifiants / mots-clés
+        if (/[a-zA-Z_]/.test(code[i])) {
+          let end = i;
+          while (end < len && /[a-zA-Z0-9_']/.test(code[end])) end++;
+          const word = code.substring(i, end);
+          if (KEYWORDS.includes(word)) {
+            result += '<span class="hl-keyword">' + word + '</span>';
+          } else if (TYPES.includes(word)) {
+            result += '<span class="hl-type">' + word + '</span>';
+          } else if (['zero','succ','true','false','nil','cons'].includes(word)) {
+            result += '<span class="hl-symbol">' + word + '</span>';
+          } else if (end < len && code[end] === ' ') {
+            result += '<span class="hl-function">' + word + '</span>';
+          } else {
+            result += word;
+          }
+          i = end;
+          continue;
+        }
+        // Opérateurs
+        if (OPERATORS.includes(code[i]) || (code[i] === '-' && code[i+1] === '>')) {
+          const op = (code[i] === '-' && code[i+1] === '>') ? '->' : code[i];
+          result += '<span class="hl-operator">' + escapeHtml(op) + '</span>';
+          i += op.length;
+          continue;
+        }
+
+        // Parenthèses en couleur distincte
+        if (code[i] === '(' || code[i] === ')') {
+          result += '<span class="hl-paren">' + code[i] + '</span>';
+          i++;
+          continue;
+        }
+
+        // crochets
+        if (code[i] === '[' || code[i] === ']') {
+          result += '<span class="hl-operator">' + code[i] + '</span>';
+          i++;
+          continue;
+        }
+        // Autre
+        result += escapeHtml(code[i]);
+        i++;
+      }
+      return result;
+    }
+
+    function updateHighlight() {
+      highlight.innerHTML = highlightCode(editor.value) + '\n';
+    }
+
+    function updateCursorPos() {
+      const pos = editor.selectionStart;
+      const text = editor.value.substring(0, pos);
+      const lines = text.split('\n');
+      const line = lines.length;
+      const col = lines[lines.length - 1].length + 1;
+      cursorPos.textContent = `Ln ${line}, Col ${col}`;
+    }
+
+    // Synchroniser le scroll
+    editor.addEventListener('scroll', () => {
+      highlight.scrollTop = editor.scrollTop;
+      highlight.scrollLeft = editor.scrollLeft;
+    });
+
+    // Événements de l'éditeur
+    editor.addEventListener('input', () => {
+      updateHighlight();
+      updateCursorPos();
+    });
+    editor.addEventListener('click', updateCursorPos);
+    editor.addEventListener('keyup', updateCursorPos);
+    editor.addEventListener('keydown', (e) => {
+      // Tabulation
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
+        editor.selectionStart = editor.selectionEnd = start + 2;
+        updateHighlight();
+      }
+      // Ctrl+Enter pour exécuter
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        runCode();
+      }
+    });
+
+    // ═══════════════════════════════════════════
+    // COMMUNICATION AVEC LE REPL ET L'IDE
+    // ═══════════════════════════════════════════
+    const swarmChannel = new BroadcastChannel('heaven-swarm');
+    function sendToRepl(code) {
+        swarmChannel.postMessage({ type: 'eval', code: code });
+        console.log('eval sent via swarm channel');
+    }
+    /*
+    function sendToRepl(code) {
+      console.log('sendToRepl called, code length:', code.length);
+      const replFrame = parent.document.getElementById('repl-frame');
+      console.log('replFrame found:', !!replFrame);
+      if (replFrame) {
+        console.log('replFrame contentWindow:', !!replFrame.contentWindow);
+      }
+      if (replFrame && replFrame.contentWindow) {
+        replFrame.contentWindow.postMessage({ type: 'eval', code: code }, '*');
+        console.log('postMessage sent');
+      } else {
+        console.error('replFrame not ready');
+      }
+    }
+    */
+
+    function runCode() {
+      console.log('editor-frame.html runCode called');
+      sendToRepl(editor.value);
+    }
+
+    function proveTheorem() {
+      // Cherche les lignes "theorem" et "proof" dans le code
+      const lines = editor.value.split('\n');
+      let theoremLines = [];
+      let inTheorem = false;
+      for (let line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('theorem')) {
+          inTheorem = true;
+          theoremLines.push(trimmed);
+        } else if (inTheorem && (trimmed.startsWith('proof') || trimmed.startsWith('by '))) {
+          theoremLines.push(trimmed);
+        } else if (inTheorem && trimmed === '') {
+          break;
+        }
+      }
+      if (theoremLines.length > 0) {
+        sendToRepl(theoremLines.join(' '));
+      } else {
+        alert('Aucun théorème trouvé dans l\'éditeur.');
+      }
+    }
+
+    function loadFile() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.hvn,.txt';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          editor.value = ev.target.result;
+          updateHighlight();
+          autoSave();
+          filename.textContent = file.name;
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+
+    function saveFile() {
+      const blob = new Blob([editor.value], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename.textContent || 'untitled.hvn';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Sauvegarde automatique dans localStorage
+    function autoSave() {
+      const code = editor.value;
+      localStorage.setItem('heaven-editor-content', code);
+    }
+
+    // Restaurer le contenu au chargement
+    function loadSavedContent() {
+      const saved = localStorage.getItem('heaven-editor-content');
+      if (saved) {
+        editor.value = saved;
+        updateHighlight();
+      }
+    }
+
+    // Appeler autoSave à chaque frappe (debounce léger)
+    let saveTimeout;
+    editor.addEventListener('input', () => {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(autoSave, 500);
+    });
+
+    // Charger le contenu sauvegardé au démarrage
+    loadSavedContent();
+
+    // ═══════════════════════════════════════════
+    // RÉCEPTION DE COMMANDES DEPUIS L'IDE PARENT
+    // ═══════════════════════════════════════════
+    window.addEventListener('message', (e) => {
+      if (e.data && e.data.type) {
+        switch (e.data.type) {
+          case 'run': runCode(); break;
+          case 'prove': proveTheorem(); break;
+          case 'save': saveFile(); break;
+        }
+      }
+    });
+
+    // ═══════════════════════════════════════════
+    // INITIALISATION
+    // ═══════════════════════════════════════════
+    // Exemple de contenu initial
+    editor.value = `-- Bienvenue dans l'éditeur Heaven
+-- Exemple : définir l'addition sur les entiers de Peano
+
+add zero n = n
+add (succ n) m = succ (add n m)
+
+-- Théorème : add_zero
+theorem add_zero : forall (n : Nat). add n zero = n
+proof by induction on n
+  case zero => refl
+  case succ n => by induction hypothesis
+
+-- Factorielle
+factorial zero = succ zero
+factorial (succ n) = mul (succ n) (factorial n)
+`;
+    updateHighlight();
+    updateCursorPos();
+
+    // Ajuster la taille au contenu
+    function autoResize() {
+      editor.style.height = 'auto';
+      editor.style.height = editor.scrollHeight + 'px';
+    }
+    editor.addEventListener('input', autoResize);
+    autoResize();
+  </script>
+</body>
+</html>

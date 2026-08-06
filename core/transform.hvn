@@ -1,0 +1,19 @@
+# Règles d'identité
+x + 0 => x
+0 + x => x
+x * 1 => x
+1 * x => x
+x * 0 => 0
+0 * x => 0
+x - 0 => x
+x - x => 0
+x / 1 => x
+x / x => 1
+x + x => 2 * x
+
+# Associativité de l'addition
+x + (y + z) => (x + y) + z
+(x + y) + z => x + (y + z)
+
+# Théorème test
+theorem add_zero : x + 0 = x

@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Heaven Documentation</title>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-family: 'JetBrains Mono', monospace;
+      display: flex;
+      min-height: 100vh;
+    }
+    #sidebar {
+      width: 260px;
+      background: #111;
+      border-right: 1px solid #333;
+      padding: 20px;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    #sidebar h1 {
+      color: #00ff41;
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+    #sidebar .nav-top {
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #333;
+    }
+    #sidebar .nav-top a {
+      color: #555;
+      text-decoration: none;
+      margin-right: 10px;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    #sidebar .nav-top a:hover { color: #00ff41; }
+    #sidebar h2 {
+      color: #00ff41;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 15px 0 8px 0;
+    }
+    #sidebar ul { list-style: none; }
+    #sidebar li { margin: 4px 0; }
+    #sidebar a {
+      color: #888;
+      text-decoration: none;
+      font-size: 13px;
+      display: block;
+      padding: 3px 8px;
+      border-left: 2px solid transparent;
+    }
+    #sidebar a:hover, #sidebar a.active {
+      color: #00ff41;
+      border-left-color: #00ff41;
+      background: #0a1a0a;
+    }
+    #content {
+      margin-left: 260px;
+      padding: 40px 60px;
+      max-width: 900px;
+      flex: 1;
+    }
+    #content h1 {
+      color: #00ff41;
+      font-size: 24px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 10px;
+    }
+    #content h2 {
+      color: #00ff41;
+      font-size: 18px;
+      margin: 30px 0 15px 0;
+    }
+    #content h3 {
+      color: #fff;
+      font-size: 15px;
+      margin: 20px 0 10px 0;
+    }
+    #content p {
+      line-height: 1.7;
+      margin-bottom: 15px;
+      color: #ccc;
+    }
+    #content code {
+      background: #111;
+      color: #00ff41;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+    #content pre {
+      background: #111;
+      border: 1px solid #333;
+      border-left: 3px solid #00ff41;
+      padding: 15px;
+      margin: 15px 0;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    #content pre code {
+      background: transparent;
+      padding: 0;
+    }
+    #content ul, #content ol {
+      margin: 15px 0 15px 30px;
+      line-height: 1.7;
+      color: #ccc;
+    }
+    #content li { margin: 5px 0; }
+    #content a { color: #00ff41; }
+    .section { display: none; }
+    .section.active { display: block; }
+    .note {
+      background: #1a1a0a;
+      border-left: 3px solid #ffae00;
+      padding: 10px 15px;
+      margin: 15px 0;
+      color: #ffae00;
+      font-size: 13px;
+    }
+    .example {
+      background: #0a1a0a;
+      border-left: 3px solid #00ff41;
+      padding: 15px;
+      margin: 15px 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <h1>🌌 HEAVEN</h1>
+    <div class="nav-top">
+      <a href="/">Vision</a>
+      <a href="/repl">REPL</a>
+      <a href="/dashboard">Dash</a>
+      <a href="/ide">IDE</a>
+    </div>
+    
+    <h2>Getting Started</h2>
+    <ul>
+      <li><a href="#" data-section="intro" class="active">Introduction</a></li>
+      <li><a href="#" data-section="install">Installation</a></li>
+      <li><a href="#" data-section="quickstart">Quick Start</a></li>
+    </ul>
+    
+    <h2>Language</h2>
+    <ul>
+      <li><a href="#" data-section="syntax">Syntax</a></li>
+      <li><a href="#" data-section="types">Type System</a></li>
+      <li><a href="#" data-section="proofs">Proofs</a></li>
+      <li><a href="#" data-section="actors">Actors & Distribution</a></li>
+    </ul>
+    
+    <h2>Architecture</h2>
+    <ul>
+      <li><a href="#" data-section="egraph">EGraph</a></li>
+      <li><a href="#" data-section="swarm">Swarm Protocol</a></li>
+      <li><a href="#" data-section="wasm">WASM Runtime</a></li>
+    </ul>
+    
+    <h2>Reference</h2>
+    <ul>
+      <li><a href="#" data-section="stdlib">Standard Library</a></li>
+      <li><a href="#" data-section="api">API Reference</a></li>
+      <li><a href="#" data-section="cli">CLI Commands</a></li>
+    </ul>
+  </div>
+
+  <div id="content">
+    <!-- INTRODUCTION -->
+    <div class="section active" id="intro">
+      <h1>Introduction</h1>
+      <p><strong>Heaven</strong> est un langage de programmation unifié qui fusionne les meilleures idées de :</p>
+      <ul>
+        <li><strong>Idris</strong> : types dépendants, preuves formelles intégrées</li>
+        <li><strong>Erlang</strong> : acteurs, distribution, tolérance aux pannes</li>
+        <li><strong>Haskell</strong> : pureté fonctionnelle, paresse</li>
+      </ul>
+      
+      <h2>Vision</h2>
+      <p>Heaven traite les <strong>mathématiques, la physique, la chimie, la musique, la philosophie</strong> comme des ontologies computationnelles interchangeables via un pivot commun : l'<strong>EGraph</strong>.</p>
+      
+      <div class="note">
+        💡 Heaven n'est pas qu'un langage : c'est un <strong>intégrateur vertical</strong> du code vers la preuve certifiée.
+      </div>
+      
+      <h2>Exemple</h2>
+      <div class="example">
+<pre><code>-- Un théorème avec sa preuve
+theorem add_comm : ∀ a b : Nat, a + b = b + a
+proof
+  by induction on a
+  case zero: auto
+  case succ n: rewrite add_comm; auto
+
+-- Distribution transparente
+compute_on_cluster : List Nat -> Nat
+compute_on_cluster xs =
+  spawn worker1 (sum (take (length xs / 2) xs))
+  + spawn worker2 (sum (drop (length xs / 2) xs))</code></pre>
+      </div>
+    </div>
+
+    <!-- INSTALLATION -->
+    <div class="section" id="install">
+      <h1>Installation</h1>
+      
+      <h2>Prérequis</h2>
+      <ul>
+        <li>Zig 0.15.2+</li>
+        <li>Un navigateur moderne (Chrome/Firefox) pour le REPL WASM</li>
+      </ul>
+      
+      <h2>Build</h2>
+    <pre><code>cd ~/Desktop/Dev/langage/boot
+    rm -fr zig-out .zig-cache
+    zig build wasm && cp zig-out/bin/heaven.wasm src/vessel/public/
+    zig build && zig build test</code></pre>
+      
+      <h2>Lancement</h2>
+    <pre><code># Lancer le serveur (port P2P = 8080)
+    rlwrap ./zig-out/bin/heaven 8080
+
+    # Le serveur HTTP écoute sur PORT + 2919
+    # Donc ici : http://127.0.0.1:10999/</code></pre>
+      
+      <h2>Architecture des ports</h2>
+      <table style="width:100%; border-collapse: collapse; margin: 15px 0;">
+        <tr style="border-bottom: 1px solid #333;">
+          <th style="text-align:left; padding: 8px; color:#00ff41;">Port</th>
+          <th style="text-align:left; padding: 8px; color:#00ff41;">Service</th>
+          <th style="text-align:left; padding: 8px; color:#00ff41;">Description</th>
+        </tr>
+        <tr><td style="padding: 8px;">8080</td><td>P2P Network</td><td>Communication entre Bobs (protocol Heaven)</td></tr>
+        <tr><td style="padding: 8px;">10999</td><td>HTTP Server</td><td>Interface web (Vision, REPL, IDE, Docs)</td></tr>
+        <tr><td style="padding: 8px;">9000</td><td>WebSocket</td><td>Signaling server pour WebRTC</td></tr>
+      </table>
+      
+      <h2>URLs disponibles</h2>
+    <pre><code># En supposant que tu as lancé : heaven 8080
+    # Le serveur HTTP est sur 10999
+
+    http://127.0.0.1:10999/            → Vision (graph Matrix D3)
+    http://127.0.0.1:10999/repl        → REPL WASM
+    http://127.0.0.1:10999/ide         → IDE intégré
+    http://127.0.0.1:10999/dashboard   → Monitoring swarm
+    http://127.0.0.1:10999/docs        → Documentation
+    http://127.0.0.1:10999/telemetry   → API JSON</code></pre>
+    </div>
+
+    <!-- QUICK START -->
+    <div class="section" id="quickstart">
+      <h1>Quick Start</h1>
+      
+      <div class="note">
+        💡 Le serveur HTTP écoute sur le port <code>PORT + 2919</code>. 
+        Si tu lances <code>heaven 8080</code>, ouvre <code>http://127.0.0.1:10999/</code>
+      </div>
+      
+      <h2>1. Expressions simples</h2>
+    <pre><code>heaven> 2 + 3 * 4
+    → 14
+
+    heaven> let x = 10 in x * x
+    → 100</code></pre>
+      
+      <h2>2. Définir une fonction</h2>
+    <pre><code>-- Pas de mot-clé 'def', on écrit directement le nom
+    fib zero = 0
+    fib (succ zero) = 1
+    fib (succ (succ n)) = fib (succ n) + fib n
+
+    heaven> fib (succ (succ (succ (succ (succ (succ (succ (succ (succ (succ zero))))))))))
+    → 55</code></pre>
+      
+      <h2>3. Prouver un théorème</h2>
+    <pre><code>theorem sum_zero : forall (n : Nat). equal (n + 0) n
+    proof by induction; auto
+
+    [TEST] Théorème 'sum_zero' prouvé par induction.</code></pre>
+      
+      <h2>4. Types de données</h2>
+    <pre><code>data Nat = zero | succ Nat
+    data List a = nil | cons a (List a)
+
+    add zero n = n
+    add (succ n) m = succ (add n m)</code></pre>
+      
+      <h2>5. Distribution</h2>
+      <p>Ouvre plusieurs onglets sur <code>http://127.0.0.1:10999/repl</code>. Ils forment automatiquement un swarm P2P via BroadcastChannel et peuvent échanger des EGraphs.</p>
+    </div>
+
+    <!-- SYNTAX -->
+    <div class="section" id="syntax">
+      <h1>Syntaxe</h1>
+      
+      <h2>Littéraux</h2>
+    <pre><code>42          -- entier
+    3.14        -- flottant
+    true, false -- booléen
+    "hello"     -- chaîne
+    :my_symbol  -- symbole</code></pre>
+      
+      <h2>Définitions de fonctions</h2>
+      <p>Pas de mot-clé <code>def</code>. On écrit directement le nom et les patterns :</p>
+    <pre><code>-- Pattern matching sur le premier argument
+    add zero n = n
+    add (succ n) m = succ (add n m)
+
+    -- Multiplication
+    mul zero n = zero
+    mul (succ n) m = add m (mul n m)
+
+    -- Fonction à plusieurs clauses
+    factorial zero = succ zero
+    factorial (succ n) = mul (succ n) (factorial n)</code></pre>
+      
+      <h2>Types de données</h2>
+    <pre><code>data Nat = zero | succ Nat
+    data List a = nil | cons a (List a)
+    data Bool = true | false
+    data Maybe a = none | some a</code></pre>
+      
+      <h2>Théorèmes et preuves</h2>
+    <pre><code>-- Déclaration de théorème
+    theorem add_comm : forall (n m : Nat). = (add n m) (add m n)
+
+    -- Preuve par induction
+    proof by induction on n; auto
+
+    -- Théorème avec preuve inline
+    theorem sum_zero : forall (n : Nat). = (n + 0) n
+    proof by induction; auto</code></pre>
+      
+      <h2>Expressions</h2>
+    <pre><code>-- Application
+    f x y
+    f (g x) y
+
+    -- Let-binding
+    let x = 10 in x * x
+
+    -- Lambda
+    \x -> x + 1
+
+    -- If-then-else
+    if x > 0 then x else 0 - x
+
+    -- Pattern matching
+    match x with
+    | zero => 0
+    | succ n => n + 1</code></pre>
+      
+      <h2>Commentaires</h2>
+    <pre><code>-- Commentaire ligne
+    {- Commentaire
+      multiligne -}
+
+    -- Directives
+    module MonModule
+    import "core/kernel.hvn"</code></pre>
+    </div>
+
+    <!-- TYPES -->
+    <div class="section" id="types">
+      <h1>Type System</h1>
+      <p>Heaven utilise un système de types <strong>dépendants</strong> inspiré d'Idris et du Calcul des Constructions Inductives.</p>
+      
+      <h2>Types de base</h2>
+<pre><code>Nat     -- entiers naturels
+Int     -- entiers relatifs
+Float   -- flottants
+Bool    -- booléens
+String  -- chaînes
+Sym     -- symboles (internés)</code></pre>
+      
+      <h2>Types dépendants</h2>
+<pre><code>-- Vecteur de taille connue
+data Vec (n : Nat) (a : Type)
+| vnil : Vec zero a
+| vcons : a → Vec n a → Vec (succ n) a
+
+-- Fonction dont le type de retour dépend de la valeur
+head : Vec (succ n) a → a
+head
+| vcons x _ => x</code></pre>
+      
+      <h2>Inférence</h2>
+      <p>Le type-checker utilise l'<strong>EGraph</strong> pour unifier les types modulo les équations de réécriture. Cela permet des preuves d'égalité de types automatisées.</p>
+    </div>
+
+    <!-- PROOFS -->
+    <div class="section" id="proofs">
+      <h1>Proofs</h1>
+      <p>Les preuves sont <strong>first-class</strong> dans Heaven : un théorème est une valeur, une preuve est un programme.</p>
+      
+      <h2>Structure d'une preuve</h2>
+<pre><code>theorem name : proposition
+proof
+  tactic1
+  tactic2
+  ...</code></pre>
+      
+      <h2>Tactiques disponibles</h2>
+      <ul>
+        <li><code>auto</code> : résolution automatique basique</li>
+        <li><code>induction on x</code> : induction structurelle</li>
+        <li><code>rewrite thm</code> : réécriture par un théorème</li>
+        <li><code>simp</code> : simplification par l'EGraph</li>
+        <li><code>trivial</code> : cas triviaux</li>
+      </ul>
+      
+      <h2>Exemple complet</h2>
+<pre><code>theorem add_assoc : ∀ a b c, (a + b) + c = a + (b + c)
+proof
+  by induction on a
+  case zero: simp
+  case succ n:
+    rewrite add_comm
+    rewrite add_assoc
+    auto</code></pre>
+    </div>
+
+    <!-- ACTORS -->
+    <div class="section" id="actors">
+      <h1>Actors & Distribution</h1>
+      <p>Heaven intègre nativement le modèle d'acteurs d'Erlang pour la distribution.</p>
+      
+      <h2>Spawning</h2>
+<pre><code>worker : Pid
+  worker = spawn \self ->
+      receive
+      | (msg, from) -> send from (process msg); loop
+      end</code></pre>
+      
+      <h2>Communication</h2>
+<pre><code>send pid message
+receive
+| pattern1 -> expr1
+| pattern2 -> expr2
+end</code></pre>
+      
+      <h2>Swarm distribué</h2>
+      <p>Chaque instance Heaven (native ou WASM) fait partie d'un <strong>swarm</strong>. Les EGraphs sont synchronisés via le protocole de messages suivant :</p>
+      <ul>
+        <li><code>egraph_sync</code> : fusion d'EGraphs</li>
+        <li><code>work_steal_request</code> : vol de travail</li>
+        <li><code>proof_request</code> : demande de preuve</li>
+      </ul>
+    </div>
+
+    <!-- EGRAPH -->
+    <div class="section" id="egraph">
+      <h1>EGraph</h1>
+      <p>L'<strong>EGraph</strong> (Equality Graph) est la structure centrale de Heaven. Il représente des expressions modulo des équations de réécriture.</p>
+      
+      <h2>Concepts</h2>
+      <ul>
+        <li><strong>E-Class</strong> : ensemble de nœuds considérés égaux</li>
+        <li><strong>E-Node</strong> : nœud AST (littéral, symbole, application)</li>
+        <li><strong>Union-Find</strong> : maintient les classes d'équivalence</li>
+        <li><strong>Saturation</strong> : application des règles jusqu'au point fixe</li>
+      </ul>
+      
+      <h2>API</h2>
+<pre><code>egraph.addExpr(id)        // ajoute une expression
+egraph.merge(a, b)        // fusionne deux classes
+egraph.extract(class, qtt) // extrait la meilleure représentation
+egraph.saturate(rules, budget) // sature avec budget temporel</code></pre>
+    </div>
+
+    <!-- SWARM -->
+    <div class="section" id="swarm">
+      <h1>Swarm Protocol</h1>
+      <p>Le protocole de communication du swarm Heaven est basé sur des messages binaires TLV (Type-Length-Value).</p>
+      
+      <h2>Format</h2>
+<pre><code>[peer_id: 16 bytes]
+[msg_type: 1 byte]
+[timestamp: 8 bytes]
+[payload: N bytes]</code></pre>
+      
+      <h2>Types de messages</h2>
+      <table style="width:100%; border-collapse: collapse; margin: 15px 0;">
+        <tr style="border-bottom: 1px solid #333;">
+          <th style="text-align:left; padding: 8px; color:#00ff41;">Type</th>
+          <th style="text-align:left; padding: 8px; color:#00ff41;">Code</th>
+          <th style="text-align:left; padding: 8px; color:#00ff41;">Description</th>
+        </tr>
+        <tr><td style="padding: 8px;">egraph_sync</td><td>2</td><td>Synchronisation d'EGraph</td></tr>
+        <tr><td style="padding: 8px;">proof_request</td><td>3</td><td>Demande de preuve</td></tr>
+        <tr><td style="padding: 8px;">proof_result</td><td>4</td><td>Résultat de preuve</td></tr>
+        <tr><td style="padding: 8px;">work_steal_request</td><td>5</td><td>Demande de travail</td></tr>
+        <tr><td style="padding: 8px;">work_steal_response</td><td>6</td><td>Réponse avec travail</td></tr>
+      </table>
+    </div>
+
+    <!-- WASM -->
+    <div class="section" id="wasm">
+      <h1>WASM Runtime</h1>
+      <p>Heaven compile vers WebAssembly pour s'exécuter dans le navigateur avec les mêmes capacités que la version native.</p>
+      
+      <h2>Exports WASM</h2>
+<pre><code>wasm.init()                      // initialise le moteur
+wasm.dispatch(cmd_len, arg_len)  // exécute une commande
+wasm.getInputPtr()               // buffer d'entrée
+wasm.getOutputPtr()              // buffer de sortie
+
+// Swarm
+wasm.init_swarm()                // initialise le swarm
+wasm.tick_swarm()                // tick loop (60 FPS)
+wasm.debug_egraph()              // debug
+
+// Métriques
+wasm.get_metrics_json()          // JSON des métriques
+wasm.get_metrics_json_len()      // longueur</code></pre>
+      
+      <h2>Platform Abstraction Layer</h2>
+      <p>Tout le code métier est commun entre natif et WASM grâce à la PAL (<code>src/platform/{native,wasm}.zig</code>).</p>
+    </div>
+
+    <!-- STDLIB -->
+    <div class="section" id="stdlib">
+      <h1>Standard Library</h1>
+      <p>La bibliothèque standard est définie dans <code>core/bootstrap.hvn</code>, <code>core/kernel.hvn</code> et <code>core/logic.hvn</code>.</p>
+      
+      <h2>Modules</h2>
+      <ul>
+        <li><code>Prelude</code> : types de base, opérations</li>
+        <li><code>Nat</code> : entiers naturels, induction</li>
+        <li><code>List</code> : listes, map, filter, fold</li>
+        <li><code>Logic</code> : propositions, connecteurs</li>
+        <li><code>Proof</code> : tactiques, preuves</li>
+      </ul>
+    </div>
+
+    <!-- API -->
+    <div class="section" id="api">
+      <h1>API Reference</h1>
+      <h2>Endpoints HTTP</h2>
+      <ul>
+        <li><code>GET /</code> : Vision (graph Matrix)</li>
+        <li><code>GET /repl</code> : REPL WASM</li>
+        <li><code>GET /ide</code> : IDE intégré</li>
+        <li><code>GET /dashboard</code> : Monitoring swarm</li>
+        <li><code>GET /docs</code> : Documentation</li>
+        <li><code>GET /telemetry</code> : JSON des métriques Matrix</li>
+        <li><code>GET /heaven.wasm</code> : Module WASM</li>
+      </ul>
+      
+      <h2>WebSocket Signaling</h2>
+      <p>Port <code>9000</code> — utilisé pour la découverte de pairs WebRTC.</p>
+    </div>
+
+    <!-- CLI -->
+    <div class="section" id="cli">
+      <h1>CLI Commands</h1>
+      <p>Dans le REPL, les commandes commencent par <code>:</code>.</p>
+      
+      <h2>Commandes disponibles</h2>
+<pre><code>:help          Affiche l'aide
+:load FILE     Charge un fichier
+:reload        Recharge le dernier fichier
+:quit          Quitte le REPL
+:proof         Liste les théorèmes prouvés
+:egraph        Affiche l'état de l'EGraph
+:metrics       Affiche les métriques
+:swarm         Affiche l'état du swarm</code></pre>
+    </div>
+  </div>
+
+  <script>
+    // Navigation entre sections
+    document.querySelectorAll('#sidebar a[data-section]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const section = link.dataset.section;
+        
+        // Mise à jour sidebar
+        document.querySelectorAll('#sidebar a').forEach(a => a.classList.remove('active'));
+        link.classList.add('active');
+        
+        // Mise à jour contenu
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.getElementById(section).classList.add('active');
+        
+        // Scroll en haut
+        window.scrollTo(0, 0);
+      });
+    });
+
+    // Render KaTeX
+    document.querySelectorAll('.katex-formula').forEach(el => {
+      try {
+        katex.render(el.textContent, el, { displayMode: true });
+      } catch (e) {}
+    });
+  </script>
+</body>
+</html>

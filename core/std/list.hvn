@@ -1,0 +1,23 @@
+module List
+
+data List
+
+nil : List
+
+cons : a -> List -> List
+
+head (cons x xs) = x
+
+tail (cons x xs) = xs
+
+length nil =
+    zero
+
+length (cons _ xs) =
+    succ (length xs)
+
+append nil ys =
+    ys
+
+append (cons x xs) ys =
+    cons x (append xs ys)

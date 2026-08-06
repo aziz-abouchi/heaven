@@ -1,0 +1,17 @@
+module Nat
+
+data Nat
+
+zero : Nat
+succ : Nat -> Nat
+
+add zero n = n
+
+add (succ n) m =
+    succ (add n m)
+
+mul zero n =
+    zero
+
+mul (succ n) m =
+    add m (mul n m)

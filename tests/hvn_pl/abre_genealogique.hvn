@@ -1,0 +1,6 @@
+fact animal(chien).
+fact animal(chat).
+
+fact prenom(paul).
+fact prenom(pierre).
+fact prenom(jean).

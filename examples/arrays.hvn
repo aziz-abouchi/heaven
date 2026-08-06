@@ -1,0 +1,14 @@
+fn sum(n: i64) -> i64 { let total = 0; for i in 0..n { total += i; } return total; }
+
+fn main() { let s = sum(100); print(s); print("Sum of 0..100");
+
+let x = 10;
+let y = 20;
+let z = x * y + 5;
+print(z);
+
+while x > 0 {
+    x -= 1;
+}
+print(x);
+}

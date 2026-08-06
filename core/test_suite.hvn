@@ -1,0 +1,30 @@
+# ═══════════════════════════════════════════════════
+# Heaven Native Test Suite (Framework natif)
+# ═══════════════════════════════════════════════════
+
+# --- 1. Arithmétique & CAS ---
+(test "addition" (assert_eq (+ 1 2) 3))
+(test "multiplication" (assert_eq (* 3 4) 12))
+
+# --- 2. Macros Hygiéniques ---
+let macro double(x) = (quote (* (unquote x) 2))
+(test "macro_double" (assert_eq (double 21) 42))
+
+# --- 3. Acteurs Typés ---
+fn counterHandler(state, msg) = (+ state msg)
+let actor Counter = 0 with counterHandler
+send(Counter, 10)
+send(Counter, 5)
+(test "actor_state" (assert_eq (state Counter) 15))
+
+# --- 4. Effets Algébriques ---
+fn logHandler(msg) = (+ msg 100)
+(test "effect_handle" (assert_eq (handle (perform "Log" 42) logHandler) 142))
+
+# --- 5. Commandes Shell (hors framework natif car elles retournent des chaînes) ---
+simplify (+ x (+ 0 x))
+derive x^2
+type (+ 1 x)
+green (+ 1 (* 2 3))
+theorem add_zero : x + 0 = x
+prove add_zero by simplify

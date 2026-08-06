@@ -1,0 +1,82 @@
+TUTORIEL HEAVEN
+===============
+
+INSTALLATION
+------------
+
+1. Build natif :
+   zig build
+
+2. Build WASM :
+   zig build wasm
+   cp zig-out/bin/heaven.wasm src/vessel/public/
+
+3. Lancer le REPL :
+   rlwrap ./zig-out/bin/heaven 8080
+
+EXEMPLE 1 : FACTORIELLE
+------------------------
+
+1. Définir la fonction :
+
+   heaven> factorial zero = succ zero
+   → factorial clause (1 patterns) registered
+
+   heaven> factorial (succ n) = mul (succ n) (factorial n)
+   → factorial clause (1 patterns) registered
+
+2. Tester :
+
+   heaven> factorial (succ (succ (succ zero)))
+   → 6
+
+EXEMPLE 2 : ADDITION
+--------------------
+
+1. Définir la fonction :
+
+   heaven> add zero n = n
+   → add clause (2 patterns) registered
+
+   heaven> add (succ n) m = succ (add n m)
+   → add clause (2 patterns) registered
+
+2. Tester :
+
+   heaven> add (succ (succ zero)) (succ (succ (succ zero)))
+   → 5
+
+EXEMPLE 3 : TRANSFORM
+---------------------
+
+1. Déclarer un théorème :
+
+   heaven> theorem add_zero : a + 0 = a
+   → theorem add_zero stated
+
+2. Transformer :
+
+   heaven> transform x + 0 = x
+   → Success:
+       Result: Refl
+       Certificate: 3 steps
+
+3. Échec explicite :
+
+   heaven> transform x + 0 = y
+   → Failure: StepFailed
+
+COMMANDES
+---------
+
+- help          : affiche l'aide
+- stats         : statistiques
+- load <file>   : charge un fichier .hvn
+- quit          : quitte le REPL
+
+RESSOURCES
+----------
+
+- docs/TRANSFORM.txt      : interface de transformation
+- docs/ARCHITECTURE.txt   : architecture technique
+- docs/HEAVEN_LANGUAGE.txt : syntaxe du langage
