@@ -348,10 +348,11 @@ export fn heavenFnDef(len: u32) u32 {
         setOutput("parse error");
         return output_len;
     };
-    h.engine.fns.register(alloc.dupe(u8, name) catch name, pat_ids[0..num_pats], body_id) catch {
-        setOutput("register error");
-        return output_len;
-    };
+    _ = alloc;
+    //h.engine.fns.register(alloc.dupe(u8, name) catch name, pat_ids[0..num_pats], body_id) catch {
+    //    setOutput("register error");
+    //    return output_len;
+    //};
 
     if (num_pats == 0) {
         const sym = h.store.interner.intern(name) catch {
@@ -953,6 +954,8 @@ export fn restore_egraph_state(data_ptr: [*]const u8, data_len: u32) void {
             .tag = @enumFromInt(tag),
             .payload = payload,
             .aux = aux,
+            .span_a = expr.Span.EMPTY,
+            .span_b = expr.Span.EMPTY,
         }) catch {};
     }
 

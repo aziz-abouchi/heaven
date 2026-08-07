@@ -9,6 +9,7 @@ const proof = @import("proof");
 const Store = expr.Store;
 const Id = expr.Id;
 const LowerError = expr.LowerError;
+const Sym = expr.Sym;
 
 pub const HeavenError = error{
     ExtensionNotLowered,
@@ -92,6 +93,7 @@ pub const Heaven = struct {
     pub const EngineState = struct {
         fuel: u32 = 1000000,
         fns: std.StringHashMapUnmanaged(Id) = .{},
+        env: std.AutoHashMapUnmanaged(Sym, Id) = .{},
     };
 
     /// Vérifie qu'un Id est entièrement lowered avant passage au noyau.
@@ -321,5 +323,18 @@ pub const Heaven = struct {
     pub fn evalSExpr(self: *Heaven, src: []const u8) HeavenError![]u8 {
         _ = self;
         return std.heap.page_allocator.dupe(u8, src) catch return HeavenError.OutOfMemory;
+    }
+    pub fn define(self: *Heaven, name: []const u8, val: []const u8) HeavenError![]u8 {
+        _ = self;
+        _ = name;
+        _ = val;
+        return std.heap.page_allocator.dupe(u8, "") catch return HeavenError.OutOfMemory;
+    }
+
+    pub fn addRewrite(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
+        _ = self;
+        _ = lhs;
+        _ = rhs;
+        return std.heap.page_allocator.dupe(u8, "") catch return HeavenError.OutOfMemory;
     }
 };

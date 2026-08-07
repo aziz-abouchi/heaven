@@ -185,8 +185,9 @@ pub const Infer = struct {
                 const body = node.span_a.slice(self.store.pool.items);
                 if (body.len == 0) return self.unknown();
                 const body_t = try self.typeOf(body[0]);
-                const param_t = self.unknown();
-                return self.func(param_t, body_t);
+                _ = body_t;
+
+                return 0; // Stub temporaire
             },
             .relation => self.relation(),
         };

@@ -263,7 +263,7 @@ fn serializeClassSimple(
 
                 const span_start = expr.span_a.start;
                 const span_len = expr.span_a.len;
-                const args = store.childPool()[span_start .. span_start + span_len];
+                const args = store.pool.items[span_start .. span_start + span_len];
                 try output.writeU8(@intCast(args.len));
                 for (args) |arg_id| {
                     try output.writeU32(arg_id);
