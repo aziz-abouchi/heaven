@@ -954,8 +954,8 @@ export fn restore_egraph_state(data_ptr: [*]const u8, data_len: u32) void {
             .tag = @enumFromInt(tag),
             .payload = payload,
             .aux = aux,
-            .span_a = expr.Span.EMPTY,
-            .span_b = expr.Span.EMPTY,
+            .span_a = expr_mod.Span.EMPTY,
+            .span_b = expr_mod.Span.EMPTY,
         }) catch {};
     }
 
