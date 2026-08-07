@@ -5,12 +5,17 @@ const Store = expr.Store;
 const Id = expr.Id;
 
 /// Vérifie l'égalité structurelle de deux nœuds (comparaison récursive).
+/// Ne compare que les 6 primitives. Les extensions doivent être lowered.
 pub fn exprStructuralEq(store: *const Store, a: Id, b: Id) bool {
     const na = store.get(a);
     const nb = store.get(b);
     if (na.tag != nb.tag) return false;
 
-    return switch (na.tag) {
+    const prim_a = na.tag.asPrimitive();
+    const prim_b = nb.tag.asPrimitive();
+    if (prim_a == null or prim_b == null) return false;
+
+    return switch (prim_a.?) {
         .sym => na.payload == nb.payload,
         .lit => {
             const la = store.lits.items[na.aux];
@@ -28,11 +33,37 @@ pub fn exprStructuralEq(store: *const Store, a: Id, b: Id) bool {
             return true;
         },
         .bind => exprStructuralEq(store, na.aux, nb.aux),
-        else => false,
+        .lambda => {
+            if (na.payload != nb.payload) return false;
+            const ca = na.span_a.slice(store.pool.items);
+            const cb = nb.span_a.slice(store.pool.items);
+            if (ca.len != cb.len) return false;
+            for (ca, cb) |x, y| {
+                if (!exprStructuralEq(store, x, y)) return false;
+            }
+            return true;
+        },
+        .relation => {
+            if (na.payload != nb.payload) return false;
+            const ca = na.span_a.slice(store.pool.items);
+            const cb = nb.span_a.slice(store.pool.items);
+            if (ca.len != cb.len) return false;
+            for (ca, cb) |x, y| {
+                if (!exprStructuralEq(store, x, y)) return false;
+            }
+            const ba = na.span_b.slice(store.pool.items);
+            const bb = nb.span_b.slice(store.pool.items);
+            if (ba.len != bb.len) return false;
+            for (ba, bb) |x, y| {
+                if (!exprStructuralEq(store, x, y)) return false;
+            }
+            return true;
+        },
     };
 }
 
 /// Pattern matching structurel. Les symboles d'une seule lettre minuscule sont des variables.
+/// Ne matche que sur les 6 primitives.
 pub fn exprPatternMatch(
     store: *const Store,
     pattern: Id,
@@ -44,8 +75,12 @@ pub fn exprPatternMatch(
     const pn = store.get(pattern);
     const tn = store.get(target);
 
+    const prim_p = pn.tag.asPrimitive();
+    const prim_t = tn.tag.asPrimitive();
+    if (prim_p == null or prim_t == null) return false;
+
     // Variable : symbole d'une seule lettre minuscule
-    if (pn.tag == .sym) {
+    if (prim_p.? == .sym) {
         const name = store.interner.resolve(pn.payload);
         if (name.len == 1 and name[0] >= 'a' and name[0] <= 'z') {
             if (bindings.get(pn.payload)) |existing| {
@@ -56,9 +91,9 @@ pub fn exprPatternMatch(
         }
     }
 
-    // Sinon, matching structurel strict
     if (pn.tag != tn.tag) return false;
-    return switch (pn.tag) {
+
+    return switch (prim_p.?) {
         .sym => pn.payload == tn.payload,
         .lit => store.lits.items[pn.aux].eql(store.lits.items[tn.aux]),
         .apply => {
@@ -72,13 +107,39 @@ pub fn exprPatternMatch(
             return true;
         },
         .bind => exprPatternMatch(store, pn.aux, tn.aux, bindings, allocator),
-        else => false,
+        .lambda => {
+            if (pn.payload != tn.payload) return false;
+            const ca = pn.span_a.slice(store.pool.items);
+            const cb = tn.span_a.slice(store.pool.items);
+            if (ca.len != cb.len) return false;
+            for (ca, cb) |x, y| {
+                if (!exprPatternMatch(store, x, y, bindings, allocator)) return false;
+            }
+            return true;
+        },
+        .relation => {
+            if (pn.payload != tn.payload) return false;
+            const ca = pn.span_a.slice(store.pool.items);
+            const cb = tn.span_a.slice(store.pool.items);
+            if (ca.len != cb.len) return false;
+            for (ca, cb) |x, y| {
+                if (!exprPatternMatch(store, x, y, bindings, allocator)) return false;
+            }
+            const ba = pn.span_b.slice(store.pool.items);
+            const bb = tn.span_b.slice(store.pool.items);
+            if (ba.len != bb.len) return false;
+            for (ba, bb) |x, y| {
+                if (!exprPatternMatch(store, x, y, bindings, allocator)) return false;
+            }
+            return true;
+        },
     };
 }
 
 /// Substitue les variables d'un pattern par leurs valeurs.
 /// Compare par NOM de symbole (pas par payload) car pattern et corps peuvent
 /// avoir des symboles internés séparément.
+/// Ne substitue que dans les 6 primitives.
 pub fn substitutePattern(
     store: *Store,
     pattern: Id,
@@ -87,13 +148,13 @@ pub fn substitutePattern(
 ) !Id {
     if (pattern >= store.len()) return pattern;
     const pn = store.get(pattern);
+    const prim = pn.tag.asPrimitive();
+    if (prim == null) return pattern;
 
     // Symbole : chercher par NOM dans les bindings
-    if (pn.tag == .sym) {
+    if (prim.? == .sym) {
         const name = store.interner.resolve(pn.payload);
-        // D'abord essayer par payload direct
         if (bindings.get(pn.payload)) |replacement| return replacement;
-        // Sinon, chercher par nom résolu
         var it = bindings.iterator();
         while (it.next()) |entry| {
             const bound_name = store.interner.resolve(entry.key_ptr.*);
@@ -104,14 +165,11 @@ pub fn substitutePattern(
         return pattern;
     }
 
-    return switch (pn.tag) {
+    return switch (prim.?) {
         .apply => {
             const func_id = pn.payload;
             const old_args = pn.span_a.slice(store.pool.items);
-
-            // Substituer récursivement la fonction et tous les arguments
             const new_func = try substitutePattern(store, func_id, bindings, allocator);
-
             var new_args: [16]Id = undefined;
             var any_changed = false;
             for (old_args, 0..) |arg, i| {
@@ -119,9 +177,7 @@ pub fn substitutePattern(
                 new_args[i] = try substitutePattern(store, arg, bindings, allocator);
                 if (new_args[i] != arg) any_changed = true;
             }
-
             if (new_func != func_id or any_changed) {
-                // Reconstruire l'apply avec les nouveaux arguments
                 return store.apply(new_func, new_args[0..old_args.len]);
             }
             return pattern;
@@ -133,7 +189,47 @@ pub fn substitutePattern(
             }
             return pattern;
         },
-        else => pattern,
+        .lambda => {
+            const new_aux = try substitutePattern(store, pn.aux, bindings, allocator);
+            var new_body: [16]Id = undefined;
+            var any_changed = false;
+            const old_body = pn.span_a.slice(store.pool.items);
+            for (old_body, 0..) |arg, i| {
+                if (i >= 16) break;
+                new_body[i] = try substitutePattern(store, arg, bindings, allocator);
+                if (new_body[i] != arg) any_changed = true;
+            }
+            if (new_aux != pn.aux or any_changed) {
+                return store.push(.{
+                    .tag = .lambda,
+                    .payload = pn.payload,
+                    .aux = new_aux,
+                    .span_a = try store.pushSpan(new_body[0..old_body.len]),
+                });
+            }
+            return pattern;
+        },
+        .relation => {
+            var new_args = std.ArrayListUnmanaged(Id){};
+            defer new_args.deinit(allocator);
+            const old_args = pn.span_a.slice(store.pool.items);
+            for (old_args) |arg| {
+                try new_args.append(allocator, try substitutePattern(store, arg, bindings, allocator));
+            }
+            var new_body = std.ArrayListUnmanaged(Id){};
+            defer new_body.deinit(allocator);
+            const old_body = pn.span_b.slice(store.pool.items);
+            for (old_body) |arg| {
+                try new_body.append(allocator, try substitutePattern(store, arg, bindings, allocator));
+            }
+            return store.push(.{
+                .tag = .relation,
+                .payload = pn.payload,
+                .span_a = try store.pushSpan(new_args.items),
+                .span_b = try store.pushSpan(new_body.items),
+            });
+        },
+        .lit => pattern,
     };
 }
 
@@ -164,7 +260,7 @@ test "exprPatternMatch — variable matches anything" {
     var store = Store.init(allocator);
     defer store.deinit();
 
-    const x = try store.sym("x"); // variable
+    const x = try store.sym("x");
     const target = try store.int(42);
     var bindings = std.AutoHashMapUnmanaged(u32, Id){};
     defer bindings.deinit(allocator);

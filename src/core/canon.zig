@@ -4,35 +4,42 @@ const Store = expr.Store;
 const Id = expr.Id;
 const Tag = expr.Tag;
 const Lit = expr.Lit;
+const Primitive = expr.Primitive;
 const Allocator = std.mem.Allocator;
 const platform = @import("platform");
 
 // ═══════════════════════════════════════════════════════════════
 // Ordre total sur les expressions — fondation de la canonical form
+// Ne manipule que les 6 primitives. Si une extension arrive ici,
+// c'est un bug : elle aurait dû être lowered avant.
 // ═══════════════════════════════════════════════════════════════
 
 pub fn compareExpr(store: *const Store, a: Id, b: Id) std.math.Order {
     const na = store.get(a);
     const nb = store.get(b);
 
-    // Ordre par catégorie : lit < sym < apply < bind < relation
-    const rank_a = tagRank(na.tag);
-    const rank_b = tagRank(nb.tag);
+    // Si ce ne sont pas des primitives, on les ordonne par tag brut
+    // (ce cas ne devrait jamais arriver en usage normal)
+    const prim_a = na.tag.asPrimitive();
+    const prim_b = nb.tag.asPrimitive();
+    if (prim_a == null or prim_b == null) {
+        return std.math.order(@intFromEnum(na.tag), @intFromEnum(nb.tag));
+    }
+
+    const rank_a = primRank(prim_a.?);
+    const rank_b = primRank(prim_b.?);
     if (rank_a != rank_b) return std.math.order(rank_a, rank_b);
 
-    return switch (na.tag) {
+    return switch (prim_a.?) {
         .lit => compareLit(store, na.aux, nb.aux),
         .sym => std.math.order(na.payload, nb.payload),
         .apply => {
-            // na.payload est un Id du nœud sym de l'opérateur
             const op_a = store.get(na.payload);
             const op_b = store.get(nb.payload);
-            // Comparer les opérateurs par leur Sym (payload du nœud sym)
             if (op_a.tag == .sym and op_b.tag == .sym) {
                 if (op_a.payload != op_b.payload)
                     return std.math.order(op_a.payload, op_b.payload);
             }
-            // Puis les enfants
             const pool = store.pool.items;
             const args_a = na.span_a.slice(pool);
             const args_b = nb.span_a.slice(pool);
@@ -43,26 +50,52 @@ pub fn compareExpr(store: *const Store, a: Id, b: Id) std.math.Order {
             }
             return std.math.order(args_a.len, args_b.len);
         },
-        else => std.math.order(a, b), // fallback: ordre d'insertion
+        .bind => compareExpr(store, na.aux, nb.aux),
+        .lambda => {
+            if (na.payload != nb.payload)
+                return std.math.order(na.payload, nb.payload);
+            const pool = store.pool.items;
+            const body_a = na.span_a.slice(pool);
+            const body_b = nb.span_a.slice(pool);
+            const min_len = @min(body_a.len, body_b.len);
+            for (0..min_len) |i| {
+                const c = compareExpr(store, body_a[i], body_b[i]);
+                if (c != .eq) return c;
+            }
+            return std.math.order(body_a.len, body_b.len);
+        },
+        .relation => {
+            if (na.payload != nb.payload)
+                return std.math.order(na.payload, nb.payload);
+            const pool = store.pool.items;
+            const args_a = na.span_a.slice(pool);
+            const args_b = nb.span_a.slice(pool);
+            const min_len = @min(args_a.len, args_b.len);
+            for (0..min_len) |i| {
+                const c = compareExpr(store, args_a[i], args_b[i]);
+                if (c != .eq) return c;
+            }
+            if (args_a.len != args_b.len)
+                return std.math.order(args_a.len, args_b.len);
+            const body_a = na.span_b.slice(pool);
+            const body_b = nb.span_b.slice(pool);
+            const min_blen = @min(body_a.len, body_b.len);
+            for (0..min_blen) |i| {
+                const c = compareExpr(store, body_a[i], body_b[i]);
+                if (c != .eq) return c;
+            }
+            return std.math.order(body_a.len, body_b.len);
+        },
     };
 }
 
-fn tagRank(tag: Tag) u8 {
-    return switch (tag) {
-        .lit => 0,
-        .sym => 1,
-        .apply => 2,
-        .bind => 3,
-        .relation => 4,
-        .hole => 5,
-        else => 6,
-    };
+fn primRank(prim: Primitive) u8 {
+    return @intFromEnum(prim);
 }
 
 fn compareLit(store: *const Store, aux_a: u32, aux_b: u32) std.math.Order {
     const la = store.lits.items[aux_a];
     const lb = store.lits.items[aux_b];
-    // Ordre par type de littéral : int < float < bool < str < unit
     const ra = litRank(la);
     const rb = litRank(lb);
     if (ra != rb) return std.math.order(ra, rb);
@@ -113,16 +146,20 @@ fn litRank(l: Lit) u8 {
 pub fn canonicalize(store: *Store, allocator: Allocator, id: Id) !Id {
     const node = store.get(id);
 
-    return switch (node.tag) {
-        .lit, .sym, .hole => id, // Formes déjà canoniques
+    // Si ce n'est pas une primitive, lower d'abord
+    if (node.tag.asPrimitive() == null) {
+        const lowered = try store.lowerRec(id);
+        return canonicalize(store, allocator, lowered);
+    }
 
+    return switch (node.tag.asPrimitive().?) {
+        .lit, .sym => id,
         .apply => {
             const op_id = node.payload;
             const op_node = store.get(op_id);
             if (op_node.tag != .sym) return id;
             const op_name = store.interner.resolve(op_node.payload);
 
-            // Capturer les args AVANT toute récursion (store.pool peut être réalloué)
             var args_buf: [32]Id = undefined;
             const args_count = blk: {
                 const pool = store.pool.items;
@@ -133,7 +170,6 @@ pub fn canonicalize(store: *Store, allocator: Allocator, id: Id) !Id {
             };
             const args = args_buf[0..args_count];
 
-            // Maintenant récurser sans risque
             var canon_args = std.ArrayListUnmanaged(Id){};
             defer canon_args.deinit(allocator);
             for (args) |arg| {
@@ -143,16 +179,34 @@ pub fn canonicalize(store: *Store, allocator: Allocator, id: Id) !Id {
             if (isAC(op_name)) {
                 return try canonicalizeAC(store, allocator, op_id, op_name, canon_args.items);
             }
-            // Non-AC : reconstruit avec enfants canoniques
             return try store.apply(op_id, canon_args.items);
         },
-
         .bind => {
             const inner = try canonicalize(store, allocator, node.aux);
             return try store.bindSym(node.payload, inner);
         },
-
-        else => id,
+        .lambda => {
+            const body = node.span_a.slice(store.pool.items);
+            if (body.len == 0) return id;
+            const new_body = try canonicalize(store, allocator, body[0]);
+            return store.push(.{ .tag = .lambda, .payload = node.payload, .span_a = try store.pushSpan(&.{new_body}) });
+        },
+        .relation => {
+            const args = node.span_a.slice(store.pool.items);
+            var new_args = std.ArrayListUnmanaged(Id){};
+            defer new_args.deinit(allocator);
+            for (args) |arg| try new_args.append(allocator, try canonicalize(store, allocator, arg));
+            const body = node.span_b.slice(store.pool.items);
+            var new_body = std.ArrayListUnmanaged(Id){};
+            defer new_body.deinit(allocator);
+            for (body) |b| try new_body.append(allocator, try canonicalize(store, allocator, b));
+            return store.push(.{
+                .tag = .relation,
+                .payload = node.payload,
+                .span_a = try store.pushSpan(new_args.items),
+                .span_b = try store.pushSpan(new_body.items),
+            });
+        },
     };
 }
 
@@ -168,16 +222,14 @@ fn isAC(op: []const u8) bool {
 fn canonicalizeAC(
     store: *Store,
     allocator: Allocator,
-    func_id: Id, // <-- ID du nœud symbole
+    func_id: Id,
     op_name: []const u8,
     args: []const Id,
 ) !Id {
-    // 1. Aplatir les imbrications (a + (b + c)) → [a, b, c]
     var flat = std.ArrayListUnmanaged(Id){};
     defer flat.deinit(allocator);
     try flattenAC(store, op_name, args, &flat, allocator);
 
-    // 2. Séparer constantes et non-constantes
     var consts = std.ArrayListUnmanaged(Id){};
     defer consts.deinit(allocator);
     var others = std.ArrayListUnmanaged(Id){};
@@ -192,10 +244,8 @@ fn canonicalizeAC(
         }
     }
 
-    // 3. Fusionner les constantes
     const merged_const = try mergeConsts(store, op_name, consts.items);
 
-    // 4. Éliminer les identités
     const identity = identityFor(op_name);
     var result = std.ArrayListUnmanaged(Id){};
     defer result.deinit(allocator);
@@ -204,12 +254,10 @@ fn canonicalizeAC(
         const mcn = store.get(mc);
         const is_identity = isIdentity(store, mcn, identity);
         const is_absorbing = isAbsorbing(store, mcn, op_name);
-        if (is_absorbing) return mc; // x * 0 = 0
+        if (is_absorbing) return mc;
         if (!is_identity) try result.append(allocator, mc);
     }
 
-    // 5. Trier les non-constantes
-    // Tri manuel (bulles) pour éviter un bug d'alignement dans std.sort.block
     var i: usize = 0;
     while (i < others.items.len) : (i += 1) {
         var j: usize = 0;
@@ -224,12 +272,11 @@ fn canonicalizeAC(
 
     for (others.items) |o| try result.append(allocator, o);
 
-    // 6. Reconstruire
     if (result.items.len == 0) {
         return try store.int(if (std.mem.eql(u8, op_name, "+")) 0 else 1);
     }
     if (result.items.len == 1) return result.items[0];
-    return try store.apply(func_id, result.items); // <-- utiliser func_id
+    return try store.apply(func_id, result.items);
 }
 
 fn flattenAC(
@@ -246,7 +293,6 @@ fn flattenAC(
             if (func_node.tag == .sym) {
                 const name = store.interner.resolve(func_node.payload);
                 if (std.mem.eql(u8, name, op_name)) {
-                    // Capturer avant récursion
                     var sub_buf: [32]Id = undefined;
                     const sub_count = blk: {
                         const pool = store.pool.items;
@@ -333,31 +379,53 @@ pub fn exprEqual(store: *const Store, a: Id, b: Id) bool {
 
 pub fn printExpr(store: *const Store, id: Id, depth: u32) void {
     const node = store.get(id);
-    for (0..depth) |_| platform.debug.print("  ", .{});
+    for (0..depth) |_| platform.debug.print(" ", .{});
 
-    switch (node.tag) {
+    const prim = node.tag.asPrimitive();
+    if (prim == null) {
+        platform.debug.print("Extension({any})\n", .{node.tag});
+        return;
+    }
+
+    switch (prim.?) {
         .lit => platform.debug.print("Lit({d})\n", .{store.getLit(id).int}),
         .sym => {
-            // On utilise l'interner ici
             const name = store.interner.resolve(node.payload);
             platform.debug.print("Sym({s})\n", .{name});
         },
         .apply => {
-            // 1. Récupérer le nœud de l'opérateur (le symbole) via node.payload
             const op_node = store.get(node.payload);
-
-            // 2. Résoudre le nom via le payload du nœud opérateur
-            const name = store.interner.resolve(op_node.payload);
-
+            const name = if (op_node.tag == .sym)
+                store.interner.resolve(op_node.payload)
+            else
+                "?";
             platform.debug.print("Apply({s})\n", .{name});
-
-            // 3. Imprimer les enfants
             const pool = store.pool.items;
             for (node.span_a.slice(pool)) |child| {
                 printExpr(store, child, depth + 1);
             }
         },
-        else => platform.debug.print("Other({any})\n", .{node.tag}),
+        .bind => {
+            platform.debug.print("Bind({s})\n", .{store.interner.resolve(node.payload)});
+            printExpr(store, node.aux, depth + 1);
+        },
+        .lambda => {
+            platform.debug.print("Lambda({s})\n", .{store.interner.resolve(node.payload)});
+            const pool = store.pool.items;
+            for (node.span_a.slice(pool)) |child| {
+                printExpr(store, child, depth + 1);
+            }
+        },
+        .relation => {
+            platform.debug.print("Relation({s})\n", .{store.interner.resolve(node.payload)});
+            const pool = store.pool.items;
+            for (node.span_a.slice(pool)) |child| {
+                printExpr(store, child, depth + 1);
+            }
+            for (node.span_b.slice(pool)) |child| {
+                printExpr(store, child, depth + 1);
+            }
+        },
     }
 }
 
@@ -450,17 +518,8 @@ test "canon — x * 0 = 0 (absorbing)" {
     const expr_id = try store.binop("*", x, zero);
 
     const canon = try canonicalize(&store, allocator, expr_id);
-
-    //platform.debug.print("\n--- DEBUG: x * 0 --- \n", .{});
-    //printExpr(&store, canon, 0); // Utilise ton nouvel utilitaire ici
-    //platform.debug.print("--------------------\n", .{});
-
-    // 1. On vérifie le tag via le nœud (ce que vous faisiez déjà)
     const cn = store.get(canon);
     try std.testing.expect(cn.tag == .lit);
-
-    // 2. On compare les ID via canonEqStr
-    // Pas besoin de getLit(), on passe l'ID 'canon' directement.
     try std.testing.expect(try canonEqStr(&store, zero, canon, allocator));
 }
 
@@ -505,7 +564,5 @@ test "canon — a + b ordre" {
     const canon = try canonicalize(&store, allocator, ba);
     const str = try expr.toStringInfix(&store, canon, allocator);
     defer allocator.free(str);
-    platform.debug.print("\ncanon(b+a) = {s}\n", .{str});
-    // a est interné avant b → index(a) < index(b) → a avant b
     try std.testing.expectEqualStrings("(a + b)", str);
 }

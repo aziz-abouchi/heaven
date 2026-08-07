@@ -3,10 +3,12 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const network = b.option(bool, "network", "Enable native networking (WebRTC/SCUT)") orelse true;
 
     // 1. Options globales
     const options = b.addOptions();
     options.addOption(bool, "is_wasm", target.query.cpu_arch == .wasm32);
+    options.addOption(bool, "network", network);
     options.addOption(i64, "build_timestamp", std.time.timestamp());
 
     // 2. Création dynamique des modules
@@ -434,6 +436,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "mlcpd_equiv", .module = mlcpd_equiv_mod },
         },
     });
+    commands_mod.addOptions("build_options", options);
 
     const heaven_expr_mod = b.createModule(.{
         .root_source_file = b.path("src/core/heaven_expr.zig"),
@@ -476,6 +479,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "commands", .module = commands_mod },
         },
     });
+    heaven_expr_mod.addOptions("build_options", options);
 
     const mcp_server_mod = b.createModule(.{
         .root_source_file = b.path("src/runtime/mcp_server.zig"),
@@ -619,14 +623,20 @@ pub fn build(b: *std.Build) void {
         exe.root_module.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
 
         // WebRTC + TCC + libc
-        exe.addIncludePath(b.path("vendor/libdatachannel/include"));
-        exe.addCSourceFile(.{
-            .file = b.path("src/platform/webrtc_impl.cpp"),
-            .flags = &.{ "-std=c++17", "-Drtc_EXPORTS", "-fno-sanitize=undefined" },
-        });
-        exe.addIncludePath(b.path("src/platform"));
-        exe.linkSystemLibrary("datachannel");
-        exe.linkLibCpp();
+        if (network) {
+            exe.addIncludePath(b.path("vendor/libdatachannel/include"));
+            exe.addCSourceFile(.{
+                .file = b.path("src/platform/webrtc_impl.cpp"),
+                .flags = &.{ "-std=c++17", "-Drtc_EXPORTS", "-fno-sanitize=undefined" },
+            });
+            exe.addIncludePath(b.path("src/platform"));
+            exe.linkSystemLibrary("datachannel");
+            exe.linkLibCpp();
+        } else {
+            exe.root_module.addAnonymousImport("network_stub", .{
+                .root_source_file = b.path("src/platform/network_stub.zig"),
+            });
+        }
 
         exe.root_module.link_libc = true;
         exe.linkSystemLibrary("tree-sitter");
