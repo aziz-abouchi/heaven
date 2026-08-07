@@ -50,6 +50,9 @@ pub const TransformError = error{
     StepFailed,
     OutOfMemory,
     EngineError,
+    InvalidPi,
+    InvalidTypeAnn,
+    CannotLowerFrontendTag,
 };
 
 pub const TransformResult = union(enum) {

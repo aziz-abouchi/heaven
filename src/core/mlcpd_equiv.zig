@@ -17,9 +17,9 @@ const Id = expr_mod.Id;
 const elab_mod = @import("elab");
 const TypeChecker = elab_mod.TypeChecker;
 const TypingContext = elab_mod.TypingContext;
-const proof_mod = @import("proof");
-const ProofTerm = proof_mod.ProofTerm;
 const platform = @import("platform");
+const proof_core = @import("proof_core");
+pub const ProofTerm = proof_core.ProofTerm;
 
 pub const EquivError = error{
     TypeMismatch,
@@ -248,7 +248,7 @@ fn compareWhnfStructures(store: *Store, n1: Id, n2: Id) bool {
     if (node1.aux != node2.aux) return false;
 
     // Pour les nœuds avec enfants, comparer récursivement
-    const pool = store.childPool();
+    const pool = store.pool.items;
     const children1 = node1.span_a.slice(pool);
     const children2 = node2.span_a.slice(pool);
 

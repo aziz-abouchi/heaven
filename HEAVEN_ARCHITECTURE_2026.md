@@ -55,7 +55,7 @@ L'inventaire réalisé en 2026 montre qu'Heaven possède déjà un noyau relativ
 
              │               │
 
-             └──────► HeavenExpr
+             └──────► Heaven
 
                           │
 
@@ -209,15 +209,15 @@ preuves
 
 ↓
 
-HeavenExpr
+Heaven
 
 ---
 
-# HeavenExpr
+# Heaven
 
 3473 lignes.
 
-HeavenExpr n'est pas le noyau.
+Heaven n'est pas le noyau.
 
 Seulement 5 imports.
 

@@ -2,7 +2,7 @@ const std = @import("std");
 const Shell = @import("init.zig").Shell;
 const heaven_expr_lib = @import("heaven_expr");
 
-pub var global_heaven_ptr: ?*heaven_expr_lib.HeavenExpr = null;
+pub var global_heaven_ptr: ?*heaven_expr_lib.Heaven = null;
 
 pub fn greenEvalAdapter(expression: []const u8, allocator: std.mem.Allocator) ?[]const u8 {
     _ = allocator;

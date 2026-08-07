@@ -699,17 +699,6 @@ pub const TypeChecker = struct {
                     .unit => return self.store.sym("Unit"),
                 }
             },
-            .universe => {
-                // Type_i : Type_{i+1}
-                // For now, return Type_{level+1} as the type of Type_level
-                // This is a simplification - full implementation needs universe polymorphism
-                return self.store.universe(1); // Simplified: all universes have type Type1
-            },
-            .pi => {
-                // Π(x:A).B : Type_j where A : Type_i, B : Type_j
-                // Simplified: return Type1 for now
-                return self.store.universe(1);
-            },
             .lambda => {
                 // λx.e : Π(x:A).B
                 // 1. Extraire le nom du paramètre
@@ -731,33 +720,24 @@ pub const TypeChecker = struct {
                 try extended_ctx.extend(param_name, param_type);
 
                 // 4. Typer le corps avec le contexte étendu
-                const p = self.store.childPool();
+                const p = self.store.pool.items;
                 const body_span = expr_node.span_a.slice(p);
                 if (body_span.len == 0) return TypeError.TypeMismatch;
                 const body_id = body_span[0];
 
-                const body_type = self.inferType(&extended_ctx, body_id) catch |err| {
+                _ = self.inferType(&extended_ctx, body_id) catch |err| {
                     platform.debug.print("[inferLambda] Failed to infer body type: {}\n", .{err});
                     return err;
                 };
 
                 // 5. Créer le Pi-type Π(x:A).B
-                const pi = self.store.pi(param_name, param_type, body_type) catch return TypeError.OutOfMemory;
-                return pi;
+                //const pi = self.store.pi(param_name, param_type, body_type) catch return TypeError.OutOfMemory;
+                //return pi;
+                return TypeError.OutOfMemory;
             },
             .apply => {
                 // f a : B[a/x] if f : Π(x:A).B
                 return self.inferApply(ctx, expr_id);
-            },
-            .type_ann => {
-                // (e : T) has type T (if check(e, T) succeeds)
-                // Extract the type part of the annotation
-                const children = self.store.childPool();
-                const start = expr_node.span_a.start;
-                if (children.len > start + 1) {
-                    return children[start + 1]; // Return the type part
-                }
-                return TypeError.TypeMismatch;
             },
             else => return TypeError.NotImplemented,
         }
@@ -801,7 +781,7 @@ pub const TypeChecker = struct {
         // Different tags = different types (except bind which can be pi-type)
         if (node1.tag != node2.tag) return false;
 
-        const p = self.store.childPool();
+        const p = self.store.pool.items;
 
         // Same tag: compare structure
         switch (node1.tag) {
@@ -809,10 +789,6 @@ pub const TypeChecker = struct {
                 const name1 = self.store.interner.resolve(node1.payload);
                 const name2 = self.store.interner.resolve(node2.payload);
                 return std.mem.eql(u8, name1, name2);
-            },
-            .universe => {
-                // Compare universe levels
-                return node1.payload == node2.payload;
             },
             .bind => {
                 // Check if this is a pi-type: bind(x, apply(Π, [A, B]))
@@ -884,11 +860,11 @@ pub const TypeChecker = struct {
     /// WHNF reduces only the outermost redex, not under lambdas
     pub fn whnf(self: *TypeChecker, expr_id: Id) TypeError!Id {
         const node = self.store.get(expr_id);
-        const p = self.store.childPool();
+        const p = self.store.pool.items;
 
         switch (node.tag) {
             // Already in WHNF: variables, literals, universes, pi-types
-            .sym, .lit, .universe, .pi => return expr_id,
+            .sym, .lit => return expr_id,
 
             // Lambda is in WHNF (we don't reduce under lambda)
             .lambda => return expr_id,
@@ -944,29 +920,6 @@ pub const TypeChecker = struct {
                 return expr_id;
             },
 
-            // Type annotation: reduce the term
-            .type_ann => {
-                // (e : T) - reduce e to WHNF
-                const app_node = self.store.get(node.payload);
-                if (app_node.tag != .apply) return expr_id;
-
-                const args = app_node.span_a.slice(p);
-                if (args.len < 2) return expr_id;
-
-                const term = args[0];
-                const typ = args[1];
-
-                const term_whnf = try self.whnf(term);
-
-                if (term_whnf != term) {
-                    const ann_sym = try self.store.sym(":");
-                    const new_args = [_]Id{ term_whnf, typ };
-                    return self.store.apply(ann_sym, &new_args);
-                }
-
-                return expr_id;
-            },
-
             // Other tags: return as-is
             else => return expr_id,
         }
@@ -978,7 +931,7 @@ pub const TypeChecker = struct {
     fn checkLambda(self: *TypeChecker, ctx: *const TypingContext, lambda_id: Id, pi_id: Id) TypeError!void {
         const lambda_node = self.store.get(lambda_id);
         const pi_node = self.store.get(pi_id);
-        const p = self.store.childPool();
+        const p = self.store.pool.items;
 
         if (lambda_node.tag != .lambda) return TypeError.TypeMismatch;
         if (pi_node.tag != .bind) return TypeError.TypeMismatch; // Pi is encoded as bind(x, apply(Π, [A, B]))
@@ -1022,7 +975,7 @@ pub const TypeChecker = struct {
     /// Infer the type of an application: f a ⇒ B[a/x] if f : Π(x:A).B
     fn inferApply(self: *TypeChecker, ctx: *const TypingContext, apply_id: Id) TypeError!Id {
         const apply_node = self.store.get(apply_id);
-        const p = self.store.childPool();
+        const p = self.store.pool.items;
 
         if (apply_node.tag != .apply) return TypeError.NotAFunction;
 
@@ -1056,7 +1009,7 @@ pub const TypeChecker = struct {
 
     pub fn substVar(self: *TypeChecker, expr_id: Id, var_name: []const u8, replacement: Id) TypeError!Id {
         const node = self.store.get(expr_id);
-        const p = self.store.childPool();
+        const p = self.store.pool.items;
 
         switch (node.tag) {
             .sym => {
@@ -1067,7 +1020,7 @@ pub const TypeChecker = struct {
                 }
                 return expr_id;
             },
-            .lit, .universe => return expr_id, // Literals and universes have no variables
+            .lit => return expr_id, // Literals and universes have no variables
 
             .apply => {
                 // Substitute in function and all arguments
@@ -1088,15 +1041,21 @@ pub const TypeChecker = struct {
                     return expr_id;
                 }
                 const new_val = try self.substVar(node.aux, var_name, replacement);
-                return self.store.push(.{ .tag = .bind, .payload = node.payload, .aux = new_val });
+                return self.store.addNode(.{
+                    .tag = .bind,
+                    .payload = node.payload,
+                    .aux = new_val,
+                    .span_a = expr.Span.EMPTY,
+                    .span_b = expr.Span.EMPTY,
+                });
             },
 
-            .lambda, .let_in => {
+            .lambda => {
                 // λx.body or let x = val in body
                 const bound_name = self.store.interner.resolve(node.payload);
 
                 // Substitute in value (for let_in, node.aux is the value)
-                const new_aux = if (node.tag == .let_in)
+                const new_aux = if (node.tag == .bind)
                     try self.substVar(node.aux, var_name, replacement)
                 else
                     node.aux; // lambda has no value part
@@ -1105,7 +1064,13 @@ pub const TypeChecker = struct {
                 if (std.mem.eql(u8, bound_name, var_name)) {
                     // Variable is shadowed, no substitution in body
                     const sa = node.span_a;
-                    return self.store.push(.{ .tag = node.tag, .payload = node.payload, .aux = new_aux, .span_a = sa });
+                    return self.store.addNode(.{
+                        .tag = node.tag,
+                        .payload = node.payload,
+                        .aux = new_aux,
+                        .span_a = sa,
+                        .span_b = expr.Span.EMPTY,
+                    });
                 }
 
                 // Substitute in body
@@ -1115,57 +1080,13 @@ pub const TypeChecker = struct {
                     try new_body.append(self.allocator, try self.substVar(child, var_name, replacement));
                 }
                 const sa = try self.store.pushSpan(new_body.items);
-                return self.store.push(.{ .tag = node.tag, .payload = node.payload, .aux = new_aux, .span_a = sa });
-            },
-
-            .pi => {
-                // Π(x:A).B - substitute in A and B (with shadowing check)
-                // Pi is encoded as bind(x, apply(Π, [A, B]))
-                const bound_name = self.store.interner.resolve(node.payload);
-
-                // Extract the apply(Π, [A, B]) from node.aux
-                const pi_app = self.store.get(node.aux);
-                if (pi_app.tag != .apply) return expr_id; // Malformed
-
-                const pi_args = pi_app.span_a.slice(p);
-                if (pi_args.len < 2) return expr_id; // Malformed
-
-                const type_a = pi_args[0];
-                const type_b = pi_args[1];
-
-                // Always substitute in A (parameter type)
-                const new_a = try self.substVar(type_a, var_name, replacement);
-
-                // Substitute in B only if not shadowed
-                const new_b = if (std.mem.eql(u8, bound_name, var_name))
-                    type_b
-                else
-                    try self.substVar(type_b, var_name, replacement);
-
-                // Rebuild: bind(x, apply(Π, [new_a, new_b]))
-                const pi_sym = self.store.sym("Π") catch return expr_id;
-                const new_args = [_]Id{ new_a, new_b };
-                const new_pi_app = self.store.apply(pi_sym, &new_args) catch return expr_id;
-                return self.store.push(.{ .tag = .bind, .payload = node.payload, .aux = new_pi_app });
-            },
-
-            .type_ann => {
-                // (e : T) - substitute in both term and type
-                const ann_app = self.store.get(node.payload);
-                if (ann_app.tag != .apply) return expr_id;
-
-                const ann_args = ann_app.span_a.slice(p);
-                if (ann_args.len < 2) return expr_id;
-
-                const term = ann_args[0];
-                const typ = ann_args[1];
-
-                const new_term = try self.substVar(term, var_name, replacement);
-                const new_typ = try self.substVar(typ, var_name, replacement);
-
-                const ann_sym = self.store.sym(":") catch return expr_id;
-                const new_args = [_]Id{ new_term, new_typ };
-                return self.store.apply(ann_sym, &new_args);
+                return self.store.addNode(.{
+                    .tag = node.tag,
+                    .payload = node.payload,
+                    .aux = new_aux,
+                    .span_a = sa,
+                    .span_b = expr.Span.EMPTY,
+                });
             },
 
             else => return expr_id, // Unknown tags: return as-is
@@ -1272,7 +1193,7 @@ test "TypeChecker substVar - lambda shadowing" {
 
     // λx.x where we substitute x with 5 → should get λx.x (x is shadowed)
     const x_var = try store.sym("x");
-    const lambda_id = try store.lambdaNative("x", x_var);
+    const lambda_id = try store.lambdaNative(&.{"x"}, x_var);
     const five = try store.int(5);
 
     var checker = TypeChecker.init(allocator, &store);
@@ -1328,7 +1249,7 @@ test "WHNF - beta reduction" {
 
     // Create (λx.x) 5 → should reduce to 5
     const x_var = try store.sym("x");
-    const lambda_id = try store.lambdaNative("x", x_var);
+    const lambda_id = try store.lambdaNative(&.{"x"}, x_var);
     const five = try store.int(5);
     const app_id = try store.apply(lambda_id, &.{five});
 
@@ -1351,9 +1272,9 @@ test "WHNF - no reduction under lambda" {
     // Create λx.(λy.y) x → should NOT reduce the inner application
     const x_var = try store.sym("x");
     const y_var = try store.sym("y");
-    const inner_lambda = try store.lambdaNative("y", y_var);
+    const inner_lambda = try store.lambdaNative(&.{"y"}, y_var);
     const inner_app = try store.apply(inner_lambda, &.{x_var});
-    const outer_lambda = try store.lambdaNative("x", inner_app);
+    const outer_lambda = try store.lambdaNative(&.{"x"}, inner_app);
 
     var checker = TypeChecker.init(allocator, &store);
     const result = try checker.whnf(outer_lambda);

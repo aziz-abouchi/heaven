@@ -318,6 +318,19 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const proof_core_mod = b.addModule("proof_core", .{
+        .root_source_file = b.path("src/core/proof_core.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
+            .{ .name = "platform", .module = platform_mod },
+            .{ .name = "canon", .module = canon_mod },
+            .{ .name = "kernel", .module = kernel_mod },
+        },
+    });
+
     const mlcpd_equiv_mod = b.addModule("mlcpd_equiv", .{
         .root_source_file = b.path("src/core/mlcpd_equiv.zig"),
         .target = target,
@@ -325,7 +338,18 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "elab", .module = elab_mod },
-            .{ .name = "proof", .module = proof_mod },
+            .{ .name = "proof_core", .module = proof_core_mod },
+            .{ .name = "platform", .module = platform_mod },
+        },
+    });
+
+    const universal_translator_mod = b.addModule("universal_translator", .{
+        .root_source_file = b.path("src/core/universal_translator.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "mlcpd", .module = mlcpd_mod },
             .{ .name = "platform", .module = platform_mod },
         },
     });
@@ -351,19 +375,6 @@ pub fn build(b: *std.Build) void {
             .{ .name = "transform", .module = transform_mod },
             .{ .name = "pattern", .module = pattern_mod },
             .{ .name = "egraph", .module = egraph_mod },
-        },
-    });
-
-    const proof_core_mod = b.addModule("proof_core", .{
-        .root_source_file = b.path("src/core/proof_core.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "expr", .module = expr_mod },
-            .{ .name = "engine_expr", .module = engine_expr_mod },
-            .{ .name = "platform", .module = platform_mod },
-            .{ .name = "canon", .module = canon_mod },
-            .{ .name = "kernel", .module = kernel_mod },
         },
     });
 
@@ -434,6 +445,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "simplify_engine", .module = simplify_engine_mod },
             .{ .name = "mlcpd", .module = mlcpd_mod },
             .{ .name = "mlcpd_equiv", .module = mlcpd_equiv_mod },
+            .{ .name = "universal_translator", .module = universal_translator_mod },
         },
     });
     commands_mod.addOptions("build_options", options);
@@ -839,7 +851,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "mlcpd", .module = mlcpd_mod },
             .{ .name = "mlcpd_equiv", .module = mlcpd_equiv_mod },
             .{ .name = "elab", .module = elab_mod },
-            .{ .name = "proof", .module = proof_mod },
+            .{ .name = "proof_core", .module = proof_core_mod },
             .{ .name = "platform", .module = platform_mod },
         },
     }) });
@@ -851,7 +863,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "elab", .module = elab_mod },
-            .{ .name = "proof", .module = proof_mod },
+            .{ .name = "proof_core", .module = proof_core_mod },
             .{ .name = "platform", .module = platform_mod },
         },
     }) });

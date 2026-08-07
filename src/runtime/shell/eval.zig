@@ -30,7 +30,7 @@ pub fn evalHeavenCode(self: *Shell, code: []const u8) void {
     platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
-// Fonctions requises par commands.zig — redirigent toutes vers HeavenExpr.eval
+// Fonctions requises par commands.zig — redirigent toutes vers Heaven.eval
 pub fn exprEval(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
     defer self.allocator.free(result);

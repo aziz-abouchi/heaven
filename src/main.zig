@@ -57,8 +57,8 @@ const swarm_proto = @import("scut/swarm/protocol_swarm.zig");
 const heaven_expr_mod = @import("heaven_expr");
 
 fn swarmWorkerLoop(allocator: std.mem.Allocator, swarm: *swarm_runtime.SwarmRuntime, ex: *const std.atomic.Value(bool)) void {
-    // Create dedicated HeavenExpr for this thread
-    var heaven = heaven_expr_mod.HeavenExpr.init(allocator);
+    // Create dedicated Heaven for this thread
+    var heaven = heaven_expr_mod.Heaven.init(allocator);
 
     platform.debug.print("[SWARM] Worker thread started (Bob:{d})\n", .{swarm.self_port});
 
@@ -197,7 +197,7 @@ pub fn main() !void {
     }
     // NOUVEAU : Évaluateur de script pour les tests de non-régression
     if (std.mem.eql(u8, args[1], "--run-test") and args.len >= 3) {
-        var heaven = heaven_expr_mod.HeavenExpr.init(allocator);
+        var heaven = heaven_expr_mod.Heaven.init(allocator);
         defer heaven.deinit();
         heaven.ensureInit();
 

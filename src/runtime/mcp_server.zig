@@ -5,7 +5,7 @@
 // Outils exposés:
 //   - heaven_eval: Évaluer une expression Heaven
 //   - heaven_derive: Dérivée symbolique
-//   - heaven_integrate: Intégrale symbolique  
+//   - heaven_integrate: Intégrale symbolique
 //   - heaven_solve: Résolution d'équations
 //   - heaven_expand: Développement algébrique
 //   - heaven_simplify: Simplification certifiée
@@ -50,7 +50,7 @@ pub const McpTool = struct {
 
 pub const McpServer = struct {
     allocator: Allocator,
-    heaven: ?heaven_expr_mod.HeavenExpr,
+    heaven: ?heaven_expr_mod.Heaven,
     tools: []const McpTool,
 
     pub fn init(allocator: Allocator) McpServer {
@@ -63,7 +63,7 @@ pub const McpServer = struct {
 
     pub fn ensureHeaven(self: *McpServer) void {
         if (self.heaven == null) {
-            self.heaven = heaven_expr_mod.HeavenExpr.init(self.allocator);
+            self.heaven = heaven_expr_mod.Heaven.init(self.allocator);
         }
     }
 
@@ -244,7 +244,7 @@ pub const McpServer = struct {
                 var s2_str: []const u8 = "null";
                 var s1_owned: ?[]u8 = null;
                 var s2_owned: ?[]u8 = null;
-                
+
                 if (equiv_result.canon1) |c1| {
                     s1_owned = he.format(c1) catch null;
                     if (s1_owned) |s| s1_str = s;
@@ -253,38 +253,27 @@ pub const McpServer = struct {
                     s2_owned = he.format(c2) catch null;
                     if (s2_owned) |s| s2_str = s;
                 }
-                
+
                 defer if (s1_owned) |s| self.allocator.free(s);
                 defer if (s2_owned) |s| self.allocator.free(s);
 
                 const proof_available = if (equiv_result.proof != null) "true" else "false";
-                break :blk try std.fmt.allocPrint(self.allocator,
-                    "{{\"equivalent\":{s},\"strategy\":\"{s}\",\"proof_available\":{s},\"canon1\":\"{s}\",\"canon2\":\"{s}\"}}",
-                    .{ 
-                        if (equiv_result.equivalent) "true" else "false",
-                        @tagName(equiv_result.strategy),
-                        proof_available,
-                        s1_str,
-                        s2_str
-                    });
+                break :blk try std.fmt.allocPrint(self.allocator, "{{\"equivalent\":{s},\"strategy\":\"{s}\",\"proof_available\":{s},\"canon1\":\"{s}\",\"canon2\":\"{s}\"}}", .{ if (equiv_result.equivalent) "true" else "false", @tagName(equiv_result.strategy), proof_available, s1_str, s2_str });
             } else if (std.mem.eql(u8, name, "egraph_query")) {
                 const expr_str = getArgString(args, "expr") orelse break :blk "error: missing 'expr'";
                 var he = &self.heaven.?;
                 const result = he.eval(expr_str) catch break :blk "error: eval failed";
                 defer self.allocator.free(result);
-                break :blk try std.fmt.allocPrint(self.allocator,
-                    "{{\"canonical_form\":\"{s}\"}}", .{result});
+                break :blk try std.fmt.allocPrint(self.allocator, "{{\"canonical_form\":\"{s}\"}}", .{result});
             } else if (std.mem.eql(u8, name, "heaven_prove")) {
                 const stmt = getArgString(args, "statement") orelse break :blk "error: missing 'statement'";
                 var he = &self.heaven.?;
                 // Utiliser le noyau logique pour tenter une preuve
                 const result = he.eval(stmt) catch |err| {
-                    break :blk try std.fmt.allocPrint(self.allocator,
-                        "{{\"proved\":false,\"error\":\"{}\"}}", .{err});
+                    break :blk try std.fmt.allocPrint(self.allocator, "{{\"proved\":false,\"error\":\"{}\"}}", .{err});
                 };
                 defer self.allocator.free(result);
-                break :blk try std.fmt.allocPrint(self.allocator,
-                    "{{\"proved\":true,\"certificate\":\"{s}\"}}", .{result});
+                break :blk try std.fmt.allocPrint(self.allocator, "{{\"proved\":true,\"certificate\":\"{s}\"}}", .{result});
             } else {
                 break :blk try std.fmt.allocPrint(self.allocator, "error: unknown tool '{s}'", .{name});
             }

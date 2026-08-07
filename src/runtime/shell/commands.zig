@@ -579,7 +579,7 @@ pub fn cmdDep(self: *Shell, input: []const u8) void {
         const n_str = iter.next() orelse "0";
         const n = std.fmt.parseInt(i64, n_str, 10) catch 0;
         const elem_str = iter.next() orelse "Int";
-        const elem_type: types.Type = if (std.mem.eql(u8, elem_str, "Int")) .int_t else if (std.mem.eql(u8, elem_str, "Bool")) .bool_t else .string_t;
+        const elem_type: types.Type = if (std.mem.eql(u8, elem_str, "Int")) 1 else if (std.mem.eql(u8, elem_str, "Bool")) 2 else 3;
         const vt = dc.vecType(n, elem_type) catch return;
         const s = types.DependentChecker.formatJudgment(vt, self.allocator) catch return;
         defer self.allocator.free(s);
@@ -594,8 +594,8 @@ pub fn cmdDep(self: *Shell, input: []const u8) void {
         const param = iter.next() orelse "x";
         const dom_str = iter.next() orelse "Nat";
         const cod_str = iter.next() orelse "Int";
-        const dom: types.Type = if (std.mem.eql(u8, dom_str, "Nat")) .nat_t else if (std.mem.eql(u8, dom_str, "Int")) .int_t else .nat_t;
-        const cod: types.Type = if (std.mem.eql(u8, cod_str, "Int")) .int_t else if (std.mem.eql(u8, cod_str, "Bool")) .bool_t else .nat_t;
+        const dom: types.Type = if (std.mem.eql(u8, dom_str, "Nat")) 0 else if (std.mem.eql(u8, dom_str, "Int")) 1 else 0;
+        const cod: types.Type = if (std.mem.eql(u8, cod_str, "Int")) 1 else if (std.mem.eql(u8, cod_str, "Bool")) 2 else 0;
         const pt = dc.piType(param, dom, cod) catch return;
         const s = types.DependentChecker.formatJudgment(pt, self.allocator) catch return;
         defer self.allocator.free(s);
@@ -610,8 +610,8 @@ pub fn cmdDep(self: *Shell, input: []const u8) void {
         const param = iter.next() orelse "x";
         const fst_str = iter.next() orelse "Nat";
         const snd_str = iter.next() orelse "Int";
-        const fst: types.Type = if (std.mem.eql(u8, fst_str, "Nat")) .nat_t else .int_t;
-        const snd: types.Type = if (std.mem.eql(u8, snd_str, "Int")) .int_t else .bool_t;
+        const fst: types.Type = if (std.mem.eql(u8, fst_str, "Nat")) 0 else 1;
+        const snd: types.Type = if (std.mem.eql(u8, snd_str, "Int")) 1 else 2;
         const st = dc.sigmaType(param, fst, snd) catch return;
         const s = types.DependentChecker.formatJudgment(st, self.allocator) catch return;
         defer self.allocator.free(s);
@@ -630,7 +630,7 @@ pub fn cmdDep(self: *Shell, input: []const u8) void {
         _ = iter.next(); // skip \"Vec\"
         const m_str = iter.next() orelse "0";
         const m = std.fmt.parseInt(i64, m_str, 10) catch 0;
-        const result = dc.checkVecAppend(n, m, .int_t) catch return;
+        const result = dc.checkVecAppend(n, m, 1) catch return;
         const s = types.DependentChecker.formatJudgment(result, self.allocator) catch return;
         defer self.allocator.free(s);
         platform.debug.print("  Vec({d}, Int) ++ Vec({d}, Int) = {s}\n", .{ n, m, s });
@@ -1058,7 +1058,7 @@ pub fn cmdMlcpdConvert(self: *Shell, input: []const u8) void {
 
     var buf = std.ArrayListUnmanaged(u8){};
     defer buf.deinit(self.allocator);
-    // Print expression via HeavenExpr.format
+    // Print expression via Heaven.format
     {
         const expr_str = self.heaven.format(expr_id) catch "<error>";
         defer self.allocator.free(expr_str);

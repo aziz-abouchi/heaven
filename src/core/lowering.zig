@@ -29,10 +29,7 @@ pub const Lowering = struct {
                     try out.append(self.allocator, try self.lowerNode(c));
                 }
 
-                return store.push(.{
-                    .tag = .source_file,
-                    .span_a = try store.pushSpan(out.items),
-                });
+                return store.addNode(.{ .tag = .source_file, .payload = 0, .aux = 0, .span_a = try store.pushSpan(out.items), .span_b = Span.EMPTY });
             },
 
             .block => {

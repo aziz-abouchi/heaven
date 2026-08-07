@@ -53,10 +53,10 @@ pub const FileMetadata = struct {
 pub const NodeCategory = enum(u8) {
     unknown = 0,
     declaration = 1, // function, class, variable, type def
-    statement = 2,   // if, while, return, assignment
-    expression = 3,  // binary, unary, call, literal
+    statement = 2, // if, while, return, assignment
+    expression = 3, // binary, unary, call, literal
     comment = 4,
-    directive = 5,   // import, include, pragma
+    directive = 5, // import, include, pragma
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -95,13 +95,13 @@ pub const SemanticRole = enum(u16) {
 // Layer 2: Flat Node Array (représentation linéarisée)
 // ═══════════════════════════════════════════════════════════
 pub const MlcpdNode = struct {
-    id: u32,              // Index dans le flat array
+    id: u32, // Index dans le flat array
     node_type: []const u8, // Type syntaxique original (ex: "function_definition")
     category: NodeCategory,
     role: SemanticRole,
     code_snippet: []const u8, // Fragment de code source
-    parent_id: i32,       // -1 si racine
-    children_start: u32,  // Index premier enfant dans flat array
+    parent_id: i32, // -1 si racine
+    children_start: u32, // Index premier enfant dans flat array
     children_count: u16,
     start_byte: u32,
     end_byte: u32,
@@ -141,7 +141,7 @@ pub const ParsedFile = struct {
             }
         }
         self.nodes.deinit(self.allocator);
-        
+
         // Libérer la hashmap node_to_expr (importante pour éviter les leaks)
         self.node_to_expr.deinit(self.allocator);
     }
@@ -158,7 +158,6 @@ pub const ParsedFile = struct {
     /// Convertir l'AST MLCPD en Expr IR Heaven
     pub fn toExprIr(self: *ParsedFile, store: *Store) MlcpdError!Id {
         if (self.nodes.items.len == 0) return store.unitLit();
-
 
         // Construire bottom-up: les feuilles d'abord, puis les parents
         // Les nœuds sans enfants sont convertis en premier
@@ -187,20 +186,17 @@ pub const ParsedFile = struct {
 
                 if (!all_children_ready) continue;
 
-
                 // Convertir ce nœud selon son rôle sémantique
                 const expr_id = try self.convertNode(store, node, child_ids.items);
-                
-                
+
                 try self.node_to_expr.put(self.allocator, nid, expr_id);
                 converted += 1;
             }
         }
 
-
         // Retourner l'expression de la racine (node 0)
         const root_expr = self.node_to_expr.get(0) orelse store.unitLit();
-        
+
         return root_expr;
     }
 
@@ -231,7 +227,7 @@ pub const ParsedFile = struct {
                 if (children.len == 0) return store.sym(node.code_snippet) catch return error.OutOfMemory;
                 const func_name = if (node.code_snippet.len > 0) node.code_snippet else "call";
                 const sym = store.sym(func_name) catch return error.OutOfMemory;
-                const all = try std.mem.concat(store.allocator, Id, &.{&[_]Id{sym}, children});
+                const all = try std.mem.concat(store.allocator, Id, &.{ &[_]Id{sym}, children });
                 defer store.allocator.free(all);
                 return store.apply(sym, children) catch return error.OutOfMemory;
             },
@@ -240,17 +236,16 @@ pub const ParsedFile = struct {
                 // children[0] = nom de la fonction (identifier)
                 // children[1] = paramètres (peut être un tuple ou liste)
                 // children[2] = corps de la fonction
-                
+
                 if (children.len < 3) {
                     // Pas assez d'enfants, fallback
                     return store.unitLit();
                 }
-                
+
                 const func_name_id = children[0];
                 const params_id = children[1];
                 const body_id = children[2];
-                
-                
+
                 // Pour l'instant, créer un lambda simple avec un paramètre "x"
                 // TODO: extraire les vrais noms de paramètres depuis params_id
                 // Extraire le VRAI nom du paramètre depuis params_id
@@ -259,9 +254,8 @@ pub const ParsedFile = struct {
                     store.interner.resolve(param_node.payload)
                 else
                     "x"; // Fallback
-                const lambda = store.lambdaNative(param_name, body_id) catch return error.OutOfMemory;
-                
-                
+                const lambda = store.lambdaNative(&.{param_name}, body_id) catch return error.OutOfMemory;
+
                 _ = func_name_id;
                 return lambda;
             },
@@ -301,7 +295,7 @@ pub const ParsedFile = struct {
                     const cond = children[0];
                     const then_branch = children[1];
                     const else_branch = children[2];
-                    
+
                     const if_sym = store.sym("if") catch return error.OutOfMemory;
                     const args = &[_]Id{ cond, then_branch, else_branch };
                     return store.apply(if_sym, args) catch return error.OutOfMemory;
@@ -455,11 +449,11 @@ fn parseNode(allocator: Allocator, val: std.json.Value) MlcpdError!MlcpdNode {
 
     if (obj.get("id")) |v| node.id = @intCast(v.integer);
     if (obj.get("type")) |v| {
-            node.node_type = allocator.dupe(u8, v.string) catch return error.OutOfMemory;
-        }
+        node.node_type = allocator.dupe(u8, v.string) catch return error.OutOfMemory;
+    }
     if (obj.get("snippet")) |v| {
-            node.code_snippet = allocator.dupe(u8, v.string) catch return error.OutOfMemory;
-        }
+        node.code_snippet = allocator.dupe(u8, v.string) catch return error.OutOfMemory;
+    }
     if (obj.get("parent")) |v| node.parent_id = @intCast(v.integer);
     if (obj.get("children_start")) |v| node.children_start = @intCast(v.integer);
     if (obj.get("children_count")) |v| node.children_count = @intCast(v.integer);
@@ -547,5 +541,3 @@ pub fn normalizeBoolLiteral(s: []const u8) []const u8 {
     if (std.ascii.eqlIgnoreCase(s, "false")) return "false";
     return s;
 }
-
-

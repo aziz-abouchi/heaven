@@ -1,6 +1,6 @@
 const std = @import("std");
 const build_options = @import("build_options");
-const HeavenExpr = @import("heaven_expr").HeavenExpr;
+const Heaven = @import("heaven_expr").Heaven;
 const platform = @import("platform");
 const codec = @import("codec");
 const egraph_mod = @import("egraph");
@@ -38,7 +38,7 @@ fn allocator() std.mem.Allocator {
     return platform.allocator();
 }
 
-var heaven: ?HeavenExpr = null;
+var heaven: ?Heaven = null;
 const ProofEntry = struct { name: [64]u8, name_len: u8, stmt: [128]u8, stmt_len: u8, verified: bool };
 var proof_list: [64]ProofEntry = undefined;
 var proof_count: u32 = 0;
@@ -88,7 +88,7 @@ export fn getOutputLen() u32 {
 }
 
 export fn init() void {
-    heaven = HeavenExpr.init(allocator());
+    heaven = Heaven.init(allocator());
 }
 
 export fn heavenEval(len: u32) u32 {
@@ -598,7 +598,7 @@ export fn getWasmCommands() u32 {
     return output_len;
 }
 
-pub fn enableLowering(self: *HeavenExpr, v: bool) void {
+pub fn enableLowering(self: *Heaven, v: bool) void {
     self.use_lowering = v;
 }
 

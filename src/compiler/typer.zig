@@ -19,42 +19,42 @@ pub const Typer = struct {
     pub fn init(allocator: std.mem.Allocator, store: *const Store, diags: *DiagnosticList) Typer {
         var self = Typer{
             .store = store,
-            .subst = TypeSubst.init(allocator),
+            .subst = .{},
             .diags = diags,
             .allocator = allocator,
         };
-        self.type_env.put(allocator, "+", .{ .arrow = undefined }) catch {};
-        self.type_env.put(allocator, "-", .{ .arrow = undefined }) catch {};
-        self.type_env.put(allocator, "print", .{ .arrow = undefined }) catch {};
+        self.type_env.put(allocator, "+", 0) catch {};
+        self.type_env.put(allocator, "-", 0) catch {};
+        self.type_env.put(allocator, "print", 0) catch {};
         return self;
     }
 
     pub fn deinit(self: *Typer) void {
-        self.subst.deinit();
+        self.subst.deinit(self.allocator);
         self.type_env.deinit(self.allocator);
     }
 
     pub fn freshVar(self: *Typer) Type {
         const v = self.next_var;
         self.next_var += 1;
-        return .{ .var_t = v };
+        return v;
     }
 
     pub fn infer(self: *Typer, id: Id) Type {
-        if (id == expr.NULL) return .unit_t;
-        if (id >= self.store.len()) return .unit_t;
+        if (id == expr.NULL) return 0;
+        if (id >= self.store.len()) return 0;
 
         const node = self.store.get(id);
         switch (node.tag) {
             .lit => {
                 const l = self.store.lits.items[node.aux];
                 return switch (l) {
-                    .int => .int_t,
-                    .float => .float_t,
-                    .str => .string_t,
-                    .boolean => .bool_t,
-                    .unit => .unit_t,
-                    .runtime => .runtime_t,
+                    .int => 1, // Stub : on renvoie un ID de type arbitraire
+                    .float => 2,
+                    .str => 3,
+                    .boolean => 4,
+                    .unit => 0,
+                    .runtime => 5,
                 };
             },
             .sym => {
@@ -63,7 +63,7 @@ pub const Typer = struct {
                 return self.freshVar();
             },
             .apply => {
-                const pool = self.store.childPool();
+                const pool = self.store.pool.items;
                 const args = node.span_a.slice(pool);
                 for (args) |arg| {
                     _ = self.infer(arg);
@@ -76,9 +76,8 @@ pub const Typer = struct {
                 self.type_env.put(self.allocator, name, val_type) catch {};
                 return val_type;
             },
-            .relation => return .unit_t,
+            .relation => return 0,
             .hole => return self.freshVar(),
-            .list_nil, .list_cons => return .unit_t, // Type stub temporaire en attendant la Phase 2
             else => unreachable,
         }
     }

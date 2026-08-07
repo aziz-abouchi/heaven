@@ -153,40 +153,7 @@ pub const LaTeX = struct {
                 try self.emit(std.fmt.bufPrint(&tmp, "{d}", .{node.payload}) catch "?");
                 try self.emit("}");
             },
-            .list_nil => try self.emit("[]"),
-            .list_cons => {
-                try self.emit("[");
-                var current_id = id;
-                var first = true;
-
-                while (true) {
-                    const current_node = self.store.get(current_id);
-                    if (current_node.tag != .list_cons) {
-                        // On a atteint la fin, mais ce n'est pas un Nil (ex: un trou ou un symbole de queue)
-                        try self.emit(" \\mid ");
-                        try self.emitExpr(current_id);
-                        break;
-                    }
-
-                    if (!first) try self.emit(", ");
-                    first = false;
-
-                    // Émettre l'élément courant (la tête)
-                    try self.emitExpr(current_node.span_a.start);
-
-                    // Passer à l'élément suivant (la queue)
-                    const next_id = current_node.span_b.start;
-                    const next_node = self.store.get(next_id);
-
-                    if (next_node.tag == .list_nil) {
-                        // Fin propre de la liste
-                        break;
-                    }
-                    current_id = next_id;
-                }
-                try self.emit("]");
-            },
-            else => unreachable,
+            else => try self.out.appendSlice(self.allocator, "<?>"),
         }
     }
 

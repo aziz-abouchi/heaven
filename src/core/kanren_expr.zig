@@ -75,16 +75,6 @@ pub fn unify(store: *const Store, subst: *Subst, a_raw: Id, b_raw: Id) UnifyErro
             for (aa, ab) |ca, cb| try unify(store, subst, ca, cb);
         },
         .hole => unreachable,
-        .list_nil => {
-            // nb.tag a déjà été validé égal à na.tag (qui est .list_nil) plus haut
-            return;
-        },
-        .list_cons => {
-            // Unification de la tête (span_a.start) de la liste A avec celle de la liste B
-            try unify(store, subst, na.span_a.start, nb.span_a.start);
-            // Unification de la queue (span_b.start) de la liste A avec celle de la liste B
-            try unify(store, subst, na.span_b.start, nb.span_b.start);
-        },
         else => unreachable,
     }
 }

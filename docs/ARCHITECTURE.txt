@@ -17,7 +17,7 @@ COUCHES
    - evalFunction() : appel de fonctions avec pattern matching
 
 3. Surface (heaven_expr.zig)
-   - HeavenExpr : REPL
+   - Heaven : REPL
    - Parsing texte → Store
    - Commandes utilisateur
    - Intégration des moteurs externes

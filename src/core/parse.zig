@@ -362,7 +362,7 @@ pub const Parser = struct {
             const func_name = trimmed[0..space];
             const arg_str = std.mem.trim(u8, trimmed[space + 1 ..], " ");
             if (func_name.len > 0 and arg_str.len > 0) {
-                const is_registered = self.engine.fns.functions.getEntry(func_name) != null;
+                const is_registered = self.engine.fns.getEntry(func_name) != null;
                 if (is_registered) {
                     var arg_ids: std.ArrayListUnmanaged(Id) = .{};
                     defer arg_ids.deinit(self.allocator);
@@ -459,7 +459,7 @@ pub const Parser = struct {
             if (err == error.NotALambda) return self.parseLetExpr(body_str);
             return err;
         };
-        return self.store.lambdaNative(param_str, body_id);
+        return self.store.lambdaNative(&.{param_str}, body_id);
     }
 
     pub fn parseLetExpr(self: *Parser, input: []const u8) (std.mem.Allocator.Error || error{NotALambda})!Id {

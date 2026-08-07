@@ -19,7 +19,7 @@ pub const Shell = struct {
     ingestor: *universal_lib.UniversalIngestor,
     memo: std.StringHashMap(i64),
     prolog: prolog_lib.PrologEngine,
-    heaven: *heaven_expr_lib.HeavenExpr,
+    heaven: *heaven_expr_lib.Heaven,
     kanren: @import("kanren").KanrenEngine,
     meta: *ontology_lib.MetaEngine,
     swarm: *swarm_lib.SwarmRuntime,
@@ -29,9 +29,9 @@ pub const Shell = struct {
     active_theorem: ?[]const u8 = null,
 
     pub fn init(alloc: std.mem.Allocator, m: *matrix_lib.Matrix, e: *heaven_lib.Engine, i: *universal_lib.UniversalIngestor, port: u16) Shell {
-        const he = alloc.create(heaven_expr_lib.HeavenExpr) catch @panic("alloc heaven_expr");
+        const he = alloc.create(heaven_expr_lib.Heaven) catch @panic("alloc heaven_expr");
         //defer alloc.destroy(he);
-        he.* = heaven_expr_lib.HeavenExpr.init(alloc);
+        he.* = heaven_expr_lib.Heaven.init(alloc);
         return .{
             .allocator = alloc,
             .matrix = m,

@@ -46,7 +46,10 @@ pub const QttCost = struct {
                 c += self.total(store, node.payload);
                 for (node.span_a.slice(store.pool.items)) |child| c += self.total(store, child);
             },
-            .bind => c += self.total(store, node.aux),
+            .bind => {
+                const args = node.span_a.slice(store.pool.items);
+                for (args) |a| c += self.total(store, a);
+            },
             else => {},
         }
         return c;
@@ -224,13 +227,7 @@ pub const EGraph = struct {
                 for (node.span_a.slice(pool)) |child| _ = try self.addExpr(child);
                 for (node.span_b.slice(pool)) |child| _ = try self.addExpr(child);
             },
-            .list_nil => {}, // Aucun sous-arbre à enregistrer récursivement
-            .list_cons => {
-                // Dans ton AST, list_cons stocke le head index dans span_a.start et tail index dans span_b.start
-                _ = try self.addExpr(node.span_a.start);
-                _ = try self.addExpr(node.span_b.start);
-            },
-            else => unreachable,
+            else => return 0, // ou return error.UnsupportedExpr
         }
         return self.add(id);
     }
@@ -315,26 +312,27 @@ pub const EGraph = struct {
 
 pub fn cost(store: *const Store, id: Id) u32 {
     const node = store.get(id);
-    const pool = store.pool.items;
     var c: u32 = 1;
     switch (node.tag) {
-        .sym, .lit, .hole => return 1,
+        .lit => {},
+        .sym => {},
         .apply => {
-            c += cost(store, node.payload);
-            for (node.span_a.slice(pool)) |child| c += cost(store, child);
+            const args = node.span_a.slice(store.pool.items);
+            for (args) |a| c += cost(store, a);
         },
-        .bind => c += cost(store, node.aux),
+        .bind => {
+            const args = node.span_a.slice(store.pool.items);
+            for (args) |a| c += cost(store, a);
+        },
+        .lambda => {
+            const args = node.span_a.slice(store.pool.items);
+            for (args) |a| c += cost(store, a);
+        },
         .relation => {
-            for (node.span_a.slice(pool)) |child| c += cost(store, child);
-            for (node.span_b.slice(pool)) |child| c += cost(store, child);
+            const args = node.span_a.slice(store.pool.items);
+            for (args) |a| c += cost(store, a);
         },
-        .list_nil => return 1,
-        .list_cons => {
-            // Le coût total d'une liste est son nœud cons + le coût de la tête + le coût de la queue
-            c += cost(store, node.span_a.start);
-            c += cost(store, node.span_b.start);
-        },
-        else => unreachable,
+        else => {},
     }
     return c;
 }

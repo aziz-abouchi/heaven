@@ -34,8 +34,10 @@ const proof_helpers_mod = @import("proof_helpers");
 const simplify_engine_mod = @import("simplify_engine");
 const mlcpd_mod = @import("mlcpd");
 const mlcpd_equiv_mod = @import("mlcpd_equiv");
+const universal_translator = @import("universal_translator");
+const mlcpd = @import("mlcpd");
 
-const HeavenError = error{
+pub const HeavenError = error{
     UnsupportedExpr,
     UnknownVariable,
     TypeMismatch,
@@ -66,6 +68,9 @@ const HeavenError = error{
     FileTooBig,
     OpenError,
     NotALambda,
+    InvalidPi,
+    InvalidTypeAnn,
+    CannotLowerFrontendTag,
 } || std.mem.Allocator.Error || platform.fs.File.OpenError || platform.fs.File.ReadError || mir.MirError || engine_expr.EvalError;
 
 pub const Commands = struct {
@@ -333,6 +338,7 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "equiv ")) return self.evalEquiv(trimmed["equiv ".len..]);
         if (std.mem.startsWith(u8, trimmed, "js ")) return self.evalJs(trimmed["js ".len..]);
         if (std.mem.startsWith(u8, trimmed, "dumpAstFile ")) return self.dumpAstFile(trimmed["dumpAstFile ".len..]);
+        if (std.mem.startsWith(u8, trimmed, "translateAndDump ")) return self.translateAndDump(trimmed["translateAndDump ".len..]);
 
         // === Parser avec tree-sitter ===
         if (self.parseExpression(trimmed)) |expr_id| {
@@ -983,7 +989,7 @@ pub const Commands = struct {
         var inf = types_mod.Infer.init(self.store, self.allocator);
         defer inf.deinit();
         const t = try inf.typeOf(id);
-        return types_mod.Infer.typeStr(&inf.subst, t, self.allocator);
+        return inf.typeStr(&inf.subst, t, self.allocator);
     }
 
     // ─── Simplify ───
@@ -2032,7 +2038,6 @@ pub const Commands = struct {
         };
         defer self.allocator.free(content);
 
-        // ✅ Pour Heaven : utiliser importExpr directement (plus fiable que tree-sitter)
         if (lang == .heaven) {
             const id = self.bridge.importExpr(content) catch {
                 return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{path});
@@ -2043,7 +2048,6 @@ pub const Commands = struct {
             return std.fmt.allocPrint(self.allocator, "✓ parsed and evaluated {s} as heaven", .{path});
         }
 
-        // Pour les autres langages (C, Zig, Pie) : tree-sitter
         var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
             return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
         };
@@ -2053,10 +2057,24 @@ pub const Commands = struct {
             return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
         };
 
-        var bridge = @import("bridge_expr").Bridge.init(self.store, self.allocator);
-        _ = try bridge.translateOne(&matrix);
+        var universal = universal_translator.UniversalTranslator.init(self.allocator, self.store);
+        const mlcpd_lang = switch (lang) {
+            .c => mlcpd.FileMetadata.Language.c,
+            .zig => mlcpd.FileMetadata.Language.c,
+            .pie => mlcpd.FileMetadata.Language.unknown,
+            .heaven => unreachable,
+        };
 
-        return std.fmt.allocPrint(self.allocator, "✓ parsed {s} as {s} ({d} nodes)", .{ path, lang.toString(), matrix.children.len });
+        const heaven_id = universal.translate(&matrix, mlcpd_lang) catch {
+            return std.fmt.allocPrint(self.allocator, "translation failed for {s}", .{lang.toString()});
+        };
+
+        self.engine.fuel = 1_000_000;
+        const result = self.engine.eval(heaven_id) catch heaven_id;
+        const result_str = expr.toString(self.store, result, self.allocator) catch "error";
+        defer self.allocator.free(result_str);
+
+        return std.fmt.allocPrint(self.allocator, "✓ translated and evaluated {s} as {s}", .{ path, lang.toString() });
     }
 
     /// Affiche l'AST brut d'un fichier parsé (pour debug du bridge)
@@ -2104,5 +2122,43 @@ pub const Commands = struct {
         for (matrix.children) |*child| {
             try dumpMatrix(child, depth + 1, buf, alloc);
         }
+    }
+
+    pub fn translateAndDump(self: *Commands, path: []const u8) ![]u8 {
+        const ext = std.fs.path.extension(path);
+        const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse
+            return std.fmt.allocPrint(self.allocator, "unsupported extension: {s}", .{ext});
+
+        const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
+            return std.fmt.allocPrint(self.allocator, "error reading {s}: {}", .{ path, err });
+        };
+        defer self.allocator.free(content);
+
+        var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
+            return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
+        };
+        defer parser.deinit();
+
+        const matrix = parser.parse(content) catch {
+            return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
+        };
+
+        var universal = universal_translator.UniversalTranslator.init(self.allocator, self.store);
+        const mlcpd_lang = switch (lang) {
+            .c => mlcpd.FileMetadata.Language.c,
+            .zig => mlcpd.FileMetadata.Language.c,
+            .pie => mlcpd.FileMetadata.Language.unknown,
+            .heaven => unreachable,
+        };
+
+        const heaven_id = universal.translate(&matrix, mlcpd_lang) catch {
+            return std.fmt.allocPrint(self.allocator, "translation failed for {s}", .{lang.toString()});
+        };
+
+        // Afficher l'AST Heaven généré
+        var buf: std.ArrayListUnmanaged(u8) = .{};
+        defer buf.deinit(self.allocator);
+        try self.writeAst(heaven_id, 0, &buf);
+        return buf.toOwnedSlice(self.allocator);
     }
 };

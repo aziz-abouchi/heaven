@@ -146,18 +146,7 @@ pub const Codegen = struct {
             },
             .bind => try self.emit(self.store.interner.resolve(node.payload)),
             .relation => try self.emit("/* relation */"),
-            .list_nil => {
-                // Une liste vide se traduit simplement par un pointeur nul en C
-                try self.emit("NULL");
-            },
-            .list_cons => {
-                // Pour l'instant, on lève explicitement une erreur propre si le pipeline
-                // tente de compiler une structure de données dynamique vers du C brut
-                // sans ramasse-miettes (GC) ou allocateur runtime défini.
-                std.log.debug("[Codegen C Error] C target does not support dynamic cons allocation yet.\n", .{});
-                return error.UnsupportedTypeForCodegen;
-            },
-            else => unreachable,
+            else => return error.UnsupportedTypeForCodegen,
         }
     }
 
