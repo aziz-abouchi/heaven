@@ -12,10 +12,16 @@ const Engine = engine_expr.Engine;
 pub const Parser = struct {
     store: *Store,
     engine: *Engine,
+    env: *engine_expr.Env,
     allocator: Allocator,
 
-    pub fn init(store: *Store, engine: *Engine, allocator: Allocator) Parser {
-        return .{ .store = store, .engine = engine, .allocator = allocator };
+    pub fn init(store: *Store, engine: *Engine, env: *engine_expr.Env, allocator: std.mem.Allocator) Parser {
+        return .{
+            .store = store,
+            .engine = engine,
+            .env = env,
+            .allocator = allocator,
+        };
     }
 
     /// Cherche un mot-clé à la racine (profondeur parenthèses = 0)
@@ -289,7 +295,7 @@ pub const Parser = struct {
 
             if (std.mem.eql(u8, op, "eval") and num_parts > 1) {
                 const inner_id = try self.parseSExpr(parts[1]);
-                return self.engine.eval(inner_id) catch inner_id;
+                return engine_expr.evaluate(self.store, self.env, self.engine, inner_id, 0) catch inner_id;
             }
             if (std.mem.eql(u8, op, "let") and num_parts >= 3) {
                 const sym = try self.store.interner.intern(parts[1]);

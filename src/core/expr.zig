@@ -246,96 +246,31 @@ pub const LowerError = error{
 };
 
 pub fn nodeHash(store: *const Store, id: Id) u64 {
-    _ = store;
-    _ = id;
-    return 0; // Stub temporaire
+    var hasher = std.hash.Wyhash.init(0);
+    const node = store.get(id);
+    hasher.update(std.mem.asBytes(&node.tag));
+    if (node.tag == .lit) {
+        const lit = store.lits.items[node.aux];
+        hasher.update(std.mem.asBytes(&lit));
+    } else if (node.tag == .sym) {
+        const name = store.interner.resolve(node.payload);
+        hasher.update(name);
+    } else if (node.tag == .apply or node.tag == .bind or node.tag == .lambda or node.tag == .relation) {
+        const args = node.span_a.slice(store.pool.items);
+        for (args) |arg| {
+            const h = nodeHash(store, arg);
+            hasher.update(std.mem.asBytes(&h));
+        }
+    }
+    return hasher.final();
 }
 
 pub fn toString(store: *const Store, id: Id, allocator: std.mem.Allocator) ![]u8 {
-    var buf: std.ArrayList(u8) = .empty;
-    defer buf.deinit(allocator);
-
-    const node = store.get(id);
-    switch (node.tag) {
-        .lit => {
-            const lit = store.lits.items[node.aux];
-            switch (lit) {
-                .int => |v| buf.writer(allocator).print("{d}", .{v}) catch return LowerError.OutOfMemory,
-                .float => |v| buf.writer(allocator).print("{d}", .{v}) catch return LowerError.OutOfMemory,
-                .boolean => |v| buf.appendSlice(allocator, if (v) "true" else "false") catch return LowerError.OutOfMemory,
-                .str => |v| {
-                    buf.append(allocator, '"') catch return LowerError.OutOfMemory;
-                    buf.appendSlice(allocator, store.interner.resolve(v)) catch return LowerError.OutOfMemory;
-                    buf.append(allocator, '"') catch return LowerError.OutOfMemory;
-                },
-                .unit => buf.appendSlice(allocator, "()") catch return LowerError.OutOfMemory,
-                .runtime => buf.appendSlice(allocator, "<runtime>") catch return LowerError.OutOfMemory,
-            }
-        },
-        .sym => {
-            buf.appendSlice(allocator, store.interner.resolve(node.payload)) catch return LowerError.OutOfMemory;
-        },
-        .apply => {
-            buf.append(allocator, '(') catch return LowerError.OutOfMemory;
-            const pool = store.pool.items;
-            const args = node.span_a.slice(pool);
-            for (args, 0..) |arg, i| {
-                if (i > 0) buf.append(allocator, ' ') catch return LowerError.OutOfMemory;
-                const child_str = try toString(store, arg, allocator);
-                defer allocator.free(child_str);
-                try buf.appendSlice(allocator, child_str);
-            }
-            buf.append(allocator, ')') catch return LowerError.OutOfMemory;
-        },
-        .bind => {
-            buf.appendSlice(allocator, "(bind ") catch return LowerError.OutOfMemory;
-            buf.appendSlice(allocator, store.interner.resolve(node.payload)) catch return LowerError.OutOfMemory;
-            buf.append(allocator, ' ') catch return LowerError.OutOfMemory;
-            const pool = store.pool.items;
-            const args = node.span_a.slice(pool);
-            for (args) |arg| {
-                buf.append(allocator, ' ') catch return LowerError.OutOfMemory;
-                const child_str = try toString(store, arg, allocator);
-                defer allocator.free(child_str);
-                try buf.appendSlice(allocator, child_str);
-            }
-            buf.append(allocator, ')') catch return LowerError.OutOfMemory;
-        },
-        .lambda => {
-            buf.appendSlice(allocator, "(lambda ") catch return LowerError.OutOfMemory;
-            buf.appendSlice(allocator, store.interner.resolve(node.payload)) catch return LowerError.OutOfMemory;
-            buf.append(allocator, ' ') catch return LowerError.OutOfMemory;
-            const pool = store.pool.items;
-            const args = node.span_a.slice(pool);
-            for (args) |arg| {
-                buf.append(allocator, ' ') catch return LowerError.OutOfMemory;
-                const child_str = try toString(store, arg, allocator);
-                defer allocator.free(child_str);
-                try buf.appendSlice(allocator, child_str);
-            }
-            buf.append(allocator, ')') catch return LowerError.OutOfMemory;
-        },
-        .relation => {
-            buf.append(allocator, '(') catch return LowerError.OutOfMemory;
-            const pool = store.pool.items;
-            const args = node.span_a.slice(pool);
-            for (args, 0..) |arg, i| {
-                if (i > 0) buf.append(allocator, ' ') catch return LowerError.OutOfMemory;
-                const child_str = try toString(store, arg, allocator);
-                defer allocator.free(child_str);
-                try buf.appendSlice(allocator, child_str);
-            }
-            buf.append(allocator, ')') catch return LowerError.OutOfMemory;
-        },
-        else => buf.appendSlice(allocator, "<?>") catch return LowerError.OutOfMemory,
-    }
-    return buf.toOwnedSlice(allocator);
+    return store.toString(id, allocator);
 }
 
 pub fn toStringInfix(store: *const Store, id: Id, allocator: std.mem.Allocator) ![]u8 {
-    _ = store;
-    _ = id;
-    return allocator.dupe(u8, "toStringInfix stub") catch return error.OutOfMemory;
+    return store.toString(id, allocator);
 }
 
 pub const Store = struct {
@@ -414,26 +349,23 @@ pub const Store = struct {
     }
 
     pub fn int(self: *Store, val: i64) !Id {
-        const aux = try self.addLit(.{ .int = val });
-        return self.addNode(.{ .tag = .int, .payload = 0, .aux = aux, .span_a = Span.EMPTY, .span_b = Span.EMPTY });
+        return self.lit(.{ .int = val });
     }
 
     pub fn float(self: *Store, val: f64) !Id {
-        const aux = try self.addLit(.{ .float = val });
-        return self.addNode(.{ .tag = .float, .payload = 0, .aux = aux, .span_a = Span.EMPTY, .span_b = Span.EMPTY });
+        return self.lit(.{ .float = val });
     }
 
     pub fn boolean(self: *Store, val: bool) !Id {
-        return self.addNode(.{ .tag = if (val) .true else .false, .payload = 0, .aux = 0, .span_a = Span.EMPTY, .span_b = Span.EMPTY });
+        return self.lit(.{ .boolean = val });
+    }
+
+    pub fn unitLit(self: *Store) !Id {
+        return self.lit(.unit);
     }
 
     pub fn hole(self: *Store, idx: u32) !Id {
         return self.addNode(.{ .tag = .hole, .payload = idx, .aux = 0, .span_a = Span.EMPTY, .span_b = Span.EMPTY });
-    }
-
-    pub fn unitLit(self: *Store) !Id {
-        const aux = try self.addLit(.unit);
-        return self.addNode(.{ .tag = .unit_lit, .payload = 0, .aux = aux, .span_a = Span.EMPTY, .span_b = Span.EMPTY });
     }
 
     pub fn lit(self: *Store, l: Lit) !Id {
@@ -665,14 +597,14 @@ pub const Store = struct {
             });
         }
 
-        var lowered_children = std.ArrayList(Id).init(self.allocator);
-        defer lowered_children.deinit();
+        var lowered_children: std.ArrayList(Id) = .empty;
+        defer lowered_children.deinit(self.allocator);
 
         if (node.span_a.len > 0) {
             const old = self.spanSliceConst(node.span_a);
-            try lowered_children.ensureTotalCapacity(old.len);
+            try lowered_children.ensureTotalCapacity(self.allocator, old.len);
             for (old) |child| {
-                try lowered_children.append(try self.lowerRec(child));
+                try lowered_children.append(self.allocator, try self.lowerRec(child));
             }
         }
 
@@ -698,78 +630,83 @@ pub const Store = struct {
     // ═══════════════════════════════════════════════════════════════
 
     pub fn toString(self: *const Store, id: Id, allocator: Allocator) Allocator.Error![]u8 {
-        var buf = std.ArrayList(u8).init(allocator);
-        defer buf.deinit();
-        try self.serialize(id, &buf);
-        return buf.toOwnedSlice();
+        var buf: std.ArrayList(u8) = .empty;
+        defer buf.deinit(allocator);
+        try self.serialize(id, &buf, allocator);
+        return buf.toOwnedSlice(allocator);
     }
 
     pub fn toStringInfix(self: *const Store, id: Id, allocator: Allocator) Allocator.Error![]u8 {
         return self.toString(id, allocator);
     }
 
-    fn serialize(self: *const Store, id: Id, buf: *std.ArrayList(u8)) Allocator.Error!void {
+    fn serialize(self: *const Store, id: Id, buf: *std.ArrayList(u8), allocator: Allocator) Allocator.Error!void {
         const node = self.get(id);
         switch (node.tag) {
             .lit => {
                 const l = self.lits.items[node.aux];
                 switch (l) {
-                    .int => |v| try buf.writer().print("{d}", .{v}),
-                    .float => |v| try buf.writer().print("{d}", .{v}),
-                    .boolean => |v| try buf.appendSlice(if (v) "true" else "false"),
+                    .int => |v| buf.writer(allocator).print("{d}", .{v}) catch return error.OutOfMemory,
+                    .float => |v| buf.writer(allocator).print("{d}", .{v}) catch return error.OutOfMemory,
+                    .boolean => |v| buf.appendSlice(allocator, if (v) "true" else "false") catch return error.OutOfMemory,
                     .str => |v| {
-                        try buf.append('"');
-                        try buf.appendSlice(self.interner.resolve(v));
-                        try buf.append('"');
+                        buf.append(allocator, '"') catch return error.OutOfMemory;
+                        buf.appendSlice(allocator, self.interner.resolve(v)) catch return error.OutOfMemory;
+                        buf.append(allocator, '"') catch return error.OutOfMemory;
                     },
-                    .unit => try buf.appendSlice("()"),
-                    .runtime => try buf.appendSlice("<runtime>"),
+                    .unit => buf.appendSlice(allocator, "()") catch return error.OutOfMemory,
+                    .runtime => buf.appendSlice(allocator, "<runtime>") catch return error.OutOfMemory,
                 }
             },
-            .sym => try buf.appendSlice(self.interner.resolve(node.payload)),
+            .sym => {
+                buf.appendSlice(allocator, self.interner.resolve(node.payload)) catch return error.OutOfMemory;
+            },
             .apply => {
-                try buf.append('(');
+                buf.append(allocator, '(') catch return error.OutOfMemory;
                 const args = node.span_a.slice(self.pool.items);
                 for (args, 0..) |arg, i| {
-                    if (i > 0) try buf.append(self.store.allocator, ' ');
-                    try self.serialize(arg, buf);
+                    if (i > 0) buf.append(allocator, ' ') catch return error.OutOfMemory;
+                    try self.serialize(arg, buf, allocator);
                 }
-                try buf.append(self.store.allocator, ')');
+                buf.append(allocator, ')') catch return error.OutOfMemory;
             },
             .bind => {
-                try buf.appendSlice(self.interner.resolve(node.payload));
-                try buf.appendSlice(" := ");
+                // Le test attend : "x := 42"
+                buf.appendSlice(allocator, self.interner.resolve(node.payload)) catch return error.OutOfMemory;
+                buf.appendSlice(allocator, " := ") catch return error.OutOfMemory;
                 const args = node.span_a.slice(self.pool.items);
-                if (args.len > 0) try self.serialize(args[0], buf);
+                if (args.len > 0) {
+                    try self.serialize(args[0], buf, allocator);
+                }
             },
             .lambda => {
-                try buf.appendSlice("(lambda ");
-                try buf.appendSlice(self.interner.resolve(node.payload));
-                try buf.append(self.store.allocator, ' ');
+                buf.appendSlice(allocator, "(lambda ") catch return error.OutOfMemory;
+                buf.appendSlice(allocator, self.interner.resolve(node.payload)) catch return error.OutOfMemory;
+                buf.append(allocator, ' ') catch return error.OutOfMemory;
                 const args = node.span_a.slice(self.pool.items);
-                for (args) |arg| {
-                    try buf.append(self.store.allocator, ' ');
-                    try self.serialize(arg, buf);
+                for (args, 0..) |arg, i| {
+                    if (i > 0) buf.append(allocator, ' ') catch return error.OutOfMemory;
+                    try self.serialize(arg, buf, allocator);
                 }
-                try buf.append(self.store.allocator, ')');
+                buf.append(allocator, ')') catch return error.OutOfMemory;
             },
             .relation => {
-                try buf.append('(');
-                try buf.appendSlice(self.interner.resolve(node.payload));
+                buf.append(allocator, '(') catch return error.OutOfMemory;
+                buf.appendSlice(allocator, self.interner.resolve(node.payload)) catch return error.OutOfMemory;
                 const args = node.span_a.slice(self.pool.items);
                 for (args) |arg| {
-                    try buf.append(self.store.allocator, ' ');
-                    try self.serialize(arg, buf);
+                    buf.append(allocator, ' ') catch return error.OutOfMemory;
+                    try self.serialize(arg, buf, allocator);
                 }
-                try buf.append(self.store.allocator, ')');
+                buf.append(allocator, ')') catch return error.OutOfMemory;
             },
-            .hole => try buf.appendSlice("_"),
-            .int => try buf.writer().print("{d}", .{self.lits.items[node.aux].int}),
-            .float => try buf.writer().print("{d}", .{self.lits.items[node.aux].float}),
-            .true => try buf.appendSlice("true"),
-            .false => try buf.appendSlice("false"),
-            .unit_lit => try buf.appendSlice("()"),
-            else => try buf.appendSlice("<?>"),
+            // Legacy tags (au cas où le lowering n'est pas encore appelé)
+            .int => buf.writer(allocator).print("{d}", .{self.lits.items[node.aux].int}) catch return error.OutOfMemory,
+            .float => buf.writer(allocator).print("{d}", .{self.lits.items[node.aux].float}) catch return error.OutOfMemory,
+            .true => buf.appendSlice(allocator, "true") catch return error.OutOfMemory,
+            .false => buf.appendSlice(allocator, "false") catch return error.OutOfMemory,
+            .unit_lit => buf.appendSlice(allocator, "()") catch return error.OutOfMemory,
+            else => buf.appendSlice(allocator, "<?>") catch return error.OutOfMemory,
         }
     }
 

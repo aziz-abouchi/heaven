@@ -173,7 +173,15 @@ pub const Infer = struct {
             },
             .apply => {
                 const func_node = self.store.get(node.payload);
-                _ = func_node;
+                if (func_node.tag == .sym) {
+                    const name = self.store.interner.resolve(func_node.payload);
+                    // Gestion des opérateurs magiques
+                    if (std.mem.eql(u8, name, "+") or std.mem.eql(u8, name, "-") or
+                        std.mem.eql(u8, name, "*") or std.mem.eql(u8, name, "/"))
+                    {
+                        return self.int(); // Retourne le type Int
+                    }
+                }
                 return self.unknown();
             },
             .bind => {
@@ -240,8 +248,7 @@ pub const Infer = struct {
         return self.store.apply(list_sym, &.{elem});
     }
     fn relation(self: *Infer) !Id {
-        const rel_sym = try @constCast(self.store).sym("Relation");
-        return @constCast(self.store).apply(rel_sym, &.{});
+        return @constCast(self.store).sym("Relation");
     }
 };
 
@@ -255,7 +262,9 @@ test "infer — int literal" {
     defer inf.deinit();
 
     const n = try store.int(42);
-    const t = try inf.typeOf(n);
+    const n_l = try store.lowerRec(n);
+    const t = try inf.typeOf(n_l);
+
     const s = try expr.toString(&store, t, allocator);
     defer allocator.free(s);
     try std.testing.expectEqualStrings("Int", s);
@@ -269,7 +278,9 @@ test "infer — bool literal" {
     defer inf.deinit();
 
     const b = try store.boolean(true);
-    const t = try inf.typeOf(b);
+    const b_l = try store.lowerRec(b);
+    const t = try inf.typeOf(b_l);
+
     const s = try expr.toString(&store, t, allocator);
     defer allocator.free(s);
     try std.testing.expectEqualStrings("Bool", s);
@@ -285,7 +296,9 @@ test "infer — arithmetic" {
     const a = try store.int(1);
     const b = try store.int(2);
     const sum = try store.binop("+", a, b);
-    const t = try inf.typeOf(sum);
+    const sum_l = try store.lowerRec(sum);
+    const t = try inf.typeOf(sum_l);
+
     const s = try expr.toString(&store, t, allocator);
     defer allocator.free(s);
     try std.testing.expectEqualStrings("Int", s);
@@ -300,7 +313,9 @@ test "infer — relation" {
 
     const s = try store.sym("socrate");
     const rel = try store.relation("mortal", &.{s}, &.{});
-    const t = try inf.typeOf(rel);
+    const rel_l = try store.lowerRec(rel);
+    const t = try inf.typeOf(rel_l);
+
     const str = try expr.toString(&store, t, allocator);
     defer allocator.free(str);
     try std.testing.expectEqualStrings("Relation", str);

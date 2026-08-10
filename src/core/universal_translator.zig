@@ -124,14 +124,26 @@ pub const MlcpdToHeaven = struct {
     }
 
     pub fn convert(self: *MlcpdToHeaven, parsed: *mlcpd_mod.ParsedFile) !Id {
-        if (parsed.nodes.items.len == 0) return error.InvalidStructure;
+        platform.debug.print("[MlcpdToHeaven] Converting {d} nodes\n", .{parsed.nodes.items.len});
+
+        if (parsed.nodes.items.len == 0) {
+            platform.debug.print("[MlcpdToHeaven] ERROR: No nodes to convert\n", .{});
+            return error.InvalidStructure;
+        }
 
         for (parsed.nodes.items) |node| {
+            platform.debug.print("[MlcpdToHeaven] Converting node {d}: role={s}\n", .{ node.id, @tagName(node.role) });
             const heaven_id = try self.convertNode(parsed, node.id);
             try parsed.node_to_expr.put(self.allocator, node.id, heaven_id);
         }
 
-        return parsed.node_to_expr.get(0) orelse error.InvalidStructure;
+        const root_id = parsed.node_to_expr.get(0) orelse {
+            platform.debug.print("[MlcpdToHeaven] ERROR: Root node not found in node_to_expr\n", .{});
+            return error.InvalidStructure;
+        };
+
+        platform.debug.print("[MlcpdToHeaven] Root node converted to heaven_id={d}\n", .{root_id});
+        return root_id;
     }
 
     fn convertNode(self: *MlcpdToHeaven, parsed: *mlcpd_mod.ParsedFile, node_id: u32) !Id {
@@ -469,12 +481,18 @@ pub const UniversalTranslator = struct {
     }
 
     pub fn translate(self: *UniversalTranslator, matrix: *const Matrix, lang: mlcpd_mod.FileMetadata.Language) !Id {
+        platform.debug.print("[UniversalTranslator] Starting translation\n", .{});
+
         var converter = MlcpdConverter.init(self.allocator);
         var parsed = try converter.convert(matrix, lang);
         defer parsed.deinit();
 
+        platform.debug.print("[UniversalTranslator] ParsedFile created with {d} nodes\n", .{parsed.nodes.items.len});
+
         var to_heaven = MlcpdToHeaven.init(self.allocator, self.store);
         const heaven_id = try to_heaven.convert(&parsed);
+
+        platform.debug.print("[UniversalTranslator] Translation successful, heaven_id={d}\n", .{heaven_id});
 
         return heaven_id;
     }

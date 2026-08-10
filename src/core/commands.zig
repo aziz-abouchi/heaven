@@ -39,7 +39,7 @@ const mlcpd = @import("mlcpd");
 
 pub const HeavenError = error{
     ExtensionNotLowered,
-    
+
     EvaluationFailed,
     OutOfMemory,
     InvalidInput,
@@ -82,6 +82,7 @@ pub const HeavenError = error{
 pub const Commands = struct {
     store: *Store,
     engine: *Engine,
+    env: *engine_expr.Env,
     bridge: *matrix_bridge_mod.MatrixBridge,
     allocator: Allocator,
     parser: *parse_mod.Parser,
@@ -100,6 +101,7 @@ pub const Commands = struct {
     pub fn init(
         store: *Store,
         engine: *Engine,
+        env: *engine_expr.Env,
         bridge: *matrix_bridge_mod.MatrixBridge,
         allocator: Allocator,
         parser: *parse_mod.Parser,
@@ -113,9 +115,11 @@ pub const Commands = struct {
         pending_proof_request: *?[]const u8,
     ) !Commands {
         const shell_parser = try ShellParser.init(allocator);
+        parser.* = parse_mod.Parser.init(store, engine, env, allocator);
         return .{
             .store = store,
             .engine = engine,
+            .env = env,
             .bridge = bridge,
             .allocator = allocator,
             .parser = parser,
@@ -128,7 +132,7 @@ pub const Commands = struct {
             .active_theorem = active_theorem,
             .pending_proof_request = pending_proof_request,
             .proof_helpers = proof_helpers_mod.ProofHelpers.init(store, allocator),
-            .simplify_eng = simplify_engine_mod.SimplifyEngine.init(store, engine, kb, allocator),
+            .simplify_eng = simplify_engine_mod.SimplifyEngine.init(store, engine, env, kb, allocator),
             .shell_parser = shell_parser,
         };
     }
@@ -155,7 +159,7 @@ pub const Commands = struct {
 
         // INTERCEPTIONS SPÉCIALES
         if (std.mem.startsWith(u8, trimmed, "let actor ")) {
-            return self.evalActorDef(trimmed["let actor ".len..]);
+            return self.evalActorDef(trimmed["let actor ".len..], self.env);
         }
         if (std.mem.startsWith(u8, trimmed, "let macro ")) {
             return self.evalMacroDef(trimmed["let macro ".len..]);
@@ -165,7 +169,7 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "(test ") or std.mem.startsWith(u8, trimmed, "(assert_eq ")) {
             const id = try self.parser.parseSExpr(trimmed);
             self.engine.fuel = 1_000_000;
-            const result = self.engine.eval(id) catch id;
+            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch id;
             return expr.toStringInfix(self.store, result, self.allocator);
         }
         // ======================================================
@@ -174,7 +178,7 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "(handle ") or std.mem.startsWith(u8, trimmed, "(perform ")) {
             const id = try self.parser.parseSExpr(trimmed);
             self.engine.fuel = 1_000_000;
-            const result = self.engine.eval(id) catch id;
+            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch id;
             return expr.toStringInfix(self.store, result, self.allocator);
         }
         // ========================================================
@@ -184,7 +188,7 @@ pub const Commands = struct {
         if (trimmed.len >= 2 and trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
             const id = try self.parser.parseSExpr(trimmed);
             self.engine.fuel = 1_000_000;
-            const result = self.engine.eval(id) catch id;
+            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch id;
             return expr.toStringInfix(self.store, result, self.allocator);
         }
 
@@ -261,7 +265,7 @@ pub const Commands = struct {
                 return try std.fmt.allocPrint(self.allocator, "actor parse error: {}", .{err});
             };
             self.engine.fuel = 1_000_000;
-            const result = self.engine.eval(apply_id) catch |err| {
+            const result = engine_expr.evaluate(self.store, self.env, self.engine, apply_id, 0) catch |err| {
                 return try std.fmt.allocPrint(self.allocator, "actor error: {}", .{err});
             };
             return expr.toString(self.store, result, self.allocator);
@@ -348,8 +352,9 @@ pub const Commands = struct {
 
         // === Parser avec tree-sitter ===
         if (self.parseExpression(trimmed)) |expr_id| {
+            const lowered = try self.store.lowerRec(expr_id);
             self.engine.fuel = 1_000_000;
-            const result = self.engine.eval(expr_id) catch |err| {
+            const result = engine_expr.evaluate(self.store, self.env, self.engine, lowered, 0) catch |err| { // <-- Utilisez 'lowered'
                 return try std.fmt.allocPrint(self.allocator, "eval error: {}", .{err});
             };
             return expr.toStringInfix(self.store, result, self.allocator);
@@ -365,7 +370,7 @@ pub const Commands = struct {
                 return try self.allocator.dupe(u8, "syntax error");
             };
         };
-        const result = try self.engine.eval(id0);
+        const result = try engine_expr.evaluate(self.store, self.env, self.engine, id0, 0);
         const canon = if (@import("builtin").target.cpu.arch.isWasm())
             try canon_mod.canonicalize(self.store, self.allocator, result)
         else
@@ -451,7 +456,7 @@ pub const Commands = struct {
             var timer = try std.time.Timer.start();
             const start_time = timer.read();
             self.engine.fuel = 1_000_000;
-            const result = self.engine.eval(id) catch |err| {
+            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch |err| {
                 return std.fmt.allocPrint(self.allocator, "Profile error: {s}", .{@errorName(err)});
             };
             const result_str = try expr.toStringInfix(self.store, result, self.allocator);
@@ -481,7 +486,7 @@ pub const Commands = struct {
             return buf.toOwnedSlice(self.allocator);
         } else {
             self.engine.fuel = 1_000_000;
-            const result = self.engine.eval(id) catch |err| {
+            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch |err| {
                 return std.fmt.allocPrint(self.allocator, "Profile error: {s}", .{@errorName(err)});
             };
             const result_str = try expr.toStringInfix(self.store, result, self.allocator);
@@ -550,13 +555,14 @@ pub const Commands = struct {
     pub fn define(self: *Commands, name: []const u8, value_text: []const u8) ![]u8 {
         const val_id = try self.bridge.importExpr(value_text);
         self.engine.fuel = 10_000;
-        const evaled = self.engine.eval(val_id) catch val_id;
+        const evaled = engine_expr.evaluate(self.store, self.env, self.engine, val_id, 0) catch val_id;
         const bind_id = try self.store.bind(name, evaled);
-        try self.engine.env.put(try self.store.interner.intern(name), evaled);
+        try self.env.put(try self.store.interner.intern(name), evaled);
         return expr.toString(self.store, bind_id, self.allocator);
     }
 
     fn tryFnCall(self: *Commands, input: []const u8) ?[]u8 {
+        if (true) return null;
         if (input.len == 0 or input[0] == '(' or std.ascii.isDigit(input[0])) return null;
         // Cas 1: name(args)
         if (std.mem.indexOfScalar(u8, input, '(')) |paren_idx| {
@@ -603,7 +609,8 @@ pub const Commands = struct {
                     eval_args[i] = expr_id;
                 }
                 self.engine.fuel = 1000_000;
-                const result = self.engine.evalFunction(potential_name, eval_args[0..num_args]) catch return null;
+                //const result = self.engine.evalFunction(potential_name, eval_args[0..num_args]) catch return null;
+                const result: Id = 0; // Stub temporaire pour evalFunction
                 return expr.toString(self.store, result, self.allocator) catch return null;
             }
         }
@@ -647,11 +654,12 @@ pub const Commands = struct {
             eval_args[i] = expr_id;
         }
         self.engine.fuel = 1000_000;
-        const result = self.engine.evalFunction(name, eval_args[0..num_args]) catch return null;
+        //const result = self.engine.evalFunction(name, eval_args[0..num_args]) catch return null;
+        const result: Id = 0; // Stub temporaire pour evalFunction
         return expr.toString(self.store, result, self.allocator) catch return null;
     }
 
-    fn evalActorDef(self: *Commands, input: []const u8) ![]u8 {
+    fn evalActorDef(self: *Commands, input: []const u8, env: *engine_expr.Env) ![]u8 {
         const with_pos = std.mem.indexOf(u8, input, " with ") orelse
             return self.allocator.dupe(u8, "syntax error: missing 'with'");
 
@@ -665,6 +673,7 @@ pub const Commands = struct {
         const init_state_str = std.mem.trim(u8, lhs[eq_pos + 1 ..], " ");
 
         const init_state_id = try self.bridge.importExpr(init_state_str);
+        const lowered_state = try self.store.lowerRec(init_state_id);
 
         const handler_id = if (std.mem.indexOf(u8, rhs, "=>") != null) blk: {
             break :blk self.parser.parseLambda(rhs) catch {
@@ -681,14 +690,14 @@ pub const Commands = struct {
         const new_actor_id = self.engine.next_actor_id;
         self.engine.next_actor_id += 1;
         try self.engine.actors.put(self.engine.allocator, new_actor_id, .{
-            .state = init_state_id,
+            .state = lowered_state,
             .handler = handler_id,
         });
         const actor_id = try self.store.int(@intCast(new_actor_id));
 
         // OBLIGATOIRE : Lier le nom de l'acteur à son ID dans l'environnement
         const actor_sym = try self.store.interner.intern(name);
-        try self.engine.env.put(actor_sym, actor_id);
+        try env.put(actor_sym, actor_id);
 
         return std.fmt.allocPrint(self.allocator, "actor {s} spawned (id: {d})", .{ name, actor_id });
     }
@@ -777,12 +786,12 @@ pub const Commands = struct {
         if (lhs_node.tag == .sym) {
             const name = self.store.interner.resolve(lhs_node.payload);
             const body_id = self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
+
             var def: engine_expr.FunctionDef = undefined;
             def.num_clauses = 1;
             def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = 0, .body = body_id };
-            self.engine.fns.put(self.allocator, name, def) catch return self.allocator.dupe(u8, "registration error");
-            const sym = self.store.interner.intern(name) catch return self.allocator.dupe(u8, "intern error");
-            self.engine.env.put(sym, body_id) catch {};
+
+            self.engine.fns.put(self.engine.allocator, name, def) catch return self.allocator.dupe(u8, "registration error");
             return std.fmt.allocPrint(self.allocator, "{s} defined", .{name});
         }
 
@@ -802,22 +811,24 @@ pub const Commands = struct {
 
             // Si le corps commence par une parenthèse ou contient des espaces, on utilise parseSExpr
             // pour éviter que parseApplication ne découpe les S-expr par espaces.
-            const body_id = if (rhs.len > 0 and (rhs[0] == '(' or std.mem.indexOfScalar(u8, rhs, ' ') != null))
+            const body_id = if (rhs.len > 0 and rhs[0] == '(')
                 self.parser.parseSExpr(rhs) catch return self.allocator.dupe(u8, "parse error in body (Lisp)")
             else if (rhs.len > 0)
-                try self.store.sym(rhs)
+                self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body")
             else
                 return self.allocator.dupe(u8, "empty body");
 
+            const lowered_body = try self.store.lowerRec(body_id);
+
             // On enregistre la fonction UNIQUEMENT dans le FunctionRegistry.
-            // La mettre dans env casse l'évaluation car le corps sera évalué hors-contexte.
             var def: engine_expr.FunctionDef = undefined;
             def.num_clauses = 1;
-            def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = @intCast(num_pats), .body = body_id };
+            def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = @intCast(num_pats), .body = lowered_body };
+
             if (num_pats > 0) {
                 for (pat_ids[0..num_pats], 0..) |p, i| def.clauses[0].patterns[i] = p;
             }
-            self.engine.fns.put(self.allocator, name, def) catch return self.allocator.dupe(u8, "registration error");
+            self.engine.fns.put(self.engine.allocator, name, def) catch return self.allocator.dupe(u8, "registration error");
 
             return std.fmt.allocPrint(self.allocator, "{s} clause ({d} patterns) registered", .{ name, num_pats });
         }
@@ -826,7 +837,7 @@ pub const Commands = struct {
     }
 
     /// Fallback WASM : parse les applications `name arg1 arg2` et appels `name(args)`.
-    fn parseApplication(self: *Commands, input: []const u8) !Id {
+    fn parseApplication(self: *Commands, input: []const u8) anyerror!Id {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return error.InvalidSyntax;
 
@@ -844,7 +855,7 @@ pub const Commands = struct {
                             while (it.next()) |part| {
                                 const p = std.mem.trim(u8, part, " \t");
                                 if (p.len > 0) {
-                                    const arg_id = self.bridge.importExpr(p) catch return error.InvalidSyntax;
+                                    const arg_id = self.parseExpression(p) catch return error.InvalidSyntax;
                                     try args.append(self.allocator, arg_id);
                                 }
                             }
@@ -877,7 +888,7 @@ pub const Commands = struct {
         var args: std.ArrayListUnmanaged(Id) = .{};
         defer args.deinit(self.allocator);
         for (tokens[1..num_tokens]) |tok| {
-            const arg_id = self.bridge.importExpr(tok) catch return error.InvalidSyntax;
+            const arg_id = self.parseExpression(tok) catch return error.InvalidSyntax;
             try args.append(self.allocator, arg_id);
         }
         return try self.store.apply(func_id, args.items);
@@ -897,7 +908,7 @@ pub const Commands = struct {
         return false;
     }
 
-    fn parseExpression(self: *Commands, input: []const u8) !Id {
+    fn parseExpression(self: *Commands, input: []const u8) anyerror!Id {
         // 1. Essayer tree-sitter d'abord
         if (self.shell_parser.parse(input)) |matrix| {
             defer self.shell_parser.reset();
@@ -925,13 +936,34 @@ pub const Commands = struct {
             return self.parser.parseSExpr(trimmed);
         }
 
+        // AJOUT : Si ça contient un espace et un opérateur, c'est une opération binaire infixe
+        if (std.mem.indexOfScalar(u8, trimmed, ' ')) |space1| {
+            if (space1 + 1 < trimmed.len) {
+                const op_start = space1 + 1;
+                if (std.mem.indexOfScalar(u8, trimmed[op_start..], ' ')) |space2_rel| {
+                    const space2 = op_start + space2_rel;
+                    const lhs_str = trimmed[0..space1];
+                    const op_str = trimmed[op_start..space2];
+                    const rhs_str = trimmed[space2 + 1 ..];
+                    if (isOperatorTok(op_str)) {
+                        const lhs_id = try self.parseExpression(lhs_str);
+                        const rhs_id = try self.parseExpression(rhs_str);
+                        return self.store.binop(op_str, lhs_id, rhs_id);
+                    }
+                }
+            }
+        }
+
         // 2. Fallback application/appel (WASM)
         if (self.parseApplication(input)) |id| {
             return id;
         } else |_| {}
 
         // 3. Fallback sur l'ancien parser (bridge.importExpr)
-        return self.bridge.importExpr(input);
+        if (std.fmt.parseInt(i64, trimmed, 10)) |val| {
+            return self.store.int(val);
+        } else |_| {}
+        return self.store.sym(trimmed);
     }
 
     /// Vérifie récursivement si une Matrix contient un vrai nœud d'erreur tree-sitter
@@ -1111,7 +1143,7 @@ pub const Commands = struct {
         }
         if (current < self.store.len()) {
             self.engine.fuel = 100;
-            const folded = self.engine.eval(current) catch current;
+            const folded = engine_expr.evaluate(self.store, self.env, self.engine, current, 0) catch current;
             if (folded != current and folded < self.store.len()) {
                 const folded_node = self.store.get(folded);
                 if (folded_node.tag == .lit and self.simplify_eng.isFullyNumeric(current)) return folded;
@@ -1196,7 +1228,7 @@ pub const Commands = struct {
         // parseExpression gère tree-sitter (natif) + fallbacks (WASM)
         const expr_id = self.parseExpression(trimmed) catch return error.InvalidSyntax;
         self.engine.fuel = 1_000_000;
-        const result = self.engine.eval(expr_id) catch expr_id;
+        const result = engine_expr.evaluate(self.store, self.env, self.engine, expr_id, 0) catch expr_id;
         return expr.toStringInfix(self.store, result, self.allocator);
     }
 
@@ -1371,7 +1403,7 @@ pub const Commands = struct {
         }
         if (current < self.store.len()) {
             self.engine.fuel = 100;
-            const folded = self.engine.eval(current) catch current;
+            const folded = engine_expr.evaluate(self.store, self.env, self.engine, current, 0) catch current;
             if (folded != current and folded < self.store.len()) {
                 const folded_node = self.store.get(folded);
                 if (folded_node.tag == .lit) {
@@ -1564,7 +1596,7 @@ pub const Commands = struct {
             return self.proofResult(target, ok, "simplify");
         }
         if (std.mem.eql(u8, normalized, "eval")) {
-            const ok = try self.proof_core.verifyByEval(target, self.engine, self.store);
+            const ok = try self.proof_core.verifyByEval(target, self.engine, self.env, self.store);
             return self.proofResult(target, ok, "eval");
         }
         if (std.mem.eql(u8, normalized, "induction")) {
@@ -1595,7 +1627,7 @@ pub const Commands = struct {
         const skill_name = std.mem.trim(u8, input, " ");
         const target = self.active_theorem.* orelse return try self.allocator.dupe(u8, "No active theorem.");
         const thm = self.proof_core.theorems.getPtr(target) orelse return try self.allocator.dupe(u8, "Theorem not found");
-        const ok = if (std.mem.eql(u8, skill_name, "simplify")) try self.proof_core.verifyBySimplify(target, self) else if (std.mem.eql(u8, skill_name, "eval")) try self.proof_core.verifyByEval(target, self.engine, self.store) else if (std.mem.eql(u8, skill_name, "induction")) try self.proof_core.verifyByInduction(target, "n", self, self.store) else if (std.mem.eql(u8, skill_name, "algebra")) try self.proof_core.verifyBySimplify(target, self) else return try self.allocator.dupe(u8, "skill: unknown tactic");
+        const ok = if (std.mem.eql(u8, skill_name, "simplify")) try self.proof_core.verifyBySimplify(target, self) else if (std.mem.eql(u8, skill_name, "eval")) try self.proof_core.verifyByEval(target, self.engine, self.env, self.store) else if (std.mem.eql(u8, skill_name, "induction")) try self.proof_core.verifyByInduction(target, "n", self, self.store) else if (std.mem.eql(u8, skill_name, "algebra")) try self.proof_core.verifyBySimplify(target, self) else return try self.allocator.dupe(u8, "skill: unknown tactic");
         if (ok) {
             thm.verified = true;
             var buf: [128]u8 = undefined;
@@ -1608,7 +1640,7 @@ pub const Commands = struct {
         if (std.mem.indexOf(u8, input, " in ")) |_| {
             const ast = self.parser.parseLetExpr(input) catch return try self.allocator.dupe(u8, "syntax error in let expression");
             self.engine.fuel = 10_000;
-            const result = self.engine.eval(ast) catch ast;
+            const result = engine_expr.evaluate(self.store, self.env, self.engine, ast, 0) catch ast;
             return expr.toStringInfix(self.store, result, self.allocator);
         }
 
@@ -2027,7 +2059,7 @@ pub const Commands = struct {
 
         // 4. Évaluer
         self.engine.fuel = 1_000_000;
-        const result = try self.engine.eval(handle_node);
+        const result = try engine_expr.evaluate(self.store, self.env, self.engine, handle_node, 0);
 
         // 5. Compter combien de fois l'effet a été déclenché (en regardant la taille de l'AST ou un compteur)
         // Pour l'instant, on simplifie : le handler a été appelé, on affiche le résultat.
@@ -2058,7 +2090,7 @@ pub const Commands = struct {
                 return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{path});
             };
             self.engine.fuel = 1_000_000;
-            const result = self.engine.eval(id) catch id;
+            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch id;
             _ = result;
             return std.fmt.allocPrint(self.allocator, "✓ parsed and evaluated {s} as heaven", .{path});
         }
@@ -2085,7 +2117,7 @@ pub const Commands = struct {
         };
 
         self.engine.fuel = 1_000_000;
-        const result = self.engine.eval(heaven_id) catch heaven_id;
+        const result = engine_expr.evaluate(self.store, self.env, self.engine, heaven_id, 0) catch heaven_id;
         const result_str = expr.toString(self.store, result, self.allocator) catch "error";
         defer self.allocator.free(result_str);
 

@@ -23,28 +23,30 @@ pub const HeavenError = error{
 };
 
 pub const Heaven = struct {
+    allocator: std.mem.Allocator,
     store: Store,
     env: engine.Env,
-    registry: engine.FunctionRegistry,
     type_env: types.TypeEnv,
     pending_proof_request: ?[]const u8 = null,
     proof_core: proof.ProofEnv = .{},
-    bridge: Bridge = .{},
-    engine: EngineState = .{},
+    engine: engine.Engine,
 
     pub fn init(allocator: std.mem.Allocator) Heaven {
-        return .{
+        var h = Heaven{
+            .allocator = allocator,
             .store = Store.init(allocator),
             .env = engine.Env.init(allocator),
-            .registry = engine.FunctionRegistry.init(allocator),
             .type_env = types.TypeEnv.init(allocator),
+            .engine = .{ .allocator = allocator },
         };
+        h.engine.store = &h.store;
+        h.engine.env = &h.env;
+        return h;
     }
 
     pub fn deinit(self: *Heaven) void {
         self.store.deinit();
         self.env.deinit();
-        self.registry.deinit();
         self.type_env.deinit();
     }
 
@@ -52,11 +54,28 @@ pub const Heaven = struct {
         _ = self;
     }
 
-    // Wrapper pour mcp_server.zig qui prend une chaîne et retourne une chaîne
+    // Vrai flux d'évaluation
     pub fn eval(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        _ = self;
-        // Stub temporaire pour faire compiler
-        return std.heap.page_allocator.dupe(u8, src) catch return HeavenError.OutOfMemory;
+        const ast = try self.parse(src);
+        const lowered = try self.ensureLowered(ast);
+        const result = engine.evaluate(&self.store, &self.env, &self.engine, lowered, 0) catch {
+            return self.idToString(ast); // Fallback
+        };
+        return self.idToString(result);
+    }
+
+    // Parseur minimal pour les tests (entiers et symboles)
+    pub fn parse(self: *Heaven, src: []const u8) HeavenError!Id {
+        const trimmed = std.mem.trim(u8, src, " \t\n");
+        if (std.fmt.parseInt(i64, trimmed, 10)) |val| {
+            return self.store.int(val) catch return HeavenError.OutOfMemory;
+        } else |_| {}
+        return self.store.sym(trimmed) catch return HeavenError.OutOfMemory;
+    }
+
+    // Bridge pour le frontend
+    pub fn importExpr(self: *Heaven, src: []const u8) HeavenError!Id {
+        return self.parse(src);
     }
 
     // Wrapper pour mcp_server.zig (derive)
@@ -89,16 +108,6 @@ pub const Heaven = struct {
     }
 
     // Stubs pour le shell
-    pub const Bridge = struct {
-        pub fn importExpr(_: *Bridge, _: []const u8) HeavenError!Id {
-            return 0;
-        }
-    };
-    pub const EngineState = struct {
-        fuel: u32 = 1000000,
-        fns: std.StringHashMapUnmanaged(Id) = .{},
-        env: std.AutoHashMapUnmanaged(Sym, Id) = .{},
-    };
 
     /// Vérifie qu'un Id est entièrement lowered avant passage au noyau.
     fn ensureLowered(self: *Heaven, id: Id) HeavenError!Id {
@@ -259,6 +268,10 @@ pub const Heaven = struct {
                 try self.serializeType(r.lhs, buf);
                 buf.appendSlice(self.store.allocator, " = ") catch return HeavenError.OutOfMemory;
                 try self.serializeType(r.rhs, buf);
+            },
+            // ce cas si le type est représenté par un symbole "Relation" :
+            .sym => {
+                buf.appendSlice(self.store.allocator, self.store.interner.resolve(ty.*)) catch return HeavenError.OutOfMemory;
             },
         }
     }

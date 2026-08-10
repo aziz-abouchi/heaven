@@ -176,7 +176,7 @@ export fn heavenExplain(len: u32) u32 {
 export fn heavenLatex(len: u32) u32 {
     var h = &(heaven orelse return 0);
     h.ensureInit();
-    const id = h.bridge.importExpr(input_buf[0..len]) catch {
+    const id = h.importExpr(input_buf[0..len]) catch {
         setOutput("error");
         return 5;
     };
@@ -232,7 +232,7 @@ export fn heavenToC(len: u32) u32 {
     if (heaven == null) return 0;
     var h = &(heaven orelse return 0);
     h.ensureInit();
-    const id = h.bridge.importExpr(input_buf[0..len]) catch {
+    const id = h.importExpr(input_buf[0..len]) catch {
         setOutput("error");
         return 5;
     };
@@ -344,7 +344,7 @@ export fn heavenFnDef(len: u32) u32 {
         num_pats += 1;
     }
 
-    const body_id = h.bridge.importExpr(rhs) catch {
+    const body_id = h.importExpr(rhs) catch {
         setOutput("parse error");
         return output_len;
     };
@@ -359,7 +359,7 @@ export fn heavenFnDef(len: u32) u32 {
             setOutput("error");
             return output_len;
         };
-        h.engine.env.put(std.heap.page_allocator, sym, body_id) catch {};
+        h.env.put(sym, body_id) catch {};
     }
 
     var buf: [256]u8 = undefined;
@@ -385,11 +385,11 @@ export fn heavenTheorem(len: u32) u32 {
     };
     const lhs_str = stmt[0..eq];
     const rhs_str = stmt[eq + 3 ..];
-    const lhs = h.bridge.importExpr(lhs_str) catch {
+    const lhs = h.importExpr(lhs_str) catch {
         setOutput("parse error lhs");
         return output_len;
     };
-    const rhs = h.bridge.importExpr(rhs_str) catch {
+    const rhs = h.importExpr(rhs_str) catch {
         setOutput("parse error rhs");
         return output_len;
     };
@@ -429,11 +429,11 @@ export fn heavenAxiom(len: u32) u32 {
     };
     const lhs_str = stmt[0..eq];
     const rhs_str = stmt[eq + 3 ..];
-    const lhs = h.bridge.importExpr(lhs_str) catch {
+    const lhs = h.importExpr(lhs_str) catch {
         setOutput("parse error");
         return output_len;
     };
-    const rhs = h.bridge.importExpr(rhs_str) catch {
+    const rhs = h.importExpr(rhs_str) catch {
         setOutput("parse error");
         return output_len;
     };

@@ -104,7 +104,6 @@ pub const Math = struct {
         return self.allocator.realloc(buf, pos);
     }
 
-
     /// Convertit un AST (Id) en notation infix normalisée pour deriveStr
     fn idToInfix(self: *Math, id: Id) ![]u8 {
         const node = self.store.get(id);
@@ -575,7 +574,6 @@ pub const Math = struct {
         return expr.toString(self.store, simplified, self.allocator);
     }
 
-
     /// Simplification mathématique basique pour expressions développées
     fn simplifyMath(self: *Math, id: Id) !Id {
         if (id >= self.store.len()) return id;
@@ -791,7 +789,7 @@ pub const Math = struct {
             const old_binding = self.engine.env.get(var_sym);
             try self.engine.env.put(var_sym, x_id);
             self.engine.fuel = 200;
-            const result = self.engine.eval(id) catch {
+            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch {
                 values[i] = 0;
                 if (old_binding) |ob| self.engine.env.put(var_sym, ob) catch {} else {}
                 continue;

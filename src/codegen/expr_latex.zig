@@ -38,10 +38,13 @@ pub const LaTeX = struct {
 
     fn emitTop(self: *Self, id: Id) Error!void {
         const node = self.store.get(id);
-        if (node.tag == .bind) {
+        if (node.tag == .bind or node.tag == .let) {
             try self.emitName(self.store.interner.resolve(node.payload));
             try self.emit(" &\\coloneqq ");
-            try self.emitExpr(node.aux);
+            const args = node.span_a.slice(self.store.pool.items);
+            if (args.len > 0) {
+                try self.emitExpr(args[0]);
+            }
         } else if (node.tag == .relation) {
             try self.emitRelation(id);
         } else {
@@ -77,7 +80,10 @@ pub const LaTeX = struct {
             },
             .apply => {
                 const func_node = self.store.get(node.payload);
-                const args = node.span_a.slice(pool);
+                const all_children = node.span_a.slice(pool);
+                if (all_children.len == 0) return;
+                const args = all_children[1..];
+
                 if (func_node.tag == .sym) {
                     const name = self.store.interner.resolve(func_node.payload);
                     if (args.len == 2) {
@@ -144,7 +150,10 @@ pub const LaTeX = struct {
             .bind => {
                 try self.emitName(self.store.interner.resolve(node.payload));
                 try self.emit(" \\coloneqq ");
-                try self.emitExpr(node.aux);
+                const args = node.span_a.slice(self.store.pool.items);
+                if (args.len > 0) {
+                    try self.emitExpr(args[0]);
+                }
             },
             .relation => try self.emitRelation(id),
             .hole => {

@@ -235,7 +235,7 @@ pub fn cmdQuote(self: *Shell, input: []const u8) void {
 pub fn cmdLaTeX(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     self.heaven.ensureInit();
-    const id = self.heaven.bridge.importExpr(input) catch {
+    const id = self.heaven.importExpr(input) catch {
         platform.debug.print(" parse error\n", .{});
         return;
     };
@@ -281,7 +281,7 @@ pub fn cmdToC(self: *Shell, input: []const u8) void {
     const wrapped = std.fmt.bufPrint(&wrap_buf, "_result = {s}", .{input}) catch return;
     _ = wrapped;
 
-    const id = self.heaven.bridge.importExpr(input) catch {
+    const id = self.heaven.importExpr(input) catch {
         platform.debug.print("  parse error\n", .{});
         return;
     };
@@ -396,8 +396,8 @@ pub fn cmdAxiom(self: *Shell, input: []const u8) void {
             const lhs_str = std.mem.trim(u8, stmt[0..eq], " ");
             const rhs_str = std.mem.trim(u8, stmt[eq + 3 ..], " ");
             self.heaven.ensureInit();
-            const lhs = self.heaven.bridge.importExpr(lhs_str) catch return;
-            const rhs = self.heaven.bridge.importExpr(rhs_str) catch return;
+            const lhs = self.heaven.importExpr(lhs_str) catch return;
+            const rhs = self.heaven.importExpr(rhs_str) catch return;
             self.proofs.axiom(name, stmt, lhs, rhs) catch return;
             session_lib.save(self.proofs, self.allocator) catch {};
             platform.debug.print("  \xe2\x9c\x93 axiom {s} assumed\n", .{name});

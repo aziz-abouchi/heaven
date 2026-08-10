@@ -6,6 +6,7 @@ const Id = expr.Id;
 const canon = @import("canon");
 const platform = @import("platform");
 const kernel = @import("kernel");
+const engine_expr = @import("engine_expr");
 
 const PROOF_DEBUG = true;
 
@@ -87,12 +88,11 @@ pub const ProofCore = struct {
         });
     }
 
-    pub fn verifyByEval(self: *ProofCore, name: []const u8, engine: anytype, store: *Store) !bool {
+    pub fn verifyByEval(self: *ProofCore, name: []const u8, engine: *engine_expr.Engine, env: *engine_expr.Env, store: *Store) !bool {
         const thm = self.theorems.getPtr(name) orelse return false;
         engine.fuel = 1000000;
-        const lhs_val = engine.eval(thm.lhs) catch thm.lhs;
-        engine.fuel = 1000000;
-        const rhs_val = engine.eval(thm.rhs) catch thm.rhs;
+        const lhs_val = engine_expr.evaluate(store, env, engine, thm.lhs, 0) catch thm.lhs;
+        const rhs_val = engine_expr.evaluate(store, env, engine, thm.rhs, 0) catch thm.rhs;
         const lhs_node = store.get(lhs_val);
         const rhs_node = store.get(rhs_val);
         if (lhs_node.tag == .lit and rhs_node.tag == .lit) {
@@ -238,7 +238,7 @@ pub const ProofCore = struct {
     pub fn verifyByInduction(self: *ProofCore, name: []const u8, variable: []const u8, heaven: anytype, store: *Store) !bool {
         const thm = self.theorems.getPtr(name) orelse return false;
         const var_sym = store.interner.lookup(variable) orelse return error.UnknownVariable;
-        const old_binding = heaven.engine.env.get(var_sym);
+        const old_binding = heaven.env.get(var_sym);
 
         // Collecter les variables libres (autres que la variable d'induction)
         var free_vars = std.StringHashMapUnmanaged(void){};
@@ -250,12 +250,12 @@ pub const ProofCore = struct {
         var fv_it = free_vars.keyIterator();
         while (fv_it.next()) |fv_name| {
             if (store.interner.lookup(fv_name.*)) |fv_sym| {
-                try heaven.engine.env.put(fv_sym, try intToPeano(store, 1));
+                try heaven.env.put(fv_sym, try intToPeano(store, 1));
             }
         }
 
         // Base case : variable = zero
-        try heaven.engine.env.put(var_sym, try intToPeano(store, 0));
+        try heaven.env.put(var_sym, try intToPeano(store, 0));
         heaven.engine.fuel = 100000;
         // Évaluer en boucle jusqu'à stabilisation
         var base_lhs_eval = thm.lhs;
@@ -266,8 +266,8 @@ pub const ProofCore = struct {
         while (iterations < 20) : (iterations += 1) {
             prev_lhs = base_lhs_eval;
             prev_rhs = base_rhs_eval;
-            base_lhs_eval = heaven.engine.eval(base_lhs_eval) catch base_lhs_eval;
-            base_rhs_eval = heaven.engine.eval(base_rhs_eval) catch base_rhs_eval;
+            base_lhs_eval = engine_expr.evaluate(heaven.store, heaven.env, heaven.engine, base_lhs_eval, 0) catch base_lhs_eval;
+            base_rhs_eval = engine_expr.evaluate(heaven.store, heaven.env, heaven.engine, base_rhs_eval, 0) catch base_rhs_eval;
             if (base_lhs_eval == prev_lhs and base_rhs_eval == prev_rhs) break;
         }
         // Appliquer simplifyRec pour réduire avec les règles de la KB
@@ -287,7 +287,7 @@ pub const ProofCore = struct {
             if (PROOF_DEBUG) platform.debug.print("[INDUCTION] base_ok={} lhs={s} rhs={s}\n", .{ base_ok, lhs_str, rhs_str });
         }
         if (!base_ok) {
-            if (old_binding) |ob| heaven.engine.env.put(var_sym, ob) catch {};
+            if (old_binding) |ob| heaven.env.put(var_sym, ob) catch {};
             return false;
         }
 
@@ -310,8 +310,8 @@ pub const ProofCore = struct {
         while (step_iters < 30) : (step_iters += 1) {
             step_prev_lhs = step_lhs_eval;
             step_prev_rhs = step_rhs_eval;
-            step_lhs_eval = heaven.engine.eval(step_lhs_eval) catch step_lhs_eval;
-            step_rhs_eval = heaven.engine.eval(step_rhs_eval) catch step_rhs_eval;
+            step_lhs_eval = engine_expr.evaluate(heaven.store, heaven.env, heaven.engine, step_lhs_eval, 0) catch step_lhs_eval;
+            step_rhs_eval = engine_expr.evaluate(heaven.store, heaven.env, heaven.engine, step_rhs_eval, 0) catch step_rhs_eval;
             if (step_lhs_eval == step_prev_lhs and step_rhs_eval == step_prev_rhs) break;
         }
         const step_lhs_raw = heaven.simplifyRec(step_lhs_eval, 0) catch step_lhs_eval;
@@ -331,7 +331,7 @@ pub const ProofCore = struct {
         }
 
         // Restaurer l'environnement
-        if (old_binding) |ob| heaven.engine.env.put(var_sym, ob) catch {};
+        if (old_binding) |ob| heaven.env.put(var_sym, ob) catch {};
 
         if (step_ok) {
             // ═══ VÉRIFICATION PAR LE NOYAU LOGIQUE ═══

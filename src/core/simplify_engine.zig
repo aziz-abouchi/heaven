@@ -14,18 +14,21 @@ const egraph_mod = @import("egraph");
 pub const SimplifyEngine = struct {
     store: *Store,
     engine: *engine_expr.Engine,
+    env: *engine_expr.Env,
     kb: *transform_mod.KnowledgeBase,
     allocator: Allocator,
 
     pub fn init(
         store: *Store,
         engine: *engine_expr.Engine,
+        env: *engine_expr.Env,
         kb: *transform_mod.KnowledgeBase,
         allocator: Allocator,
     ) SimplifyEngine {
         return .{
             .store = store,
             .engine = engine,
+            .env = env,
             .kb = kb,
             .allocator = allocator,
         };
@@ -39,7 +42,9 @@ pub const SimplifyEngine = struct {
             .sym => false,
             .apply => {
                 const args = node.span_a.slice(self.store.pool.items);
-                for (args) |a| { if (!self.isFullyNumeric(a)) return false; }
+                for (args) |a| {
+                    if (!self.isFullyNumeric(a)) return false;
+                }
                 return true;
             },
             else => false,
@@ -55,7 +60,8 @@ pub const SimplifyEngine = struct {
             const args_span = node.span_a;
             const old_args = args_span.slice(self.store.pool.items);
             if (old_args.len == 2) {
-                const arg0 = old_args[0]; const arg1 = old_args[1];
+                const arg0 = old_args[0];
+                const arg1 = old_args[1];
                 const new_l = try self.simplifyOnePass(arg0, buf, step);
                 const new_r = try self.simplifyOnePass(arg1, buf, step);
                 if (new_l != arg0 or new_r != arg1) {
@@ -76,7 +82,8 @@ pub const SimplifyEngine = struct {
             if (rule_node.tag != .relation) continue;
             const lhs_rhs = rule_node.span_a.slice(self.store.pool.items);
             if (lhs_rhs.len != 2) continue;
-            const lhs_id = lhs_rhs[0]; const rhs_id = lhs_rhs[1];
+            const lhs_id = lhs_rhs[0];
+            const rhs_id = lhs_rhs[1];
             var bindings: std.AutoHashMapUnmanaged(u32, Id) = .{};
             defer bindings.deinit(self.allocator);
             if (pattern_mod.exprPatternMatch(self.store, lhs_id, current, &bindings, self.allocator)) {
@@ -104,7 +111,7 @@ pub const SimplifyEngine = struct {
         }
         if (current < self.store.len()) {
             self.engine.fuel = 100;
-            const folded = self.engine.eval(current) catch current;
+            const folded = engine_expr.evaluate(self.store, self.env, self.engine, current, 0) catch current;
             if (folded != current and folded < self.store.len()) {
                 const folded_node = self.store.get(folded);
                 if (folded_node.tag == .lit) {
@@ -168,13 +175,17 @@ pub const SimplifyEngine = struct {
                 defer bindings.deinit(self.allocator);
                 if (pattern_mod.exprPatternMatch(self.store, lhs_id, id, &bindings, self.allocator)) {
                     const new_id = try pattern_mod.substitutePattern(self.store, rhs_id, &bindings, self.allocator);
-                    if (new_id < self.store.len()) { current = new_id; changed = true; break; }
+                    if (new_id < self.store.len()) {
+                        current = new_id;
+                        changed = true;
+                        break;
+                    }
                 }
             }
         }
         if (current < self.store.len()) {
             self.engine.fuel = 100;
-            const folded = self.engine.eval(current) catch current;
+            const folded = engine_expr.evaluate(self.store, self.env, self.engine, current, 0) catch current;
             if (folded != current and folded < self.store.len()) {
                 const folded_node = self.store.get(folded);
                 if (folded_node.tag == .lit and self.isFullyNumeric(current)) return folded;
@@ -218,5 +229,4 @@ pub const SimplifyEngine = struct {
         }
         return egraph.extract(root_class, qtt) orelse id;
     }
-
 };

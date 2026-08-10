@@ -99,46 +99,70 @@ pub const FunctionRegistry = struct {
 };
 
 pub const Engine = struct {
-    store: *Store,
     allocator: Allocator,
-    env: Env,
-    next_actor_id: u32 = 0,
-    actors: std.AutoHashMapUnmanaged(u32, struct { state: expr.Id, handler: expr.Id }) = .{},
+    store: ?*Store = null,
+    env: ?*Env = null,
     fns: std.StringHashMapUnmanaged(FunctionDef) = .{},
     macros: std.AutoHashMapUnmanaged(expr.Sym, struct { params_span: expr.Span, body: expr.Id }) = .{},
+    actors: std.AutoHashMapUnmanaged(u32, struct { state: expr.Id, handler: expr.Id }) = .{},
+    next_actor_id: u32 = 0,
     green_call_count: u32 = 0,
     green_mode: bool = false,
-    registry: FunctionRegistry,
     fuel: u64 = 1_000_000,
 
-    pub fn init(store: *Store, allocator: Allocator) Engine {
-        return .{
-            .store = store,
-            .allocator = allocator,
-            .env = Env.init(allocator),
-            .registry = FunctionRegistry.init(allocator),
-        };
-    }
-
-    pub fn deinit(self: *Engine) void {
-        self.env.deinit();
-        self.registry.deinit(self.allocator);
-    }
-
     pub fn eval(self: *Engine, id: Id) EvalError!Id {
+        const store = self.store orelse return error.UnboundVariable;
+        const env = self.env orelse return error.UnboundVariable;
         if (self.fuel == 0) return error.RecursionLimitExceeded;
         self.fuel -= 1;
-        return evaluate(self.store, &self.env, id, 0);
+        return evaluate(store, env, self, id, 0);
     }
 
-    pub fn evalFunction(self: *Engine, name: []const u8, args: []const expr.Id) !expr.Id {
-        _ = self; _ = name; _ = args;
-        return 0; // Stub temporaire
+    pub fn evalFunction(self: *Engine, name: []const u8, args: []const Id) EvalError!Id {
+        const store = self.store orelse return error.UnboundVariable;
+        const env = self.env orelse return error.UnboundVariable;
+
+        const fn_def = self.fns.get(name) orelse return error.UnknownSymbol;
+        if (fn_def.num_clauses == 0) return error.UnknownSymbol;
+
+        for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
+            if (args.len != clause.num_patterns) continue;
+
+            var matched = true;
+            for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
+                const arg_val = try evaluate(store, env, self, args[i], 0);
+                const p_node = store.get(p);
+
+                if (p_node.tag == .sym) {
+                    const pname = store.interner.resolve(p_node.payload);
+                    if (pname.len > 0 and (pname[0] == '_' or std.ascii.isUpper(pname[0]))) {
+                        try env.put(p_node.payload, arg_val);
+                    } else if (!pattern_mod.exprStructuralEq(store, p, arg_val)) {
+                        matched = false;
+                        break;
+                    }
+                } else if (p_node.tag == .lit) {
+                    const arg_node = store.get(arg_val);
+                    if (arg_node.tag != .lit or !store.lits.items[p_node.aux].eql(store.lits.items[arg_node.aux])) {
+                        matched = false;
+                        break;
+                    }
+                } else if (!pattern_mod.exprStructuralEq(store, p, arg_val)) {
+                    matched = false;
+                    break;
+                }
+            }
+
+            if (matched) {
+                return evaluate(store, env, self, clause.body, 0);
+            }
+        }
+        return error.ArityMismatch;
     }
 };
 
 /// Évaluateur à 6 branches (primitives fondamentales uniquement).
-pub fn evaluate(store: *Store, env: *Env, id: Id, depth: u32) EvalError!Id {
+pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) EvalError!Id {
     if (depth > 1000) return error.RecursionLimitExceeded;
     const node = store.get(id);
 
@@ -159,25 +183,25 @@ pub fn evaluate(store: *Store, env: *Env, id: Id, depth: u32) EvalError!Id {
 
             const op_node = store.get(args[0]);
             if (op_node.tag != .sym) {
-                const evaled_op = try evaluate(store, env, args[0], depth + 1);
+                const evaled_op = try evaluate(store, env, engine, args[0], depth + 1);
                 const new_span = try store.reserveSpan(args.len);
                 store.pool.items[new_span.start] = evaled_op;
                 for (1..args.len) |i| {
                     store.pool.items[new_span.start + i] = args[i];
                 }
                 const new_apply = try store.addNode(.{ .tag = .apply, .payload = evaled_op, .aux = 0, .span_a = new_span, .span_b = Span.EMPTY });
-                return evaluate(store, env, new_apply, depth + 1);
+                return evaluate(store, env, engine, new_apply, depth + 1);
             }
 
             const op_name = store.interner.resolve(op_node.payload);
-            return try evalMagic(store, env, op_name, args[1..], depth);
+            return try evalMagic(store, env, engine, op_name, args[1..], depth);
         },
         .bind => {
             if (node.span_a.len < 1) return error.ArityMismatch;
-            const val = try evaluate(store, env, store.spanSliceConst(node.span_a)[0], depth + 1);
+            const val = try evaluate(store, env, engine, store.spanSliceConst(node.span_a)[0], depth + 1);
             try env.put(node.payload, val);
             const result = if (node.span_a.len >= 2)
-                try evaluate(store, env, store.spanSliceConst(node.span_a)[1], depth + 1)
+                try evaluate(store, env, engine, store.spanSliceConst(node.span_a)[1], depth + 1)
             else
                 val;
             env.delete(node.payload);
@@ -188,8 +212,8 @@ pub fn evaluate(store: *Store, env: *Env, id: Id, depth: u32) EvalError!Id {
         },
         .relation => {
             if (node.span_a.len != 2) return error.ArityMismatch;
-            const left = try evaluate(store, env, store.spanSliceConst(node.span_a)[0], depth + 1);
-            const right = try evaluate(store, env, store.spanSliceConst(node.span_a)[1], depth + 1);
+            const left = try evaluate(store, env, engine, store.spanSliceConst(node.span_a)[0], depth + 1);
+            const right = try evaluate(store, env, engine, store.spanSliceConst(node.span_a)[1], depth + 1);
             const eq = pattern_mod.exprStructuralEq(store, left, right);
             return try store.addNode(.{
                 .tag = .lit,
@@ -204,36 +228,54 @@ pub fn evaluate(store: *Store, env: *Env, id: Id, depth: u32) EvalError!Id {
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", "if", "seq", "block", "tuple" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", "if", "seq", "block", "tuple", "send", "state" };
+
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
     return false;
 }
 
-fn evalMagic(store: *Store, env: *Env, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
+fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
+    // === Application utilisateur : chercher dans le registre EN PREMIER ===
+    if (engine.fns.get(op)) |fn_def| {
+        if (fn_def.num_clauses > 0) {
+            const clause = fn_def.clauses[0];
+            // Évaluer les arguments
+            for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
+                if (i < args.len) {
+                    const arg_val = try evaluate(store, env, engine, args[i], depth + 1);
+                    const p_node = store.get(p);
+                    if (p_node.tag == .sym) {
+                        try env.put(p_node.payload, arg_val);
+                    }
+                }
+            }
+            return evaluate(store, env, engine, clause.body, depth + 1);
+        }
+    }
+
+    // === Effets magiques natifs ===
     if (std.mem.eql(u8, op, "if")) {
         if (args.len != 3) return error.ArityMismatch;
-        const cond = try evaluate(store, env, args[0], depth + 1);
+        const cond = try evaluate(store, env, engine, args[0], depth + 1);
         const cond_node = store.get(cond);
         if (cond_node.tag != .lit) return error.TypeError;
         const lit = store.lits.items[cond_node.aux];
         if (lit != .boolean) return error.TypeError;
-        return if (lit.boolean) evaluate(store, env, args[1], depth + 1) else evaluate(store, env, args[2], depth + 1);
+        return if (lit.boolean) evaluate(store, env, engine, args[1], depth + 1) else evaluate(store, env, engine, args[2], depth + 1);
     }
-
     if (std.mem.eql(u8, op, "seq") or std.mem.eql(u8, op, "block")) {
         var last: Id = undefined;
         for (args) |arg| {
-            last = try evaluate(store, env, arg, depth + 1);
+            last = try evaluate(store, env, engine, arg, depth + 1);
         }
         return last;
     }
-
     if (std.mem.eql(u8, op, "tuple")) {
         const new_span = try store.reserveSpan(args.len);
         for (0..args.len) |i| {
-            store.pool.items[new_span.start + i] = try evaluate(store, env, args[i], depth + 1);
+            store.pool.items[new_span.start + i] = try evaluate(store, env, engine, args[i], depth + 1);
         }
         const sym = try store.interner.intern("tuple");
         const sym_node = try store.addNode(.{ .tag = .sym, .payload = sym, .aux = 0, .span_a = Span.EMPTY, .span_b = Span.EMPTY });
@@ -242,18 +284,68 @@ fn evalMagic(store: *Store, env: *Env, op: []const u8, args: []const Id, depth: 
         @memcpy(store.pool.items[apply_span.start + 1 .. apply_span.start + 1 + args.len], store.pool.items[new_span.start .. new_span.start + args.len]);
         return store.addNode(.{ .tag = .apply, .payload = sym_node, .aux = 0, .span_a = apply_span, .span_b = Span.EMPTY });
     }
+    if (std.mem.eql(u8, op, "send")) {
+        if (args.len != 2) return error.ArityMismatch;
+        const actor_id_val = try evaluate(store, env, engine, args[0], depth + 1);
+        const msg_val = try evaluate(store, env, engine, args[1], depth + 1);
 
+        const actor_node = store.get(actor_id_val);
+        if (actor_node.tag != .lit) return error.ActorIdNotLiteral;
+        const actor_id_lit = store.lits.items[actor_node.aux];
+        if (actor_id_lit != .int) return error.ActorIdNotLiteral;
+
+        const actor_ptr = engine.actors.getPtr(@intCast(actor_id_lit.int)) orelse return error.ActorNotFound;
+
+        // Le handler est un symbole pointant vers une fonction
+        const handler_node = store.get(actor_ptr.handler);
+        if (handler_node.tag == .sym) {
+            const handler_name = store.interner.resolve(handler_node.payload);
+            if (engine.fns.get(handler_name)) |fn_def| {
+                if (fn_def.num_clauses > 0) {
+                    const clause = fn_def.clauses[0];
+                    // Lier state et msg aux paramètres de la fonction handler
+                    if (clause.num_patterns >= 1) {
+                        const p1 = store.get(clause.patterns[0]);
+                        if (p1.tag == .sym) try env.put(p1.payload, actor_ptr.state);
+                    }
+                    if (clause.num_patterns >= 2) {
+                        const p2 = store.get(clause.patterns[1]);
+                        if (p2.tag == .sym) try env.put(p2.payload, msg_val);
+                    }
+                    // Évaluer le corps du handler
+                    const new_state = try evaluate(store, env, engine, clause.body, depth + 1);
+                    actor_ptr.state = new_state; // Mettre à jour l'état de l'acteur
+                    return new_state;
+                }
+            }
+        }
+        return error.HandlerFailed;
+    }
+    if (std.mem.eql(u8, op, "state")) {
+        if (args.len != 1) return error.ArityMismatch;
+        const actor_id_val = try evaluate(store, env, engine, args[0], depth + 1);
+
+        const actor_node = store.get(actor_id_val);
+        if (actor_node.tag != .lit) return error.ActorIdNotLiteral;
+        const actor_id_lit = store.lits.items[actor_node.aux];
+        if (actor_id_lit != .int) return error.ActorIdNotLiteral;
+
+        const actor_ptr = engine.actors.getPtr(@intCast(actor_id_lit.int)) orelse return error.ActorNotFound;
+        return actor_ptr.state; // Retourne l'état actuel de l'acteur
+    }
+
+    // === Opérateurs arithmétiques et logiques ===
     if (args.len == 0) return error.ArityMismatch;
 
     if (std.mem.eql(u8, op, "!")) {
         if (args.len != 1) return error.ArityMismatch;
-        const a = try evaluate(store, env, args[0], depth + 1);
+        const a = try evaluate(store, env, engine, args[0], depth + 1);
         return evalUnary(store, a, .not);
     }
 
     if (args.len != 2) return error.ArityMismatch;
-    const a = try evaluate(store, env, args[0], depth + 1);
-    const b = try evaluate(store, env, args[1], depth + 1);
+    const a = try evaluate(store, env, engine, args[0], depth + 1);
+    const b = try evaluate(store, env, engine, args[1], depth + 1);
 
     if (std.mem.eql(u8, op, "+")) return evalBinary(store, a, b, .add);
     if (std.mem.eql(u8, op, "-")) return evalBinary(store, a, b, .sub);
@@ -269,6 +361,23 @@ fn evalMagic(store: *Store, env: *Env, op: []const u8, args: []const Id, depth: 
     if (std.mem.eql(u8, op, "<=")) return evalCmp(store, a, b, .le);
     if (std.mem.eql(u8, op, ">=")) return evalCmp(store, a, b, .ge);
 
+    // Application utilisateur : chercher dans le registre
+    if (engine.fns.get(op)) |fn_def| {
+        if (fn_def.num_clauses > 0) {
+            const clause = fn_def.clauses[0];
+            // Évaluer les arguments
+            for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
+                if (i < args.len) {
+                    const arg_val = try evaluate(store, env, engine, args[i], depth + 1);
+                    const p_node = store.get(p);
+                    if (p_node.tag == .sym) {
+                        try env.put(p_node.payload, arg_val);
+                    }
+                }
+            }
+            return evaluate(store, env, engine, clause.body, depth + 1);
+        }
+    }
     return error.UnknownSymbol;
 }
 

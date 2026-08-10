@@ -34,40 +34,53 @@ pub const Codegen = struct {
 
     fn emitTopLevel(self: *Self, id: Id) Error!void {
         const node = self.store.get(id);
-        if (node.tag == .bind) {
+        if (node.tag == .bind or node.tag == .let) {
             const name = self.store.interner.resolve(node.payload);
-            if (self.isLambda(node.aux)) {
-                try self.emitFunction(name, node.aux);
-            } else {
+            const args = node.span_a.slice(self.store.pool.items);
+            if (args.len > 0 and self.isLambda(args[0])) {
+                try self.emitFunction(name, args[0]);
+            } else if (args.len > 0) {
                 try self.emit("int64_t ");
                 try self.emit(name);
                 try self.emit(" = ");
-                try self.emitExpr(node.aux);
+                try self.emitExpr(args[0]);
                 try self.emit(";\n");
             }
         }
     }
 
     fn emitFunction(self: *Self, name: []const u8, lambda_id: Id) Error!void {
-        const lam_node = self.store.get(lambda_id);
-        const children = lam_node.span_a.slice(self.store.pool.items);
-        if (children.len == 0) return;
-        const params = children[0 .. children.len - 1];
-        const body_id = children[children.len - 1];
         try self.emit("int64_t ");
         try self.emit(name);
         try self.emit("(");
-        for (params, 0..) |param_id, i| {
-            if (i > 0) try self.emit(", ");
-            const pn = self.store.get(param_id);
-            if (pn.tag == .sym) {
-                try self.emit("int64_t ");
-                try self.emit(self.store.interner.resolve(pn.payload));
-            }
+        
+        var cur_id = lambda_id;
+        var first = true;
+        while (self.store.get(cur_id).tag == .lambda) {
+            const lam_node = self.store.get(cur_id);
+            if (!first) try self.emit(", ");
+            try self.emit("int64_t ");
+            try self.emit(self.store.interner.resolve(lam_node.payload));
+            first = false;
+            const children = lam_node.span_a.slice(self.store.pool.items);
+            if (children.len == 0) break;
+            cur_id = children[0];
         }
+        
         try self.emit(") {\n    return ");
-        try self.emitExpr(body_id);
+        try self.emitExpr(cur_id);
         try self.emit(";\n}\n");
+    }
+
+    fn isLambda(self: *Self, id: Id) bool {
+        const node = self.store.get(id);
+        // Gère le nouveau tag .lambda directement
+        if (node.tag == .lambda) return true;
+        // Legacy fallback
+        if (node.tag != .apply) return false;
+        const fn_node = self.store.get(node.payload);
+        if (fn_node.tag != .sym) return false;
+        return std.mem.eql(u8, self.store.interner.resolve(fn_node.payload), "\xCE\xBB");
     }
 
     fn emitExpr(self: *Self, id: Id) Error!void {
@@ -98,7 +111,10 @@ pub const Codegen = struct {
             },
             .apply => {
                 const func_node = self.store.get(node.payload);
-                const args = node.span_a.slice(pool);
+                const all_children = node.span_a.slice(pool);
+                if (all_children.len == 0) return;
+                const args = all_children[1..];
+
                 if (func_node.tag == .sym) {
                     const name = self.store.interner.resolve(func_node.payload);
                     if (self.isInfix(name) and args.len == 2) {
@@ -170,14 +186,6 @@ pub const Codegen = struct {
         try self.emit("= ");
         try self.emitExpr(args[3]);
         try self.emit("; _acc; })");
-    }
-
-    fn isLambda(self: *Self, id: Id) bool {
-        const node = self.store.get(id);
-        if (node.tag != .apply) return false;
-        const fn_node = self.store.get(node.payload);
-        if (fn_node.tag != .sym) return false;
-        return std.mem.eql(u8, self.store.interner.resolve(fn_node.payload), "\xCE\xBB");
     }
 
     fn isInfix(_: *Self, name: []const u8) bool {
