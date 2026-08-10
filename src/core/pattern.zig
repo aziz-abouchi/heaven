@@ -147,7 +147,7 @@ pub fn exprPatternMatch(store: *const Store, pattern: Id, target: Id, bindings: 
     return result;
 }
 
-pub fn substitutePattern(store: *Store, pattern_id: Id, bindings: *Bindings, allocator: std.mem.Allocator) !Id {
+pub fn substitutePattern(store: *Store, pattern_id: Id, bindings: anytype, allocator: std.mem.Allocator) !Id {
     _ = store;
     _ = pattern_id;
     _ = bindings;

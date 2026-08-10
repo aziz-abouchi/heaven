@@ -134,7 +134,13 @@ pub const Elaborator = struct {
             if (std.mem.eql(u8, kind(child), "comment")) continue;
             try items.append(self.allocator, try self.elaborate(child));
         }
-        return self.store.push(.{ .tag = tag, .span_a = try self.store.pushSpan(items.items) });
+        return self.store.addNode(.{
+    .tag = tag,
+    .payload = 0,
+    .aux = 0,
+    .span_a = try self.store.pushSpan(items.items),
+    .span_b = .{ .start = 0, .len = 0 }, // ou expr.Span.EMPTY si expr est importé
+});
     }
 
     // ─── Déclarations ───

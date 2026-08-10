@@ -13,6 +13,9 @@ const Sym = expr.Sym;
 
 pub const HeavenError = error{
     ExtensionNotLowered,
+    CannotLowerFrontendTag,
+    InvalidPi,
+    InvalidTypeAnn,
     TypeMismatch,
     EvaluationFailed,
     OutOfMemory,
@@ -24,6 +27,7 @@ pub const Heaven = struct {
     env: engine.Env,
     registry: engine.FunctionRegistry,
     type_env: types.TypeEnv,
+    pending_proof_request: ?[]const u8 = null,
     proof_core: proof.ProofEnv = .{},
     bridge: Bridge = .{},
     engine: EngineState = .{},

@@ -38,6 +38,12 @@ const universal_translator = @import("universal_translator");
 const mlcpd = @import("mlcpd");
 
 pub const HeavenError = error{
+    ExtensionNotLowered,
+    
+    EvaluationFailed,
+    OutOfMemory,
+    InvalidInput,
+
     UnsupportedExpr,
     UnknownVariable,
     TypeMismatch,
@@ -561,7 +567,7 @@ pub const Commands = struct {
                 for (potential_name) |c| {
                     if (!std.ascii.isAlphanumeric(c) and c != '_') return null;
                 }
-                if (self.engine.fns.functions.getEntry(potential_name) == null) return null;
+                if (self.engine.fns.getEntry(potential_name) == null) return null;
                 const end_paren = std.mem.lastIndexOfScalar(u8, input, ')') orelse return null;
                 if (end_paren <= paren_idx) return null;
                 const inner_args = std.mem.trim(u8, input[paren_idx + 1 .. end_paren], " ");
@@ -604,7 +610,7 @@ pub const Commands = struct {
         // Cas 2: name arg1 arg2 ...
         const space_idx = std.mem.indexOfScalar(u8, input, ' ') orelse return null;
         const name = input[0..space_idx];
-        if (self.engine.fns.functions.getEntry(name) == null) {
+        if (self.engine.fns.getEntry(name) == null) {
             return null;
         }
 
@@ -771,7 +777,10 @@ pub const Commands = struct {
         if (lhs_node.tag == .sym) {
             const name = self.store.interner.resolve(lhs_node.payload);
             const body_id = self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
-            self.engine.fns.register(name, &.{}, body_id) catch return self.allocator.dupe(u8, "registration error");
+            var def: engine_expr.FunctionDef = undefined;
+            def.num_clauses = 1;
+            def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = 0, .body = body_id };
+            self.engine.fns.put(self.allocator, name, def) catch return self.allocator.dupe(u8, "registration error");
             const sym = self.store.interner.intern(name) catch return self.allocator.dupe(u8, "intern error");
             self.engine.env.put(sym, body_id) catch {};
             return std.fmt.allocPrint(self.allocator, "{s} defined", .{name});
@@ -802,7 +811,13 @@ pub const Commands = struct {
 
             // On enregistre la fonction UNIQUEMENT dans le FunctionRegistry.
             // La mettre dans env casse l'évaluation car le corps sera évalué hors-contexte.
-            self.engine.fns.register(name, pat_ids[0..num_pats], body_id) catch return self.allocator.dupe(u8, "registration error");
+            var def: engine_expr.FunctionDef = undefined;
+            def.num_clauses = 1;
+            def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = @intCast(num_pats), .body = body_id };
+            if (num_pats > 0) {
+                for (pat_ids[0..num_pats], 0..) |p, i| def.clauses[0].patterns[i] = p;
+            }
+            self.engine.fns.put(self.allocator, name, def) catch return self.allocator.dupe(u8, "registration error");
 
             return std.fmt.allocPrint(self.allocator, "{s} clause ({d} patterns) registered", .{ name, num_pats });
         }

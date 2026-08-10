@@ -446,7 +446,13 @@ pub const Transform = struct {
 
     fn extractProof(self: *Transform) !Id {
         const sym = try self.store.interner.intern("Refl");
-        return self.store.sym("Refl") catch self.store.push(.{ .tag = .sym, .payload = sym });
+        return self.store.sym("Refl") catch self.store.addNode(.{
+    .tag = .sym,
+    .payload = sym,
+    .aux = 0,
+    .span_a = .{ .start = 0, .len = 0 },
+    .span_b = .{ .start = 0, .len = 0 },
+});
     }
 
     fn exprEqual(store: *const Store, a: Id, b: Id) bool {

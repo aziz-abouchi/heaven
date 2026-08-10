@@ -234,6 +234,10 @@ pub const StringInterner = struct {
     pub fn resolve(self: *const StringInterner, id: Sym) []const u8 {
         return self.list.items[id];
     }
+
+    pub fn lookup(self: *const StringInterner, s: []const u8) ?Sym {
+        return self.map.get(s);
+    }
 };
 
 pub const LowerError = error{
@@ -326,6 +330,12 @@ pub fn toString(store: *const Store, id: Id, allocator: std.mem.Allocator) ![]u8
         else => buf.appendSlice(allocator, "<?>") catch return LowerError.OutOfMemory,
     }
     return buf.toOwnedSlice(allocator);
+}
+
+pub fn toStringInfix(store: *const Store, id: Id, allocator: std.mem.Allocator) ![]u8 {
+    _ = store;
+    _ = id;
+    return allocator.dupe(u8, "toStringInfix stub") catch return error.OutOfMemory;
 }
 
 pub const Store = struct {

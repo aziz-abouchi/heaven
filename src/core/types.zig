@@ -240,8 +240,8 @@ pub const Infer = struct {
         return self.store.apply(list_sym, &.{elem});
     }
     fn relation(self: *Infer) !Id {
-        const rel_sym = try self.store.sym("Relation");
-        return self.store.apply(rel_sym, &.{});
+        const rel_sym = try @constCast(self.store).sym("Relation");
+        return @constCast(self.store).apply(rel_sym, &.{});
     }
 };
 

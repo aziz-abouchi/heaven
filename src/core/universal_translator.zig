@@ -67,7 +67,7 @@ pub const MlcpdConverter = struct {
 
         const children_start: u32 = @intCast(parsed.nodes.items.len);
         for (matrix.children) |child| {
-            _ = try self.walkMatrix(child, @as(i32, @intCast(node_id)), parsed);
+            _ = try self.walkMatrix(&child, @as(i32, @intCast(node_id)), parsed);
         }
         const children_count: u16 = @intCast(parsed.nodes.items.len - children_start);
 
@@ -155,12 +155,12 @@ pub const MlcpdToHeaven = struct {
         const children = parsed.nodes.items[node.children_start..][0..node.children_count];
 
         var name_sym: expr.Sym = undefined;
-        var param_ids = std.ArrayList(Id).init(self.allocator);
-        defer param_ids.deinit();
+        var param_ids: std.ArrayList(Id) = .empty;
+        defer param_ids.deinit(self.allocator);
         var body_id: ?Id = null;
 
         for (children) |child| {
-            if (child.role == .identifier_expr and name_sym == undefined) {
+            if (child.role == .identifier_expr and name_sym == 0) {
                 name_sym = try self.store.interner.intern(child.code_snippet);
             } else if (child.role == .parameter_decl) {
                 const param_child = self.findChildByRole(parsed, child.id, .identifier_expr);
@@ -173,7 +173,7 @@ pub const MlcpdToHeaven = struct {
                         .span_a = Span.EMPTY,
                         .span_b = Span.EMPTY,
                     });
-                    try param_ids.append(param_sym_node);
+                    try param_ids.append(self.allocator, param_sym_node);
                 }
             } else if (child.role == .block_stmt) {
                 body_id = parsed.node_to_expr.get(child.id);
@@ -286,12 +286,12 @@ pub const MlcpdToHeaven = struct {
 
         const func_id = parsed.node_to_expr.get(children[0].id) orelse return error.InvalidStructure;
 
-        var arg_ids = std.ArrayList(Id).init(self.allocator);
-        defer arg_ids.deinit();
+        var arg_ids: std.ArrayList(Id) = .empty;
+        defer arg_ids.deinit(self.allocator);
 
         for (children[1..]) |child| {
             if (parsed.node_to_expr.get(child.id)) |arg_id| {
-                try arg_ids.append(arg_id);
+                try arg_ids.append(self.allocator, arg_id);
             }
         }
 
@@ -404,7 +404,7 @@ pub const MlcpdToHeaven = struct {
         var value_id: ?Id = null;
 
         for (children) |child| {
-            if (child.role == .identifier_expr and name_sym == undefined) {
+            if (child.role == .identifier_expr and name_sym == 0) {
                 name_sym = try self.store.interner.intern(child.code_snippet);
             } else if (parsed.node_to_expr.get(child.id)) |cid| {
                 value_id = cid;

@@ -216,3 +216,8 @@ pub fn canonicalize(store: *Store, allocator: Allocator, id: Id) !Id {
     _ = allocator;
     return canonicalizeAC(store, id);
 }
+
+pub fn canonEqStr(store: *const expr.Store, a: expr.Id, b: expr.Id, allocator: std.mem.Allocator) !bool {
+    _ = store; _ = a; _ = b; _ = allocator;
+    return false; // Stub temporaire
+}

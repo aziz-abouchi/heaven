@@ -52,14 +52,15 @@ pub const EvalError = error{
 };
 
 pub const FunctionClause = struct {
-    patterns: [8]Id,
+    patterns: [8]expr.Id,
     num_patterns: u8,
-    body: Id,
+    body: expr.Id,
 };
 
 pub const FunctionDef = struct {
     clauses: [16]FunctionClause,
     num_clauses: u8,
+
     pub fn addClause(self: *FunctionDef, patterns: []const Id, body: Id) void {
         if (self.num_clauses >= 16) return;
         var clause = FunctionClause{ .patterns = undefined, .num_patterns = @intCast(@min(patterns.len, 8)), .body = body };
@@ -103,8 +104,10 @@ pub const Engine = struct {
     env: Env,
     next_actor_id: u32 = 0,
     actors: std.AutoHashMapUnmanaged(u32, struct { state: expr.Id, handler: expr.Id }) = .{},
-    fns: std.StringHashMapUnmanaged(@import("expr").Id) = .{},
-    macros: std.StringHashMapUnmanaged(struct { params_span: expr.Span, body: expr.Id }) = .{},
+    fns: std.StringHashMapUnmanaged(FunctionDef) = .{},
+    macros: std.AutoHashMapUnmanaged(expr.Sym, struct { params_span: expr.Span, body: expr.Id }) = .{},
+    green_call_count: u32 = 0,
+    green_mode: bool = false,
     registry: FunctionRegistry,
     fuel: u64 = 1_000_000,
 
@@ -126,6 +129,11 @@ pub const Engine = struct {
         if (self.fuel == 0) return error.RecursionLimitExceeded;
         self.fuel -= 1;
         return evaluate(self.store, &self.env, id, 0);
+    }
+
+    pub fn evalFunction(self: *Engine, name: []const u8, args: []const expr.Id) !expr.Id {
+        _ = self; _ = name; _ = args;
+        return 0; // Stub temporaire
     }
 };
 

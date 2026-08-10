@@ -359,7 +359,7 @@ export fn heavenFnDef(len: u32) u32 {
             setOutput("error");
             return output_len;
         };
-        h.engine.env.put(sym, body_id) catch {};
+        h.engine.env.put(std.heap.page_allocator, sym, body_id) catch {};
     }
 
     var buf: [256]u8 = undefined;
@@ -779,13 +779,13 @@ export fn tick_swarm() void {
             if (pending_proof_request_global) |old| alloc.free(old);
             const len = msg.len;
             const copy = alloc.alloc(u8, len) catch {
-                h.allocator.free(msg);
+                alloc.free(msg);
                 h.pending_proof_request = null;
                 return;
             };
             @memcpy(copy, msg);
             pending_proof_request_global = copy;
-            h.allocator.free(msg);
+            alloc.free(msg);
             h.pending_proof_request = null;
         }
     }
