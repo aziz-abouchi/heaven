@@ -134,13 +134,9 @@ pub const Engine = struct {
                 const p_node = store.get(p);
 
                 if (p_node.tag == .sym) {
-                    const pname = store.interner.resolve(p_node.payload);
-                    if (pname.len > 0 and (pname[0] == '_' or std.ascii.isUpper(pname[0]))) {
-                        try env.put(p_node.payload, arg_val);
-                    } else if (!pattern_mod.exprStructuralEq(store, p, arg_val)) {
-                        matched = false;
-                        break;
-                    }
+                    // Dans Heaven, les paramètres de fonctions sont des symboles (souvent minuscules).
+                    // On les traite tous comme des variables de pattern.
+                    try env.put(p_node.payload, arg_val);
                 } else if (p_node.tag == .lit) {
                     const arg_node = store.get(arg_val);
                     if (arg_node.tag != .lit or !store.lits.items[p_node.aux].eql(store.lits.items[arg_node.aux])) {
@@ -303,21 +299,61 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             if (engine.fns.get(handler_name)) |fn_def| {
                 if (fn_def.num_clauses > 0) {
                     const clause = fn_def.clauses[0];
-                    // Lier state et msg aux paramètres de la fonction handler
+                    // MODIFICATION: Créer un nouvel environnement pour éviter les fuites
+                    var new_env = Env.init(env.allocator);
+                    defer new_env.deinit();
+
                     if (clause.num_patterns >= 1) {
                         const p1 = store.get(clause.patterns[0]);
-                        if (p1.tag == .sym) try env.put(p1.payload, actor_ptr.state);
+                        if (p1.tag == .sym) try new_env.put(p1.payload, actor_ptr.state);
                     }
                     if (clause.num_patterns >= 2) {
                         const p2 = store.get(clause.patterns[1]);
-                        if (p2.tag == .sym) try env.put(p2.payload, msg_val);
+                        if (p2.tag == .sym) try new_env.put(p2.payload, msg_val);
                     }
-                    // Évaluer le corps du handler
-                    const new_state = try evaluate(store, env, engine, clause.body, depth + 1);
-                    actor_ptr.state = new_state; // Mettre à jour l'état de l'acteur
+
+                    // Copier les liaisons existantes
+                    var it = env.bindings.iterator();
+                    while (it.next()) |entry| {
+                        try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
+                    }
+
+                    const new_state = try evaluate(store, &new_env, engine, clause.body, depth + 1);
+                    actor_ptr.state = new_state;
                     return new_state;
                 }
             }
+        } else if (handler_node.tag == .lambda) {
+            // MODIFICATION: Améliorer la gestion des lambdas multi-arguments
+            var new_env = Env.init(env.allocator);
+            defer new_env.deinit();
+
+            // Copier les liaisons existantes
+            var it = env.bindings.iterator();
+            while (it.next()) |entry| {
+                try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
+            }
+
+            // Pour les lambdas, on suppose qu'ils sont curryfiés
+            var current_handler = actor_ptr.handler;
+            const args_to_bind = [_]Id{ actor_ptr.state, msg_val };
+
+            for (args_to_bind) |arg_val| {
+                const h_node = store.get(current_handler);
+                if (h_node.tag == .lambda) {
+                    try new_env.put(h_node.payload, arg_val);
+                    const body_span = h_node.span_a.slice(store.pool.items);
+                    if (body_span.len > 0) {
+                        current_handler = body_span[0];
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            const new_state = try evaluate(store, &new_env, engine, current_handler, depth + 1);
+            actor_ptr.state = new_state;
+            return new_state;
         }
         return error.HandlerFailed;
     }

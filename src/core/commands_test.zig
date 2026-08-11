@@ -25,13 +25,9 @@ test "function definition and call persist" {
     defer arena.deinit();
     const alloc = arena.allocator();
 
-    var engine = Engine{ .allocator = alloc };
     var store = Store.init(alloc);
-    engine.store = &store;
-
     var env = engine_expr.Env.init(alloc);
-    engine.env = &env;
-
+    var engine = Engine{ .allocator = alloc, .store = &store, .env = &env };
     var bridge = matrix_bridge.MatrixBridge.init(&store, alloc);
     var parser = parse.Parser.init(&store, &engine, &env, alloc);
     var kb = transform.KnowledgeBase.init(alloc);
@@ -74,14 +70,14 @@ test "function definition and call persist" {
 }
 
 test "actor lifecycle: spawn, send, state" {
-    if (true) return error.SkipZigTest;
+    //if (true) return error.SkipZigTest;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
 
     var store = Store.init(alloc);
-    var engine = Engine{ .allocator = alloc };
     var env = engine_expr.Env.init(alloc);
+    var engine = Engine{ .allocator = alloc, .store = &store, .env = &env };
     var bridge = matrix_bridge.MatrixBridge.init(&store, alloc);
     var parser = parse.Parser.init(&store, &engine, &env, alloc);
     var kb = transform.KnowledgeBase.init(alloc);
@@ -128,14 +124,14 @@ test "actor lifecycle: spawn, send, state" {
 }
 
 test "walrus operator := defines function correctly" {
-    if (true) return error.SkipZigTest;
+    //if (true) return error.SkipZigTest;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
 
     var store = Store.init(alloc);
-    var engine = Engine{ .allocator = alloc };
     var env = engine_expr.Env.init(alloc);
+    var engine = Engine{ .allocator = alloc, .store = &store, .env = &env };
     var bridge = matrix_bridge.MatrixBridge.init(&store, alloc);
     var parser = parse.Parser.init(&store, &engine, &env, alloc);
     var kb = transform.KnowledgeBase.init(alloc);

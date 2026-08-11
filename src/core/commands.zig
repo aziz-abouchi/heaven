@@ -192,6 +192,12 @@ pub const Commands = struct {
             return expr.toStringInfix(self.store, result, self.allocator);
         }
 
+        // === INTERCEPTION POUR LE WALRUS OPERATOR := ===
+        if (std.mem.indexOf(u8, trimmed, ":=") != null) {
+            return self.evalLet(trimmed);
+        }
+        // =================================================
+
         // Detect function definition: "name pat1 pat2 = body"
         const eq_idx = blk: {
             var i: usize = 0;
@@ -248,7 +254,9 @@ pub const Commands = struct {
                 var token_count: usize = 0;
                 var tok_it = std.mem.tokenizeScalar(u8, lhs, ' ');
                 while (tok_it.next()) |_| token_count += 1;
-                if (token_count >= 2) {
+
+                // Ajouter la détection des parenthèses
+                if (token_count >= 2 or std.mem.indexOfScalar(u8, lhs, '(') != null) {
                     if (!is_lambda) {
                         return self.evalFnDef(trimmed);
                     }
@@ -765,14 +773,32 @@ pub const Commands = struct {
 
         // Si le côté droit est un raccourci lambda (ex: "fn(x) (* x 3)"), on le transforme !
         if (std.mem.startsWith(u8, rhs, "fn ") or std.mem.startsWith(u8, rhs, "fn(")) {
-            // On doit extraire le nom de la fonction depuis le lhs
             const name = if (std.mem.indexOfScalar(u8, lhs, ' ')) |space| lhs[0..space] else lhs;
             return self.parseLambdaShortcut(name, rhs);
         }
 
+        // MODIFICATION: Convertir f(x, y) en f x y pour que parseSExpr l'interprète correctement
+        var owned_lhs: ?[]u8 = null;
+        defer if (owned_lhs) |s| self.allocator.free(s);
+        if (std.mem.indexOfScalar(u8, lhs, '(') != null) {
+            const open = std.mem.indexOfScalar(u8, lhs, '(') orelse return self.allocator.dupe(u8, "syntax error");
+            const close = std.mem.indexOfScalar(u8, lhs, ')') orelse return self.allocator.dupe(u8, "syntax error");
+            if (close != lhs.len - 1) return self.allocator.dupe(u8, "syntax error: unexpected chars after )");
+            const name = std.mem.trim(u8, lhs[0..open], " ");
+            const params_str = lhs[open + 1 .. close];
+
+            var converted = std.ArrayListUnmanaged(u8){};
+            try converted.appendSlice(self.allocator, name);
+            var it = std.mem.tokenizeAny(u8, params_str, " ,");
+            while (it.next()) |p| {
+                try converted.append(self.allocator, ' ');
+                try converted.appendSlice(self.allocator, p);
+            }
+            owned_lhs = try converted.toOwnedSlice(self.allocator);
+            lhs = owned_lhs.?;
+        }
+
         // ON PARSE LE CÔTÉ GAUCHE COMME UNE S-EXPR !
-        // On l'enveloppe dans des parenthèses pour que parseSExpr le lise correctement
-        // ex: "add (succ n) m" devient "(add (succ n) m)"
         const wrapped_lhs = try std.fmt.allocPrint(self.allocator, "({s})", .{lhs});
         defer self.allocator.free(wrapped_lhs);
 
@@ -792,10 +818,15 @@ pub const Commands = struct {
             def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = 0, .body = body_id };
 
             self.engine.fns.put(self.engine.allocator, name, def) catch return self.allocator.dupe(u8, "registration error");
+
+            // MODIFICATION: Aussi enregistrer dans l'environnement global
+            const name_sym = try self.store.interner.intern(name);
+            try self.env.put(name_sym, body_id);
+
             return std.fmt.allocPrint(self.allocator, "{s} defined", .{name});
         }
 
-        // Si c'est une application (ex: add (succ n) m)
+        // Si c'est une application (ex: add (succ n) m ou f(x))
         if (lhs_node.tag == .apply) {
             const func_sym_node = self.store.get(lhs_node.payload);
             if (func_sym_node.tag != .sym) return self.allocator.dupe(u8, "syntax error: function name must be a symbol");
@@ -806,11 +837,9 @@ pub const Commands = struct {
 
             var pat_ids: [8]u32 = undefined;
             for (0..num_pats) |pi| {
-                pat_ids[pi] = args[pi]; // On prend directement l'AST des patterns !
+                pat_ids[pi] = args[pi];
             }
 
-            // Si le corps commence par une parenthèse ou contient des espaces, on utilise parseSExpr
-            // pour éviter que parseApplication ne découpe les S-expr par espaces.
             const body_id = if (rhs.len > 0 and rhs[0] == '(')
                 self.parser.parseSExpr(rhs) catch return self.allocator.dupe(u8, "parse error in body (Lisp)")
             else if (rhs.len > 0)
@@ -820,7 +849,6 @@ pub const Commands = struct {
 
             const lowered_body = try self.store.lowerRec(body_id);
 
-            // On enregistre la fonction UNIQUEMENT dans le FunctionRegistry.
             var def: engine_expr.FunctionDef = undefined;
             def.num_clauses = 1;
             def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = @intCast(num_pats), .body = lowered_body };
@@ -829,6 +857,10 @@ pub const Commands = struct {
                 for (pat_ids[0..num_pats], 0..) |p, i| def.clauses[0].patterns[i] = p;
             }
             self.engine.fns.put(self.engine.allocator, name, def) catch return self.allocator.dupe(u8, "registration error");
+
+            // MODIFICATION: Aussi enregistrer dans l'environnement global
+            const name_sym = try self.store.interner.intern(name);
+            try self.env.put(name_sym, lowered_body);
 
             return std.fmt.allocPrint(self.allocator, "{s} clause ({d} patterns) registered", .{ name, num_pats });
         }
@@ -1652,7 +1684,6 @@ pub const Commands = struct {
             if (input[i - 1] == '=') {
                 const prev_c = if (i >= 2) input[i - 2] else ' ';
                 if (prev_c != '!' and prev_c != '<' and prev_c != '>') {
-                    // Si on a trouvé ':=' on l'enregistre, sinon on prend le '=' simple
                     if (op_len == 1 or prev_c == ':') {
                         eq_pos = i - 1;
                         break;
@@ -1667,7 +1698,14 @@ pub const Commands = struct {
 
             // Si la valeur commence par 'fn', on enregistre une fonction !
             if (std.mem.startsWith(u8, expr_str, "fn ") or std.mem.startsWith(u8, expr_str, "fn(")) {
-                // On reconstruit la chaîne pour evalFnDef (ex: "triple x = (* x 3)")
+                const fn_def_str = try std.fmt.allocPrint(self.allocator, "{s} = {s}", .{ name, expr_str });
+                defer self.allocator.free(fn_def_str);
+                return self.evalFnDef(fn_def_str);
+            }
+
+            // MODIFICATION: Détecter les fonctions avec parenthèses (ex: f(x) = ...)
+            // en plus des espaces (ex: triple x = ...)
+            if (std.mem.indexOfScalar(u8, name, ' ') != null or std.mem.indexOfScalar(u8, name, '(') != null) {
                 const fn_def_str = try std.fmt.allocPrint(self.allocator, "{s} = {s}", .{ name, expr_str });
                 defer self.allocator.free(fn_def_str);
                 return self.evalFnDef(fn_def_str);
