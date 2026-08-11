@@ -710,13 +710,17 @@ pub const Store = struct {
         }
     }
 
-    pub fn pi(self: *Store, param: []const u8, dom: Id, cod: Id) !Id {
-        _ = self;
-        _ = param;
-        _ = dom;
-        _ = cod;
-        return 0;
+    pub fn pi(self: *Store, param_name: []const u8, domain: Id, codomain: Id) !Id {
+        const param_sym = try self.sym(param_name);
+        return self.addNode(.{
+            .tag = .bind,
+            .payload = param_sym,
+            .aux = codomain,
+            .span_a = try self.pushSpan(&.{domain}),
+            .span_b = .{ .start = 0, .len = 0 },
+        });
     }
+
     pub fn handle(self: *Store, body: Id, handler: Id) !Id {
         _ = self;
         _ = body;

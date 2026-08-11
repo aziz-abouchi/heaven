@@ -165,11 +165,17 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
     return switch (node.tag) {
         .lit => id,
         .sym => {
-            const name = store.interner.resolve(node.payload);
-            if (isMagicSymbol(name)) return id;
+            // Chercher dans l'environnement (variable liée)
             if (env.get(node.payload)) |bound| {
                 return bound;
             }
+            // Chercher dans le registre des fonctions
+            const name = store.interner.resolve(node.payload);
+            if (engine.fns.get(name)) |_| {
+                return id; // le symbole représente une fonction connue, l'appel sera traité au niveau .apply
+            }
+            // Symboles magiques (builtins)
+            if (isMagicSymbol(name)) return id;
             return error.UnboundVariable;
         },
         .apply => {
@@ -280,6 +286,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         @memcpy(store.pool.items[apply_span.start + 1 .. apply_span.start + 1 + args.len], store.pool.items[new_span.start .. new_span.start + args.len]);
         return store.addNode(.{ .tag = .apply, .payload = sym_node, .aux = 0, .span_a = apply_span, .span_b = Span.EMPTY });
     }
+    // === Acteurs : send et state ===
     if (std.mem.eql(u8, op, "send")) {
         if (args.len != 2) return error.ArityMismatch;
         const actor_id_val = try evaluate(store, env, engine, args[0], depth + 1);
@@ -292,71 +299,48 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
         const actor_ptr = engine.actors.getPtr(@intCast(actor_id_lit.int)) orelse return error.ActorNotFound;
 
-        // Le handler est un symbole pointant vers une fonction
+        // Handler peut être un symbole (nom de fonction) ou une lambda
         const handler_node = store.get(actor_ptr.handler);
         if (handler_node.tag == .sym) {
             const handler_name = store.interner.resolve(handler_node.payload);
             if (engine.fns.get(handler_name)) |fn_def| {
                 if (fn_def.num_clauses > 0) {
                     const clause = fn_def.clauses[0];
-                    // MODIFICATION: Créer un nouvel environnement pour éviter les fuites
-                    var new_env = Env.init(env.allocator);
-                    defer new_env.deinit();
-
                     if (clause.num_patterns >= 1) {
                         const p1 = store.get(clause.patterns[0]);
-                        if (p1.tag == .sym) try new_env.put(p1.payload, actor_ptr.state);
+                        if (p1.tag == .sym) try env.put(p1.payload, actor_ptr.state);
                     }
                     if (clause.num_patterns >= 2) {
                         const p2 = store.get(clause.patterns[1]);
-                        if (p2.tag == .sym) try new_env.put(p2.payload, msg_val);
+                        if (p2.tag == .sym) try env.put(p2.payload, msg_val);
                     }
-
-                    // Copier les liaisons existantes
-                    var it = env.bindings.iterator();
-                    while (it.next()) |entry| {
-                        try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
-                    }
-
-                    const new_state = try evaluate(store, &new_env, engine, clause.body, depth + 1);
+                    const new_state = try evaluate(store, env, engine, clause.body, depth + 1);
                     actor_ptr.state = new_state;
                     return new_state;
                 }
             }
         } else if (handler_node.tag == .lambda) {
-            // MODIFICATION: Améliorer la gestion des lambdas multi-arguments
-            var new_env = Env.init(env.allocator);
-            defer new_env.deinit();
-
-            // Copier les liaisons existantes
-            var it = env.bindings.iterator();
-            while (it.next()) |entry| {
-                try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
-            }
-
-            // Pour les lambdas, on suppose qu'ils sont curryfiés
+            // Lambda curryfiée : (lambda s (lambda m body))
             var current_handler = actor_ptr.handler;
             const args_to_bind = [_]Id{ actor_ptr.state, msg_val };
 
             for (args_to_bind) |arg_val| {
                 const h_node = store.get(current_handler);
                 if (h_node.tag == .lambda) {
-                    try new_env.put(h_node.payload, arg_val);
+                    try env.put(h_node.payload, arg_val);
                     const body_span = h_node.span_a.slice(store.pool.items);
                     if (body_span.len > 0) {
                         current_handler = body_span[0];
                     }
-                } else {
-                    break;
                 }
             }
-
-            const new_state = try evaluate(store, &new_env, engine, current_handler, depth + 1);
+            const new_state = try evaluate(store, env, engine, current_handler, depth + 1);
             actor_ptr.state = new_state;
             return new_state;
         }
         return error.HandlerFailed;
     }
+
     if (std.mem.eql(u8, op, "state")) {
         if (args.len != 1) return error.ArityMismatch;
         const actor_id_val = try evaluate(store, env, engine, args[0], depth + 1);
@@ -367,7 +351,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (actor_id_lit != .int) return error.ActorIdNotLiteral;
 
         const actor_ptr = engine.actors.getPtr(@intCast(actor_id_lit.int)) orelse return error.ActorNotFound;
-        return actor_ptr.state; // Retourne l'état actuel de l'acteur
+        return actor_ptr.state;
     }
 
     // === Opérateurs arithmétiques et logiques ===
