@@ -447,12 +447,12 @@ pub const Transform = struct {
     fn extractProof(self: *Transform) !Id {
         const sym = try self.store.interner.intern("Refl");
         return self.store.sym("Refl") catch self.store.addNode(.{
-    .tag = .sym,
-    .payload = sym,
-    .aux = 0,
-    .span_a = .{ .start = 0, .len = 0 },
-    .span_b = .{ .start = 0, .len = 0 },
-});
+            .tag = .sym,
+            .payload = sym,
+            .aux = 0,
+            .span_a = .{ .start = 0, .len = 0 },
+            .span_b = .{ .start = 0, .len = 0 },
+        });
     }
 
     fn exprEqual(store: *const Store, a: Id, b: Id) bool {
@@ -509,8 +509,7 @@ pub const TraceTracer = struct {
         return .{ .allocator = allocator, .steps = .{} };
     }
 
-    pub fn append(self: *TraceTracer, source: Provenance, engine: Engine, op: []const u8, err: ?TransformError) void {
-        _ = err;
+    pub fn append(self: *TraceTracer, source: Provenance, engine: Engine, op: []const u8, _: ?TransformError) void {
         const step = TraceStep{
             .source = source,
             .engine = engine,

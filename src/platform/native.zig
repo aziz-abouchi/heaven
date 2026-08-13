@@ -56,6 +56,19 @@ pub const io = struct {
     }
 };
 
+pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
+    var buf: [4096]u8 = undefined;
+    const n = try std.posix.read(0, &buf);
+    if (n == 0) return error.EndOfStream;
+    const line = buf[0..n];
+    // Supprimer le '\n' final
+    const line_clean = if (line.len > 0 and line[line.len - 1] == '\n')
+        line[0 .. line.len - 1]
+    else
+        line;
+    return try alloc.dupe(u8, line_clean);
+}
+
 // ═══════════════════════════════════════════════════════════
 // DEBUG ABSTRACTION
 // ═══════════════════════════════════════════════════════════

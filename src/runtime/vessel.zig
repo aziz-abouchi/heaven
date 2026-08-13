@@ -20,7 +20,7 @@ pub const Vessel = struct {
     }
 
     pub fn boot(self: *Vessel) !void {
-        platform.debug.print("Vessel {s} initialized. Booting Swarm interface...\n", .{self.alias});
+        // platform.debug.print("Vessel {s} initialized. Booting Swarm interface...\n", .{self.alias});
         // Ici : initialisation de la pile WebRTC
         self.status = .joining;
     }

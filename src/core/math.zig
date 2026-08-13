@@ -23,6 +23,11 @@ pub const Math = struct {
         return .{ .store = store, .engine = engine, .bridge = bridge, .parser = parser, .allocator = allocator };
     }
 
+    pub fn deinit(self: *Math) void {
+        _ = self;
+        // Si Math alloue des ressources, libérez-les ici
+    }
+
     // ─── Dérivation ───
 
     pub fn derive(self: *Math, input: []const u8, varname: []const u8) ![]u8 {

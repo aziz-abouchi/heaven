@@ -6,6 +6,7 @@ const utils = @import("utils.zig");
 const ontology_lib = @import("ontology");
 const cmd_list = @import("commands_list.zig");
 const platform = @import("platform");
+const engine_expr = @import("engine_expr");
 
 const QV = struct { name: []const u8, id: u32 };
 
@@ -1204,5 +1205,214 @@ pub fn cmdMlcpdEquiv(self: *Shell, input: []const u8) void {
             defer self.allocator.free(str2);
             platform.io.print("  Forme 2 ({s}): {s}\n", .{ @tagName(parsed2.metadata.language), str2 });
         }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Multi-language parsing & translation
+// ═══════════════════════════════════════════════════════════
+
+pub fn cmdParseFile(self: *Shell, path: []const u8) void {
+    const ext = std.fs.path.extension(path);
+    const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse {
+        platform.debug.print("unsupported extension: {s}\n", .{ext});
+        return;
+    };
+    const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
+        platform.debug.print("error reading {s}: {}\n", .{ path, err });
+        return;
+    };
+    defer self.allocator.free(content);
+
+    if (lang == .heaven) {
+        const id = self.heaven.importExpr(content) catch {
+            platform.debug.print("parse failed for {s}\n", .{path});
+            return;
+        };
+        platform.debug.print("✓ parsed and evaluated {s} as heaven\n", .{path});
+        _ = id;
+        return;
+    }
+
+    var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
+        platform.debug.print("parser init error: {}\n", .{err});
+        return;
+    };
+    defer parser.deinit();
+    const matrix = parser.parse(content) catch {
+        platform.debug.print("parse failed for {s}\n", .{@tagName(lang)});
+        return;
+    };
+
+    const universal_translator = @import("universal_translator");
+    var universal = universal_translator.UniversalTranslator.init(self.allocator, &self.heaven.store);
+    const mlcpd_lang = switch (lang) {
+        .c => @import("mlcpd").FileMetadata.Language.c,
+        .zig => @import("mlcpd").FileMetadata.Language.c,
+        .pie => @import("mlcpd").FileMetadata.Language.unknown,
+        .heaven => unreachable,
+    };
+    const heaven_id = universal.translate(&matrix, mlcpd_lang) catch {
+        platform.debug.print("translation failed for {s}\n", .{@tagName(lang)});
+        return;
+    };
+
+    self.heaven.engine.fuel = 1_000_000;
+    const result = engine_expr.evaluate(&self.heaven.store, &self.heaven.env, &self.heaven.engine, heaven_id, 0) catch heaven_id;
+    const result_str = self.heaven.format(result) catch "error";
+    defer self.allocator.free(result_str);
+    platform.debug.print("✓ translated and evaluated {s} as {s}\n", .{ path, @tagName(lang) });
+    platform.debug.print("→ {s}\n", .{result_str});
+}
+
+pub fn cmdDumpAstFile(self: *Shell, path: []const u8) void {
+    const ext = std.fs.path.extension(path);
+    const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse {
+        platform.debug.print("unsupported extension: {s}\n", .{ext});
+        return;
+    };
+    const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
+        platform.debug.print("error reading {s}: {}\n", .{ path, err });
+        return;
+    };
+    defer self.allocator.free(content);
+
+    var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
+        platform.debug.print("parser init error: {}\n", .{err});
+        return;
+    };
+    defer parser.deinit();
+    const matrix = parser.parse(content) catch {
+        platform.debug.print("parse failed for {s}\n", .{@tagName(lang)});
+        return;
+    };
+
+    var buf: std.ArrayListUnmanaged(u8) = .{};
+    defer buf.deinit(self.allocator);
+    dumpMatrixShell(&matrix, 0, &buf, self.allocator);
+    platform.debug.print("{s}", .{buf.items});
+}
+
+pub fn cmdTranslateAndDump(self: *Shell, path: []const u8) void {
+    const ext = std.fs.path.extension(path);
+    const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse {
+        platform.debug.print("unsupported extension: {s}\n", .{ext});
+        return;
+    };
+    const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
+        platform.debug.print("error reading {s}: {}\n", .{ path, err });
+        return;
+    };
+    defer self.allocator.free(content);
+
+    var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
+        platform.debug.print("parser init error: {}\n", .{err});
+        return;
+    };
+    defer parser.deinit();
+    const matrix = parser.parse(content) catch {
+        platform.debug.print("parse failed for {s}\n", .{@tagName(lang)});
+        return;
+    };
+
+    const universal_translator = @import("universal_translator");
+    var universal = universal_translator.UniversalTranslator.init(self.allocator, &self.heaven.store);
+    const mlcpd_lang = switch (lang) {
+        .c => @import("mlcpd").FileMetadata.Language.c,
+        .zig => @import("mlcpd").FileMetadata.Language.c,
+        .pie => @import("mlcpd").FileMetadata.Language.unknown,
+        .heaven => unreachable,
+    };
+    const heaven_id = universal.translate(&matrix, mlcpd_lang) catch {
+        platform.debug.print("translation failed for {s}\n", .{@tagName(lang)});
+        return;
+    };
+
+    var buf: std.ArrayListUnmanaged(u8) = .{};
+    defer buf.deinit(self.allocator);
+    writeAstHeavenShell(self, heaven_id, 0, &buf);
+    platform.debug.print("{s}", .{buf.items});
+}
+
+fn dumpMatrixShell(matrix: *const platform.shell_parser_types.Matrix, depth: u32, buf: *std.ArrayListUnmanaged(u8), alloc: std.mem.Allocator) void {
+    var i: u32 = 0;
+    while (i < depth) : (i += 1) buf.appendSlice(alloc, " ") catch return;
+    buf.appendSlice(alloc, @tagName(matrix.kind)) catch return;
+    if (matrix.text) |text| {
+        if (text.len <= 40) {
+            buf.appendSlice(alloc, " \"") catch return;
+            buf.appendSlice(alloc, text) catch return;
+            buf.appendSlice(alloc, "\"") catch return;
+        } else {
+            buf.appendSlice(alloc, " \"") catch return;
+            buf.appendSlice(alloc, text[0..40]) catch return;
+            buf.appendSlice(alloc, "...\"") catch return;
+        }
+    }
+    buf.append(alloc, '\n') catch return;
+    for (matrix.children) |*child| {
+        dumpMatrixShell(child, depth + 1, buf, alloc);
+    }
+}
+
+fn writeAstHeavenShell(self: *Shell, id: u32, depth: u32, buf: *std.ArrayListUnmanaged(u8)) void {
+    if (id >= self.heaven.store.len()) return;
+    const node = self.heaven.store.get(id);
+    var i: u32 = 0;
+    while (i < depth) : (i += 1) buf.appendSlice(self.allocator, " ") catch return;
+    switch (node.tag) {
+        .sym => {
+            buf.appendSlice(self.allocator, "(sym \"") catch return;
+            buf.appendSlice(self.allocator, self.heaven.store.interner.resolve(node.payload)) catch return;
+            buf.appendSlice(self.allocator, "\")\n") catch return;
+        },
+        .lit => {
+            const l = self.heaven.store.lits.items[node.aux];
+            switch (l) {
+                .int => |v| {
+                    var tmp: [32]u8 = undefined;
+                    const s = std.fmt.bufPrint(&tmp, "(lit {d})\n", .{v}) catch return;
+                    buf.appendSlice(self.allocator, s) catch return;
+                },
+                else => buf.appendSlice(self.allocator, "(lit ?)\n") catch return,
+            }
+        },
+        .apply => {
+            buf.appendSlice(self.allocator, "(apply\n") catch return;
+            writeAstHeavenShell(self, node.payload, depth + 1, buf);
+            for (node.span_a.slice(self.heaven.store.pool.items)) |child| {
+                writeAstHeavenShell(self, child, depth + 1, buf);
+            }
+            i = 0;
+            while (i < depth) : (i += 1) buf.appendSlice(self.allocator, " ") catch return;
+            buf.appendSlice(self.allocator, ")\n") catch return;
+        },
+        .bind => {
+            buf.appendSlice(self.allocator, "(bind ") catch return;
+            buf.appendSlice(self.allocator, self.heaven.store.interner.resolve(node.payload)) catch return;
+            buf.appendSlice(self.allocator, "\n") catch return;
+            for (node.span_a.slice(self.heaven.store.pool.items)) |child| {
+                writeAstHeavenShell(self, child, depth + 1, buf);
+            }
+            i = 0;
+            while (i < depth) : (i += 1) buf.appendSlice(self.allocator, " ") catch return;
+            buf.appendSlice(self.allocator, ")\n") catch return;
+        },
+        .lambda => {
+            buf.appendSlice(self.allocator, "(lambda ") catch return;
+            buf.appendSlice(self.allocator, self.heaven.store.interner.resolve(node.payload)) catch return;
+            buf.appendSlice(self.allocator, "\n") catch return;
+            for (node.span_a.slice(self.heaven.store.pool.items)) |child| {
+                writeAstHeavenShell(self, child, depth + 1, buf);
+            }
+            i = 0;
+            while (i < depth) : (i += 1) buf.appendSlice(self.allocator, " ") catch return;
+            buf.appendSlice(self.allocator, ")\n") catch return;
+        },
+        else => {
+            buf.appendSlice(self.allocator, "(") catch return;
+            buf.appendSlice(self.allocator, @tagName(node.tag)) catch return;
+            buf.appendSlice(self.allocator, ")\n") catch return;
+        },
     }
 }

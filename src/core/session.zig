@@ -32,7 +32,7 @@ pub fn save(proofs: *const ProofEnv, allocator: Allocator) !void {
     defer file.close();
     try file.writeAll(buf.items);
 
-    platform.debug.print("[SESSION] Sauvegardé → {s}\n", .{SESSION_FILE});
+    // platform.debug.print("[SESSION] Sauvegardé → {s}\n", .{SESSION_FILE});
 }
 
 /// Charge .heaven_session.json dans ProofEnv
@@ -77,7 +77,7 @@ pub fn load(proofs: *ProofEnv, allocator: Allocator) !void {
                 .proof = null,
                 .verified = true,
             });
-            platform.debug.print("[SESSION] Axiome restauré: {s}\n", .{owned_name});
+            // platform.debug.print("[SESSION] Axiome restauré: {s}\n", .{owned_name});
         } else if (in_theorems) {
             const verified = std.mem.indexOf(u8, trimmed, "\"verified\": true") != null;
             try proofs.theorems.put(allocator, owned_name, .{
@@ -88,7 +88,7 @@ pub fn load(proofs: *ProofEnv, allocator: Allocator) !void {
                 .proof = null,
                 .verified = verified,
             });
-            platform.debug.print("[SESSION] Théorème restauré: {s} [{s}]\n", .{ owned_name, if (verified) "prouvé" else "non prouvé" });
+            // platform.debug.print("[SESSION] Théorème restauré: {s} [{s}]\n", .{ owned_name, if (verified) "prouvé" else "non prouvé" });
         }
     }
 }

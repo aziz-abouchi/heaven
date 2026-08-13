@@ -78,7 +78,7 @@ pub const SkillRegistry = struct {
         store: *expr.Store,
     ) !ApplyResult {
         const skill = self.get(skill_name) orelse {
-            platform.debug.print("[SKILL] Skill inconnu: {s}\n", .{skill_name});
+            // platform.debug.print("[SKILL] Skill inconnu: {s}\n", .{skill_name});
             return ApplyResult{ .proved = false, .tactics_run = 0, .tactic_log = "skill not found" };
         };
 
@@ -89,23 +89,23 @@ pub const SkillRegistry = struct {
             tactics_run += 1;
             switch (tactic) {
                 .intro => {
-                    platform.debug.print("[SKILL] [{s}] intro\n", .{skill_name});
+                    // platform.debug.print("[SKILL] [{s}] intro\n", .{skill_name});
                 },
                 .normalize => {
-                    platform.debug.print("[SKILL] [{s}] normalize\n", .{skill_name});
+                    // platform.debug.print("[SKILL] [{s}] normalize\n", .{skill_name});
                 },
                 .simplify => {
-                    platform.debug.print("[SKILL] [{s}] simplify\n", .{skill_name});
+                    // platform.debug.print("[SKILL] [{s}] simplify\n", .{skill_name});
                     proved = try proofs.verifyBySimplify(theorem_name, heaven);
                     if (proved) break;
                 },
                 .exact => {
-                    platform.debug.print("[SKILL] [{s}] exact\n", .{skill_name});
+                    // platform.debug.print("[SKILL] [{s}] exact\n", .{skill_name});
                     proved = try proofs.verifyByEval(theorem_name, engine, store);
                     if (proved) break;
                 },
                 .induction => {
-                    platform.debug.print("[SKILL] [{s}] induction\n", .{skill_name});
+                    // platform.debug.print("[SKILL] [{s}] induction\n", .{skill_name});
                     // Variable d'induction par défaut : "n"
                     proved = try proofs.verifyByInduction(theorem_name, induction_var, engine, heaven, store);
                     if (proved) break;

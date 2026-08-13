@@ -68,7 +68,7 @@ pub const ForgeEngine = struct {
             const sym_id = try self.matrix.addUniqueSymbol(bind.target_name);
             if (!try self.hasBind(sym_id, bind.value)) {
                 _ = try self.matrix.addNode(.{ .Bind = .{ .target = sym_id, .value = bind.value } });
-                platform.debug.print("\n[SATURATION] Emergence : {s} -> {d}\n", .{ bind.target_name, bind.value });
+                // platform.debug.print("\n[SATURATION] Emergence : {s} -> {d}\n", .{ bind.target_name, bind.value });
             }
         }
     }
@@ -327,7 +327,7 @@ pub const ForgeEngine = struct {
             }
         }
 
-        platform.debug.print("[CGAM] Nouvelle variante générée : {d} (basée sur {d})\n", .{ new_id, original_id });
+        // platform.debug.print("[CGAM] Nouvelle variante générée : {d} (basée sur {d})\n", .{ new_id, original_id });
         return new_id;
     }
 

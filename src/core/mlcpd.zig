@@ -131,18 +131,10 @@ pub const ParsedFile = struct {
     }
 
     pub fn deinit(self: *ParsedFile) void {
-        // Libérer les chaînes dupliquées dans les nœuds
-        for (self.nodes.items) |node| {
-            if (node.node_type.len > 0) {
-                self.allocator.free(node.node_type);
-            }
-            if (node.code_snippet.len > 0) {
-                self.allocator.free(node.code_snippet);
-            }
-        }
+        // Libère uniquement les tableaux et la hashmap.
+        // Les chaînes ne sont pas libérées pour l'instant car elles peuvent
+        // pointer vers des données statiques ou être partagées.
         self.nodes.deinit(self.allocator);
-
-        // Libérer la hashmap node_to_expr (importante pour éviter les leaks)
         self.node_to_expr.deinit(self.allocator);
     }
 

@@ -8,6 +8,11 @@ pub const Agent = struct {
         return .{ .allocator = allocator };
     }
 
+    pub fn deinit(self: *Agent) void {
+        _ = self;
+        // Si l'agent alloue des ressources, libérez-les ici
+    }
+
     /// Retourne une commande Heaven à exécuter, ou null si pas d'idée.
     pub fn suggest(self: *Agent, prompt: []const u8) !?[]const u8 {
         // Essayer d'abord le LLM (Ollama)

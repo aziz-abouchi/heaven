@@ -168,7 +168,11 @@ pub const Infer = struct {
         return switch (prim) {
             .lit => self.litType(id),
             .sym => {
-                if (self.env.get(node.payload)) |t| return t;
+                if (self.env.get(node.payload)) |t| {
+                    std.debug.print("sym: found type {d} for payload {d}\n", .{ t, node.payload });
+                    return t;
+                }
+                std.debug.print("sym: not found payload {d}\n", .{node.payload});
                 return self.unknown();
             },
             .apply => {
@@ -190,23 +194,73 @@ pub const Infer = struct {
                 return val_t;
             },
             .lambda => {
-                const body = node.span_a.slice(self.store.pool.items);
-                if (body.len == 0) return self.unknown();
-                const body_t = try self.typeOf(body[0]);
-                _ = body_t;
-
-                return 0; // Stub temporaire
+                const p = self.store.pool.items;
+                const body_span = node.span_a.slice(p);
+                if (body_span.len == 0) return self.unknown();
+                const body = body_span[body_span.len - 1];
+                const param_sym = node.payload;
+                const param_type = try self.freshTypeVar();
+                try self.env.put(param_sym, param_type);
+                const body_type = try self.typeOf(body);
+                std.debug.print("lambda: param_sym={d}, body_type={d}\n", .{ param_sym, body_type });
+                return try self.func(param_type, body_type);
             },
             .relation => self.relation(),
         };
     }
 
-    pub fn typeStr(self: *Infer, subst: anytype, t: anytype, allocator: std.mem.Allocator) ![]u8 {
-        _ = self;
-        _ = subst;
-        _ = t;
-        // Stub temporaire pour faire compiler
-        return allocator.dupe(u8, "TypeStr_Not_Implemented");
+    pub fn typeStr(self: *Infer, subst: *const TypeSubst, t: Id, allocator: std.mem.Allocator) ![]u8 {
+        const node = self.store.get(t);
+        switch (node.tag) {
+            .sym => {
+                const name = self.store.interner.resolve(node.payload);
+                return try allocator.dupe(u8, name);
+            },
+            .apply => {
+                const p = self.store.pool.items;
+                const children = node.span_a.slice(p);
+                if (children.len == 0) return try allocator.dupe(u8, "()");
+                const op_node = self.store.get(node.payload);
+                if (op_node.tag != .sym) {
+                    return try allocator.dupe(u8, "(apply ...)");
+                }
+                const op_name = self.store.interner.resolve(op_node.payload);
+                if (std.mem.eql(u8, op_name, "->")) {
+                    if (children.len == 2) {
+                        const arg_str = try self.typeStr(subst, children[0], allocator);
+                        defer allocator.free(arg_str);
+                        const ret_str = try self.typeStr(subst, children[1], allocator);
+                        defer allocator.free(ret_str);
+                        return try std.fmt.allocPrint(allocator, "{s} -> {s}", .{ arg_str, ret_str });
+                    }
+                    return try allocator.dupe(u8, "->");
+                } else {
+                    if (children.len == 1) {
+                        const arg_str = try self.typeStr(subst, children[0], allocator);
+                        defer allocator.free(arg_str);
+                        return try std.fmt.allocPrint(allocator, "{s} {s}", .{ op_name, arg_str });
+                    }
+                    return try std.fmt.allocPrint(allocator, "{s}(...)", .{op_name});
+                }
+            },
+            .bind => {
+                const name = self.store.interner.resolve(node.payload);
+                const cod = node.aux;
+                const cod_str = try self.typeStr(subst, cod, allocator);
+                defer allocator.free(cod_str);
+                const p = self.store.pool.items;
+                const dom_span = node.span_a.slice(p);
+                if (dom_span.len > 0) {
+                    const dom_str = try self.typeStr(subst, dom_span[0], allocator);
+                    defer allocator.free(dom_str);
+                    return try std.fmt.allocPrint(allocator, "Π({s}:{s}).{s}", .{ name, dom_str, cod_str });
+                }
+                return try std.fmt.allocPrint(allocator, "Π({s}:?).{s}", .{ name, cod_str });
+            },
+            else => {
+                return try allocator.dupe(u8, "?");
+            },
+        }
     }
 
     fn litType(self: *Infer, id: Id) !Id {
@@ -222,33 +276,41 @@ pub const Infer = struct {
     }
 
     fn int(self: *Infer) !Id {
-        return @constCast(self.store).sym("Int");
+        return try @constCast(self.store).sym("Int");
     }
     fn float(self: *Infer) !Id {
-        return @constCast(self.store).sym("Float");
+        return try @constCast(self.store).sym("Float");
     }
     fn boolType(self: *Infer) !Id {
-        return @constCast(self.store).sym("Bool");
+        return try @constCast(self.store).sym("Bool");
     }
     fn str(self: *Infer) !Id {
-        return @constCast(self.store).sym("String");
+        return try @constCast(self.store).sym("String");
     }
     fn unit(self: *Infer) !Id {
-        return @constCast(self.store).sym("Unit");
+        return try @constCast(self.store).sym("Unit");
     }
     fn unknown(self: *Infer) !Id {
-        return @constCast(self.store).sym("?");
+        return try @constCast(self.store).sym("?");
     }
     fn func(self: *Infer, arg: Id, ret: Id) !Id {
-        const arrow = try self.store.sym("->");
-        return self.store.apply(arrow, &.{ arg, ret });
+        const arrow = try @constCast(self.store).sym("->");
+        return @constCast(self.store).apply(arrow, &.{ arg, ret });
     }
     fn list(self: *Infer, elem: Id) !Id {
-        const list_sym = try self.store.sym("List");
-        return self.store.apply(list_sym, &.{elem});
+        const list_sym = try @constCast(self.store).sym("List");
+        return @constCast(self.store).apply(list_sym, &.{elem});
     }
     fn relation(self: *Infer) !Id {
-        return @constCast(self.store).sym("Relation");
+        return try @constCast(self.store).sym("Relation");
+    }
+
+    fn freshTypeVar(self: *Infer) !Id {
+        const name = try std.fmt.allocPrint(self.env.allocator, "_t{d}", .{self.next_var});
+        defer self.env.allocator.free(name);
+        self.next_var += 1;
+        const store_mut = @constCast(self.store);
+        return try store_mut.sym(name);
     }
 };
 

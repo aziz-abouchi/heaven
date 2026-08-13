@@ -24,6 +24,11 @@ pub const Parser = struct {
         };
     }
 
+    pub fn deinit(self: *Parser) void {
+        _ = self;
+        // Libérer les ressources si nécessaire
+    }
+
     /// Cherche un mot-clé à la racine (profondeur parenthèses = 0)
     pub fn findKeywordAtRoot(text: []const u8, kw: []const u8) ?usize {
         var depth: i32 = 0;

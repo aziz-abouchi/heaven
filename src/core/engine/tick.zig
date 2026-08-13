@@ -55,7 +55,7 @@ pub const Engine = struct {
     fn handleHandshake(self: *Engine, msg: MessageQueue.Message) !void {
         _ = self;
         const handshake = try std.mem.bytesToValue(Handshake, msg.payload);
-        platform.debug.print("Handshake from peer: protocol v{}, caps: {}\n", .{
+        // platform.debug.print("Handshake from peer: protocol v{}, caps: {}\n", .{
             handshake.protocol_version,
             handshake.capabilities,
         });

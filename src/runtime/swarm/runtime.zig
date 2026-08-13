@@ -115,7 +115,7 @@ pub const SwarmRuntime = struct {
         };
 
         if (result_str) |res| {
-            platform.debug.print("[SWARM] ✓ Résolu: {s} → {s}\n", .{ expr, res });
+            // platform.debug.print("[SWARM] ✓ Résolu: {s} → {s}\n", .{ expr, res });
             const sr = proto.SwarmResult.init(task.id, self.self_port, res, 1.0);
 
             // Log
@@ -132,7 +132,7 @@ pub const SwarmRuntime = struct {
             return sr;
         }
 
-        platform.debug.print("[SWARM] ✗ Pas résolu: {s}\n", .{expr});
+        // platform.debug.print("[SWARM] ✗ Pas résolu: {s}\n", .{expr});
         return null;
     }
 

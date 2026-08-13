@@ -4,7 +4,7 @@ const platform = @import("platform");
 const ts = platform.ts;
 
 pub fn runLsp(allocator: std.mem.Allocator) anyerror!void {
-    platform.debug.print("Heaven LSP starting...\n", .{});
+    // platform.debug.print("Heaven LSP starting...\n", .{});
 
     const parser = ts.ts_parser_new() orelse return;
     defer ts.ts_parser_delete(parser);

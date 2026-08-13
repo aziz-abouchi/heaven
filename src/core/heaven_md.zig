@@ -26,7 +26,7 @@ pub fn loadFromFile(path: []const u8, kernel: *Shell) !void {
     // 1. Lecture sûre du fichier HEAVEN.md
     const file_text = platform.fs.cwd().readFileAlloc(allocator, path, 1024 * 1024) catch |err| {
         if (err == error.FileNotFound) {
-            platform.debug.print("[HEAVEN.MD] Aucun fichier '{s}' trouvé au point de montage courant. Configuration ignorée.\n", .{path});
+            // platform.debug.print("[HEAVEN.MD] Aucun fichier '{s}' trouvé au point de montage courant. Configuration ignorée.\n", .{path});
             return;
         }
         return err;
@@ -49,7 +49,7 @@ pub fn loadFromFile(path: []const u8, kernel: *Shell) !void {
     // 4. Dispatching vers le Kernel
     for (directives) |dir| {
         dispatchDirective(dir, kernel) catch |err| {
-            platform.debug.print("[HEAVEN.MD] Échec de l'application du dispatch ({s}): {s}\n", .{ @tagName(dir.type), @errorName(err) });
+            // platform.debug.print("[HEAVEN.MD] Échec de l'application du dispatch ({s}): {s}\n", .{ @tagName(dir.type), @errorName(err) });
         };
     }
 }
@@ -132,7 +132,7 @@ pub fn dispatchDirective(directive: Directive, kernel: *Shell) !void {
         .skill => {
             // :skill algebra → active le skill builtin ou enregistre
             kernel.skills.register(directive.name, &.{ .normalize, .simplify, .exact }) catch {};
-            platform.debug.print("[BOOT] Skill activé ➜ {s}\n", .{directive.name});
+            // platform.debug.print("[BOOT] Skill activé ➜ {s}\n", .{directive.name});
         },
         .spawn => {
             // :spawn proof_agent → green thread nommé
@@ -140,7 +140,7 @@ pub fn dispatchDirective(directive: Directive, kernel: *Shell) !void {
         },
         .hook => {
             // :hook theorem_added => consistency_check
-            platform.debug.print("[BOOT] Hook lié ➜ Event '{s}' ⚡ Agent '{s}'\n", .{ directive.name, directive.extra });
+            // platform.debug.print("[BOOT] Hook lié ➜ Event '{s}' ⚡ Agent '{s}'\n", .{ directive.name, directive.extra });
             // kernel.green.registerHook(directive.name, directive.extra) quand l'API sera prête
         },
     }

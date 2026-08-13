@@ -3,8 +3,8 @@ const platform = @import("platform");
 const ts = platform.ts;
 
 pub fn runFmt(allocator: std.mem.Allocator, file_path: []const u8) anyerror!void {
-    const source = platform.fs.cwd().readFileAlloc(allocator, file_path, 10 * 1024 * 1024) catch |e| {
-        platform.debug.print("Error reading {s}: {}\n", .{ file_path, e });
+    const source = platform.fs.cwd().readFileAlloc(allocator, file_path, 10 * 1024 * 1024) catch {
+        // platform.debug.print("Error reading {s}: {}\n", .{ file_path, e });
         return;
     };
     defer allocator.free(source);
@@ -26,7 +26,7 @@ pub fn runFmt(allocator: std.mem.Allocator, file_path: []const u8) anyerror!void
 
     // Write back
     try platform.fs.cwd().writeFile(.{ .sub_path = file_path, .data = output.items });
-    platform.debug.print("Formatted {s} ({d} bytes)\n", .{ file_path, output.items.len });
+    // platform.debug.print("Formatted {s} ({d} bytes)\n", .{ file_path, output.items.len });
 }
 
 fn formatNode(source: []const u8, node: ts.TSNode, w: anytype, indent: u32) anyerror!void {

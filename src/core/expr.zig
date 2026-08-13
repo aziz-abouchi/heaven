@@ -368,9 +368,16 @@ pub const Store = struct {
         return self.addNode(.{ .tag = .hole, .payload = idx, .aux = 0, .span_a = Span.EMPTY, .span_b = Span.EMPTY });
     }
 
-    pub fn lit(self: *Store, l: Lit) !Id {
-        const aux = try self.addLit(l);
-        return self.addNode(.{ .tag = .lit, .payload = 0, .aux = aux, .span_a = Span.EMPTY, .span_b = Span.EMPTY });
+    pub fn lit(self: *Store, value: Lit) !Id {
+        try self.lits.append(self.allocator, value);
+        const idx = self.lits.items.len - 1;
+        return self.addNode(.{
+            .tag = .lit,
+            .payload = 0,
+            .aux = @as(u32, @intCast(idx)),
+            .span_a = .{ .start = 0, .len = 0 },
+            .span_b = .{ .start = 0, .len = 0 },
+        });
     }
 
     pub fn universe(self: *Store) !Id {

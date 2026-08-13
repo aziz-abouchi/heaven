@@ -17,5 +17,5 @@ pub fn main() !void {
 
     try file.writeAll(payload);
 
-    platform.debug.print("Artefact viral 'payload.xob' généré avec succès.\n", .{});
+    // platform.debug.print("Artefact viral 'payload.xob' généré avec succès.\n", .{});
 }

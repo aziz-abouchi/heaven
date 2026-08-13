@@ -107,7 +107,7 @@ pub const SurvivalTranspiler = struct {
                     }
                 }
 
-                platform.debug.print("DEBUG C CODE:\n{s}\n", .{current_working_code});
+                // platform.debug.print("DEBUG C CODE:\n{s}\n", .{current_working_code});
                 try output.appendSlice(self.allocator, current_working_code);
                 self.allocator.free(current_working_code);
             },

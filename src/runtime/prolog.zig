@@ -63,7 +63,7 @@ pub const Substitution = struct {
             if (value[0] >= 'A' and value[0] <= 'Z') continue;
 
             if (!first) platform.debug.print(", ", .{});
-            platform.debug.print("{s} = {s}", .{ name, value });
+            // platform.debug.print("{s} = {s}", .{ name, value });
             first = false;
         }
         if (first) platform.debug.print("true", .{});

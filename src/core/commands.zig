@@ -1306,7 +1306,7 @@ pub const Commands = struct {
         if (id >= self.store.len()) return;
         const node = self.store.get(id);
         var i: u32 = 0;
-        while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, "  ");
+        while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, " ");
         switch (node.tag) {
             .sym => {
                 const name = self.store.interner.resolve(node.payload);
@@ -1330,18 +1330,50 @@ pub const Commands = struct {
                 try self.writeAst(node.payload, depth + 1, buf);
                 for (node.span_a.slice(self.store.pool.items)) |child| try self.writeAst(child, depth + 1, buf);
                 i = 0;
-                while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, "  ");
+                while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, " ");
                 try buf.appendSlice(self.allocator, ")\n");
             },
             .bind => {
-                try buf.appendSlice(self.allocator, "(bind\n");
-                try self.writeAst(node.payload, depth + 1, buf);
-                try self.writeAst(node.aux, depth + 1, buf);
+                try buf.appendSlice(self.allocator, "(bind ");
+                try buf.appendSlice(self.allocator, self.store.interner.resolve(node.payload));
+                try buf.appendSlice(self.allocator, "\n");
+                for (node.span_a.slice(self.store.pool.items)) |child| try self.writeAst(child, depth + 1, buf);
                 i = 0;
-                while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, "  ");
+                while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, " ");
                 try buf.appendSlice(self.allocator, ")\n");
             },
-            else => try buf.appendSlice(self.allocator, "(node)\n"),
+            .lambda => {
+                try buf.appendSlice(self.allocator, "(lambda ");
+                try buf.appendSlice(self.allocator, self.store.interner.resolve(node.payload));
+                try buf.appendSlice(self.allocator, "\n");
+                for (node.span_a.slice(self.store.pool.items)) |child| try self.writeAst(child, depth + 1, buf);
+                i = 0;
+                while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, " ");
+                try buf.appendSlice(self.allocator, ")\n");
+            },
+            .relation => {
+                try buf.appendSlice(self.allocator, "(relation ");
+                try buf.appendSlice(self.allocator, self.store.interner.resolve(node.payload));
+                try buf.appendSlice(self.allocator, "\n");
+                for (node.span_a.slice(self.store.pool.items)) |child| try self.writeAst(child, depth + 1, buf);
+                i = 0;
+                while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, " ");
+                try buf.appendSlice(self.allocator, ")\n");
+            },
+            .source_file, .block, .block_legacy => {
+                try buf.appendSlice(self.allocator, "(");
+                try buf.appendSlice(self.allocator, @tagName(node.tag));
+                try buf.appendSlice(self.allocator, "\n");
+                for (node.span_a.slice(self.store.pool.items)) |child| try self.writeAst(child, depth + 1, buf);
+                i = 0;
+                while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, " ");
+                try buf.appendSlice(self.allocator, ")\n");
+            },
+            else => {
+                try buf.appendSlice(self.allocator, "(");
+                try buf.appendSlice(self.allocator, @tagName(node.tag));
+                try buf.appendSlice(self.allocator, ")\n");
+            },
         }
     }
 
@@ -2160,27 +2192,40 @@ pub const Commands = struct {
 
     /// Affiche l'AST brut d'un fichier parsé (pour debug du bridge)
     pub fn dumpAstFile(self: *Commands, path: []const u8) ![]u8 {
+        platform.debug.print("[dumpAstFile] CALLED with path='{s}'\n", .{path});
+
         const ext = std.fs.path.extension(path);
-        const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse
+        platform.debug.print("[dumpAstFile] ext='{s}'\n", .{ext});
+
+        const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse {
+            platform.debug.print("[dumpAstFile] ERROR: unsupported extension\n", .{});
             return std.fmt.allocPrint(self.allocator, "unsupported extension: {s}", .{ext});
+        };
+        platform.debug.print("[dumpAstFile] lang={s}\n", .{@tagName(lang)});
 
         const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
+            platform.debug.print("[dumpAstFile] ERROR reading file: {}\n", .{err});
             return std.fmt.allocPrint(self.allocator, "error reading {s}: {}", .{ path, err });
         };
+        platform.debug.print("[dumpAstFile] Read {d} bytes\n", .{content.len});
         defer self.allocator.free(content);
 
         var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
+            platform.debug.print("[dumpAstFile] ERROR parser init: {}\n", .{err});
             return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
         };
         defer parser.deinit();
 
         const matrix = parser.parse(content) catch {
+            platform.debug.print("[dumpAstFile] ERROR parse failed\n", .{});
             return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
         };
+        platform.debug.print("[dumpAstFile] Matrix kind={s}, children={d}\n", .{ @tagName(matrix.kind), matrix.children.len });
 
         var buf: std.ArrayListUnmanaged(u8) = .{};
         defer buf.deinit(self.allocator);
         try dumpMatrix(&matrix, 0, &buf, self.allocator);
+        platform.debug.print("[dumpAstFile] buf.len={d}\n", .{buf.items.len});
         return buf.toOwnedSlice(self.allocator);
     }
 
@@ -2215,6 +2260,8 @@ pub const Commands = struct {
         };
         defer self.allocator.free(content);
 
+        platform.debug.print("[translateAndDump] Read {d} bytes\n", .{content.len});
+
         var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
             return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
         };
@@ -2224,6 +2271,8 @@ pub const Commands = struct {
             return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
         };
 
+        platform.debug.print("[translateAndDump] Matrix parsed, kind={s}, children={d}\n", .{ @tagName(matrix.kind), matrix.children.len });
+
         var universal = universal_translator.UniversalTranslator.init(self.allocator, self.store);
         const mlcpd_lang = switch (lang) {
             .c => mlcpd.FileMetadata.Language.c,
@@ -2232,14 +2281,22 @@ pub const Commands = struct {
             .heaven => unreachable,
         };
 
-        const heaven_id = universal.translate(&matrix, mlcpd_lang) catch {
-            return std.fmt.allocPrint(self.allocator, "translation failed for {s}", .{lang.toString()});
+        const heaven_id = universal.translate(&matrix, mlcpd_lang) catch |err| {
+            return std.fmt.allocPrint(self.allocator, "translation failed: {}", .{err});
         };
 
-        // Afficher l'AST Heaven généré
+        platform.debug.print("[translateAndDump] heaven_id={d}, store.len={d}\n", .{ heaven_id, self.store.len() });
+
+        if (heaven_id >= self.store.len()) {
+            return std.fmt.allocPrint(self.allocator, "ERROR: heaven_id={d} >= store.len={d}", .{ heaven_id, self.store.len() });
+        }
+
         var buf: std.ArrayListUnmanaged(u8) = .{};
         defer buf.deinit(self.allocator);
         try self.writeAst(heaven_id, 0, &buf);
+
+        platform.debug.print("[translateAndDump] buf.len={d}\n", .{buf.items.len});
+
         return buf.toOwnedSlice(self.allocator);
     }
 };

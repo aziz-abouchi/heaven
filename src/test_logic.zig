@@ -14,15 +14,15 @@ pub fn main() !void {
 
     var parser = parser_lib.Parser{ .allocator = allocator, .matrix = &matrix };
 
-    platform.debug.print("\n--- CHARGEMENT DU SCRIPT HVN ---\n", .{});
+    // platform.debug.print("\n--- CHARGEMENT DU SCRIPT HVN ---\n", .{});
     try parser.parseFile("scripts/test.hvn");
 
-    platform.debug.print("\n--- PHASE DE RÉDUCTION ---\n", .{});
+    // platform.debug.print("\n--- PHASE DE RÉDUCTION ---\n", .{});
     _ = try reasoning_lib.Reasoner.process(&matrix);
 
     // Export visuel
     try matrix.dumpGraphviz("matrix.dot");
-    platform.debug.print("\nGraphe exporté dans matrix.dot\n", .{});
+    // platform.debug.print("\nGraphe exporté dans matrix.dot\n", .{});
 
     // Nettoyage final
     while (guppy.command_queue.get()) |cmd| {

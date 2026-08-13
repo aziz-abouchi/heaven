@@ -449,8 +449,8 @@ pub fn infer(pool: *TermPool, ctx: *const Context, term_idx: u32) KernelError!u3
             try ext_ctx.push(0, ann_ty);
 
             const body_type = infer(pool, &ext_ctx, body) catch |err| {
-                platform.debug.print("[KERNEL-DIAG] lam: infer(body) failed: {}\n", .{err});
-                platform.debug.print("\n[KERNEL-DIAG] lam: ctx depth={d}\n", .{ext_ctx.depth()});
+                // platform.debug.print("[KERNEL-DIAG] lam: infer(body) failed: {}\n", .{err});
+                // platform.debug.print("\n[KERNEL-DIAG] lam: ctx depth={d}\n", .{ext_ctx.depth()});
                 return err;
             };
             return pool.mkPi(ann_ty, body_type) catch return KernelError.OutOfMemory;

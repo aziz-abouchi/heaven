@@ -5,7 +5,7 @@ const posix = platform.posix;
 
 pub fn runRun(allocator: std.mem.Allocator, file_path: []const u8) anyerror!void {
     try compile_cmd.runCompile(allocator, file_path);
-    platform.debug.print("\n── Compiling & Running ──\n", .{});
+    // platform.debug.print("\n── Compiling & Running ──\n", .{});
 
     const env = @as(
         [*:null]const ?[*:0]const u8,

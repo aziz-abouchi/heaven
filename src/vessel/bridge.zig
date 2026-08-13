@@ -345,7 +345,7 @@ fn handleLsp(args: HandlerArgs, request: []const u8) !void {
         const header = try std.fmt.bufPrint(&h_buf, "Content-Length: {d}\r\n\r\n", .{resp.len});
         try args.conn.stream.writeAll(header);
         try args.conn.stream.writeAll(resp);
-        platform.debug.print("[LSP] Réponse initialize envoyée (ID: {s})\n", .{id_slice});
+        // platform.debug.print("[LSP] Réponse initialize envoyée (ID: {s})\n", .{id_slice});
     } else if (std.mem.indexOf(u8, request, "textDocument/didSave") != null) {
         const path = extractUri(args.allocator, request) orelse return;
         defer args.allocator.free(path);
@@ -358,7 +358,7 @@ fn handleLsp(args: HandlerArgs, request: []const u8) !void {
         // Libère le verrou à la fin de la fonction
         defer args.bridge.busy.store(false, .seq_cst);
 
-        platform.debug.print("\n[LSP] Synchronisation (Unique) : {s}\n", .{path});
+        // platform.debug.print("\n[LSP] Synchronisation (Unique) : {s}\n", .{path});
 
         _ = main_mod.syncMatrixWithFile(args.bridge.matrix, args.bridge.fab, args.allocator, path) catch |err| {
             platform.debug.print("[LSP ERR] {any}\n", .{err});
@@ -381,7 +381,7 @@ fn handleClient(args: HandlerArgs) void {
         const request = read_buf[0..n];
 
         // On logue systématiquement pour voir si Codium parle
-        //platform.debug.print("[VESSEL] Message reçu ({d} octets)\n", .{n});
+        // platform.debug.print("[VESSEL] Message reçu ({d} octets)\n", .{n});
 
         if (std.mem.indexOf(u8, request, "GET /") != null) {
             handleHttp(args, request) catch {};

@@ -9,7 +9,7 @@ pub fn runTest(allocator: std.mem.Allocator, file_path: []const u8) anyerror!voi
 
     // Read the generated C, find main, inject test runner
     // For now: just compile and run, tests are in main
-    platform.debug.print("── Running tests from {s} ──\n", .{file_path});
+    // platform.debug.print("── Running tests from {s} ──\n", .{file_path});
 
     const env = @as(
         [*:null]const ?[*:0]const u8,

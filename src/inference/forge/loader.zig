@@ -9,7 +9,7 @@ pub const ScriptLoader = struct {
     engine: *heaven_lib.Engine,
 
     pub fn loadFile(self: *ScriptLoader, path: []const u8) !void {
-        platform.debug.print("[DEBUG] loadFile: reading '{s}'\n", .{path});
+        // platform.debug.print("[DEBUG] loadFile: reading '{s}'\n", .{path});
         // Lecture brute du fichier en mémoire
         const content = try platform.fs.cwd().readFileAlloc(self.allocator, path, 1024 * 1024);
         defer self.allocator.free(content);

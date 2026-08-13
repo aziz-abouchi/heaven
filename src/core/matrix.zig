@@ -623,7 +623,7 @@ pub const Matrix = struct {
         }
 
         if (count > 0) {
-            platform.debug.print("[MATRIX] {d} nouvelles connaissances intégrées.\n", .{count});
+            // platform.debug.print("[MATRIX] {d} nouvelles connaissances intégrées.\n", .{count});
         }
     }
     pub fn mergeDelta(self: *Matrix, data: []const u8) !void {

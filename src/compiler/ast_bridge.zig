@@ -187,8 +187,8 @@ pub const Bridge = struct {
     }
 
     fn buildEqDecl(self: *Bridge, node: ts.TSNode) anyerror!Id {
-        platform.debug.print("\n=== EQ_DECL ===\n", .{});
-        platform.debug.print("\n=== EQ TREE ===\n", .{});
+        // platform.debug.print("\n=== EQ_DECL ===\n", .{});
+        // platform.debug.print("\n=== EQ TREE ===\n", .{});
         self.dumpTree(node, 0);
 
         const count = ts.ts_node_child_count(node);
@@ -460,15 +460,15 @@ pub const Bridge = struct {
     fn dumpTree(self: *Bridge, node: ts.TSNode, depth: usize) void {
         var i: usize = 0;
         while (i < depth) : (i += 1)
-            platform.debug.print("  ", .{});
+            // platform.debug.print("  ", .{});
 
-        platform.debug.print(
-            "{s} -> '{s}'\n",
-            .{
-                self.nodeType(node),
-                self.nodeText(node),
-            },
-        );
+            platform.debug.print(
+                "{s} -> '{s}'\n",
+                .{
+                    self.nodeType(node),
+                    self.nodeText(node),
+                },
+            );
 
         const count = ts.ts_node_child_count(node);
 

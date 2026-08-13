@@ -15,35 +15,35 @@ pub fn execute(
 
     switch (node.kind) {
         .goal => {
-            platform.debug.print(
+            // platform.debug.print(
                 "Goal: {s}\n",
                 .{node.name},
             );
         },
 
         .proof => {
-            platform.debug.print(
+            // platform.debug.print(
                 "Proof: {s}\n",
                 .{node.name},
             );
         },
 
         .task => {
-            platform.debug.print(
+            // platform.debug.print(
                 "Task: {s}\n",
                 .{node.name},
             );
         },
 
         .agent => {
-            platform.debug.print(
+            // platform.debug.print(
                 "Agent: {s}\n",
                 .{node.name},
             );
         },
 
         .expression => {
-            platform.debug.print(
+            // platform.debug.print(
                 "Expression: {s}\n",
                 .{node.name},
             );

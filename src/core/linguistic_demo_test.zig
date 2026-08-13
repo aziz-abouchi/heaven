@@ -38,6 +38,6 @@ test "Linguistic End-to-End Pipeline: 'Chaque chat est un felin'" {
     // Le système est capable de restituer l'arbre d'explication sémantique
     const explanation = try proof_term.formatExplanation();
 
-    platform.debug.print("\n[LINGUISTIC PROOF] Result: {s}\n", .{explanation});
+    // platform.debug.print("\n[LINGUISTIC PROOF] Result: {s}\n", .{explanation});
     // Affiche : "Prouvé: minou est un chat et chaque chat est un felin."
 }

@@ -43,9 +43,9 @@ pub const UniversalIngestor = struct {
     // ─── Points d'entrée publics ──────────────────────────────
 
     pub fn ingest(self: *UniversalIngestor, file_path: []const u8, content: []const u8) !void {
-        platform.debug.print("[INGEST] fichier={s}\n", .{file_path});
+        // platform.debug.print("[INGEST] fichier={s}\n", .{file_path});
         const lang_name = self.getLanguageFromExt(file_path) orelse {
-            platform.debug.print("[FORGE] Extension non reconnue: {s}\n", .{file_path});
+            // platform.debug.print("[FORGE] Extension non reconnue: {s}\n", .{file_path});
             return error.LanguageNotFound;
         };
 
@@ -63,7 +63,7 @@ pub const UniversalIngestor = struct {
         self.runQueries(root, content, lang_name) catch {};
 
         // Phase 2 : Traversée IR récursive
-        platform.debug.print("[DIAG] lang={s} children={d}\n", .{ lang_name, ts.ts_node_named_child_count(root) });
+        // platform.debug.print("[DIAG] lang={s} children={d}\n", .{ lang_name, ts.ts_node_named_child_count(root) });
         var di: u32 = 0;
         while (di < @min(ts.ts_node_named_child_count(root), 5)) : (di += 1) {
             const dc = ts.ts_node_named_child(root, di);

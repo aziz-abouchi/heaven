@@ -3,8 +3,8 @@ const platform = @import("platform");
 const ts = platform.ts;
 
 pub fn runDoc(allocator: std.mem.Allocator, file_path: []const u8) anyerror!void {
-    const source = platform.fs.cwd().readFileAlloc(allocator, file_path, 10 * 1024 * 1024) catch |e| {
-        platform.debug.print("Error reading {s}: {}\n", .{ file_path, e });
+    const source = platform.fs.cwd().readFileAlloc(allocator, file_path, 10 * 1024 * 1024) catch {
+        // platform.debug.print("Error reading {s}: {}\n", .{ file_path, e });
         return;
     };
     defer allocator.free(source);
@@ -63,7 +63,7 @@ pub fn runDoc(allocator: std.mem.Allocator, file_path: []const u8) anyerror!void
     // Write output
     const out_path = "doc.md";
     try platform.fs.cwd().writeFile(.{ .sub_path = out_path, .data = output.items });
-    platform.debug.print("Generated {s} ({d} bytes)\n", .{ out_path, output.items.len });
+    // platform.debug.print("Generated {s} ({d} bytes)\n", .{ out_path, output.items.len });
 }
 
 fn docFn(source: []const u8, node: ts.TSNode, w: anytype, comment: ?[]const u8) anyerror!void {

@@ -685,6 +685,7 @@ pub const TypeChecker = struct {
         InvalidUniverse,
         NotImplemented,
         OutOfMemory,
+        InvalidId,
     };
 
     pub fn init(allocator: Allocator, store: *Store) TypeChecker {
@@ -734,9 +735,37 @@ pub const TypeChecker = struct {
         return t;
     }
 
+    /// Infer the type of an application: f a ⇒ B[a/x] if f : Π(x:A).B
+    fn inferApply(self: *TypeChecker, ctx: *const TypingContext, apply_id: Id) !Id {
+        const apply_node = self.store.get(apply_id);
+        const p = self.store.pool.items;
+
+        if (apply_node.tag != .apply) return TypeError.NotAFunction;
+
+        const func_type = try self.inferType(ctx, apply_node.payload);
+        const func_type_node = self.store.get(func_type);
+        if (func_type_node.tag != .bind) return TypeError.NotAFunction;
+
+        const param_name = self.store.interner.resolve(func_type_node.payload);
+        const pi_app_node = self.store.get(func_type_node.aux);
+        if (pi_app_node.tag != .apply) return TypeError.NotAFunction;
+        const pi_args = pi_app_node.span_a.slice(p);
+        if (pi_args.len < 2) return TypeError.NotAFunction;
+        const type_a = pi_args[0];
+        const type_b = pi_args[1];
+
+        // ⚠️ Prendre le dernier enfant comme argument
+        const apply_args = apply_node.span_a.slice(p);
+        if (apply_args.len == 0) return TypeError.NotAFunction;
+        const arg = apply_args[apply_args.len - 1];
+
+        try self.checkType(ctx, arg, type_a);
+
+        return self.substVar(type_b, param_name, arg);
+    }
+
     /// Infer the type of an expression: Γ ⊢ e : τ
-    pub fn inferType(self: *TypeChecker, ctx: anytype, id: Id) !Id {
-        _ = ctx;
+    pub fn inferType(self: *TypeChecker, ctx: *const TypingContext, id: Id) anyerror!Id {
         if (id >= self.store.len()) return error.InvalidId;
         const node = self.store.get(id);
 
@@ -756,7 +785,21 @@ pub const TypeChecker = struct {
                     .runtime => try self.getTypeRuntime(),
                 };
             },
-            .sym, .apply, .bind, .lambda, .relation => {
+            .sym => {
+                const name = self.store.interner.resolve(node.payload);
+                // platform.debug.print("inferType: looking up '{s}'\n", .{name});
+                if (ctx.lookup(name)) |ty| {
+                    // platform.debug.print("  found: {}\n", .{ty});
+                    return ty;
+                } else {
+                    // platform.debug.print("  not found\n", .{});
+                    return error.UnboundVariable;
+                }
+            },
+            .apply => {
+                return try self.inferApply(ctx, id);
+            },
+            .bind, .lambda, .relation => {
                 return try self.getTypeUnknown();
             },
             else => return error.NotImplemented,
@@ -764,7 +807,7 @@ pub const TypeChecker = struct {
     }
 
     /// Check that an expression has a given type: Γ ⊢ e ⇐ τ
-    pub fn checkType(self: *TypeChecker, ctx: *const TypingContext, expr_id: Id, expected_type: Id) TypeError!void {
+    pub fn checkType(self: *TypeChecker, ctx: *const TypingContext, expr_id: Id, expected_type: Id) !void {
         const expr_node = self.store.get(expr_id);
 
         switch (expr_node.tag) {
@@ -804,11 +847,11 @@ pub const TypeChecker = struct {
                     node2.payload >= self.store.interner.list.items.len) return false;
                 const name1 = self.store.interner.resolve(node1.payload);
                 const name2 = self.store.interner.resolve(node2.payload);
-                platform.debug.print("typesEqual: {s} vs {s} | payload {d} vs {d} | names: \"{s}\" vs \"{s}\"\n", .{
-                    @tagName(node1.tag), @tagName(node2.tag),
-                    node1.payload,       node2.payload,
-                    name1,               name2,
-                });
+                // platform.debug.print("typesEqual: {s} vs {s} | payload {d} vs {d} | names: \"{s}\" vs \"{s}\"\n", .{
+                //    @tagName(node1.tag), @tagName(node2.tag),
+                //    node1.payload,       node2.payload,
+                //    name1,               name2,
+                // });
                 if (node1.payload == node2.payload) return true;
                 return std.mem.eql(u8, name1, name2);
             },
@@ -938,7 +981,7 @@ pub const TypeChecker = struct {
     /// Capture-avoiding substitution: substitute variable x with term a in expression e
     /// Returns new expression with all free occurrences of x replaced by a
     /// Check a lambda against a Pi-type: λx.e ⇐ Π(x:A).B
-    fn checkLambda(self: *TypeChecker, ctx: *const TypingContext, lambda_id: Id, pi_id: Id) TypeError!void {
+    fn checkLambda(self: *TypeChecker, ctx: *const TypingContext, lambda_id: Id, pi_id: Id) !void {
         const lambda_node = self.store.get(lambda_id);
         const pi_node = self.store.get(pi_id);
         const p = self.store.pool.items;
@@ -974,44 +1017,16 @@ pub const TypeChecker = struct {
         return self.checkType(&new_ctx, body_to_check, type_b);
     }
 
-    /// Infer the type of an application: f a ⇒ B[a/x] if f : Π(x:A).B
-    fn inferApply(self: *TypeChecker, ctx: *const TypingContext, apply_id: Id) TypeError!Id {
-        const apply_node = self.store.get(apply_id);
-        const p = self.store.pool.items;
-
-        if (apply_node.tag != .apply) return TypeError.NotAFunction;
-
-        const func_type = try self.inferType(ctx, apply_node.payload);
-        const func_type_node = self.store.get(func_type);
-        if (func_type_node.tag != .bind) return TypeError.NotAFunction;
-
-        const param_name = self.store.interner.resolve(func_type_node.payload);
-        const pi_app_node = self.store.get(func_type_node.aux);
-        if (pi_app_node.tag != .apply) return TypeError.NotAFunction;
-        const pi_args = pi_app_node.span_a.slice(p);
-        if (pi_args.len < 2) return TypeError.NotAFunction;
-        const type_a = pi_args[0];
-        const type_b = pi_args[1];
-
-        const apply_args = apply_node.span_a.slice(p);
-        if (apply_args.len == 0) return TypeError.NotAFunction;
-        const arg = apply_args[apply_args.len - 1];
-
-        try self.checkType(ctx, arg, type_a);
-
-        return self.substVar(type_b, param_name, arg);
-    }
-
-    pub fn substVar(self: *TypeChecker, expr_id: Id, var_name: []const u8, replacement: Id) TypeError!Id {
+    pub fn substVar(self: *TypeChecker, expr_id: Id, var_name: []const u8, replacement: Id) !Id {
         const node = self.store.get(expr_id);
         const p = self.store.pool.items;
 
         switch (node.tag) {
             .sym => {
                 const name = self.store.interner.resolve(node.payload);
-                //platform.debug.print("substVar: comparing {s} with {s}\n", .{ name, var_name });
+                // platform.debug.print("substVar: comparing {s} with {s}\n", .{ name, var_name });
                 if (std.mem.eql(u8, name, var_name)) {
-                    //platform.debug.print("substVar: replacing {s} with {}\n", .{ name, replacement });
+                    // platform.debug.print("substVar: replacing {s} with {}\n", .{ name, replacement });
                     return replacement;
                 }
                 return expr_id;
@@ -1318,26 +1333,26 @@ test "typesEqual - different types" {
 
     var checker = TypeChecker.init(allocator, &store);
 
-    std.debug.print("=== DEBUG typesEqual - different types ===\n", .{});
-    std.debug.print("pi1 id={}, pi2 id={}\n", .{ pi1, pi2 });
-    const p = store.pool.items;
+    // platform.debug.print("=== DEBUG typesEqual - different types ===\n", .{});
+    // platform.debug.print("pi1 id={}, pi2 id={}\n", .{ pi1, pi2 });
+    //const p = store.pool.items;
 
-    const node1 = store.get(pi1);
-    const node2 = store.get(pi2);
-    std.debug.print("pi1: tag={}, payload={}, aux={}, span_a.len={}\n", .{ node1.tag, node1.payload, node1.aux, node1.span_a.slice(p).len });
-    std.debug.print("pi2: tag={}, payload={}, aux={}, span_a.len={}\n", .{ node2.tag, node2.payload, node2.aux, node2.span_a.slice(p).len });
+    //const node1 = store.get(pi1);
+    //const node2 = store.get(pi2);
+    // platform.debug.print("pi1: tag={}, payload={}, aux={}, span_a.len={}\n", .{ node1.tag, node1.payload, node1.aux, node1.span_a.slice(p).len });
+    // platform.debug.print("pi2: tag={}, payload={}, aux={}, span_a.len={}\n", .{ node2.tag, node2.payload, node2.aux, node2.span_a.slice(p).len });
 
-    const dom1 = node1.span_a.slice(p)[0];
-    const dom2 = node2.span_a.slice(p)[0];
-    const codom1 = node1.aux;
-    const codom2 = node2.aux;
+    //const dom1 = node1.span_a.slice(p)[0];
+    //const dom2 = node2.span_a.slice(p)[0];
+    //const codom1 = node1.aux;
+    //const codom2 = node2.aux;
 
-    std.debug.print("dom1={}, dom2={}, codom1={}, codom2={}\n", .{ dom1, dom2, codom1, codom2 });
-    std.debug.print("dom1 tag={}, dom2 tag={}\n", .{ store.get(dom1).tag, store.get(dom2).tag });
-    std.debug.print("codom1 tag={}, codom2 tag={}\n", .{ store.get(codom1).tag, store.get(codom2).tag });
+    // platform.debug.print("dom1={}, dom2={}, codom1={}, codom2={}\n", .{ dom1, dom2, codom1, codom2 });
+    // platform.debug.print("dom1 tag={}, dom2 tag={}\n", .{ store.get(dom1).tag, store.get(dom2).tag });
+    // platform.debug.print("codom1 tag={}, codom2 tag={}\n", .{ store.get(codom1).tag, store.get(codom2).tag });
 
-    const result = checker.typesEqual(pi1, pi2);
-    std.debug.print("typesEqual result: {}\n", .{result});
+    //const result = checker.typesEqual(pi1, pi2);
+    // platform.debug.print("typesEqual result: {}\n", .{result});
 
     // These should NOT be equal
     try std.testing.expect(!checker.typesEqual(pi1, pi2));

@@ -51,7 +51,7 @@ pub const Reasoner = struct {
             try matrix.updateNode(source_node_id.?, .{ .Scalar = res });
             const done_label = try matrix.allocator.dupe(u8, "DONE");
             try matrix.updateNode(edge_id, .{ .Edge = .{ .target = edge.target, .label = done_label, .weight = 1.0 } });
-            platform.debug.print("[REASONER] Réduction: {d:.2} + {d:.2} -> {d:.2}\n", .{ source_val.?, target_node.Scalar, res });
+            // platform.debug.print("[REASONER] Réduction: {d:.2} + {d:.2} -> {d:.2}\n", .{ source_val.?, target_node.Scalar, res });
             return true;
         }
         return false;
@@ -74,7 +74,7 @@ pub const Reasoner = struct {
             {
                 if (!hasProperty(matrix, sub_root, p_data.Edge.label)) {
                     try matrix.addEdge(sub_root, p_data.Edge.target, p_data.Edge.label);
-                    platform.debug.print("[REASONER] Héritage: Nœud {d} hérite de '{s}'\n", .{ sub_root, p_data.Edge.label });
+                    // platform.debug.print("[REASONER] Héritage: Nœud {d} hérite de '{s}'\n", .{ sub_root, p_data.Edge.label });
                     changed = true;
                 }
             }

@@ -34,6 +34,17 @@ const EQSATPlanner = @import("runtime/eQSATPlanner.zig").EQSATPlanner;
 const shell_lib = @import("runtime/shell/mod.zig");
 const loop = @import("runtime/loop.zig");
 
+//
+const commands_mod = @import("commands");
+const matrix_bridge_mod = @import("matrix_bridge");
+const transform_mod = @import("transform");
+const skill_lib = @import("skill");
+const proof_core = @import("proof_core");
+const agent_mod = @import("agent");
+const parse_mod = @import("parse");
+const math_mod = @import("math");
+//
+
 var bob_identity: []const u8 = "Bob:Unknown";
 var my_origin: u64 = 0;
 var exiting = std.atomic.Value(bool).init(false);
@@ -450,31 +461,82 @@ pub fn main() !void {
     loop_thread.detach();
 
     // Shell
+    // ─── Nouveau REPL basé sur Commands ───
     bobLog("CORE", "Système prêt. Entrée dans le Shell.", .{});
-    var shell = shell_lib.Shell.init(allocator, &matrix, &heaven_engine, &uni_ingest, port);
-    defer shell.deinit();
 
-    // ══════════════ COMPORTEMENT BOBIVERSE : HEAVEN.MD ══════════════
-    // Le Shell est instancié, on peut maintenant lui injecter la config locale
-    const heaven_md = @import("core/heaven_md.zig");
-    heaven_md.loadFromFile("HEAVEN.md", &shell) catch |err| {
-        platform.debug.print("[BOOT] Échec de la lecture ou du parsing de HEAVEN.md: {s}\n", .{@errorName(err)});
-    };
-    // ═════════════════════════════════════════════════════════════════
-    const session_lib = @import("core/session.zig");
-    session_lib.load(shell.proofs, allocator) catch |err| {
-        platform.debug.print("[SESSION] Échec chargement: {s}\n", .{@errorName(err)});
-    };
+    var env = engine_expr.Env.init(allocator);
+    defer env.deinit();
 
-    // Register global swarm channels
-    swarm_runtime.global_inbox = &shell.swarm.pending_tasks;
-    swarm_runtime.global_results = &shell.swarm.results;
+    var engine = engine_expr.Engine{ .allocator = allocator };
+    engine.store = &store;
+    engine.env = &env;
 
-    // Spawn swarm worker thread
-    const swarm_thread = try platform.Thread.spawn(.{}, swarmWorkerLoop, .{ allocator, shell.swarm, &exiting });
-    swarm_thread.detach();
+    var bridge = matrix_bridge_mod.MatrixBridge.init(&store, allocator);
+    defer bridge.deinit();
 
-    try shell.run();
+    var parser = parse_mod.Parser.init(&store, &engine, &env, allocator);
+    defer parser.deinit();
+
+    var math_inst = math_mod.Math.init(&store, &engine, &bridge, &parser, allocator);
+    defer math_inst.deinit();
+
+    var kb = transform_mod.KnowledgeBase.init(allocator);
+    defer kb.deinit(allocator);
+
+    var skills = skill_lib.SkillRegistry.init(allocator);
+    defer skills.deinit();
+
+    var qtt_env = std.StringHashMapUnmanaged(u2){};
+    defer qtt_env.deinit(allocator);
+
+    var proof_core_inst = proof_core.ProofCore.init(allocator);
+    defer proof_core_inst.deinit();
+
+    var agent_inst = agent_mod.Agent.init(allocator);
+    defer agent_inst.deinit();
+
+    var active_theorem: ?[]const u8 = null;
+    defer if (active_theorem) |t| allocator.free(t);
+
+    var pending_proof_request: ?[]const u8 = null;
+    defer if (pending_proof_request) |t| allocator.free(t);
+
+    var cmds = try commands_mod.Commands.init(
+        &store,
+        &engine,
+        &env,
+        &bridge,
+        allocator,
+        &parser,
+        &math_inst,
+        &kb,
+        &skills,
+        &qtt_env,
+        &proof_core_inst,
+        &agent_inst,
+        &active_theorem,
+        &pending_proof_request,
+    );
+    defer cmds.deinit();
+
+    // Boucle REPL
+    while (true) {
+        platform.io.print("heaven> ", .{});
+        const line = platform.readLine(allocator) catch break;
+        defer allocator.free(line);
+
+        const trimmed = std.mem.trim(u8, line, " \t\r");
+        if (trimmed.len == 0) continue;
+        if (std.mem.eql(u8, trimmed, ":exit") or std.mem.eql(u8, trimmed, ":q")) break;
+
+        const result = cmds.eval(trimmed) catch |err| {
+            platform.io.print("error: {}\n", .{err});
+            continue;
+        };
+        defer allocator.free(result);
+
+        platform.io.print("→ {s}\n", .{result});
+    }
 
     // 1. Signaler aux threads de s'arrêter
     exiting.store(true, .release);

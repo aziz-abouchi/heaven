@@ -68,9 +68,9 @@ pub const Heaven = struct {
     pub fn parse(self: *Heaven, src: []const u8) HeavenError!Id {
         const trimmed = std.mem.trim(u8, src, " \t\n");
         if (std.fmt.parseInt(i64, trimmed, 10)) |val| {
-            return self.store.int(val) catch return HeavenError.OutOfMemory;
+            return self.store.int(val);
         } else |_| {}
-        return self.store.sym(trimmed) catch return HeavenError.OutOfMemory;
+        return self.store.sym(trimmed); // ← "dumpAstFile /tmp/test_simple.c" devient un sym !
     }
 
     // Bridge pour le frontend
