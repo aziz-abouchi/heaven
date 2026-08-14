@@ -259,6 +259,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "expr", .module = expr_mod },
+            .{ .name = "elab", .module = elab_mod },
         },
     });
 
@@ -781,7 +782,10 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/core/types.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "expr", .module = expr_mod }},
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "elab", .module = elab_mod },
+        },
     }) });
 
     const test_proof = b.addTest(.{ .root_module = b.createModule(.{

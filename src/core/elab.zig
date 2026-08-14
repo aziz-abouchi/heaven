@@ -736,7 +736,7 @@ pub const TypeChecker = struct {
     }
 
     /// Infer the type of an application: f a ⇒ B[a/x] if f : Π(x:A).B
-    fn inferApply(self: *TypeChecker, ctx: *const TypingContext, apply_id: Id) !Id {
+    pub fn inferApply(self: *TypeChecker, ctx: *const TypingContext, apply_id: Id) !Id {
         const apply_node = self.store.get(apply_id);
         const p = self.store.pool.items;
 

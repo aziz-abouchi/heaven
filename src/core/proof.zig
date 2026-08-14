@@ -17,6 +17,18 @@ pub const ProofEnv = struct {
         _ = self;
     }
 
+    pub fn addTheorem(self: *ProofEnv, name: []const u8, lhs: Id, rhs: Id) !void {
+        _ = self;
+        _ = name;
+        _ = lhs;
+        _ = rhs;
+    }
+    pub fn lookupTheorem(self: *const ProofEnv, name: []const u8) ?struct { lhs: Id, rhs: Id } {
+        _ = self;
+        _ = name;
+        return null;
+    }
+
     pub fn verifyByEval(self: *ProofEnv, name: []const u8, engine: anytype, store: anytype) !bool {
         _ = self;
         _ = name;

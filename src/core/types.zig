@@ -5,6 +5,10 @@ const Id = expr.Id;
 const Tag = expr.Tag;
 const Lit = expr.Lit;
 
+const elab = @import("elab");
+const TypeChecker = elab.TypeChecker;
+const TypingContext = elab.TypingContext;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // HINDLEY-MILNER TYPE INFERENCE
 //
@@ -122,23 +126,32 @@ pub const TypeError = error{
 };
 
 pub const TypeEnv = struct {
-    bindings: std.AutoHashMapUnmanaged(u32, Id) = .{},
+    bindings: std.StringHashMap(Id),
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) TypeEnv {
-        return .{ .allocator = allocator };
+        return .{
+            .allocator = allocator,
+            .bindings = std.StringHashMap(Id).init(allocator),
+        };
     }
 
     pub fn deinit(self: *TypeEnv) void {
-        self.bindings.deinit(self.allocator);
+        var it = self.bindings.iterator();
+        while (it.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
+        }
+        self.bindings.deinit();
     }
 
-    pub fn put(self: *TypeEnv, s: u32, t: Id) !void {
-        try self.bindings.put(self.allocator, s, t);
+    pub fn put(self: *TypeEnv, name: []const u8, t: Id) !void {
+        const key = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(key);
+        try self.bindings.put(key, t);
     }
 
-    pub fn get(self: *const TypeEnv, s: u32) ?Id {
-        return self.bindings.get(s);
+    pub fn get(self: *const TypeEnv, name: []const u8) ?Id {
+        return self.bindings.get(name);
     }
 };
 
@@ -156,6 +169,95 @@ pub const Infer = struct {
         self.env.deinit();
     }
 
+    fn inferApply(self: *Infer, apply_id: Id) !Id {
+        const apply_node = self.store.get(apply_id);
+        const func_type = try self.typeOf(apply_node.payload);
+        if (func_type >= self.store.len()) return self.unknown();
+        const func_node = self.store.get(func_type);
+
+        if (func_node.tag != .apply) return self.unknown();
+
+        const arrow_node = self.store.get(func_node.payload);
+        if (arrow_node.tag != .sym) return self.unknown();
+        const arrow_name = self.store.interner.resolve(arrow_node.payload);
+        if (!std.mem.eql(u8, arrow_name, "->")) return self.unknown();
+
+        const p = self.store.pool.items;
+
+        if (func_node.span_a.start >= p.len) return self.unknown();
+        if (func_node.span_a.start + func_node.span_a.len > p.len) return self.unknown();
+        const arrow_len = func_node.span_a.len;
+        if (arrow_len != 2 and arrow_len != 3) return self.unknown();
+
+        // Pour une flèche normale : [domaine, codomaine]
+        // Pour une flèche à 3 éléments : [paramètre de type, domaine, codomaine]
+        const domain = if (arrow_len == 2)
+            p[func_node.span_a.start]
+        else
+            p[func_node.span_a.start + 1];
+        const codomain = p[func_node.span_a.start + arrow_len - 1];
+
+        // Vérifier le span de l'application
+        if (apply_node.span_a.start >= p.len) return self.unknown();
+        if (apply_node.span_a.start + apply_node.span_a.len > p.len) return self.unknown();
+        const app_len = apply_node.span_a.len;
+        if (app_len == 0) return self.unknown();
+        const arg = p[apply_node.span_a.start + app_len - 1];
+        const arg_type = try self.typeOf(arg);
+
+        if (domain < self.store.len()) {
+            const domain_node = self.store.get(domain);
+            if (domain_node.tag == .sym) {
+                const domain_name = self.store.interner.resolve(domain_node.payload);
+                if (std.mem.startsWith(u8, domain_name, "_t")) {
+                    return try self.substInType(codomain, domain_name, arg_type);
+                }
+            }
+        }
+        return codomain;
+    }
+
+    fn substInType(self: *Infer, t: Id, var_name: []const u8, replacement: Id) !Id {
+        const node = self.store.get(t);
+        switch (node.tag) {
+            .sym => {
+                const name = self.store.interner.resolve(node.payload);
+                if (std.mem.eql(u8, name, var_name)) return replacement;
+                return t;
+            },
+            .apply => {
+                const new_func = try self.substInType(node.payload, var_name, replacement);
+                const p = self.store.pool.items;
+                const args = node.span_a.slice(p);
+                var new_args = std.ArrayListUnmanaged(Id){};
+                defer new_args.deinit(self.env.allocator);
+                for (args) |arg| {
+                    try new_args.append(self.env.allocator, try self.substInType(arg, var_name, replacement));
+                }
+                return try @constCast(self.store).apply(new_func, new_args.items);
+            },
+            .bind => {
+                const new_body = try self.substInType(node.aux, var_name, replacement);
+                const p = self.store.pool.items;
+                const children = node.span_a.slice(p);
+                var new_children = std.ArrayListUnmanaged(Id){};
+                defer new_children.deinit(self.env.allocator);
+                for (children) |child| {
+                    try new_children.append(self.env.allocator, try self.substInType(child, var_name, replacement));
+                }
+                const sa = try @constCast(self.store).pushSpan(new_children.items);
+                return @constCast(self.store).addNode(.{
+                    .tag = .bind,
+                    .payload = node.payload,
+                    .aux = new_body,
+                    .span_a = sa,
+                    .span_b = node.span_b,
+                });
+            },
+            else => return t,
+        }
+    }
+
     pub fn typeOf(self: *Infer, id: Id) TypeError!Id {
         if (id >= self.store.len()) return self.unknown();
         const node = self.store.get(id);
@@ -168,30 +270,14 @@ pub const Infer = struct {
         return switch (prim) {
             .lit => self.litType(id),
             .sym => {
-                if (self.env.get(node.payload)) |t| {
-                    std.debug.print("sym: found type {d} for payload {d}\n", .{ t, node.payload });
+                const name = self.store.interner.resolve(node.payload);
+                // std.debug.print("sym: looking for '{s}'\n", .{name});
+                if (self.env.get(name)) |t| {
+                    // std.debug.print("sym: found type {d}\n", .{t});
                     return t;
                 }
-                std.debug.print("sym: not found payload {d}\n", .{node.payload});
+                // std.debug.print("sym: not found\n", .{});
                 return self.unknown();
-            },
-            .apply => {
-                const func_node = self.store.get(node.payload);
-                if (func_node.tag == .sym) {
-                    const name = self.store.interner.resolve(func_node.payload);
-                    // Gestion des opérateurs magiques
-                    if (std.mem.eql(u8, name, "+") or std.mem.eql(u8, name, "-") or
-                        std.mem.eql(u8, name, "*") or std.mem.eql(u8, name, "/"))
-                    {
-                        return self.int(); // Retourne le type Int
-                    }
-                }
-                return self.unknown();
-            },
-            .bind => {
-                const val_t = try self.typeOf(node.aux);
-                try self.env.put(node.payload, val_t);
-                return val_t;
             },
             .lambda => {
                 const p = self.store.pool.items;
@@ -199,21 +285,48 @@ pub const Infer = struct {
                 if (body_span.len == 0) return self.unknown();
                 const body = body_span[body_span.len - 1];
                 const param_sym = node.payload;
+                const param_name = self.store.interner.resolve(param_sym);
                 const param_type = try self.freshTypeVar();
-                try self.env.put(param_sym, param_type);
+                try self.env.put(param_name, param_type);
                 const body_type = try self.typeOf(body);
-                std.debug.print("lambda: param_sym={d}, body_type={d}\n", .{ param_sym, body_type });
                 return try self.func(param_type, body_type);
+            },
+            .apply => {
+                // Opérateurs binaires → Int
+                const func_node = self.store.get(node.payload);
+                if (func_node.tag == .sym) {
+                    const name = self.store.interner.resolve(func_node.payload);
+                    if (std.mem.eql(u8, name, "+") or std.mem.eql(u8, name, "-") or
+                        std.mem.eql(u8, name, "*") or std.mem.eql(u8, name, "/"))
+                    {
+                        return self.int();
+                    }
+                }
+                return try self.inferApply(id);
+            },
+            .bind => {
+                const val_t = try self.typeOf(node.aux);
+                const name = self.store.interner.resolve(node.payload);
+                try self.env.put(name, val_t);
+                return val_t;
             },
             .relation => self.relation(),
         };
     }
 
     pub fn typeStr(self: *Infer, subst: *const TypeSubst, t: Id, allocator: std.mem.Allocator) ![]u8 {
+        if (t >= self.store.len()) return try allocator.dupe(u8, "?");
         const node = self.store.get(t);
+        // std.debug.print("typeStr: t={d}, tag={s}\n", .{ t, @tagName(node.tag) });
         switch (node.tag) {
             .sym => {
+                if (node.payload >= self.store.interner.list.items.len) {
+                    return try allocator.dupe(u8, "?");
+                }
                 const name = self.store.interner.resolve(node.payload);
+                if (std.mem.startsWith(u8, name, "_t")) {
+                    return try allocator.dupe(u8, name);
+                }
                 return try allocator.dupe(u8, name);
             },
             .apply => {
@@ -264,7 +377,13 @@ pub const Infer = struct {
     }
 
     fn litType(self: *Infer, id: Id) !Id {
-        const lit = self.store.getLit(id);
+        const node = self.store.get(id);
+        if (node.tag != .lit) return error.ExtensionNotLowered;
+        if (node.aux >= self.store.lits.items.len) {
+            // std.debug.print("litType: invalid aux={d}, lits.len={d}\n", .{ node.aux, self.store.lits.items.len });
+            return self.unknown();
+        }
+        const lit = self.store.lits.items[node.aux];
         return switch (lit) {
             .int => self.int(),
             .float => self.float(),

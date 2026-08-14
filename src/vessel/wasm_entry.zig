@@ -1,3 +1,66 @@
+const Commands = @import("commands").Commands;
+const Parser = @import("parse").Parser;
+const Math = @import("math").Math;
+const KnowledgeBase = @import("transform").KnowledgeBase;
+const SkillRegistry = @import("skill").SkillRegistry;
+const ProofCore = @import("proof_core").ProofCore;
+const Agent = @import("agent").Agent;
+const MatrixBridge = @import("matrix_bridge").MatrixBridge;
+
+var bridge: MatrixBridge = undefined;
+var parser: Parser = undefined;
+var math: Math = undefined;
+var kb: KnowledgeBase = undefined;
+var skills: SkillRegistry = undefined;
+var qtt_env: std.StringHashMapUnmanaged(u2) = .{};
+var proof_core: ProofCore = undefined;
+var agent: Agent = undefined;
+var active_theorem: ?[]const u8 = null;
+var pending_proof_request: ?[]const u8 = null;
+
+var cmds: ?Commands = null;
+
+export fn init() void {
+    // platform.debug.print("=== WASM init called ===\n", .{});
+
+    heaven = Heaven.init(allocator());
+    const store = &heaven.?.store;
+    const engine = &heaven.?.engine;
+    const env = &heaven.?.env;
+
+    bridge = MatrixBridge.init(store, allocator());
+    parser = Parser.init(store, engine, env, allocator());
+    math = Math.init(store, engine, &bridge, &parser, allocator());
+    kb = KnowledgeBase.init(allocator());
+    skills = SkillRegistry.init(allocator());
+    proof_core = ProofCore.init(allocator());
+    agent = Agent.init(allocator());
+
+    // platform.debug.print("Before Commands.init\n", .{});
+    cmds = Commands.init(
+        store,
+        engine,
+        env,
+        &bridge,
+        allocator(),
+        &parser,
+        &math,
+        &kb,
+        &skills,
+        &qtt_env,
+        &proof_core,
+        &agent,
+        &active_theorem,
+        &pending_proof_request,
+    ) catch |err| blk: {
+        var buf: [256]u8 = undefined;
+        const msg = std.fmt.bufPrint(&buf, "Commands.init failed: {s}\n", .{@errorName(err)}) catch "Commands.init failed";
+        js_console_log(msg.ptr, msg.len);
+        break :blk null;
+    };
+    // platform.debug.print("After Commands.init, cmds is {any}\n", .{cmds});
+}
+
 const std = @import("std");
 const build_options = @import("build_options");
 const Heaven = @import("heaven_expr").Heaven;
@@ -87,13 +150,28 @@ export fn getOutputLen() u32 {
     return output_len;
 }
 
-export fn init() void {
-    heaven = Heaven.init(allocator());
-}
-
 export fn heavenEval(len: u32) u32 {
-    var h = &(heaven orelse return 0);
     const line = input_buf[0..len];
+
+    // platform.debug.print("heavenEval: cmds is {any}\n", .{cmds});
+
+    if (cmds) |*c| {
+        // platform.debug.print("heavenEval: calling Commands.eval\n", .{});
+        const result = c.eval(line) catch |err| {
+            var buf: [256]u8 = undefined;
+            const msg = std.fmt.bufPrint(&buf, "Commands.eval failed: {s}\n", .{@errorName(err)}) catch "Commands.eval failed";
+            platform.debug.print("{s}", .{msg});
+            setOutput("error");
+            return 5;
+        };
+        // platform.debug.print("heavenEval: Commands.eval succeeded\n", .{});
+        defer allocator().free(result);
+        setOutput(result);
+        return output_len;
+    }
+
+    // Fallback : utiliser l'ancien evaluate (sans commandes)
+    var h = &(heaven orelse return 0);
     h.engine.fuel = 1000000;
 
     // Try function call by juxtaposition: "fib 5" -> "fib(5)"
@@ -605,10 +683,22 @@ pub fn enableLowering(self: *Heaven, v: bool) void {
 
 export fn dispatch(cmd_len: u32, arg_len: u32) u32 {
     const full_input = input_buf[0 .. cmd_len + arg_len];
+
+    if (cmds) |*c| {
+        const result = c.eval(full_input) catch |err| {
+            var buf: [128]u8 = undefined;
+            const msg = std.fmt.bufPrint(&buf, "Commands.eval error: {s}", .{@errorName(err)}) catch "error";
+            setOutput(msg);
+            return @intCast(msg.len);
+        };
+        defer allocator().free(result);
+        setOutput(result);
+        return output_len;
+    }
+
+    // Fallback : utiliser l'ancien évaluateur
     var h = &(heaven orelse return 0);
-
     h.engine.fuel = 1000000;
-
     const res = h.eval(full_input) catch {
         setOutput("()");
         return 2;

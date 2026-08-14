@@ -110,6 +110,35 @@ pub const Engine = struct {
     green_mode: bool = false,
     fuel: u64 = 1_000_000,
 
+    pub fn init(allocator: Allocator) Engine {
+        var engine = Engine{
+            .allocator = allocator,
+            .fns = .{},
+            .macros = .{},
+            .actors = .{},
+            .fuel = 100000,
+            .green_call_count = 0,
+            .green_mode = false,
+            .next_actor_id = 0,
+            .env = Env.init(allocator),
+        };
+        engine.fns.ensureTotalCapacity(allocator, 16) catch {};
+        engine.macros.ensureTotalCapacity(allocator, 8) catch {};
+        engine.actors.ensureTotalCapacity(allocator, 8) catch {};
+        return engine;
+    }
+
+    pub fn deinit(self: *Engine) void {
+        var it = self.fns.iterator();
+        while (it.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
+        }
+        self.fns.deinit(self.allocator);
+        self.macros.deinit(self.allocator);
+        self.actors.deinit(self.allocator);
+        self.env.deinit();
+    }
+
     pub fn eval(self: *Engine, id: Id) EvalError!Id {
         const store = self.store orelse return error.UnboundVariable;
         const env = self.env orelse return error.UnboundVariable;
@@ -165,17 +194,20 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
     return switch (node.tag) {
         .lit => id,
         .sym => {
-            // Chercher dans l'environnement (variable liée)
             if (env.get(node.payload)) |bound| {
                 return bound;
             }
-            // Chercher dans le registre des fonctions
             const name = store.interner.resolve(node.payload);
+            // platform.debug.print("evaluate sym: looking for '{s}' in fns (size={d})\n", .{ name, engine.fns.count() });
             if (engine.fns.get(name)) |_| {
-                return id; // le symbole représente une fonction connue, l'appel sera traité au niveau .apply
+                // platform.debug.print("evaluate sym: found function '{s}'\n", .{name});
+                return id;
             }
-            // Symboles magiques (builtins)
-            if (isMagicSymbol(name)) return id;
+            if (isMagicSymbol(name)) {
+                // platform.debug.print("evaluate sym: magic symbol '{s}'\n", .{name});
+                return id;
+            }
+            // platform.debug.print("evaluate sym: function '{s}' NOT found\n", .{name});
             return error.UnboundVariable;
         },
         .apply => {
@@ -191,11 +223,18 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                 for (1..args.len) |i| {
                     store.pool.items[new_span.start + i] = args[i];
                 }
-                const new_apply = try store.addNode(.{ .tag = .apply, .payload = evaled_op, .aux = 0, .span_a = new_span, .span_b = Span.EMPTY });
+                const new_apply = try store.addNode(.{
+                    .tag = .apply,
+                    .payload = evaled_op,
+                    .aux = 0,
+                    .span_a = new_span,
+                    .span_b = Span.EMPTY,
+                });
                 return evaluate(store, env, engine, new_apply, depth + 1);
             }
 
             const op_name = store.interner.resolve(op_node.payload);
+            // platform.debug.print("evaluate apply: calling function '{s}'\n", .{op_name});
             return try evalMagic(store, env, engine, op_name, args[1..], depth);
         },
         .bind => {
@@ -240,7 +279,9 @@ fn isMagicSymbol(name: []const u8) bool {
 
 fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
     // === Application utilisateur : chercher dans le registre EN PREMIER ===
+    // platform.debug.print("evalMagic: looking for '{s}' in fns (size={d})\n", .{ op, engine.fns.count() });
     if (engine.fns.get(op)) |fn_def| {
+        // platform.debug.print("evalMagic: found function '{s}'\n", .{op});
         if (fn_def.num_clauses > 0) {
             const clause = fn_def.clauses[0];
             // Évaluer les arguments
@@ -255,6 +296,9 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             }
             return evaluate(store, env, engine, clause.body, depth + 1);
         }
+    } else {
+        // platform.debug.print("evalMagic: function '{s}' NOT found\n", .{op});
+        // platform.debug.print("evalMagic: function '{s}' not found in fns (size={d})\n", .{ op, engine.fns.count() });
     }
 
     // === Effets magiques natifs ===

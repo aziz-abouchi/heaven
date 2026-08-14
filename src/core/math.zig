@@ -12,6 +12,16 @@ const Engine = engine_expr.Engine;
 const matrix_bridge_mod = @import("matrix_bridge");
 const parse_mod = @import("parse");
 
+fn getIntFromId(store: *Store, id: Id) ?i64 {
+    if (id >= store.len()) return null;
+    const node = store.get(id);
+    if (node.tag == .lit) {
+        const lit = store.lits.items[node.aux];
+        if (lit == .int) return lit.int;
+    }
+    return null;
+}
+
 pub const Math = struct {
     store: *Store,
     engine: *Engine,
@@ -30,23 +40,79 @@ pub const Math = struct {
 
     // ─── Dérivation ───
 
-    pub fn derive(self: *Math, input: []const u8, varname: []const u8) ![]u8 {
-        if (input.len == 0) return self.allocator.dupe(u8, "0");
-        // Essayer de parser comme S-expr d'abord, puis convertir en infix
-        const parsed_id = self.parser.parseSExpr(input) catch null;
-        if (parsed_id) |id| {
-            const infix = self.idToInfix(id) catch null;
-            if (infix) |inf| {
-                defer self.allocator.free(inf);
-                return self.deriveStr(inf, varname) catch {
-                    return self.allocator.dupe(u8, "0");
-                };
-            }
+    pub fn derive(self: *Math, expr_str: []const u8, variable: []const u8) ![]u8 {
+        const id = try self.bridge.importExpr(expr_str);
+        const var_id = try self.store.sym(variable);
+        const result = try self.deriveExpr(id, var_id);
+        const str = try expr.toStringInfix(self.store, result, self.allocator);
+        return str;
+    }
+
+    fn deriveExpr(self: *Math, expr_id: Id, variable: Id) !Id {
+        const node = self.store.get(expr_id);
+        switch (node.tag) {
+            .lit => return self.store.int(0),
+            .sym => {
+                if (std.mem.eql(u8, self.store.interner.resolve(node.payload), self.store.interner.resolve(variable))) {
+                    return self.store.int(1);
+                }
+                return self.store.int(0);
+            },
+            .apply => {
+                const p = self.store.pool.items;
+                const args = node.span_a.slice(p);
+                if (args.len < 1) return self.store.int(0);
+                const op_node = self.store.get(node.payload);
+                if (op_node.tag != .sym) return self.store.int(0);
+                const op = self.store.interner.resolve(op_node.payload);
+                if (std.mem.eql(u8, op, "+")) {
+                    if (args.len != 2) return self.store.int(0);
+                    const d1 = try self.deriveExpr(args[0], variable);
+                    const d2 = try self.deriveExpr(args[1], variable);
+                    return self.store.binop("+", d1, d2);
+                }
+                if (std.mem.eql(u8, op, "-")) {
+                    if (args.len != 2) return self.store.int(0);
+                    const d1 = try self.deriveExpr(args[0], variable);
+                    const d2 = try self.deriveExpr(args[1], variable);
+                    return self.store.binop("-", d1, d2);
+                }
+                if (std.mem.eql(u8, op, "*")) {
+                    if (args.len != 2) return self.store.int(0);
+                    // (f*g)' = f'g + fg'
+                    const f = args[0];
+                    const g = args[1];
+                    const df = try self.deriveExpr(f, variable);
+                    const dg = try self.deriveExpr(g, variable);
+                    const fg = try self.store.binop("*", df, g);
+                    const fdg = try self.store.binop("*", f, dg);
+                    return self.store.binop("+", fg, fdg);
+                }
+                if (std.mem.eql(u8, op, "^")) {
+                    if (args.len != 2) return self.store.int(0);
+                    // (f^g)' = f^g * (g' * ln(f) + g * f'/f)
+                    // Version simplifiée pour g constant
+                    const base = args[0];
+                    const exp = args[1];
+                    const exp_node = self.store.get(exp);
+                    if (exp_node.tag == .lit) {
+                        const lit = self.store.lits.items[exp_node.aux];
+                        if (lit == .int) {
+                            const n = lit.int;
+                            if (n == 0) return self.store.int(0);
+                            const d_base = try self.deriveExpr(base, variable);
+                            const exp_minus = try self.store.int(n - 1);
+                            const base_pow = try self.store.binop("^", base, exp_minus);
+                            const mul = try self.store.binop("*", d_base, base_pow);
+                            return self.store.binop("*", try self.store.int(n), mul);
+                        }
+                    }
+                    return self.store.int(0);
+                }
+                return self.store.int(0);
+            },
+            else => return self.store.int(0),
         }
-        // Fallback: parsing textuel direct
-        return self.deriveStr(input, varname) catch {
-            return self.allocator.dupe(u8, "0");
-        };
     }
 
     fn normalizeUnicode(self: *Math, input: []const u8) ![]u8 {
@@ -302,93 +368,104 @@ pub const Math = struct {
 
     // ─── Intégration ───
 
-    pub fn integrate(self: *Math, input: []const u8, varname: []const u8) ![]u8 {
-        // Parser S-expr d'abord, fallback sur bridge
-        const id = blk: {
-            if (self.parser.parseSExpr(input)) |parsed| break :blk parsed else |_| {}
-            break :blk try self.bridge.importExpr(input);
-        };
-        const result = try self.integrateExpr(id, varname);
-        const raw = try expr.toString(self.store, result, self.allocator);
-        defer self.allocator.free(raw);
-        var buf: std.ArrayListUnmanaged(u8) = .{};
-        errdefer buf.deinit(self.allocator);
-        try buf.appendSlice(self.allocator, raw);
-        try buf.appendSlice(self.allocator, " + C");
-        return buf.toOwnedSlice(self.allocator);
+    pub fn integrate(self: *Math, expr_str: []const u8, variable: []const u8) ![]u8 {
+        const id = try self.bridge.importExpr(expr_str);
+        const var_id = try self.store.sym(variable);
+        const result = try self.integrateExpr(id, var_id);
+        const str = try expr.toStringInfix(self.store, result, self.allocator);
+        return try std.fmt.allocPrint(self.allocator, "{s} + C", .{str});
     }
 
-    fn integrateExpr(self: *Math, id: Id, v: []const u8) !Id {
-        if (id >= self.store.len()) return self.store.int(0);
-        const node = self.store.get(id);
+    fn integrateExpr(self: *Math, expr_id: Id, variable: Id) !Id {
+        const node = self.store.get(expr_id);
         switch (node.tag) {
-            .lit => return self.store.binop("*", id, try self.store.sym(v)),
-            .sym => {
-                const name = self.store.interner.resolve(node.payload);
-                if (std.mem.eql(u8, name, v)) {
-                    const x2 = try self.store.binop("^", id, try self.store.int(2));
-                    return self.store.binop("/", x2, try self.store.int(2));
+            .lit => {
+                const lit = self.store.lits.items[node.aux];
+                if (lit == .int) {
+                    // ∫ a dx = a*x
+                    const x = try self.store.sym(self.store.interner.resolve(variable));
+                    return self.store.binop("*", expr_id, x);
                 }
-                return self.store.binop("*", id, try self.store.sym(v));
+                return self.store.int(0);
+            },
+            .sym => {
+                if (std.mem.eql(u8, self.store.interner.resolve(node.payload), self.store.interner.resolve(variable))) {
+                    // ∫ x dx = x^2/2
+                    const two = try self.store.int(2);
+                    const x_sq = try self.store.binop("^", expr_id, two);
+                    return self.store.binop("/", x_sq, two);
+                }
+                return self.store.binop("*", expr_id, try self.store.sym(self.store.interner.resolve(variable)));
             },
             .apply => {
-                const func_node = self.store.get(node.payload);
-                if (func_node.tag != .sym) return self.store.int(0);
-                const op = self.store.interner.resolve(func_node.payload);
-                const args = node.span_a.slice(self.store.pool.items);
-                if (args.len != 2) return self.store.int(0);
-                const a0 = args[0];
-                const a1 = args[1];
-                if (std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "-")) {
-                    const left = try self.integrateExpr(a0, v);
-                    const right = try self.integrateExpr(a1, v);
-                    return self.store.binop(op, left, right);
+                const p = self.store.pool.items;
+                const args = node.span_a.slice(p);
+                if (args.len < 1) return self.store.int(0);
+                const op_node = self.store.get(node.payload);
+                if (op_node.tag != .sym) return self.store.int(0);
+                const op = self.store.interner.resolve(op_node.payload);
+                if (std.mem.eql(u8, op, "+")) {
+                    var result: Id = 0;
+                    for (args) |arg| {
+                        const integ = try self.integrateExpr(arg, variable);
+                        if (result == 0) {
+                            result = integ;
+                        } else result = try self.store.binop("+", result, integ);
+                    }
+                    return result;
+                }
+                if (std.mem.eql(u8, op, "-")) {
+                    if (args.len != 2) return self.store.int(0);
+                    const in1 = try self.integrateExpr(args[0], variable);
+                    const in2 = try self.integrateExpr(args[1], variable);
+                    return self.store.binop("-", in1, in2);
                 }
                 if (std.mem.eql(u8, op, "*")) {
-                    const n0 = self.store.get(a0);
-                    const n1 = self.store.get(a1);
-                    if (n0.tag == .lit) {
-                        const inner = try self.integrateExpr(a1, v);
-                        return self.store.binop("*", a0, inner);
+                    // Version simplifiée : si un facteur est constant, on l'intègre avec l'autre
+                    // Sinon, on retourne 0.
+                    if (args.len != 2) return self.store.int(0);
+                    const a_node = self.store.get(args[0]);
+                    const b_node = self.store.get(args[1]);
+                    if (a_node.tag == .lit and b_node.tag == .lit) {
+                        return self.store.binop("*", args[0], args[1]);
                     }
-                    if (n1.tag == .lit) {
-                        const inner = try self.integrateExpr(a0, v);
-                        return self.store.binop("*", a1, inner);
+                    // Si a est constant
+                    if (a_node.tag == .lit) {
+                        const integ_b = try self.integrateExpr(args[1], variable);
+                        return self.store.binop("*", args[0], integ_b);
                     }
-                    if (n0.tag == .sym and n1.tag == .sym) {
-                        const name1 = self.store.interner.resolve(n1.payload);
-                        if (std.mem.eql(u8, name1, v)) {
-                            const x2 = try self.store.binop("^", a1, try self.store.int(2));
-                            const half = try self.store.binop("/", x2, try self.store.int(2));
-                            return self.store.binop("*", a0, half);
-                        }
-                        const name0 = self.store.interner.resolve(n0.payload);
-                        if (std.mem.eql(u8, name0, v)) {
-                            const x2 = try self.store.binop("^", a0, try self.store.int(2));
-                            const half = try self.store.binop("/", x2, try self.store.int(2));
-                            return self.store.binop("*", a1, half);
+                    if (b_node.tag == .lit) {
+                        const integ_a = try self.integrateExpr(args[0], variable);
+                        return self.store.binop("*", integ_a, args[1]);
+                    }
+                    // Cas x^n
+                    if (a_node.tag == .sym) {
+                        const name_a = self.store.interner.resolve(a_node.payload);
+                        if (std.mem.eql(u8, name_a, self.store.interner.resolve(variable))) {
+                            // ∫ x * f(x) dx
                         }
                     }
                     return self.store.int(0);
                 }
                 if (std.mem.eql(u8, op, "^")) {
-                    const base = self.store.get(a0);
-                    const exp_node = self.store.get(a1);
-                    if (base.tag == .sym and exp_node.tag == .lit) {
-                        const name = self.store.interner.resolve(base.payload);
-                        if (std.mem.eql(u8, name, v)) {
-                            const e = self.store.lits.items[exp_node.aux];
-                            switch (e) {
-                                .int => |n| {
-                                    if (n == -1) return self.store.sym("ln(x)");
-                                    const np1 = try self.store.int(n + 1);
-                                    const power = try self.store.binop("^", a0, np1);
-                                    return self.store.binop("/", power, np1);
-                                },
-                                else => {},
+                    if (args.len != 2) return self.store.int(0);
+                    const base = args[0];
+                    const exp = args[1];
+                    const exp_node = self.store.get(exp);
+                    if (exp_node.tag == .lit) {
+                        const lit = self.store.lits.items[exp_node.aux];
+                        if (lit == .int) {
+                            const n = lit.int;
+                            if (n == -1) {
+                                // ∫ x^{-1} dx = ln(x)
+                                return self.store.sym("ln");
                             }
+                            const new_n = try self.store.int(n + 1);
+                            const new_pow = try self.store.binop("^", base, new_n);
+                            return self.store.binop("/", new_pow, new_n);
                         }
                     }
+                    return self.store.int(0);
                 }
                 return self.store.int(0);
             },
@@ -579,66 +656,116 @@ pub const Math = struct {
         return expr.toString(self.store, simplified, self.allocator);
     }
 
+    pub fn simplify(self: *Math, input: []const u8) ![]u8 {
+        const id = try self.bridge.importExpr(input);
+        const simplified = try self.simplifyMath(id);
+        return expr.toString(self.store, simplified, self.allocator);
+    }
+
     /// Simplification mathématique basique pour expressions développées
     fn simplifyMath(self: *Math, id: Id) !Id {
         if (id >= self.store.len()) return id;
         const node = self.store.get(id);
         switch (node.tag) {
-            .lit => return id,
-            .sym => return id,
+            .lit, .sym => return id,
             .apply => {
                 const func_node = self.store.get(node.payload);
                 if (func_node.tag != .sym) return id;
                 const op = self.store.interner.resolve(func_node.payload);
-                const args = node.span_a.slice(self.store.pool.items);
+                const p = self.store.pool.items;
+                const args = node.span_a.slice(p);
                 if (args.len != 2) return id;
-                const la = try self.simplifyMath(args[0]);
-                const ra = try self.simplifyMath(args[1]);
-                const ln = self.store.get(la);
-                const rn = self.store.get(ra);
-                // Constant folding: lit op lit
-                if (ln.tag == .lit and rn.tag == .lit) {
-                    const lv = self.store.lits.items[ln.aux];
-                    const rv = self.store.lits.items[rn.aux];
-                    if (lv == .int and rv == .int) {
-                        const l = lv.int;
-                        const r = rv.int;
-                        if (std.mem.eql(u8, op, "+")) return self.store.int(l + r);
-                        if (std.mem.eql(u8, op, "-")) return self.store.int(l - r);
-                        if (std.mem.eql(u8, op, "*")) return self.store.int(l * r);
-                        if (std.mem.eql(u8, op, "/") and r != 0) return self.store.int(@divTrunc(l, r));
-                    }
-                }
-                // x + 0 = x, 0 + x = x
+
+                const left = try self.simplifyMath(args[0]);
+                const right = try self.simplifyMath(args[1]);
+
+                const ln = self.store.get(left);
+                const rn = self.store.get(right);
+
+                const li = getIntFromId(self.store, left);
+                const ri = getIntFromId(self.store, right);
+
+                // Vérifications des constantes
+                const left_is_zero = if (li != null and li.? == 0) true else false;
+                const right_is_zero = if (ri != null and ri.? == 0) true else false;
+                const left_is_one = if (li != null and li.? == 1) true else false;
+                const right_is_one = if (ri != null and ri.? == 1) true else false;
+
+                // Addition
                 if (std.mem.eql(u8, op, "+")) {
-                    if (ln.tag == .lit and ln.aux < self.store.lits.items.len and self.store.lits.items[ln.aux] == .int and self.store.lits.items[ln.aux].int == 0) return ra;
-                    if (rn.tag == .lit and rn.aux < self.store.lits.items.len and self.store.lits.items[rn.aux] == .int and self.store.lits.items[rn.aux].int == 0) return la;
+                    if (left_is_zero) return right;
+                    if (right_is_zero) return left;
+                    if (li != null and ri != null) {
+                        return self.store.int(li.? + ri.?);
+                    }
+                    if (ln.tag == .sym and rn.tag == .sym and
+                        std.mem.eql(u8, self.store.interner.resolve(ln.payload), self.store.interner.resolve(rn.payload)))
+                    {
+                        const two = try self.store.int(2);
+                        return self.store.binop("*", two, left);
+                    }
+                    return self.store.binop("+", left, right);
                 }
-                // x * 1 = x, 1 * x = x, x * 0 = 0
+
+                // Soustraction
+                if (std.mem.eql(u8, op, "-")) {
+                    if (right_is_zero) return left;
+                    if (li != null and ri != null) {
+                        return self.store.int(li.? - ri.?);
+                    }
+                    return self.store.binop("-", left, right);
+                }
+
+                // Multiplication
                 if (std.mem.eql(u8, op, "*")) {
-                    if (ln.tag == .lit and ln.aux < self.store.lits.items.len and self.store.lits.items[ln.aux] == .int) {
-                        if (self.store.lits.items[ln.aux].int == 1) return ra;
-                        if (self.store.lits.items[ln.aux].int == 0) return self.store.int(0);
+                    if (left_is_zero or right_is_zero) {
+                        return self.store.int(0);
                     }
-                    if (rn.tag == .lit and rn.aux < self.store.lits.items.len and self.store.lits.items[rn.aux] == .int) {
-                        if (self.store.lits.items[rn.aux].int == 1) return la;
-                        if (self.store.lits.items[rn.aux].int == 0) return self.store.int(0);
+                    if (left_is_one) return right;
+                    if (right_is_one) return left;
+                    if (li != null and ri != null) {
+                        return self.store.int(li.? * ri.?);
                     }
+                    if (ln.tag == .sym and rn.tag == .sym and
+                        std.mem.eql(u8, self.store.interner.resolve(ln.payload), self.store.interner.resolve(rn.payload)))
+                    {
+                        const two = try self.store.int(2);
+                        return self.store.binop("^", left, two);
+                    }
+                    return self.store.binop("*", left, right);
                 }
-                // x ^ 1 = x, 1 ^ n = 1, x ^ 0 = 1
+
+                // Division
+                if (std.mem.eql(u8, op, "/")) {
+                    if (right_is_zero) return self.store.int(0);
+                    if (right_is_one) return left;
+                    if (li != null and ri != null and ri.? != 0) {
+                        if (@mod(li.?, ri.?) == 0) {
+                            return self.store.int(@divExact(li.?, ri.?));
+                        }
+                    }
+                    return self.store.binop("/", left, right);
+                }
+
+                // Puissance
                 if (std.mem.eql(u8, op, "^")) {
-                    if (rn.tag == .lit and rn.aux < self.store.lits.items.len and self.store.lits.items[rn.aux] == .int) {
-                        const rv = self.store.lits.items[rn.aux].int;
-                        if (rv == 1) return la;
-                        if (rv == 0) return self.store.int(1);
+                    if (right_is_zero) return self.store.int(1);
+                    if (right_is_one) return left;
+                    if (left_is_zero) return self.store.int(0);
+                    if (left_is_one) return self.store.int(1);
+                    if (li != null and ri != null and ri.? >= 0 and ri.? <= 10) {
+                        var result: i64 = 1;
+                        var i: i64 = 0;
+                        while (i < ri.?) : (i += 1) result *= li.?;
+                        return self.store.int(result);
                     }
-                    if (ln.tag == .lit and ln.aux < self.store.lits.items.len and self.store.lits.items[ln.aux] == .int and self.store.lits.items[ln.aux].int == 1) return self.store.int(1);
+                    if (ri != null and ri.? == 2) {
+                        return self.store.binop("*", left, left);
+                    }
+                    return self.store.binop("^", left, right);
                 }
-                // Reconstruire si simplifié
-                if (la != args[0] or ra != args[1]) {
-                    return self.store.binop(op, la, ra);
-                }
-                return id;
+
+                return self.store.binop(op, left, right);
             },
             else => return id,
         }
@@ -794,7 +921,7 @@ pub const Math = struct {
             const old_binding = self.engine.env.get(var_sym);
             try self.engine.env.put(var_sym, x_id);
             self.engine.fuel = 200;
-            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch {
+            const result = engine_expr.evaluate(self.store, self.engine.env, self.engine, id, 0) catch {
                 values[i] = 0;
                 if (old_binding) |ob| self.engine.env.put(var_sym, ob) catch {} else {}
                 continue;

@@ -19,7 +19,7 @@ const Commands = commands.Commands;
 const Language = platform.shell_parser_types.Language;
 
 test "function definition and call persist" {
-    if (true) return error.SkipZigTest;
+    // if (true) return error.SkipZigTest;
     // Arena : libère TOUT d'un coup à la fin, pas besoin de free chaque chaîne
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -70,7 +70,7 @@ test "function definition and call persist" {
 }
 
 test "actor lifecycle: spawn, send, state" {
-    if (true) return error.SkipZigTest;
+    // if (true) return error.SkipZigTest;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
@@ -124,7 +124,7 @@ test "actor lifecycle: spawn, send, state" {
 }
 
 test "walrus operator := defines function correctly" {
-    if (true) return error.SkipZigTest;
+    // if (true) return error.SkipZigTest;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();

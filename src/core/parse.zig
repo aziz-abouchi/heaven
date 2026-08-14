@@ -187,7 +187,7 @@ pub const Parser = struct {
                 }
                 // ===================================
 
-                // ✅ On cherche la parenthèse fermante qui correspond à la bonne profondeur
+                // On cherche la parenthèse fermante qui correspond à la bonne profondeur
                 var depth: i32 = 1;
                 var end: usize = 0;
                 for (trimmed[p + 1 ..], 0..) |c, i| {

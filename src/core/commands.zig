@@ -77,6 +77,7 @@ pub const HeavenError = error{
     InvalidPi,
     InvalidTypeAnn,
     CannotLowerFrontendTag,
+    InvalidLambda,
 } || std.mem.Allocator.Error || platform.fs.File.OpenError || platform.fs.File.ReadError || mir.MirError || engine_expr.EvalError;
 
 pub const Commands = struct {
@@ -817,7 +818,10 @@ pub const Commands = struct {
             def.num_clauses = 1;
             def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = 0, .body = body_id };
 
-            self.engine.fns.put(self.engine.allocator, name, def) catch return self.allocator.dupe(u8, "registration error");
+            const owned_name = try self.allocator.dupe(u8, name);
+            self.engine.fns.put(self.allocator, owned_name, def) catch |err| {
+                return std.fmt.allocPrint(self.allocator, "registration error: {s}", .{@errorName(err)});
+            };
 
             // CORRECTION : Enregistrer le SYMBOLE de la fonction dans l'environnement, pas le corps !
             const name_sym = try self.store.interner.intern(name);
@@ -833,28 +837,52 @@ pub const Commands = struct {
             if (func_sym_node.tag != .sym) return self.allocator.dupe(u8, "syntax error: function name must be a symbol");
             const name = self.store.interner.resolve(func_sym_node.payload);
 
-            const args = lhs_node.span_a.slice(self.store.pool.items);
-            const num_pats = args.len;
+            // Récupérer les arguments depuis span_a
+            const pool = self.store.pool.items;
+            const arg_span = lhs_node.span_a.slice(pool);
+            const num_args = arg_span.len;
+
+            // Si le premier argument est un symbole avec le même nom que la fonction,
+            // on le saute (c'est un artefact de parseSExpr)
+            var patterns_start: usize = 0;
+            if (num_args > 0) {
+                const first = arg_span[0];
+                if (first < self.store.len()) {
+                    const first_node = self.store.get(first);
+                    if (first_node.tag == .sym) {
+                        const first_name = self.store.interner.resolve(first_node.payload);
+                        if (std.mem.eql(u8, first_name, name)) {
+                            patterns_start = 1;
+                        }
+                    }
+                }
+            }
+
+            const num_pats = num_args - patterns_start;
+            if (num_pats > 8) return self.allocator.dupe(u8, "too many patterns");
 
             var pat_ids: [8]u32 = undefined;
-            for (0..num_pats) |pi| {
-                pat_ids[pi] = args[pi];
+            for (0..num_pats) |i| {
+                pat_ids[i] = arg_span[patterns_start + i];
             }
 
             const body_id = self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
-
             const lowered_body = try self.store.lowerRec(body_id);
 
             var def: engine_expr.FunctionDef = undefined;
             def.num_clauses = 1;
-            def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = @intCast(num_pats), .body = lowered_body };
-
+            def.clauses[0] = .{
+                .patterns = .{0} ** 8,
+                .num_patterns = @intCast(num_pats),
+                .body = lowered_body,
+            };
             if (num_pats > 0) {
-                for (pat_ids[0..num_pats], 0..) |p, i| def.clauses[0].patterns[i] = p;
+                @memcpy(def.clauses[0].patterns[0..num_pats], pat_ids[0..num_pats]);
             }
-            self.engine.fns.put(self.engine.allocator, name, def) catch return self.allocator.dupe(u8, "registration error");
 
-            // CORRECTION : Enregistrer le SYMBOLE de la fonction dans l'environnement, pas le corps !
+            const owned_name = try self.allocator.dupe(u8, name);
+            try self.engine.fns.put(self.engine.allocator, owned_name, def);
+
             const name_sym = try self.store.interner.intern(name);
             const name_sym_id = try self.store.sym(name);
             try self.env.put(name_sym, name_sym_id);
@@ -863,6 +891,66 @@ pub const Commands = struct {
         }
 
         return self.allocator.dupe(u8, "syntax error in function definition");
+    }
+
+    fn parseApp(self: *Commands, input: []const u8) !Id {
+        const trimmed = std.mem.trim(u8, input, " \t");
+        if (trimmed.len == 0) return error.InvalidLambda;
+
+        var s = trimmed;
+        while (s.len >= 2 and s[0] == '(' and s[s.len - 1] == ')') {
+            const inner = s[1 .. s.len - 1];
+            const inner_trim = std.mem.trim(u8, inner, " \t");
+            if (inner_trim.len == 0) break;
+            s = inner_trim;
+        }
+
+        // Si c'est une lambda seule (λx.x)
+        if (std.mem.startsWith(u8, s, "λ") or std.mem.startsWith(u8, s, "\\")) {
+            const wrapped = try std.fmt.allocPrint(self.allocator, "({s})", .{s});
+            defer self.allocator.free(wrapped);
+            return try self.parseLambda(wrapped);
+        }
+
+        // Sinon, chercher une lambda dans l'expression
+        var start: ?usize = null;
+        if (std.mem.indexOf(u8, trimmed, "(λ")) |pos| {
+            start = pos;
+        } else if (std.mem.indexOf(u8, trimmed, "(\\")) |pos| start = pos;
+        if (start == null) return error.InvalidLambda;
+        const pos = start.?;
+
+        var depth: usize = 1;
+        var i = pos + 2;
+        while (i < trimmed.len) : (i += 1) {
+            if (trimmed[i] == '(') {
+                depth += 1;
+            } else if (trimmed[i] == ')') {
+                depth -= 1;
+                if (depth == 0) break;
+            }
+        }
+        if (depth != 0) return error.InvalidLambda;
+        const lambda_end = i + 1;
+        const lambda_part = trimmed[pos..lambda_end];
+        const rest = trimmed[lambda_end..];
+
+        const lambda_id = try self.parseLambda(lambda_part);
+        const rest_trim = std.mem.trim(u8, rest, " \t");
+        if (rest_trim.len == 0) return lambda_id;
+
+        var arg_str = rest_trim;
+        if (arg_str.len > 0 and arg_str[0] == ')') {
+            arg_str = arg_str[1..];
+        }
+        arg_str = std.mem.trim(u8, arg_str, " \t");
+        if (arg_str.len > 0 and arg_str[arg_str.len - 1] == ')') {
+            arg_str = arg_str[0 .. arg_str.len - 1];
+        }
+        arg_str = std.mem.trim(u8, arg_str, " \t");
+
+        const arg_id = try self.bridge.importExpr(arg_str);
+        return try self.store.apply(lambda_id, &.{arg_id});
     }
 
     /// Fallback WASM : parse les applications `name arg1 arg2` et appels `name(args)`.
@@ -1052,16 +1140,63 @@ pub const Commands = struct {
         return self.store.apply(func_id, args.items);
     }
 
+    fn parseLambda(self: *Commands, input: []const u8) !Id {
+        const trimmed = std.mem.trim(u8, input, " \t");
+        if (trimmed.len == 0) return error.InvalidLambda;
+
+        var s = trimmed;
+        while (s.len >= 2 and s[0] == '(' and s[s.len - 1] == ')') {
+            const inner = s[1 .. s.len - 1];
+            const inner_trim = std.mem.trim(u8, inner, " \t");
+            if (inner_trim.len == 0) break;
+            s = inner_trim;
+        }
+        if (s.len == 0) return error.InvalidLambda;
+
+        // Utiliser std.mem.startsWith pour détecter λ ou \
+        if (!std.mem.startsWith(u8, s, "λ") and !std.mem.startsWith(u8, s, "\\")) {
+            return error.InvalidLambda;
+        }
+
+        var rest = if (std.mem.startsWith(u8, s, "λ")) s["λ".len..] else s["\\".len..];
+        rest = std.mem.trimLeft(u8, rest, " \t");
+        if (rest.len == 0) return error.InvalidLambda;
+
+        var param_end: usize = 0;
+        while (param_end < rest.len) {
+            const c = rest[param_end];
+            if (c == '.' or c == ' ' or c == '\t') break;
+            param_end += 1;
+        }
+        if (param_end == 0) return error.InvalidLambda;
+        const param_name = rest[0..param_end];
+        rest = rest[param_end..];
+        rest = std.mem.trimLeft(u8, rest, " \t");
+        if (rest.len == 0 or rest[0] != '.') return error.InvalidLambda;
+        rest = rest[1..];
+        rest = std.mem.trimLeft(u8, rest, " \t");
+        if (rest.len == 0) return error.InvalidLambda;
+
+        const body_end = if (rest[rest.len - 1] == ')') rest.len - 1 else rest.len;
+        const body_str = rest[0..body_end];
+        if (body_str.len == 0) return error.InvalidLambda;
+
+        const body_id = try self.bridge.importExpr(body_str);
+        return try self.store.lambdaNative(&.{param_name}, body_id);
+    }
+
     // ─── Types ───
     pub fn typeOf(self: *Commands, input: []const u8) ![]u8 {
         const trimmed = std.mem.trim(u8, input, " \t");
-
-        // Si ça commence par '(', on utilise le parseur S-expr qui gère bien les opérateurs (==, *, etc.)
-        const id = if (trimmed.len > 0 and trimmed[0] == '(')
-            try self.parser.parseSExpr(trimmed)
-        else
-            try self.bridge.importExpr(trimmed);
-
+        const id = blk: {
+            if (std.mem.indexOf(u8, trimmed, "(λ") != null or std.mem.indexOf(u8, trimmed, "(\\") != null) {
+                break :blk try self.parseApp(trimmed);
+            } else if (trimmed.len > 0 and trimmed[0] == '(') {
+                break :blk try self.parser.parseSExpr(trimmed);
+            } else {
+                break :blk try self.bridge.importExpr(trimmed);
+            }
+        };
         var inf = types_mod.Infer.init(self.store, self.allocator);
         defer inf.deinit();
         const t = try inf.typeOf(id);
@@ -1070,19 +1205,7 @@ pub const Commands = struct {
 
     // ─── Simplify ───
     pub fn simplify(self: *Commands, input: []const u8) ![]u8 {
-        var current = try self.bridge.importExpr(input);
-        current = try self.simplify_eng.simplifyRec(current, 0);
-        var qtt = egraph_mod.QttCost{};
-        defer qtt.deinit(self.allocator);
-        var it = self.qtt_env.iterator();
-        while (it.next()) |entry| {
-            const sym = try self.store.interner.intern(entry.key_ptr.*);
-            const sym_id = try self.store.symId(sym);
-            try qtt.quantities.put(self.allocator, sym_id, entry.value_ptr.*);
-        }
-        current = try self.simplify_eng.simplifyWithEGraph(current, &qtt);
-        current = try canon_mod.canonicalize(self.store, self.allocator, current);
-        return expr.toStringInfix(self.store, current, self.allocator);
+        return try self.math.simplify(input);
     }
 
     fn simplifyWithEGraph(self: *Commands, id: Id, qtt: ?*egraph_mod.QttCost) !Id {
@@ -2192,40 +2315,40 @@ pub const Commands = struct {
 
     /// Affiche l'AST brut d'un fichier parsé (pour debug du bridge)
     pub fn dumpAstFile(self: *Commands, path: []const u8) ![]u8 {
-        platform.debug.print("[dumpAstFile] CALLED with path='{s}'\n", .{path});
+        // platform.debug.print("[dumpAstFile] CALLED with path='{s}'\n", .{path});
 
         const ext = std.fs.path.extension(path);
-        platform.debug.print("[dumpAstFile] ext='{s}'\n", .{ext});
+        // platform.debug.print("[dumpAstFile] ext='{s}'\n", .{ext});
 
         const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse {
-            platform.debug.print("[dumpAstFile] ERROR: unsupported extension\n", .{});
+            // platform.debug.print("[dumpAstFile] ERROR: unsupported extension\n", .{});
             return std.fmt.allocPrint(self.allocator, "unsupported extension: {s}", .{ext});
         };
-        platform.debug.print("[dumpAstFile] lang={s}\n", .{@tagName(lang)});
+        // platform.debug.print("[dumpAstFile] lang={s}\n", .{@tagName(lang)});
 
         const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
-            platform.debug.print("[dumpAstFile] ERROR reading file: {}\n", .{err});
+            // platform.debug.print("[dumpAstFile] ERROR reading file: {}\n", .{err});
             return std.fmt.allocPrint(self.allocator, "error reading {s}: {}", .{ path, err });
         };
-        platform.debug.print("[dumpAstFile] Read {d} bytes\n", .{content.len});
+        // platform.debug.print("[dumpAstFile] Read {d} bytes\n", .{content.len});
         defer self.allocator.free(content);
 
         var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
-            platform.debug.print("[dumpAstFile] ERROR parser init: {}\n", .{err});
+            // platform.debug.print("[dumpAstFile] ERROR parser init: {}\n", .{err});
             return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
         };
         defer parser.deinit();
 
         const matrix = parser.parse(content) catch {
-            platform.debug.print("[dumpAstFile] ERROR parse failed\n", .{});
+            // platform.debug.print("[dumpAstFile] ERROR parse failed\n", .{});
             return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
         };
-        platform.debug.print("[dumpAstFile] Matrix kind={s}, children={d}\n", .{ @tagName(matrix.kind), matrix.children.len });
+        // platform.debug.print("[dumpAstFile] Matrix kind={s}, children={d}\n", .{ @tagName(matrix.kind), matrix.children.len });
 
         var buf: std.ArrayListUnmanaged(u8) = .{};
         defer buf.deinit(self.allocator);
         try dumpMatrix(&matrix, 0, &buf, self.allocator);
-        platform.debug.print("[dumpAstFile] buf.len={d}\n", .{buf.items.len});
+        // platform.debug.print("[dumpAstFile] buf.len={d}\n", .{buf.items.len});
         return buf.toOwnedSlice(self.allocator);
     }
 
@@ -2260,7 +2383,7 @@ pub const Commands = struct {
         };
         defer self.allocator.free(content);
 
-        platform.debug.print("[translateAndDump] Read {d} bytes\n", .{content.len});
+        // platform.debug.print("[translateAndDump] Read {d} bytes\n", .{content.len});
 
         var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
             return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
@@ -2271,7 +2394,7 @@ pub const Commands = struct {
             return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
         };
 
-        platform.debug.print("[translateAndDump] Matrix parsed, kind={s}, children={d}\n", .{ @tagName(matrix.kind), matrix.children.len });
+        // platform.debug.print("[translateAndDump] Matrix parsed, kind={s}, children={d}\n", .{ @tagName(matrix.kind), matrix.children.len });
 
         var universal = universal_translator.UniversalTranslator.init(self.allocator, self.store);
         const mlcpd_lang = switch (lang) {
@@ -2285,7 +2408,7 @@ pub const Commands = struct {
             return std.fmt.allocPrint(self.allocator, "translation failed: {}", .{err});
         };
 
-        platform.debug.print("[translateAndDump] heaven_id={d}, store.len={d}\n", .{ heaven_id, self.store.len() });
+        // platform.debug.print("[translateAndDump] heaven_id={d}, store.len={d}\n", .{ heaven_id, self.store.len() });
 
         if (heaven_id >= self.store.len()) {
             return std.fmt.allocPrint(self.allocator, "ERROR: heaven_id={d} >= store.len={d}", .{ heaven_id, self.store.len() });
@@ -2295,7 +2418,7 @@ pub const Commands = struct {
         defer buf.deinit(self.allocator);
         try self.writeAst(heaven_id, 0, &buf);
 
-        platform.debug.print("[translateAndDump] buf.len={d}\n", .{buf.items.len});
+        // platform.debug.print("[translateAndDump] buf.len={d}\n", .{buf.items.len});
 
         return buf.toOwnedSlice(self.allocator);
     }
