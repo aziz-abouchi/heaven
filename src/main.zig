@@ -529,6 +529,38 @@ pub fn main() !void {
         if (trimmed.len == 0) continue;
         if (std.mem.eql(u8, trimmed, ":exit") or std.mem.eql(u8, trimmed, ":q")) break;
 
+        // === INTERCEPTION DES COMMANDES IO (Shell) ===
+        if (std.mem.startsWith(u8, trimmed, "load ")) {
+            const path = std.mem.trim(u8, trimmed["load ".len..], " \t");
+            const file = platform.fs.cwd().openFile(path, .{}) catch |err| {
+                platform.io.print("Error opening {s}: {}\n", .{ path, err });
+                continue;
+            };
+            defer file.close();
+            const content = file.readToEndAlloc(allocator, std.math.maxInt(usize)) catch |err| {
+                platform.io.print("Error reading {s}: {}\n", .{ path, err });
+                continue;
+            };
+            defer allocator.free(content);
+
+            var lines = std.mem.splitScalar(u8, content, '\n');
+            while (lines.next()) |l| {
+                const l_trim = std.mem.trim(u8, l, " \t\r");
+                if (l_trim.len == 0 or l_trim[0] == '#' or std.mem.startsWith(u8, l_trim, "--")) continue;
+
+                // On évalue chaque ligne via l'API du cœur
+                const res = cmds.eval(l_trim) catch |err| {
+                    platform.io.print("Error evaluating '{s}': {}\n", .{ l_trim, err });
+                    continue;
+                };
+                allocator.free(res);
+            }
+            platform.io.print("✓ fichier '{s}' chargé\n", .{path});
+            continue;
+        }
+        // ==============================================
+
+        // Évaluation standard pour tout le reste
         const result = cmds.eval(trimmed) catch |err| {
             platform.io.print("error: {}\n", .{err});
             continue;

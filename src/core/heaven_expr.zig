@@ -109,6 +109,11 @@ pub const Heaven = struct {
 
     // Stubs pour le shell
 
+    pub fn evaluateExpr(self: *Heaven, id: Id) HeavenError!Id {
+        self.engine.fuel = 1_000_000;
+        return self.evaluate(&self.store, &self.env, &self.engine, id, 0);
+    }
+
     /// Vérifie qu'un Id est entièrement lowered avant passage au noyau.
     fn ensureLowered(self: *Heaven, id: Id) HeavenError!Id {
         return self.store.lowerRec(id) catch |err| switch (err) {

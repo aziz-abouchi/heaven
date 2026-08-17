@@ -311,7 +311,7 @@ pub fn build(b: *std.Build) void {
     const parzig_mod = parzig_dep.module("parzig");
 
     const mlcpd_mod = b.addModule("mlcpd", .{
-        .root_source_file = b.path("src/core/mlcpd.zig"),
+        .root_source_file = b.path("src/translator/mlcpd.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
@@ -334,7 +334,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const mlcpd_equiv_mod = b.addModule("mlcpd_equiv", .{
-        .root_source_file = b.path("src/core/mlcpd_equiv.zig"),
+        .root_source_file = b.path("src/translator/mlcpd_equiv.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
@@ -346,7 +346,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const universal_translator_mod = b.addModule("universal_translator", .{
-        .root_source_file = b.path("src/core/universal_translator.zig"),
+        .root_source_file = b.path("src/translator/universal_translator.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
@@ -391,7 +391,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const agent_mod = b.addModule("agent", .{
-        .root_source_file = b.path("src/core/agent.zig"),
+        .root_source_file = b.path("src/runtime/agent/agent.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
@@ -407,7 +407,7 @@ pub fn build(b: *std.Build) void {
     platform_mod.addImport("shell_parser_types", shell_parser_types_mod);
 
     const shell_parser_mod = b.createModule(.{
-        .root_source_file = b.path("src/core/shell_parser.zig"),
+        .root_source_file = b.path("src/parsing/shell_parser.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
@@ -835,7 +835,7 @@ pub fn build(b: *std.Build) void {
     }) });
 
     const test_commands = b.addTest(.{ .root_module = b.createModule(.{
-        .root_source_file = b.path("src/core/commands_test.zig"),
+        .root_source_file = b.path("src/runtime/shell/commands_test.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
@@ -868,7 +868,7 @@ pub fn build(b: *std.Build) void {
     }) });
 
     const test_mlcpd_equiv = b.addTest(.{ .root_module = b.createModule(.{
-        .root_source_file = b.path("src/core/mlcpd_equiv.zig"),
+        .root_source_file = b.path("src/translator/mlcpd_equiv.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{

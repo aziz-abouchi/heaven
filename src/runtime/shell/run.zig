@@ -74,7 +74,16 @@ pub fn run(self: *Shell) !void {
                     } else if (comptime std.mem.eql(u8, cmd_def.name, "run*")) {
                         commands.cmdRunStar(self, args, 20);
                     } else if (comptime std.mem.eql(u8, cmd_def.name, "load")) {
-                        commands.cmdLoad(self, if (args.len > 0) args else null);
+                        if (args.len > 0) {
+                            const result = commands.cmdLoadFile(self, args) catch |err| {
+                                platform.debug.print("Error loading file: {}\n", .{err});
+                                continue;
+                            };
+                            defer self.allocator.free(result);
+                            platform.debug.print("{s}\n", .{result});
+                        } else {
+                            platform.debug.print("Usage: load <file.hvn>\n", .{});
+                        }
                     } else {
                         const func = @field(commands, cmd_def.method);
                         const info = @typeInfo(@TypeOf(func));

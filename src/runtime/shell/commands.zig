@@ -1,12 +1,13 @@
 const std = @import("std");
 const Shell = @import("init.zig").Shell;
-const session_lib = @import("../../core/session.zig");
+const session_lib = @import("../../runtime/session.zig");
 const eval = @import("eval.zig");
 const utils = @import("utils.zig");
 const ontology_lib = @import("ontology");
 const cmd_list = @import("commands_list.zig");
 const platform = @import("platform");
 const engine_expr = @import("engine_expr");
+const universal_translator = @import("universal_translator");
 
 const QV = struct { name: []const u8, id: u32 };
 
@@ -760,6 +761,14 @@ pub fn cmdMeta(self: *Shell, input: []const u8) void {
         platform.debug.print("{s}", .{ast});
         return;
     }
+
+    // Évaluation standard pour tout le reste
+    const eval_result = self.heaven.eval(input) catch |err| {
+        platform.debug.print("eval error: {}\n", .{err});
+        return;
+    };
+    defer self.allocator.free(eval_result);
+    platform.debug.print("{s}\n", .{eval_result});
     platform.debug.print(" Usage: :meta [eval|quote] <expr>\n", .{});
 }
 pub fn cmdSubst(self: *Shell, input: []const u8) void {
@@ -1244,7 +1253,6 @@ pub fn cmdParseFile(self: *Shell, path: []const u8) void {
         return;
     };
 
-    const universal_translator = @import("universal_translator");
     var universal = universal_translator.UniversalTranslator.init(self.allocator, &self.heaven.store);
     const mlcpd_lang = switch (lang) {
         .c => @import("mlcpd").FileMetadata.Language.c,
@@ -1258,7 +1266,7 @@ pub fn cmdParseFile(self: *Shell, path: []const u8) void {
     };
 
     self.heaven.engine.fuel = 1_000_000;
-    const result = engine_expr.evaluate(&self.heaven.store, &self.heaven.env, &self.heaven.engine, heaven_id, 0) catch heaven_id;
+    const result = self.heaven.evaluateExpr(heaven_id) catch heaven_id;
     const result_str = self.heaven.format(result) catch "error";
     defer self.allocator.free(result_str);
     platform.debug.print("✓ translated and evaluated {s} as {s}\n", .{ path, @tagName(lang) });
@@ -1315,7 +1323,6 @@ pub fn cmdTranslateAndDump(self: *Shell, path: []const u8) void {
         return;
     };
 
-    const universal_translator = @import("universal_translator");
     var universal = universal_translator.UniversalTranslator.init(self.allocator, &self.heaven.store);
     const mlcpd_lang = switch (lang) {
         .c => @import("mlcpd").FileMetadata.Language.c,
@@ -1332,6 +1339,90 @@ pub fn cmdTranslateAndDump(self: *Shell, path: []const u8) void {
     defer buf.deinit(self.allocator);
     writeAstHeavenShell(self, heaven_id, 0, &buf);
     platform.debug.print("{s}", .{buf.items});
+}
+
+/// Charge et évalue un fichier Heaven (.hvn) ligne par ligne
+pub fn cmdLoadFile(self: *Shell, path: []const u8) ![]u8 {
+    const file = try platform.fs.cwd().openFile(path, .{});
+    defer file.close();
+    const content = try file.readToEndAlloc(self.allocator, std.math.maxInt(usize));
+    defer self.allocator.free(content);
+
+    var buf = std.ArrayListUnmanaged(u8){};
+    defer buf.deinit(self.allocator);
+    const w = buf.writer(self.allocator);
+
+    var lines = std.mem.splitScalar(u8, content, '\n');
+    var line_count: usize = 0;
+    while (lines.next()) |line| {
+        const trimmed = std.mem.trim(u8, line, " \t\r");
+        if (trimmed.len == 0 or trimmed[0] == '#' or std.mem.startsWith(u8, trimmed, "--")) continue;
+        line_count += 1;
+
+        // Utilisation de l'API Heaven propre
+        const result = self.heaven.eval(trimmed) catch {
+            try w.print("Erreur lors de l'évaluation de: {s}\n", .{trimmed});
+            continue;
+        };
+
+        platform.debug.print("[LOAD] line: '{s}' -> '{s}'\n", .{ trimmed, result });
+
+        defer self.allocator.free(result);
+        try w.print("{s}\n", .{result});
+    }
+    try w.print("✓ fichier '{s}' chargé ({d} lignes)\n", .{ path, line_count });
+    return buf.toOwnedSlice(self.allocator);
+}
+
+/// Parse un fichier selon son extension (.hvn, .c, .zig) et l'exécute
+pub fn cmdParseFileWithLanguage(self: *Shell, path: []const u8) ![]u8 {
+    const ext = std.fs.path.extension(path);
+    const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse
+        return std.fmt.allocPrint(self.allocator, "unsupported extension: {s}", .{ext});
+
+    const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
+        return std.fmt.allocPrint(self.allocator, "error reading {s}: {}", .{ path, err });
+    };
+    defer self.allocator.free(content);
+
+    if (lang == .heaven) {
+        const id = self.heaven.importExpr(content) catch {
+            return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{path});
+        };
+        // Utilisation de l'API Heaven propre
+        const result = self.heaven.evaluateExpr(id) catch id;
+        _ = result;
+        return std.fmt.allocPrint(self.allocator, "✓ parsed and evaluated {s} as heaven", .{path});
+    }
+
+    // Pour les autres langages (C, Zig, etc.)
+    var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
+        return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
+    };
+    defer parser.deinit();
+
+    const matrix = parser.parse(content) catch {
+        return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{@tagName(lang)});
+    };
+
+    var universal = universal_translator.UniversalTranslator.init(self.allocator, &self.heaven.store);
+    const mlcpd_lang = switch (lang) {
+        .c => mlcpd_mod.FileMetadata.Language.c,
+        .zig => mlcpd_mod.FileMetadata.Language.c,
+        .pie => mlcpd_mod.FileMetadata.Language.unknown,
+        .heaven => unreachable,
+    };
+
+    const heaven_id = universal.translate(&matrix, mlcpd_lang) catch {
+        return std.fmt.allocPrint(self.allocator, "translation failed for {s}", .{@tagName(lang)});
+    };
+
+    // Utilisation de l'API Heaven propre
+    const result = self.heaven.evaluateExpr(heaven_id) catch heaven_id;
+    const result_str = self.heaven.format(result) catch "error";
+    defer self.allocator.free(result_str);
+
+    return std.fmt.allocPrint(self.allocator, "✓ translated and evaluated {s} as {s}\n→ {s}", .{ path, @tagName(lang), result_str });
 }
 
 fn dumpMatrixShell(matrix: *const platform.shell_parser_types.Matrix, depth: u32, buf: *std.ArrayListUnmanaged(u8), alloc: std.mem.Allocator) void {

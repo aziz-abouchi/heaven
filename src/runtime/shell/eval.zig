@@ -1,6 +1,7 @@
 const std = @import("std");
 const Shell = @import("init.zig").Shell;
 const platform = @import("platform");
+const commands = @import("commands.zig");
 const PROOF_DEBUG = false;
 
 pub fn bridgeTheoremToProofEnv(self: *Shell, name: []const u8, stmt: []const u8) void {
@@ -18,6 +19,30 @@ pub fn bridgeTheoremToProofEnv(self: *Shell, name: []const u8, stmt: []const u8)
 pub fn evalHeavenCode(self: *Shell, code: []const u8) void {
     const trimmed = std.mem.trim(u8, code, " \t\r\n");
     if (trimmed.len == 0) return;
+
+    // === INTERCEPTION DES COMMANDES DE FICHIERS (IO) ===
+    if (std.mem.startsWith(u8, trimmed, "load ")) {
+        const result = commands.cmdLoadFile(self, trimmed["load ".len..]) catch |err| {
+            platform.debug.print("Error loading file: {}\n", .{err});
+            return;
+        };
+        defer self.allocator.free(result);
+        platform.debug.print("{s}\n", .{result});
+        return;
+    }
+
+    if (std.mem.startsWith(u8, trimmed, "parseFileWithLanguage ")) {
+        const result = commands.cmdParseFileWithLanguage(self, trimmed["parseFileWithLanguage ".len..]) catch |err| {
+            platform.debug.print("Error parsing file: {}\n", .{err});
+            return;
+        };
+        defer self.allocator.free(result);
+        platform.debug.print("{s}\n", .{result});
+        return;
+    }
+    // ===================================================
+
+    // Évaluation standard pour tout le reste
     const result = self.heaven.eval(trimmed) catch |err| {
         platform.debug.print(
             "[EVAL ERROR] {}\n",

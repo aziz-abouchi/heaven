@@ -292,7 +292,7 @@ pub const Commands = struct {
         if (std.mem.eql(u8, trimmed, "stats")) return self.evalStats();
         if (std.mem.eql(u8, trimmed, "theorems")) return self.evalTheorems();
         if (std.mem.startsWith(u8, trimmed, "let ")) return self.evalLet(trimmed["let ".len..]);
-        if (std.mem.startsWith(u8, trimmed, "load ")) return self.loadFile(trimmed["load ".len..]);
+        //if (std.mem.startsWith(u8, trimmed, "load ")) return self.loadFile(trimmed["load ".len..]);
         if (std.mem.startsWith(u8, trimmed, "transform ")) return try self.evalTransform(trimmed["transform ".len..]);
         if (std.mem.startsWith(u8, trimmed, "eval ")) return self.evalSExpr(trimmed["eval ".len..]);
         if (std.mem.startsWith(u8, trimmed, "theorem ")) return self.evalTheorem(trimmed["theorem ".len..]);
@@ -327,7 +327,7 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "integrate ")) return try self.math.integrate(trimmed["integrate ".len..], "x");
         if (std.mem.startsWith(u8, trimmed, "asm ")) return self.evalAsm(trimmed["asm ".len..]);
         if (std.mem.startsWith(u8, trimmed, "green ")) return self.evalGreen(trimmed["green ".len..]);
-        if (std.mem.startsWith(u8, trimmed, "parseFileWithLanguage ")) return self.parseFileWithLanguage(trimmed["parseFileWithLanguage ".len..]);
+        //if (std.mem.startsWith(u8, trimmed, "parseFileWithLanguage ")) return self.parseFileWithLanguage(trimmed["parseFileWithLanguage ".len..]);
 
         // derive(<expr>, <var>)
         if (std.mem.startsWith(u8, trimmed, "derive(")) {
@@ -1219,7 +1219,7 @@ pub const Commands = struct {
     // ─── Simplify ───
     pub fn simplify(self: *Commands, input: []const u8) ![]u8 {
         var current = try self.bridge.importExpr(input);
-        current = try self.simplify_eng.simplifyRec(current, 0);
+        current = try self.simplifyRec(current, 0);
 
         var qtt = egraph_mod.QttCost{};
         defer qtt.deinit(self.allocator);
@@ -1284,9 +1284,12 @@ pub const Commands = struct {
             if (old_args.len == 2) {
                 const arg0 = old_args[0];
                 const arg1 = old_args[1];
-                const new_func = try self.simplify_eng.simplifyRec(func_id, depth + 1);
-                const new_l = try self.simplify_eng.simplifyRec(arg0, depth + 1);
-                const new_r = try self.simplify_eng.simplifyRec(arg1, depth + 1);
+
+                // MODIFICATION : Appeler self.simplifyRec (notre version corrigée)
+                const new_func = try self.simplifyRec(func_id, depth + 1);
+                const new_l = try self.simplifyRec(arg0, depth + 1);
+                const new_r = try self.simplifyRec(arg1, depth + 1);
+
                 if (new_func < self.store.len()) {
                     const func_node = self.store.get(new_func);
                     if (func_node.tag == .sym) {
@@ -1937,28 +1940,6 @@ pub const Commands = struct {
         return std.fmt.allocPrint(self.allocator, "{d}", .{result});
     }
 
-    pub fn loadFile(self: *Commands, path: []const u8) HeavenError![]u8 {
-        const file = try platform.fs.cwd().openFile(path, .{});
-        defer file.close();
-        const content = try file.readToEndAlloc(self.allocator, std.math.maxInt(usize));
-        defer self.allocator.free(content);
-        var buf = std.ArrayListUnmanaged(u8){};
-        defer buf.deinit(self.allocator);
-        const w = buf.writer(self.allocator);
-        var lines = std.mem.splitScalar(u8, content, '\n');
-        var line_count: usize = 0;
-        while (lines.next()) |line| {
-            const trimmed = std.mem.trim(u8, line, " \t\r");
-            if (trimmed.len == 0 or trimmed[0] == '#' or std.mem.startsWith(u8, trimmed, "--")) continue;
-            line_count += 1;
-            const result = try self.eval(trimmed);
-            try w.print("{s}\n", .{result});
-            self.allocator.free(result);
-        }
-        try w.print("✓ fichier '{s}' chargé ({d} lignes)\n", .{ path, line_count });
-        return buf.toOwnedSlice(self.allocator);
-    }
-
     fn evalAsk(self: *Commands, input: []const u8) ![]u8 {
         const prompt = std.mem.trim(u8, input, " ");
         if (prompt.len == 0) return try self.allocator.dupe(u8, "Usage: ask <question>");
@@ -2300,56 +2281,6 @@ pub const Commands = struct {
             \\ Énergie   : {d} J (estimation)
             \\═══════════════════
         , .{ result_str, self.engine.green_call_count });
-    }
-
-    /// Parse un fichier selon son extension (.hvn, .pie, .c, .zig)
-    pub fn parseFileWithLanguage(self: *Commands, path: []const u8) ![]u8 {
-        const ext = std.fs.path.extension(path);
-        const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse
-            return std.fmt.allocPrint(self.allocator, "unsupported extension: {s}", .{ext});
-
-        const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "error reading {s}: {}", .{ path, err });
-        };
-        defer self.allocator.free(content);
-
-        if (lang == .heaven) {
-            const id = self.bridge.importExpr(content) catch {
-                return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{path});
-            };
-            self.engine.fuel = 1_000_000;
-            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch id;
-            _ = result;
-            return std.fmt.allocPrint(self.allocator, "✓ parsed and evaluated {s} as heaven", .{path});
-        }
-
-        var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
-        };
-        defer parser.deinit();
-
-        const matrix = parser.parse(content) catch {
-            return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
-        };
-
-        var universal = universal_translator.UniversalTranslator.init(self.allocator, self.store);
-        const mlcpd_lang = switch (lang) {
-            .c => mlcpd.FileMetadata.Language.c,
-            .zig => mlcpd.FileMetadata.Language.c,
-            .pie => mlcpd.FileMetadata.Language.unknown,
-            .heaven => unreachable,
-        };
-
-        const heaven_id = universal.translate(&matrix, mlcpd_lang) catch {
-            return std.fmt.allocPrint(self.allocator, "translation failed for {s}", .{lang.toString()});
-        };
-
-        self.engine.fuel = 1_000_000;
-        const result = engine_expr.evaluate(self.store, self.env, self.engine, heaven_id, 0) catch heaven_id;
-        const result_str = expr.toString(self.store, result, self.allocator) catch "error";
-        defer self.allocator.free(result_str);
-
-        return std.fmt.allocPrint(self.allocator, "✓ translated and evaluated {s} as {s}", .{ path, lang.toString() });
     }
 
     /// Affiche l'AST brut d'un fichier parsé (pour debug du bridge)
