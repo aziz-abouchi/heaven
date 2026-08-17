@@ -173,7 +173,7 @@ pub const SimplifyEngine = struct {
                 const rhs_id = lhs_rhs[1];
                 var bindings: std.AutoHashMapUnmanaged(u32, Id) = .{};
                 defer bindings.deinit(self.allocator);
-                if (pattern_mod.exprPatternMatch(self.store, lhs_id, id, &bindings, self.allocator)) {
+                if (pattern_mod.exprPatternMatch(self.store, lhs_id, current, &bindings, self.allocator)) {
                     const new_id = try pattern_mod.substitutePattern(self.store, rhs_id, &bindings, self.allocator);
                     if (new_id < self.store.len()) {
                         current = new_id;

@@ -299,6 +299,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "engine_expr", .module = engine_expr_mod },
             .{ .name = "matrix_bridge", .module = matrix_bridge_mod },
             .{ .name = "parse", .module = parse_mod },
+            .{ .name = "platform", .module = platform_mod },
         },
     });
 

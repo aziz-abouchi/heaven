@@ -300,6 +300,19 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "skill ")) return self.evalSkill(trimmed["skill ".len..]);
         if (std.mem.startsWith(u8, trimmed, "type ")) return self.evalType(trimmed["type ".len..]);
         if (std.mem.startsWith(u8, trimmed, "simplify ")) return self.evalSimplify(trimmed["simplify ".len..]);
+        if (std.mem.startsWith(u8, trimmed, "rewrite ")) {
+            const rest = trimmed["rewrite ".len..];
+            const arrow_pos = std.mem.indexOf(u8, rest, "=>") orelse {
+                return self.allocator.dupe(u8, "syntax error: expected lhs => rhs");
+            };
+            const lhs_str = std.mem.trim(u8, rest[0..arrow_pos], " ");
+            const rhs_str = std.mem.trim(u8, rest[arrow_pos + 2 ..], " ");
+            const lhs = self.parseExpression(lhs_str) catch return self.allocator.dupe(u8, "parse error in lhs");
+            const rhs = self.parseExpression(rhs_str) catch return self.allocator.dupe(u8, "parse error in rhs");
+            const rule_id = self.store.relation("=>", &.{ lhs, rhs }, &.{}) catch return self.allocator.dupe(u8, "relation error");
+            self.kb.rules.append(self.allocator, rule_id) catch return self.allocator.dupe(u8, "append error");
+            return self.allocator.dupe(u8, "✓ rule added");
+        }
         if (std.mem.startsWith(u8, trimmed, "plot ")) return self.evalPlot(trimmed["plot ".len..]);
         if (std.mem.startsWith(u8, trimmed, "latex ")) return self.evalLatex(trimmed["latex ".len..]);
         if (std.mem.startsWith(u8, trimmed, "explain ")) return self.evalExplain(trimmed["explain ".len..]);
@@ -1205,7 +1218,20 @@ pub const Commands = struct {
 
     // ─── Simplify ───
     pub fn simplify(self: *Commands, input: []const u8) ![]u8 {
-        return try self.math.simplify(input);
+        var current = try self.bridge.importExpr(input);
+        current = try self.simplify_eng.simplifyRec(current, 0);
+
+        var qtt = egraph_mod.QttCost{};
+        defer qtt.deinit(self.allocator);
+        var it = self.qtt_env.iterator();
+        while (it.next()) |entry| {
+            const sym = try self.store.interner.intern(entry.key_ptr.*);
+            const sym_id = try self.store.symId(sym);
+            try qtt.quantities.put(self.allocator, sym_id, entry.value_ptr.*);
+        }
+        current = try self.simplify_eng.simplifyWithEGraph(current, &qtt);
+        current = try canon_mod.canonicalize(self.store, self.allocator, current);
+        return expr.toStringInfix(self.store, current, self.allocator);
     }
 
     fn simplifyWithEGraph(self: *Commands, id: Id, qtt: ?*egraph_mod.QttCost) !Id {
@@ -1249,6 +1275,8 @@ pub const Commands = struct {
         if (id >= self.store.len()) return id;
         const node = self.store.get(id);
         var current = id;
+
+        // 1. Simplifier les enfants d'abord
         if (node.tag == .apply) {
             const func_id = node.payload;
             const args_span = node.span_a;
@@ -1268,11 +1296,17 @@ pub const Commands = struct {
                 }
             }
         }
+
+        // 2. Boucle de réécriture
         var changed = true;
         var iterations: u32 = 0;
         while (changed and iterations < 10) : (iterations += 1) {
             changed = false;
             if (current >= self.store.len()) break;
+
+            // CORRECTION : Canonicaliser 'current' pour qu'il ait la même forme que les règles
+            const canon_current = try canon_mod.canonicalize(self.store, self.allocator, current);
+
             for (self.kb.rules.items) |rule_id| {
                 if (rule_id >= self.store.len()) continue;
                 const rule_node = self.store.get(rule_id);
@@ -1281,9 +1315,12 @@ pub const Commands = struct {
                 if (lhs_rhs.len != 2) continue;
                 const lhs_id = lhs_rhs[0];
                 const rhs_id = lhs_rhs[1];
+
                 var bindings: std.AutoHashMapUnmanaged(u32, Id) = .{};
                 defer bindings.deinit(self.allocator);
-                if (pattern_mod.exprPatternMatch(self.store, lhs_id, id, &bindings, self.allocator)) {
+
+                // CORRECTION : Matcher sur 'canon_current' au lieu de 'id'
+                if (pattern_mod.exprPatternMatch(self.store, lhs_id, canon_current, &bindings, self.allocator)) {
                     const new_id = try pattern_mod.substitutePattern(self.store, rhs_id, &bindings, self.allocator);
                     if (new_id < self.store.len()) {
                         current = new_id;
@@ -1293,6 +1330,8 @@ pub const Commands = struct {
                 }
             }
         }
+
+        // 3. Évaluation finale si numérique
         if (current < self.store.len()) {
             self.engine.fuel = 100;
             const folded = engine_expr.evaluate(self.store, self.env, self.engine, current, 0) catch current;

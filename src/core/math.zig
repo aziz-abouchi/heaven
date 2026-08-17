@@ -11,6 +11,7 @@ const engine_expr = @import("engine_expr");
 const Engine = engine_expr.Engine;
 const matrix_bridge_mod = @import("matrix_bridge");
 const parse_mod = @import("parse");
+const platform = @import("platform");
 
 fn getIntFromId(store: *Store, id: Id) ?i64 {
     if (id >= store.len()) return null;
@@ -679,90 +680,70 @@ pub const Math = struct {
                 const left = try self.simplifyMath(args[0]);
                 const right = try self.simplifyMath(args[1]);
 
-                const ln = self.store.get(left);
-                const rn = self.store.get(right);
-
                 const li = getIntFromId(self.store, left);
                 const ri = getIntFromId(self.store, right);
 
-                // Vérifications des constantes
-                const left_is_zero = if (li != null and li.? == 0) true else false;
-                const right_is_zero = if (ri != null and ri.? == 0) true else false;
-                const left_is_one = if (li != null and li.? == 1) true else false;
-                const right_is_one = if (ri != null and ri.? == 1) true else false;
+                platform.debug.print("simplifyMath: op={s}, left={d}, right={d}, li={any}, ri={any}\n", .{ op, left, right, li, ri });
 
-                // Addition
-                if (std.mem.eql(u8, op, "+")) {
+                // Vérification directe de 0 et 1
+                const left_is_zero = blk: {
+                    if (left >= self.store.len()) break :blk false;
+                    const nd = self.store.get(left);
+                    if (nd.tag != .lit) break :blk false;
+                    if (nd.aux >= self.store.lits.items.len) break :blk false;
+                    const lit = self.store.lits.items[nd.aux];
+                    break :blk (lit == .int and lit.int == 0);
+                };
+                const right_is_zero = blk: {
+                    if (right >= self.store.len()) break :blk false;
+                    const nd = self.store.get(right);
+                    if (nd.tag != .lit) break :blk false;
+                    if (nd.aux >= self.store.lits.items.len) break :blk false;
+                    const lit = self.store.lits.items[nd.aux];
+                    break :blk (lit == .int and lit.int == 0);
+                };
+                const left_is_one = blk: {
+                    if (left >= self.store.len()) break :blk false;
+                    const nd = self.store.get(left);
+                    if (nd.tag != .lit) break :blk false;
+                    if (nd.aux >= self.store.lits.items.len) break :blk false;
+                    const lit = self.store.lits.items[nd.aux];
+                    break :blk (lit == .int and lit.int == 1);
+                };
+                const right_is_one = blk: {
+                    if (right >= self.store.len()) break :blk false;
+                    const nd = self.store.get(right);
+                    if (nd.tag != .lit) break :blk false;
+                    if (nd.aux >= self.store.lits.items.len) break :blk false;
+                    const lit = self.store.lits.items[nd.aux];
+                    break :blk (lit == .int and lit.int == 1);
+                };
+
+                platform.debug.print("simplifyMath: left_is_zero={}, right_is_zero={}, left_is_one={}, right_is_one={}\n", .{ left_is_zero, right_is_zero, left_is_one, right_is_one });
+
+                // Normalisation des opérateurs
+                const op_norm = blk: {
+                    if (std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "add")) break :blk "+";
+                    if (std.mem.eql(u8, op, "-") or std.mem.eql(u8, op, "sub")) break :blk "-";
+                    if (std.mem.eql(u8, op, "*") or std.mem.eql(u8, op, "mul")) break :blk "*";
+                    if (std.mem.eql(u8, op, "/") or std.mem.eql(u8, op, "div")) break :blk "/";
+                    if (std.mem.eql(u8, op, "^") or std.mem.eql(u8, op, "pow")) break :blk "^";
+                    break :blk op;
+                };
+
+                if (std.mem.eql(u8, op_norm, "+")) {
                     if (left_is_zero) return right;
                     if (right_is_zero) return left;
-                    if (li != null and ri != null) {
-                        return self.store.int(li.? + ri.?);
-                    }
-                    if (ln.tag == .sym and rn.tag == .sym and
-                        std.mem.eql(u8, self.store.interner.resolve(ln.payload), self.store.interner.resolve(rn.payload)))
-                    {
-                        const two = try self.store.int(2);
-                        return self.store.binop("*", two, left);
-                    }
+                    if (li != null and ri != null) return self.store.int(li.? + ri.?);
                     return self.store.binop("+", left, right);
                 }
 
-                // Soustraction
-                if (std.mem.eql(u8, op, "-")) {
-                    if (right_is_zero) return left;
-                    if (li != null and ri != null) {
-                        return self.store.int(li.? - ri.?);
-                    }
-                    return self.store.binop("-", left, right);
-                }
-
-                // Multiplication
-                if (std.mem.eql(u8, op, "*")) {
-                    if (left_is_zero or right_is_zero) {
-                        return self.store.int(0);
-                    }
+                if (std.mem.eql(u8, op_norm, "*")) {
+                    if (left_is_zero or right_is_zero) return self.store.int(0);
                     if (left_is_one) return right;
                     if (right_is_one) return left;
-                    if (li != null and ri != null) {
-                        return self.store.int(li.? * ri.?);
-                    }
-                    if (ln.tag == .sym and rn.tag == .sym and
-                        std.mem.eql(u8, self.store.interner.resolve(ln.payload), self.store.interner.resolve(rn.payload)))
-                    {
-                        const two = try self.store.int(2);
-                        return self.store.binop("^", left, two);
-                    }
+                    if (li != null and ri != null) return self.store.int(li.? * ri.?);
                     return self.store.binop("*", left, right);
-                }
-
-                // Division
-                if (std.mem.eql(u8, op, "/")) {
-                    if (right_is_zero) return self.store.int(0);
-                    if (right_is_one) return left;
-                    if (li != null and ri != null and ri.? != 0) {
-                        if (@mod(li.?, ri.?) == 0) {
-                            return self.store.int(@divExact(li.?, ri.?));
-                        }
-                    }
-                    return self.store.binop("/", left, right);
-                }
-
-                // Puissance
-                if (std.mem.eql(u8, op, "^")) {
-                    if (right_is_zero) return self.store.int(1);
-                    if (right_is_one) return left;
-                    if (left_is_zero) return self.store.int(0);
-                    if (left_is_one) return self.store.int(1);
-                    if (li != null and ri != null and ri.? >= 0 and ri.? <= 10) {
-                        var result: i64 = 1;
-                        var i: i64 = 0;
-                        while (i < ri.?) : (i += 1) result *= li.?;
-                        return self.store.int(result);
-                    }
-                    if (ri != null and ri.? == 2) {
-                        return self.store.binop("*", left, left);
-                    }
-                    return self.store.binop("^", left, right);
                 }
 
                 return self.store.binop(op, left, right);
