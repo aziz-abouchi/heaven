@@ -25,14 +25,12 @@ pub fn cmdAsk(self: *Shell, query_str: []const u8) void {
         return;
     }
 
-    // Deduplicate
     var seen: [64][256]u8 = undefined;
     var seen_len: [64]usize = undefined;
     var num_seen: usize = 0;
 
     var displayed: u32 = 0;
     for (solutions.items) |sol| {
-        // Build result string
         var res_buf: [256]u8 = undefined;
         var res_pos: usize = 0;
         var first = true;
@@ -58,7 +56,6 @@ pub fn cmdAsk(self: *Shell, query_str: []const u8) void {
             res_pos = t.len;
         }
 
-        // Check duplicate
         var is_dup = false;
         for (0..num_seen) |si| {
             if (seen_len[si] == res_pos and std.mem.eql(u8, seen[si][0..seen_len[si]], res_buf[0..res_pos])) {
@@ -78,6 +75,7 @@ pub fn cmdAsk(self: *Shell, query_str: []const u8) void {
         if (displayed >= 20) break;
     }
 }
+
 pub fn cmdRunStar(self: *Shell, query_str: []const u8, max_results: u32) void {
     const kanren_mod = @import("kanren");
 
@@ -99,7 +97,6 @@ pub fn cmdRunStar(self: *Shell, query_str: []const u8, max_results: u32) void {
     var query_vars: [8]QV = undefined;
     var num_qv: usize = 0;
 
-    // Split par virgule en respectant les crochets
     var depth: u32 = 0;
     var start: usize = 0;
     for (args_str, 0..) |ch, idx| {
@@ -142,12 +139,15 @@ pub fn cmdRunStar(self: *Shell, query_str: []const u8, max_results: u32) void {
         if (idx >= max_results - 1) break;
     }
 }
+
 pub fn cmdHandleLine(self: *Shell, line: []const u8) void {
     self.ingestor.ingest("repl.hvn", line) catch {};
 }
+
 pub fn cmdMemo(self: *Shell, subcmd: []const u8) void {
     if (std.mem.eql(u8, subcmd, "clear")) self.memo.clearAndFree();
 }
+
 pub fn cmdInfer(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     const result = self.heaven.typeOf(input) catch {
@@ -157,16 +157,19 @@ pub fn cmdInfer(self: *Shell, input: []const u8) void {
     defer self.allocator.free(result);
     platform.debug.print("{s} : {s} (inferred)\n", .{ input, result });
 }
+
 pub fn cmdSkill(self: *Shell, input: []const u8) void {
     const result = self.heaven.evalSkill(input) catch return;
     defer self.allocator.free(result);
     platform.debug.print("{s}\n", .{result});
 }
+
 pub fn cmdProve(self: *Shell, input: []const u8) void {
     const result = self.heaven.evalProve(input) catch return;
     defer self.allocator.free(result);
     platform.debug.print("{s}\n", .{result});
 }
+
 pub fn cmdType(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     const result = self.heaven.typeOf(input) catch {
@@ -176,33 +179,40 @@ pub fn cmdType(self: *Shell, input: []const u8) void {
     defer self.allocator.free(result);
     platform.debug.print("{s} : {s}\n", .{ input, result });
 }
+
 pub fn cmdStats(self: *Shell) void {
     const s = self.matrix.getStats();
     platform.debug.print("Matrix: {d} nodes, {d} symbols | Prolog: {d} clauses\n", .{ s.nodes, s.symbols, self.prolog.clauses.items.len });
 }
+
 pub fn cmdTrace(self: *Shell, name: []const u8) void {
     if (name.len == 0) return;
     if (self.matrix.findSymbol(name)) |id| {
         self.matrix.printTrace(id);
     }
 }
+
 pub fn cmdQuery(self: *Shell, name: []const u8) void {
     _ = self;
     _ = name;
 }
+
 pub fn cmdLoad(self: *Shell, arg: ?[]const u8) void {
     const path = arg orelse return;
     self.ingestor.ingest(path, "") catch return;
     self.prolog.loaded = false;
 }
+
 pub fn cmdRun(self: *Shell, arg: ?[]const u8) void {
     _ = self;
     _ = arg;
 }
+
 pub fn cmdInject(self: *Shell, code: []const u8) void {
     _ = self;
     _ = code;
 }
+
 pub fn cmdTranspile(self: *Shell, arg: []const u8) void {
     const codegen_c = @import("codegen_c");
     var gen = codegen_c.CCodegen.init(self.allocator, self.matrix);
@@ -213,6 +223,7 @@ pub fn cmdTranspile(self: *Shell, arg: []const u8) void {
         gen.generate() catch return;
     platform.debug.print("{s}\n", .{code});
 }
+
 pub fn cmdCompile(self: *Shell, arg: []const u8) void {
     const codegen_c = @import("codegen_c");
     var gen = codegen_c.CCodegen.init(self.allocator, self.matrix);
@@ -226,6 +237,7 @@ pub fn cmdCompile(self: *Shell, arg: []const u8) void {
     defer out_file.close();
     out_file.writeAll(code) catch return;
 }
+
 pub fn cmdQuote(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     const result = self.heaven.dumpAst(input) catch {
@@ -235,6 +247,7 @@ pub fn cmdQuote(self: *Shell, input: []const u8) void {
     defer self.allocator.free(result);
     platform.debug.print("{s}", .{result});
 }
+
 pub fn cmdLaTeX(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     self.heaven.ensureInit();
@@ -249,6 +262,7 @@ pub fn cmdLaTeX(self: *Shell, input: []const u8) void {
     defer self.allocator.free(latex);
     platform.debug.print("$$ {s} $$\n", .{latex});
 }
+
 pub fn cmdExplain(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     const result = self.heaven.explain(input) catch {
@@ -258,6 +272,7 @@ pub fn cmdExplain(self: *Shell, input: []const u8) void {
     defer self.allocator.free(result);
     platform.debug.print("{s}", .{result});
 }
+
 pub fn cmdDoc(self: *Shell) void {
     platform.debug.print("\n \xe2\x95\x90\xe2\x95\x90\xe2\x95\x90 Heaven Knowledge Base \xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\n", .{});
     const kb_desc = self.heaven.describeKB() catch "?";
@@ -268,6 +283,7 @@ pub fn cmdDoc(self: *Shell) void {
     const s = self.matrix.getStats();
     platform.debug.print(" {d} Matrix nodes, {d} symbols\n\n", .{ s.nodes, s.symbols });
 }
+
 pub fn cmdLet(self: *Shell, input: []const u8) void {
     const full_input = std.fmt.allocPrint(self.allocator, "let {s}", .{input}) catch return;
     defer self.allocator.free(full_input);
@@ -275,11 +291,11 @@ pub fn cmdLet(self: *Shell, input: []const u8) void {
     defer self.allocator.free(result);
     platform.debug.print("{s}\n", .{result});
 }
+
 pub fn cmdToC(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     self.heaven.ensureInit();
 
-    // Wrapper dans un let pour que le codegen le traite
     var wrap_buf: [512]u8 = undefined;
     const wrapped = std.fmt.bufPrint(&wrap_buf, "_result = {s}", .{input}) catch return;
     _ = wrapped;
@@ -289,7 +305,6 @@ pub fn cmdToC(self: *Shell, input: []const u8) void {
         return;
     };
 
-    // Créer un binding temporaire
     const bind_id = self.heaven.store.bind("_expr", id) catch {
         platform.debug.print("  bind error\n", .{});
         return;
@@ -340,6 +355,7 @@ pub fn cmdDerive(self: *Shell, input: []const u8) void {
     defer self.allocator.free(result);
     platform.debug.print("d/d{s}({s}) = {s}\n", .{ parts.varname, parts.expr, result });
 }
+
 pub fn cmdSolve(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     const parts = splitExprVar(input);
@@ -350,6 +366,7 @@ pub fn cmdSolve(self: *Shell, input: []const u8) void {
     defer self.allocator.free(result);
     platform.debug.print("{s}\n", .{result});
 }
+
 pub fn cmdExpand(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     const result = self.heaven.expand(input) catch {
@@ -359,6 +376,7 @@ pub fn cmdExpand(self: *Shell, input: []const u8) void {
     defer self.allocator.free(result);
     platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
+
 pub fn cmdIntegrate(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     const parts = splitExprVar(input);
@@ -369,6 +387,7 @@ pub fn cmdIntegrate(self: *Shell, input: []const u8) void {
     defer self.allocator.free(result);
     platform.debug.print("\xe2\x88\xab({s})dx = {s}\n", .{ input, result });
 }
+
 pub fn cmdPlot(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     const result = self.heaven.plot(input, "x") catch {
@@ -391,7 +410,6 @@ pub fn cmdTheorem(self: *Shell, input: []const u8) void {
 }
 
 pub fn cmdAxiom(self: *Shell, input: []const u8) void {
-    // :axiom add_zero : a + 0 = a
     if (std.mem.indexOf(u8, input, " : ")) |colon| {
         const name = std.mem.trim(u8, input[0..colon], " ");
         const stmt = std.mem.trim(u8, input[colon + 3 ..], " ");
@@ -409,11 +427,9 @@ pub fn cmdAxiom(self: *Shell, input: []const u8) void {
     }
     platform.debug.print("  Usage: :axiom name : lhs = rhs\n", .{});
 }
+
 pub fn cmdProof(self: *Shell, input: []const u8) void {
     self.heaven.ensureInit();
-    // :proof add_comm by eval
-    // :proof add_comm by simplify
-    // :proof sum_formula by induction n
     var tokens = std.mem.tokenizeScalar(u8, input, ' ');
     const name = tokens.next() orelse {
         platform.debug.print("  Usage: :proof <name> by [eval|simplify|induction <var>]\n", .{});
@@ -459,6 +475,7 @@ pub fn cmdProof(self: *Shell, input: []const u8) void {
         platform.debug.print("  Unknown method: {s}. Try: eval, simplify, induction\n", .{method});
     }
 }
+
 fn cmdSkillWithInduction(self: *Shell, skill_name: []const u8, induction_var: []const u8) void {
     const target = self.active_theorem orelse {
         platform.debug.print("  Aucun théorème actif.\n", .{});
@@ -485,17 +502,18 @@ fn cmdSkillWithInduction(self: *Shell, skill_name: []const u8, induction_var: []
         platform.debug.print("✗ [{s}] Échec sur '{s}' ({d} tactiques)\n", .{ skill_name, target, result.tactics_run });
     }
 }
+
 pub fn cmdTheorems(self: *Shell) void {
     const s = self.proofs.formatAll(self.allocator) catch return;
     defer self.allocator.free(s);
     platform.debug.print("{s}", .{s});
 }
+
 pub fn cmdSpawn(self: *Shell, input: []const u8) void {
     if (input.len == 0) {
         platform.debug.print(" Usage: :spawn <expr> e.g. :spawn fib 30\n", .{});
         return;
     }
-    // Set up eval function if not done
     if (self.green.eval_fn == null) {
         self.green.eval_fn = &utils.greenEvalAdapter;
     }
@@ -505,11 +523,13 @@ pub fn cmdSpawn(self: *Shell, input: []const u8) void {
     };
     platform.debug.print(" [GT-{d}] spawned: {s}\n", .{ id, input });
 }
+
 pub fn cmdThreads(self: *Shell, _: []const u8) void {
     const status = self.green.formatStatus(self.allocator) catch return;
     defer self.allocator.free(status);
     platform.debug.print("{s}", .{status});
 }
+
 pub fn cmdAwait(self: *Shell, input: []const u8) void {
     const id = std.fmt.parseInt(u32, std.mem.trim(u8, input, " "), 10) catch {
         platform.debug.print("  Usage: :await <id>\n", .{});
@@ -521,6 +541,7 @@ pub fn cmdAwait(self: *Shell, input: []const u8) void {
         platform.debug.print("  (no result or not found)\n", .{});
     }
 }
+
 pub fn cmdSwarm(self: *Shell, input: []const u8) void {
     const swarm_proto = @import("../../scut/swarm/protocol_swarm.zig");
     _ = swarm_proto;
@@ -532,31 +553,26 @@ pub fn cmdSwarm(self: *Shell, input: []const u8) void {
         return;
     }
 
-    // :swarm solve <expr>
     if (std.mem.startsWith(u8, input, "solve ")) {
         const expr = std.mem.trim(u8, input[6..], " ");
         _ = self.swarm.broadcastTask(.solve, expr) catch {};
         return;
     }
-    // :swarm simplify <expr>
     if (std.mem.startsWith(u8, input, "simplify ")) {
         const expr = std.mem.trim(u8, input[9..], " ");
         _ = self.swarm.broadcastTask(.simplify, expr) catch {};
         return;
     }
-    // :swarm derive <expr>
     if (std.mem.startsWith(u8, input, "derive ")) {
         const expr = std.mem.trim(u8, input[7..], " ");
         _ = self.swarm.broadcastTask(.derive, expr) catch {};
         return;
     }
-    // :swarm prove <expr>
     if (std.mem.startsWith(u8, input, "prove ")) {
         const expr = std.mem.trim(u8, input[6..], " ");
         _ = self.swarm.broadcastTask(.prove, expr) catch {};
         return;
     }
-    // :swarm log
     if (std.mem.eql(u8, input, "log")) {
         const stats = self.swarm.formatStats(self.allocator) catch return;
         defer self.allocator.free(stats);
@@ -567,18 +583,17 @@ pub fn cmdSwarm(self: *Shell, input: []const u8) void {
     platform.debug.print("         :swarm              (status)\n", .{});
     platform.debug.print("         :swarm log          (history)\n", .{});
 }
+
 pub fn cmdDep(self: *Shell, input: []const u8) void {
     const types = @import("types");
     var dc = types.DependentChecker.init(self.allocator);
     defer dc.deinit();
 
-    // Parse dependent type expressions
     const trimmed = std.mem.trim(u8, input, " ");
 
-    // Vec type: \"Vec 3 Int\" or \"Vec(3, Int)\"
     if (std.mem.startsWith(u8, trimmed, "Vec")) {
         var iter = std.mem.tokenizeAny(u8, trimmed, " (,)");
-        _ = iter.next(); // skip \"Vec\"
+        _ = iter.next();
         const n_str = iter.next() orelse "0";
         const n = std.fmt.parseInt(i64, n_str, 10) catch 0;
         const elem_str = iter.next() orelse "Int";
@@ -590,10 +605,9 @@ pub fn cmdDep(self: *Shell, input: []const u8) void {
         return;
     }
 
-    // Pi type: \"Pi x Nat Int\"
     if (std.mem.startsWith(u8, trimmed, "Pi ") or std.mem.startsWith(u8, trimmed, "pi ")) {
         var iter = std.mem.tokenizeAny(u8, trimmed, " ");
-        _ = iter.next(); // skip \"Pi\"
+        _ = iter.next();
         const param = iter.next() orelse "x";
         const dom_str = iter.next() orelse "Nat";
         const cod_str = iter.next() orelse "Int";
@@ -606,7 +620,6 @@ pub fn cmdDep(self: *Shell, input: []const u8) void {
         return;
     }
 
-    // Sigma type: \"Sigma x Nat Int\"
     if (std.mem.startsWith(u8, trimmed, "Sigma ") or std.mem.startsWith(u8, trimmed, "sigma ")) {
         var iter = std.mem.tokenizeAny(u8, trimmed, " ");
         _ = iter.next();
@@ -622,15 +635,14 @@ pub fn cmdDep(self: *Shell, input: []const u8) void {
         return;
     }
 
-    // Vec append: \"append Vec(3,Int) Vec(2,Int)\"
     if (std.mem.startsWith(u8, trimmed, "append")) {
         var iter = std.mem.tokenizeAny(u8, trimmed, " (,)");
-        _ = iter.next(); // skip \"append\"
-        _ = iter.next(); // skip \"Vec\"
+        _ = iter.next();
+        _ = iter.next();
         const n_str = iter.next() orelse "0";
         const n = std.fmt.parseInt(i64, n_str, 10) catch 0;
-        _ = iter.next(); // skip elem
-        _ = iter.next(); // skip \"Vec\"
+        _ = iter.next();
+        _ = iter.next();
         const m_str = iter.next() orelse "0";
         const m = std.fmt.parseInt(i64, m_str, 10) catch 0;
         const result = dc.checkVecAppend(n, m, 1) catch return;
@@ -640,13 +652,11 @@ pub fn cmdDep(self: *Shell, input: []const u8) void {
         return;
     }
 
-    // Equality: \"eq n+0 n\"
     if (std.mem.startsWith(u8, trimmed, "eq ")) {
         const rest = trimmed[3..];
         if (std.mem.indexOf(u8, rest, " ")) |sp| {
             const lhs_str = std.mem.trim(u8, rest[0..sp], " ");
             const rhs_str = std.mem.trim(u8, rest[sp + 1 ..], " ");
-            // Simple: try to parse as \"n+0 n\"
             if (std.mem.indexOf(u8, lhs_str, "+0")) |_| {
                 const n_part = lhs_str[0 .. std.mem.indexOf(u8, lhs_str, "+") orelse 0];
                 if (std.mem.eql(u8, n_part, rhs_str)) {
@@ -676,37 +686,32 @@ pub fn cmdDep(self: *Shell, input: []const u8) void {
     platform.debug.print("  :dep append Vec(3,Int) Vec(2,Int) \xe2\x86\x92 Vec(5,Int)\n", .{});
     platform.debug.print("  :dep eq n+0 n          \xe2\x86\x92 \xe2\x9c\x93 proof\n", .{});
 }
+
 pub fn cmdHole(self: *Shell, input: []const u8) void {
     if (input.len == 0) {
         platform.debug.print(" Usage: :hole <expr with ?> e.g. :hole ? + 3 = 10\n", .{});
         return;
     }
-    // Check if it's an equation: expr = value
     if (std.mem.indexOfScalar(u8, input, '=')) |eq| {
         const lhs = std.mem.trim(u8, input[0..eq], " ");
         const rhs = std.mem.trim(u8, input[eq + 1 ..], " ");
-        // Try to solve: substitute ? with candidate values
         const rhs_val = std.fmt.parseInt(i64, rhs, 10) catch {
             platform.debug.print(" RHS must be an integer\n", .{});
             return;
         };
-        // Try to solve via :solve first (algebraic)
         var solve_buf: [256]u8 = undefined;
         const solve_expr = std.fmt.bufPrint(&solve_buf, "{s} - {d}", .{ lhs, rhs_val }) catch "";
         if (solve_expr.len > 0) {
-            // Replace ? with x for the solver
             const solve_input = self.heaven.substExpr(solve_expr, "?", "x") catch null;
             if (solve_input) |si| {
                 defer self.allocator.free(si);
                 if (self.heaven.solve(si, "x") catch null) |sol| {
                     defer self.allocator.free(sol);
-                    // Replace x back to ? in output
                     platform.debug.print("{s}\n", .{sol});
                     return;
                 }
             }
         }
-        // Fallback: brute force with positive values only (safe)
         var found = false;
         var i: i64 = 0;
         while (i <= 20) : (i += 1) {
@@ -716,7 +721,6 @@ pub fn cmdHole(self: *Shell, input: []const u8) void {
                 const val_str = std.fmt.bufPrint(&buf, "{d}", .{v}) catch continue;
                 const substituted = self.heaven.substExpr(lhs, "?", val_str) catch continue;
                 defer self.allocator.free(substituted);
-                // Use evalSExpr which is safer
                 const as_sexpr = self.heaven.eval(substituted) catch continue;
                 defer self.allocator.free(as_sexpr);
                 if (as_sexpr.len > 0 and as_sexpr[0] == '(') continue;
@@ -730,7 +734,6 @@ pub fn cmdHole(self: *Shell, input: []const u8) void {
         if (!found) platform.debug.print(" (no solution in [-20, 20])\n", .{});
         return;
     }
-    // Just type-check the expression with hole
     const type_result = self.heaven.typeOf(input) catch {
         platform.debug.print(" type error\n", .{});
         return;
@@ -738,15 +741,14 @@ pub fn cmdHole(self: *Shell, input: []const u8) void {
     defer self.allocator.free(type_result);
     platform.debug.print(" ? : {s} (inferred from context)\n", .{type_result});
 }
+
 pub fn cmdMeta(self: *Shell, input: []const u8) void {
     if (input.len == 0) {
-        // List all rules as data
         const rules = self.heaven.listRules() catch return;
         defer self.allocator.free(rules);
         platform.debug.print("{s}", .{rules});
         return;
     }
-    // :meta eval (+ 2 3) — evaluate s-expression
     if (std.mem.startsWith(u8, input, "eval ")) {
         const sexpr = std.mem.trim(u8, input[5..], " ");
         const result = self.heaven.evalSExpr(sexpr) catch return;
@@ -754,7 +756,6 @@ pub fn cmdMeta(self: *Shell, input: []const u8) void {
         platform.debug.print(" \xe2\x86\x92 {s}\n", .{result});
         return;
     }
-    // :meta quote <expr> — quote then show
     if (std.mem.startsWith(u8, input, "quote ")) {
         const e = std.mem.trim(u8, input[6..], " ");
         const ast = self.heaven.dumpAst(e) catch return;
@@ -763,7 +764,6 @@ pub fn cmdMeta(self: *Shell, input: []const u8) void {
         return;
     }
 
-    // Évaluation standard pour tout le reste
     const eval_result = self.heaven.eval(input) catch |err| {
         platform.debug.print("eval error: {}\n", .{err});
         return;
@@ -772,10 +772,9 @@ pub fn cmdMeta(self: *Shell, input: []const u8) void {
     platform.debug.print("{s}\n", .{eval_result});
     platform.debug.print(" Usage: :meta [eval|quote] <expr>\n", .{});
 }
+
 pub fn cmdSubst(self: *Shell, input: []const u8) void {
-    // :subst <expr> <var> <val> — split from the end
     const trimmed = std.mem.trim(u8, input, " ");
-    // Find last two tokens (var and val)
     const last_space = std.mem.lastIndexOfScalar(u8, trimmed, ' ') orelse return;
     const value = std.mem.trim(u8, trimmed[last_space + 1 ..], " ");
     const before_val = std.mem.trim(u8, trimmed[0..last_space], " ");
@@ -786,15 +785,16 @@ pub fn cmdSubst(self: *Shell, input: []const u8) void {
     defer self.allocator.free(result);
     platform.debug.print(" \xe2\x86\x92 {s}\n", .{result});
 }
+
 pub fn cmdSExpr(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     const result = self.heaven.evalSExpr(input) catch return;
     defer self.allocator.free(result);
     platform.debug.print("  \xe2\x86\x92 {s}\n", .{result});
 }
+
 pub fn cmdOnto(self: *Shell, input: []const u8) void {
     if (input.len == 0) {
-        // List all concepts
         var it = self.meta.ontology.concepts.iterator();
         platform.debug.print(" \xe2\x95\x90\xe2\x95\x90\xe2\x95\x90 Ontologie \xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\n", .{});
         while (it.next()) |entry| {
@@ -804,7 +804,6 @@ pub fn cmdOnto(self: *Shell, input: []const u8) void {
         }
         return;
     }
-    // Define concept: ":onto Dog subclassof Animal"
     var iter = std.mem.tokenizeAny(u8, input, " ");
     const name = iter.next() orelse return;
     const keyword = iter.next();
@@ -816,15 +815,13 @@ pub fn cmdOnto(self: *Shell, input: []const u8) void {
             return;
         }
     }
-    // Show concept details
     const ctx = ontology_lib.OptContext{ .expected_n = 100, .has_gpu = false, .max_stack = 0, .prefer_simple = false };
     const desc = self.meta.ontology.describeChoice(name, ctx, self.allocator) catch return;
     defer self.allocator.free(desc);
     platform.debug.print("{s}", .{desc});
 }
+
 pub fn cmdOptimize(self: *Shell, input: []const u8) void {
-    // :optimize Factorial 1000
-    // :optimize Factorial 10 gpu
     var iter = std.mem.tokenizeAny(u8, input, " ");
     const concept = iter.next() orelse {
         platform.debug.print("  Usage: :optimize <concept> [n] [gpu]\n", .{});
@@ -845,8 +842,8 @@ pub fn cmdOptimize(self: *Shell, input: []const u8) void {
         platform.debug.print("{s}", .{result});
     }
 }
+
 pub fn cmdIsA(self: *Shell, input: []const u8) void {
-    // :isa Factorial Arithmetic
     var iter = std.mem.tokenizeAny(u8, input, " ");
     const child = iter.next() orelse return;
     const ancestor = iter.next() orelse return;
@@ -856,8 +853,8 @@ pub fn cmdIsA(self: *Shell, input: []const u8) void {
         platform.debug.print("  \xe2\x9c\x97 {s} is NOT a {s}\n", .{ child, ancestor });
     }
 }
+
 pub fn cmdQTT(self: *Shell, input: []const u8) void {
-    // Parse: "1 x = expr" or "0 y = expr" or "w z = expr"
     const types = @import("types");
     var checker = types.LinearChecker.init(self.allocator);
     defer checker.deinit();
@@ -867,7 +864,6 @@ pub fn cmdQTT(self: *Shell, input: []const u8) void {
         const trimmed = std.mem.trim(u8, stmt, " ");
         if (trimmed.len == 0) continue;
 
-        // Parse quantity prefix: \"1 x = ...\" or \"0 x = ...\" or \"w x = ...\"
         if (trimmed.len > 2 and trimmed[1] == ' ') {
             const qty: types.Quantity = switch (trimmed[0]) {
                 '0' => .zero,
@@ -880,7 +876,6 @@ pub fn cmdQTT(self: *Shell, input: []const u8) void {
                 const name = std.mem.trim(u8, rest[0..eq], " ");
                 const val_str = std.mem.trim(u8, rest[eq + 1 ..], " ");
                 checker.declare(name, qty) catch continue;
-                // Count variable uses in the expression
                 var usage_it = checker.usage.iterator();
                 while (usage_it.next()) |uentry| {
                     const var_name = uentry.key_ptr.*;
@@ -911,6 +906,7 @@ pub fn cmdQTT(self: *Shell, input: []const u8) void {
         platform.debug.print(" \xe2\x9c\x93 QTT: all quantities satisfied\n", .{});
     }
 }
+
 pub fn cmdHook(self: *Shell, input: []const u8) void {
     if (std.mem.indexOf(u8, input, "=>")) |pos| {
         const event = std.mem.trim(u8, input[0..pos], " ");
@@ -1008,10 +1004,8 @@ pub fn cmdMlcpdParse(self: *Shell, input: []const u8) void {
         return;
     }
 
-    // Essayer de lire comme fichier d'abord
     const json_data: []const u8 = blk: {
         const file = platform.fs.cwd().openFile(trimmed, .{}) catch {
-            // Pas un fichier, traiter comme JSON inline
             break :blk trimmed;
         };
         defer file.close();
@@ -1069,7 +1063,6 @@ pub fn cmdMlcpdConvert(self: *Shell, input: []const u8) void {
 
     var buf = std.ArrayListUnmanaged(u8){};
     defer buf.deinit(self.allocator);
-    // Print expression via Heaven.format
     {
         const expr_str = self.heaven.format(expr_id) catch "<error>";
         defer self.allocator.free(expr_str);
@@ -1120,7 +1113,6 @@ pub fn cmdMlcpdEquiv(self: *Shell, input: []const u8) void {
         return;
     }
 
-    // Splitter l'entrée en deux chemins
     var it = std.mem.splitSequence(u8, trimmed, " ");
     const path1 = it.next() orelse {
         platform.io.print("error: missing first file path\n", .{});
@@ -1131,7 +1123,6 @@ pub fn cmdMlcpdEquiv(self: *Shell, input: []const u8) void {
         return;
     };
 
-    // Parser et convertir le premier fichier
     const json_data1 = blk: {
         const file = platform.fs.cwd().openFile(path1, .{}) catch {
             platform.io.print("error: cannot open file '{s}'\n", .{path1});
@@ -1157,7 +1148,6 @@ pub fn cmdMlcpdEquiv(self: *Shell, input: []const u8) void {
         return;
     };
 
-    // Parser et convertir le deuxième fichier
     const json_data2 = blk: {
         const file = platform.fs.cwd().openFile(path2, .{}) catch {
             platform.io.print("error: cannot open file '{s}'\n", .{path2});
@@ -1183,7 +1173,6 @@ pub fn cmdMlcpdEquiv(self: *Shell, input: []const u8) void {
         return;
     };
 
-    // Preuve d'équivalence certifiée via MLCPD equiv
     var equiv_result = mlcpd_equiv_mod.proveEquivalence(self.allocator, &self.heaven.store, expr_id1, expr_id2) catch |err| {
         platform.io.print("❌ Erreur lors de la preuve d'équivalence: {}\n", .{err});
         return;
@@ -1360,14 +1349,10 @@ pub fn cmdLoadFile(self: *Shell, path: []const u8) ![]u8 {
         if (trimmed.len == 0 or trimmed[0] == '#' or std.mem.startsWith(u8, trimmed, "--")) continue;
         line_count += 1;
 
-        // Utilisation de l'API Heaven propre
         const result = self.heaven.eval(trimmed) catch {
             try w.print("Erreur lors de l'évaluation de: {s}\n", .{trimmed});
             continue;
         };
-
-        platform.debug.print("[LOAD] line: '{s}' -> '{s}'\n", .{ trimmed, result });
-
         defer self.allocator.free(result);
         try w.print("{s}\n", .{result});
     }
@@ -1390,13 +1375,11 @@ pub fn cmdParseFileWithLanguage(self: *Shell, path: []const u8) ![]u8 {
         const id = self.heaven.importExpr(content) catch {
             return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{path});
         };
-        // Utilisation de l'API Heaven propre
         const result = self.heaven.evaluateExpr(id) catch id;
         _ = result;
         return std.fmt.allocPrint(self.allocator, "✓ parsed and evaluated {s} as heaven", .{path});
     }
 
-    // Pour les autres langages (C, Zig, etc.)
     var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
         return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
     };
@@ -1418,7 +1401,6 @@ pub fn cmdParseFileWithLanguage(self: *Shell, path: []const u8) ![]u8 {
         return std.fmt.allocPrint(self.allocator, "translation failed for {s}", .{@tagName(lang)});
     };
 
-    // Utilisation de l'API Heaven propre
     const result = self.heaven.evaluateExpr(heaven_id) catch heaven_id;
     const result_str = self.heaven.format(result) catch "error";
     defer self.allocator.free(result_str);
@@ -1517,9 +1499,8 @@ pub fn cmdProfile(self: *Shell, input: []const u8) void {
 
     var prof = profiler_mod.Profiler.start();
 
-    // On n'évalue l'expression qu'une seule fois, ici
     const result_str = self.heaven.eval(input) catch |err| {
-        const metrics = prof.stop(); // On arrête le profiler même en cas d'erreur
+        const metrics = prof.stop();
         platform.debug.print("eval error: {}\n", .{err});
         platform.debug.print("(Profiling aborted after {d:.3} ms)\n", .{@as(f64, @floatFromInt(metrics.wall_time_ns)) / 1_000_000.0});
         return;
@@ -1535,284 +1516,4 @@ pub fn cmdProfile(self: *Shell, input: []const u8) void {
     platform.debug.print("  Énergie    : {d:.3} J\n", .{metrics.energy_joules});
     platform.debug.print("  Mémoire    : {d} KB\n", .{metrics.memory_peak_kb});
     platform.debug.print("═══════════════\n", .{});
-}
-
-// ═══════════════════════════════════════════════════════════
-// MLCPD & MCP Commands
-// ═══════════════════════════════════════════════════════════
-
-fn evalEquiv(self: *Shell, args: []const u8) ![]u8 {
-    // Parser "file1.json file2.json"
-    var iter = std.mem.splitSequence(u8, args, " ");
-    const file1_path = iter.next() orelse {
-        return try self.allocator.dupe(u8, "Usage: equiv <file1.json> <file2.json>");
-    };
-    const file2_path = iter.next() orelse {
-        return try self.allocator.dupe(u8, "Usage: equiv <file1.json> <file2.json>");
-    };
-
-    // Charger les fichiers
-    const file1_content = platform.fs.cwd().readFileAlloc(self.allocator, file1_path, 10 * 1024 * 1024) catch |err| {
-        return try std.fmt.allocPrint(self.allocator, "Error reading {s}: {s}", .{ file1_path, @errorName(err) });
-    };
-    defer self.allocator.free(file1_content);
-
-    const file2_content = platform.fs.cwd().readFileAlloc(self.allocator, file2_path, 10 * 1024 * 1024) catch |err| {
-        return try std.fmt.allocPrint(self.allocator, "Error reading {s}: {s}", .{ file2_path, @errorName(err) });
-    };
-    defer self.allocator.free(file2_content);
-
-    // Parser et normaliser
-    var parsed1 = mlcpd_mod.parseMlcpdJson(self.allocator, file1_content) catch |err| {
-        return try std.fmt.allocPrint(self.allocator, "Error parsing {s}: {s}", .{ file1_path, @errorName(err) });
-    };
-    defer parsed1.deinit();
-    parsed1.normalizeParsedFile();
-
-    var parsed2 = mlcpd_mod.parseMlcpdJson(self.allocator, file2_content) catch |err| {
-        return try std.fmt.allocPrint(self.allocator, "Error parsing {s}: {s}", .{ file2_path, @errorName(err) });
-    };
-    defer parsed2.deinit();
-    parsed2.normalizeParsedFile();
-
-    // Convertir en Expr IR
-    const expr1 = parsed1.toExprIr(self.store) catch |err| {
-        return try std.fmt.allocPrint(self.allocator, "Error converting {s}: {s}", .{ file1_path, @errorName(err) });
-    };
-
-    const expr2 = parsed2.toExprIr(self.store) catch |err| {
-        return try std.fmt.allocPrint(self.allocator, "Error converting {s}: {s}", .{ file2_path, @errorName(err) });
-    };
-
-    // Prouver l'équivalence
-    var result = mlcpd_equiv_mod.proveEquivalence(self.allocator, self.store, expr1, expr2) catch |err| {
-        return try std.fmt.allocPrint(self.allocator, "Proof failed: {s}", .{@errorName(err)});
-    };
-    defer result.deinit(self.allocator);
-
-    // Formater le résultat
-    var output = std.ArrayListUnmanaged(u8){};
-    defer output.deinit(self.allocator);
-    const writer = output.writer(self.allocator);
-
-    try writer.print("═══ MLCPD Equivalence Proof ═══\n", .{});
-    try writer.print("  file1: {s} ({d} nodes)\n", .{ file1_path, parsed1.nodes.items.len });
-    try writer.print("  file2: {s} ({d} nodes)\n", .{ file2_path, parsed2.nodes.items.len });
-    try writer.print("  expr1 → IR: {d}\n", .{expr1});
-    try writer.print("  expr2 → IR: {d}\n", .{expr2});
-    try writer.print("\n", .{});
-    try writer.print("  equivalent: {}\n", .{result.equivalent});
-    try writer.print("  strategy:   {s}\n", .{@tagName(result.strategy)});
-
-    if (result.error_message) |msg| {
-        try writer.print("  error:      {s}\n", .{msg});
-    }
-
-    try writer.print("  proof:      {}\n", .{result.proof != null});
-    try writer.print("\n", .{});
-
-    if (result.equivalent) {
-        try writer.print("ÉQUIVALENCE PROUVÉE\n", .{});
-        try writer.print("Proof<Equiv<{s}, {s}>> = Refl<congruence>\n", .{ file1_path, file2_path });
-    } else {
-        try writer.print("❌ ÉQUIVALENCE NON PROUVÉE\n", .{});
-    }
-
-    return output.toOwnedSlice(self.allocator);
-}
-
-fn evalGreen(self: *Shell, input: []const u8) ![]u8 {
-    const expr_id = try self.bridge.importExpr(input);
-
-    // 1. Créer la fonction handler qui accumule l'énergie
-    // Elle prend (val1, val2, cost) et retourne (val1 + val2), tout en accumulant cost dans une variable globale.
-    // Pour faire simple en Heaven : le handler va juste retourner la somme et on comptera les appels.
-    const handler_str = "fn greenHandler(v1, v2, cost) = (+ v1 v2)";
-    const handler_result = try self.eval(handler_str);
-    // On libère la chaîne de retour ("greenHandler clause...")
-    defer self.allocator.free(handler_result);
-
-    // 2. Activer le mode Green dans le moteur
-    self.engine.green_call_count = 0;
-    self.engine.green_mode = true;
-    defer self.engine.green_mode = false; // Désactiver après
-
-    // 3. Créer le nœud AST : (handle <expr> greenHandler)
-    const handler_id = try self.store.sym("greenHandler");
-    const handle_node = try self.store.handle(expr_id, handler_id);
-
-    // 4. Évaluer
-    self.engine.fuel = 1_000_000;
-    const result = try engine_expr.evaluate(self.store, self.env, self.engine, handle_node, 0);
-
-    // 5. Compter combien de fois l'effet a été déclenché (en regardant la taille de l'AST ou un compteur)
-    // Pour l'instant, on simplifie : le handler a été appelé, on affiche le résultat.
-    const result_str = try self.heaven.format(result);
-    defer self.allocator.free(result_str);
-
-    return std.fmt.allocPrint(self.allocator,
-        \\═══ Green Profile ═══
-        \\ Resultat : {s}
-        \\ Énergie   : {d} J (estimation)
-        \\═══════════════════
-    , .{ result_str, self.engine.green_call_count });
-}
-
-/// Affiche l'AST brut d'un fichier parsé (pour debug du bridge)
-pub fn dumpAstFile(self: *Shell, path: []const u8) ![]u8 {
-    // platform.debug.print("[dumpAstFile] CALLED with path='{s}'\n", .{path});
-
-    const ext = std.fs.path.extension(path);
-    // platform.debug.print("[dumpAstFile] ext='{s}'\n", .{ext});
-
-    const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse {
-        // platform.debug.print("[dumpAstFile] ERROR: unsupported extension\n", .{});
-        return std.fmt.allocPrint(self.allocator, "unsupported extension: {s}", .{ext});
-    };
-    // platform.debug.print("[dumpAstFile] lang={s}\n", .{@tagName(lang)});
-
-    const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
-        // platform.debug.print("[dumpAstFile] ERROR reading file: {}\n", .{err});
-        return std.fmt.allocPrint(self.allocator, "error reading {s}: {}", .{ path, err });
-    };
-    // platform.debug.print("[dumpAstFile] Read {d} bytes\n", .{content.len});
-    defer self.allocator.free(content);
-
-    var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
-        // platform.debug.print("[dumpAstFile] ERROR parser init: {}\n", .{err});
-        return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
-    };
-    defer parser.deinit();
-
-    const matrix = parser.parse(content) catch {
-        // platform.debug.print("[dumpAstFile] ERROR parse failed\n", .{});
-        return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
-    };
-    // platform.debug.print("[dumpAstFile] Matrix kind={s}, children={d}\n", .{ @tagName(matrix.kind), matrix.children.len });
-
-    var buf: std.ArrayListUnmanaged(u8) = .{};
-    defer buf.deinit(self.allocator);
-    try dumpMatrix(&matrix, 0, &buf, self.allocator);
-    // platform.debug.print("[dumpAstFile] buf.len={d}\n", .{buf.items.len});
-    return buf.toOwnedSlice(self.allocator);
-}
-
-fn dumpMatrix(matrix: *const platform.shell_parser_types.Matrix, depth: u32, buf: *std.ArrayListUnmanaged(u8), alloc: std.mem.Allocator) !void {
-    var i: u32 = 0;
-    while (i < depth) : (i += 1) try buf.appendSlice(alloc, "  ");
-    try buf.appendSlice(alloc, @tagName(matrix.kind));
-    if (matrix.text) |text| {
-        if (text.len <= 40) {
-            try buf.appendSlice(alloc, " \"");
-            try buf.appendSlice(alloc, text);
-            try buf.appendSlice(alloc, "\"");
-        } else {
-            try buf.appendSlice(alloc, " \"");
-            try buf.appendSlice(alloc, text[0..40]);
-            try buf.appendSlice(alloc, "...\"");
-        }
-    }
-    try buf.append(alloc, '\n');
-    for (matrix.children) |*child| {
-        try dumpMatrix(child, depth + 1, buf, alloc);
-    }
-}
-
-pub fn translateAndDump(self: *Shell, path: []const u8) ![]u8 {
-    const ext = std.fs.path.extension(path);
-    const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse
-        return std.fmt.allocPrint(self.allocator, "unsupported extension: {s}", .{ext});
-
-    const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
-        return std.fmt.allocPrint(self.allocator, "error reading {s}: {}", .{ path, err });
-    };
-    defer self.allocator.free(content);
-
-    // platform.debug.print("[translateAndDump] Read {d} bytes\n", .{content.len});
-
-    var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
-        return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
-    };
-    defer parser.deinit();
-
-    const matrix = parser.parse(content) catch {
-        return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
-    };
-
-    // platform.debug.print("[translateAndDump] Matrix parsed, kind={s}, children={d}\n", .{ @tagName(matrix.kind), matrix.children.len });
-
-    var universal = universal_translator.UniversalTranslator.init(self.allocator, self.store);
-    const mlcpd_lang = switch (lang) {
-        .c => mlcpd_mod.FileMetadata.Language.c,
-        .zig => mlcpd_mod.FileMetadata.Language.c,
-        .pie => mlcpd_mod.FileMetadata.Language.unknown,
-        .heaven => unreachable,
-    };
-
-    const heaven_id = universal.translate(&matrix, mlcpd_lang) catch |err| {
-        return std.fmt.allocPrint(self.allocator, "translation failed: {}", .{err});
-    };
-
-    // platform.debug.print("[translateAndDump] heaven_id={d}, store.len={d}\n", .{ heaven_id, self.store.len() });
-
-    if (heaven_id >= self.store.len()) {
-        return std.fmt.allocPrint(self.allocator, "ERROR: heaven_id={d} >= store.len={d}", .{ heaven_id, self.store.len() });
-    }
-
-    var buf: std.ArrayListUnmanaged(u8) = .{};
-    defer buf.deinit(self.allocator);
-    try self.writeAst(heaven_id, 0, &buf);
-
-    // platform.debug.print("[translateAndDump] buf.len={d}\n", .{buf.items.len});
-
-    return buf.toOwnedSlice(self.allocator);
-}
-
-fn evalProfile(self: *Shell, input: []const u8) ![]u8 {
-    const id = try self.bridge.importExpr(input);
-    if (comptime !@import("builtin").target.cpu.arch.isWasm()) {
-        var timer = try std.time.Timer.start();
-        const start_time = timer.read();
-        self.engine.fuel = 1_000_000;
-        const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "Profile error: {s}", .{@errorName(err)});
-        };
-        const result_str = try self.heaven.format(result);
-        const elapsed_ns = timer.read() - start_time;
-        const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / 1_000_000.0;
-        const node_count = self.countNodes(result);
-        const bigO = if (node_count > 100) "O(n^2)" else "O(n)";
-        const energy_nJ = @as(f64, @floatFromInt(elapsed_ns)) * 0.5;
-        const energy_uJ = energy_nJ / 1000.0;
-        const silicon_thermal_mass = 0.001;
-        const silicon_specific_heat = 700.0;
-        const delta_T = (energy_nJ * 1e-9) / (silicon_thermal_mass * silicon_specific_heat);
-        var buf: std.ArrayListUnmanaged(u8) = .{};
-        defer buf.deinit(self.allocator);
-        const w = buf.writer(self.allocator);
-        try w.print(
-            \\═══ Profile ═══
-            \\ Expression  : {s}
-            \\ Temps       : {d:.3} ms
-            \\ Nœuds       : {d}
-            \\ Big O       : {s}
-            \\ Énergie     : {d:.3} uJ
-            \\ Température : {d:.6} °C
-            \\═══════════════
-            \\
-        , .{ result_str, elapsed_ms, node_count, bigO, energy_uJ, delta_T });
-        return buf.toOwnedSlice(self.allocator);
-    } else {
-        self.engine.fuel = 1_000_000;
-        const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "Profile error: {s}", .{@errorName(err)});
-        };
-        const result_str = try self.heaven.format(result);
-        const node_count = self.countNodes(result);
-        var buf: std.ArrayListUnmanaged(u8) = .{};
-        defer buf.deinit(self.allocator);
-        const w = buf.writer(self.allocator);
-        try w.print("═══ Profile (WASM) ═══\nExpression : {s}\nNœuds : {d}\n═══════════════\n", .{ result_str, node_count });
-        return buf.toOwnedSlice(self.allocator);
-    }
 }

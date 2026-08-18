@@ -180,10 +180,10 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             if (isFrontendExtension(name)) return error.ExtensionNotLowered;
             if (isMagicSymbol(name)) return id;
             if (env.get(node.payload)) |bound| {
-                platform.debug.print("[DEBUG eval] sym '{s}' trouvé dans env, valeur={d}\n", .{ name, bound });
+                //platform.debug.print("[DEBUG eval] sym '{s}' trouvé dans env, valeur={d}\n", .{ name, bound });
                 return bound;
             }
-            platform.debug.print("[DEBUG eval] sym '{s}' NON trouvé dans env\n", .{name});
+            //platform.debug.print("[DEBUG eval] sym '{s}' NON trouvé dans env\n", .{name});
             return error.UnboundVariable;
         },
         .apply => {

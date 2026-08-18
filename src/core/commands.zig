@@ -3,7 +3,6 @@
 
 const std = @import("std");
 const expr = @import("expr");
-//const bridge = @import("bridge_expr");
 const ShellParser = @import("shell_parser").ShellParser;
 
 const Allocator = std.mem.Allocator;
@@ -32,18 +31,12 @@ const parse_mod = @import("parse");
 const math_mod = @import("math");
 const proof_helpers_mod = @import("proof_helpers");
 const simplify_engine_mod = @import("simplify_engine");
-const mlcpd_mod = @import("mlcpd");
-const mlcpd_equiv_mod = @import("mlcpd_equiv");
-const universal_translator = @import("universal_translator");
-const mlcpd = @import("mlcpd");
 
 pub const HeavenError = error{
     ExtensionNotLowered,
-
     EvaluationFailed,
     OutOfMemory,
     InvalidInput,
-
     UnsupportedExpr,
     UnknownVariable,
     TypeMismatch,
@@ -78,7 +71,7 @@ pub const HeavenError = error{
     InvalidTypeAnn,
     CannotLowerFrontendTag,
     InvalidLambda,
-} || std.mem.Allocator.Error || platform.fs.File.OpenError || platform.fs.File.ReadError || mir.MirError || engine_expr.EvalError;
+} || std.mem.Allocator.Error || mir.MirError || engine_expr.EvalError;
 
 pub const Commands = struct {
     store: *Store,
@@ -140,18 +133,14 @@ pub const Commands = struct {
 
     pub fn deinit(self: *Commands) void {
         self.shell_parser.deinit();
-        // ... reste du deinit ...
     }
 
     pub fn initDefaultRules(self: *Commands) !void {
         const rules = [_]struct { op: []const u8, a_is_var: bool, b_val: i64, result_is_var: bool }{
-            // x + 0 = x  ET  0 + x = x
             .{ .op = "+", .a_is_var = true, .b_val = 0, .result_is_var = true },
-            .{ .op = "+", .a_is_var = false, .b_val = 0, .result_is_var = true }, // 0 + x (ordre canonique)
-            // x * 1 = x  ET  1 * x = x
+            .{ .op = "+", .a_is_var = false, .b_val = 0, .result_is_var = true },
             .{ .op = "*", .a_is_var = true, .b_val = 1, .result_is_var = true },
             .{ .op = "*", .a_is_var = false, .b_val = 1, .result_is_var = true },
-            // x * 0 = 0
             .{ .op = "*", .a_is_var = true, .b_val = 0, .result_is_var = false },
             .{ .op = "*", .a_is_var = false, .b_val = 0, .result_is_var = false },
         };
@@ -167,7 +156,6 @@ pub const Commands = struct {
             const rule = try self.store.relation("=>", &.{ lhs, rhs }, &.{});
             try self.kb.rules.append(self.allocator, rule);
         }
-        // - x 0 = x
         {
             const x = try self.store.sym("x");
             const zero = try self.store.int(0);
@@ -183,16 +171,14 @@ pub const Commands = struct {
         const actual = if (trimmed0.len > 0 and trimmed0[0] == ':') trimmed0[1..] else trimmed0;
         const trimmed = std.mem.trim(u8, actual, " \t\r\n");
 
-        //IGNORER LES DÉCLARATIONS DE TYPES POUR L'INSTANT
         if (std.mem.startsWith(u8, trimmed, "module ") or
             std.mem.startsWith(u8, trimmed, "data ") or
             std.mem.startsWith(u8, trimmed, "zero :") or
             std.mem.startsWith(u8, trimmed, "succ :"))
         {
-            return try self.allocator.dupe(u8, "()"); // On avale la ligne sans faire rien
+            return try self.allocator.dupe(u8, "()");
         }
 
-        // INTERCEPTIONS SPÉCIALES
         if (std.mem.startsWith(u8, trimmed, "let actor ")) {
             return self.evalActorDef(trimmed["let actor ".len..], self.env);
         }
@@ -200,26 +186,20 @@ pub const Commands = struct {
             return self.evalMacroDef(trimmed["let macro ".len..]);
         }
 
-        // === INTERCEPTION POUR LE FRAMEWORK DE TEST NATIF ===
         if (std.mem.startsWith(u8, trimmed, "(test ") or std.mem.startsWith(u8, trimmed, "(assert_eq ")) {
             const id = try self.parser.parseSExpr(trimmed);
             self.engine.fuel = 1_000_000;
             const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch id;
             return expr.toStringInfix(self.store, result, self.allocator);
         }
-        // ======================================================
 
-        // === INTERCEPTION POUR LES EFFETS ALGÉBRIQUES ===
         if (std.mem.startsWith(u8, trimmed, "(handle ") or std.mem.startsWith(u8, trimmed, "(perform ")) {
             const id = try self.parser.parseSExpr(trimmed);
             self.engine.fuel = 1_000_000;
             const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch id;
             return expr.toStringInfix(self.store, result, self.allocator);
         }
-        // ========================================================
 
-        // NOUVELLE INTERCEPTION HAUTE : Toutes les S-expr (commençant par '(')
-        // On les délègue au parseur S-expr robuste avant d'appeler les parsers mathématiques ou Tree-sitter
         if (trimmed.len >= 2 and trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
             const id = try self.parser.parseSExpr(trimmed);
             self.engine.fuel = 1_000_000;
@@ -227,13 +207,10 @@ pub const Commands = struct {
             return expr.toStringInfix(self.store, result, self.allocator);
         }
 
-        // === INTERCEPTION POUR LE WALRUS OPERATOR := ===
         if (std.mem.indexOf(u8, trimmed, ":=") != null) {
             return self.evalLet(trimmed);
         }
-        // =================================================
 
-        // Detect function definition: "name pat1 pat2 = body"
         const eq_idx = blk: {
             var i: usize = 0;
             while (i < trimmed.len) {
@@ -249,7 +226,6 @@ pub const Commands = struct {
             break :blk null;
         };
         if (eq_idx) |eq_pos| {
-            // Ne pas traiter comme définition si c'est une lambda
             const is_lambda = std.mem.startsWith(u8, trimmed, "fun ") or
                 std.mem.startsWith(u8, trimmed, "λ ") or
                 std.mem.startsWith(u8, trimmed, "fn(") or
@@ -271,7 +247,6 @@ pub const Commands = struct {
                 !std.mem.startsWith(u8, trimmed, "explain ") and
                 !std.mem.startsWith(u8, trimmed, "expand ") and
                 !std.mem.startsWith(u8, trimmed, "optimize ") and
-                !std.mem.startsWith(u8, trimmed, "profile ") and
                 !std.mem.startsWith(u8, trimmed, "trace ") and
                 !std.mem.startsWith(u8, trimmed, "qtt ") and
                 !std.mem.startsWith(u8, trimmed, "mir ") and
@@ -282,15 +257,13 @@ pub const Commands = struct {
                 !std.mem.startsWith(u8, trimmed, "skill ") and
                 !std.mem.startsWith(u8, trimmed, "ask ") and
                 !std.mem.startsWith(u8, trimmed, "js ") and
-                !std.mem.startsWith(u8, trimmed, "quote ") and
-                !std.mem.startsWith(u8, trimmed, "equiv "))
+                !std.mem.startsWith(u8, trimmed, "quote "))
             {
                 const lhs = std.mem.trim(u8, trimmed[0..eq_pos], " ");
                 var token_count: usize = 0;
                 var tok_it = std.mem.tokenizeScalar(u8, lhs, ' ');
                 while (tok_it.next()) |_| token_count += 1;
 
-                // Ajouter la détection des parenthèses
                 if (token_count >= 2 or std.mem.indexOfScalar(u8, lhs, '(') != null) {
                     if (!is_lambda) {
                         return self.evalFnDef(trimmed);
@@ -299,7 +272,6 @@ pub const Commands = struct {
             }
         }
 
-        // Court-circuit pour les primitives d'acteurs
         if (std.mem.startsWith(u8, trimmed, "send(") or
             std.mem.startsWith(u8, trimmed, "spawn(") or
             std.mem.startsWith(u8, trimmed, "state("))
@@ -313,11 +285,7 @@ pub const Commands = struct {
             };
             return expr.toString(self.store, result, self.allocator);
         }
-        // ====================================================
 
-        // Try function call
-        // On n'utilise tryFnCall que s'il n'y a pas de parenthèses
-        // car tryFnCall découpe par espaces et casserait les S-expr comme (succ n)
         if (std.mem.indexOfScalar(u8, trimmed, '(') == null) {
             if (self.tryFnCall(trimmed)) |result| return result;
         }
@@ -326,7 +294,6 @@ pub const Commands = struct {
         if (std.mem.eql(u8, trimmed, "stats")) return self.evalStats();
         if (std.mem.eql(u8, trimmed, "theorems")) return self.evalTheorems();
         if (std.mem.startsWith(u8, trimmed, "let ")) return self.evalLet(trimmed["let ".len..]);
-        //if (std.mem.startsWith(u8, trimmed, "load ")) return self.loadFile(trimmed["load ".len..]);
         if (std.mem.startsWith(u8, trimmed, "transform ")) return try self.evalTransform(trimmed["transform ".len..]);
         if (std.mem.startsWith(u8, trimmed, "eval ")) return self.evalSExpr(trimmed["eval ".len..]);
         if (std.mem.startsWith(u8, trimmed, "theorem ")) return self.evalTheorem(trimmed["theorem ".len..]);
@@ -344,7 +311,6 @@ pub const Commands = struct {
             const lhs = self.parseExpression(lhs_str) catch return self.allocator.dupe(u8, "parse error in lhs");
             const rhs = self.parseExpression(rhs_str) catch return self.allocator.dupe(u8, "parse error in rhs");
 
-            // CORRECTION : Canonicaliser la règle pour qu'elle matche les expressions canonisées
             const lhs_canon = try canon_mod.canonicalize(self.store, self.allocator, lhs);
             const rhs_canon = try canon_mod.canonicalize(self.store, self.allocator, rhs);
 
@@ -357,7 +323,6 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "explain ")) return self.evalExplain(trimmed["explain ".len..]);
         if (std.mem.startsWith(u8, trimmed, "expand ")) return self.evalExpand(trimmed["expand ".len..]);
         if (std.mem.startsWith(u8, trimmed, "optimize ")) return self.evalOptimize(trimmed["optimize ".len..]);
-        //if (std.mem.startsWith(u8, trimmed, "profile ")) return self.evalProfile(trimmed["profile ".len..]);
         if (std.mem.startsWith(u8, trimmed, "trace ")) return self.evalTrace(trimmed["trace ".len..]);
         if (std.mem.startsWith(u8, trimmed, "qtt ")) return self.evalQtt(trimmed["qtt ".len..]);
         if (std.mem.startsWith(u8, trimmed, "mir ")) return self.evalMir(trimmed["mir ".len..]);
@@ -365,9 +330,9 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "derive ")) return self.math.derive(trimmed["derive ".len..], "x") catch self.allocator.dupe(u8, "0");
         if (std.mem.startsWith(u8, trimmed, "integrate ")) return try self.math.integrate(trimmed["integrate ".len..], "x");
         if (std.mem.startsWith(u8, trimmed, "asm ")) return self.evalAsm(trimmed["asm ".len..]);
-        //if (std.mem.startsWith(u8, trimmed, "green ")) return self.evalGreen(trimmed["green ".len..]);
+        if (std.mem.startsWith(u8, trimmed, "ask ")) return self.evalAsk(trimmed["ask ".len..]);
+        if (std.mem.startsWith(u8, trimmed, "js ")) return self.evalJs(trimmed["js ".len..]);
 
-        // derive(<expr>, <var>)
         if (std.mem.startsWith(u8, trimmed, "derive(")) {
             const rest = trimmed["derive(".len..];
             if (std.mem.endsWith(u8, rest, ")")) {
@@ -379,7 +344,6 @@ pub const Commands = struct {
                 }
             }
         }
-        // solve(<equation>, <var>)
         if (std.mem.startsWith(u8, trimmed, "solve(")) {
             const rest = trimmed["solve(".len..];
             if (std.mem.endsWith(u8, rest, ")")) {
@@ -391,7 +355,6 @@ pub const Commands = struct {
                 }
             }
         }
-        // integrate(<expr>, <var>)
         if (std.mem.startsWith(u8, trimmed, "integrate(")) {
             const rest = trimmed["integrate(".len..];
             if (std.mem.endsWith(u8, rest, ")")) {
@@ -404,24 +367,15 @@ pub const Commands = struct {
             }
         }
 
-        //if (std.mem.startsWith(u8, trimmed, "ask ")) return self.evalAsk(trimmed["ask ".len..]);
-        //if (std.mem.startsWith(u8, trimmed, "equiv ")) return self.evalEquiv(trimmed["equiv ".len..]);
-        //if (std.mem.startsWith(u8, trimmed, "js ")) return self.evalJs(trimmed["js ".len..]);
-
-        // === Parser avec tree-sitter ===
         if (self.parseExpression(trimmed)) |expr_id| {
             const lowered = try self.store.lowerRec(expr_id);
             self.engine.fuel = 1_000_000;
-            const result = engine_expr.evaluate(self.store, self.env, self.engine, lowered, 0) catch |err| { // <-- Utilisez 'lowered'
+            const result = engine_expr.evaluate(self.store, self.env, self.engine, lowered, 0) catch |err| {
                 return try std.fmt.allocPrint(self.allocator, "eval error: {}", .{err});
             };
             return expr.toStringInfix(self.store, result, self.allocator);
-        } else |_| {
-            // Si parseExpression échoue, continuer vers le fallback
-        }
-        // ================================================
+        } else |_| {}
 
-        // Lambda ou Expression mathématique
         self.engine.fuel = 1_000_000;
         const id0 = if (self.bridge.importExpr(input)) |id| id else |_| blk: {
             break :blk self.bridge.importExpr(input) catch {
@@ -436,7 +390,6 @@ pub const Commands = struct {
         return expr.toStringInfix(self.store, canon, self.allocator);
     }
 
-    // ─── Commandes simples ───
     fn evalHelp(self: *Commands) ![]u8 {
         return try self.allocator.dupe(u8, "═══ Heaven ═══\n" ++
             "  help, stats, theorems\n" ++
@@ -452,15 +405,13 @@ pub const Commands = struct {
             "  plot <function>\n" ++
             "  latex <expr>\n" ++
             "  explain <expr>\n" ++
-            "  profile <expr>\n" ++
             "  trace <expr>\n" ++
             "  let <var> = <expr>\n");
     }
 
     fn evalStats(self: *Commands) ![]u8 {
-        return try self.allocator.dupe(u8, "═══ Heaven WASM ═══\n" ++
-            "Engine: active\n" ++
-            "Features: eval, type, simplify, explain, latex, quote, prove");
+        _ = self;
+        return try std.mem.Allocator.dupe(std.heap.page_allocator, u8, "═══ Heaven ═══\nEngine: active\nFeatures: eval, type, simplify, explain, latex, quote, prove");
     }
 
     fn evalSimplify(self: *Commands, input: []const u8) ![]u8 {
@@ -560,7 +511,6 @@ pub const Commands = struct {
         return count;
     }
 
-    // ─── Define ───
     pub fn define(self: *Commands, name: []const u8, value_text: []const u8) ![]u8 {
         const val_id = try self.bridge.importExpr(value_text);
         self.engine.fuel = 10_000;
@@ -571,9 +521,7 @@ pub const Commands = struct {
     }
 
     fn tryFnCall(self: *Commands, input: []const u8) ?[]u8 {
-        // if (true) return null;
         if (input.len == 0 or input[0] == '(' or std.ascii.isDigit(input[0])) return null;
-        // Cas 1: name(args)
         if (std.mem.indexOfScalar(u8, input, '(')) |paren_idx| {
             const before_paren = input[0..paren_idx];
             if (std.mem.indexOfScalar(u8, before_paren, ' ') == null) {
@@ -624,7 +572,6 @@ pub const Commands = struct {
                 return expr.toString(self.store, result, self.allocator) catch return null;
             }
         }
-        // Cas 2: name arg1 arg2 ...
         const space_idx = std.mem.indexOfScalar(u8, input, ' ') orelse return null;
         const name = input[0..space_idx];
         if (self.engine.fns.getEntry(name) == null) {
@@ -697,7 +644,6 @@ pub const Commands = struct {
             break :blk try self.store.sym(rhs);
         };
 
-        // Créer l'acteur directement dans le moteur
         const new_actor_id = self.engine.next_actor_id;
         self.engine.next_actor_id += 1;
         try self.engine.actors.put(self.engine.allocator, new_actor_id, .{
@@ -706,7 +652,6 @@ pub const Commands = struct {
         });
         const actor_id = try self.store.int(@intCast(new_actor_id));
 
-        // OBLIGATOIRE : Lier le nom de l'acteur à son ID dans l'environnement
         const actor_sym = try self.store.interner.intern(name);
         try env.put(actor_sym, actor_id);
 
@@ -714,7 +659,6 @@ pub const Commands = struct {
     }
 
     fn evalMacroDef(self: *Commands, input: []const u8) ![]u8 {
-        // Format attendu: name(params) = body
         const eq_pos = std.mem.indexOfScalar(u8, input, '=') orelse return self.allocator.dupe(u8, "syntax error: missing '='");
         const lhs = std.mem.trim(u8, input[0..eq_pos], " ");
         const rhs = std.mem.trim(u8, input[eq_pos + 1 ..], " ");
@@ -725,7 +669,6 @@ pub const Commands = struct {
         const name = std.mem.trim(u8, lhs[0..paren_pos], " ");
         const params_str = std.mem.trim(u8, lhs[paren_pos + 1 .. lhs.len - 1], " ");
 
-        // Créer les symboles des paramètres
         var param_ids: std.ArrayListUnmanaged(Id) = .{};
         defer param_ids.deinit(self.allocator);
         var it = std.mem.tokenizeAny(u8, params_str, " ,");
@@ -734,17 +677,14 @@ pub const Commands = struct {
         }
         const params_span = try self.store.pushSpan(param_ids.items);
 
-        // Parser le corps de la macro (qui devrait contenir un quote)
         const body_id = try self.parser.parseSExpr(rhs);
 
-        // Enregistrer dans le moteur en utilisant le Sym du nom comme clé
         const name_sym = try self.store.interner.intern(name);
         try self.engine.macros.put(self.allocator, name_sym, .{ .params_span = params_span, .body = body_id });
 
         return std.fmt.allocPrint(self.allocator, "macro {s} defined", .{name});
     }
 
-    /// Transforme un raccourci lambda (fn(x) body) en une définition de fonction standard (name x = body)
     fn parseLambdaShortcut(self: *Commands, name: []const u8, expr_str: []const u8) HeavenError![]u8 {
         const open = std.mem.indexOfScalar(u8, expr_str, '(') orelse return self.allocator.dupe(u8, "syntax error: missing '(' in fn");
         const close = std.mem.indexOfScalar(u8, expr_str, ')') orelse return self.allocator.dupe(u8, "syntax error: missing ')' in fn");
@@ -766,7 +706,6 @@ pub const Commands = struct {
         var lhs = std.mem.trim(u8, input[0..eq_pos], " ");
         const rhs = std.mem.trim(u8, input[eq_pos + 1 ..], " ");
 
-        // Gérer le walrus operator := (on enlève le ':' à la fin du nom)
         if (lhs.len > 0 and lhs[lhs.len - 1] == ':') {
             lhs = std.mem.trim(u8, lhs[0 .. lhs.len - 1], " ");
         }
@@ -774,13 +713,11 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, lhs, "fn ")) lhs = std.mem.trim(u8, lhs[3..], " ");
         if (std.mem.startsWith(u8, lhs, "let ")) lhs = std.mem.trim(u8, lhs[4..], " ");
 
-        // Si le côté droit est un raccourci lambda (ex: "fn(x) (* x 3)"), on le transforme !
         if (std.mem.startsWith(u8, rhs, "fn ") or std.mem.startsWith(u8, rhs, "fn(")) {
             const name = if (std.mem.indexOfScalar(u8, lhs, ' ')) |space| lhs[0..space] else lhs;
             return self.parseLambdaShortcut(name, rhs);
         }
 
-        // MODIFICATION: Convertir f(x, y) en f x y pour que parseSExpr l'interprète correctement
         var owned_lhs: ?[]u8 = null;
         defer if (owned_lhs) |s| self.allocator.free(s);
         if (std.mem.indexOfScalar(u8, lhs, '(') != null) {
@@ -801,7 +738,6 @@ pub const Commands = struct {
             lhs = owned_lhs.?;
         }
 
-        // ON PARSE LE CÔTÉ GAUCHE COMME UNE S-EXPR !
         const wrapped_lhs = try std.fmt.allocPrint(self.allocator, "({s})", .{lhs});
         defer self.allocator.free(wrapped_lhs);
 
@@ -811,7 +747,6 @@ pub const Commands = struct {
 
         const lhs_node = self.store.get(lhs_id);
 
-        // Si c'est juste un symbole (ex: "fac")
         if (lhs_node.tag == .sym) {
             const name = self.store.interner.resolve(lhs_node.payload);
             const body_id = self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
@@ -825,7 +760,6 @@ pub const Commands = struct {
                 return std.fmt.allocPrint(self.allocator, "registration error: {s}", .{@errorName(err)});
             };
 
-            // CORRECTION : Enregistrer le SYMBOLE de la fonction dans l'environnement, pas le corps !
             const name_sym = try self.store.interner.intern(name);
             const name_sym_id = try self.store.sym(name);
             try self.env.put(name_sym, name_sym_id);
@@ -833,19 +767,15 @@ pub const Commands = struct {
             return std.fmt.allocPrint(self.allocator, "{s} defined", .{name});
         }
 
-        // Si c'est une application (ex: add (succ n) m ou f(x))
         if (lhs_node.tag == .apply) {
             const func_sym_node = self.store.get(lhs_node.payload);
             if (func_sym_node.tag != .sym) return self.allocator.dupe(u8, "syntax error: function name must be a symbol");
             const name = self.store.interner.resolve(func_sym_node.payload);
 
-            // Récupérer les arguments depuis span_a
             const pool = self.store.pool.items;
             const arg_span = lhs_node.span_a.slice(pool);
             const num_args = arg_span.len;
 
-            // Si le premier argument est un symbole avec le même nom que la fonction,
-            // on le saute (c'est un artefact de parseSExpr)
             var patterns_start: usize = 0;
             if (num_args > 0) {
                 const first = arg_span[0];
@@ -907,14 +837,12 @@ pub const Commands = struct {
             s = inner_trim;
         }
 
-        // Si c'est une lambda seule (λx.x)
         if (std.mem.startsWith(u8, s, "λ") or std.mem.startsWith(u8, s, "\\")) {
             const wrapped = try std.fmt.allocPrint(self.allocator, "({s})", .{s});
             defer self.allocator.free(wrapped);
             return try self.parseLambda(wrapped);
         }
 
-        // Sinon, chercher une lambda dans l'expression
         var start: ?usize = null;
         if (std.mem.indexOf(u8, trimmed, "(λ")) |pos| {
             start = pos;
@@ -955,12 +883,10 @@ pub const Commands = struct {
         return try self.store.apply(lambda_id, &.{arg_id});
     }
 
-    /// Fallback WASM : parse les applications `name arg1 arg2` et appels `name(args)`.
     fn parseApplication(self: *Commands, input: []const u8) anyerror!Id {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return error.InvalidSyntax;
 
-        // ── Cas 1 : appel C-style `name(arg1, arg2)` ──
         if (std.mem.indexOfScalar(u8, trimmed, '(')) |open| {
             if (std.mem.lastIndexOfScalar(u8, trimmed, ')')) |close| {
                 if (close > open) {
@@ -986,7 +912,6 @@ pub const Commands = struct {
             }
         }
 
-        // ── Cas 2 : application ML-style `name arg1 arg2` ──
         var tokens: [16][]const u8 = undefined;
         var num_tokens: usize = 0;
         var tok_it = std.mem.tokenizeScalar(u8, trimmed, ' ');
@@ -998,7 +923,6 @@ pub const Commands = struct {
         }
         if (num_tokens < 2) return error.InvalidSyntax;
         if (!isIdent(tokens[0])) return error.InvalidSyntax;
-        // Refuser si un token est un opérateur (sinon c'est de l'infixe, géré par importExpr)
         for (tokens[0..num_tokens]) |tok| {
             if (isOperatorTok(tok)) return error.InvalidSyntax;
         }
@@ -1028,7 +952,6 @@ pub const Commands = struct {
     }
 
     fn parseExpression(self: *Commands, input: []const u8) anyerror!Id {
-        // 1. Essayer tree-sitter d'abord
         if (self.shell_parser.parse(input)) |matrix| {
             defer self.shell_parser.reset();
 
@@ -1041,21 +964,15 @@ pub const Commands = struct {
                 var bridge = @import("bridge_expr").Bridge.init(self.store, self.allocator);
                 if (bridge.translateOne(actual_node)) |id| {
                     return id;
-                } else |_| {
-                    // Bridge a échoué, continuer vers le fallback
-                }
+                } else |_| {}
             }
-        } else |_| {
-            // tree-sitter.parse() a échoué
-        }
+        } else |_| {}
 
-        // AJOUT : Si ça commence par '(', on utilise le parseur S-expr (Lisp) qui gère les espaces
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len >= 2 and trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
             return self.parser.parseSExpr(trimmed);
         }
 
-        // AJOUT : Si ça contient un espace et un opérateur, c'est une opération binaire infixe
         if (std.mem.indexOfScalar(u8, trimmed, ' ')) |space1| {
             if (space1 + 1 < trimmed.len) {
                 const op_start = space1 + 1;
@@ -1073,21 +990,17 @@ pub const Commands = struct {
             }
         }
 
-        // 2. Fallback application/appel (WASM)
         if (self.parseApplication(input)) |id| {
             return id;
         } else |_| {}
 
-        // 3. Fallback sur l'ancien parser (bridge.importExpr)
         if (std.fmt.parseInt(i64, trimmed, 10)) |val| {
             return self.store.int(val);
         } else |_| {}
         return self.store.sym(trimmed);
     }
 
-    /// Vérifie récursivement si une Matrix contient un vrai nœud d'erreur tree-sitter
     fn hasErrorNode(self: *Commands, node: *const @import("bridge_expr").Matrix) bool {
-        // On ne rejette que les erreurs explicites de tree-sitter, pas les nœuds non mappés (.unknown)
         if (node.kind == .err_node) {
             return true;
         }
@@ -1097,8 +1010,6 @@ pub const Commands = struct {
         return false;
     }
 
-    /// Parse `nom(arg1, arg2, ...)` et construit un nœud .apply.
-    /// Nécessaire car importExpr ne gère pas la syntaxe d'appel C-style.
     fn parseCallExpr(self: *Commands, input: []const u8) !Id {
         const open = std.mem.indexOfScalar(u8, input, '(') orelse return error.InvalidSyntax;
         const close = std.mem.lastIndexOfScalar(u8, input, ')') orelse return error.InvalidSyntax;
@@ -1155,7 +1066,6 @@ pub const Commands = struct {
         }
         if (s.len == 0) return error.InvalidLambda;
 
-        // Utiliser std.mem.startsWith pour détecter λ ou \
         if (!std.mem.startsWith(u8, s, "λ") and !std.mem.startsWith(u8, s, "\\")) {
             return error.InvalidLambda;
         }
@@ -1187,7 +1097,6 @@ pub const Commands = struct {
         return try self.store.lambdaNative(&.{param_name}, body_id);
     }
 
-    // ─── Types ───
     pub fn typeOf(self: *Commands, input: []const u8) ![]u8 {
         const trimmed = std.mem.trim(u8, input, " \t");
         const id = blk: {
@@ -1205,7 +1114,6 @@ pub const Commands = struct {
         return inf.typeStr(&inf.subst, t, self.allocator);
     }
 
-    // ─── Simplify ───
     pub fn simplify(self: *Commands, input: []const u8) ![]u8 {
         const id = try self.bridge.importExpr(input);
         var current = id;
@@ -1215,7 +1123,6 @@ pub const Commands = struct {
         while (changed and iterations < 50) : (iterations += 1) {
             changed = false;
 
-            // Appliquer les règles de réécriture (kb.rules)
             for (self.kb.rules.items) |rule_id| {
                 if (rule_id >= self.store.len()) continue;
                 const rule_node = self.store.get(rule_id);
@@ -1237,7 +1144,6 @@ pub const Commands = struct {
                 }
             }
 
-            // Simplification mathématique de base (const folding, x+0→x, x*1→x)
             const math_simplified = try self.math.simplifyMath(current);
             if (math_simplified != current) {
                 current = math_simplified;
@@ -1291,7 +1197,6 @@ pub const Commands = struct {
         const node = self.store.get(id);
         var current = id;
 
-        // 1. Simplifier les enfants d'abord
         if (node.tag == .apply) {
             const func_id = node.payload;
             const args_span = node.span_a;
@@ -1300,7 +1205,6 @@ pub const Commands = struct {
                 const arg0 = old_args[0];
                 const arg1 = old_args[1];
 
-                // Appel récursif sur les enfants
                 const new_func = try self.simplifyRec(func_id, depth + 1);
                 const new_l = try self.simplifyRec(arg0, depth + 1);
                 const new_r = try self.simplifyRec(arg1, depth + 1);
@@ -1315,14 +1219,12 @@ pub const Commands = struct {
             }
         }
 
-        // 2. Boucle de réécriture
         var changed = true;
         var iterations: u32 = 0;
         while (changed and iterations < 10) : (iterations += 1) {
             changed = false;
             if (current >= self.store.len()) break;
 
-            // CORRECTION : Canonicaliser 'current' pour qu'il ait la même forme que les règles
             const canon_current = try canon_mod.canonicalize(self.store, self.allocator, current);
 
             for (self.kb.rules.items) |rule_id| {
@@ -1337,7 +1239,6 @@ pub const Commands = struct {
                 var bindings: std.AutoHashMapUnmanaged(u32, Id) = .{};
                 defer bindings.deinit(self.allocator);
 
-                // CORRECTION : Matcher sur 'canon_current' au lieu de 'id'
                 if (pattern_mod.exprPatternMatch(self.store, lhs_id, canon_current, &bindings, self.allocator)) {
                     const new_id = try pattern_mod.substitutePattern(self.store, rhs_id, &bindings, self.allocator);
                     if (new_id < self.store.len()) {
@@ -1349,7 +1250,6 @@ pub const Commands = struct {
             }
         }
 
-        // 3. Évaluation finale si numérique
         if (current < self.store.len()) {
             self.engine.fuel = 100;
             const folded = engine_expr.evaluate(self.store, self.env, self.engine, current, 0) catch current;
@@ -1378,7 +1278,6 @@ pub const Commands = struct {
         };
     }
 
-    // ─── Codegen wrappers ───
     pub fn toC(self: *Commands, ids: []const Id) ![]u8 {
         var cg = codegen_c.Codegen.init(self.store, self.allocator);
         defer cg.deinit();
@@ -1434,7 +1333,6 @@ pub const Commands = struct {
         const trimmed = std.mem.trim(u8, input, " \t\n\r");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "()");
 
-        // parseExpression gère tree-sitter (natif) + fallbacks (WASM)
         const expr_id = self.parseExpression(trimmed) catch return error.InvalidSyntax;
         self.engine.fuel = 1_000_000;
         const result = engine_expr.evaluate(self.store, self.env, self.engine, expr_id, 0) catch expr_id;
@@ -1818,7 +1716,6 @@ pub const Commands = struct {
                 induction_var = std.mem.trim(u8, rest[on_pos + 4 ..], " ");
             }
 
-            // On libère l'ancien théorème actif ICI SEULEMENT (avant de le remplacer)
             if (self.active_theorem.*) |old| self.allocator.free(old);
             self.active_theorem.* = try self.allocator.dupe(u8, name);
 
@@ -1885,7 +1782,6 @@ pub const Commands = struct {
             return expr.toStringInfix(self.store, result, self.allocator);
         }
 
-        // Gestion du walrus operator :=
         const op_len: usize = if (std.mem.startsWith(u8, input, ":=")) 2 else 1;
         var eq_pos: ?usize = null;
         var i: usize = input.len;
@@ -1911,8 +1807,6 @@ pub const Commands = struct {
                 return self.evalFnDef(fn_def_str);
             }
 
-            // Si le nom contient des espaces, c'est une définition de fonction avec patterns
-            // ex: "triple x := (* x 3)" → "triple x = (* x 3)"
             if (std.mem.indexOfScalar(u8, name, ' ') != null) {
                 const fn_def_str = try std.fmt.allocPrint(self.allocator, "{s} = {s}", .{ name, expr_str });
                 defer self.allocator.free(fn_def_str);
@@ -1983,57 +1877,6 @@ pub const Commands = struct {
         var tf = transform_mod.Transform.init(self.allocator, self.store, self.kb);
         const result = tf.transform(lhs_id, rhs_id, self.engine);
         return transform_mod.format(result, self.store, self.allocator);
-    }
-
-    // ─── Helpers preuve ───
-    fn parseProofBlock(allocator: Allocator, text: []const u8) ?*const proof_core.ProofTerm {
-        if (std.mem.indexOf(u8, text, "qed") != null) {
-            const pt = allocator.create(proof_core.ProofTerm) catch return null;
-            if (std.mem.indexOf(u8, text, "refl") != null) pt.* = .{ .refl = 0 } else if (std.mem.indexOf(u8, text, "apply") != null) pt.* = .{ .by_eval = .{ .lhs = 0, .rhs = 0 } } else pt.* = .{ .qed = {} };
-            return pt;
-        }
-        return null;
-    }
-
-    fn extractEqArgs(store: *Store, id: Id) ?struct { lhs: Id, rhs: Id } {
-        const node = store.get(id);
-        const pool = store.pool.items;
-        if (node.tag == .source_file) {
-            const children = node.span_a.slice(pool);
-            if (children.len == 0) return null;
-            return extractEqArgs(store, children[0]);
-        }
-        if (node.tag == .bind) return extractEqArgs(store, node.aux);
-        if (node.tag != .apply) return null;
-        const func_node = store.get(node.payload);
-        if (func_node.tag != .sym) return null;
-        const name = store.interner.resolve(func_node.payload);
-        const args = node.span_a.slice(pool);
-        if (std.mem.eql(u8, name, "Eq") and args.len == 2) return .{ .lhs = args[0], .rhs = args[1] };
-        if (std.mem.eql(u8, name, "forall") and args.len >= 1) return extractEqArgs(store, args[args.len - 1]);
-        if (std.mem.eql(u8, name, "->") and args.len == 2) return extractEqArgs(store, args[1]);
-        return null;
-    }
-
-    fn copyId(src: *Store, dst: *Store, id: Id) !Id {
-        const node = src.get(id);
-        const pool = src.pool.items;
-        switch (node.tag) {
-            .sym => return dst.sym(src.interner.resolve(node.payload)),
-            .lit => return dst.lit(src.lits.items[node.aux]),
-            .apply => {
-                const func = try copyId(src, dst, node.payload);
-                var args: std.ArrayListUnmanaged(Id) = .{};
-                defer args.deinit(dst.allocator);
-                for (node.span_a.slice(pool)) |arg| try args.append(dst.allocator, try copyId(src, dst, arg));
-                return dst.apply(func, args.items);
-            },
-            .bind => {
-                const val = try copyId(src, dst, node.aux);
-                return dst.bind(src.interner.resolve(node.payload), val);
-            },
-            else => return dst.sym("<unsupported>"),
-        }
     }
 
     fn mkBinop(self: *Commands, op: []const u8, a: Id, b: Id) !Id {
