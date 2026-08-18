@@ -656,7 +656,9 @@ pub const Commands = struct {
                     eval_args[i] = expr_id;
                 }
                 self.engine.fuel = 1000_000;
-                const result = self.engine.evalFunction(potential_name, eval_args[0..num_args]) catch return null;
+                const sym_id = self.store.sym(potential_name) catch return null;
+                const call_id = self.store.apply(sym_id, eval_args[0..num_args]) catch return null;
+                const result = engine_expr.evaluate(self.store, self.env, self.engine, call_id, 0) catch return null;
                 return expr.toString(self.store, result, self.allocator) catch return null;
             }
         }
@@ -700,7 +702,9 @@ pub const Commands = struct {
             eval_args[i] = expr_id;
         }
         self.engine.fuel = 1000_000;
-        const result = self.engine.evalFunction(name, eval_args[0..num_args]) catch return null;
+        const sym_id = self.store.sym(name) catch return null;
+        const call_id = self.store.apply(sym_id, eval_args[0..num_args]) catch return null;
+        const result = engine_expr.evaluate(self.store, self.env, self.engine, call_id, 0) catch return null;
         return expr.toString(self.store, result, self.allocator) catch return null;
     }
 

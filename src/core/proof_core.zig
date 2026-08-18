@@ -8,7 +8,7 @@ const platform = @import("platform");
 const kernel = @import("kernel");
 const engine_expr = @import("engine_expr");
 
-const PROOF_DEBUG = true;
+const PROOF_DEBUG = false;
 
 pub const ProofTerm = union(enum) {
     refl: u32,
