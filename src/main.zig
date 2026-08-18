@@ -461,117 +461,13 @@ pub fn main() !void {
     loop_thread.detach();
 
     // Shell
-    // ─── Nouveau REPL basé sur Commands ───
+    // ─── Nouveau REPL basé sur le Shell officiel ───
     bobLog("CORE", "Système prêt. Entrée dans le Shell.", .{});
 
-    var env = engine_expr.Env.init(allocator);
-    defer env.deinit();
+    var shell = shell_lib.Shell.init(allocator, &matrix, &heaven_engine, &uni_ingest, port);
+    defer shell.deinit();
 
-    var engine = engine_expr.Engine{ .allocator = allocator };
-    engine.store = &store;
-    engine.env = &env;
-
-    var bridge = matrix_bridge_mod.MatrixBridge.init(&store, allocator);
-    defer bridge.deinit();
-
-    var parser = parse_mod.Parser.init(&store, &engine, &env, allocator);
-    defer parser.deinit();
-
-    var math_inst = math_mod.Math.init(&store, &engine, &bridge, &parser, allocator);
-    defer math_inst.deinit();
-
-    var kb = transform_mod.KnowledgeBase.init(allocator);
-    defer kb.deinit(allocator);
-
-    var skills = skill_lib.SkillRegistry.init(allocator);
-    defer skills.deinit();
-
-    var qtt_env = std.StringHashMapUnmanaged(u2){};
-    defer qtt_env.deinit(allocator);
-
-    var proof_core_inst = proof_core.ProofCore.init(allocator);
-    defer proof_core_inst.deinit();
-
-    var agent_inst = agent_mod.Agent.init(allocator);
-    defer agent_inst.deinit();
-
-    var active_theorem: ?[]const u8 = null;
-    defer if (active_theorem) |t| allocator.free(t);
-
-    var pending_proof_request: ?[]const u8 = null;
-    defer if (pending_proof_request) |t| allocator.free(t);
-
-    var cmds = try commands_mod.Commands.init(
-        &store,
-        &engine,
-        &env,
-        &bridge,
-        allocator,
-        &parser,
-        &math_inst,
-        &kb,
-        &skills,
-        &qtt_env,
-        &proof_core_inst,
-        &agent_inst,
-        &active_theorem,
-        &pending_proof_request,
-    );
-    defer cmds.deinit();
-    try cmds.initDefaultRules();
-
-    // Boucle REPL
-    while (true) {
-        platform.io.print("heaven> ", .{});
-        const line = platform.readLine(allocator) catch break;
-        defer allocator.free(line);
-
-        const trimmed = std.mem.trim(u8, line, " \t\r");
-        if (trimmed.len == 0) continue;
-        if (std.mem.eql(u8, trimmed, ":exit") or std.mem.eql(u8, trimmed, ":q")) break;
-
-        // === 1. COUCHE SHELL : INTERCEPTION DES COMMANDES IO ===
-        if (std.mem.startsWith(u8, trimmed, "load ")) {
-            const path = std.mem.trim(u8, trimmed["load ".len..], " \t");
-            const file = platform.fs.cwd().openFile(path, .{}) catch |err| {
-                platform.io.print("Error opening {s}: {}\n", .{ path, err });
-                continue;
-            };
-            defer file.close();
-            const content = file.readToEndAlloc(allocator, 1024 * 1024) catch |err| {
-                platform.io.print("Error reading {s}: {}\n", .{ path, err });
-                continue;
-            };
-            defer allocator.free(content);
-
-            var lines = std.mem.splitScalar(u8, content, '\n');
-            var line_count: usize = 0;
-            while (lines.next()) |l| {
-                const l_trim = std.mem.trim(u8, l, " \t\r");
-                if (l_trim.len == 0 or l_trim[0] == '#' or std.mem.startsWith(u8, l_trim, "--")) continue;
-                line_count += 1;
-
-                // Le Shell délègue l'évaluation de la ligne au Cœur
-                const res = cmds.eval(l_trim) catch |err| {
-                    platform.io.print("  [Ligne {d}] Erreur: {}\n", .{ line_count, err });
-                    continue;
-                };
-                allocator.free(res);
-            }
-            platform.io.print("✓ fichier '{s}' chargé ({d} lignes)\n", .{ path, line_count });
-            continue;
-        }
-        // ========================================================
-
-        // === 2. COUCHE CŒUR : ÉVALUATION STANDARD ===
-        const result = cmds.eval(trimmed) catch |err| {
-            platform.io.print("error: {}\n", .{err});
-            continue;
-        };
-        defer allocator.free(result);
-
-        platform.io.print("→ {s}\n", .{result});
-    }
+    try shell.run();
 
     // 1. Signaler aux threads de s'arrêter
     exiting.store(true, .release);

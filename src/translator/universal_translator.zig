@@ -46,12 +46,12 @@ pub const MlcpdConverter = struct {
         const node_type_str = @tagName(matrix.kind);
 
         // DEBUG : afficher chaque nœud rencontré
-        // platform.debug.print("[MlcpdConverter] node_id={d} kind={s} text=\"{s}\"\n", .{ node_id, node_type_str, matrix.text orelse "<null>" });
+        platform.debug.print("[MlcpdConverter] node_id={d} kind={s} text=\"{s}\"\n", .{ node_id, node_type_str, matrix.text orelse "<null>" });
 
         const category = self.mapCategory(matrix.kind, node_type_str);
         const role = self.mapSemanticRole(matrix.kind, node_type_str, matrix.text);
 
-        // platform.debug.print("[MlcpdConverter]   → category={s} role={s}\n", .{ @tagName(category), @tagName(role) });
+        platform.debug.print("[MlcpdConverter]   → category={s} role={s}\n", .{ @tagName(category), @tagName(role) });
 
         const node = mlcpd_mod.MlcpdNode{
             .id = node_id,
@@ -87,15 +87,16 @@ pub const MlcpdConverter = struct {
     fn mapCategory(self: *MlcpdConverter, kind: NodeKind, node_type: []const u8) mlcpd_mod.NodeCategory {
         _ = self;
         _ = kind;
-        // Mapper par le nom tree-sitter (plus fiable que NodeKind)
         if (std.mem.eql(u8, node_type, "function_definition") or
-            std.mem.eql(u8, node_type, "function_declaration")) return .declaration;
+            std.mem.eql(u8, node_type, "function_declaration") or
+            std.mem.eql(u8, node_type, "fn_decl")) return .declaration;
         if (std.mem.eql(u8, node_type, "declaration") or
             std.mem.eql(u8, node_type, "variable_declaration")) return .declaration;
         if (std.mem.eql(u8, node_type, "binary_expression") or
             std.mem.eql(u8, node_type, "call_expression")) return .expression;
         if (std.mem.eql(u8, node_type, "identifier")) return .expression;
         if (std.mem.eql(u8, node_type, "number_literal") or
+            std.mem.eql(u8, node_type, "integer_literal") or
             std.mem.eql(u8, node_type, "string_literal") or
             std.mem.eql(u8, node_type, "true") or
             std.mem.eql(u8, node_type, "false")) return .expression;
@@ -110,13 +111,15 @@ pub const MlcpdConverter = struct {
         _ = kind;
         _ = text;
         if (std.mem.eql(u8, node_type, "function_definition") or
-            std.mem.eql(u8, node_type, "function_declaration")) return .function_decl;
+            std.mem.eql(u8, node_type, "function_declaration") or
+            std.mem.eql(u8, node_type, "fn_decl")) return .function_decl;
         if (std.mem.eql(u8, node_type, "declaration") or
             std.mem.eql(u8, node_type, "variable_declaration")) return .variable_decl;
         if (std.mem.eql(u8, node_type, "binary_expression")) return .binary_expr;
         if (std.mem.eql(u8, node_type, "call_expression")) return .call_expr;
         if (std.mem.eql(u8, node_type, "identifier")) return .identifier_expr;
         if (std.mem.eql(u8, node_type, "number_literal") or
+            std.mem.eql(u8, node_type, "integer_literal") or
             std.mem.eql(u8, node_type, "string_literal") or
             std.mem.eql(u8, node_type, "true") or
             std.mem.eql(u8, node_type, "false")) return .literal_expr;
@@ -139,33 +142,33 @@ pub const MlcpdToHeaven = struct {
     }
 
     pub fn convert(self: *MlcpdToHeaven, parsed: *mlcpd_mod.ParsedFile) !Id {
-        // platform.debug.print("[MlcpdToHeaven] Converting {d} nodes (bottom-up)\n", .{parsed.nodes.items.len});
+        platform.debug.print("[MlcpdToHeaven] Converting {d} nodes (bottom-up)\n", .{parsed.nodes.items.len});
 
         if (parsed.nodes.items.len == 0) {
-            // platform.debug.print("[MlcpdToHeaven] ERROR: No nodes to convert\n", .{});
+            platform.debug.print("[MlcpdToHeaven] ERROR: No nodes to convert\n", .{});
             return error.InvalidStructure;
         }
 
-        // CORRECTION BUG 1 : Traiter en ordre inverse (enfants d'abord, parents ensuite)
+        // Traiter en ordre inverse (enfants d'abord, parents ensuite)
         var i: usize = parsed.nodes.items.len;
         while (i > 0) {
             i -= 1;
             const node = parsed.nodes.items[i];
-            // platform.debug.print("[MlcpdToHeaven] Converting node {d}: role={s}, type={s}\n", .{ node.id, @tagName(node.role), node.node_type });
+            platform.debug.print("[MlcpdToHeaven] Converting node {d}: role={s}, type={s}\n", .{ node.id, @tagName(node.role), node.node_type });
 
-            const heaven_id = self.convertNode(parsed, node.id) catch {
-                // platform.debug.print("[MlcpdToHeaven] ERROR converting node {d}: {}\n", .{ node.id, err });
+            const heaven_id = self.convertNode(parsed, node.id) catch |err| {
+                platform.debug.print("[MlcpdToHeaven] ERROR converting node {d}: {any}\n", .{ node.id, err });
                 continue; // Skip ce nœud et continuer avec les autres
             };
             try parsed.node_to_expr.put(self.allocator, node.id, heaven_id);
         }
 
         const root_id = parsed.node_to_expr.get(0) orelse {
-            // platform.debug.print("[MlcpdToHeaven] ERROR: Root node not found in node_to_expr\n", .{});
+            platform.debug.print("[MlcpdToHeaven] ERROR: Root node not found in node_to_expr\n", .{});
             return error.InvalidStructure;
         };
 
-        // platform.debug.print("[MlcpdToHeaven] Root node converted to heaven_id={d}\n", .{root_id});
+        platform.debug.print("[MlcpdToHeaven] Root node converted to heaven_id={d}\n", .{root_id});
         return root_id;
     }
 
@@ -191,32 +194,32 @@ pub const MlcpdToHeaven = struct {
         const children = parsed.nodes.items[node.children_start..][0..node.children_count];
 
         var name_sym: ?expr.Sym = null;
-        var param_ids: std.ArrayList(Id) = .empty;
-        defer param_ids.deinit(self.allocator);
         var body_id: ?Id = null;
 
         for (children) |child| {
+            // Chercher le nom dans un fn_decl imbriqué (structure Heaven)
+            if (std.mem.eql(u8, child.node_type, "fn_decl")) {
+                const inner_children = parsed.nodes.items[child.children_start..][0..child.children_count];
+                for (inner_children) |inner_child| {
+                    if (inner_child.role == .identifier_expr) {
+                        name_sym = try self.store.interner.intern(inner_child.code_snippet);
+                    }
+                }
+            }
+            // Chercher le nom directement (structure tree-sitter standard)
             if (child.role == .identifier_expr and name_sym == null) {
                 name_sym = try self.store.interner.intern(child.code_snippet);
-            } else if (child.role == .parameter_decl) {
-                const param_child = self.findChildByRole(parsed, child.id, .identifier_expr);
-                if (param_child) |pc| {
-                    const param_sym = try self.store.interner.intern(pc.code_snippet);
-                    const param_sym_node = try self.store.addNode(.{
-                        .tag = .sym,
-                        .payload = param_sym,
-                        .aux = 0,
-                        .span_a = Span.EMPTY,
-                        .span_b = Span.EMPTY,
-                    });
-                    try param_ids.append(self.allocator, param_sym_node);
-                }
-            } else if (child.role == .block_stmt) {
+            }
+            // Chercher le corps dans un block
+            if (child.role == .block_stmt) {
                 body_id = parsed.node_to_expr.get(child.id);
             }
         }
 
-        const actual_name = name_sym orelse return error.InvalidStructure;
+        const actual_name = name_sym orelse {
+            platform.debug.print("[convertFunction] WARNING: no name found for node {d}, falling back to default\n", .{node_id});
+            return self.convertDefault(parsed, node_id);
+        };
         const actual_body = body_id orelse try self.store.addNode(.{
             .tag = .lit,
             .payload = 0,
@@ -225,27 +228,20 @@ pub const MlcpdToHeaven = struct {
             .span_b = Span.EMPTY,
         });
 
-        // Lambda : (lambda (params...) body)
-        var cur_body = actual_body;
-        var pi: usize = param_ids.items.len;
-        while (pi > 0) {
-            pi -= 1;
-            const param_node = self.store.get(param_ids.items[pi]);
-            const span = try self.store.reserveSpan(1);
-            self.store.pool.items[span.start] = cur_body;
-            cur_body = try self.store.addNode(.{
-                .tag = .lambda,
-                .payload = param_node.payload,
-                .aux = 0,
-                .span_a = span,
-                .span_b = Span.EMPTY,
-            });
-        }
+        // Lambda : (lambda () body)
+        const span = try self.store.reserveSpan(1);
+        self.store.pool.items[span.start] = actual_body;
+        const lambda_id = try self.store.addNode(.{
+            .tag = .lambda,
+            .payload = actual_name,
+            .aux = 0,
+            .span_a = span,
+            .span_b = Span.EMPTY,
+        });
 
         // Bind : (bind name [value, body])
-        // Pour une définition de fonction : value = lambda, body = unit
         const bind_span = try self.store.reserveSpan(2);
-        self.store.pool.items[bind_span.start] = cur_body;
+        self.store.pool.items[bind_span.start] = lambda_id;
         self.store.pool.items[bind_span.start + 1] = try self.store.addNode(.{
             .tag = .lit,
             .payload = 0,
@@ -515,13 +511,13 @@ pub const MlcpdToHeaven = struct {
         }
 
         // Plusieurs enfants : retourner le dernier
+        var last_id: ?Id = null;
         for (children) |child| {
             if (parsed.node_to_expr.get(child.id)) |child_id| {
-                return child_id;
+                last_id = child_id;
             }
         }
-
-        return error.InvalidStructure;
+        return last_id orelse error.InvalidStructure;
     }
 
     fn findChildByRole(self: *MlcpdToHeaven, parsed: *mlcpd_mod.ParsedFile, parent_id: u32, role: mlcpd_mod.SemanticRole) ?mlcpd_mod.MlcpdNode {

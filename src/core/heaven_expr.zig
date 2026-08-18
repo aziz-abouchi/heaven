@@ -5,6 +5,8 @@ const types = @import("types");
 const canon = @import("canon");
 const pattern = @import("pattern");
 const proof = @import("proof");
+const platform = @import("platform");
+const mir = @import("mir");
 
 const Store = expr.Store;
 const Id = expr.Id;
@@ -13,14 +15,44 @@ const Sym = expr.Sym;
 
 pub const HeavenError = error{
     ExtensionNotLowered,
-    CannotLowerFrontendTag,
-    InvalidPi,
-    InvalidTypeAnn,
-    TypeMismatch,
     EvaluationFailed,
     OutOfMemory,
     InvalidInput,
-};
+    UnsupportedExpr,
+    UnknownVariable,
+    TypeMismatch,
+    DependentListsNotImplemented,
+    UnsupportedNode,
+    TimerUnsupported,
+    InvalidSyntax,
+    TypeError,
+    ArityMismatch,
+    StackOverflow,
+    NoSpaceLeft,
+    NotSupported,
+    InputOutput,
+    SystemResources,
+    IsDir,
+    OperationAborted,
+    BrokenPipe,
+    ConnectionResetByPeer,
+    ConnectionTimedOut,
+    NotOpenForReading,
+    SocketNotConnected,
+    WouldBlock,
+    Canceled,
+    AccessDenied,
+    ProcessNotFound,
+    LockViolation,
+    Unexpected,
+    FileTooBig,
+    OpenError,
+    NotALambda,
+    InvalidPi,
+    InvalidTypeAnn,
+    CannotLowerFrontendTag,
+    InvalidLambda,
+} || std.mem.Allocator.Error || platform.fs.File.OpenError || platform.fs.File.ReadError || mir.MirError || engine.EvalError;
 
 pub const Heaven = struct {
     allocator: std.mem.Allocator,
@@ -111,7 +143,7 @@ pub const Heaven = struct {
 
     pub fn evaluateExpr(self: *Heaven, id: Id) HeavenError!Id {
         self.engine.fuel = 1_000_000;
-        return self.evaluate(&self.store, &self.env, &self.engine, id, 0);
+        return engine.evaluate(&self.store, &self.env, &self.engine, id, 0);
     }
 
     /// Vérifie qu'un Id est entièrement lowered avant passage au noyau.

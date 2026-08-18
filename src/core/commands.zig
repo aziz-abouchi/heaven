@@ -144,21 +144,35 @@ pub const Commands = struct {
     }
 
     pub fn initDefaultRules(self: *Commands) !void {
-        const rules = [_]struct { lhs: []const u8, rhs_op: []const u8, rhs_arg: ?i64 }{
-            .{ .lhs = "+ x 0", .rhs_op = "x", .rhs_arg = null },
-            .{ .lhs = "+ 0 x", .rhs_op = "x", .rhs_arg = null },
-            .{ .lhs = "* x 1", .rhs_op = "x", .rhs_arg = null },
-            .{ .lhs = "* 1 x", .rhs_op = "x", .rhs_arg = null },
-            .{ .lhs = "* x 0", .rhs_op = "lit", .rhs_arg = 0 },
-            .{ .lhs = "- x 0", .rhs_op = "x", .rhs_arg = null },
-            .{ .lhs = "- x x", .rhs_op = "lit", .rhs_arg = 0 },
+        const rules = [_]struct { op: []const u8, a_is_var: bool, b_val: i64, result_is_var: bool }{
+            // x + 0 = x  ET  0 + x = x
+            .{ .op = "+", .a_is_var = true, .b_val = 0, .result_is_var = true },
+            .{ .op = "+", .a_is_var = false, .b_val = 0, .result_is_var = true }, // 0 + x (ordre canonique)
+            // x * 1 = x  ET  1 * x = x
+            .{ .op = "*", .a_is_var = true, .b_val = 1, .result_is_var = true },
+            .{ .op = "*", .a_is_var = false, .b_val = 1, .result_is_var = true },
+            // x * 0 = 0
+            .{ .op = "*", .a_is_var = true, .b_val = 0, .result_is_var = false },
+            .{ .op = "*", .a_is_var = false, .b_val = 0, .result_is_var = false },
         };
 
         for (rules) |r| {
             const x = try self.store.sym("x");
-            const lhs = try self.store.binop(r.lhs[0..1], x, if (r.rhs_arg) |v| try self.store.int(v) else x);
-            const rhs = if (r.rhs_op[0] == 'x') x else try self.store.int(r.rhs_arg.?);
+            const val = try self.store.int(r.b_val);
+            const lhs = if (r.a_is_var)
+                try self.store.binop(r.op, x, val)
+            else
+                try self.store.binop(r.op, val, x);
+            const rhs = if (r.result_is_var) x else val;
             const rule = try self.store.relation("=>", &.{ lhs, rhs }, &.{});
+            try self.kb.rules.append(self.allocator, rule);
+        }
+        // - x 0 = x
+        {
+            const x = try self.store.sym("x");
+            const zero = try self.store.int(0);
+            const lhs = try self.store.binop("-", x, zero);
+            const rule = try self.store.relation("=>", &.{ lhs, x }, &.{});
             try self.kb.rules.append(self.allocator, rule);
         }
     }
@@ -343,7 +357,7 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "explain ")) return self.evalExplain(trimmed["explain ".len..]);
         if (std.mem.startsWith(u8, trimmed, "expand ")) return self.evalExpand(trimmed["expand ".len..]);
         if (std.mem.startsWith(u8, trimmed, "optimize ")) return self.evalOptimize(trimmed["optimize ".len..]);
-        if (std.mem.startsWith(u8, trimmed, "profile ")) return self.evalProfile(trimmed["profile ".len..]);
+        //if (std.mem.startsWith(u8, trimmed, "profile ")) return self.evalProfile(trimmed["profile ".len..]);
         if (std.mem.startsWith(u8, trimmed, "trace ")) return self.evalTrace(trimmed["trace ".len..]);
         if (std.mem.startsWith(u8, trimmed, "qtt ")) return self.evalQtt(trimmed["qtt ".len..]);
         if (std.mem.startsWith(u8, trimmed, "mir ")) return self.evalMir(trimmed["mir ".len..]);
@@ -351,8 +365,7 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "derive ")) return self.math.derive(trimmed["derive ".len..], "x") catch self.allocator.dupe(u8, "0");
         if (std.mem.startsWith(u8, trimmed, "integrate ")) return try self.math.integrate(trimmed["integrate ".len..], "x");
         if (std.mem.startsWith(u8, trimmed, "asm ")) return self.evalAsm(trimmed["asm ".len..]);
-        if (std.mem.startsWith(u8, trimmed, "green ")) return self.evalGreen(trimmed["green ".len..]);
-        //if (std.mem.startsWith(u8, trimmed, "parseFileWithLanguage ")) return self.parseFileWithLanguage(trimmed["parseFileWithLanguage ".len..]);
+        //if (std.mem.startsWith(u8, trimmed, "green ")) return self.evalGreen(trimmed["green ".len..]);
 
         // derive(<expr>, <var>)
         if (std.mem.startsWith(u8, trimmed, "derive(")) {
@@ -391,11 +404,9 @@ pub const Commands = struct {
             }
         }
 
-        if (std.mem.startsWith(u8, trimmed, "ask ")) return self.evalAsk(trimmed["ask ".len..]);
-        if (std.mem.startsWith(u8, trimmed, "equiv ")) return self.evalEquiv(trimmed["equiv ".len..]);
-        if (std.mem.startsWith(u8, trimmed, "js ")) return self.evalJs(trimmed["js ".len..]);
-        if (std.mem.startsWith(u8, trimmed, "dumpAstFile ")) return self.dumpAstFile(trimmed["dumpAstFile ".len..]);
-        if (std.mem.startsWith(u8, trimmed, "translateAndDump ")) return self.translateAndDump(trimmed["translateAndDump ".len..]);
+        //if (std.mem.startsWith(u8, trimmed, "ask ")) return self.evalAsk(trimmed["ask ".len..]);
+        //if (std.mem.startsWith(u8, trimmed, "equiv ")) return self.evalEquiv(trimmed["equiv ".len..]);
+        //if (std.mem.startsWith(u8, trimmed, "js ")) return self.evalJs(trimmed["js ".len..]);
 
         // === Parser avec tree-sitter ===
         if (self.parseExpression(trimmed)) |expr_id| {
@@ -495,55 +506,6 @@ pub const Commands = struct {
             }
         }
         return result.toOwnedSlice(self.allocator);
-    }
-
-    fn evalProfile(self: *Commands, input: []const u8) ![]u8 {
-        const id = try self.bridge.importExpr(input);
-        if (comptime !@import("builtin").target.cpu.arch.isWasm()) {
-            var timer = try std.time.Timer.start();
-            const start_time = timer.read();
-            self.engine.fuel = 1_000_000;
-            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch |err| {
-                return std.fmt.allocPrint(self.allocator, "Profile error: {s}", .{@errorName(err)});
-            };
-            const result_str = try expr.toStringInfix(self.store, result, self.allocator);
-            const elapsed_ns = timer.read() - start_time;
-            const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / 1_000_000.0;
-            const node_count = self.countNodes(result);
-            const bigO = if (node_count > 100) "O(n^2)" else "O(n)";
-            const energy_nJ = @as(f64, @floatFromInt(elapsed_ns)) * 0.5;
-            const energy_uJ = energy_nJ / 1000.0;
-            const silicon_thermal_mass = 0.001;
-            const silicon_specific_heat = 700.0;
-            const delta_T = (energy_nJ * 1e-9) / (silicon_thermal_mass * silicon_specific_heat);
-            var buf: std.ArrayListUnmanaged(u8) = .{};
-            defer buf.deinit(self.allocator);
-            const w = buf.writer(self.allocator);
-            try w.print(
-                \\═══ Profile ═══
-                \\ Expression  : {s}
-                \\ Temps       : {d:.3} ms
-                \\ Nœuds       : {d}
-                \\ Big O       : {s}
-                \\ Énergie     : {d:.3} uJ
-                \\ Température : {d:.6} °C
-                \\═══════════════
-                \\
-            , .{ result_str, elapsed_ms, node_count, bigO, energy_uJ, delta_T });
-            return buf.toOwnedSlice(self.allocator);
-        } else {
-            self.engine.fuel = 1_000_000;
-            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch |err| {
-                return std.fmt.allocPrint(self.allocator, "Profile error: {s}", .{@errorName(err)});
-            };
-            const result_str = try expr.toStringInfix(self.store, result, self.allocator);
-            const node_count = self.countNodes(result);
-            var buf: std.ArrayListUnmanaged(u8) = .{};
-            defer buf.deinit(self.allocator);
-            const w = buf.writer(self.allocator);
-            try w.print("═══ Profile (WASM) ═══\nExpression : {s}\nNœuds : {d}\n═══════════════\n", .{ result_str, node_count });
-            return buf.toOwnedSlice(self.allocator);
-        }
     }
 
     pub fn evalTrace(self: *Commands, input: []const u8) ![]u8 {
@@ -2132,317 +2094,5 @@ pub const Commands = struct {
             if (is_b_one) return a;
         }
         return self.store.binop(op, a, b);
-    }
-    // ═══════════════════════════════════════════════════════════
-    // MLCPD & MCP Commands
-    // ═══════════════════════════════════════════════════════════
-
-    pub fn cmdMlcpdParse(self: *Commands, input: []const u8) ![]const u8 {
-        const trimmed = std.mem.trim(u8, input, " \t\n\r");
-        if (trimmed.len == 0) return self.allocator.dupe(u8, "usage: mlcpd <json-file-or-inline-json>");
-
-        // Essayer de lire comme fichier d'abord
-        const json_data = blk: {
-            if (platform.fs.readFile(self.allocator, trimmed)) |data| {
-                break :blk data;
-            } else |_| {}
-            // Sinon traiter comme JSON inline
-            break :blk try self.allocator.dupe(u8, trimmed);
-        };
-        defer if (!std.mem.eql(u8, json_data.ptr[0..@min(json_data.len, trimmed.len)], trimmed)) {
-            // C'était un fichier lu, libérer
-        };
-
-        var parsed = mlcpd_mod.parseMlcpdJson(self.allocator, json_data) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "error: MLCPD parse failed: {s}", .{@errorName(err)});
-        };
-        defer parsed.deinit();
-
-        return std.fmt.allocPrint(self.allocator,
-            \\MLCPD Parse Result:
-            \\  Language: {s}
-            \\  Nodes: {d}
-            \\  Lines: {d}
-            \\  Errors: {d}
-        , .{
-            @tagName(parsed.metadata.language),
-            parsed.nodeCount(),
-            parsed.metadata.lines,
-            parsed.metadata.errors,
-        });
-    }
-
-    pub fn cmdMlcpdConvert(self: *Commands, input: []const u8) ![]const u8 {
-        const trimmed = std.mem.trim(u8, input, " \t\n\r");
-        if (trimmed.len == 0) return self.allocator.dupe(u8, "usage: mlcpd-convert <json-file-or-inline-json>");
-
-        const json_data = blk: {
-            if (platform.fs.readFile(self.allocator, trimmed)) |data| {
-                break :blk data;
-            } else |_| {}
-            break :blk try self.allocator.dupe(u8, trimmed);
-        };
-
-        var parsed = mlcpd_mod.parseMlcpdJson(self.allocator, json_data) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "error: MLCPD parse failed: {s}", .{@errorName(err)});
-        };
-        defer parsed.deinit();
-
-        const expr_id = parsed.toExprIr(&self.store) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "error: conversion failed: {s}", .{@errorName(err)});
-        };
-
-        // Afficher l'expression convertie
-        const printer = self.store.printer();
-        var buf = std.ArrayListUnmanaged(u8){};
-        defer buf.deinit(self.allocator);
-        printer.printId(expr_id, buf.writer(self.allocator)) catch {};
-
-        return std.fmt.allocPrint(self.allocator,
-            \\MLCPD → Heaven Expr IR:
-            \\  Source nodes: {d}
-            \\  Expression: {s}
-        , .{ parsed.nodeCount(), buf.items });
-    }
-
-    pub fn cmdMlcpdStats(self: *Commands, _: []const u8) ![]const u8 {
-        return self.allocator.dupe(u8,
-            \\MLCPD Integration Status:
-            \\  Schema: Universal AST (4 layers)
-            \\  Languages: C, C++, C#, Go, Java, JS, Python, Ruby, Scala, TS
-            \\  Format: JSON / Parquet
-            \\  Commands:
-            \\    mlcpd <file.json>       - Parse MLCPD file
-            \\    mlcpd-convert <file>    - Convert to Heaven Expr IR
-            \\    mlcpd-stats             - Show this help
-            \\  Reference: https://arxiv.org/html/2510.16357v1
-        );
-    }
-
-    fn evalEquiv(self: *Commands, args: []const u8) HeavenError![]u8 {
-        // Parser "file1.json file2.json"
-        var iter = std.mem.splitSequence(u8, args, " ");
-        const file1_path = iter.next() orelse {
-            return try self.allocator.dupe(u8, "Usage: equiv <file1.json> <file2.json>");
-        };
-        const file2_path = iter.next() orelse {
-            return try self.allocator.dupe(u8, "Usage: equiv <file1.json> <file2.json>");
-        };
-
-        // Charger les fichiers
-        const file1_content = platform.fs.cwd().readFileAlloc(self.allocator, file1_path, 10 * 1024 * 1024) catch |err| {
-            return try std.fmt.allocPrint(self.allocator, "Error reading {s}: {s}", .{ file1_path, @errorName(err) });
-        };
-        defer self.allocator.free(file1_content);
-
-        const file2_content = platform.fs.cwd().readFileAlloc(self.allocator, file2_path, 10 * 1024 * 1024) catch |err| {
-            return try std.fmt.allocPrint(self.allocator, "Error reading {s}: {s}", .{ file2_path, @errorName(err) });
-        };
-        defer self.allocator.free(file2_content);
-
-        // Parser et normaliser
-        var parsed1 = mlcpd_mod.parseMlcpdJson(self.allocator, file1_content) catch |err| {
-            return try std.fmt.allocPrint(self.allocator, "Error parsing {s}: {s}", .{ file1_path, @errorName(err) });
-        };
-        defer parsed1.deinit();
-        parsed1.normalizeParsedFile();
-
-        var parsed2 = mlcpd_mod.parseMlcpdJson(self.allocator, file2_content) catch |err| {
-            return try std.fmt.allocPrint(self.allocator, "Error parsing {s}: {s}", .{ file2_path, @errorName(err) });
-        };
-        defer parsed2.deinit();
-        parsed2.normalizeParsedFile();
-
-        // Convertir en Expr IR
-        const expr1 = parsed1.toExprIr(self.store) catch |err| {
-            return try std.fmt.allocPrint(self.allocator, "Error converting {s}: {s}", .{ file1_path, @errorName(err) });
-        };
-
-        const expr2 = parsed2.toExprIr(self.store) catch |err| {
-            return try std.fmt.allocPrint(self.allocator, "Error converting {s}: {s}", .{ file2_path, @errorName(err) });
-        };
-
-        // Prouver l'équivalence
-        var result = mlcpd_equiv_mod.proveEquivalence(self.allocator, self.store, expr1, expr2) catch |err| {
-            return try std.fmt.allocPrint(self.allocator, "Proof failed: {s}", .{@errorName(err)});
-        };
-        defer result.deinit(self.allocator);
-
-        // Formater le résultat
-        var output = std.ArrayListUnmanaged(u8){};
-        defer output.deinit(self.allocator);
-        const writer = output.writer(self.allocator);
-
-        try writer.print("═══ MLCPD Equivalence Proof ═══\n", .{});
-        try writer.print("  file1: {s} ({d} nodes)\n", .{ file1_path, parsed1.nodes.items.len });
-        try writer.print("  file2: {s} ({d} nodes)\n", .{ file2_path, parsed2.nodes.items.len });
-        try writer.print("  expr1 → IR: {d}\n", .{expr1});
-        try writer.print("  expr2 → IR: {d}\n", .{expr2});
-        try writer.print("\n", .{});
-        try writer.print("  equivalent: {}\n", .{result.equivalent});
-        try writer.print("  strategy:   {s}\n", .{@tagName(result.strategy)});
-
-        if (result.error_message) |msg| {
-            try writer.print("  error:      {s}\n", .{msg});
-        }
-
-        try writer.print("  proof:      {}\n", .{result.proof != null});
-        try writer.print("\n", .{});
-
-        if (result.equivalent) {
-            try writer.print("ÉQUIVALENCE PROUVÉE\n", .{});
-            try writer.print("Proof<Equiv<{s}, {s}>> = Refl<congruence>\n", .{ file1_path, file2_path });
-        } else {
-            try writer.print("❌ ÉQUIVALENCE NON PROUVÉE\n", .{});
-        }
-
-        return output.toOwnedSlice(self.allocator);
-    }
-
-    fn evalGreen(self: *Commands, input: []const u8) ![]u8 {
-        const expr_id = try self.bridge.importExpr(input);
-
-        // 1. Créer la fonction handler qui accumule l'énergie
-        // Elle prend (val1, val2, cost) et retourne (val1 + val2), tout en accumulant cost dans une variable globale.
-        // Pour faire simple en Heaven : le handler va juste retourner la somme et on comptera les appels.
-        const handler_str = "fn greenHandler(v1, v2, cost) = (+ v1 v2)";
-        const handler_result = try self.eval(handler_str);
-        // On libère la chaîne de retour ("greenHandler clause...")
-        defer self.allocator.free(handler_result);
-
-        // 2. Activer le mode Green dans le moteur
-        self.engine.green_call_count = 0;
-        self.engine.green_mode = true;
-        defer self.engine.green_mode = false; // Désactiver après
-
-        // 3. Créer le nœud AST : (handle <expr> greenHandler)
-        const handler_id = try self.store.sym("greenHandler");
-        const handle_node = try self.store.handle(expr_id, handler_id);
-
-        // 4. Évaluer
-        self.engine.fuel = 1_000_000;
-        const result = try engine_expr.evaluate(self.store, self.env, self.engine, handle_node, 0);
-
-        // 5. Compter combien de fois l'effet a été déclenché (en regardant la taille de l'AST ou un compteur)
-        // Pour l'instant, on simplifie : le handler a été appelé, on affiche le résultat.
-        const result_str = try expr.toStringInfix(self.store, result, self.allocator);
-        defer self.allocator.free(result_str);
-
-        return std.fmt.allocPrint(self.allocator,
-            \\═══ Green Profile ═══
-            \\ Resultat : {s}
-            \\ Énergie   : {d} J (estimation)
-            \\═══════════════════
-        , .{ result_str, self.engine.green_call_count });
-    }
-
-    /// Affiche l'AST brut d'un fichier parsé (pour debug du bridge)
-    pub fn dumpAstFile(self: *Commands, path: []const u8) ![]u8 {
-        // platform.debug.print("[dumpAstFile] CALLED with path='{s}'\n", .{path});
-
-        const ext = std.fs.path.extension(path);
-        // platform.debug.print("[dumpAstFile] ext='{s}'\n", .{ext});
-
-        const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse {
-            // platform.debug.print("[dumpAstFile] ERROR: unsupported extension\n", .{});
-            return std.fmt.allocPrint(self.allocator, "unsupported extension: {s}", .{ext});
-        };
-        // platform.debug.print("[dumpAstFile] lang={s}\n", .{@tagName(lang)});
-
-        const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
-            // platform.debug.print("[dumpAstFile] ERROR reading file: {}\n", .{err});
-            return std.fmt.allocPrint(self.allocator, "error reading {s}: {}", .{ path, err });
-        };
-        // platform.debug.print("[dumpAstFile] Read {d} bytes\n", .{content.len});
-        defer self.allocator.free(content);
-
-        var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
-            // platform.debug.print("[dumpAstFile] ERROR parser init: {}\n", .{err});
-            return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
-        };
-        defer parser.deinit();
-
-        const matrix = parser.parse(content) catch {
-            // platform.debug.print("[dumpAstFile] ERROR parse failed\n", .{});
-            return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
-        };
-        // platform.debug.print("[dumpAstFile] Matrix kind={s}, children={d}\n", .{ @tagName(matrix.kind), matrix.children.len });
-
-        var buf: std.ArrayListUnmanaged(u8) = .{};
-        defer buf.deinit(self.allocator);
-        try dumpMatrix(&matrix, 0, &buf, self.allocator);
-        // platform.debug.print("[dumpAstFile] buf.len={d}\n", .{buf.items.len});
-        return buf.toOwnedSlice(self.allocator);
-    }
-
-    fn dumpMatrix(matrix: *const platform.shell_parser_types.Matrix, depth: u32, buf: *std.ArrayListUnmanaged(u8), alloc: std.mem.Allocator) !void {
-        var i: u32 = 0;
-        while (i < depth) : (i += 1) try buf.appendSlice(alloc, "  ");
-        try buf.appendSlice(alloc, @tagName(matrix.kind));
-        if (matrix.text) |text| {
-            if (text.len <= 40) {
-                try buf.appendSlice(alloc, " \"");
-                try buf.appendSlice(alloc, text);
-                try buf.appendSlice(alloc, "\"");
-            } else {
-                try buf.appendSlice(alloc, " \"");
-                try buf.appendSlice(alloc, text[0..40]);
-                try buf.appendSlice(alloc, "...\"");
-            }
-        }
-        try buf.append(alloc, '\n');
-        for (matrix.children) |*child| {
-            try dumpMatrix(child, depth + 1, buf, alloc);
-        }
-    }
-
-    pub fn translateAndDump(self: *Commands, path: []const u8) ![]u8 {
-        const ext = std.fs.path.extension(path);
-        const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse
-            return std.fmt.allocPrint(self.allocator, "unsupported extension: {s}", .{ext});
-
-        const content = platform.fs.cwd().readFileAlloc(self.allocator, path, 10 * 1024 * 1024) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "error reading {s}: {}", .{ path, err });
-        };
-        defer self.allocator.free(content);
-
-        // platform.debug.print("[translateAndDump] Read {d} bytes\n", .{content.len});
-
-        var parser = platform.MultiParser.init(self.allocator, lang) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "parser init error: {}", .{err});
-        };
-        defer parser.deinit();
-
-        const matrix = parser.parse(content) catch {
-            return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{lang.toString()});
-        };
-
-        // platform.debug.print("[translateAndDump] Matrix parsed, kind={s}, children={d}\n", .{ @tagName(matrix.kind), matrix.children.len });
-
-        var universal = universal_translator.UniversalTranslator.init(self.allocator, self.store);
-        const mlcpd_lang = switch (lang) {
-            .c => mlcpd.FileMetadata.Language.c,
-            .zig => mlcpd.FileMetadata.Language.c,
-            .pie => mlcpd.FileMetadata.Language.unknown,
-            .heaven => unreachable,
-        };
-
-        const heaven_id = universal.translate(&matrix, mlcpd_lang) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "translation failed: {}", .{err});
-        };
-
-        // platform.debug.print("[translateAndDump] heaven_id={d}, store.len={d}\n", .{ heaven_id, self.store.len() });
-
-        if (heaven_id >= self.store.len()) {
-            return std.fmt.allocPrint(self.allocator, "ERROR: heaven_id={d} >= store.len={d}", .{ heaven_id, self.store.len() });
-        }
-
-        var buf: std.ArrayListUnmanaged(u8) = .{};
-        defer buf.deinit(self.allocator);
-        try self.writeAst(heaven_id, 0, &buf);
-
-        // platform.debug.print("[translateAndDump] buf.len={d}\n", .{buf.items.len});
-
-        return buf.toOwnedSlice(self.allocator);
     }
 };

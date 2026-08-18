@@ -40,19 +40,19 @@ pub fn run(self: *Shell) !void {
             if (had_colon) {
                 if (std.mem.eql(u8, cmd, "equiv") or std.mem.eql(u8, cmd, "prove")) {
                     try runMlcpdEquivCommand(self, args);
-                    continue;
+                    continue :main_loop;
                 }
                 if (std.mem.eql(u8, cmd, "history")) {
                     platform.debug.print("  (Historique non géré dans le Shell unifié)\n", .{});
-                    continue;
+                    continue :main_loop;
                 }
                 if (std.mem.eql(u8, cmd, "defs")) {
                     platform.debug.print("  (Définitions non gérées dans le Shell unifié)\n", .{});
-                    continue;
+                    continue :main_loop;
                 }
                 if (std.mem.eql(u8, cmd, "clear")) {
                     platform.debug.print("  (Mémoire nettoyée)\n", .{});
-                    continue;
+                    continue :main_loop;
                 }
                 // On laisse tomber :ast et :c pour l'instant car ils nécessitent
                 // le parser tree-sitter complet que le Shell n'a pas sous la main.
@@ -60,7 +60,7 @@ pub fn run(self: *Shell) !void {
             }
 
             // ═══════════════════════════════════════════════════
-            // LOGIQUE SHEELL NORMAL (Table des commandes)
+            // LOGIQUE SHELL NORMAL (Table des commandes)
             // ═══════════════════════════════════════════════════
             var found = false;
             inline for (cmd_list.commands) |cmd_def| {
@@ -75,12 +75,15 @@ pub fn run(self: *Shell) !void {
                         commands.cmdRunStar(self, args, 20);
                     } else if (comptime std.mem.eql(u8, cmd_def.name, "load")) {
                         if (args.len > 0) {
-                            const result = commands.cmdLoadFile(self, args) catch |err| {
-                                platform.debug.print("Error loading file: {}\n", .{err});
-                                continue;
-                            };
-                            defer self.allocator.free(result);
-                            platform.debug.print("{s}\n", .{result});
+                            // CORRECTION : Utiliser un bloc étiqueté pour éviter 'continue' dans un inline for
+                            load_block: {
+                                const result = commands.cmdLoadFile(self, args) catch |err| {
+                                    platform.debug.print("Error loading file: {}\n", .{err});
+                                    break :load_block;
+                                };
+                                defer self.allocator.free(result);
+                                platform.debug.print("{s}\n", .{result});
+                            }
                         } else {
                             platform.debug.print("Usage: load <file.hvn>\n", .{});
                         }

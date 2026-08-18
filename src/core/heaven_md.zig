@@ -49,7 +49,7 @@ pub fn loadFromFile(path: []const u8, kernel: *Shell) !void {
     // 4. Dispatching vers le Kernel
     for (directives) |dir| {
         dispatchDirective(dir, kernel) catch |err| {
-            // platform.debug.print("[HEAVEN.MD] Échec de l'application du dispatch ({s}): {s}\n", .{ @tagName(dir.type), @errorName(err) });
+            platform.debug.print("[HEAVEN.MD] Échec de l'application du dispatch ({s}): {s}\n", .{ @tagName(dir.type), @errorName(err) });
         };
     }
 }

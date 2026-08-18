@@ -244,3 +244,14 @@ pub const MultiParser = union(shell_parser_types.Language) {
         }
     }
 };
+
+// Exposer la lecture d'énergie
+pub fn readEnergyUJ() !u64 {
+    // Chemin typique pour l'énergie du CPU (Intel RAPL)
+    const path = "/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj";
+    var file = try std.fs.openFileAbsolute(path, .{});
+    defer file.close();
+    var buf: [32]u8 = undefined;
+    const len = try file.read(&buf);
+    return std.fmt.parseInt(u64, std.mem.trim(u8, buf[0..len], "\n"), 10);
+}
