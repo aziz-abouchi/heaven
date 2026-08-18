@@ -609,7 +609,7 @@ pub const Commands = struct {
     }
 
     fn tryFnCall(self: *Commands, input: []const u8) ?[]u8 {
-        if (true) return null;
+        // if (true) return null;
         if (input.len == 0 or input[0] == '(' or std.ascii.isDigit(input[0])) return null;
         // Cas 1: name(args)
         if (std.mem.indexOfScalar(u8, input, '(')) |paren_idx| {
@@ -656,8 +656,7 @@ pub const Commands = struct {
                     eval_args[i] = expr_id;
                 }
                 self.engine.fuel = 1000_000;
-                //const result = self.engine.evalFunction(potential_name, eval_args[0..num_args]) catch return null;
-                const result: Id = 0; // Stub temporaire pour evalFunction
+                const result = self.engine.evalFunction(potential_name, eval_args[0..num_args]) catch return null;
                 return expr.toString(self.store, result, self.allocator) catch return null;
             }
         }
@@ -701,8 +700,7 @@ pub const Commands = struct {
             eval_args[i] = expr_id;
         }
         self.engine.fuel = 1000_000;
-        //const result = self.engine.evalFunction(name, eval_args[0..num_args]) catch return null;
-        const result: Id = 0; // Stub temporaire pour evalFunction
+        const result = self.engine.evalFunction(name, eval_args[0..num_args]) catch return null;
         return expr.toString(self.store, result, self.allocator) catch return null;
     }
 
@@ -897,16 +895,12 @@ pub const Commands = struct {
             }
 
             const num_pats = num_args - patterns_start;
-            platform.debug.print("DEBUG: name={s}, num_pats={d}, patterns_start={d}\n", .{ name, num_pats, patterns_start });
             if (num_pats > 8) return self.allocator.dupe(u8, "too many patterns");
 
             var pat_ids: [8]u32 = undefined;
             for (0..num_pats) |i| {
                 pat_ids[i] = arg_span[patterns_start + i];
             }
-
-            for (0..num_pats) |i| platform.debug.print("{} ", .{pat_ids[i]});
-            platform.debug.print("\n", .{});
 
             const body_id = self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
             const lowered_body = try self.store.lowerRec(body_id);

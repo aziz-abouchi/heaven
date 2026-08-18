@@ -177,20 +177,20 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
         .lit => id,
         .sym => {
             const name = store.interner.resolve(node.payload);
-
+            if (isFrontendExtension(name)) return error.ExtensionNotLowered;
             if (isMagicSymbol(name)) return id;
             if (env.get(node.payload)) |bound| {
+                platform.debug.print("[DEBUG eval] sym '{s}' trouvé dans env, valeur={d}\n", .{ name, bound });
                 return bound;
             }
+            platform.debug.print("[DEBUG eval] sym '{s}' NON trouvé dans env\n", .{name});
             return error.UnboundVariable;
         },
         .apply => {
             const pool = store.pool.items;
             const all_args = node.span_a.slice(pool);
+            if (all_args.len == 0) return error.ArityMismatch;
 
-            // if (args.len == 0) return error.ArityMismatch;
-
-            // L'opérateur est dans node.payload
             const op_id = node.payload;
             const op_node = store.get(op_id);
 
@@ -201,14 +201,9 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             }
 
             const op_name = store.interner.resolve(op_node.payload);
-
-            // Rejeter les vraies extensions (quote, perform, etc.)
             if (isFrontendExtension(op_name)) return error.ExtensionNotLowered;
 
-            // span_a contient l'opérateur en index 0, les vrais args commencent à 1
-            const args = if (all_args.len > 1) all_args[1..] else all_args[0..0];
-
-            // Passer 'args' directement, pas 'args[1..]'
+            const args = if (all_args.len > 1 and all_args[0] == op_id) all_args[1..] else all_args;
             return try evalMagic(store, env, engine, op_name, args, depth);
         },
         .bind => {
@@ -238,13 +233,12 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                 .span_b = Span.EMPTY,
             });
         },
-        // CORRECTION : Rejeter proprement les extensions non-lowered
         else => error.ExtensionNotLowered,
     };
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", "if", "seq", "block", "tuple", "send", "state", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -268,12 +262,22 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (fn_def.num_clauses > 0) {
             const clause = fn_def.clauses[0];
             if (args.len == clause.num_patterns) {
+                // CORRECTION : Créer un nouvel environnement isolé
+                var new_env = Env.init(env.allocator);
+                defer new_env.deinit();
+                var it = env.bindings.iterator();
+                while (it.next()) |entry| {
+                    try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
+                }
+
                 for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
                     const arg_val = try evaluate(store, env, engine, args[i], depth + 1);
                     const p_node = store.get(p);
-                    if (p_node.tag == .sym) try env.put(p_node.payload, arg_val);
+                    if (p_node.tag == .sym) {
+                        try new_env.put(p_node.payload, arg_val);
+                    }
                 }
-                return evaluate(store, env, engine, clause.body, depth + 1);
+                return evaluate(store, &new_env, engine, clause.body, depth + 1);
             }
         }
     }
@@ -341,7 +345,9 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                         if (p2.tag == .sym) try new_env.put(p2.payload, msg_val);
                     }
                     const new_state = try evaluate(store, &new_env, engine, clause.body, depth + 1);
+                    // platform.debug.print("[DEBUG SEND] handler evaluated to: {d}\n", .{new_state});
                     actor_ptr.state = new_state;
+                    // platform.debug.print("[DEBUG SEND] actor state updated to: {d}\n", .{actor_ptr.state});
                     return new_state;
                 }
             }
@@ -376,6 +382,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const actor_id_lit = store.lits.items[actor_node.aux];
         if (actor_id_lit != .int) return error.ActorIdNotLiteral;
         const actor_ptr = engine.actors.getPtr(@intCast(actor_id_lit.int)) orelse return error.ActorNotFound;
+        // platform.debug.print("[DEBUG STATE] returning state: {d}\n", .{actor_ptr.state});
         return actor_ptr.state;
     }
 

@@ -118,10 +118,12 @@ test "actor lifecycle: spawn, send, state" {
     _ = try cmds.eval("let actor Adder = 0 with adderHandler");
 
     // Envoyer un message
-    _ = try cmds.eval("send(Adder, 5)");
+    const send_result = try cmds.eval("send(Adder, 5)");
+    platform.debug.print("\n[TEST DEBUG] send(Adder, 5) a retourné : {s}\n\n", .{send_result});
 
     // Vérifier l'état
     const state_result = try cmds.eval("state(Adder)");
+    platform.debug.print("[TEST DEBUG] state(Adder) a retourné : {s}\n", .{state_result});
     try testing.expectEqualStrings("5", state_result);
 }
 
