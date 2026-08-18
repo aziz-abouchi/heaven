@@ -664,7 +664,7 @@ pub const Math = struct {
     }
 
     /// Simplification mathématique basique pour expressions développées
-    fn simplifyMath(self: *Math, id: Id) !Id {
+    pub fn simplifyMath(self: *Math, id: Id) !Id {
         if (id >= self.store.len()) return id;
         const node = self.store.get(id);
         switch (node.tag) {

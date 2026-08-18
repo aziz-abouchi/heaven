@@ -143,6 +143,26 @@ pub const Commands = struct {
         // ... reste du deinit ...
     }
 
+    pub fn initDefaultRules(self: *Commands) !void {
+        const rules = [_]struct { lhs: []const u8, rhs_op: []const u8, rhs_arg: ?i64 }{
+            .{ .lhs = "+ x 0", .rhs_op = "x", .rhs_arg = null },
+            .{ .lhs = "+ 0 x", .rhs_op = "x", .rhs_arg = null },
+            .{ .lhs = "* x 1", .rhs_op = "x", .rhs_arg = null },
+            .{ .lhs = "* 1 x", .rhs_op = "x", .rhs_arg = null },
+            .{ .lhs = "* x 0", .rhs_op = "lit", .rhs_arg = 0 },
+            .{ .lhs = "- x 0", .rhs_op = "x", .rhs_arg = null },
+            .{ .lhs = "- x x", .rhs_op = "lit", .rhs_arg = 0 },
+        };
+
+        for (rules) |r| {
+            const x = try self.store.sym("x");
+            const lhs = try self.store.binop(r.lhs[0..1], x, if (r.rhs_arg) |v| try self.store.int(v) else x);
+            const rhs = if (r.rhs_op[0] == 'x') x else try self.store.int(r.rhs_arg.?);
+            const rule = try self.store.relation("=>", &.{ lhs, rhs }, &.{});
+            try self.kb.rules.append(self.allocator, rule);
+        }
+    }
+
     // ─── Eval dispatcher ───
     pub fn eval(self: *Commands, input: []const u8) HeavenError![]u8 {
         const trimmed0 = std.mem.trim(u8, input, " \t\r\n");
@@ -309,7 +329,12 @@ pub const Commands = struct {
             const rhs_str = std.mem.trim(u8, rest[arrow_pos + 2 ..], " ");
             const lhs = self.parseExpression(lhs_str) catch return self.allocator.dupe(u8, "parse error in lhs");
             const rhs = self.parseExpression(rhs_str) catch return self.allocator.dupe(u8, "parse error in rhs");
-            const rule_id = self.store.relation("=>", &.{ lhs, rhs }, &.{}) catch return self.allocator.dupe(u8, "relation error");
+
+            // CORRECTION : Canonicaliser la règle pour qu'elle matche les expressions canonisées
+            const lhs_canon = try canon_mod.canonicalize(self.store, self.allocator, lhs);
+            const rhs_canon = try canon_mod.canonicalize(self.store, self.allocator, rhs);
+
+            const rule_id = self.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{}) catch return self.allocator.dupe(u8, "relation error");
             self.kb.rules.append(self.allocator, rule_id) catch return self.allocator.dupe(u8, "append error");
             return self.allocator.dupe(u8, "✓ rule added");
         }
@@ -872,12 +897,16 @@ pub const Commands = struct {
             }
 
             const num_pats = num_args - patterns_start;
+            platform.debug.print("DEBUG: name={s}, num_pats={d}, patterns_start={d}\n", .{ name, num_pats, patterns_start });
             if (num_pats > 8) return self.allocator.dupe(u8, "too many patterns");
 
             var pat_ids: [8]u32 = undefined;
             for (0..num_pats) |i| {
                 pat_ids[i] = arg_span[patterns_start + i];
             }
+
+            for (0..num_pats) |i| platform.debug.print("{} ", .{pat_ids[i]});
+            platform.debug.print("\n", .{});
 
             const body_id = self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
             const lowered_body = try self.store.lowerRec(body_id);
@@ -1218,20 +1247,46 @@ pub const Commands = struct {
 
     // ─── Simplify ───
     pub fn simplify(self: *Commands, input: []const u8) ![]u8 {
-        var current = try self.bridge.importExpr(input);
-        current = try self.simplifyRec(current, 0);
+        const id = try self.bridge.importExpr(input);
+        var current = id;
 
-        var qtt = egraph_mod.QttCost{};
-        defer qtt.deinit(self.allocator);
-        var it = self.qtt_env.iterator();
-        while (it.next()) |entry| {
-            const sym = try self.store.interner.intern(entry.key_ptr.*);
-            const sym_id = try self.store.symId(sym);
-            try qtt.quantities.put(self.allocator, sym_id, entry.value_ptr.*);
+        var changed = true;
+        var iterations: u32 = 0;
+        while (changed and iterations < 50) : (iterations += 1) {
+            changed = false;
+
+            // Appliquer les règles de réécriture (kb.rules)
+            for (self.kb.rules.items) |rule_id| {
+                if (rule_id >= self.store.len()) continue;
+                const rule_node = self.store.get(rule_id);
+                if (rule_node.tag != .relation) continue;
+                const lhs_rhs = rule_node.span_a.slice(self.store.pool.items);
+                if (lhs_rhs.len != 2) continue;
+                const lhs = lhs_rhs[0];
+                const rhs = lhs_rhs[1];
+
+                var bindings = std.AutoHashMapUnmanaged(u32, Id){};
+                defer bindings.deinit(self.allocator);
+                if (pattern_mod.exprPatternMatch(self.store, lhs, current, &bindings, self.allocator)) {
+                    const new_id = try pattern_mod.substitutePattern(self.store, rhs, &bindings, self.allocator);
+                    if (new_id != current) {
+                        current = new_id;
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
+            // Simplification mathématique de base (const folding, x+0→x, x*1→x)
+            const math_simplified = try self.math.simplifyMath(current);
+            if (math_simplified != current) {
+                current = math_simplified;
+                changed = true;
+            }
         }
-        current = try self.simplify_eng.simplifyWithEGraph(current, &qtt);
-        current = try canon_mod.canonicalize(self.store, self.allocator, current);
-        return expr.toStringInfix(self.store, current, self.allocator);
+
+        const canonical = try canon_mod.canonicalize(self.store, self.allocator, current);
+        return expr.toStringInfix(self.store, canonical, self.allocator);
     }
 
     fn simplifyWithEGraph(self: *Commands, id: Id, qtt: ?*egraph_mod.QttCost) !Id {
@@ -1285,7 +1340,7 @@ pub const Commands = struct {
                 const arg0 = old_args[0];
                 const arg1 = old_args[1];
 
-                // MODIFICATION : Appeler self.simplifyRec (notre version corrigée)
+                // Appel récursif sur les enfants
                 const new_func = try self.simplifyRec(func_id, depth + 1);
                 const new_l = try self.simplifyRec(arg0, depth + 1);
                 const new_r = try self.simplifyRec(arg1, depth + 1);

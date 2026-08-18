@@ -518,6 +518,7 @@ pub fn main() !void {
         &pending_proof_request,
     );
     defer cmds.deinit();
+    try cmds.initDefaultRules();
 
     // Boucle REPL
     while (true) {
@@ -529,7 +530,7 @@ pub fn main() !void {
         if (trimmed.len == 0) continue;
         if (std.mem.eql(u8, trimmed, ":exit") or std.mem.eql(u8, trimmed, ":q")) break;
 
-        // === INTERCEPTION DES COMMANDES IO (Shell) ===
+        // === 1. COUCHE SHELL : INTERCEPTION DES COMMANDES IO ===
         if (std.mem.startsWith(u8, trimmed, "load ")) {
             const path = std.mem.trim(u8, trimmed["load ".len..], " \t");
             const file = platform.fs.cwd().openFile(path, .{}) catch |err| {
@@ -537,30 +538,32 @@ pub fn main() !void {
                 continue;
             };
             defer file.close();
-            const content = file.readToEndAlloc(allocator, std.math.maxInt(usize)) catch |err| {
+            const content = file.readToEndAlloc(allocator, 1024 * 1024) catch |err| {
                 platform.io.print("Error reading {s}: {}\n", .{ path, err });
                 continue;
             };
             defer allocator.free(content);
 
             var lines = std.mem.splitScalar(u8, content, '\n');
+            var line_count: usize = 0;
             while (lines.next()) |l| {
                 const l_trim = std.mem.trim(u8, l, " \t\r");
                 if (l_trim.len == 0 or l_trim[0] == '#' or std.mem.startsWith(u8, l_trim, "--")) continue;
+                line_count += 1;
 
-                // On évalue chaque ligne via l'API du cœur
+                // Le Shell délègue l'évaluation de la ligne au Cœur
                 const res = cmds.eval(l_trim) catch |err| {
-                    platform.io.print("Error evaluating '{s}': {}\n", .{ l_trim, err });
+                    platform.io.print("  [Ligne {d}] Erreur: {}\n", .{ line_count, err });
                     continue;
                 };
                 allocator.free(res);
             }
-            platform.io.print("✓ fichier '{s}' chargé\n", .{path});
+            platform.io.print("✓ fichier '{s}' chargé ({d} lignes)\n", .{ path, line_count });
             continue;
         }
-        // ==============================================
+        // ========================================================
 
-        // Évaluation standard pour tout le reste
+        // === 2. COUCHE CŒUR : ÉVALUATION STANDARD ===
         const result = cmds.eval(trimmed) catch |err| {
             platform.io.print("error: {}\n", .{err});
             continue;

@@ -186,6 +186,12 @@ pub const Tag = enum(u8) {
         };
     }
 
+    pub fn assertPrimitive(self: Tag) !void {
+        if (!self.isPrimitive()) {
+            return error.ExtensionNotLowered;
+        }
+    }
+
     pub fn asPrimitive(self: Tag) ?Primitive {
         return switch (self) {
             .lit => .lit,
@@ -771,4 +777,79 @@ pub const Store = struct {
         _ = body;
         return 0; // Stub temporaire
     }
+    pub fn assertCoreExpr(self: *const Store, id: Id) !void {
+        if (id >= self.nodes.items.len) {
+            return error.InvalidExpr;
+        }
+
+        const node = self.get(id);
+
+        if (!node.tag.isPrimitive()) {
+            return error.ExtensionNotLowered;
+        }
+
+        switch (node.tag) {
+            .lit, .sym => {},
+
+            .apply => {
+                const args = node.span_a.slice(self.pool.items);
+
+                try self.assertCoreExpr(node.payload);
+
+                for (args) |arg| {
+                    try self.assertCoreExpr(arg);
+                }
+            },
+
+            .bind => {
+                try self.assertCoreExpr(node.aux);
+            },
+
+            .lambda => {
+                try self.assertCoreExpr(node.payload);
+
+                const body = node.span_a.slice(self.pool.items);
+                for (body) |child| {
+                    try self.assertCoreExpr(child);
+                }
+            },
+
+            .relation => {
+                try self.assertCoreExpr(node.payload);
+
+                const lhs = node.span_a.slice(self.pool.items);
+                const rhs = node.span_b.slice(self.pool.items);
+
+                for (lhs) |child| {
+                    try self.assertCoreExpr(child);
+                }
+
+                for (rhs) |child| {
+                    try self.assertCoreExpr(child);
+                }
+            },
+
+            else => unreachable,
+        }
+    }
 };
+
+test "core invariant — lowered expression contains only six primitives" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const x = try store.sym("x");
+    const zero = try store.int(0);
+
+    const expr = try store.binop("+", x, zero);
+
+    const lowered = try store.lowerRec(expr);
+
+    try store.assertCoreExpr(lowered);
+
+    try std.testing.expect(
+        store.get(lowered).tag.isPrimitive(),
+    );
+}

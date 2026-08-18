@@ -4,6 +4,7 @@ const expr = @import("expr");
 const Store = expr.Store;
 const Id = expr.Id;
 const Tag = expr.Tag;
+const Span = expr.Span;
 
 pub fn exprStructuralEq(store: *const Store, a: Id, b: Id) bool {
     const na = store.get(a);
@@ -94,7 +95,15 @@ pub fn match(store: *const Store, pattern: Id, target: Id, bindings: *Bindings) 
 
     if (p.tag == .sym) {
         const name = store.interner.resolve(p.payload);
-        if (name.len > 0 and (name[0] == '_' or std.ascii.isUpper(name[0]))) {
+        // Accepter comme variable de pattern tout symbole qui n'est pas un opérateur magique
+        const is_op = std.mem.eql(u8, name, "+") or std.mem.eql(u8, name, "-") or
+            std.mem.eql(u8, name, "*") or std.mem.eql(u8, name, "/") or
+            std.mem.eql(u8, name, "%") or std.mem.eql(u8, name, "=") or
+            std.mem.eql(u8, name, "<") or std.mem.eql(u8, name, ">") or
+            std.mem.eql(u8, name, "if") or std.mem.eql(u8, name, "seq") or
+            std.mem.eql(u8, name, "block") or std.mem.eql(u8, name, "tuple") or
+            std.mem.eql(u8, name, "!") or std.mem.eql(u8, name, "&") or std.mem.eql(u8, name, "|");
+        if (name.len > 0 and !is_op) {
             if (bindings.get(p.payload)) |bound| {
                 return exprStructuralEq(store, bound, target);
             }
@@ -148,9 +157,102 @@ pub fn exprPatternMatch(store: *const Store, pattern: Id, target: Id, bindings: 
 }
 
 pub fn substitutePattern(store: *Store, pattern_id: Id, bindings: anytype, allocator: std.mem.Allocator) !Id {
-    _ = store;
-    _ = pattern_id;
-    _ = bindings;
-    _ = allocator;
-    return 0; // Stub temporaire
+    if (pattern_id >= store.len()) return pattern_id;
+    const node = store.get(pattern_id);
+
+    switch (node.tag) {
+        .sym => {
+            // Si c'est une variable liée dans les bindings, substituer
+            if (bindings.get(pattern_id)) |bound| return bound;
+            // Chercher aussi par payload (Sym)
+            if (bindings.get(node.payload)) |bound| return bound;
+            return pattern_id;
+        },
+        .lit => return pattern_id, // Les littéraux ne changent pas
+        .apply => {
+            // Substituer dans la fonction et tous les arguments
+            const new_func = try substitutePattern(store, node.payload, bindings, allocator);
+            const old_args = node.span_a.slice(store.pool.items);
+            var new_args: std.ArrayListUnmanaged(Id) = .{};
+            defer new_args.deinit(allocator);
+            for (old_args) |arg| {
+                try new_args.append(allocator, try substitutePattern(store, arg, bindings, allocator));
+            }
+            return store.apply(new_func, new_args.items);
+        },
+        .bind => {
+            const new_val = try substitutePattern(store, node.aux, bindings, allocator);
+            const span = try store.reserveSpan(2);
+            store.pool.items[span.start] = new_val;
+            store.pool.items[span.start + 1] = try store.unitLit();
+            return store.addNode(.{
+                .tag = .bind,
+                .payload = node.payload,
+                .aux = 0,
+                .span_a = span,
+                .span_b = Span.EMPTY,
+            });
+        },
+        .lambda => {
+            // Ne pas substituer sous un lambda qui shadow la variable
+            const bound_name = store.interner.resolve(node.payload);
+            // Vérifier si le lambda shadow une variable liée
+            var shadowed = false;
+            var it = bindings.iterator();
+            while (it.next()) |entry| {
+                if (entry.key_ptr.* < store.len()) {
+                    const k_node = store.get(entry.key_ptr.*);
+                    if (k_node.tag == .sym) {
+                        const k_name = store.interner.resolve(k_node.payload);
+                        if (std.mem.eql(u8, k_name, bound_name)) {
+                            shadowed = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (shadowed) return pattern_id;
+
+            const old_body = node.span_a.slice(store.pool.items);
+            var new_body: std.ArrayListUnmanaged(Id) = .{};
+            defer new_body.deinit(allocator);
+            for (old_body) |child| {
+                try new_body.append(allocator, try substitutePattern(store, child, bindings, allocator));
+            }
+            const body_span = try store.pushSpan(new_body.items);
+            return store.addNode(.{
+                .tag = .lambda,
+                .payload = node.payload,
+                .aux = 0,
+                .span_a = body_span,
+                .span_b = Span.EMPTY,
+            });
+        },
+        .relation => {
+            const old_args = node.span_a.slice(store.pool.items);
+            var new_args: std.ArrayListUnmanaged(Id) = .{};
+            defer new_args.deinit(allocator);
+            for (old_args) |arg| {
+                try new_args.append(allocator, try substitutePattern(store, arg, bindings, allocator));
+            }
+            const span_a = try store.pushSpan(new_args.items);
+
+            const old_args_b = node.span_b.slice(store.pool.items);
+            var new_args_b: std.ArrayListUnmanaged(Id) = .{};
+            defer new_args_b.deinit(allocator);
+            for (old_args_b) |arg| {
+                try new_args_b.append(allocator, try substitutePattern(store, arg, bindings, allocator));
+            }
+            const span_b = try store.pushSpan(new_args_b.items);
+
+            return store.addNode(.{
+                .tag = .relation,
+                .payload = node.payload,
+                .aux = 0,
+                .span_a = span_a,
+                .span_b = span_b,
+            });
+        },
+        else => return pattern_id,
+    }
 }
