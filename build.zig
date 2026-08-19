@@ -389,6 +389,8 @@ pub fn build(b: *std.Build) void {
             .{ .name = "transform", .module = transform_mod },
             .{ .name = "pattern", .module = pattern_mod },
             .{ .name = "egraph", .module = egraph_mod },
+            .{ .name = "egraph_rewriter", .module = egraph_rewriter_mod },
+            .{ .name = "platform", .module = platform_mod },
         },
     });
 

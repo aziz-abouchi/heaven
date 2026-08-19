@@ -1,6 +1,5 @@
 //! Moteur de simplification pour Heaven
 //! Extrait de commands.zig pour modularité
-
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const expr = @import("expr");
@@ -10,6 +9,9 @@ const engine_expr = @import("engine_expr");
 const transform_mod = @import("transform");
 const pattern_mod = @import("pattern");
 const egraph_mod = @import("egraph");
+const egraph_rewriter_mod = @import("egraph_rewriter");
+const canon_mod = @import("canon");
+const platform = @import("platform");
 
 pub const SimplifyEngine = struct {
     store: *Store,
@@ -194,39 +196,34 @@ pub const SimplifyEngine = struct {
         return current;
     }
 
+    // === NOUVELLE VERSION : utilise Rewriter avec saturation complète et preuves ===
     pub fn simplifyWithEGraph(self: *SimplifyEngine, id: Id, qtt: ?*egraph_mod.QttCost) !Id {
         if (self.kb.rules.items.len == 0) return id;
+
+        // Créer un EGraph
         var egraph = egraph_mod.EGraph.init(self.store, self.allocator);
         defer egraph.deinit();
+
+        // Ajouter toutes les règles (relations) comme expressions dans l'EGraph
+        // (le Rewriter les parcourra directement depuis le Store)
+        // Ajouter l'expression à simplifier
         const root_class = try egraph.addExpr(id);
-        var changed = true;
-        var iters: u32 = 0;
-        while (changed and iters < 8) : (iters += 1) {
-            changed = false;
-            for (self.kb.rules.items) |rule_id| {
-                if (rule_id >= self.store.len()) continue;
-                const rule_node = self.store.get(rule_id);
-                if (rule_node.tag != .relation) continue;
-                const lhs_rhs = rule_node.span_a.slice(self.store.pool.items);
-                if (lhs_rhs.len != 2) continue;
-                const lhs_id = lhs_rhs[0];
-                const rhs_id = lhs_rhs[1];
-                var i: u32 = 0;
-                while (i < egraph.classes.items.len) : (i += 1) {
-                    const eclass = &egraph.classes.items[i];
-                    for (eclass.nodes.items) |node_id| {
-                        var bindings: std.AutoHashMapUnmanaged(u32, Id) = .{};
-                        defer bindings.deinit(self.allocator);
-                        if (pattern_mod.exprPatternMatch(self.store, lhs_id, node_id, &bindings, self.allocator)) {
-                            const new_id = pattern_mod.substitutePattern(self.store, rhs_id, &bindings, self.allocator) catch continue;
-                            const new_class = try egraph.addExpr(new_id);
-                            const merged = try egraph.merge(i, new_class);
-                            if (merged != i) changed = true;
-                        }
-                    }
-                }
-            }
-        }
-        return egraph.extract(root_class, qtt) orelse id;
+
+        // Créer le Rewriter et saturer
+        var rewriter = egraph_rewriter_mod.Rewriter.init(&egraph, self.store, self.allocator);
+        defer rewriter.deinit();
+
+        // Saturer avec un budget de 1000ms (configurable)
+        const merges = try rewriter.saturate(1000);
+        platform.debug.print("[EGraph] saturation: {} merges\n", .{merges});
+
+        // Extraire le meilleur terme
+        const extracted = egraph.extract(root_class, qtt) orelse id;
+
+        // Si on veut conserver les preuves (optionnel), on peut les récupérer
+        // avec egraph.proofs
+        // Pour l'instant on les ignore, mais elles sont stockées.
+
+        return extracted;
     }
 };

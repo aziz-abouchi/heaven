@@ -8,6 +8,14 @@ const Tag = expr.Tag;
 
 pub const ClassId = u32;
 
+// === Étape 5 : Preuves ===
+pub const ProofStep = struct {
+    rule_id: Id, // 0 pour β-réduction, sinon ID de la relation
+    lhs: Id,
+    rhs: Id,
+    timestamp: u64,
+};
+
 pub const QttCost = struct {
     quantities: std.AutoHashMapUnmanaged(Id, u2) = .{}, // 0=zero, 1=one, 2=many
 
@@ -57,22 +65,20 @@ pub const QttCost = struct {
 };
 
 pub const CostModel = struct {
-    // Coût de base par opération
     pub fn nodeCost(store: *const Store, id: Id) u32 {
         const node = store.get(id);
         return switch (node.tag) {
             .lit => 1,
-            .sym => 0, // les variables sont gratuites (références)
+            .sym => 0,
             .apply => {
-                // Coût de l'opération + coût des enfants
                 const func_node = store.get(node.payload);
                 if (func_node.tag == .sym) {
                     const op_name = store.interner.resolve(func_node.payload);
                     if (std.mem.eql(u8, op_name, "+") or std.mem.eql(u8, op_name, "*")) {
-                        return 2; // opérations AC : coût fixe
+                        return 2;
                     }
                     if (std.mem.eql(u8, op_name, "^")) {
-                        return 4; // exponentiation : plus cher
+                        return 4;
                     }
                 }
                 return 1;
@@ -81,7 +87,6 @@ pub const CostModel = struct {
         };
     }
 
-    // Coût total récursif
     pub fn total(store: *const Store, id: Id) u32 {
         const node = store.get(id);
         var c: u32 = nodeCost(store, id);
@@ -160,6 +165,9 @@ pub const EClass = struct {
     }
 };
 
+// === Étape 6 : fonction de coût contextuelle ===
+pub const CostFn = *const fn (store: *const Store, id: Id, context: ?*anyopaque) u32;
+
 pub const EGraph = struct {
     store: *Store,
     allocator: Allocator,
@@ -168,6 +176,8 @@ pub const EGraph = struct {
     node_to_class: std.AutoHashMapUnmanaged(Id, ClassId) = .{},
     hashcons: std.AutoHashMapUnmanaged(u64, ClassId) = .{},
     merge_count: u64 = 0,
+    // Étape 5
+    proofs: std.ArrayListUnmanaged(ProofStep) = .{},
 
     pub fn init(store: *Store, allocator: Allocator) EGraph {
         return .{
@@ -183,11 +193,15 @@ pub const EGraph = struct {
         self.uf.deinit();
         self.node_to_class.deinit(self.allocator);
         self.hashcons.deinit(self.allocator);
+        self.proofs.deinit(self.allocator);
+    }
+
+    pub fn addProof(self: *EGraph, step: ProofStep) !void {
+        try self.proofs.append(self.allocator, step);
     }
 
     pub fn add(self: *EGraph, id: Id) !ClassId {
         const canonical = try canon_mod.canonicalize(self.store, self.allocator, id);
-        // Si l'ID canonique est déjà dans une classe, on y rattache l'ID original
         if (self.node_to_class.get(canonical)) |class| {
             try self.node_to_class.put(self.allocator, id, class);
             return self.uf.find(class);
@@ -196,7 +210,6 @@ pub const EGraph = struct {
         const h = expr.nodeHash(self.store, canonical);
         if (self.hashcons.get(h)) |existing| {
             const existing_class = self.uf.find(existing);
-            // Associe les deux ID à la même classe
             try self.node_to_class.put(self.allocator, id, existing_class);
             try self.node_to_class.put(self.allocator, canonical, existing_class);
             try self.classes.items[existing_class].nodes.append(self.allocator, canonical);
@@ -208,7 +221,7 @@ pub const EGraph = struct {
         try eclass.nodes.append(self.allocator, canonical);
         try self.classes.append(self.allocator, eclass);
         try self.node_to_class.put(self.allocator, canonical, class);
-        try self.node_to_class.put(self.allocator, id, class); // original aussi
+        try self.node_to_class.put(self.allocator, id, class);
         try self.hashcons.put(self.allocator, h, class);
         return class;
     }
@@ -227,7 +240,7 @@ pub const EGraph = struct {
                 for (node.span_a.slice(pool)) |child| _ = try self.addExpr(child);
                 for (node.span_b.slice(pool)) |child| _ = try self.addExpr(child);
             },
-            else => return 0, // ou return error.UnsupportedExpr
+            else => return 0,
         }
         return self.add(id);
     }
@@ -240,7 +253,6 @@ pub const EGraph = struct {
         const new_rep = self.uf.merge(ra, rb);
         const old = if (new_rep == ra) rb else ra;
 
-        // Merge nodes from old to new
         if (old < self.classes.items.len) {
             const old_nodes = self.classes.items[old].nodes.items;
             for (old_nodes) |node_id| {
@@ -280,6 +292,30 @@ pub const EGraph = struct {
         return best;
     }
 
+    // === Étape 6 : Extraction avec contexte ===
+    pub fn extractWithContext(
+        egraph: *EGraph,
+        class: ClassId,
+        cost_fn: CostFn,
+        context: ?*anyopaque,
+    ) ?Id {
+        const canonical = egraph.uf.find(class);
+        if (canonical >= egraph.classes.items.len) return null;
+        const eclass = &egraph.classes.items[canonical];
+        if (eclass.nodes.items.len == 0) return null;
+
+        var best: Id = eclass.nodes.items[0];
+        var best_cost = cost_fn(egraph.store, best, context);
+        for (eclass.nodes.items[1..]) |node_id| {
+            const c = cost_fn(egraph.store, node_id, context);
+            if (c < best_cost) {
+                best = node_id;
+                best_cost = c;
+            }
+        }
+        return best;
+    }
+
     pub fn extract(egraph: *EGraph, class: ClassId, qtt: ?*QttCost) ?Id {
         const canonical = egraph.uf.find(class);
         if (canonical >= egraph.classes.items.len) return null;
@@ -297,17 +333,6 @@ pub const EGraph = struct {
         }
         return best;
     }
-
-    //pub fn saturate(self: *EGraph, rewrite_db: *const RewriteDB, budget_ms: u64) !void {
-    //    const start = std.time.milliTimestamp();
-    //    var changed = true;
-    //    while (changed) {
-    //        if (std.time.milliTimestamp() - start > budget_ms) break;
-    //        changed = false;
-    //        // Appliquer chaque rewrite rule à chaque e-class
-    //        // ...
-    //    }
-    //}
 };
 
 pub fn cost(store: *const Store, id: Id) u32 {

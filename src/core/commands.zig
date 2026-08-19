@@ -171,6 +171,14 @@ pub const Commands = struct {
         const actual = if (trimmed0.len > 0 and trimmed0[0] == ':') trimmed0[1..] else trimmed0;
         const trimmed = std.mem.trim(u8, actual, " \t\r\n");
 
+        if (std.mem.startsWith(u8, trimmed, "(test ") or
+            std.mem.startsWith(u8, trimmed, "(assert_eq ") or
+            std.mem.startsWith(u8, trimmed, "(assert_err "))
+        {
+            const id = try self.parser.parseSExpr(trimmed);
+            return try self.evalTestExpr(id);
+        }
+
         if (std.mem.startsWith(u8, trimmed, "module ") or
             std.mem.startsWith(u8, trimmed, "data ") or
             std.mem.startsWith(u8, trimmed, "zero :") or
@@ -302,7 +310,10 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "prove ")) return self.evalProve(trimmed["prove ".len..]);
         if (std.mem.startsWith(u8, trimmed, "skill ")) return self.evalSkill(trimmed["skill ".len..]);
         if (std.mem.startsWith(u8, trimmed, "type ")) return self.evalType(trimmed["type ".len..]);
+
+        // === MODIFICATION : evalSimplify utilise désormais simplifyWithEGraph ===
         if (std.mem.startsWith(u8, trimmed, "simplify ")) return self.evalSimplify(trimmed["simplify ".len..]);
+
         if (std.mem.startsWith(u8, trimmed, "rewrite ")) {
             const rest = trimmed["rewrite ".len..];
             const arrow_pos = std.mem.indexOf(u8, rest, "=>") orelse {
@@ -334,6 +345,7 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "asm ")) return self.evalAsm(trimmed["asm ".len..]);
         if (std.mem.startsWith(u8, trimmed, "ask ")) return self.evalAsk(trimmed["ask ".len..]);
         if (std.mem.startsWith(u8, trimmed, "js ")) return self.evalJs(trimmed["js ".len..]);
+        if (std.mem.startsWith(u8, trimmed, "green ")) return self.evalGreen(trimmed["green ".len..]);
 
         if (std.mem.startsWith(u8, trimmed, "derive(")) {
             const rest = trimmed["derive(".len..];
@@ -392,6 +404,32 @@ pub const Commands = struct {
         return expr.toStringInfix(self.store, canon, self.allocator);
     }
 
+    // ─── evalSimplify : utilise l'EGraph avec saturation complète ───
+    fn evalSimplify(self: *Commands, input: []const u8) HeavenError![]u8 {
+        const trimmed = std.mem.trim(u8, input, " \t");
+        if (trimmed.len == 0) return self.allocator.dupe(u8, "usage: simplify <expr>");
+
+        // Parser l'expression
+        const raw_id = self.parseExpression(trimmed) catch try self.bridge.importExpr(trimmed);
+        const id = try self.store.lowerRec(raw_id);
+
+        // Construire le QttCost à partir de l'environnement qtt
+        var qtt = egraph_mod.QttCost{};
+        defer qtt.deinit(self.allocator);
+        var it = self.qtt_env.iterator();
+        while (it.next()) |entry| {
+            const sym = try self.store.interner.intern(entry.key_ptr.*);
+            const sym_id = try self.store.symId(sym);
+            try qtt.quantities.put(self.allocator, sym_id, entry.value_ptr.*);
+        }
+
+        // Appeler le moteur de simplification avec EGraph
+        const simplified = try self.simplify_eng.simplifyWithEGraph(id, &qtt);
+
+        // Retourner le résultat sous forme de chaîne
+        return expr.toStringInfix(self.store, simplified, self.allocator);
+    }
+
     fn evalHelp(self: *Commands) ![]u8 {
         return try self.allocator.dupe(u8, "═══ Heaven ═══\n" ++
             "  help, stats, theorems\n" ++
@@ -417,10 +455,6 @@ pub const Commands = struct {
             "Features: eval, type, simplify, explain, latex, quote, prove");
     }
 
-    fn evalSimplify(self: *Commands, input: []const u8) HeavenError![]u8 {
-        return self.simplify(input);
-    }
-
     fn evalType(self: *Commands, input: []const u8) ![]u8 {
         return self.typeOf(input);
     }
@@ -430,7 +464,8 @@ pub const Commands = struct {
     }
 
     fn evalLatex(self: *Commands, input: []const u8) ![]u8 {
-        const id = try self.bridge.importExpr(input);
+        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
+        const id = try self.store.lowerRec(raw_id);
         const latex = try self.toLaTeXInline(id);
         return std.fmt.allocPrint(self.allocator, "latex|{s}", .{latex});
     }
@@ -466,7 +501,8 @@ pub const Commands = struct {
         var buf: std.ArrayListUnmanaged(u8) = .{};
         defer buf.deinit(self.allocator);
         const w = buf.writer(self.allocator);
-        const id = try self.bridge.importExpr(input);
+        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
+        const id = try self.store.lowerRec(raw_id);
         const initial = try expr.toStringInfix(self.store, id, self.allocator);
         defer self.allocator.free(initial);
         try w.print("trace: {s}\n", .{initial});
@@ -1108,7 +1144,8 @@ pub const Commands = struct {
             } else if (trimmed.len > 0 and trimmed[0] == '(') {
                 break :blk try self.parser.parseSExpr(trimmed);
             } else {
-                break :blk try self.bridge.importExpr(trimmed);
+                // Fallback robuste
+                break :blk self.parseExpression(trimmed) catch try self.bridge.importExpr(trimmed);
             }
         };
         var inf = types_mod.Infer.init(self.store, self.allocator);
@@ -1120,7 +1157,8 @@ pub const Commands = struct {
     pub fn simplify(self: *Commands, input: []const u8) HeavenError![]u8 {
         //const id = self.parseExpression(input) catch return error.EvaluationFailed;
         //const id = try self.bridge.importExpr(input);
-        const raw_id = try self.bridge.importExpr(input);
+        //const raw_id = try self.bridge.importExpr(input);
+        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
         const id = try self.store.lowerRec(raw_id);
         platform.debug.print("[SIMPLIFY] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
 
@@ -1313,8 +1351,76 @@ pub const Commands = struct {
         return expr.toString(self.store, id, self.allocator);
     }
 
+    fn evalGreen(self: *Commands, input: []const u8) ![]u8 {
+        const id = self.parseExpression(input) catch try self.bridge.importExpr(input);
+
+        self.engine.green_call_count = 0;
+        self.engine.green_mode = true;
+        defer self.engine.green_mode = false;
+
+        self.engine.fuel = 1_000_000;
+        const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch |err| {
+            return try std.fmt.allocPrint(self.allocator, "green eval error: {}", .{err});
+        };
+
+        const res_str = try expr.toStringInfix(self.store, result, self.allocator);
+        return try std.fmt.allocPrint(self.allocator, "{s} (green calls: {d})", .{ res_str, self.engine.green_call_count });
+    }
+
+    fn evalTestExpr(self: *Commands, id: Id) ![]u8 {
+        const node = self.store.get(id);
+        if (node.tag == .apply) {
+            const func_id = node.payload;
+            const func_node = self.store.get(func_id);
+            if (func_node.tag == .sym) {
+                const name = self.store.interner.resolve(func_node.payload);
+                const args = node.span_a.slice(self.store.pool.items);
+
+                if (std.mem.eql(u8, name, "test") and args.len >= 2) {
+                    const body_id = args[args.len - 1];
+                    self.engine.fuel = 1_000_000;
+                    const body_result = engine_expr.evaluate(self.store, self.env, self.engine, body_id, 0) catch |err| {
+                        return try std.fmt.allocPrint(self.allocator, "✗ test error: {}", .{err});
+                    };
+                    return try self.evalTestExpr(body_result);
+                }
+
+                if (std.mem.eql(u8, name, "assert_eq") and args.len == 2) {
+                    self.engine.fuel = 1_000_000;
+                    const lhs = engine_expr.evaluate(self.store, self.env, self.engine, args[0], 0) catch args[0];
+                    const rhs = engine_expr.evaluate(self.store, self.env, self.engine, args[1], 0) catch args[1];
+
+                    if (@import("pattern").exprStructuralEq(self.store, lhs, rhs)) {
+                        return try self.allocator.dupe(u8, "✓ assert_eq passed");
+                    } else {
+                        const l_str = try expr.toStringInfix(self.store, lhs, self.allocator);
+                        const r_str = try expr.toStringInfix(self.store, rhs, self.allocator);
+                        defer self.allocator.free(l_str);
+                        defer self.allocator.free(r_str);
+                        return try std.fmt.allocPrint(self.allocator, "✗ assert_eq failed: {s} != {s}", .{ l_str, r_str });
+                    }
+                }
+
+                if (std.mem.eql(u8, name, "assert_err") and args.len == 1) {
+                    self.engine.fuel = 1_000_000;
+                    const result = engine_expr.evaluate(self.store, self.env, self.engine, args[0], 0);
+                    if (result) |_| {
+                        return try self.allocator.dupe(u8, "✗ assert_err failed: expected error but got value");
+                    } else |_| {
+                        return try self.allocator.dupe(u8, "✓ assert_err passed");
+                    }
+                }
+            }
+        }
+        // Fallback
+        self.engine.fuel = 1_000_000;
+        const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch id;
+        return expr.toStringInfix(self.store, result, self.allocator);
+    }
+
     fn evalOptimize(self: *Commands, input: []const u8) ![]u8 {
-        const id = try self.bridge.importExpr(input);
+        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
+        const id = try self.store.lowerRec(raw_id);
         var qtt = egraph_mod.QttCost{};
         defer qtt.deinit(self.allocator);
         var it = self.qtt_env.iterator();
@@ -1328,7 +1434,8 @@ pub const Commands = struct {
     }
 
     fn evalAsm(self: *Commands, input: []const u8) ![]u8 {
-        const id = try self.bridge.importExpr(input);
+        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
+        const id = try self.store.lowerRec(raw_id);
         var mir_func = mir.MirFunction.init(self.allocator);
         defer mir_func.deinit();
         const entry_block = try mir_func.newBlock();
@@ -1386,7 +1493,8 @@ pub const Commands = struct {
     }
 
     pub fn dumpAst(self: *Commands, input: []const u8) ![]u8 {
-        const id = try self.bridge.importExpr(input);
+        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
+        const id = try self.store.lowerRec(raw_id);
         var buf: std.ArrayListUnmanaged(u8) = .{};
         errdefer buf.deinit(self.allocator);
         try self.writeAst(id, 0, &buf);
@@ -1596,7 +1704,8 @@ pub const Commands = struct {
     }
 
     pub fn exprToC(self: *Commands, input: []const u8) ![]u8 {
-        const id = try self.bridge.importExpr(input);
+        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
+        const id = try self.store.lowerRec(raw_id);
         var cg = codegen_c.Codegen.init(self.store, self.allocator);
         defer cg.deinit();
         return cg.generateExpr(id);
@@ -1688,8 +1797,10 @@ pub const Commands = struct {
             return try self.allocator.dupe(u8, "Usage: theorem <name> : <lhs> = <rhs>");
         const lhs_str = std.mem.trim(u8, stmt[0..eq_pos], " ");
         const rhs_str = std.mem.trim(u8, stmt[eq_pos + 1 ..], " ");
-        const lhs = try self.bridge.importExpr(lhs_str);
-        const rhs = try self.bridge.importExpr(rhs_str);
+
+        // Parser correctement les côtés de l'équation
+        const lhs = self.parseExpression(lhs_str) catch try self.bridge.importExpr(lhs_str);
+        const rhs = self.parseExpression(rhs_str) catch try self.bridge.importExpr(rhs_str);
         const lhs_canon = try canon_mod.canonicalize(self.store, self.allocator, lhs);
         const rhs_canon = try canon_mod.canonicalize(self.store, self.allocator, rhs);
         try self.proof_core.theorem(name, stmt, lhs_canon, rhs_canon);

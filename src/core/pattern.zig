@@ -95,7 +95,6 @@ pub fn match(store: *const Store, pattern: Id, target: Id, bindings: *Bindings) 
 
     if (p.tag == .sym) {
         const name = store.interner.resolve(p.payload);
-        // Accepter comme variable de pattern tout symbole qui n'est pas un opérateur magique
         const is_op = std.mem.eql(u8, name, "+") or std.mem.eql(u8, name, "-") or
             std.mem.eql(u8, name, "*") or std.mem.eql(u8, name, "/") or
             std.mem.eql(u8, name, "%") or std.mem.eql(u8, name, "=") or
@@ -162,15 +161,12 @@ pub fn substitutePattern(store: *Store, pattern_id: Id, bindings: anytype, alloc
 
     switch (node.tag) {
         .sym => {
-            // Si c'est une variable liée dans les bindings, substituer
             if (bindings.get(pattern_id)) |bound| return bound;
-            // Chercher aussi par payload (Sym)
             if (bindings.get(node.payload)) |bound| return bound;
             return pattern_id;
         },
-        .lit => return pattern_id, // Les littéraux ne changent pas
+        .lit => return pattern_id,
         .apply => {
-            // Substituer dans la fonction et tous les arguments
             const new_func = try substitutePattern(store, node.payload, bindings, allocator);
             const old_args = node.span_a.slice(store.pool.items);
             var new_args: std.ArrayListUnmanaged(Id) = .{};
@@ -194,9 +190,7 @@ pub fn substitutePattern(store: *Store, pattern_id: Id, bindings: anytype, alloc
             });
         },
         .lambda => {
-            // Ne pas substituer sous un lambda qui shadow la variable
             const bound_name = store.interner.resolve(node.payload);
-            // Vérifier si le lambda shadow une variable liée
             var shadowed = false;
             var it = bindings.iterator();
             while (it.next()) |entry| {
