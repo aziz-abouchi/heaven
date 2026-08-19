@@ -390,13 +390,15 @@ pub const Math = struct {
                 return self.store.int(0);
             },
             .sym => {
-                if (std.mem.eql(u8, self.store.interner.resolve(node.payload), self.store.interner.resolve(variable))) {
+                const var_node = self.store.get(variable);
+                const var_sym = var_node.payload; // Le Sym du nœud
+                if (std.mem.eql(u8, self.store.interner.resolve(node.payload), self.store.interner.resolve(var_sym))) {
                     // ∫ x dx = x^2/2
                     const two = try self.store.int(2);
                     const x_sq = try self.store.binop("^", expr_id, two);
                     return self.store.binop("/", x_sq, two);
                 }
-                return self.store.binop("*", expr_id, try self.store.sym(self.store.interner.resolve(variable)));
+                return self.store.binop("*", expr_id, try self.store.sym(self.store.interner.resolve(var_sym)));
             },
             .apply => {
                 const p = self.store.pool.items;

@@ -249,7 +249,6 @@ fn isFrontendExtension(name: []const u8) bool {
     if (std.mem.eql(u8, name, "quote")) return true;
     if (std.mem.eql(u8, name, "unquote")) return true;
     if (std.mem.eql(u8, name, "perform")) return true;
-    if (std.mem.eql(u8, name, "handle")) return true;
     if (std.mem.eql(u8, name, "Nil")) return true;
     if (std.mem.eql(u8, name, "Cons")) return true;
     if (std.mem.startsWith(u8, name, "Type_")) return true;
@@ -386,7 +385,32 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return actor_ptr.state;
     }
 
-    // ═══ 4. OPÉRATEURS ARITHMÉTIQUES ═══
+    // ═══ 3. EFFETS ALGÉBRIQUES : perform et handle ═══
+    if (std.mem.eql(u8, op, "perform")) {
+        // Si on est en mode "green" (profiling), on compte l'effet
+        if (engine.green_mode) {
+            engine.green_call_count += 1;
+        }
+        // Un perform retourne simplement son argument (le calcul évalué)
+        if (args.len > 1) return evaluate(store, env, engine, args[1], depth + 1);
+        return args[0];
+    }
+
+    if (std.mem.eql(u8, op, "handle")) {
+        // handle(body, handler)
+        // Pour le profiling, on active le mode green pendant l'évaluation du corps
+        const old_mode = engine.green_mode;
+        engine.green_mode = true;
+        engine.green_call_count = 0;
+
+        const result = try evaluate(store, env, engine, args[0], depth + 1);
+
+        engine.green_mode = old_mode;
+        // On retourne le résultat (le compteur est stocké dans engine.green_call_count)
+        return result;
+    }
+
+    // ═══ 5. OPÉRATEURS ARITHMÉTIQUES ═══
     if (args.len == 0) return error.ArityMismatch;
     if (std.mem.eql(u8, op, "!")) {
         if (args.len != 1) return error.ArityMismatch;

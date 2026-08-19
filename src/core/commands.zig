@@ -203,7 +203,9 @@ pub const Commands = struct {
         if (trimmed.len >= 2 and trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
             const id = try self.parser.parseSExpr(trimmed);
             self.engine.fuel = 1_000_000;
-            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch id;
+            const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch |err| {
+                return try std.fmt.allocPrint(self.allocator, "eval error: {}", .{err});
+            };
             return expr.toStringInfix(self.store, result, self.allocator);
         }
 
@@ -410,11 +412,12 @@ pub const Commands = struct {
     }
 
     fn evalStats(self: *Commands) ![]u8 {
-        _ = self;
-        return try std.mem.Allocator.dupe(std.heap.page_allocator, u8, "═══ Heaven ═══\nEngine: active\nFeatures: eval, type, simplify, explain, latex, quote, prove");
+        return try self.allocator.dupe(u8, "═══ Heaven WASM ═══\n" ++
+            "Engine: active\n" ++
+            "Features: eval, type, simplify, explain, latex, quote, prove");
     }
 
-    fn evalSimplify(self: *Commands, input: []const u8) ![]u8 {
+    fn evalSimplify(self: *Commands, input: []const u8) HeavenError![]u8 {
         return self.simplify(input);
     }
 
@@ -1114,8 +1117,17 @@ pub const Commands = struct {
         return inf.typeStr(&inf.subst, t, self.allocator);
     }
 
-    pub fn simplify(self: *Commands, input: []const u8) ![]u8 {
-        const id = try self.bridge.importExpr(input);
+    pub fn simplify(self: *Commands, input: []const u8) HeavenError![]u8 {
+        //const id = self.parseExpression(input) catch return error.EvaluationFailed;
+        //const id = try self.bridge.importExpr(input);
+        const raw_id = try self.bridge.importExpr(input);
+        const id = try self.store.lowerRec(raw_id);
+        platform.debug.print("[SIMPLIFY] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
+
+        const debug_str = try expr.toStringInfix(self.store, id, self.allocator);
+        defer self.allocator.free(debug_str);
+        platform.debug.print("simplify input: {s}\n", .{debug_str});
+
         var current = id;
 
         var changed = true;
@@ -1135,6 +1147,7 @@ pub const Commands = struct {
                 var bindings = std.AutoHashMapUnmanaged(u32, Id){};
                 defer bindings.deinit(self.allocator);
                 if (pattern_mod.exprPatternMatch(self.store, lhs, current, &bindings, self.allocator)) {
+                    platform.debug.print("[SIMPLIFY] Rule matched!\n", .{});
                     const new_id = try pattern_mod.substitutePattern(self.store, rhs, &bindings, self.allocator);
                     if (new_id != current) {
                         current = new_id;

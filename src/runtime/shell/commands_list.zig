@@ -128,6 +128,7 @@ pub const commands = [_]Command{
     .{ .name = "trace", .tag = .trace, .description = "Tracer l'exécution", .method = "cmdTrace" },
     .{ .name = "optimize", .tag = .optimize, .shortcut = "opt", .description = "Optimiser l'expression", .method = "cmdOptimize" },
     .{ .name = "hook", .tag = .hole, .description = "Enregistrer un hook événement => agent", .method = "cmdHook" },
+    .{ .name = "green", .tag = .cmd_type, .description = "Profile une expression (Effets + Énergie)", .method = "cmdGreen" },
 
     // Ontologie & S-Expr
     .{ .name = "onto", .tag = .onto, .shortcut = "ontology", .description = "Gérer l'ontologie", .method = "cmdOnto" },

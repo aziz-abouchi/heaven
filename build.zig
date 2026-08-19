@@ -12,12 +12,6 @@ pub fn build(b: *std.Build) void {
     options.addOption(i64, "build_timestamp", std.time.timestamp());
 
     // 2. Création dynamique des modules
-    const expr_mod = b.addModule("expr", .{
-        .root_source_file = b.path("src/core/expr.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     const platform_mod = b.addModule("platform", .{
         .root_source_file = b.path(if (target.query.cpu_arch == .wasm32)
             "src/platform/wasm.zig"
@@ -25,6 +19,24 @@ pub fn build(b: *std.Build) void {
             "src/platform/native.zig"),
         .target = target,
         .optimize = optimize,
+    });
+
+    const expr_mod = b.addModule("expr", .{
+        .root_source_file = b.path("src/core/expr.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "platform", .module = platform_mod },
+        },
+    });
+
+    const profiler_mod = b.addModule("profiler", .{
+        .root_source_file = b.path("src/core/profiler.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "platform", .module = platform_mod },
+        },
     });
 
     const queue_mod = b.createModule(.{
@@ -619,6 +631,7 @@ pub fn build(b: *std.Build) void {
                     .{ .name = "agent", .module = agent_mod },
                     .{ .name = "commands", .module = commands_mod },
                     .{ .name = "universal_translator", .module = universal_translator_mod },
+                    .{ .name = "profiler", .module = profiler_mod },
                 },
             },
         ),
@@ -681,6 +694,9 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/core/expr.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{ .name = "platform", .module = platform_mod },
+        },
     }) });
 
     const test_bridge = b.addTest(.{ .root_module = b.createModule(.{
@@ -854,6 +870,25 @@ pub fn build(b: *std.Build) void {
         },
     }) });
 
+    const test_commands_full = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/runtime/shell/commands_full_test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
+            .{ .name = "matrix_bridge", .module = matrix_bridge_mod },
+            .{ .name = "parse", .module = parse_mod },
+            .{ .name = "transform", .module = transform_mod },
+            .{ .name = "skill", .module = skill_mod },
+            .{ .name = "platform", .module = platform_mod },
+            .{ .name = "proof_core", .module = proof_core_mod },
+            .{ .name = "agent", .module = agent_mod },
+            .{ .name = "math", .module = math_mod },
+            .{ .name = "commands", .module = commands_mod },
+        },
+    }) });
+
     const test_mlcpd_equiv_integration = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/core/mlcpd_equiv_integration_test.zig"),
         .target = target,
@@ -923,6 +958,31 @@ pub fn build(b: *std.Build) void {
         test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
         test_commands.root_module.link_libc = true;
         test_commands.linkSystemLibrary("tree-sitter");
+
+        // Liens C pour test_commands_full
+        test_commands_full.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-heaven/src/parser.c"),
+            .flags = &.{"-std=c99"},
+        });
+        test_commands_full.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-pie/src/parser.c"),
+            .flags = &.{"-std=c99"},
+        });
+        test_commands_full.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-c/src/parser.c"),
+            .flags = &.{"-std=c99"},
+        });
+        test_commands_full.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-zig/src/parser.c"),
+            .flags = &.{"-std=c99"},
+        });
+        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
+        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-pie/src"));
+        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-c/src"));
+        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
+        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
+        test_commands_full.root_module.link_libc = true;
+        test_commands_full.linkSystemLibrary("tree-sitter");
     }
 
     const test_step = b.step("test", "Run all tests");
@@ -942,6 +1002,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_commands).step);
     test_step.dependOn(&b.addRunArtifact(test_mlcpd_equiv_integration).step);
     test_step.dependOn(&b.addRunArtifact(test_mlcpd_equiv).step);
+    test_step.dependOn(&b.addRunArtifact(test_commands_full).step);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -954,4 +1015,11 @@ pub fn build(b: *std.Build) void {
     run_tests_cmd.addArgs(&.{ "--run-test", "core/test_suite.hvn" });
     const test_regress_step = b.step("test-regression", "Run Heaven internal regression tests");
     test_regress_step.dependOn(&run_tests_cmd.step);
+
+    const doc_step = b.step("doc", "Generate documentation");
+    doc_step.dependOn(&b.addInstallDirectory(.{
+        .source_dir = b.path("docs"),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    }).step);
 }

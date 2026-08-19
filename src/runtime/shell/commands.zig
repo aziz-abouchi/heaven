@@ -1517,3 +1517,61 @@ pub fn cmdProfile(self: *Shell, input: []const u8) void {
     platform.debug.print("  Mémoire    : {d} KB\n", .{metrics.memory_peak_kb});
     platform.debug.print("═══════════════\n", .{});
 }
+
+pub fn cmdGreen(self: *Shell, input: []const u8) void {
+    if (input.len == 0) {
+        platform.debug.print("Usage: green <expression>\n", .{});
+        return;
+    }
+
+    // 1. Parser l'expression de l'utilisateur
+    const expr_id = self.heaven.importExpr(input) catch |err| {
+        platform.debug.print("parse error: {}\n", .{err});
+        return;
+    };
+
+    // 2. Définir le handler greenHandler explicitement
+    const handler_result = self.heaven.eval("let greenHandler(v1, v2, cost) = (+ v1 v2)") catch |err| {
+        platform.debug.print("Error defining green handler: {}\n", .{err});
+        return;
+    };
+    defer self.allocator.free(handler_result);
+
+    // 3. Démarrer le profiler matériel
+    var prof = profiler_mod.Profiler.start();
+    self.heaven.engine.green_call_count = 0;
+    self.heaven.engine.green_mode = true;
+    defer self.heaven.engine.green_mode = false;
+
+    // 4. Construire l'AST: (handle <expr> greenHandler)
+    const handle_op = self.heaven.store.sym("handle") catch return;
+    const handler_sym = self.heaven.store.sym("greenHandler") catch return;
+
+    var args_buf = [_]u32{ expr_id, handler_sym };
+    const handle_node = self.heaven.store.apply(handle_op, &args_buf) catch return;
+
+    // 5. Évaluation avec interception des effets
+    self.heaven.engine.fuel = 1_000_000;
+    const result = self.heaven.evaluateExpr(handle_node) catch |err| {
+        const metrics = prof.stop();
+        platform.debug.print("eval error: {}\n", .{err});
+        platform.debug.print("(Profiling aborted after {d:.3} ms)\n", .{@as(f64, @floatFromInt(metrics.wall_time_ns)) / 1_000_000.0});
+        return;
+    };
+
+    // 6. Arrêter le profiler
+    const metrics = prof.stop();
+    const result_str = self.heaven.format(result) catch "<error>";
+    defer self.allocator.free(result_str);
+
+    // 7. Afficher le rapport
+    platform.debug.print("═══ Green Profile ═══\n", .{});
+    platform.debug.print("  Résultat      : {s}\n", .{result_str});
+    platform.debug.print("  Effets perfrm : {d} appels\n", .{self.heaven.engine.green_call_count});
+    platform.debug.print("  ── Matériel ──\n", .{});
+    platform.debug.print("  Temps Réel    : {d:.3} ms\n", .{@as(f64, @floatFromInt(metrics.wall_time_ns)) / 1_000_000.0});
+    platform.debug.print("  Temps CPU     : {d:.3} ms\n", .{@as(f64, @floatFromInt(metrics.cpu_time_ns)) / 1_000_000.0});
+    platform.debug.print("  Énergie       : {d:.3} J\n", .{metrics.energy_joules});
+    platform.debug.print("  Mémoire Peak  : {d} KB\n", .{metrics.memory_peak_kb});
+    platform.debug.print("═══════════════════\n", .{});
+}

@@ -26,7 +26,7 @@ pub fn evalHeavenCode(self: *Shell, code: []const u8) void {
             platform.debug.print("Error loading file: {}\n", .{err});
             return;
         };
-        defer self.allocator.free(result);
+
         platform.debug.print("{s}\n", .{result});
         return;
     }
@@ -36,7 +36,7 @@ pub fn evalHeavenCode(self: *Shell, code: []const u8) void {
             platform.debug.print("Error parsing file: {}\n", .{err});
             return;
         };
-        defer self.allocator.free(result);
+
         platform.debug.print("{s}\n", .{result});
         return;
     }
@@ -51,43 +51,43 @@ pub fn evalHeavenCode(self: *Shell, code: []const u8) void {
         self.ingestor.ingest("repl.hvn", trimmed) catch {};
         return;
     };
-    defer self.allocator.free(result);
+
     platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 // Fonctions requises par commands.zig — redirigent toutes vers Heaven.eval
 pub fn exprEval(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
-    defer self.allocator.free(result);
+
     if (PROOF_DEBUG) platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub fn exprSimplify(self: *Shell, input: []const u8) void {
     const result = self.heaven.simplify(input) catch return;
-    defer self.allocator.free(result);
+
     if (PROOF_DEBUG) platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub fn exprFact(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
-    defer self.allocator.free(result);
+
     if (PROOF_DEBUG) platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub fn exprRule(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
-    defer self.allocator.free(result);
+
     if (PROOF_DEBUG) platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub fn exprQuery(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
-    defer self.allocator.free(result);
+
     if (PROOF_DEBUG) platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub fn exprRewrite(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
-    defer self.allocator.free(result);
+
     if (PROOF_DEBUG) platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }

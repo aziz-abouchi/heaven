@@ -31,22 +31,22 @@ pub const Profiler = struct {
 
     pub fn start() Profiler {
         return .{
-            .start_time = std.time.nanoTimestamp(),
+            .start_time = platform.time.nanoTimestamp(),
             .start_energy_uj = platform.readEnergyUJ() catch 0,
         };
     }
 
     pub fn stop(self: *Profiler) ResourceMetrics {
-        const end_time = std.time.nanoTimestamp();
+        const end_time = platform.time.nanoTimestamp();
         const end_energy_uj = platform.readEnergyUJ() catch self.start_energy_uj;
 
         const elapsed_ns = @as(u64, @intCast(end_time - self.start_time));
-        var rusage: std.posix.rusage = undefined;
-        _ = std.posix.getrusage(std.posix.rusage.SELF, &rusage);
+
+        const rusage = platform.posix.getrusage(platform.posix.rusage.SELF);
 
         // Calcul du temps CPU (User + System) en nanosecondes
-        const cpu_time_ns = @as(u64, @intCast(rusage.utime.tv_sec + rusage.stime.tv_sec)) * std.time.ns_per_s +
-            @as(u64, @intCast(rusage.utime.tv_usec + rusage.stime.tv_usec)) * std.time.ns_per_us;
+        const cpu_time_ns = @as(u64, @intCast(rusage.utime.sec + rusage.stime.sec)) * platform.time.ns_per_s +
+            @as(u64, @intCast(rusage.utime.usec + rusage.stime.usec)) * platform.time.ns_per_us;
 
         const energy_diff_uj = if (end_energy_uj > self.start_energy_uj) end_energy_uj - self.start_energy_uj else 0;
 

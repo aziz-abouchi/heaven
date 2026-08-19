@@ -1,4 +1,5 @@
 const std = @import("std");
+const platform = @import("platform");
 const Allocator = std.mem.Allocator;
 
 pub const Id = u32;
@@ -563,6 +564,8 @@ pub const Store = struct {
 
     pub fn lowerRec(self: *Store, id: Id) LowerError!Id {
         const node = self.get(id);
+        platform.debug.print("[lowerRec] id={d} tag={s}\n", .{ id, @tagName(node.tag) });
+
         if (node.tag.isPrimitive()) {
             var new_span_a = node.span_a;
             var new_span_b = node.span_b;
