@@ -1,4 +1,4 @@
-// @deprecated
+//! Frontend Heaven - intégration du moteur de simplification EGraph
 const std = @import("std");
 const expr = @import("expr");
 const engine = @import("engine_expr");
@@ -9,9 +9,12 @@ const proof = @import("proof");
 const platform = @import("platform");
 const mir = @import("mir");
 
+const simplify_engine_mod = @import("simplify_engine");
+const transform_mod = @import("transform");
+const egraph_mod = @import("egraph");
+
 const Store = expr.Store;
 const Id = expr.Id;
-const LowerError = expr.LowerError;
 const Sym = expr.Sym;
 
 pub const HeavenError = error{
@@ -53,6 +56,7 @@ pub const HeavenError = error{
     InvalidTypeAnn,
     CannotLowerFrontendTag,
     InvalidLambda,
+    InvalidExpr,
 } || std.mem.Allocator.Error || platform.fs.File.OpenError || platform.fs.File.ReadError || mir.MirError || engine.EvalError;
 
 pub const Heaven = struct {
@@ -60,119 +64,340 @@ pub const Heaven = struct {
     store: Store,
     env: engine.Env,
     type_env: types.TypeEnv,
-    pending_proof_request: ?[]const u8 = null,
-    proof_core: proof.ProofEnv = .{},
     engine: engine.Engine,
 
+    kb: *transform_mod.KnowledgeBase,
+    simplify_eng: simplify_engine_mod.SimplifyEngine,
+    proof_core: proof.ProofEnv,
+    pending_proof_request: ?[]const u8 = null,
+
     pub fn init(allocator: std.mem.Allocator) Heaven {
-        var h = Heaven{
+        var store = Store.init(allocator);
+        var env = engine.Env.init(allocator);
+        const type_env = types.TypeEnv.init(allocator);
+        var eng = engine.Engine{ .allocator = allocator };
+        eng.store = &store;
+        eng.env = &env;
+
+        const kb = allocator.create(transform_mod.KnowledgeBase) catch @panic("Out of memory");
+        kb.* = transform_mod.KnowledgeBase.init(allocator);
+
+        const simplify_eng = simplify_engine_mod.SimplifyEngine.init(&store, &eng, &env, kb, allocator);
+        const proof_core = proof.ProofEnv.init(allocator);
+
+        return Heaven{
             .allocator = allocator,
-            .store = Store.init(allocator),
-            .env = engine.Env.init(allocator),
-            .type_env = types.TypeEnv.init(allocator),
-            .engine = .{ .allocator = allocator },
+            .store = store,
+            .env = env,
+            .type_env = type_env,
+            .engine = eng,
+            .kb = kb,
+            .simplify_eng = simplify_eng,
+            .proof_core = proof_core,
+            .pending_proof_request = null,
         };
-        h.engine.store = &h.store;
-        h.engine.env = &h.env;
-        return h;
     }
 
     pub fn deinit(self: *Heaven) void {
         self.store.deinit();
         self.env.deinit();
         self.type_env.deinit();
+        self.kb.deinit(self.allocator);
+        self.allocator.destroy(self.kb);
+        self.proof_core.deinit();
+        if (self.pending_proof_request) |req| self.allocator.free(req);
     }
 
     pub fn ensureInit(self: *Heaven) void {
         _ = self;
     }
 
-    // Vrai flux d'évaluation
     pub fn eval(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        const ast = try self.parse(src);
-        const lowered = try self.ensureLowered(ast);
-        const result = engine.evaluate(&self.store, &self.env, &self.engine, lowered, 0) catch {
-            return self.idToString(ast); // Fallback
-        };
-        return self.idToString(result);
+        const trimmed = std.mem.trim(u8, src, " \t\n\r");
+        if (trimmed.len == 0) return self.allocator.dupe(u8, "");
+
+        if (std.mem.startsWith(u8, trimmed, "(relation ")) {
+            const inner = trimmed["(relation ".len .. trimmed.len - 1];
+            return self.addRelation(inner);
+        }
+
+        if (std.mem.startsWith(u8, trimmed, "simplify ")) {
+            const expr_str = std.mem.trim(u8, trimmed["simplify ".len..], " ");
+            return self.simplify(expr_str);
+        }
+
+        if (std.mem.startsWith(u8, trimmed, "(simplify ")) {
+            const inner = trimmed["(simplify ".len .. trimmed.len - 1];
+            return self.simplify(inner);
+        }
+
+        return self.allocator.dupe(u8, trimmed);
     }
 
-    // Parseur minimal pour les tests (entiers et symboles)
-    pub fn parse(self: *Heaven, src: []const u8) HeavenError!Id {
-        const trimmed = std.mem.trim(u8, src, " \t\n");
+    fn addRelation(self: *Heaven, input: []const u8) HeavenError![]u8 {
+        const trimmed = std.mem.trim(u8, input, " ");
+        const arrow_pos = std.mem.indexOf(u8, trimmed, "=>") orelse
+            return self.allocator.dupe(u8, "syntax error: expected lhs => rhs");
+        const lhs_str = std.mem.trim(u8, trimmed[0..arrow_pos], " ");
+        const rhs_str = std.mem.trim(u8, trimmed[arrow_pos + 2 ..], " ");
+
+        const lhs = try self.parseExpression(lhs_str);
+        const rhs = try self.parseExpression(rhs_str);
+
+        const lhs_canon = try canon.canonicalize(&self.store, self.allocator, lhs);
+        const rhs_canon = try canon.canonicalize(&self.store, self.allocator, rhs);
+
+        const rule_id = try self.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{});
+        try self.kb.rules.append(self.allocator, rule_id);
+        return self.allocator.dupe(u8, "✓ rule added");
+    }
+
+    pub fn simplify(self: *Heaven, input: []const u8) HeavenError![]u8 {
+        const trimmed = std.mem.trim(u8, input, " \t");
+        if (trimmed.len == 0) return self.allocator.dupe(u8, "");
+
+        platform.debug.print("[Heaven.simplify] input: {s}\n", .{trimmed});
+        platform.debug.print("[Heaven.simplify] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
+
+        const raw_id = try self.parseExpression(trimmed);
+        const id = try self.ensureLowered(raw_id);
+
+        const lowered_node = self.store.get(id);
+        platform.debug.print("[Heaven.simplify] lowered tag = {s}\n", .{@tagName(lowered_node.tag)});
+
+        var qtt = egraph_mod.QttCost{};
+        defer qtt.deinit(self.allocator);
+
+        platform.debug.print("[Heaven.simplify] parsed id = {d}, store.len = {d}\n", .{ id, self.store.len() });
+        const simplified = try self.simplify_eng.simplifyWithEGraph(id, &qtt);
+
+        const result_str = try expr.toStringInfix(&self.store, simplified, self.allocator);
+        return result_str;
+    }
+
+    // ─── Parsing robuste ───
+    pub fn importExpr(self: *Heaven, src: []const u8) HeavenError!Id {
+        return self.parseExpression(src);
+    }
+
+    pub fn parseExpression(self: *Heaven, input: []const u8) HeavenError!Id {
+        const trimmed = std.mem.trim(u8, input, " \t");
+        if (trimmed.len == 0) return error.InvalidInput;
+
         if (std.fmt.parseInt(i64, trimmed, 10)) |val| {
             return self.store.int(val);
         } else |_| {}
-        return self.store.sym(trimmed); // ← "dumpAstFile /tmp/test_simple.c" devient un sym !
+
+        if (trimmed[0] != '(') {
+            return self.store.sym(trimmed);
+        }
+
+        var depth: usize = 0;
+        var i: usize = 0;
+        while (i < trimmed.len) {
+            if (trimmed[i] == '(') {
+                depth += 1;
+            } else if (trimmed[i] == ')') {
+                depth -= 1;
+                if (depth == 0) break;
+            }
+            i += 1;
+        }
+        if (i >= trimmed.len or trimmed[i] != ')') return error.InvalidSyntax;
+        if (i + 1 < trimmed.len and std.mem.trim(u8, trimmed[i + 1 ..], " ").len > 0)
+            return error.InvalidSyntax;
+
+        const inner = trimmed[1..i];
+        return self.parseSExpr(inner);
     }
 
-    // Bridge pour le frontend
-    pub fn importExpr(self: *Heaven, src: []const u8) HeavenError!Id {
-        return self.parse(src);
+    fn parseSExpr(self: *Heaven, inner: []const u8) HeavenError!Id {
+        // Tokeniser en respectant les parenthèses
+        var tokens: std.ArrayListUnmanaged([]const u8) = .{};
+        defer tokens.deinit(self.allocator);
+
+        var depth: usize = 0;
+        var start: usize = 0;
+        var in_token = false;
+        for (inner, 0..) |ch, idx| {
+            switch (ch) {
+                '(' => {
+                    if (depth == 0 and !in_token) {
+                        start = idx;
+                        in_token = true;
+                    }
+                    depth += 1;
+                },
+                ')' => {
+                    depth -= 1;
+                    if (depth == 0 and in_token) {
+                        try tokens.append(self.allocator, inner[start .. idx + 1]);
+                        in_token = false;
+                        start = idx + 1;
+                    }
+                },
+                ' ' => {
+                    if (depth == 0 and in_token) {
+                        try tokens.append(self.allocator, inner[start..idx]);
+                        in_token = false;
+                        start = idx + 1;
+                    }
+                },
+                else => {
+                    if (depth == 0 and !in_token) {
+                        start = idx;
+                        in_token = true;
+                    }
+                },
+            }
+        }
+        if (in_token and depth == 0) {
+            try tokens.append(self.allocator, inner[start..]);
+        }
+
+        if (tokens.items.len == 0) return error.InvalidSyntax;
+
+        const first = tokens.items[0];
+        platform.debug.print("[parseSExpr] first token: '{s}' (len={d})\n", .{ first, first.len });
+
+        // Cas 1 : le premier token est une sous‑expression entre parenthèses
+        if (first.len > 0 and first[0] == '(') {
+            const func_id = try self.parseExpression(first);
+            var args = std.ArrayListUnmanaged(Id){};
+            defer args.deinit(self.allocator);
+            for (tokens.items[1..]) |arg_tok| {
+                const arg_id = try self.parseExpression(arg_tok);
+                try args.append(self.allocator, arg_id);
+            }
+            return self.store.apply(func_id, args.items);
+        }
+
+        // Cas 2 : lambda
+        const is_lambda = std.mem.eql(u8, first, "λ") or
+            std.mem.eql(u8, first, "\\") or
+            std.mem.eql(u8, first, "lambda") or
+            std.mem.eql(u8, first, "Lambda");
+
+        if (is_lambda) {
+            platform.debug.print("[parseSExpr] detected lambda\n", .{});
+            if (tokens.items.len < 3) return error.InvalidLambda;
+            const body_str = tokens.items[tokens.items.len - 1];
+            const body_id = try self.parseExpression(body_str);
+            const params = tokens.items[1 .. tokens.items.len - 1];
+            if (params.len == 0) return error.InvalidLambda;
+            const param_name = params[0];
+            const result = try self.store.lambdaNative(&.{param_name}, body_id);
+            platform.debug.print("[parseSExpr] created lambda id = {d}\n", .{result});
+            return result;
+        }
+
+        // Cas 3 : application normale
+        const func_id = try self.store.sym(first);
+        var args = std.ArrayListUnmanaged(Id){};
+        defer args.deinit(self.allocator);
+        for (tokens.items[1..]) |arg_tok| {
+            const arg_id = try self.parseExpression(arg_tok);
+            try args.append(self.allocator, arg_id);
+        }
+        return self.store.apply(func_id, args.items);
     }
 
-    // Wrapper pour mcp_server.zig (derive)
+    // ─── Helpers ───
+    fn ensureLowered(self: *Heaven, id: Id) HeavenError!Id {
+        var current = id;
+        var iterations: u32 = 0;
+        while (iterations < 10) : (iterations += 1) {
+            const node = self.store.get(current);
+            if (node.tag.isPrimitive()) return current;
+            current = try self.store.lowerRec(current);
+        }
+        return error.UnsupportedExpr;
+    }
+
+    // Stubs pour les autres méthodes (inchangés)
+    pub fn typeOf(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        return self.allocator.dupe(u8, src);
+    }
+    pub fn evalSkill(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        return self.allocator.dupe(u8, src);
+    }
+    pub fn evalProve(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        return self.allocator.dupe(u8, src);
+    }
+    pub fn dumpAst(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        return self.allocator.dupe(u8, src);
+    }
+    pub fn toLaTeXInline(self: *Heaven, id: Id) HeavenError![]u8 {
+        _ = id;
+        return self.allocator.dupe(u8, "");
+    }
+    pub fn explain(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        return self.allocator.dupe(u8, src);
+    }
+    pub fn describeKB(self: *Heaven) HeavenError![]u8 {
+        return self.allocator.dupe(u8, "KB: stub");
+    }
+    pub fn toC(self: *Heaven, ids: []const Id) HeavenError![]u8 {
+        _ = ids;
+        return self.allocator.dupe(u8, "// stub");
+    }
     pub fn derive(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
-        _ = self;
         _ = var_name;
-        // Stub temporaire : retourne l'expression inchangée.
-        // La vraie dérivation sera implémentée plus tard avec le pattern matching.
-        return std.heap.page_allocator.dupe(u8, expr_str) catch return HeavenError.OutOfMemory;
+        return self.allocator.dupe(u8, expr_str);
     }
-
-    // Wrapper pour mcp_server.zig (expand)
     pub fn expand(self: *Heaven, expr_str: []const u8) HeavenError![]u8 {
-        _ = self;
-        // Stub temporaire
-        return std.heap.page_allocator.dupe(u8, expr_str) catch return HeavenError.OutOfMemory;
+        return self.allocator.dupe(u8, expr_str);
     }
-
-    // Wrapper pour mcp_server.zig (solve)
     pub fn solve(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
-        _ = self;
         _ = var_name;
-        // Stub temporaire
-        return std.heap.page_allocator.dupe(u8, expr_str) catch return HeavenError.OutOfMemory;
+        return self.allocator.dupe(u8, expr_str);
     }
-
-    // Wrapper pour mcp_server.zig (format)
-    pub fn format(self: *Heaven, id: Id) HeavenError![]u8 {
-        return self.idToString(id);
+    pub fn integrate(self: *Heaven, expression: []const u8, var_name: []const u8) HeavenError![]u8 {
+        _ = var_name;
+        return self.allocator.dupe(u8, expression);
     }
-
-    // Stubs pour le shell
-
+    pub fn plot(self: *Heaven, expression: []const u8, var_name: []const u8) HeavenError![]u8 {
+        _ = var_name;
+        return self.allocator.dupe(u8, expression);
+    }
+    pub fn evalTheorem(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        return self.allocator.dupe(u8, src);
+    }
+    pub fn substExpr(self: *Heaven, expression: []const u8, var_name: []const u8, val: []const u8) HeavenError![]u8 {
+        _ = var_name;
+        _ = val;
+        return self.allocator.dupe(u8, expression);
+    }
+    pub fn listRules(self: *Heaven) HeavenError![]u8 {
+        return self.allocator.dupe(u8, "[]");
+    }
+    pub fn evalSExpr(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        return self.allocator.dupe(u8, src);
+    }
+    pub fn define(self: *Heaven, name: []const u8, val: []const u8) HeavenError![]u8 {
+        _ = name;
+        _ = val;
+        return self.allocator.dupe(u8, "");
+    }
+    pub fn addRewrite(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
+        _ = lhs;
+        _ = rhs;
+        return self.allocator.dupe(u8, "");
+    }
     pub fn evaluateExpr(self: *Heaven, id: Id) HeavenError!Id {
         self.engine.fuel = 1_000_000;
         return engine.evaluate(&self.store, &self.env, &self.engine, id, 0);
     }
-
-    /// Vérifie qu'un Id est entièrement lowered avant passage au noyau.
-    fn ensureLowered(self: *Heaven, id: Id) HeavenError!Id {
-        return self.store.lowerRec(id) catch |err| switch (err) {
-            error.ExtensionNotLowered => return HeavenError.ExtensionNotLowered,
-            error.OutOfMemory => return HeavenError.OutOfMemory,
-        };
+    pub fn format(self: *Heaven, id: Id) HeavenError![]u8 {
+        return expr.toString(&self.store, id, self.allocator);
     }
-
-    /// Simplification : évalue l'expression et retourne une représentation textuelle.
-    pub fn simplify(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        _ = self;
-        // Stub temporaire pour faire compiler mcp_server.zig
-        // Le vrai flux (parse -> lower -> evaluate -> print) sera reconnecté ici.
-        return std.heap.page_allocator.dupe(u8, src) catch return HeavenError.OutOfMemory;
-    }
-
-    /// Canonicalisation AC.
     pub fn canonicalize(self: *Heaven, id: Id) HeavenError![]u8 {
         const lowered = try self.ensureLowered(id);
         const result = canon.canonicalizeAC(&self.store, lowered) catch |err| switch (err) {
             error.OutOfMemory => return HeavenError.OutOfMemory,
         };
-        return try self.idToString(result);
+        return try self.format(result);
     }
-
-    /// Pattern matching.
     pub fn matchPattern(self: *Heaven, pattern_id: Id, target: Id) HeavenError!bool {
         const p = try self.ensureLowered(pattern_id);
         const t = try self.ensureLowered(target);
@@ -183,213 +408,12 @@ pub const Heaven = struct {
             error.MatchFailed => return false,
         };
     }
-
-    /// Preuve Peano.
     pub fn provePeano(self: *Heaven, id: Id, axiom: proof.PeanoAxiom) HeavenError![]u8 {
         const lowered = try self.ensureLowered(id);
         const result = proof.rewritePeano(&self.store, lowered, axiom) catch |err| switch (err) {
             error.OutOfMemory => return HeavenError.OutOfMemory,
             else => return HeavenError.EvaluationFailed,
         };
-        return try self.idToString(result);
-    }
-
-    // --- Helpers de sérialisation ---
-
-    fn idToString(self: *Heaven, id: Id) HeavenError![]u8 {
-        var buf: std.ArrayList(u8) = .empty;
-        defer buf.deinit(self.store.allocator);
-        try self.serializeId(id, &buf);
-        return buf.toOwnedSlice(self.store.allocator) catch return HeavenError.OutOfMemory;
-    }
-
-    fn typeToString(self: *Heaven, ty: *types.Type) HeavenError![]u8 {
-        var buf: std.ArrayList(u8) = .empty;
-        defer buf.deinit(self.store.allocator);
-        try self.serializeType(ty, &buf);
-        return buf.toOwnedSlice(self.store.allocator) catch return HeavenError.OutOfMemory;
-    }
-
-    fn serializeId(self: *Heaven, id: Id, buf: *std.ArrayList(u8)) HeavenError!void {
-        const node = self.store.get(id);
-        switch (node.tag) {
-            .lit => {
-                const lit = self.store.lits.items[node.aux];
-                switch (lit) {
-                    .int => |v| buf.writer(self.store.allocator).print("{d}", .{v}) catch return HeavenError.OutOfMemory,
-                    .float => |v| buf.writer(self.store.allocator).print("{d}", .{v}) catch return HeavenError.OutOfMemory,
-                    .boolean => |v| buf.appendSlice(self.store.allocator, if (v) "true" else "false") catch return HeavenError.OutOfMemory,
-                    .str => |v| {
-                        buf.append(self.store.allocator, '"') catch return HeavenError.OutOfMemory;
-                        buf.appendSlice(self.store.allocator, self.store.interner.resolve(v)) catch return HeavenError.OutOfMemory;
-                        buf.append(self.store.allocator, '"') catch return HeavenError.OutOfMemory;
-                    },
-                    .unit => buf.appendSlice(self.store.allocator, "()") catch return HeavenError.OutOfMemory,
-                    .runtime => buf.appendSlice(self.store.allocator, "<runtime>") catch return HeavenError.OutOfMemory,
-                }
-            },
-            .sym => {
-                buf.appendSlice(self.store.allocator, self.store.interner.resolve(node.payload)) catch return HeavenError.OutOfMemory;
-            },
-            .apply => {
-                buf.append(self.store.allocator, '(') catch return HeavenError.OutOfMemory;
-                const pool = self.store.pool.items;
-                const args = node.span_a.slice(pool);
-                for (args, 0..) |arg, i| {
-                    if (i > 0) buf.append(self.store.allocator, ' ') catch return HeavenError.OutOfMemory;
-                    try self.serializeId(arg, buf);
-                }
-                buf.append(self.store.allocator, ')') catch return HeavenError.OutOfMemory;
-            },
-            .bind => {
-                buf.appendSlice(self.store.allocator, "(bind ") catch return HeavenError.OutOfMemory;
-                buf.appendSlice(self.store.allocator, self.store.interner.resolve(node.payload)) catch return HeavenError.OutOfMemory;
-                buf.append(self.store.allocator, ' ') catch return HeavenError.OutOfMemory;
-                const pool = self.store.pool.items;
-                const args = node.span_a.slice(pool);
-                for (args) |arg| {
-                    buf.append(self.store.allocator, ' ') catch return HeavenError.OutOfMemory;
-                    try self.serializeId(arg, buf);
-                }
-                buf.append(self.store.allocator, ')') catch return HeavenError.OutOfMemory;
-            },
-            .lambda => {
-                buf.appendSlice(self.store.allocator, "(lambda ") catch return HeavenError.OutOfMemory;
-                buf.appendSlice(self.store.allocator, self.store.interner.resolve(node.payload)) catch return HeavenError.OutOfMemory;
-                buf.append(self.store.allocator, ' ') catch return HeavenError.OutOfMemory;
-                const pool = self.store.pool.items;
-                const args = node.span_a.slice(pool);
-                for (args) |arg| {
-                    buf.append(self.store.allocator, ' ') catch return HeavenError.OutOfMemory;
-                    try self.serializeId(arg, buf);
-                }
-                buf.append(self.store.allocator, ')') catch return HeavenError.OutOfMemory;
-            },
-            .relation => {
-                buf.append(self.store.allocator, '(') catch return HeavenError.OutOfMemory;
-                const pool = self.store.pool.items;
-                const args = node.span_a.slice(pool);
-                for (args, 0..) |arg, i| {
-                    if (i > 0) buf.append(self.store.allocator, ' ') catch return HeavenError.OutOfMemory;
-                    try self.serializeId(arg, buf);
-                }
-                buf.append(self.store.allocator, ')') catch return HeavenError.OutOfMemory;
-            },
-            else => buf.appendSlice(self.store.allocator, "<?>") catch return HeavenError.OutOfMemory,
-        }
-    }
-
-    fn serializeType(self: *Heaven, ty: *types.Type, buf: *std.ArrayList(u8)) HeavenError!void {
-        switch (ty.*) {
-            .var_type => |v| buf.writer(self.store.allocator).print("t{d}", .{v}) catch return HeavenError.OutOfMemory,
-            .int => buf.appendSlice(self.store.allocator, "Int") catch return HeavenError.OutOfMemory,
-            .float => buf.appendSlice(self.store.allocator, "Float") catch return HeavenError.OutOfMemory,
-            .boolType => buf.appendSlice(self.store.allocator, "Bool") catch return HeavenError.OutOfMemory,
-            .string => buf.appendSlice(self.store.allocator, "String") catch return HeavenError.OutOfMemory,
-            .unit => buf.appendSlice(self.store.allocator, "Unit") catch return HeavenError.OutOfMemory,
-            .func_node => |f| {
-                buf.append(self.store.allocator, '(') catch return HeavenError.OutOfMemory;
-                try self.serializeType(f.arg, buf);
-                buf.appendSlice(self.store.allocator, " -> ") catch return HeavenError.OutOfMemory;
-                try self.serializeType(f.ret, buf);
-                buf.append(self.store.allocator, ')') catch return HeavenError.OutOfMemory;
-            },
-            .tuple_type => |ts| {
-                buf.append(self.store.allocator, '(') catch return HeavenError.OutOfMemory;
-                for (ts, 0..) |t, i| {
-                    if (i > 0) buf.appendSlice(self.store.allocator, ", ") catch return HeavenError.OutOfMemory;
-                    try self.serializeType(t, buf);
-                }
-                buf.append(self.store.allocator, ')') catch return HeavenError.OutOfMemory;
-            },
-            .relation_type => |r| {
-                try self.serializeType(r.lhs, buf);
-                buf.appendSlice(self.store.allocator, " = ") catch return HeavenError.OutOfMemory;
-                try self.serializeType(r.rhs, buf);
-            },
-            // ce cas si le type est représenté par un symbole "Relation" :
-            .sym => {
-                buf.appendSlice(self.store.allocator, self.store.interner.resolve(ty.*)) catch return HeavenError.OutOfMemory;
-            },
-        }
-    }
-
-    // --- Stubs pour le frontend (commands.zig, mcp_server.zig, etc.) ---
-    /// Inférence de type HM.
-    pub fn typeOf(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        _ = self;
-        // Stub temporaire pour faire compiler commands.zig
-        return std.heap.page_allocator.dupe(u8, src) catch return HeavenError.OutOfMemory;
-    }
-    pub fn evalSkill(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        _ = self;
-        return std.heap.page_allocator.dupe(u8, src) catch return HeavenError.OutOfMemory;
-    }
-    pub fn evalProve(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        _ = self;
-        return std.heap.page_allocator.dupe(u8, src) catch return HeavenError.OutOfMemory;
-    }
-    pub fn dumpAst(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        _ = self;
-        return std.heap.page_allocator.dupe(u8, src) catch return HeavenError.OutOfMemory;
-    }
-    pub fn toLaTeXInline(self: *Heaven, id: Id) HeavenError![]u8 {
-        _ = self;
-        _ = id;
-        return std.heap.page_allocator.dupe(u8, "") catch return HeavenError.OutOfMemory;
-    }
-    pub fn explain(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        _ = self;
-        return std.heap.page_allocator.dupe(u8, src) catch return HeavenError.OutOfMemory;
-    }
-    pub fn describeKB(self: *Heaven) HeavenError![]u8 {
-        _ = self;
-        return std.heap.page_allocator.dupe(u8, "KB: stub") catch return HeavenError.OutOfMemory;
-    }
-    pub fn toC(self: *Heaven, ids: []const Id) HeavenError![]u8 {
-        _ = self;
-        _ = ids;
-        return std.heap.page_allocator.dupe(u8, "// stub") catch return HeavenError.OutOfMemory;
-    }
-    pub fn integrate(self: *Heaven, expression: []const u8, var_name: []const u8) HeavenError![]u8 {
-        _ = self;
-        _ = var_name;
-        return std.heap.page_allocator.dupe(u8, expression) catch return HeavenError.OutOfMemory;
-    }
-    pub fn plot(self: *Heaven, expression: []const u8, var_name: []const u8) HeavenError![]u8 {
-        _ = self;
-        _ = var_name;
-        return std.heap.page_allocator.dupe(u8, expression) catch return HeavenError.OutOfMemory;
-    }
-    pub fn evalTheorem(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        _ = self;
-        return std.heap.page_allocator.dupe(u8, src) catch return HeavenError.OutOfMemory;
-    }
-    pub fn substExpr(self: *Heaven, expression: []const u8, var_name: []const u8, val: []const u8) HeavenError![]u8 {
-        _ = self;
-        _ = var_name;
-        _ = val;
-        return std.heap.page_allocator.dupe(u8, expression) catch return HeavenError.OutOfMemory;
-    }
-    pub fn listRules(self: *Heaven) HeavenError![]u8 {
-        _ = self;
-        return std.heap.page_allocator.dupe(u8, "[]") catch return HeavenError.OutOfMemory;
-    }
-    pub fn evalSExpr(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        _ = self;
-        return std.heap.page_allocator.dupe(u8, src) catch return HeavenError.OutOfMemory;
-    }
-    pub fn define(self: *Heaven, name: []const u8, val: []const u8) HeavenError![]u8 {
-        _ = self;
-        _ = name;
-        _ = val;
-        return std.heap.page_allocator.dupe(u8, "") catch return HeavenError.OutOfMemory;
-    }
-
-    pub fn addRewrite(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
-        _ = self;
-        _ = lhs;
-        _ = rhs;
-        return std.heap.page_allocator.dupe(u8, "") catch return HeavenError.OutOfMemory;
+        return try self.format(result);
     }
 };

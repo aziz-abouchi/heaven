@@ -660,6 +660,7 @@ pub const Math = struct {
     }
 
     pub fn simplify(self: *Math, input: []const u8) ![]u8 {
+        platform.debug.print("[core math SIMPLIFY] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
         const id = try self.bridge.importExpr(input);
         const simplified = try self.simplifyMath(id);
         return expr.toString(self.store, simplified, self.allocator);

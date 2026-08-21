@@ -127,7 +127,12 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/inference/eqsat/egraph.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "expr", .module = expr_mod }, .{ .name = "kanren", .module = kanren_expr_mod }, .{ .name = "canon", .module = canon_mod } },
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "kanren", .module = kanren_expr_mod },
+            .{ .name = "canon", .module = canon_mod },
+            .{ .name = "platform", .module = platform_mod },
+        },
     });
 
     const transform_mod = b.createModule(.{
@@ -623,6 +628,7 @@ pub fn build(b: *std.Build) void {
                     .{ .name = "mlcpd_equiv", .module = mlcpd_equiv_mod },
                     .{ .name = "parzig", .module = parzig_mod },
                     .{ .name = "mcp_server", .module = mcp_server_mod },
+                    .{ .name = "simplify_engine", .module = simplify_engine_mod },
                     .{ .name = "egraph_rewriter", .module = egraph_rewriter_mod },
                     .{ .name = "shell_commands", .module = commands_list_mod },
                     .{ .name = "shell_parser", .module = shell_parser_mod },
@@ -726,6 +732,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "kanren", .module = kanren_expr_mod },
             .{ .name = "canon", .module = canon_mod },
+            .{ .name = "platform", .module = platform_mod },
         },
     }) });
 

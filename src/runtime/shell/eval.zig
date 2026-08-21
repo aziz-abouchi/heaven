@@ -2,7 +2,7 @@ const std = @import("std");
 const Shell = @import("init.zig").Shell;
 const platform = @import("platform");
 const commands = @import("commands.zig");
-const PROOF_DEBUG = false;
+const PROOF_DEBUG = true;
 
 pub fn bridgeTheoremToProofEnv(self: *Shell, name: []const u8, stmt: []const u8) void {
     if (PROOF_DEBUG) platform.debug.print("DEBUG: bridging theorem name='{s}'\n", .{name});
@@ -63,9 +63,12 @@ pub fn exprEval(self: *Shell, input: []const u8) void {
 }
 
 pub fn exprSimplify(self: *Shell, input: []const u8) void {
-    const result = self.heaven.simplify(input) catch return;
+    const result = self.heaven.simplify(input) catch |err| {
+        platform.debug.print("Simplify error: {}\n", .{err});
+        return;
+    };
 
-    if (PROOF_DEBUG) platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
+    if (PROOF_DEBUG) platform.debug.print("{s}\n", .{result});
 }
 
 pub fn exprFact(self: *Shell, input: []const u8) void {

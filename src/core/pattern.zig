@@ -119,9 +119,25 @@ pub fn match(store: *const Store, pattern: Id, target: Id, bindings: *Bindings) 
             const lb = store.lits.items[t.aux];
             return la.eql(lb);
         },
-        .sym => p.payload == t.payload,
+        .sym => {
+            const p_name = store.interner.resolve(p.payload);
+            const t_name = store.interner.resolve(t.payload);
+            return std.mem.eql(u8, p_name, t_name);
+        },
         .apply, .bind, .lambda, .relation => {
-            if (p.payload != t.payload) return false;
+            // Comparaison des payloads en tenant compte des noms de symboles
+            const p_payload_node = store.get(p.payload);
+            const t_payload_node = store.get(t.payload);
+            var payload_match = false;
+            if (p_payload_node.tag == .sym and t_payload_node.tag == .sym) {
+                const p_name = store.interner.resolve(p_payload_node.payload);
+                const t_name = store.interner.resolve(t_payload_node.payload);
+                payload_match = std.mem.eql(u8, p_name, t_name);
+            } else {
+                payload_match = p.payload == t.payload;
+            }
+            if (!payload_match) return false;
+
             const pool = store.pool.items;
             const pa = p.span_a.slice(pool);
             const ta = t.span_a.slice(pool);

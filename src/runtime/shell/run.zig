@@ -103,6 +103,12 @@ pub fn run(self: *Shell) !void {
                 if (had_colon) {
                     platform.debug.print("   commande inconnue: {s}\n", .{cmd});
                 } else {
+                    // --- Interception des formes spéciales (simplify) ---
+                    if (std.mem.startsWith(u8, line, "(simplify ")) {
+                        const inner = line["(simplify ".len .. line.len - 1];
+                        eval.exprSimplify(self, inner);
+                        continue :main_loop;
+                    }
                     eval.evalHeavenCode(self, line);
                 }
             }

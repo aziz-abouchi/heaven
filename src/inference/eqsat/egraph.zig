@@ -5,6 +5,7 @@ const expr = @import("expr");
 const Store = expr.Store;
 const Id = expr.Id;
 const Tag = expr.Tag;
+const platform = @import("platform");
 
 pub const ClassId = u32;
 
@@ -228,6 +229,11 @@ pub const EGraph = struct {
 
     pub fn addExpr(self: *EGraph, id: Id) !ClassId {
         const node = self.store.get(id);
+        const tag_int = @intFromEnum(node.tag);
+        if (tag_int > @intFromEnum(expr.Tag.relation)) {
+            platform.debug.print("[EGraph] tag invalide: {d}\n", .{tag_int});
+            return error.OutOfMemory; // ou une erreur personnalisée
+        }
         const pool = self.store.pool.items;
         switch (node.tag) {
             .sym, .lit, .hole => {},
@@ -324,9 +330,10 @@ pub const EGraph = struct {
 
         var best: Id = eclass.nodes.items[0];
         var best_cost: u32 = if (qtt) |q| q.total(egraph.store, best) else cost(egraph.store, best);
+
         for (eclass.nodes.items[1..]) |node_id| {
             const c = if (qtt) |q| q.total(egraph.store, node_id) else cost(egraph.store, node_id);
-            if (c < best_cost) {
+            if (c < best_cost or (c == best_cost and node_id > best)) {
                 best = node_id;
                 best_cost = c;
             }
@@ -337,10 +344,16 @@ pub const EGraph = struct {
 
 pub fn cost(store: *const Store, id: Id) u32 {
     const node = store.get(id);
-    var c: u32 = 1;
+    var c: u32 = switch (node.tag) {
+        .lit => 1,
+        .sym => 1,
+        .apply => 3,
+        .lambda => 2,
+        .bind => 2,
+        .relation => 2,
+        else => 1,
+    };
     switch (node.tag) {
-        .lit => {},
-        .sym => {},
         .apply => {
             const args = node.span_a.slice(store.pool.items);
             for (args) |a| c += cost(store, a);

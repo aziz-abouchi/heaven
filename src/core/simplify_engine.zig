@@ -190,40 +190,67 @@ pub const SimplifyEngine = struct {
             const folded = engine_expr.evaluate(self.store, self.env, self.engine, current, 0) catch current;
             if (folded != current and folded < self.store.len()) {
                 const folded_node = self.store.get(folded);
-                if (folded_node.tag == .lit and self.isFullyNumeric(current)) return folded;
+                if (folded_node.tag == .lit) return folded;
             }
         }
         return current;
     }
 
-    // === NOUVELLE VERSION : utilise Rewriter avec saturation complète et preuves ===
     pub fn simplifyWithEGraph(self: *SimplifyEngine, id: Id, qtt: ?*egraph_mod.QttCost) !Id {
-        if (self.kb.rules.items.len == 0) return id;
+        platform.debug.print("[SimplifyEngine] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
+        if (id >= self.store.len()) {
+            platform.debug.print("[EGraph] ID invalide: {} >= store.len() = {}\n", .{ id, self.store.len() });
+            return id;
+        }
 
-        // Créer un EGraph
+        const node = self.store.get(id);
+        const tag_int = @intFromEnum(node.tag);
+        platform.debug.print("[EGraph] node tag int = {d}\n", .{tag_int});
+        if (tag_int < @intFromEnum(expr.Tag.relation) + 1) {
+            const tag = @as(expr.Tag, @enumFromInt(tag_int));
+            platform.debug.print("[EGraph] node tag = {s}\n", .{@tagName(tag)});
+        } else {
+            return id;
+        }
+
+        if (!node.tag.isPrimitive()) {
+            const lowered = try self.store.lowerRec(id);
+            if (!self.store.get(lowered).tag.isPrimitive()) return id;
+            return self.simplifyWithEGraph(lowered, qtt);
+        }
+
         var egraph = egraph_mod.EGraph.init(self.store, self.allocator);
         defer egraph.deinit();
 
-        // Ajouter toutes les règles (relations) comme expressions dans l'EGraph
-        // (le Rewriter les parcourra directement depuis le Store)
-        // Ajouter l'expression à simplifier
         const root_class = try egraph.addExpr(id);
 
-        // Créer le Rewriter et saturer
         var rewriter = egraph_rewriter_mod.Rewriter.init(&egraph, self.store, self.allocator);
         defer rewriter.deinit();
 
-        // Saturer avec un budget de 1000ms (configurable)
-        const merges = try rewriter.saturate(1000);
+        const merges = try rewriter.saturate(10000);
         platform.debug.print("[EGraph] saturation: {} merges\n", .{merges});
 
-        // Extraire le meilleur terme
         const extracted = egraph.extract(root_class, qtt) orelse id;
 
-        // Si on veut conserver les preuves (optionnel), on peut les récupérer
-        // avec egraph.proofs
-        // Pour l'instant on les ignore, mais elles sont stockées.
+        // --- NOUVEAU BLOC D'ÉVALUATION DIRECTE ---
+        platform.debug.print("[EGraph] Recherche d'une évaluation directe dans la classe racine...\n", .{});
+        const root_canonical = egraph.uf.find(root_class);
+        if (root_canonical < egraph.classes.items.len) {
+            const eclass = &egraph.classes.items[root_canonical];
+            for (eclass.nodes.items) |node_id| {
+                // Utilisation de 'catch continue' pour ignorer les erreurs d'évaluation
+                const simplified = self.simplifyRec(node_id, 0) catch continue;
+                if (simplified < self.store.len()) {
+                    const simp_node = self.store.get(simplified);
+                    if (simp_node.tag == .lit) {
+                        platform.debug.print("[EGraph] Succès : évaluation directe trouvée {d}\n", .{simplified});
+                        return simplified; // On retourne le littéral (ex: 6)
+                    }
+                }
+            }
+        }
 
+        platform.debug.print("[EGraph] Évaluation directe échouée, retour de l'extraction\n", .{});
         return extracted;
     }
 };

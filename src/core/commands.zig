@@ -71,6 +71,7 @@ pub const HeavenError = error{
     InvalidTypeAnn,
     CannotLowerFrontendTag,
     InvalidLambda,
+    InvalidExpr,
 } || std.mem.Allocator.Error || mir.MirError || engine_expr.EvalError;
 
 pub const Commands = struct {
@@ -192,6 +193,12 @@ pub const Commands = struct {
         }
         if (std.mem.startsWith(u8, trimmed, "let macro ")) {
             return self.evalMacroDef(trimmed["let macro ".len..]);
+        }
+
+        // === INTERCEPTION (simplify ...) avec parenthèses ===
+        if (std.mem.startsWith(u8, trimmed, "(simplify ")) {
+            const inner = trimmed["(simplify ".len .. trimmed.len - 1];
+            return self.evalSimplify(inner);
         }
 
         if (std.mem.startsWith(u8, trimmed, "(test ") or std.mem.startsWith(u8, trimmed, "(assert_eq ")) {
@@ -405,13 +412,17 @@ pub const Commands = struct {
     }
 
     // ─── evalSimplify : utilise l'EGraph avec saturation complète ───
-    fn evalSimplify(self: *Commands, input: []const u8) HeavenError![]u8 {
+    pub fn evalSimplify(self: *Commands, input: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "usage: simplify <expr>");
+
+        platform.debug.print("[evalSimplify] input: {s}\n", .{trimmed});
+        platform.debug.print("[evalSimplify] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
 
         // Parser l'expression
         const raw_id = self.parseExpression(trimmed) catch try self.bridge.importExpr(trimmed);
         const id = try self.store.lowerRec(raw_id);
+        platform.debug.print("[evalSimplify] expr id = {d}\n", .{id});
 
         // Construire le QttCost à partir de l'environnement qtt
         var qtt = egraph_mod.QttCost{};
@@ -425,6 +436,7 @@ pub const Commands = struct {
 
         // Appeler le moteur de simplification avec EGraph
         const simplified = try self.simplify_eng.simplifyWithEGraph(id, &qtt);
+        platform.debug.print("[evalSimplify] simplified id = {d}\n", .{simplified});
 
         // Retourner le résultat sous forme de chaîne
         return expr.toStringInfix(self.store, simplified, self.allocator);
@@ -1155,16 +1167,13 @@ pub const Commands = struct {
     }
 
     pub fn simplify(self: *Commands, input: []const u8) HeavenError![]u8 {
-        //const id = self.parseExpression(input) catch return error.EvaluationFailed;
-        //const id = try self.bridge.importExpr(input);
-        //const raw_id = try self.bridge.importExpr(input);
         const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
         const id = try self.store.lowerRec(raw_id);
-        platform.debug.print("[SIMPLIFY] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
+        platform.debug.print("[core commands SIMPLIFY] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
 
         const debug_str = try expr.toStringInfix(self.store, id, self.allocator);
         defer self.allocator.free(debug_str);
-        platform.debug.print("simplify input: {s}\n", .{debug_str});
+        platform.debug.print("core commands simplify input: {s}\n", .{debug_str});
 
         var current = id;
 
@@ -1185,7 +1194,7 @@ pub const Commands = struct {
                 var bindings = std.AutoHashMapUnmanaged(u32, Id){};
                 defer bindings.deinit(self.allocator);
                 if (pattern_mod.exprPatternMatch(self.store, lhs, current, &bindings, self.allocator)) {
-                    platform.debug.print("[SIMPLIFY] Rule matched!\n", .{});
+                    platform.debug.print("[core commands SIMPLIFY] Rule matched!\n", .{});
                     const new_id = try pattern_mod.substitutePattern(self.store, rhs, &bindings, self.allocator);
                     if (new_id != current) {
                         current = new_id;
