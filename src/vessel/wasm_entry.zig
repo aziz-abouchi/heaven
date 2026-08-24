@@ -23,8 +23,8 @@ var cmds: ?Commands = null;
 export fn init() void {
     // platform.debug.print("=== WASM init called ===\n", .{});
 
-    heaven = Heaven.init(allocator());
-    const store = &heaven.?.store;
+    heaven = Heaven.init(allocator()) catch @panic("Failed to init Heaven");
+    const store = heaven.?.store;
     const engine = &heaven.?.engine;
     const env = &heaven.?.env;
 

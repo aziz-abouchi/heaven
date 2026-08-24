@@ -1166,14 +1166,11 @@ pub const Commands = struct {
         return inf.typeStr(&inf.subst, t, self.allocator);
     }
 
-    pub fn simplify(self: *Commands, input: []const u8) HeavenError![]u8 {
-        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
-        const id = try self.store.lowerRec(raw_id);
-        platform.debug.print("[core commands SIMPLIFY] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
-
+    pub fn simplify(self: *Commands, input: []const u8) ![]u8 {
+        const id = try self.parser.parseSExpr(input); // ← Utilise self.parser au lieu de self.bridge.importExpr
         const debug_str = try expr.toStringInfix(self.store, id, self.allocator);
         defer self.allocator.free(debug_str);
-        platform.debug.print("core commands simplify input: {s}\n", .{debug_str});
+        platform.debug.print("[Heaven.simplify] input: {s}\n", .{debug_str});
 
         var current = id;
 
@@ -1194,7 +1191,6 @@ pub const Commands = struct {
                 var bindings = std.AutoHashMapUnmanaged(u32, Id){};
                 defer bindings.deinit(self.allocator);
                 if (pattern_mod.exprPatternMatch(self.store, lhs, current, &bindings, self.allocator)) {
-                    platform.debug.print("[core commands SIMPLIFY] Rule matched!\n", .{});
                     const new_id = try pattern_mod.substitutePattern(self.store, rhs, &bindings, self.allocator);
                     if (new_id != current) {
                         current = new_id;
@@ -1252,6 +1248,7 @@ pub const Commands = struct {
     }
 
     pub fn simplifyRec(self: *Commands, id: Id, depth: u32) !Id {
+        platform.debug.print("[src/core/commands.zig simplifyRec] called with id={d}, depth={d}\n", .{ id, depth });
         if (depth > 50) return id;
         if (id >= self.store.len()) return id;
         const node = self.store.get(id);

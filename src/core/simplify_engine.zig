@@ -137,6 +137,7 @@ pub const SimplifyEngine = struct {
     }
 
     pub fn simplifyRec(self: *SimplifyEngine, id: Id, depth: u32) !Id {
+        platform.debug.print("[src/core/simplify_engine.zig simplifyRec] called with id={d}, depth={d}\n", .{ id, depth });
         if (depth > 50) return id;
         if (id >= self.store.len()) return id;
         const node = self.store.get(id);
@@ -160,6 +161,7 @@ pub const SimplifyEngine = struct {
                 }
             }
         }
+        // Appliquer les règles jusqu'à saturation
         var changed = true;
         var iterations: u32 = 0;
         while (changed and iterations < 10) : (iterations += 1) {
@@ -175,9 +177,11 @@ pub const SimplifyEngine = struct {
                 const rhs_id = lhs_rhs[1];
                 var bindings: std.AutoHashMapUnmanaged(u32, Id) = .{};
                 defer bindings.deinit(self.allocator);
+                platform.debug.print("[simplifyRec] trying rule {d}: lhs={d}, rhs={d} on current={d}\n", .{ rule_id, lhs_id, rhs_id, current });
                 if (pattern_mod.exprPatternMatch(self.store, lhs_id, current, &bindings, self.allocator)) {
                     const new_id = try pattern_mod.substitutePattern(self.store, rhs_id, &bindings, self.allocator);
-                    if (new_id < self.store.len()) {
+                    if (new_id < self.store.len() and new_id != current) {
+                        platform.debug.print("[simplifyRec] applying rule, new_id={d}\n", .{new_id});
                         current = new_id;
                         changed = true;
                         break;
@@ -185,15 +189,58 @@ pub const SimplifyEngine = struct {
                 }
             }
         }
-        if (current < self.store.len()) {
-            self.engine.fuel = 100;
-            const folded = engine_expr.evaluate(self.store, self.env, self.engine, current, 0) catch current;
-            if (folded != current and folded < self.store.len()) {
-                const folded_node = self.store.get(folded);
-                if (folded_node.tag == .lit) return folded;
-            }
-        }
         return current;
+    }
+
+    pub fn evaluateLiteral(self: *SimplifyEngine, id: Id) ?Id {
+        if (id >= self.store.len()) return null;
+        const node = self.store.get(id);
+
+        switch (node.tag) {
+            .lit => return id,
+            .sym => return null,
+            .apply => {
+                const args = node.span_a.slice(self.store.pool.items);
+                if (args.len < 3) return null;
+
+                const func_id = args[0];
+                if (func_id >= self.store.len()) return null;
+                const func_node = self.store.get(func_id);
+                if (func_node.tag != .sym) return null;
+
+                const op_name = self.store.interner.resolve(func_node.payload);
+
+                const left_lit = self.evaluateLiteral(args[1]) orelse return null;
+                const right_lit = self.evaluateLiteral(args[2]) orelse return null;
+
+                const left_node = self.store.get(left_lit);
+                const right_node = self.store.get(right_lit);
+
+                if (left_node.tag != .lit or right_node.tag != .lit) return null;
+
+                const left_val = self.store.lits.items[left_node.aux];
+                const right_val = self.store.lits.items[right_node.aux];
+
+                if (left_val != .int or right_val != .int) return null;
+
+                var result: i64 = 0;
+                if (std.mem.eql(u8, op_name, "+")) {
+                    result = left_val.int + right_val.int;
+                } else if (std.mem.eql(u8, op_name, "*")) {
+                    result = left_val.int * right_val.int;
+                } else if (std.mem.eql(u8, op_name, "-")) {
+                    result = left_val.int - right_val.int;
+                } else if (std.mem.eql(u8, op_name, "/")) {
+                    if (right_val.int == 0) return null;
+                    result = @divTrunc(left_val.int, right_val.int);
+                } else {
+                    return null;
+                }
+
+                return self.store.lit(.{ .int = result }) catch null;
+            },
+            else => return null,
+        }
     }
 
     pub fn simplifyWithEGraph(self: *SimplifyEngine, id: Id, qtt: ?*egraph_mod.QttCost) !Id {
@@ -232,25 +279,17 @@ pub const SimplifyEngine = struct {
 
         const extracted = egraph.extract(root_class, qtt) orelse id;
 
-        // --- NOUVEAU BLOC D'ÉVALUATION DIRECTE ---
-        platform.debug.print("[EGraph] Recherche d'une évaluation directe dans la classe racine...\n", .{});
+        // --- NOUVEAU : Évaluer avec l'évaluateur de littéraux ---
         const root_canonical = egraph.uf.find(root_class);
         if (root_canonical < egraph.classes.items.len) {
             const eclass = &egraph.classes.items[root_canonical];
             for (eclass.nodes.items) |node_id| {
-                // Utilisation de 'catch continue' pour ignorer les erreurs d'évaluation
-                const simplified = self.simplifyRec(node_id, 0) catch continue;
-                if (simplified < self.store.len()) {
-                    const simp_node = self.store.get(simplified);
-                    if (simp_node.tag == .lit) {
-                        platform.debug.print("[EGraph] Succès : évaluation directe trouvée {d}\n", .{simplified});
-                        return simplified; // On retourne le littéral (ex: 6)
-                    }
+                if (self.evaluateLiteral(node_id)) |lit_id| {
+                    return lit_id;
                 }
             }
         }
 
-        platform.debug.print("[EGraph] Évaluation directe échouée, retour de l'extraction\n", .{});
         return extracted;
     }
 };

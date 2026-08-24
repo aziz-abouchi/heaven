@@ -11,7 +11,6 @@ const heaven_lib = @import("../heaven.zig");
 const autofab_lib = @import("../autofab.zig");
 const prolog_lib = @import("../prolog.zig");
 const run_mod = @import("run.zig");
-const simplify_engine_mod = @import("simplify_engine");
 
 pub const Shell = struct {
     allocator: std.mem.Allocator,
@@ -32,8 +31,7 @@ pub const Shell = struct {
     pub fn init(alloc: std.mem.Allocator, m: *matrix_lib.Matrix, e: *heaven_lib.Engine, i: *universal_lib.UniversalIngestor, port: u16) Shell {
         const he = alloc.create(heaven_expr_lib.Heaven) catch @panic("alloc heaven_expr");
         //defer alloc.destroy(he);
-        he.* = heaven_expr_lib.Heaven.init(alloc);
-        he.simplify_eng = simplify_engine_mod.SimplifyEngine.init(&he.store, &he.engine, &he.env, he.kb, alloc);
+        he.* = heaven_expr_lib.Heaven.init(alloc) catch @panic("Failed to init Heaven");
 
         return .{
             .allocator = alloc,

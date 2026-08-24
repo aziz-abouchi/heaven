@@ -71,7 +71,7 @@ pub const MatrixBridge = struct {
                     const prev = input[idx - 1];
                     if (prev != '(' and prev != ',') {
                         const lhs = try self.parseMulDiv(std.mem.trim(u8, input[0..idx], " "));
-                        const rhs = try self.parseComparison(std.mem.trim(u8, input[idx + 1 ..], " "));
+                        const rhs = try self.parsePower(std.mem.trim(u8, input[idx + 1 ..], " "));
                         const op_str = if (ch == '*') "*" else "/";
                         return self.store.binop(op_str, lhs, rhs);
                     }
@@ -109,6 +109,34 @@ pub const MatrixBridge = struct {
             }
         }
         return self.parseAtom(input);
+    }
+
+    fn parsePower(self: *MatrixBridge, input: []const u8) Allocator.Error!Id {
+        const trimmed = std.mem.trim(u8, input, " \t");
+        if (trimmed.len == 0) return self.store.unitLit();
+
+        // Chercher le dernier '^' à profondeur 0 (droite-associatif)
+        var depth: i32 = 0;
+        var i: usize = trimmed.len;
+        while (i > 0) : (i -= 1) {
+            const idx = i - 1;
+            const ch = trimmed[idx];
+            switch (ch) {
+                ')' => depth += 1,
+                '(' => depth -= 1,
+                '^' => if (depth == 0 and idx > 0) {
+                    const prev = trimmed[idx - 1];
+                    if (prev != '(' and prev != ',') {
+                        const lhs = try self.parsePower(trimmed[0..idx]);
+                        const rhs = try self.parsePower(trimmed[idx + 1 ..]);
+                        return self.store.binop("^", lhs, rhs);
+                    }
+                },
+                else => {},
+            }
+        }
+        // Si pas de '^', passer au niveau inférieur
+        return self.parseComparison(trimmed);
     }
 
     fn parseAtom(self: *MatrixBridge, input: []const u8) Allocator.Error!Id {

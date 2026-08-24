@@ -1056,7 +1056,7 @@ pub fn cmdMlcpdConvert(self: *Shell, input: []const u8) void {
     };
     defer parsed.deinit();
 
-    const expr_id = parsed.toExprIr(&self.heaven.store) catch |err| {
+    const expr_id = parsed.toExprIr(self.heaven.store) catch |err| {
         platform.io.print("error: conversion failed: {}\n", .{err});
         return;
     };
@@ -1143,7 +1143,7 @@ pub fn cmdMlcpdEquiv(self: *Shell, input: []const u8) void {
     defer parsed1.deinit();
 
     parsed1.normalizeParsedFile();
-    const expr_id1 = parsed1.toExprIr(&self.heaven.store) catch |err| {
+    const expr_id1 = parsed1.toExprIr(self.heaven.store) catch |err| {
         platform.io.print("error: conversion failed for '{s}': {}\n", .{ path1, err });
         return;
     };
@@ -1168,12 +1168,12 @@ pub fn cmdMlcpdEquiv(self: *Shell, input: []const u8) void {
     defer parsed2.deinit();
 
     parsed2.normalizeParsedFile();
-    const expr_id2 = parsed2.toExprIr(&self.heaven.store) catch |err| {
+    const expr_id2 = parsed2.toExprIr(self.heaven.store) catch |err| {
         platform.io.print("error: conversion failed for '{s}': {}\n", .{ path2, err });
         return;
     };
 
-    var equiv_result = mlcpd_equiv_mod.proveEquivalence(self.allocator, &self.heaven.store, expr_id1, expr_id2) catch |err| {
+    var equiv_result = mlcpd_equiv_mod.proveEquivalence(self.allocator, self.heaven.store, expr_id1, expr_id2) catch |err| {
         platform.io.print("❌ Erreur lors de la preuve d'équivalence: {}\n", .{err});
         return;
     };
@@ -1243,7 +1243,7 @@ pub fn cmdParseFile(self: *Shell, path: []const u8) void {
         return;
     };
 
-    var universal = universal_translator.UniversalTranslator.init(self.allocator, &self.heaven.store);
+    var universal = universal_translator.UniversalTranslator.init(self.allocator, self.heaven.store);
     const mlcpd_lang = switch (lang) {
         .c => @import("mlcpd").FileMetadata.Language.c,
         .zig => @import("mlcpd").FileMetadata.Language.c,
@@ -1313,7 +1313,7 @@ pub fn cmdTranslateAndDump(self: *Shell, path: []const u8) void {
         return;
     };
 
-    var universal = universal_translator.UniversalTranslator.init(self.allocator, &self.heaven.store);
+    var universal = universal_translator.UniversalTranslator.init(self.allocator, self.heaven.store);
     const mlcpd_lang = switch (lang) {
         .c => @import("mlcpd").FileMetadata.Language.c,
         .zig => @import("mlcpd").FileMetadata.Language.c,
@@ -1389,7 +1389,7 @@ pub fn cmdParseFileWithLanguage(self: *Shell, path: []const u8) ![]u8 {
         return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{@tagName(lang)});
     };
 
-    var universal = universal_translator.UniversalTranslator.init(self.allocator, &self.heaven.store);
+    var universal = universal_translator.UniversalTranslator.init(self.allocator, self.heaven.store);
     const mlcpd_lang = switch (lang) {
         .c => mlcpd_mod.FileMetadata.Language.c,
         .zig => mlcpd_mod.FileMetadata.Language.c,

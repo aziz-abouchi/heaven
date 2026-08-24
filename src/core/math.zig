@@ -42,19 +42,26 @@ pub const Math = struct {
     // ─── Dérivation ───
 
     pub fn derive(self: *Math, expr_str: []const u8, variable: []const u8) ![]u8 {
-        const id = try self.bridge.importExpr(expr_str);
+        const normalized = try self.normalizeUnicode(expr_str);
+        defer self.allocator.free(normalized);
+        const id = try self.bridge.importExpr(normalized);
         const var_id = try self.store.sym(variable);
         const result = try self.deriveExpr(id, var_id);
-        const str = try expr.toStringInfix(self.store, result, self.allocator);
+        const simplified = try self.simplifyMath(result);
+        const str = try expr.toStringInfix(self.store, simplified, self.allocator);
         return str;
     }
 
     fn deriveExpr(self: *Math, expr_id: Id, variable: Id) !Id {
         const node = self.store.get(expr_id);
+        platform.debug.print("[deriveExpr] node tag={s}\n", .{@tagName(node.tag)});
         switch (node.tag) {
             .lit => return self.store.int(0),
             .sym => {
-                if (std.mem.eql(u8, self.store.interner.resolve(node.payload), self.store.interner.resolve(variable))) {
+                const name = self.store.interner.resolve(node.payload);
+                const var_name = self.store.interner.resolve(variable);
+                platform.debug.print("[deriveExpr] sym name={s}, var={s}\n", .{ name, var_name });
+                if (std.mem.eql(u8, name, var_name)) {
                     return self.store.int(1);
                 }
                 return self.store.int(0);
@@ -66,6 +73,7 @@ pub const Math = struct {
                 const op_node = self.store.get(node.payload);
                 if (op_node.tag != .sym) return self.store.int(0);
                 const op = self.store.interner.resolve(op_node.payload);
+                platform.debug.print("[deriveExpr] apply op={s}, args.len={d}\n", .{ op, args.len });
                 if (std.mem.eql(u8, op, "+")) {
                     if (args.len != 2) return self.store.int(0);
                     const d1 = try self.deriveExpr(args[0], variable);
@@ -112,7 +120,10 @@ pub const Math = struct {
                 }
                 return self.store.int(0);
             },
-            else => return self.store.int(0),
+            else => {
+                platform.debug.print("[deriveExpr] fallback tag={s}\n", .{@tagName(node.tag)});
+                return self.store.int(0);
+            },
         }
     }
 

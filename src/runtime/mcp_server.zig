@@ -63,7 +63,7 @@ pub const McpServer = struct {
 
     pub fn ensureHeaven(self: *McpServer) void {
         if (self.heaven == null) {
-            self.heaven = heaven_expr_mod.Heaven.init(self.allocator);
+            self.heaven = heaven_expr_mod.Heaven.init(self.allocator) catch @panic("Failed to init Heaven");
         }
     }
 
@@ -231,10 +231,10 @@ pub const McpServer = struct {
                 defer p2.deinit();
                 p2.normalizeParsedFile();
 
-                const id1 = p1.toExprIr(&he.store) catch break :blk "error: conversion failed for json1";
-                const id2 = p2.toExprIr(&he.store) catch break :blk "error: conversion failed for json2";
+                const id1 = p1.toExprIr(he.store) catch break :blk "error: conversion failed for json1";
+                const id2 = p2.toExprIr(he.store) catch break :blk "error: conversion failed for json2";
 
-                var equiv_result = mlcpd_equiv_mod.proveEquivalence(self.allocator, &he.store, id1, id2) catch |err| {
+                var equiv_result = mlcpd_equiv_mod.proveEquivalence(self.allocator, he.store, id1, id2) catch |err| {
                     break :blk try std.fmt.allocPrint(self.allocator, "{{\"error\":\"equivalence proof failed: {}\"}}", .{err});
                 };
                 defer equiv_result.deinit(self.allocator);

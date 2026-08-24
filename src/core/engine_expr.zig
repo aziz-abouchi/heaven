@@ -100,32 +100,53 @@ pub const FunctionRegistry = struct {
 };
 
 pub const Engine = struct {
-    allocator: Allocator,
-    store: ?*Store = null,
-    env: ?*Env = null,
+    allocator: std.mem.Allocator,
+    store: *Store,
+    env: *Env,
     fns: std.StringHashMapUnmanaged(FunctionDef) = .{},
-    macros: std.AutoHashMapUnmanaged(expr.Sym, struct { params_span: expr.Span, body: expr.Id }) = .{},
-    actors: std.AutoHashMapUnmanaged(u32, struct { state: expr.Id, handler: expr.Id }) = .{},
+    macros: std.AutoHashMapUnmanaged(expr.Sym, struct {
+        params_span: expr.Span,
+        body: expr.Id,
+    }) = .{},
+    actors: std.AutoHashMapUnmanaged(u32, struct {
+        state: expr.Id,
+        handler: expr.Id,
+    }) = .{},
     next_actor_id: u32 = 0,
     green_call_count: u32 = 0,
     green_mode: bool = false,
     fuel: u64 = 1_000_000,
+    max_recursion_depth: usize = 1000,
+    recursion_depth: usize = 0,
 
-    pub fn init(allocator: Allocator) Engine {
-        return .{ .allocator = allocator };
+    pub fn init(
+        allocator: std.mem.Allocator,
+        store: *Store,
+        env: *Env,
+    ) Engine {
+        return .{
+            .allocator = allocator,
+            .store = store,
+            .env = env,
+            .fns = .{},
+            .fuel = 100_000,
+        };
     }
 
     pub fn deinit(self: *Engine) void {
+        var it = self.fns.iterator();
+        while (it.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
+        }
+
         self.fns.deinit(self.allocator);
         self.macros.deinit(self.allocator);
         self.actors.deinit(self.allocator);
     }
 
     pub fn eval(self: *Engine, id: Id) EvalError!Id {
-        const store = self.store orelse return error.UnboundVariable;
-        var dummy_env = Env.init(self.allocator);
-        defer dummy_env.deinit();
-        const env = self.env orelse &dummy_env;
+        const store = self.store;
+        const env = self.env;
         if (self.fuel == 0) return error.RecursionLimitExceeded;
         self.fuel -= 1;
         return evaluate(store, env, self, id, 0);
@@ -133,7 +154,7 @@ pub const Engine = struct {
 
     pub fn evalFunction(self: *Engine, name: []const u8, args: []const Id) EvalError!Id {
         const store = self.store orelse return error.UnboundVariable;
-        const env = self.env orelse return error.UnboundVariable;
+        const env = &self.env;
 
         const fn_def = self.fns.get(name) orelse return error.UnknownSymbol;
         if (fn_def.num_clauses == 0) return error.UnknownSymbol;
@@ -529,18 +550,17 @@ fn evalCmp(store: *Store, a: Id, b: Id, op: CmpOp) EvalError!Id {
 
 test "engine rejects non-lowered frontend expressions" {
     const allocator = std.testing.allocator;
+
     var store = Store.init(allocator);
     defer store.deinit();
     var env = Env.init(allocator);
     defer env.deinit();
-    var engine = Engine.init(allocator);
+    var engine = Engine.init(allocator, &store, &env);
     defer engine.deinit();
-    engine.store = &store;
-    engine.env = &env;
 
-    const x = try store.sym("x");
-    const zero = try store.int(0);
-    const frontend = try store.binop("quote", x, zero);
+    const x = try engine.store.sym("x");
+    const zero = try engine.store.int(0);
+    const frontend = try engine.store.binop("quote", x, zero);
 
     try std.testing.expectError(
         error.ExtensionNotLowered,
@@ -550,19 +570,18 @@ test "engine rejects non-lowered frontend expressions" {
 
 test "engine evaluates lowered expression" {
     const allocator = std.testing.allocator;
+
     var store = Store.init(allocator);
     defer store.deinit();
     var env = Env.init(allocator);
     defer env.deinit();
-    var engine = Engine.init(allocator);
+    var engine = Engine.init(allocator, &store, &env);
     defer engine.deinit();
-    engine.store = &store;
-    engine.env = &env;
 
-    const x = try store.int(2);
-    const y = try store.int(3);
-    const frontend = try store.binop("+", x, y);
-    const lowered = try store.lowerRec(frontend);
-    try store.assertCoreExpr(lowered);
+    const x = try engine.store.int(2);
+    const y = try engine.store.int(3);
+    const frontend = try engine.store.binop("+", x, y);
+    const lowered = try engine.store.lowerRec(frontend);
+    try engine.store.assertCoreExpr(lowered);
     _ = try engine.eval(lowered);
 }

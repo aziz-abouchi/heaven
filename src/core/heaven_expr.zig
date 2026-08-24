@@ -61,7 +61,7 @@ pub const HeavenError = error{
 
 pub const Heaven = struct {
     allocator: std.mem.Allocator,
-    store: Store,
+    store: *Store, // maintenant un pointeur alloué dynamiquement
     env: engine.Env,
     type_env: types.TypeEnv,
     engine: engine.Engine,
@@ -71,21 +71,25 @@ pub const Heaven = struct {
     proof_core: proof.ProofEnv,
     pending_proof_request: ?[]const u8 = null,
 
-    pub fn init(allocator: std.mem.Allocator) Heaven {
-        var store = Store.init(allocator);
+    pub fn init(allocator: std.mem.Allocator) !Heaven {
+        // Allouer le Store sur le tas
+        const store = allocator.create(Store) catch @panic("Out of memory allocating Store");
+        store.* = Store.init(allocator);
         var env = engine.Env.init(allocator);
         const type_env = types.TypeEnv.init(allocator);
-        var eng = engine.Engine{ .allocator = allocator };
-        eng.store = &store;
-        eng.env = &env;
+        var eng = engine.Engine{
+            .allocator = allocator,
+            .store = store,
+            .env = &env,
+        };
 
         const kb = allocator.create(transform_mod.KnowledgeBase) catch @panic("Out of memory");
         kb.* = transform_mod.KnowledgeBase.init(allocator);
 
-        const simplify_eng = simplify_engine_mod.SimplifyEngine.init(&store, &eng, &env, kb, allocator);
+        const simplify_eng = simplify_engine_mod.SimplifyEngine.init(store, &eng, &env, kb, allocator);
         const proof_core = proof.ProofEnv.init(allocator);
 
-        return Heaven{
+        var heaven = Heaven{
             .allocator = allocator,
             .store = store,
             .env = env,
@@ -96,10 +100,14 @@ pub const Heaven = struct {
             .proof_core = proof_core,
             .pending_proof_request = null,
         };
+
+        try heaven.addDefaultRules();
+        return heaven;
     }
 
     pub fn deinit(self: *Heaven) void {
         self.store.deinit();
+        self.allocator.destroy(self.store);
         self.env.deinit();
         self.type_env.deinit();
         self.kb.deinit(self.allocator);
@@ -144,8 +152,8 @@ pub const Heaven = struct {
         const lhs = try self.parseExpression(lhs_str);
         const rhs = try self.parseExpression(rhs_str);
 
-        const lhs_canon = try canon.canonicalize(&self.store, self.allocator, lhs);
-        const rhs_canon = try canon.canonicalize(&self.store, self.allocator, rhs);
+        const lhs_canon = try canon.canonicalize(self.store, self.allocator, lhs);
+        const rhs_canon = try canon.canonicalize(self.store, self.allocator, rhs);
 
         const rule_id = try self.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{});
         try self.kb.rules.append(self.allocator, rule_id);
@@ -161,17 +169,15 @@ pub const Heaven = struct {
 
         const raw_id = try self.parseExpression(trimmed);
         const id = try self.ensureLowered(raw_id);
+        // Normalisation AC
+        const normalized = try canon.canonicalizeAC(self.store, id);
 
-        const lowered_node = self.store.get(id);
-        platform.debug.print("[Heaven.simplify] lowered tag = {s}\n", .{@tagName(lowered_node.tag)});
+        platform.debug.print("[Heaven.simplify] parsed id = {d}, normalized id = {d}, store.len = {d}\n", .{ id, normalized, self.store.len() });
 
-        var qtt = egraph_mod.QttCost{};
-        defer qtt.deinit(self.allocator);
+        // Utiliser simplifyRec (sans évaluation) pour réécrire jusqu'à saturation
+        const simplified = try self.simplify_eng.simplifyRec(normalized, 0);
 
-        platform.debug.print("[Heaven.simplify] parsed id = {d}, store.len = {d}\n", .{ id, self.store.len() });
-        const simplified = try self.simplify_eng.simplifyWithEGraph(id, &qtt);
-
-        const result_str = try expr.toStringInfix(&self.store, simplified, self.allocator);
+        const result_str = try expr.toStringInfix(self.store, simplified, self.allocator);
         return result_str;
     }
 
@@ -212,7 +218,6 @@ pub const Heaven = struct {
     }
 
     fn parseSExpr(self: *Heaven, inner: []const u8) HeavenError!Id {
-        // Tokeniser en respectant les parenthèses
         var tokens: std.ArrayListUnmanaged([]const u8) = .{};
         defer tokens.deinit(self.allocator);
 
@@ -386,14 +391,14 @@ pub const Heaven = struct {
     }
     pub fn evaluateExpr(self: *Heaven, id: Id) HeavenError!Id {
         self.engine.fuel = 1_000_000;
-        return engine.evaluate(&self.store, &self.env, &self.engine, id, 0);
+        return engine.evaluate(self.store, &self.env, &self.engine, id, 0);
     }
     pub fn format(self: *Heaven, id: Id) HeavenError![]u8 {
-        return expr.toString(&self.store, id, self.allocator);
+        return expr.toString(self.store, id, self.allocator);
     }
     pub fn canonicalize(self: *Heaven, id: Id) HeavenError![]u8 {
         const lowered = try self.ensureLowered(id);
-        const result = canon.canonicalizeAC(&self.store, lowered) catch |err| switch (err) {
+        const result = canon.canonicalizeAC(self.store, lowered) catch |err| switch (err) {
             error.OutOfMemory => return HeavenError.OutOfMemory,
         };
         return try self.format(result);
@@ -403,17 +408,94 @@ pub const Heaven = struct {
         const t = try self.ensureLowered(target);
         var bindings = pattern.Bindings.init(self.store.allocator);
         defer bindings.deinit();
-        return pattern.match(&self.store, p, t, &bindings) catch |err| switch (err) {
+        return pattern.match(self.store, p, t, &bindings) catch |err| switch (err) {
             error.OutOfMemory => return HeavenError.OutOfMemory,
             error.MatchFailed => return false,
         };
     }
     pub fn provePeano(self: *Heaven, id: Id, axiom: proof.PeanoAxiom) HeavenError![]u8 {
         const lowered = try self.ensureLowered(id);
-        const result = proof.rewritePeano(&self.store, lowered, axiom) catch |err| switch (err) {
+        const result = proof.rewritePeano(self.store, lowered, axiom) catch |err| switch (err) {
             error.OutOfMemory => return HeavenError.OutOfMemory,
             else => return HeavenError.EvaluationFailed,
         };
         return try self.format(result);
+    }
+    fn addDefaultRules(self: *Heaven) !void {
+        const store = self.store;
+        const kb = self.kb;
+
+        // Règle : (+ x 0) -> x
+        {
+            const x = try store.sym("x");
+            const zero = try store.int(0);
+            const lhs = try store.binop("+", x, zero);
+            const rhs = x;
+            const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+            try kb.rules.append(self.allocator, rule);
+        }
+
+        // Règle : (+ 0 x) -> x
+        {
+            const x = try store.sym("x");
+            const zero = try store.int(0);
+            const lhs = try store.binop("+", zero, x);
+            const rhs = x;
+            const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+            try kb.rules.append(self.allocator, rule);
+        }
+
+        // Règle : (* x 1) -> x
+        {
+            const x = try store.sym("x");
+            const one = try store.int(1);
+            const lhs = try store.binop("*", x, one);
+            const rhs = x;
+            const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+            try kb.rules.append(self.allocator, rule);
+        }
+
+        // Règle : (* 1 x) -> x
+        {
+            const x = try store.sym("x");
+            const one = try store.int(1);
+            const lhs = try store.binop("*", one, x);
+            const rhs = x;
+            const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+            try kb.rules.append(self.allocator, rule);
+        }
+
+        // Règle : (+ x x) -> (* 2 x)
+        {
+            const x = try store.sym("x");
+            const two = try store.int(2);
+            const lhs = try store.binop("+", x, x);
+            const rhs = try store.binop("*", two, x);
+            const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+            try kb.rules.append(self.allocator, rule);
+        }
+
+        // Règle : (* 2 x) -> (+ x x) (optionnelle, symétrique pour l'EGraph)
+        {
+            const x = try store.sym("x");
+            const two = try store.int(2);
+            const lhs = try store.binop("*", two, x);
+            const rhs = try store.binop("+", x, x);
+            const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+            try kb.rules.append(self.allocator, rule);
+        }
+
+        // Règle d'associativité : (+ (+ a b) c) -> (+ a (+ b c))
+        {
+            const a = try store.sym("a");
+            const b = try store.sym("b");
+            const c = try store.sym("c");
+            const ab = try store.binop("+", a, b);
+            const lhs = try store.binop("+", ab, c);
+            const bc = try store.binop("+", b, c);
+            const rhs = try store.binop("+", a, bc);
+            const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+            try kb.rules.append(self.allocator, rule);
+        }
     }
 };
