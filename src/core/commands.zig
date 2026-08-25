@@ -351,17 +351,14 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "solve ")) return try self.math.solve(trimmed["solve ".len..], "x");
         if (std.mem.startsWith(u8, trimmed, "derive ")) {
             const expr_str = trimmed["derive ".len..];
-            // ✅ Utiliser parseExpression (gère ^, *, +, etc.)
             const expr_id = self.parseExpression(expr_str) catch {
                 return self.allocator.dupe(u8, "parse error in derive expression");
             };
-            // ✅ Récupérer le Sym de la variable
             const var_id = self.store.sym("x") catch {
                 return self.allocator.dupe(u8, "error: cannot create var sym");
             };
             const var_node = self.store.get(var_id);
             const var_sym = var_node.payload;
-            // ✅ Appeler deriveExpr directement
             const result = self.math.deriveExpr(expr_id, var_sym) catch |err| {
                 switch (err) {
                     error.UnsupportedPowerVarExp,
@@ -371,7 +368,10 @@ pub const Commands = struct {
                     else => return self.allocator.dupe(u8, "0"),
                 }
             };
-            return expr.toStringInfix(self.store, result, self.allocator);
+            // ✅ Simplifier le résultat
+            const lowered = try self.store.lowerRec(result);
+            const simplified = try self.simplify_eng.simplifyWithEGraph(lowered, null, null);
+            return expr.toStringInfix(self.store, simplified, self.allocator);
         }
         if (std.mem.startsWith(u8, trimmed, "integrate ")) return try self.math.integrate(trimmed["integrate ".len..], "x");
         if (std.mem.startsWith(u8, trimmed, "asm ")) return self.evalAsm(trimmed["asm ".len..]);
