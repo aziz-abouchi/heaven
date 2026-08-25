@@ -40,102 +40,190 @@ pub const Math = struct {
     }
 
     // ─── Dérivation ───
+    pub fn derive(self: *Math, input: []const u8, var_name: []const u8) ![]u8 {
+        //  Pré-traiter : convertir x^2 en (^ x 2)
+        const processed = try preprocessPower(input, self.allocator);
+        defer self.allocator.free(processed);
 
-    pub fn derive(self: *Math, expr_str: []const u8, variable: []const u8) ![]u8 {
-        const normalized = try self.normalizeUnicode(expr_str);
-        defer self.allocator.free(normalized);
-        const id = try self.bridge.importExpr(normalized);
-        const var_id = try self.store.sym(variable);
-        const result = try self.deriveExpr(id, var_id);
-        const simplified = try self.simplifyMath(result);
-        const str = try expr.toStringInfix(self.store, simplified, self.allocator);
-        return str;
+        const id = try self.bridge.importExpr(processed);
+
+        // ✅ Récupérer le Sym de la variable (pas l'Id)
+        const var_node = self.store.get(try self.store.sym(var_name));
+        const var_sym = var_node.payload; // C'est un Sym !
+
+        const result = try self.deriveExpr(id, var_sym);
+        return try expr.toStringInfix(self.store, result, self.allocator);
     }
 
-    fn deriveExpr(self: *Math, expr_id: Id, variable: Id) !Id {
-        const node = self.store.get(expr_id);
-        platform.debug.print("[deriveExpr] node tag={s}\n", .{@tagName(node.tag)});
-        switch (node.tag) {
-            .lit => return self.store.int(0),
-            .sym => {
-                const var_node = self.store.get(variable);
-                if (var_node.tag != .sym) return self.store.int(0);
-                const var_sym = var_node.payload;
-                if (node.payload == var_sym) return self.store.int(1);
-                return self.store.int(0);
-            },
-            .apply => {
-                const p = self.store.pool.items;
-                const args = node.span_a.slice(p);
-                if (args.len < 1) return self.store.int(0);
-                const op_node = self.store.get(node.payload);
-                if (op_node.tag != .sym) return self.store.int(0);
-                const op = self.store.interner.resolve(op_node.payload);
-                platform.debug.print("[deriveExpr] apply op={s}, args.len={d}\n", .{ op, args.len });
-                if (std.mem.eql(u8, op, "+")) {
-                    if (args.len != 3) return self.store.int(0);
-                    const a = args[1];
-                    const b = args[2];
-                    const d1 = try self.deriveExpr(a, variable);
-                    const d2 = try self.deriveExpr(b, variable);
-                    return self.store.binop("+", d1, d2);
-                }
-                if (std.mem.eql(u8, op, "-")) {
-                    if (args.len != 3) return self.store.int(0);
-                    const a = args[1];
-                    const b = args[2];
-                    const d1 = try self.deriveExpr(a, variable);
-                    const d2 = try self.deriveExpr(b, variable);
-                    return self.store.binop("-", d1, d2);
-                }
-                if (std.mem.eql(u8, op, "*")) {
-                    if (args.len != 3) return self.store.int(0);
-                    // (f*g)' = f'g + fg'
-                    const f = args[1];
-                    const g = args[2];
-                    const df = try self.deriveExpr(f, variable);
-                    const dg = try self.deriveExpr(g, variable);
-                    const fg = try self.store.binop("*", df, g);
-                    const fdg = try self.store.binop("*", f, dg);
-                    return self.store.binop("+", fg, fdg);
-                }
-                if (std.mem.eql(u8, op, "^")) {
-                    if (args.len != 3) return self.store.int(0);
-                    // (f^g)' = f^g * (g' * ln(f) + g * f'/f)
-                    const base = args[1];
-                    const exp = args[2];
-                    // Vérifier si l'exposant est un entier constant
-                    const exp_node = self.store.get(exp);
-                    if (exp_node.tag == .lit) {
-                        const lit = self.store.lits.items[exp_node.aux];
-                        if (lit == .int) {
-                            const n = lit.int;
-                            if (n == 0) return self.store.int(0);
-                            // Dérivée de la base
-                            const d_base = try self.deriveExpr(base, variable);
-                            if (n == 1) {
-                                // d/dx (x^1) = 1
-                                return self.store.int(1);
-                            }
-                            // n * base^(n-1) * d_base
-                            const exp_minus = try self.store.int(n - 1);
-                            const base_pow = try self.store.binop("^", base, exp_minus);
-                            const mul1 = try self.store.binop("*", d_base, base_pow);
-                            const n_id = try self.store.int(n);
-                            return self.store.binop("*", n_id, mul1);
+    /// Convertit les expressions infixes avec ^ en S-expressions
+    /// x^2 → (^ x 2)
+    /// x^2 + 1 → (^ x 2) + 1  (le parseExpression gèrera le +)
+    fn preprocessPower(input: []const u8, allocator: std.mem.Allocator) ![]u8 {
+        // Chercher ^ en dehors des parenthèses
+        var depth: usize = 0;
+        var i: usize = 0;
+        while (i < input.len) {
+            switch (input[i]) {
+                '(' => depth += 1,
+                ')' => if (depth > 0) {
+                    depth -= 1;
+                },
+                '^' => {
+                    if (depth == 0) {
+                        // Trouver le lhs (vers la gauche)
+                        var lhs_end = i;
+                        while (lhs_end > 0 and input[lhs_end - 1] == ' ') lhs_end -= 1;
+                        var lhs_start = lhs_end;
+                        while (lhs_start > 0 and input[lhs_start - 1] != ' ' and input[lhs_start - 1] != '(' and input[lhs_start - 1] != ')') {
+                            lhs_start -= 1;
                         }
+
+                        // Trouver le rhs (vers la droite)
+                        var rhs_start = i + 1;
+                        while (rhs_start < input.len and input[rhs_start] == ' ') rhs_start += 1;
+                        var rhs_end = rhs_start;
+                        while (rhs_end < input.len and input[rhs_end] != ' ' and input[rhs_end] != '+' and input[rhs_end] != '-' and input[rhs_end] != '*' and input[rhs_end] != '/' and input[rhs_end] != ')') {
+                            rhs_end += 1;
+                        }
+
+                        const lhs = input[lhs_start..lhs_end];
+                        const rhs = input[rhs_start..rhs_end];
+
+                        // Construire la nouvelle chaîne
+                        var result = std.ArrayListUnmanaged(u8){};
+                        defer result.deinit(allocator);
+
+                        // Partie avant lhs
+                        _ = try result.appendSlice(allocator, input[0..lhs_start]);
+                        // (^ lhs rhs)
+                        _ = try result.writer(allocator).print("(^ {s} {s})", .{ lhs, rhs });
+                        // Partie après rhs
+                        _ = try result.appendSlice(allocator, input[rhs_end..]);
+
+                        // Récursivement traiter le reste
+                        const intermediate = try result.toOwnedSlice(allocator);
+                        defer allocator.free(intermediate);
+                        return preprocessPower(intermediate, allocator);
                     }
-                    // Cas non géré : retourner 0 pour l'instant (ou une expression symbolique)
-                    return self.store.int(0);
+                },
+                else => {},
+            }
+            i += 1;
+        }
+        return try allocator.dupe(u8, input);
+    }
+
+    fn preprocessPowerExpr(self: *Math, input: []const u8) ![]u8 {
+        // Remplacer x^2 par (^ x 2)
+        // Simple version : si on détecte ^, on wrapper
+        if (std.mem.indexOfScalar(u8, input, '^')) |pos| {
+            const base = std.mem.trim(u8, input[0..pos], " ");
+            const exp = std.mem.trim(u8, input[pos + 1 ..], " ");
+            return try std.fmt.allocPrint(self.allocator, "(^ {s} {s})", .{ base, exp });
+        }
+        return try self.allocator.dupe(u8, input);
+    }
+
+    pub fn deriveExpr(self: *Math, expr_id: Id, variable: expr.Sym) !Id {
+        const node = self.store.get(expr_id);
+
+        if (@import("builtin").mode == .Debug) {
+            platform.debug.print("[deriveExpr] node tag={s}\n", .{@tagName(node.tag)});
+        }
+
+        return switch (node.tag) {
+            .lit => try self.store.int(0),
+
+            .sym => blk: {
+                // ✅ MAINTENANT : node.payload et variable sont tous les deux des Sym
+                if (node.payload == variable) {
+                    break :blk try self.store.int(1);
+                }
+                break :blk try self.store.int(0);
+            },
+
+            .apply => blk: {
+                const func_node = self.store.get(node.payload);
+                if (func_node.tag != .sym) {
+                    return error.UnsupportedDeriveOp;
+                }
+                const op = self.store.interner.resolve(func_node.payload);
+                const all = self.store.spanSliceConst(node.span_a);
+                if (all.len < 1) return error.UnsupportedDeriveOp;
+                const args = all[1..];
+
+                if (@import("builtin").mode == .Debug) {
+                    platform.debug.print("[deriveExpr] apply op={s}, args.len={d}\n", .{ op, args.len });
                 }
 
-                return self.store.int(0);
+                if (std.mem.eql(u8, op, "+")) {
+                    var derived = try self.allocator.alloc(Id, args.len);
+                    defer self.allocator.free(derived);
+                    for (args, 0..) |arg, i| {
+                        derived[i] = try self.deriveExpr(arg, variable);
+                    }
+                    const plus_sym = try self.store.sym("+");
+                    break :blk try self.store.apply(plus_sym, derived);
+                } else if (std.mem.eql(u8, op, "-")) {
+                    const du = try self.deriveExpr(args[0], variable);
+                    const dv = try self.deriveExpr(args[1], variable);
+                    const minus_sym = try self.store.sym("-");
+                    break :blk try self.store.apply(minus_sym, &.{ du, dv });
+                } else if (std.mem.eql(u8, op, "*")) {
+                    const u = args[0];
+                    const v = args[1];
+                    const du = try self.deriveExpr(u, variable);
+                    const dv = try self.deriveExpr(v, variable);
+                    const mul_sym = try self.store.sym("*");
+                    const plus_sym = try self.store.sym("+");
+                    const du_v = try self.store.apply(mul_sym, &.{ du, v });
+                    const u_dv = try self.store.apply(mul_sym, &.{ u, dv });
+                    break :blk try self.store.apply(plus_sym, &.{ du_v, u_dv });
+                } else if (std.mem.eql(u8, op, "^") or std.mem.eql(u8, op, "pow")) {
+                    const base = args[0];
+                    const exp = args[1];
+                    const exp_node = self.store.get(exp);
+                    if (exp_node.tag != .lit) {
+                        return error.UnsupportedPowerVarExp;
+                    }
+                    const n_val = switch (self.store.lits.items[exp_node.aux]) {
+                        .int => |v| v,
+                        else => return error.UnsupportedPowerType,
+                    };
+                    const n_id = try self.store.int(n_val);
+                    const n_minus_1 = try self.store.int(n_val - 1);
+                    const pow_sym = try self.store.sym("^");
+                    const mul_sym = try self.store.sym("*");
+                    const base_n_minus_1 = try self.store.apply(pow_sym, &.{ base, n_minus_1 });
+                    const du = try self.deriveExpr(base, variable);
+                    const n_times_base = try self.store.apply(mul_sym, &.{ n_id, base_n_minus_1 });
+                    break :blk try self.store.apply(mul_sym, &.{ n_times_base, du });
+                } else if (std.mem.eql(u8, op, "/")) {
+                    const u = args[0];
+                    const v = args[1];
+                    const du = try self.deriveExpr(u, variable);
+                    const dv = try self.deriveExpr(v, variable);
+                    const mul_sym = try self.store.sym("*");
+                    const minus_sym = try self.store.sym("-");
+                    const div_sym = try self.store.sym("/");
+                    const pow_sym = try self.store.sym("^");
+                    const du_v = try self.store.apply(mul_sym, &.{ du, v });
+                    const u_dv = try self.store.apply(mul_sym, &.{ u, dv });
+                    const num = try self.store.apply(minus_sym, &.{ du_v, u_dv });
+                    const two = try self.store.int(2);
+                    const v_sq = try self.store.apply(pow_sym, &.{ v, two });
+                    break :blk try self.store.apply(div_sym, &.{ num, v_sq });
+                } else {
+                    platform.debug.print("[deriveExpr] unsupported op: {s}\n", .{op});
+                    return error.UnsupportedDeriveOp;
+                }
             },
+
             else => {
                 platform.debug.print("[deriveExpr] fallback tag={s}\n", .{@tagName(node.tag)});
-                return self.store.int(0);
+                return try self.store.int(0);
             },
-        }
+        };
     }
 
     fn normalizeUnicode(self: *Math, input: []const u8) ![]u8 {

@@ -187,7 +187,7 @@ pub const Heaven = struct {
             const rest = std.mem.trim(u8, trimmed["plot ".len..], " ");
             return self.plot(rest, "x");
         }
-
+        if (std.mem.eql(u8, trimmed, "rules")) return self.listRules();
         return self.allocator.dupe(u8, trimmed);
     }
 
@@ -245,31 +245,133 @@ pub const Heaven = struct {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return error.InvalidInput;
 
+        // 1. Entier
         if (std.fmt.parseInt(i64, trimmed, 10)) |val| {
             return self.store.int(val);
         } else |_| {}
 
-        if (trimmed[0] != '(') {
-            return self.store.sym(trimmed);
+        // 2. Si commence par '(' → S-expression
+        if (trimmed[0] == '(') {
+            var depth: usize = 0;
+            var i: usize = 0;
+            while (i < trimmed.len) {
+                if (trimmed[i] == '(') {
+                    depth += 1;
+                } else if (trimmed[i] == ')') {
+                    depth -= 1;
+                    if (depth == 0) break;
+                }
+                i += 1;
+            }
+            if (i >= trimmed.len or trimmed[i] != ')') return error.InvalidSyntax;
+            if (i + 1 < trimmed.len and std.mem.trim(u8, trimmed[i + 1 ..], " ").len > 0)
+                return error.InvalidSyntax;
+
+            const inner = trimmed[1..i];
+            return self.parseSExpr(inner);
         }
 
+        // 3. NOUVEAU : Détecter les opérateurs infixes (^, +, -, *, /)
+        // Priorité : ^ > * = / > + = -
+
+        // Chercher ^ (puissance) - priorité la plus haute
+        if (std.mem.indexOfScalar(u8, trimmed, '^')) |pos| {
+            const lhs_str = std.mem.trim(u8, trimmed[0..pos], " ");
+            const rhs_str = std.mem.trim(u8, trimmed[pos + 1 ..], " ");
+            if (lhs_str.len > 0 and rhs_str.len > 0) {
+                const lhs = try self.parseExpression(lhs_str);
+                const rhs = try self.parseExpression(rhs_str);
+                const pow_sym = try self.store.sym("^");
+                return self.store.apply(pow_sym, &.{ lhs, rhs });
+            }
+        }
+
+        // Chercher + ou - (binaire) - priorité la plus basse
+        // Attention : ne pas confondre avec - unaire (ex: -5)
         var depth: usize = 0;
+        var plus_pos: ?usize = null;
+        var minus_pos: ?usize = null;
         var i: usize = 0;
         while (i < trimmed.len) {
-            if (trimmed[i] == '(') {
-                depth += 1;
-            } else if (trimmed[i] == ')') {
-                depth -= 1;
-                if (depth == 0) break;
+            switch (trimmed[i]) {
+                '(' => depth += 1,
+                ')' => depth -= 1,
+                '+', '-' => {
+                    if (depth == 0 and i > 0) {
+                        // Pas en début de chaîne (sinon c'est unaire)
+                        if (trimmed[i] == '+') plus_pos = i else minus_pos = i;
+                    }
+                },
+                else => {},
             }
             i += 1;
         }
-        if (i >= trimmed.len or trimmed[i] != ')') return error.InvalidSyntax;
-        if (i + 1 < trimmed.len and std.mem.trim(u8, trimmed[i + 1 ..], " ").len > 0)
-            return error.InvalidSyntax;
 
-        const inner = trimmed[1..i];
-        return self.parseSExpr(inner);
+        // Préférer + ou - le plus à droite (associativité à gauche)
+        if (minus_pos) |pos| {
+            const lhs_str = std.mem.trim(u8, trimmed[0..pos], " ");
+            const rhs_str = std.mem.trim(u8, trimmed[pos + 1 ..], " ");
+            if (lhs_str.len > 0 and rhs_str.len > 0) {
+                const lhs = try self.parseExpression(lhs_str);
+                const rhs = try self.parseExpression(rhs_str);
+                const op_sym = try self.store.sym("-");
+                return self.store.apply(op_sym, &.{ lhs, rhs });
+            }
+        }
+        if (plus_pos) |pos| {
+            const lhs_str = std.mem.trim(u8, trimmed[0..pos], " ");
+            const rhs_str = std.mem.trim(u8, trimmed[pos + 1 ..], " ");
+            if (lhs_str.len > 0 and rhs_str.len > 0) {
+                const lhs = try self.parseExpression(lhs_str);
+                const rhs = try self.parseExpression(rhs_str);
+                const op_sym = try self.store.sym("+");
+                return self.store.apply(op_sym, &.{ lhs, rhs });
+            }
+        }
+
+        // Chercher * ou /
+        depth = 0;
+        i = 0;
+        var mul_pos: ?usize = null;
+        var div_pos: ?usize = null;
+        while (i < trimmed.len) {
+            switch (trimmed[i]) {
+                '(' => depth += 1,
+                ')' => depth -= 1,
+                '*' => {
+                    if (depth == 0) mul_pos = i;
+                },
+                '/' => {
+                    if (depth == 0) div_pos = i;
+                },
+                else => {},
+            }
+            i += 1;
+        }
+
+        if (div_pos) |pos| {
+            const lhs_str = std.mem.trim(u8, trimmed[0..pos], " ");
+            const rhs_str = std.mem.trim(u8, trimmed[pos + 1 ..], " ");
+            if (lhs_str.len > 0 and rhs_str.len > 0) {
+                const lhs = try self.parseExpression(lhs_str);
+                const rhs = try self.parseExpression(rhs_str);
+                const op_sym = try self.store.sym("/");
+                return self.store.apply(op_sym, &.{ lhs, rhs });
+            }
+        }
+        if (mul_pos) |pos| {
+            const lhs_str = std.mem.trim(u8, trimmed[0..pos], " ");
+            const rhs_str = std.mem.trim(u8, trimmed[pos + 1 ..], " ");
+            if (lhs_str.len > 0 and rhs_str.len > 0) {
+                const lhs = try self.parseExpression(lhs_str);
+                const rhs = try self.parseExpression(rhs_str);
+                const op_sym = try self.store.sym("*");
+                return self.store.apply(op_sym, &.{ lhs, rhs });
+            }
+        }
+
+        // 4. Sinon → symbole simple
+        return self.store.sym(trimmed);
     }
 
     fn parseSExpr(self: *Heaven, inner: []const u8) HeavenError!Id {
@@ -402,7 +504,15 @@ pub const Heaven = struct {
         return self.allocator.dupe(u8, "// stub");
     }
     pub fn derive(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
-        return self.math.derive(expr_str, var_name);
+        return self.math.derive(expr_str, var_name) catch |err| switch (err) {
+            // Convertir les erreurs spécifiques de deriveExpr en UnsupportedExpr
+            error.UnsupportedPowerVarExp,
+            error.UnsupportedPowerType,
+            error.UnsupportedDeriveOp,
+            => return error.UnsupportedExpr,
+            // Les autres erreurs sont déjà dans HeavenError (ou compatibles)
+            else => return @errorCast(err),
+        };
     }
     pub fn integrate(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
         return self.math.integrate(expr_str, var_name);
@@ -424,9 +534,40 @@ pub const Heaven = struct {
         _ = val;
         return self.allocator.dupe(u8, expression);
     }
+
     pub fn listRules(self: *Heaven) HeavenError![]u8 {
-        return self.allocator.dupe(u8, "[]");
+        var buf: std.ArrayListUnmanaged(u8) = .{};
+        defer buf.deinit(self.allocator);
+
+        _ = try buf.writer(self.allocator).print("=== Knowledge Base Rules ({d}) ===\n", .{self.kb.rules.items.len});
+
+        for (self.kb.rules.items, 0..) |rule_id, i| {
+            const rule = self.store.get(rule_id);
+
+            // CORRECTION : utiliser spanSliceConst
+            const span_a = self.store.spanSliceConst(rule.span_a);
+            const span_b = self.store.spanSliceConst(rule.span_b);
+
+            if (span_a.len >= 2) {
+                const lhs_str = try expr.toStringInfix(self.store, span_a[0], self.allocator);
+                defer self.allocator.free(lhs_str);
+                const rhs_str = try expr.toStringInfix(self.store, span_a[1], self.allocator);
+                defer self.allocator.free(rhs_str);
+                _ = try buf.writer(self.allocator).print("[{d}] {s} => {s}\n", .{ i, lhs_str, rhs_str });
+            } else if (span_a.len >= 1 and span_b.len >= 1) {
+                const lhs_str = try expr.toStringInfix(self.store, span_a[0], self.allocator);
+                defer self.allocator.free(lhs_str);
+                const rhs_str = try expr.toStringInfix(self.store, span_b[0], self.allocator);
+                defer self.allocator.free(rhs_str);
+                _ = try buf.writer(self.allocator).print("[{d}] {s} => {s}\n", .{ i, lhs_str, rhs_str });
+            } else {
+                _ = try buf.writer(self.allocator).print("[{d}] (tag={s}, span_a.len={d}, span_b.len={d})\n", .{ i, @tagName(rule.tag), span_a.len, span_b.len });
+            }
+        }
+
+        return buf.toOwnedSlice(self.allocator);
     }
+
     pub fn evalSExpr(self: *Heaven, src: []const u8) HeavenError![]u8 {
         return self.allocator.dupe(u8, src);
     }
@@ -493,6 +634,26 @@ pub const Heaven = struct {
             const lhs = try store.binop("+", zero, x);
             const rhs = x;
             const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+            try kb.rules.append(self.allocator, rule);
+        }
+
+        // Règle : (^ x 1) -> x
+        {
+            const x = try store.sym("x");
+            const one = try store.int(1);
+            const lhs = try store.binop("^", x, one);
+            const rhs = x;
+            const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+            try kb.rules.append(self.allocator, rule);
+        }
+
+        // Règle : (^ x 0) -> 1
+        {
+            const x = try store.sym("x");
+            const zero = try store.int(0);
+            const lhs = try store.binop("^", x, zero);
+            const one = try store.int(1);
+            const rule = try store.relation("rule", &.{lhs}, &.{one});
             try kb.rules.append(self.allocator, rule);
         }
 

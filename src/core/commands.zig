@@ -310,6 +310,8 @@ pub const Commands = struct {
         if (std.mem.eql(u8, trimmed, "help")) return self.evalHelp();
         if (std.mem.eql(u8, trimmed, "stats")) return self.evalStats();
         if (std.mem.eql(u8, trimmed, "theorems")) return self.evalTheorems();
+        if (std.mem.eql(u8, trimmed, "rules")) return self.evalRules();
+
         if (std.mem.startsWith(u8, trimmed, "let ")) return self.evalLet(trimmed["let ".len..]);
         if (std.mem.startsWith(u8, trimmed, "transform ")) return try self.evalTransform(trimmed["transform ".len..]);
         if (std.mem.startsWith(u8, trimmed, "eval ")) return self.evalSExpr(trimmed["eval ".len..]);
@@ -347,7 +349,30 @@ pub const Commands = struct {
         if (std.mem.startsWith(u8, trimmed, "qtt ")) return self.evalQtt(trimmed["qtt ".len..]);
         if (std.mem.startsWith(u8, trimmed, "mir ")) return self.evalMir(trimmed["mir ".len..]);
         if (std.mem.startsWith(u8, trimmed, "solve ")) return try self.math.solve(trimmed["solve ".len..], "x");
-        if (std.mem.startsWith(u8, trimmed, "derive ")) return self.math.derive(trimmed["derive ".len..], "x") catch self.allocator.dupe(u8, "0");
+        if (std.mem.startsWith(u8, trimmed, "derive ")) {
+            const expr_str = trimmed["derive ".len..];
+            // ✅ Utiliser parseExpression (gère ^, *, +, etc.)
+            const expr_id = self.parseExpression(expr_str) catch {
+                return self.allocator.dupe(u8, "parse error in derive expression");
+            };
+            // ✅ Récupérer le Sym de la variable
+            const var_id = self.store.sym("x") catch {
+                return self.allocator.dupe(u8, "error: cannot create var sym");
+            };
+            const var_node = self.store.get(var_id);
+            const var_sym = var_node.payload;
+            // ✅ Appeler deriveExpr directement
+            const result = self.math.deriveExpr(expr_id, var_sym) catch |err| {
+                switch (err) {
+                    error.UnsupportedPowerVarExp,
+                    error.UnsupportedPowerType,
+                    error.UnsupportedDeriveOp,
+                    => return self.allocator.dupe(u8, "error: unsupported derive operation"),
+                    else => return self.allocator.dupe(u8, "0"),
+                }
+            };
+            return expr.toStringInfix(self.store, result, self.allocator);
+        }
         if (std.mem.startsWith(u8, trimmed, "integrate ")) return try self.math.integrate(trimmed["integrate ".len..], "x");
         if (std.mem.startsWith(u8, trimmed, "asm ")) return self.evalAsm(trimmed["asm ".len..]);
         if (std.mem.startsWith(u8, trimmed, "ask ")) return self.evalAsk(trimmed["ask ".len..]);
@@ -361,7 +386,15 @@ pub const Commands = struct {
                 if (std.mem.indexOfScalar(u8, inner, ',')) |comma| {
                     const expr_str = std.mem.trim(u8, inner[0..comma], " ");
                     const var_str = std.mem.trim(u8, inner[comma + 1 ..], " ");
-                    return try self.math.derive(expr_str, var_str);
+                    return self.math.derive(expr_str, var_str) catch |err| {
+                        switch (err) {
+                            error.UnsupportedPowerVarExp,
+                            error.UnsupportedPowerType,
+                            error.UnsupportedDeriveOp,
+                            => return error.UnsupportedExpr,
+                            else => return error.EvaluationFailed,
+                        }
+                    };
                 }
             }
         }
@@ -409,6 +442,38 @@ pub const Commands = struct {
         else
             result;
         return expr.toStringInfix(self.store, canon, self.allocator);
+    }
+
+    fn evalRules(self: *Commands) ![]u8 {
+        var buf: std.ArrayListUnmanaged(u8) = .{};
+        defer buf.deinit(self.allocator);
+
+        _ = try buf.writer(self.allocator).print("=== Knowledge Base Rules ({d}) ===\n", .{self.kb.rules.items.len});
+
+        for (self.kb.rules.items, 0..) |rule_id, i| {
+            const rule = self.store.get(rule_id);
+            // Utiliser spanSliceConst pour accéder aux éléments
+            const span_a = self.store.spanSliceConst(rule.span_a);
+            const span_b = self.store.spanSliceConst(rule.span_b);
+
+            if (span_a.len >= 2) {
+                const lhs_str = try expr.toStringInfix(self.store, span_a[0], self.allocator);
+                defer self.allocator.free(lhs_str);
+                const rhs_str = try expr.toStringInfix(self.store, span_a[1], self.allocator);
+                defer self.allocator.free(rhs_str);
+                _ = try buf.writer(self.allocator).print("[{d}] {s} => {s}\n", .{ i, lhs_str, rhs_str });
+            } else if (span_a.len >= 1 and span_b.len >= 1) {
+                const lhs_str = try expr.toStringInfix(self.store, span_a[0], self.allocator);
+                defer self.allocator.free(lhs_str);
+                const rhs_str = try expr.toStringInfix(self.store, span_b[0], self.allocator);
+                defer self.allocator.free(rhs_str);
+                _ = try buf.writer(self.allocator).print("[{d}] {s} => {s}\n", .{ i, lhs_str, rhs_str });
+            } else {
+                _ = try buf.writer(self.allocator).print("[{d}] (tag={s}, span_a.len={d}, span_b.len={d})\n", .{ i, @tagName(rule.tag), span_a.len, span_b.len });
+            }
+        }
+
+        return buf.toOwnedSlice(self.allocator);
     }
 
     // ─── evalSimplify : utilise l'EGraph avec saturation complète ───
@@ -1383,19 +1448,50 @@ pub const Commands = struct {
                 }
 
                 if (std.mem.eql(u8, name, "assert_eq") and args.len == 2) {
+                    // Évaluer les deux arguments
                     self.engine.fuel = 1_000_000;
-                    const lhs = engine_expr.evaluate(self.store, self.env, self.engine, args[0], 0) catch args[0];
-                    const rhs = engine_expr.evaluate(self.store, self.env, self.engine, args[1], 0) catch args[1];
+                    const left = engine_expr.evaluate(self.store, self.env, self.engine, args[0], 0) catch |err| {
+                        return try std.fmt.allocPrint(self.allocator, "✗ assert_eq failed: left eval error: {}", .{err});
+                    };
+                    const right = engine_expr.evaluate(self.store, self.env, self.engine, args[1], 0) catch |err| {
+                        return try std.fmt.allocPrint(self.allocator, "✗ assert_eq failed: right eval error: {}", .{err});
+                    };
 
-                    if (@import("pattern").exprStructuralEq(self.store, lhs, rhs)) {
+                    // 1. Comparaison rapide par pointeur
+                    if (left == right) {
                         return try self.allocator.dupe(u8, "✓ assert_eq passed");
-                    } else {
-                        const l_str = try expr.toStringInfix(self.store, lhs, self.allocator);
-                        const r_str = try expr.toStringInfix(self.store, rhs, self.allocator);
-                        defer self.allocator.free(l_str);
-                        defer self.allocator.free(r_str);
-                        return try std.fmt.allocPrint(self.allocator, "✗ assert_eq failed: {s} != {s}", .{ l_str, r_str });
                     }
+
+                    // 2. Comparaison textuelle (rapide)
+                    const l_str = try expr.toStringInfix(self.store, left, self.allocator);
+                    defer self.allocator.free(l_str);
+                    const r_str = try expr.toStringInfix(self.store, right, self.allocator);
+                    defer self.allocator.free(r_str);
+
+                    if (std.mem.eql(u8, l_str, r_str)) {
+                        return try self.allocator.dupe(u8, "✓ assert_eq passed");
+                    }
+
+                    // 3. Comparaison sémantique via canonicalisation
+                    const l_canon = canon_mod.canonicalize(self.store, self.allocator, left) catch left;
+                    const r_canon = canon_mod.canonicalize(self.store, self.allocator, right) catch right;
+
+                    if (l_canon == r_canon) {
+                        return try self.allocator.dupe(u8, "✓ assert_eq passed");
+                    }
+
+                    // 4. Comparaison via E-Graph (pour les cas complexes comme x+0 == x)
+                    const l_egraph_str = try expr.toStringInfix(self.store, l_canon, self.allocator);
+                    defer self.allocator.free(l_egraph_str);
+                    const r_egraph_str = try expr.toStringInfix(self.store, r_canon, self.allocator);
+                    defer self.allocator.free(r_egraph_str);
+
+                    if (std.mem.eql(u8, l_egraph_str, r_egraph_str)) {
+                        return try self.allocator.dupe(u8, "✓ assert_eq passed");
+                    }
+
+                    // Échec : afficher les deux formes
+                    return try std.fmt.allocPrint(self.allocator, "✗ assert_eq failed: {s} ≠ {s}", .{ l_str, r_str });
                 }
 
                 if (std.mem.eql(u8, name, "assert_err") and args.len == 1) {
