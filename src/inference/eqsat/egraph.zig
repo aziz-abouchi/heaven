@@ -6,6 +6,7 @@ const Store = expr.Store;
 const Id = expr.Id;
 const Tag = expr.Tag;
 const platform = @import("platform");
+const types = @import("types");
 
 pub const ClassId = u32;
 
@@ -169,6 +170,18 @@ pub const EClass = struct {
 // === Étape 6 : fonction de coût contextuelle ===
 pub const CostFn = *const fn (store: *const Store, id: Id, context: ?*anyopaque) u32;
 
+pub const MemoryCost = struct {
+    type_env: *const types.TypeEnv,
+    allocator: Allocator,
+    cache: std.AutoHashMap(Id, types.Type),
+
+    pub fn total(self: *MemoryCost, store: *const Store, id: Id) u32 {
+        // Récupérer le type du nœud (via un cache ou inférence)
+        const ty = self.cache.get(id) orelse return 1; // fallback
+        return types.typeSize(self.allocator, store, ty);
+    }
+};
+
 pub const EGraph = struct {
     store: *Store,
     allocator: Allocator,
@@ -322,23 +335,46 @@ pub const EGraph = struct {
         return best;
     }
 
+    fn isWellFormed(store: *const Store, id: Id) bool {
+        if (id >= store.len()) return false;
+        const node = store.get(id);
+        switch (node.tag) {
+            .lit, .sym => return true,
+            .apply => {
+                const func_node = store.get(node.payload);
+                if (func_node.tag != .sym) return false;
+                const args = node.span_a.slice(store.pool.items);
+                for (args) |arg| {
+                    if (!isWellFormed(store, arg)) return false;
+                }
+                return true;
+            },
+            // Ignorer les autres tags (lambda, bind, relation…) pour l'extraction arithmétique
+            else => return false,
+        }
+    }
+
     pub fn extract(egraph: *EGraph, class: ClassId, qtt: ?*QttCost) ?Id {
         const canonical = egraph.uf.find(class);
         if (canonical >= egraph.classes.items.len) return null;
         const eclass = &egraph.classes.items[canonical];
         if (eclass.nodes.items.len == 0) return null;
 
-        var best: Id = eclass.nodes.items[0];
-        var best_cost: u32 = if (qtt) |q| q.total(egraph.store, best) else cost(egraph.store, best);
+        var best: ?Id = null;
+        var best_cost: u32 = std.math.maxInt(u32);
 
-        for (eclass.nodes.items[1..]) |node_id| {
+        for (eclass.nodes.items) |node_id| {
+            // Ignorer les nœuds mal formés
+            if (!isWellFormed(egraph.store, node_id)) continue;
+
             const c = if (qtt) |q| q.total(egraph.store, node_id) else cost(egraph.store, node_id);
-            if (c < best_cost or (c == best_cost and node_id > best)) {
+            if (c < best_cost or (c == best_cost and (best == null or node_id > best.?))) {
                 best = node_id;
                 best_cost = c;
             }
         }
-        return best;
+
+        return best orelse eclass.nodes.items[0]; // fallback
     }
 };
 

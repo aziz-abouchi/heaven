@@ -123,6 +123,16 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const types_mod = b.createModule(.{
+        .root_source_file = b.path("src/core/types.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "elab", .module = elab_mod },
+        },
+    });
+
     const egraph_mod = b.createModule(.{
         .root_source_file = b.path("src/inference/eqsat/egraph.zig"),
         .target = target,
@@ -132,6 +142,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "kanren", .module = kanren_expr_mod },
             .{ .name = "canon", .module = canon_mod },
             .{ .name = "platform", .module = platform_mod },
+            .{ .name = "types", .module = types_mod },
         },
     });
 
@@ -270,16 +281,6 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    const types_mod = b.createModule(.{
-        .root_source_file = b.path("src/core/types.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "expr", .module = expr_mod },
-            .{ .name = "elab", .module = elab_mod },
-        },
-    });
-
     const ontology_mod = b.createModule(.{
         .root_source_file = b.path("src/core/ontology.zig"),
         .target = target,
@@ -396,6 +397,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "egraph", .module = egraph_mod },
             .{ .name = "egraph_rewriter", .module = egraph_rewriter_mod },
             .{ .name = "platform", .module = platform_mod },
+            .{ .name = "types", .module = types_mod },
         },
     });
 
@@ -733,6 +735,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "kanren", .module = kanren_expr_mod },
             .{ .name = "canon", .module = canon_mod },
             .{ .name = "platform", .module = platform_mod },
+            .{ .name = "types", .module = types_mod },
         },
     }) });
 

@@ -58,12 +58,10 @@ pub const Math = struct {
         switch (node.tag) {
             .lit => return self.store.int(0),
             .sym => {
-                const name = self.store.interner.resolve(node.payload);
-                const var_name = self.store.interner.resolve(variable);
-                platform.debug.print("[deriveExpr] sym name={s}, var={s}\n", .{ name, var_name });
-                if (std.mem.eql(u8, name, var_name)) {
-                    return self.store.int(1);
-                }
+                const var_node = self.store.get(variable);
+                if (var_node.tag != .sym) return self.store.int(0);
+                const var_sym = var_node.payload;
+                if (node.payload == var_sym) return self.store.int(1);
                 return self.store.int(0);
             },
             .apply => {
@@ -75,22 +73,26 @@ pub const Math = struct {
                 const op = self.store.interner.resolve(op_node.payload);
                 platform.debug.print("[deriveExpr] apply op={s}, args.len={d}\n", .{ op, args.len });
                 if (std.mem.eql(u8, op, "+")) {
-                    if (args.len != 2) return self.store.int(0);
-                    const d1 = try self.deriveExpr(args[0], variable);
-                    const d2 = try self.deriveExpr(args[1], variable);
+                    if (args.len != 3) return self.store.int(0);
+                    const a = args[1];
+                    const b = args[2];
+                    const d1 = try self.deriveExpr(a, variable);
+                    const d2 = try self.deriveExpr(b, variable);
                     return self.store.binop("+", d1, d2);
                 }
                 if (std.mem.eql(u8, op, "-")) {
-                    if (args.len != 2) return self.store.int(0);
-                    const d1 = try self.deriveExpr(args[0], variable);
-                    const d2 = try self.deriveExpr(args[1], variable);
+                    if (args.len != 3) return self.store.int(0);
+                    const a = args[1];
+                    const b = args[2];
+                    const d1 = try self.deriveExpr(a, variable);
+                    const d2 = try self.deriveExpr(b, variable);
                     return self.store.binop("-", d1, d2);
                 }
                 if (std.mem.eql(u8, op, "*")) {
-                    if (args.len != 2) return self.store.int(0);
+                    if (args.len != 3) return self.store.int(0);
                     // (f*g)' = f'g + fg'
-                    const f = args[0];
-                    const g = args[1];
+                    const f = args[1];
+                    const g = args[2];
                     const df = try self.deriveExpr(f, variable);
                     const dg = try self.deriveExpr(g, variable);
                     const fg = try self.store.binop("*", df, g);
@@ -98,26 +100,35 @@ pub const Math = struct {
                     return self.store.binop("+", fg, fdg);
                 }
                 if (std.mem.eql(u8, op, "^")) {
-                    if (args.len != 2) return self.store.int(0);
+                    if (args.len != 3) return self.store.int(0);
                     // (f^g)' = f^g * (g' * ln(f) + g * f'/f)
-                    // Version simplifiée pour g constant
-                    const base = args[0];
-                    const exp = args[1];
+                    const base = args[1];
+                    const exp = args[2];
+                    // Vérifier si l'exposant est un entier constant
                     const exp_node = self.store.get(exp);
                     if (exp_node.tag == .lit) {
                         const lit = self.store.lits.items[exp_node.aux];
                         if (lit == .int) {
                             const n = lit.int;
                             if (n == 0) return self.store.int(0);
+                            // Dérivée de la base
                             const d_base = try self.deriveExpr(base, variable);
+                            if (n == 1) {
+                                // d/dx (x^1) = 1
+                                return self.store.int(1);
+                            }
+                            // n * base^(n-1) * d_base
                             const exp_minus = try self.store.int(n - 1);
                             const base_pow = try self.store.binop("^", base, exp_minus);
-                            const mul = try self.store.binop("*", d_base, base_pow);
-                            return self.store.binop("*", try self.store.int(n), mul);
+                            const mul1 = try self.store.binop("*", d_base, base_pow);
+                            const n_id = try self.store.int(n);
+                            return self.store.binop("*", n_id, mul1);
                         }
                     }
+                    // Cas non géré : retourner 0 pour l'instant (ou une expression symbolique)
                     return self.store.int(0);
                 }
+
                 return self.store.int(0);
             },
             else => {
@@ -429,7 +440,7 @@ pub const Math = struct {
                     return result;
                 }
                 if (std.mem.eql(u8, op, "-")) {
-                    if (args.len != 2) return self.store.int(0);
+                    if (args.len < 2) return self.store.int(0);
                     const in1 = try self.integrateExpr(args[0], variable);
                     const in2 = try self.integrateExpr(args[1], variable);
                     return self.store.binop("-", in1, in2);
@@ -437,7 +448,7 @@ pub const Math = struct {
                 if (std.mem.eql(u8, op, "*")) {
                     // Version simplifiée : si un facteur est constant, on l'intègre avec l'autre
                     // Sinon, on retourne 0.
-                    if (args.len != 2) return self.store.int(0);
+                    if (args.len < 2) return self.store.int(0);
                     const a_node = self.store.get(args[0]);
                     const b_node = self.store.get(args[1]);
                     if (a_node.tag == .lit and b_node.tag == .lit) {
@@ -462,7 +473,7 @@ pub const Math = struct {
                     return self.store.int(0);
                 }
                 if (std.mem.eql(u8, op, "^")) {
-                    if (args.len != 2) return self.store.int(0);
+                    if (args.len < 2) return self.store.int(0);
                     const base = args[0];
                     const exp = args[1];
                     const exp_node = self.store.get(exp);

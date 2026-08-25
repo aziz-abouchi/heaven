@@ -85,6 +85,63 @@ pub const Quantity = enum {
     }
 };
 
+pub fn typeSize(allocator: std.mem.Allocator, store: *const Store, ty: Type) u32 {
+    const node = store.get(ty);
+    switch (node.tag) {
+        .sym => {
+            const name = store.interner.resolve(node.payload);
+            if (std.mem.eql(u8, name, "Int")) return 8;
+            if (std.mem.eql(u8, name, "Bool")) return 1;
+            if (std.mem.eql(u8, name, "Float")) return 8;
+            if (std.mem.eql(u8, name, "Unit")) return 0;
+            if (std.mem.eql(u8, name, "String")) return 16;
+            // Les types comme "List", "Tuple", "->" sont des applications, pas des symboles seuls.
+            return 1; // fallback pour les symboles inconnus
+        },
+        .apply => {
+            const func_node = store.get(node.payload);
+            if (func_node.tag != .sym) return 1;
+            const func_name = store.interner.resolve(func_node.payload);
+            const args = node.span_a.slice(store.pool.items);
+
+            // Liste : (List elem)
+            if (std.mem.eql(u8, func_name, "List")) {
+                if (args.len == 1) {
+                    const elem_size = typeSize(allocator, store, args[0]);
+                    return 8 + elem_size; // estimation : 8 octets pour le pointeur + taille de l'élément
+                }
+                return 1;
+            }
+
+            // Tuple : (Tuple field1 field2 ...)
+            if (std.mem.eql(u8, func_name, "Tuple")) {
+                var total: u32 = 0;
+                for (args) |arg| {
+                    total += typeSize(allocator, store, arg);
+                }
+                return total;
+            }
+
+            // Flèche : (-> arg ret) ou (-> param arg ret) selon l'encodage
+            if (std.mem.eql(u8, func_name, "->")) {
+                // En général, une flèche a 2 ou 3 arguments : paramètre de type, domaine, codomaine
+                // On ne prend que le domaine et le codomaine pour la taille
+                if (args.len >= 2) {
+                    const dom = args[args.len - 2]; // avant-dernier
+                    const cod = args[args.len - 1]; // dernier
+                    return typeSize(allocator, store, dom) + typeSize(allocator, store, cod);
+                }
+                return 16; // fallback
+            }
+
+            // Autres applications inconnues
+            return 1;
+        },
+        // Autres tags (bind, lambda, etc.) → fallback
+        else => return 1,
+    }
+}
+
 pub const LinearChecker = struct {
     usage: std.StringHashMapUnmanaged(Quantity) = .{},
 

@@ -13,6 +13,10 @@ const simplify_engine_mod = @import("simplify_engine");
 const transform_mod = @import("transform");
 const egraph_mod = @import("egraph");
 
+const matrix_bridge = @import("matrix_bridge");
+const parse_mod = @import("parse");
+const math_mod = @import("math");
+
 const Store = expr.Store;
 const Id = expr.Id;
 const Sym = expr.Sym;
@@ -61,15 +65,18 @@ pub const HeavenError = error{
 
 pub const Heaven = struct {
     allocator: std.mem.Allocator,
-    store: *Store, // maintenant un pointeur alloué dynamiquement
+    store: *Store,
     env: engine.Env,
     type_env: types.TypeEnv,
     engine: engine.Engine,
-
     kb: *transform_mod.KnowledgeBase,
     simplify_eng: simplify_engine_mod.SimplifyEngine,
     proof_core: proof.ProofEnv,
     pending_proof_request: ?[]const u8 = null,
+    // Nouveaux champs pour les mathématiques
+    bridge: *matrix_bridge.MatrixBridge,
+    parser: *parse_mod.Parser,
+    math: math_mod.Math,
 
     pub fn init(allocator: std.mem.Allocator) !Heaven {
         // Allouer le Store sur le tas
@@ -83,7 +90,17 @@ pub const Heaven = struct {
             .env = &env,
         };
 
-        const kb = allocator.create(transform_mod.KnowledgeBase) catch @panic("Out of memory");
+        // Allouer et initialiser le bridge
+        const bridge = try allocator.create(matrix_bridge.MatrixBridge);
+        bridge.* = matrix_bridge.MatrixBridge.init(store, allocator);
+
+        // Allouer et initialiser le parser
+        const parser = try allocator.create(parse_mod.Parser);
+        parser.* = parse_mod.Parser.init(store, &eng, &env, allocator);
+
+        const math = math_mod.Math.init(store, &eng, bridge, parser, allocator);
+
+        const kb = try allocator.create(transform_mod.KnowledgeBase);
         kb.* = transform_mod.KnowledgeBase.init(allocator);
 
         const simplify_eng = simplify_engine_mod.SimplifyEngine.init(store, &eng, &env, kb, allocator);
@@ -99,6 +116,9 @@ pub const Heaven = struct {
             .simplify_eng = simplify_eng,
             .proof_core = proof_core,
             .pending_proof_request = null,
+            .bridge = bridge,
+            .parser = parser,
+            .math = math,
         };
 
         try heaven.addDefaultRules();
@@ -114,6 +134,13 @@ pub const Heaven = struct {
         self.allocator.destroy(self.kb);
         self.proof_core.deinit();
         if (self.pending_proof_request) |req| self.allocator.free(req);
+
+        // Libérer le bridge et le parser
+        self.bridge.deinit(); // si MatrixBridge a un deinit, sinon self.bridge.* n'a pas besoin
+        self.allocator.destroy(self.bridge);
+        self.parser.deinit(); // si Parser a un deinit
+        self.allocator.destroy(self.parser);
+        // math n'a pas de ressources gérées par elle-même, mais on pourrait l'appeler si nécessaire
     }
 
     pub fn ensureInit(self: *Heaven) void {
@@ -137,6 +164,28 @@ pub const Heaven = struct {
         if (std.mem.startsWith(u8, trimmed, "(simplify ")) {
             const inner = trimmed["(simplify ".len .. trimmed.len - 1];
             return self.simplify(inner);
+        }
+
+        if (std.mem.startsWith(u8, trimmed, "derive ")) {
+            const rest = std.mem.trim(u8, trimmed["derive ".len..], " ");
+            // Par défaut variable "x"
+            return self.derive(rest, "x");
+        }
+        if (std.mem.startsWith(u8, trimmed, "integrate ")) {
+            const rest = std.mem.trim(u8, trimmed["integrate ".len..], " ");
+            return self.integrate(rest, "x");
+        }
+        if (std.mem.startsWith(u8, trimmed, "solve ")) {
+            const rest = std.mem.trim(u8, trimmed["solve ".len..], " ");
+            return self.solve(rest, "x");
+        }
+        if (std.mem.startsWith(u8, trimmed, "expand ")) {
+            const rest = std.mem.trim(u8, trimmed["expand ".len..], " ");
+            return self.expand(rest);
+        }
+        if (std.mem.startsWith(u8, trimmed, "plot ")) {
+            const rest = std.mem.trim(u8, trimmed["plot ".len..], " ");
+            return self.plot(rest, "x");
         }
 
         return self.allocator.dupe(u8, trimmed);
@@ -164,19 +213,25 @@ pub const Heaven = struct {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "");
 
-        platform.debug.print("[Heaven.simplify] input: {s}\n", .{trimmed});
-        platform.debug.print("[Heaven.simplify] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
+        //platform.debug.print("[Heaven.simplify] input: {s}\n", .{trimmed});
+        //platform.debug.print("[Heaven.simplify] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
 
         const raw_id = try self.parseExpression(trimmed);
         const id = try self.ensureLowered(raw_id);
-        // Normalisation AC
-        const normalized = try canon.canonicalizeAC(self.store, id);
+        const normalized = try self.ensureLowered(id);
 
-        platform.debug.print("[Heaven.simplify] parsed id = {d}, normalized id = {d}, store.len = {d}\n", .{ id, normalized, self.store.len() });
+        //platform.debug.print("[Heaven.simplify] parsed id = {d}, normalized id = {d}, store.len = {d}\n", .{ id, normalized, self.store.len() });
 
-        // Utiliser simplifyRec (sans évaluation) pour réécrire jusqu'à saturation
-        const simplified = try self.simplify_eng.simplifyRec(normalized, 0);
+        //platform.debug.print("[Heaven.simplify] USING SIMPLIFY_WITH_EGRAPH avec QttCost\n", .{});
+        //var qtt = egraph_mod.QttCost{};
+        //defer qtt.deinit(self.allocator);
 
+        //const add_sym = try self.store.interner.intern("+");
+        //const add_id = try self.store.symId(add_sym);
+        //try qtt.quantities.put(self.allocator, add_id, 3); // pénalité max
+
+        //const simplified = try self.simplify_eng.simplifyWithEGraph(normalized, &qtt);
+        const simplified = try self.simplify_eng.simplifyWithEGraph(normalized, null, null);
         const result_str = try expr.toStringInfix(self.store, simplified, self.allocator);
         return result_str;
     }
@@ -347,23 +402,19 @@ pub const Heaven = struct {
         return self.allocator.dupe(u8, "// stub");
     }
     pub fn derive(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
-        _ = var_name;
-        return self.allocator.dupe(u8, expr_str);
+        return self.math.derive(expr_str, var_name);
     }
-    pub fn expand(self: *Heaven, expr_str: []const u8) HeavenError![]u8 {
-        return self.allocator.dupe(u8, expr_str);
+    pub fn integrate(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
+        return self.math.integrate(expr_str, var_name);
     }
     pub fn solve(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
-        _ = var_name;
-        return self.allocator.dupe(u8, expr_str);
+        return self.math.solve(expr_str, var_name);
     }
-    pub fn integrate(self: *Heaven, expression: []const u8, var_name: []const u8) HeavenError![]u8 {
-        _ = var_name;
-        return self.allocator.dupe(u8, expression);
+    pub fn expand(self: *Heaven, expr_str: []const u8) HeavenError![]u8 {
+        return self.math.expand(expr_str);
     }
-    pub fn plot(self: *Heaven, expression: []const u8, var_name: []const u8) HeavenError![]u8 {
-        _ = var_name;
-        return self.allocator.dupe(u8, expression);
+    pub fn plot(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
+        return self.math.plot(expr_str, var_name);
     }
     pub fn evalTheorem(self: *Heaven, src: []const u8) HeavenError![]u8 {
         return self.allocator.dupe(u8, src);
@@ -494,6 +545,118 @@ pub const Heaven = struct {
             const lhs = try store.binop("+", ab, c);
             const bc = try store.binop("+", b, c);
             const rhs = try store.binop("+", a, bc);
+            const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+            try kb.rules.append(self.allocator, rule);
+        }
+
+        // Règles contextuelles pour éliminer les zéros dans les additions
+        {
+            const a = try store.sym("a");
+            const b = try store.sym("b");
+            const zero = try store.int(0);
+
+            // (+ (+ 0 a) b) => (+ a b)
+            {
+                const inner = try store.binop("+", zero, a);
+                const lhs = try store.binop("+", inner, b);
+                const rhs = try store.binop("+", a, b);
+                const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+                try kb.rules.append(self.allocator, rule);
+            }
+
+            // (+ b (+ 0 a)) => (+ b a)
+            {
+                const inner = try store.binop("+", zero, a);
+                const lhs = try store.binop("+", b, inner);
+                const rhs = try store.binop("+", b, a);
+                const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+                try kb.rules.append(self.allocator, rule);
+            }
+
+            // (+ (+ a 0) b) => (+ a b)
+            {
+                const inner = try store.binop("+", a, zero);
+                const lhs = try store.binop("+", inner, b);
+                const rhs = try store.binop("+", a, b);
+                const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+                try kb.rules.append(self.allocator, rule);
+            }
+
+            // (+ b (+ a 0)) => (+ b a)
+            {
+                const inner = try store.binop("+", a, zero);
+                const lhs = try store.binop("+", b, inner);
+                const rhs = try store.binop("+", b, a);
+                const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+                try kb.rules.append(self.allocator, rule);
+            }
+        }
+
+        // ================================================================
+        // NOUVELLES RÈGLES AVANCÉES (distributivité, associativité, etc.)
+        // ================================================================
+        {
+            const a = try store.sym("a");
+            const b = try store.sym("b");
+            const c = try store.sym("c");
+
+            // Distributivité : (* a (+ b c)) -> (+ (* a b) (* a c))
+            {
+                const bc = try store.binop("+", b, c);
+                const lhs = try store.binop("*", a, bc);
+                const ab = try store.binop("*", a, b);
+                const ac = try store.binop("*", a, c);
+                const rhs = try store.binop("+", ab, ac);
+                const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+                try kb.rules.append(self.allocator, rule);
+            }
+
+            // Factorisation : (+ (* a b) (* a c)) -> (* a (+ b c))
+            {
+                const ab = try store.binop("*", a, b);
+                const ac = try store.binop("*", a, c);
+                const lhs = try store.binop("+", ab, ac);
+                const bc = try store.binop("+", b, c);
+                const rhs = try store.binop("*", a, bc);
+                const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+                try kb.rules.append(self.allocator, rule);
+            }
+
+            // Associativité de * : (* (* a b) c) -> (* a (* b c))
+            {
+                const ab = try store.binop("*", a, b);
+                const lhs = try store.binop("*", ab, c);
+                const bc = try store.binop("*", b, c);
+                const rhs = try store.binop("*", a, bc);
+                const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+                try kb.rules.append(self.allocator, rule);
+            }
+
+            // Inverse : (* a (* b c)) -> (* (* a b) c)
+            {
+                const bc = try store.binop("*", b, c);
+                const lhs = try store.binop("*", a, bc);
+                const ab = try store.binop("*", a, b);
+                const rhs = try store.binop("*", ab, c);
+                const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+                try kb.rules.append(self.allocator, rule);
+            }
+        }
+        // Commutativité de +
+        {
+            const a = try store.sym("a");
+            const b = try store.sym("b");
+            const lhs = try store.binop("+", a, b);
+            const rhs = try store.binop("+", b, a);
+            const rule = try store.relation("rule", &.{lhs}, &.{rhs});
+            try kb.rules.append(self.allocator, rule);
+        }
+        // Commutativité de *
+        {
+            const a = try store.sym("a");
+            const b = try store.sym("b");
+            const lhs = try store.binop("*", a, b);
+            const rhs = try store.binop("*", b, a);
             const rule = try store.relation("rule", &.{lhs}, &.{rhs});
             try kb.rules.append(self.allocator, rule);
         }

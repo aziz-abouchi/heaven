@@ -416,29 +416,20 @@ pub const Commands = struct {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "usage: simplify <expr>");
 
-        platform.debug.print("[evalSimplify] input: {s}\n", .{trimmed});
-        platform.debug.print("[evalSimplify] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
-
-        // Parser l'expression
         const raw_id = self.parseExpression(trimmed) catch try self.bridge.importExpr(trimmed);
         const id = try self.store.lowerRec(raw_id);
-        platform.debug.print("[evalSimplify] expr id = {d}\n", .{id});
 
-        // Construire le QttCost à partir de l'environnement qtt
-        var qtt = egraph_mod.QttCost{};
-        defer qtt.deinit(self.allocator);
-        var it = self.qtt_env.iterator();
-        while (it.next()) |entry| {
-            const sym = try self.store.interner.intern(entry.key_ptr.*);
-            const sym_id = try self.store.symId(sym);
-            try qtt.quantities.put(self.allocator, sym_id, entry.value_ptr.*);
-        }
+        // Récupérer le type de l'expression (on utilise typeOf qui existe déjà)
+        const type_str = try self.typeOf(trimmed);
+        defer self.allocator.free(type_str);
+        // On pourrait parser le type_str pour obtenir un Type, mais pour l'instant on peut simplement utiliser
+        // l'inférence de type déjà présente. On va plutôt utiliser l'inférence pour obtenir le type directement.
+        var infer = types_mod.Infer.init(self.store, self.allocator);
+        defer infer.deinit();
+        const ty = try infer.typeOf(id);
+        _ = ty;
 
-        // Appeler le moteur de simplification avec EGraph
-        const simplified = try self.simplify_eng.simplifyWithEGraph(id, &qtt);
-        platform.debug.print("[evalSimplify] simplified id = {d}\n", .{simplified});
-
-        // Retourner le résultat sous forme de chaîne
+        const simplified = try self.simplify_eng.simplifyWithEGraph(id, null, null);
         return expr.toStringInfix(self.store, simplified, self.allocator);
     }
 
@@ -531,7 +522,7 @@ pub const Commands = struct {
             const sym_id = try self.store.symId(sym);
             try qtt.quantities.put(self.allocator, sym_id, entry.value_ptr.*);
         }
-        const after_egraph = try self.simplify_eng.simplifyWithEGraph(current, &qtt);
+        const after_egraph = try self.simplify_eng.simplifyWithEGraph(current, &qtt, null);
         const after_egraph_str = try expr.toStringInfix(self.store, after_egraph, self.allocator);
         defer self.allocator.free(after_egraph_str);
         if (!std.mem.eql(u8, after_rec, after_egraph_str))
@@ -1170,7 +1161,7 @@ pub const Commands = struct {
         const id = try self.parser.parseSExpr(input); // ← Utilise self.parser au lieu de self.bridge.importExpr
         const debug_str = try expr.toStringInfix(self.store, id, self.allocator);
         defer self.allocator.free(debug_str);
-        platform.debug.print("[Heaven.simplify] input: {s}\n", .{debug_str});
+        platform.debug.print("[core.commands.simplify] input: {s}\n", .{debug_str});
 
         var current = id;
 
@@ -1435,7 +1426,7 @@ pub const Commands = struct {
             const sym_id = try self.store.symId(sym);
             try qtt.quantities.put(self.allocator, sym_id, entry.value_ptr.*);
         }
-        const optimized = try self.simplify_eng.simplifyWithEGraph(id, &qtt);
+        const optimized = try self.simplify_eng.simplifyWithEGraph(id, &qtt, null);
         return expr.toString(self.store, optimized, self.allocator);
     }
 
