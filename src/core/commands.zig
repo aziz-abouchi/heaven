@@ -368,7 +368,7 @@ pub const Commands = struct {
                     else => return self.allocator.dupe(u8, "0"),
                 }
             };
-            // ✅ Simplifier le résultat
+            // Simplifier le résultat
             const lowered = try self.store.lowerRec(result);
             const simplified = try self.simplify_eng.simplifyWithEGraph(lowered, null, null);
             return expr.toStringInfix(self.store, simplified, self.allocator);

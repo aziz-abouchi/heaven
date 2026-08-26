@@ -319,30 +319,27 @@ pub fn cmdToC(self: *Shell, input: []const u8) void {
     platform.debug.print("{s}\n", .{code});
 }
 
-/// Sépare "expression variable" en respectant les parenthèses équilibrées
+/// Sépare "expression, variable" — la variable est optionnelle (défaut : "x")
 fn splitExprVar(input: []const u8) struct { expr: []const u8, varname: []const u8 } {
-    var depth: i32 = 0;
-    var last_space_outside: ?usize = null;
-    for (input, 0..) |ch, idx| {
-        switch (ch) {
-            '(' => depth += 1,
-            ')' => depth -= 1,
-            ' ' => {
-                if (depth == 0 and idx > 0) last_space_outside = idx;
-            },
-            else => {},
-        }
-    }
-    if (last_space_outside) |idx| {
-        const potential_var = std.mem.trim(u8, input[idx + 1 ..], " ");
-        if (potential_var.len > 0) {
-            return .{
-                .expr = std.mem.trim(u8, input[0..idx], " "),
-                .varname = potential_var,
-            };
+    // ✅ NOUVEAU : la variable doit être séparée par une virgule
+    // "x * x"     → expr = "x * x",     varname = "x" (défaut)
+    // "x^2, y"    → expr = "x^2",       varname = "y"
+    if (std.mem.lastIndexOfScalar(u8, input, ',')) |comma| {
+        const expr = std.mem.trim(u8, input[0..comma], " ");
+        const varname = std.mem.trim(u8, input[comma + 1 ..], " ");
+        if (expr.len > 0 and varname.len > 0 and isIdentifier(varname)) {
+            return .{ .expr = expr, .varname = varname };
         }
     }
     return .{ .expr = input, .varname = "x" };
+}
+
+fn isIdentifier(s: []const u8) bool {
+    if (s.len == 0) return false;
+    for (s) |c| {
+        if (!std.ascii.isAlphanumeric(c) and c != '_') return false;
+    }
+    return true;
 }
 
 pub fn cmdDerive(self: *Shell, input: []const u8) void {

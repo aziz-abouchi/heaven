@@ -504,15 +504,23 @@ pub const Heaven = struct {
         return self.allocator.dupe(u8, "// stub");
     }
     pub fn derive(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
-        return self.math.derive(expr_str, var_name) catch |err| switch (err) {
-            // Convertir les erreurs spécifiques de deriveExpr en UnsupportedExpr
-            error.UnsupportedPowerVarExp,
-            error.UnsupportedPowerType,
-            error.UnsupportedDeriveOp,
-            => return error.UnsupportedExpr,
-            // Les autres erreurs sont déjà dans HeavenError (ou compatibles)
-            else => return @errorCast(err),
+        // Utiliser parseExpression (gère ^, *, +, -, /)
+        const expr_id = try self.parseExpression(expr_str);
+        // Récupérer le Sym de la variable
+        const var_id = try self.store.sym(var_name);
+        const var_node = self.store.get(var_id);
+        const var_sym = var_node.payload;
+        // Appeler deriveExpr directement
+        const result = self.math.deriveExpr(expr_id, var_sym) catch |err| {
+            switch (err) {
+                error.UnsupportedPowerVarExp,
+                error.UnsupportedPowerType,
+                error.UnsupportedDeriveOp,
+                => return error.UnsupportedExpr,
+                else => return error.EvaluationFailed,
+            }
         };
+        return expr.toStringInfix(self.store, result, self.allocator);
     }
     pub fn integrate(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
         return self.math.integrate(expr_str, var_name);
