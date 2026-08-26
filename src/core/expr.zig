@@ -837,6 +837,104 @@ pub const Store = struct {
     }
 };
 
+// ═══════════════════════════════════════════════════
+// Utilitaires Unicode : exposants ⁿ → ^n
+// ═══════════════════════════════════════════════════
+
+pub const SuperResult = struct {
+    is_minus: bool,
+    digit: u8, // valide si !is_minus
+    next_pos: usize,
+};
+
+/// Détecte un caractère exposant Unicode à la position i.
+/// Supporte : ⁰¹²³⁴⁵⁶⁷⁸⁹ et ⁻ (moins).
+pub fn superCharAt(s: []const u8, i: usize) ?SuperResult {
+    // Séquences 2 bytes (Latin-1) : ¹ = C2 B9, ² = C2 B2, ³ = C2 B3
+    if (i + 1 < s.len and s[i] == 0xc2) {
+        const d: ?u8 = switch (s[i + 1]) {
+            0xb2 => '2',
+            0xb3 => '3',
+            0xb9 => '1',
+            else => null,
+        };
+        if (d) |digit| return .{ .is_minus = false, .digit = digit, .next_pos = i + 2 };
+    }
+    // Séquences 3 bytes (U+2070-207F) : ⁰, ⁴-⁹, ⁻
+    if (i + 2 < s.len and s[i] == 0xe2 and s[i + 1] == 0x81) {
+        if (s[i + 2] == 0xbb) return .{ .is_minus = true, .digit = 0, .next_pos = i + 3 };
+        const d: ?u8 = switch (s[i + 2]) {
+            0xb0 => '0',
+            0xb4 => '4',
+            0xb5 => '5',
+            0xb6 => '6',
+            0xb7 => '7',
+            0xb8 => '8',
+            0xb9 => '9',
+            else => null,
+        };
+        if (d) |digit| return .{ .is_minus = false, .digit = digit, .next_pos = i + 3 };
+    }
+    return null;
+}
+
+pub fn containsSuperscript(s: []const u8) bool {
+    var i: usize = 0;
+    while (i < s.len) {
+        if (superCharAt(s, i) != null) return true;
+        i += 1;
+    }
+    return false;
+}
+
+/// Convertit les exposants Unicode en notation caret :
+///   x² → x^2, x¹⁰ → x^10, x²³ → x^23, x⁻³ → x^-3
+pub fn normalizeUnicodePowers(input: []const u8, allocator: Allocator) ![]u8 {
+    var buf: std.ArrayListUnmanaged(u8) = .{};
+    defer buf.deinit(allocator);
+
+    var i: usize = 0;
+    while (i < input.len) {
+        if (superCharAt(input, i)) |first| {
+            // Collecter tous les superscripts consécutifs
+            var digits_buf: [24]u8 = undefined;
+            var digits_len: usize = 0;
+            var has_minus = false;
+            var pos = i;
+
+            if (first.is_minus) {
+                has_minus = true;
+                pos = first.next_pos;
+            } else {
+                digits_buf[digits_len] = first.digit;
+                digits_len += 1;
+                pos = first.next_pos;
+            }
+            while (superCharAt(input, pos)) |r| {
+                if (r.is_minus) break; // un seul moins
+                if (digits_len < digits_buf.len) {
+                    digits_buf[digits_len] = r.digit;
+                    digits_len += 1;
+                }
+                pos = r.next_pos;
+            }
+
+            if (digits_len > 0) {
+                try buf.append(allocator, '^');
+                if (has_minus) try buf.append(allocator, '-');
+                try buf.appendSlice(allocator, digits_buf[0..digits_len]);
+            } else if (has_minus) {
+                try buf.append(allocator, '-');
+            }
+            i = pos;
+        } else {
+            try buf.append(allocator, input[i]);
+            i += 1;
+        }
+    }
+    return buf.toOwnedSlice(allocator);
+}
+
 test "core invariant — lowered expression contains only six primitives" {
     const allocator = std.testing.allocator;
 

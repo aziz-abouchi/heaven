@@ -226,6 +226,139 @@ pub const Math = struct {
         };
     }
 
+    /// Simplification récursive directe (sans E-Graph).
+    /// Applique les règles de base jusqu'à point fixe.
+    pub fn simplifyBasic(self: *Math, expr_id: Id) !Id {
+        var current = expr_id;
+        var changed = true;
+        var iterations: u32 = 0;
+        while (changed and iterations < 20) : (iterations += 1) {
+            changed = false;
+            current = try self.simplifyStep(current, &changed);
+        }
+        return current;
+    }
+
+    fn simplifyStep(self: *Math, expr_id: Id, changed: *bool) !Id {
+        const node = self.store.get(expr_id);
+
+        switch (node.tag) {
+            .lit, .sym => return expr_id,
+
+            .apply => {
+                const func_node = self.store.get(node.payload);
+                if (func_node.tag != .sym) return expr_id;
+                const op = self.store.interner.resolve(func_node.payload);
+                const all = self.store.spanSliceConst(node.span_a);
+                if (all.len < 1) return expr_id;
+                const args = all[1..];
+
+                // ✅ Simplifier récursivement les enfants d'abord
+                var new_args = try self.allocator.alloc(Id, args.len);
+                defer self.allocator.free(new_args);
+                for (args, 0..) |arg, i| {
+                    new_args[i] = try self.simplifyStep(arg, changed);
+                }
+
+                // Règle : (* 1 x) → x  et  (* x 1) → x
+                if (std.mem.eql(u8, op, "*") and args.len == 2) {
+                    if (self.isIntLit(new_args[0], 1)) {
+                        changed.* = true;
+                        return new_args[1];
+                    }
+                    if (self.isIntLit(new_args[1], 1)) {
+                        changed.* = true;
+                        return new_args[0];
+                    }
+                    // Règle : (* x 0) → 0  et  (* 0 x) → 0
+                    if (self.isIntLit(new_args[0], 0) or self.isIntLit(new_args[1], 0)) {
+                        changed.* = true;
+                        return try self.store.int(0);
+                    }
+                }
+
+                if (std.mem.eql(u8, op, "+") and args.len == 2) {
+
+                    // Règle : (+ x x) → (* 2 x)
+                    if (self.structuralEq(new_args[0], new_args[1])) {
+                        changed.* = true;
+                        const two = try self.store.int(2);
+                        const mul_sym = try self.store.sym("*");
+                        return try self.store.apply(mul_sym, &.{ two, new_args[0] });
+                    }
+
+                    // Règle : (+ 0 x) → x
+                    if (self.isIntLit(new_args[0], 0)) {
+                        changed.* = true;
+                        return new_args[1];
+                    }
+
+                    // Règle : (+ x 0) → x
+                    if (self.isIntLit(new_args[1], 0)) {
+                        changed.* = true;
+                        return new_args[0];
+                    }
+                }
+
+                // Règle : (^ x 1) → x
+                if (std.mem.eql(u8, op, "^") and args.len == 2) {
+                    if (self.isIntLit(new_args[1], 1)) {
+                        changed.* = true;
+                        return new_args[0];
+                    }
+                    // (^ x 0) → 1
+                    if (self.isIntLit(new_args[1], 0)) {
+                        changed.* = true;
+                        return try self.store.int(1);
+                    }
+                }
+
+                // Reconstruire l'apply avec les args simplifiés
+                const func_sym = try self.store.sym(op);
+                return try self.store.apply(func_sym, new_args);
+            },
+
+            else => return expr_id,
+        }
+    }
+
+    fn isIntLit(self: *Math, id: Id, val: i64) bool {
+        const node = self.store.get(id);
+        if (node.tag != .lit) return false;
+        const lit = self.store.lits.items[node.aux];
+        return switch (lit) {
+            .int => |v| v == val,
+            else => false,
+        };
+    }
+
+    // Helper :
+    pub fn structuralEq(self: *Math, a: Id, b: Id) bool {
+        if (a == b) return true;
+        const na = self.store.get(a);
+        const nb = self.store.get(b);
+        if (na.tag != nb.tag) return false;
+        switch (na.tag) {
+            .lit => {
+                const la = self.store.lits.items[na.aux];
+                const lb = self.store.lits.items[nb.aux];
+                return la.eql(lb);
+            },
+            .sym => return na.payload == nb.payload,
+            .apply => {
+                if (na.payload != nb.payload) return false;
+                const sa = self.store.spanSliceConst(na.span_a);
+                const sb = self.store.spanSliceConst(nb.span_a);
+                if (sa.len != sb.len) return false;
+                for (sa, sb) |ca, cb| {
+                    if (!self.structuralEq(ca, cb)) return false;
+                }
+                return true;
+            },
+            else => return false,
+        }
+    }
+
     fn normalizeUnicode(self: *Math, input: []const u8) ![]u8 {
         var buf = try self.allocator.alloc(u8, input.len * 2);
         var pos: usize = 0;

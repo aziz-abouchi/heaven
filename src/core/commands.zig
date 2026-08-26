@@ -476,7 +476,7 @@ pub const Commands = struct {
         return buf.toOwnedSlice(self.allocator);
     }
 
-    // ─── evalSimplify : utilise l'EGraph avec saturation complète ───
+    // ─── evalSimplify : pipeline simplifyBasic → E-Graph → simplifyBasic ───
     pub fn evalSimplify(self: *Commands, input: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "usage: simplify <expr>");
@@ -484,18 +484,12 @@ pub const Commands = struct {
         const raw_id = self.parseExpression(trimmed) catch try self.bridge.importExpr(trimmed);
         const id = try self.store.lowerRec(raw_id);
 
-        // Récupérer le type de l'expression (on utilise typeOf qui existe déjà)
-        const type_str = try self.typeOf(trimmed);
-        defer self.allocator.free(type_str);
-        // On pourrait parser le type_str pour obtenir un Type, mais pour l'instant on peut simplement utiliser
-        // l'inférence de type déjà présente. On va plutôt utiliser l'inférence pour obtenir le type directement.
-        var infer = types_mod.Infer.init(self.store, self.allocator);
-        defer infer.deinit();
-        const ty = try infer.typeOf(id);
-        _ = ty;
+        // Pipeline : simplifyBasic (rapide/fiable) → E-Graph (cas complexes) → simplifyBasic (nettoyage)
+        const after_basic = try self.math.simplifyBasic(id);
+        const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
+        const final = try self.math.simplifyBasic(after_egraph);
 
-        const simplified = try self.simplify_eng.simplifyWithEGraph(id, null, null);
-        return expr.toStringInfix(self.store, simplified, self.allocator);
+        return expr.toStringInfix(self.store, final, self.allocator);
     }
 
     fn evalHelp(self: *Commands) ![]u8 {
@@ -1059,6 +1053,13 @@ pub const Commands = struct {
     }
 
     fn parseExpression(self: *Commands, input: []const u8) anyerror!Id {
+        // ✅ Exposants Unicode : x² → x^2
+        if (expr.containsSuperscript(input)) {
+            const normalized = try expr.normalizeUnicodePowers(input, self.allocator);
+            defer self.allocator.free(normalized);
+            return self.parseExpression(normalized);
+        }
+
         if (self.shell_parser.parse(input)) |matrix| {
             defer self.shell_parser.reset();
 
@@ -1448,50 +1449,36 @@ pub const Commands = struct {
                 }
 
                 if (std.mem.eql(u8, name, "assert_eq") and args.len == 2) {
-                    // Évaluer les deux arguments
                     self.engine.fuel = 1_000_000;
-                    const left = engine_expr.evaluate(self.store, self.env, self.engine, args[0], 0) catch |err| {
-                        return try std.fmt.allocPrint(self.allocator, "✗ assert_eq failed: left eval error: {}", .{err});
-                    };
-                    const right = engine_expr.evaluate(self.store, self.env, self.engine, args[1], 0) catch |err| {
-                        return try std.fmt.allocPrint(self.allocator, "✗ assert_eq failed: right eval error: {}", .{err});
-                    };
+                    const left = engine_expr.evaluate(self.store, self.env, self.engine, args[0], 0) catch args[0];
+                    const right = engine_expr.evaluate(self.store, self.env, self.engine, args[1], 0) catch args[1];
 
-                    // 1. Comparaison rapide par pointeur
+                    // 1. Identité rapide
                     if (left == right) {
                         return try self.allocator.dupe(u8, "✓ assert_eq passed");
                     }
 
-                    // 2. Comparaison textuelle (rapide)
+                    // 2. Comparaison textuelle
                     const l_str = try expr.toStringInfix(self.store, left, self.allocator);
-                    defer self.allocator.free(l_str);
                     const r_str = try expr.toStringInfix(self.store, right, self.allocator);
-                    defer self.allocator.free(r_str);
-
                     if (std.mem.eql(u8, l_str, r_str)) {
                         return try self.allocator.dupe(u8, "✓ assert_eq passed");
                     }
 
-                    // 3. Comparaison sémantique via canonicalisation
-                    const l_canon = canon_mod.canonicalize(self.store, self.allocator, left) catch left;
-                    const r_canon = canon_mod.canonicalize(self.store, self.allocator, right) catch right;
+                    // 3. Comparaison sémantique : simplifier les deux puis comparer
+                    const l_simp = self.math.simplifyBasic(left) catch left;
+                    const r_simp = self.math.simplifyBasic(right) catch right;
 
-                    if (l_canon == r_canon) {
+                    if (self.math.structuralEq(l_simp, r_simp)) {
+                        return try self.allocator.dupe(u8, "✓ assert_eq passed");
+                    }
+                    const ls_str = try expr.toStringInfix(self.store, l_simp, self.allocator);
+                    const rs_str = try expr.toStringInfix(self.store, r_simp, self.allocator);
+                    if (std.mem.eql(u8, ls_str, rs_str)) {
                         return try self.allocator.dupe(u8, "✓ assert_eq passed");
                     }
 
-                    // 4. Comparaison via E-Graph (pour les cas complexes comme x+0 == x)
-                    const l_egraph_str = try expr.toStringInfix(self.store, l_canon, self.allocator);
-                    defer self.allocator.free(l_egraph_str);
-                    const r_egraph_str = try expr.toStringInfix(self.store, r_canon, self.allocator);
-                    defer self.allocator.free(r_egraph_str);
-
-                    if (std.mem.eql(u8, l_egraph_str, r_egraph_str)) {
-                        return try self.allocator.dupe(u8, "✓ assert_eq passed");
-                    }
-
-                    // Échec : afficher les deux formes
-                    return try std.fmt.allocPrint(self.allocator, "✗ assert_eq failed: {s} ≠ {s}", .{ l_str, r_str });
+                    return try std.fmt.allocPrint(self.allocator, "✗ assert_eq failed: {s} != {s}", .{ l_str, r_str });
                 }
 
                 if (std.mem.eql(u8, name, "assert_err") and args.len == 1) {

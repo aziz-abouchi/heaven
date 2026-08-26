@@ -213,27 +213,15 @@ pub const Heaven = struct {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "");
 
-        //platform.debug.print("[Heaven.simplify] input: {s}\n", .{trimmed});
-        //platform.debug.print("[Heaven.simplify] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
-
         const raw_id = try self.parseExpression(trimmed);
         const id = try self.ensureLowered(raw_id);
-        const normalized = try self.ensureLowered(id);
 
-        //platform.debug.print("[Heaven.simplify] parsed id = {d}, normalized id = {d}, store.len = {d}\n", .{ id, normalized, self.store.len() });
+        // Pipeline : simplifyBasic → E-Graph → simplifyBasic
+        const after_basic = try self.math.simplifyBasic(id);
+        const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
+        const final = try self.math.simplifyBasic(after_egraph);
 
-        //platform.debug.print("[Heaven.simplify] USING SIMPLIFY_WITH_EGRAPH avec QttCost\n", .{});
-        //var qtt = egraph_mod.QttCost{};
-        //defer qtt.deinit(self.allocator);
-
-        //const add_sym = try self.store.interner.intern("+");
-        //const add_id = try self.store.symId(add_sym);
-        //try qtt.quantities.put(self.allocator, add_id, 3); // pénalité max
-
-        //const simplified = try self.simplify_eng.simplifyWithEGraph(normalized, &qtt);
-        const simplified = try self.simplify_eng.simplifyWithEGraph(normalized, null, null);
-        const result_str = try expr.toStringInfix(self.store, simplified, self.allocator);
-        return result_str;
+        return expr.toStringInfix(self.store, final, self.allocator);
     }
 
     // ─── Parsing robuste ───
@@ -244,6 +232,13 @@ pub const Heaven = struct {
     pub fn parseExpression(self: *Heaven, input: []const u8) HeavenError!Id {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return error.InvalidInput;
+
+        // ✅ Exposants Unicode : x² → x^2, x¹⁰ → x^10, x⁻³ → x^-3
+        if (expr.containsSuperscript(trimmed)) {
+            const normalized = try expr.normalizeUnicodePowers(trimmed, self.allocator);
+            defer self.allocator.free(normalized);
+            return self.parseExpression(normalized); // récursion sûre : plus de superscripts
+        }
 
         // 1. Entier
         if (std.fmt.parseInt(i64, trimmed, 10)) |val| {
@@ -520,7 +515,9 @@ pub const Heaven = struct {
                 else => return error.EvaluationFailed,
             }
         };
-        return expr.toStringInfix(self.store, result, self.allocator);
+        // simplification directe
+        const simplified = try self.math.simplifyBasic(result);
+        return expr.toStringInfix(self.store, simplified, self.allocator);
     }
     pub fn integrate(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
         return self.math.integrate(expr_str, var_name);
