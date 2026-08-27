@@ -46,12 +46,12 @@ pub const MlcpdConverter = struct {
         const node_type_str = @tagName(matrix.kind);
 
         // DEBUG : afficher chaque nœud rencontré
-        platform.debug.print("[MlcpdConverter] node_id={d} kind={s} text=\"{s}\"\n", .{ node_id, node_type_str, matrix.text orelse "<null>" });
+        platform.dbg("[MlcpdConverter] node_id={d} kind={s} text=\"{s}\"\n", .{ node_id, node_type_str, matrix.text orelse "<null>" });
 
         const category = self.mapCategory(matrix.kind, node_type_str);
         const role = self.mapSemanticRole(matrix.kind, node_type_str, matrix.text);
 
-        platform.debug.print("[MlcpdConverter]   → category={s} role={s}\n", .{ @tagName(category), @tagName(role) });
+        platform.dbg("[MlcpdConverter]   → category={s} role={s}\n", .{ @tagName(category), @tagName(role) });
 
         const node = mlcpd_mod.MlcpdNode{
             .id = node_id,
@@ -142,10 +142,10 @@ pub const MlcpdToHeaven = struct {
     }
 
     pub fn convert(self: *MlcpdToHeaven, parsed: *mlcpd_mod.ParsedFile) !Id {
-        platform.debug.print("[MlcpdToHeaven] Converting {d} nodes (bottom-up)\n", .{parsed.nodes.items.len});
+        platform.dbg("[MlcpdToHeaven] Converting {d} nodes (bottom-up)\n", .{parsed.nodes.items.len});
 
         if (parsed.nodes.items.len == 0) {
-            platform.debug.print("[MlcpdToHeaven] ERROR: No nodes to convert\n", .{});
+            platform.dbg("[MlcpdToHeaven] ERROR: No nodes to convert\n", .{});
             return error.InvalidStructure;
         }
 
@@ -154,21 +154,21 @@ pub const MlcpdToHeaven = struct {
         while (i > 0) {
             i -= 1;
             const node = parsed.nodes.items[i];
-            platform.debug.print("[MlcpdToHeaven] Converting node {d}: role={s}, type={s}\n", .{ node.id, @tagName(node.role), node.node_type });
+            platform.dbg("[MlcpdToHeaven] Converting node {d}: role={s}, type={s}\n", .{ node.id, @tagName(node.role), node.node_type });
 
             const heaven_id = self.convertNode(parsed, node.id) catch |err| {
-                platform.debug.print("[MlcpdToHeaven] ERROR converting node {d}: {any}\n", .{ node.id, err });
+                platform.dbg("[MlcpdToHeaven] ERROR converting node {d}: {any}\n", .{ node.id, err });
                 continue; // Skip ce nœud et continuer avec les autres
             };
             try parsed.node_to_expr.put(self.allocator, node.id, heaven_id);
         }
 
         const root_id = parsed.node_to_expr.get(0) orelse {
-            platform.debug.print("[MlcpdToHeaven] ERROR: Root node not found in node_to_expr\n", .{});
+            platform.dbg("[MlcpdToHeaven] ERROR: Root node not found in node_to_expr\n", .{});
             return error.InvalidStructure;
         };
 
-        platform.debug.print("[MlcpdToHeaven] Root node converted to heaven_id={d}\n", .{root_id});
+        platform.dbg("[MlcpdToHeaven] Root node converted to heaven_id={d}\n", .{root_id});
         return root_id;
     }
 
@@ -217,7 +217,7 @@ pub const MlcpdToHeaven = struct {
         }
 
         const actual_name = name_sym orelse {
-            platform.debug.print("[convertFunction] WARNING: no name found for node {d}, falling back to default\n", .{node_id});
+            platform.dbg("[convertFunction] WARNING: no name found for node {d}, falling back to default\n", .{node_id});
             return self.convertDefault(parsed, node_id);
         };
         const actual_body = body_id orelse try self.store.addNode(.{
@@ -543,18 +543,18 @@ pub const UniversalTranslator = struct {
     }
 
     pub fn translate(self: *UniversalTranslator, matrix: *const Matrix, lang: mlcpd_mod.FileMetadata.Language) !Id {
-        // platform.debug.print("[UniversalTranslator] Starting translation\n", .{});
+        // platform.dbg("[UniversalTranslator] Starting translation\n", .{});
 
         var converter = MlcpdConverter.init(self.allocator);
         var parsed = try converter.convert(matrix, lang);
         defer parsed.deinit();
 
-        // platform.debug.print("[UniversalTranslator] ParsedFile created with {d} nodes\n", .{parsed.nodes.items.len});
+        // platform.dbg("[UniversalTranslator] ParsedFile created with {d} nodes\n", .{parsed.nodes.items.len});
 
         var to_heaven = MlcpdToHeaven.init(self.allocator, self.store);
         const heaven_id = try to_heaven.convert(&parsed);
 
-        // platform.debug.print("[UniversalTranslator] Translation successful, heaven_id={d}\n", .{heaven_id});
+        // platform.dbg("[UniversalTranslator] Translation successful, heaven_id={d}\n", .{heaven_id});
 
         return heaven_id;
     }

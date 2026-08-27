@@ -81,7 +81,7 @@ pub fn cmdRunStar(self: *Shell, query_str: []const u8, max_results: u32) void {
 
     if (!self.kanren.relations.contains("append")) {
         var snapshot = self.matrix.snapshotSymbols(self.allocator) catch |err| {
-            platform.debug.print("[ERROR] Failed to snapshot symbols: {s}\n", .{@errorName(err)});
+            platform.dbg("[ERROR] Failed to snapshot symbols: {s}\n", .{@errorName(err)});
             return;
         };
         defer snapshot.deinit();
@@ -321,7 +321,7 @@ pub fn cmdToC(self: *Shell, input: []const u8) void {
 
 /// Sépare "expression, variable" — la variable est optionnelle (défaut : "x")
 fn splitExprVar(input: []const u8) struct { expr: []const u8, varname: []const u8 } {
-    // ✅ NOUVEAU : la variable doit être séparée par une virgule
+    // NOUVEAU : la variable doit être séparée par une virgule
     // "x * x"     → expr = "x * x",     varname = "x" (défaut)
     // "x^2, y"    → expr = "x^2",       varname = "y"
     if (std.mem.lastIndexOfScalar(u8, input, ',')) |comma| {

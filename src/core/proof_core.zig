@@ -284,7 +284,7 @@ pub const ProofCore = struct {
         {
             const lhs_str = expr.toString(store, base_lhs, self.allocator) catch "?";
             const rhs_str = expr.toString(store, base_rhs, self.allocator) catch "?";
-            if (PROOF_DEBUG) platform.debug.print("[INDUCTION] base_ok={} lhs={s} rhs={s}\n", .{ base_ok, lhs_str, rhs_str });
+            if (PROOF_DEBUG) platform.dbg("[INDUCTION] base_ok={} lhs={s} rhs={s}\n", .{ base_ok, lhs_str, rhs_str });
         }
         if (!base_ok) {
             if (old_binding) |ob| heaven.env.put(var_sym, ob) catch {};
@@ -327,7 +327,7 @@ pub const ProofCore = struct {
         {
             const lhs_str = expr.toString(store, step_lhs_canon, self.allocator) catch "?";
             const rhs_str = expr.toString(store, step_rhs_canon, self.allocator) catch "?";
-            if (PROOF_DEBUG) platform.debug.print("[INDUCTION] symbolic step_ok={} lhs={s} rhs={s}\\n", .{ step_ok, lhs_str, rhs_str });
+            if (PROOF_DEBUG) platform.dbg("[INDUCTION] symbolic step_ok={} lhs={s} rhs={s}\\n", .{ step_ok, lhs_str, rhs_str });
         }
 
         // Restaurer l'environnement
@@ -404,7 +404,7 @@ pub const ProofCore = struct {
             const type_ok = kernel.verify(&pool, proof_term, theorem_type) catch false;
 
             if (PROOF_DEBUG) {
-                platform.debug.print("[KERNEL] structural={} type_check={} (symbolic_step={})\\n", .{ structural_ok, type_ok, step_ok });
+                platform.dbg("[KERNEL] structural={} type_check={} (symbolic_step={})\\n", .{ structural_ok, type_ok, step_ok });
             }
 
             // Preuve acceptée si step symbolique passe ET structure du proof term valide

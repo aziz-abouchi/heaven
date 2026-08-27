@@ -19,7 +19,7 @@ pub fn exprStructuralEq(store: *const Store, a: Id, b: Id) bool {
             return la.eql(lb);
         },
         .apply => {
-            if (na.payload != nb.payload) return false;
+            //if (na.payload != nb.payload) return false;
             const pool = store.pool.items;
             const ca = na.span_a.slice(pool);
             const cb = nb.span_a.slice(pool);
@@ -158,27 +158,87 @@ pub fn match(store: *const Store, pattern: Id, target: Id, bindings: *Bindings) 
     };
 }
 
-pub fn exprPatternMatch(store: *const Store, pattern: Id, target: Id, bindings: *std.AutoHashMapUnmanaged(u32, Id), allocator: Allocator) bool {
-    var b = Bindings.init(allocator);
-    defer b.deinit();
-    const result = match(store, pattern, target, &b) catch return false;
-    if (result) {
-        var it = b.map.iterator();
-        while (it.next()) |entry| {
-            bindings.put(allocator, entry.key_ptr.*, entry.value_ptr.*) catch {};
-        }
+/// Un symbole est une variable de pattern s'il commence par '?'
+fn isPatternVar(store: *Store, payload: u32) bool {
+    const name = store.interner.resolve(payload);
+    return name.len > 0 and name[0] == '?';
+}
+
+/// Égalité structurelle (pour les patterns non-linéaires comme (+ ?x ?x))
+fn sameTerm(store: *Store, a: Id, b: Id) bool {
+    if (a == b) return true;
+    if (a >= store.len() or b >= store.len()) return false;
+    const na = store.get(a);
+    const nb = store.get(b);
+    if (na.tag != nb.tag) return false;
+    return switch (na.tag) {
+        .sym => na.payload == nb.payload,
+        .lit => store.lits.items[na.aux].eql(store.lits.items[nb.aux]),
+        .apply => blk: {
+            if (!sameTerm(store, na.payload, nb.payload)) break :blk false;
+            const aa = na.span_a.slice(store.pool.items);
+            const ab = nb.span_a.slice(store.pool.items);
+            if (aa.len != ab.len) break :blk false;
+            for (aa, ab) |x, y_| {
+                if (!sameTerm(store, x, y_)) break :blk false;
+            }
+            break :blk true;
+        },
+        else => false,
+    };
+}
+
+/// Matching structural : `?x` se lie à n'importe quel sous-terme
+/// (cohérence vérifiée entre occurrences), les autres symboles exigent l'égalité.
+pub fn exprPatternMatch(store: *Store, pattern_id: Id, target_id: Id, bindings: anytype, allocator: std.mem.Allocator) bool {
+    if (pattern_id >= store.len() or target_id >= store.len()) return false;
+
+    const p = store.get(pattern_id);
+    const t = store.get(target_id);
+
+    switch (p.tag) {
+        .sym => {
+            if (isPatternVar(store, p.payload)) {
+                // Déjà liée ? (patterns non-linéaires : (+ ?x ?x))
+                if (bindings.get(p.payload)) |bound| return sameTerm(store, bound, target_id);
+                bindings.put(allocator, p.payload, target_id) catch return false;
+                return true;
+            }
+            // Symbole littéral : égalité exacte
+            if (t.tag != .sym) return false;
+            return p.payload == t.payload;
+        },
+        .lit => {
+            if (t.tag != .lit) return false;
+            return store.lits.items[p.aux].eql(store.lits.items[t.aux]);
+        },
+        .apply => {
+            if (t.tag != .apply) return false;
+            if (!exprPatternMatch(store, p.payload, t.payload, bindings, allocator)) return false;
+            const p_args = p.span_a.slice(store.pool.items);
+            const t_args = t.span_a.slice(store.pool.items);
+            if (p_args.len != t_args.len) return false;
+            for (p_args, t_args) |pa, ta| {
+                if (!exprPatternMatch(store, pa, ta, bindings, allocator)) return false;
+            }
+            return true;
+        },
+        else => return pattern_id == target_id,
     }
-    return result;
 }
 
 pub fn substitutePattern(store: *Store, pattern_id: Id, bindings: anytype, allocator: std.mem.Allocator) !Id {
-    if (pattern_id >= store.len()) return pattern_id;
+    // Un Id hors store est un bug appelant → erreur explicite, pas de relayage
+    if (pattern_id >= store.len()) return error.InvalidPatternId;
     const node = store.get(pattern_id);
 
     switch (node.tag) {
         .sym => {
-            if (bindings.get(pattern_id)) |bound| return bound;
-            if (bindings.get(node.payload)) |bound| return bound;
+            // Uniquement les clés Sym (?x etc.) — jamais d'Id de nœud
+            if (bindings.get(node.payload)) |bound| {
+                if (bound >= store.len()) return error.InvalidBinding;
+                return bound;
+            }
             return pattern_id;
         },
         .lit => return pattern_id,
@@ -187,8 +247,11 @@ pub fn substitutePattern(store: *Store, pattern_id: Id, bindings: anytype, alloc
             const old_args = node.span_a.slice(store.pool.items);
             var new_args: std.ArrayListUnmanaged(Id) = .{};
             defer new_args.deinit(allocator);
-            for (old_args) |arg| {
-                try new_args.append(allocator, try substitutePattern(store, arg, bindings, allocator));
+            // span_a[0] == func (déjà substitué via node.payload) — SAUTER
+            if (old_args.len > 1) {
+                for (old_args[1..]) |arg| {
+                    try new_args.append(allocator, try substitutePattern(store, arg, bindings, allocator));
+                }
             }
             return store.apply(new_func, new_args.items);
         },

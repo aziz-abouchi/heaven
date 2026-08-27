@@ -269,7 +269,7 @@ pub const ForgeEngine = struct {
 
     pub fn recordFailure(self: *ForgeEngine, id: u32, err: anyerror) void {
         // On log l'erreur pour la curiosité du système
-        platform.debug.print("[FORGE-LLM] Échec de l'atome {d} : {s}\n", .{ id, @errorName(err) });
+        platform.dbg("[FORGE-LLM] Échec de l'atome {d} : {s}\n", .{ id, @errorName(err) });
 
         const entry = self.failures.getOrPut(id) catch return;
         if (!entry.found_existing) entry.value_ptr.* = 0;
@@ -327,7 +327,7 @@ pub const ForgeEngine = struct {
             }
         }
 
-        // platform.debug.print("[CGAM] Nouvelle variante générée : {d} (basée sur {d})\n", .{ new_id, original_id });
+        // platform.dbg("[CGAM] Nouvelle variante générée : {d} (basée sur {d})\n", .{ new_id, original_id });
         return new_id;
     }
 

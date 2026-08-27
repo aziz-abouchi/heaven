@@ -1,6 +1,8 @@
 const std = @import("std");
 const expr_mod = @import("expr");
 const engine_mod = @import("engine_expr");
+
+const Sym = expr_mod.Sym;
 const Store = expr_mod.Store;
 pub const Id = expr_mod.Id;
 
@@ -50,6 +52,12 @@ pub const BasicBlock = struct {
     },
 };
 
+pub const FnDef = struct {
+    fn_mir: MirFunction,
+    param_names: []const Sym,
+    param_regs: []const Id,
+};
+
 pub const MirFunction = struct {
     allocator: std.mem.Allocator,
     blocks: std.ArrayListUnmanaged(BasicBlock),
@@ -60,20 +68,16 @@ pub const MirFunction = struct {
     store: ?*Store = null,
     engine: ?*engine_mod.Engine = null,
     store_ref: ?*Store = null,
+    fn_defs: std.AutoHashMap(Sym, FnDef),
+    values: std.ArrayListUnmanaged(i64),
 
     pub fn init(allocator: std.mem.Allocator) MirFunction {
         return .{
             .allocator = allocator,
             .blocks = .{},
             .store = null,
-        };
-    }
-
-    pub fn initWithStore(allocator: std.mem.Allocator, store: *Store) MirFunction {
-        return .{
-            .allocator = allocator,
-            .blocks = .{},
-            .store = store,
+            .fn_defs = std.AutoHashMap(Sym, FnDef).init(allocator),
+            .values = .{},
         };
     }
 
@@ -83,6 +87,27 @@ pub const MirFunction = struct {
         }
         self.blocks.deinit(self.allocator);
         self.break_values.deinit(self.allocator);
+
+        // Libérer les définitions de fonctions
+        var it = self.fn_defs.valueIterator();
+        while (it.next()) |def| {
+            def.fn_mir.deinit();
+            self.allocator.free(def.param_names);
+            self.allocator.free(def.param_regs);
+        }
+        self.fn_defs.deinit();
+
+        self.values.deinit(self.allocator);
+    }
+
+    pub fn initWithStore(allocator: std.mem.Allocator, store: *Store) MirFunction {
+        return .{
+            .allocator = allocator,
+            .blocks = .{},
+            .store = store,
+            .fn_defs = std.AutoHashMap(Sym, FnDef).init(allocator),
+            .values = .{},
+        };
     }
 
     /// Alloue un nœud placeholder dans le Store Expr IR pour une valeur MIR
@@ -106,19 +131,69 @@ pub const MirFunction = struct {
         return id;
     }
 
+    fn compileLambda(self: *MirFunction, store: *Store, lambda_id: Id) !FnDef {
+        // Déplier les lambdas pour récupérer la liste des paramètres et le corps final
+        var params = std.ArrayListUnmanaged(u32){};
+        defer params.deinit(self.allocator);
+        var current_id = lambda_id;
+        var current_node = store.get(current_id);
+        while (current_node.tag == .lambda) {
+            try params.append(self.allocator, current_node.payload);
+            const body_ids = current_node.span_a.slice(store.pool.items);
+            if (body_ids.len == 0) return error.UnsupportedExpr;
+            current_id = body_ids[0];
+            current_node = store.get(current_id);
+        }
+        // current_id est le corps final
+        // Créer un nouveau MirFunction pour la définition
+        var fn_mir = MirFunction.init(self.allocator);
+        // Allouer des registres pour les paramètres
+        var param_regs = std.ArrayListUnmanaged(Id){};
+        defer param_regs.deinit(self.allocator);
+        var param_map = std.AutoHashMap(Sym, Id).init(self.allocator);
+        defer param_map.deinit();
+        for (params.items) |p| {
+            const reg = try fn_mir.newValue();
+            try param_regs.append(self.allocator, reg);
+            try param_map.put(p, reg);
+        }
+        // Compiler le corps dans la nouvelle fonction
+        const entry = try fn_mir.newBlock();
+        const result_reg = try fn_mir.compileExpr(store, current_id, entry, param_map);
+        fn_mir.blocks.items[entry].terminator = .{ .ret = result_reg };
+        // Créer la définition
+        return FnDef{
+            .fn_mir = fn_mir,
+            .param_names = try params.toOwnedSlice(self.allocator),
+            .param_regs = try param_regs.toOwnedSlice(self.allocator),
+        };
+    }
+
     pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: BlockId, locals: std.AutoHashMap(u32, Id)) MirError!Id {
         const node = store.get(id);
         switch (node.tag) {
             .bind => {
                 const sym = node.payload;
-                const value_id = node.aux;
-                const val_reg = try self.compileExpr(store, value_id, target_block, locals);
+                // La valeur est dans node.span_a[0] (ou node.aux ? Vérifier)
+                // D'après la construction de bind, le span_a contient [val, body] ? Non, bind est construit avec un seul argument ? Dans Store.bind, on met val et corps par défaut unit.
+                // En fait, bind a node.span_a qui contient [val, body] (car on utilise reserveSpan(2)).
+                // Donc span_a[0] = valeur, span_a[1] = corps.
+                const val_id = node.span_a.slice(store.pool.items)[0];
+                const body_id = if (node.span_a.len > 1) node.span_a.slice(store.pool.items)[1] else 0;
+                // Compiler la valeur
+                const val_reg = try self.compileExpr(store, val_id, target_block, locals);
+                // Si la valeur est un lambda, enregistrer la fonction
+                const val_node = store.get(val_id);
+                if (val_node.tag == .lambda) {
+                    const fn_def = try self.compileLambda(store, val_id);
+                    try self.fn_defs.put(sym, fn_def);
+                }
+                // Ajouter la variable locale
                 var new_locals = try locals.clone();
                 defer new_locals.deinit();
                 try new_locals.put(sym, val_reg);
-                // Si span_a n'est pas vide, c'est le corps du let
-                if (node.span_a.len > 0) {
-                    const body_id = node.span_a.start;
+                // Compiler le corps
+                if (body_id != 0) {
                     return try self.compileExpr(store, body_id, target_block, new_locals);
                 }
                 return val_reg;
@@ -309,19 +384,16 @@ pub const MirFunction = struct {
         return val_reg;
     }
 
-    /// TODO: Réécrire execute pour opérer sur Id (Expr IR) au lieu de ValueId
     pub fn execute(self: *MirFunction, global_vars: *std.AutoHashMap(u32, i64)) MirError!i64 {
-        _ = self;
-        _ = global_vars;
-        return error.UnsupportedExpr;
+        return self.executeLegacy(global_vars);
     }
 
     /// Ancienne implémentation execute désactivée pendant la réécriture Id-based
     fn executeLegacy(self: *MirFunction, global_vars: *std.AutoHashMap(u32, i64)) MirError!i64 {
         if (self.blocks.items.len == 0) return 0;
         var current_block: BlockId = 0;
-        var values = std.ArrayListUnmanaged(i64){};
-        defer values.deinit(self.allocator);
+        self.values.clearAndFree(self.allocator);
+        defer self.values.deinit(self.allocator);
         var prev_block: BlockId = 0;
 
         var iterations: u32 = 0;
@@ -331,51 +403,51 @@ pub const MirFunction = struct {
             for (block.instrs.items) |inst| {
                 switch (inst) {
                     .const_int => |c| {
-                        if (c.dest >= values.items.len) try values.resize(self.allocator, c.dest + 1);
-                        values.items[c.dest] = c.value;
+                        if (c.dest >= self.values.items.len) try self.values.resize(self.allocator, c.dest + 1);
+                        self.values.items[c.dest] = c.value;
                     },
                     .add => |a| {
-                        if (a.dest >= values.items.len) try values.resize(self.allocator, a.dest + 1);
-                        values.items[a.dest] = values.items[a.lhs] + values.items[a.rhs];
+                        if (a.dest >= self.values.items.len) try self.values.resize(self.allocator, a.dest + 1);
+                        self.values.items[a.dest] = self.values.items[a.lhs] + self.values.items[a.rhs];
                     },
                     .sub => |a| {
-                        if (a.dest >= values.items.len) try values.resize(self.allocator, a.dest + 1);
-                        values.items[a.dest] = values.items[a.lhs] - values.items[a.rhs];
+                        if (a.dest >= self.values.items.len) try self.values.resize(self.allocator, a.dest + 1);
+                        self.values.items[a.dest] = self.values.items[a.lhs] - self.values.items[a.rhs];
                     },
                     .mul => |a| {
-                        if (a.dest >= values.items.len) try values.resize(self.allocator, a.dest + 1);
-                        values.items[a.dest] = values.items[a.lhs] * values.items[a.rhs];
+                        if (a.dest >= self.values.items.len) try self.values.resize(self.allocator, a.dest + 1);
+                        self.values.items[a.dest] = self.values.items[a.lhs] * self.values.items[a.rhs];
                     },
                     .div => |a| {
-                        if (a.dest >= values.items.len) try values.resize(self.allocator, a.dest + 1);
-                        if (values.items[a.rhs] == 0) return error.DivisionByZero;
-                        values.items[a.dest] = @divTrunc(values.items[a.lhs], values.items[a.rhs]);
+                        if (a.dest >= self.values.items.len) try self.values.resize(self.allocator, a.dest + 1);
+                        if (self.values.items[a.rhs] == 0) return error.DivisionByZero;
+                        self.values.items[a.dest] = @divTrunc(self.values.items[a.lhs], self.values.items[a.rhs]);
                     },
                     .cmp_lt => |a| {
-                        if (a.dest >= values.items.len) try values.resize(self.allocator, a.dest + 1);
-                        values.items[a.dest] = if (values.items[a.lhs] < values.items[a.rhs]) 1 else 0;
+                        if (a.dest >= self.values.items.len) try self.values.resize(self.allocator, a.dest + 1);
+                        self.values.items[a.dest] = if (self.values.items[a.lhs] < self.values.items[a.rhs]) 1 else 0;
                     },
                     .cmp_eq => |a| {
-                        if (a.dest >= values.items.len) try values.resize(self.allocator, a.dest + 1);
-                        values.items[a.dest] = if (values.items[a.lhs] == values.items[a.rhs]) 1 else 0;
+                        if (a.dest >= self.values.items.len) try self.values.resize(self.allocator, a.dest + 1);
+                        self.values.items[a.dest] = if (self.values.items[a.lhs] == self.values.items[a.rhs]) 1 else 0;
                     },
                     .load => |ld| {
                         const val = global_vars.get(ld.sym) orelse return error.UndefinedVariable;
-                        if (ld.dest >= values.items.len) try values.resize(self.allocator, ld.dest + 1);
-                        values.items[ld.dest] = val;
+                        if (ld.dest >= self.values.items.len) try self.values.resize(self.allocator, ld.dest + 1);
+                        self.values.items[ld.dest] = val;
                     },
                     .store => |st| {
-                        const val = values.items[st.src];
+                        const val = self.values.items[st.src];
                         try global_vars.put(st.sym, val);
                     },
                     .phi => |p| {
                         var found = false;
                         for (p.incoming) |in| {
                             if (in.block == prev_block) {
-                                if (in.value >= values.items.len) return error.ValueNotDefined;
-                                const val = values.items[in.value];
-                                if (p.dest >= values.items.len) try values.resize(self.allocator, p.dest + 1);
-                                values.items[p.dest] = val;
+                                if (in.value >= self.values.items.len) return error.ValueNotDefined;
+                                const val = self.values.items[in.value];
+                                if (p.dest >= self.values.items.len) try self.values.resize(self.allocator, p.dest + 1);
+                                self.values.items[p.dest] = val;
                                 found = true;
                                 break;
                             }
@@ -384,29 +456,68 @@ pub const MirFunction = struct {
                     },
                     .jump, .branch, .ret => unreachable,
                     .call_user => |cu| {
-                        const store = self.store_ref orelse return error.InvalidInstruction;
-                        const engine = self.engine orelse return error.InvalidInstruction;
-                        const name = store.interner.resolve(cu.name);
-                        var args_list = std.ArrayListUnmanaged(Id){};
-                        defer args_list.deinit(self.allocator);
-                        for (cu.args) |arg_reg| {
-                            const val = values.items[arg_reg];
-                            const id = try store.int(val);
-                            try args_list.append(self.allocator, id);
-                        }
-                        const result_id = engine.evalFunction(name, args_list.items) catch return error.InvalidInstruction;
-                        const result_node = store.get(result_id);
-                        if (result_node.tag == .lit) {
-                            const lit = store.lits.items[result_node.aux];
-                            switch (lit) {
-                                .int => |v| {
-                                    if (cu.dest >= values.items.len) try values.resize(self.allocator, cu.dest + 1);
-                                    values.items[cu.dest] = v;
-                                },
-                                else => return error.InvalidInstruction,
+                        // Vérifier si c'est une fonction MIR définie
+                        if (self.fn_defs.get(cu.name)) |fn_def| {
+                            // Récupérer les valeurs des arguments
+                            var arg_values = try std.ArrayList(i64).initCapacity(self.allocator, cu.args.len);
+                            defer arg_values.deinit(self.allocator);
+                            for (cu.args) |arg_reg| {
+                                try arg_values.append(self.allocator, self.values.items[arg_reg]);
                             }
+                            // Créer une copie de la fonction pour l'exécution
+                            var temp_mir = try self.cloneFunction(&fn_def);
+                            defer temp_mir.deinit();
+                            // Initialiser les paramètres avec les valeurs des arguments
+                            // On suppose que l'ordre des paramètres correspond à l'ordre des arguments
+                            for (0..fn_def.param_regs.len) |i| {
+                                const param_reg = fn_def.param_regs[i];
+                                const arg_val = arg_values.items[i];
+                                // On doit mettre cette valeur dans le tableau values de temp_mir
+                                // Pour cela, on peut utiliser temp_mir.values, mais il n'est pas exposé.
+                                // On va plutôt créer une fonction d'initialisation dans MirFunction.
+                                // On va ajouter une méthode setValue(reg, val) qui met à jour le tableau values.
+                                // Pour l'instant, on va directement manipuler le tableau values de temp_mir.
+                                // Mais values est un ArrayListUnmanaged, on doit l'initialiser.
+                                // On va initialiser temp_mir.values avec la taille nécessaire.
+                                // On doit s'assurer que le tableau a assez de place.
+                                const max_reg = std.mem.max(Id, fn_def.param_regs) + 1;
+                                try temp_mir.values.resize(self.allocator, max_reg);
+                                temp_mir.values.items[param_reg] = arg_val;
+                            }
+                            // Exécuter la fonction copiée
+                            var empty_globals = std.AutoHashMap(u32, i64).init(self.allocator);
+                            defer empty_globals.deinit();
+                            const result = try temp_mir.executeLegacy(&empty_globals);
+                            // Stocker le résultat
+                            if (cu.dest >= self.values.items.len) try self.values.resize(self.allocator, cu.dest + 1);
+                            self.values.items[cu.dest] = result;
                         } else {
-                            return error.InvalidInstruction;
+                            // Appel à une fonction native (code existant)
+                            const store = self.store_ref orelse return error.InvalidInstruction;
+                            const engine = self.engine orelse return error.InvalidInstruction;
+
+                            const name = store.interner.resolve(cu.name);
+                            var args_list = std.ArrayListUnmanaged(Id){};
+                            defer args_list.deinit(self.allocator);
+                            for (cu.args) |arg_reg| {
+                                const val = self.values.items[arg_reg];
+                                const id = try store.int(val);
+                                try args_list.append(self.allocator, id);
+                            }
+                            const result_id = engine.evalFunction(name, args_list.items) catch return error.InvalidInstruction;
+                            const result_node = store.get(result_id);
+                            if (result_node.tag == .lit) {
+                                const lit = store.lits.items[result_node.aux];
+                                switch (lit) {
+                                    .int => |v| {
+                                        if (cu.dest >= self.values.items.len) try self.values.resize(self.allocator, cu.dest + 1);
+                                        self.values.items[cu.dest] = v;
+                                    },
+                                    else => return error.InvalidInstruction,
+                                }
+                            } else {
+                                return error.InvalidInstruction;
+                            }
                         }
                     },
                 }
@@ -417,17 +528,41 @@ pub const MirFunction = struct {
                     current_block = target;
                 },
                 .branch => |b| {
-                    const cond = values.items[b.cond];
+                    const cond = self.values.items[b.cond];
                     prev_block = current_block;
                     current_block = if (cond != 0) b.then_block else b.else_block;
                 },
                 .ret => |r| {
-                    if (r >= values.items.len) return error.ValueNotDefined;
-                    return values.items[r];
+                    if (r >= self.values.items.len) return error.ValueNotDefined;
+                    return self.values.items[r];
                 },
                 .fallthrough => return 0,
             }
         }
+    }
+
+    fn cloneFunction(self: *MirFunction, fn_def: *const FnDef) !MirFunction {
+        var new_mir = MirFunction.init(self.allocator);
+        // Copier les blocs
+        try new_mir.blocks.ensureTotalCapacity(self.allocator, fn_def.fn_mir.blocks.items.len);
+        for (fn_def.fn_mir.blocks.items) |block| {
+            var new_block = BasicBlock{
+                .instrs = .{},
+                .terminator = block.terminator,
+            };
+            try new_block.instrs.ensureTotalCapacity(self.allocator, block.instrs.items.len);
+            for (block.instrs.items) |inst| {
+                try new_block.instrs.append(self.allocator, inst);
+            }
+            try new_mir.blocks.append(self.allocator, new_block);
+        }
+        // Copier les autres champs nécessaires (store, engine, etc.)
+        new_mir.store = self.store;
+        new_mir.engine = self.engine;
+        new_mir.store_ref = self.store_ref;
+        // On pourrait copier d'autres choses si besoin
+        new_mir.values = .{};
+        return new_mir;
     }
 
     pub fn dump(self: *const MirFunction, writer: anytype) !void {
@@ -604,4 +739,40 @@ test "mir — if with break in while" {
     defer globals.deinit();
     const result = try mir.execute(&globals);
     try std.testing.expectEqual(3, result); // break(x) quand x=3
+}
+
+test "mir — user function definition and call" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    // Définir (def add [a b] (+ a b))
+    // En syntaxe interne : (let add (lambda a (lambda b (+ a b))) (add 5 3))
+    const a_sym = try store.interner.intern("a");
+    const b_sym = try store.interner.intern("b");
+    const a_id = try store.symId(a_sym);
+    const b_id = try store.symId(b_sym);
+    const plus = try store.binop("+", a_id, b_id);
+    const lambda_b = try store.lambda(&.{"b"}, plus);
+    const lambda_a = try store.lambda(&.{"a"}, lambda_b);
+    const add_sym = try store.interner.intern("add");
+    _ = add_sym;
+    const call = try store.call("add", &.{ try store.int(5), try store.int(3) });
+    const let_expr = try store.bind("add", lambda_a, call);
+
+    var mir = MirFunction.init(allocator);
+    defer mir.deinit();
+
+    const entry = try mir.newBlock();
+    var locals = std.AutoHashMap(u32, Id).init(allocator);
+    defer locals.deinit();
+    _ = try mir.compileExpr(&store, let_expr, entry, locals);
+    // On doit s'assurer que le dernier bloc a un ret
+    // On peut ajouter un ret du dernier résultat
+    // Pour simplifier, on va modifier compileExpr pour qu'il ajoute un ret automatiquement.
+
+    var globals = std.AutoHashMap(u32, i64).init(allocator);
+    defer globals.deinit();
+    const result = try mir.execute(&globals);
+    try std.testing.expectEqual(8, result);
 }

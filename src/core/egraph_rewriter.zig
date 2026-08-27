@@ -32,7 +32,7 @@ pub const Rewriter = struct {
     }
 
     pub fn saturate(self: *Rewriter, budget_ms: u64) !u32 {
-        //platform.debug.print("[Rewriter] saturate called\n", .{});
+        //platform.dbg("[Rewriter] saturate called\n", .{});
         const start = platform.time.milliTimestamp();
         var merge_count: u32 = 0;
         var iterations: u32 = 0;
@@ -42,7 +42,7 @@ pub const Rewriter = struct {
             const node = self.store.get(@intCast(i));
             if (node.tag == .relation) rel_count += 1;
         }
-        //platform.debug.print("[Rewriter] relations in store: {d}\n", .{rel_count});
+        //platform.dbg("[Rewriter] relations in store: {d}\n", .{rel_count});
 
         var worklist = try std.ArrayList(u32).initCapacity(self.allocator, 0);
         defer worklist.deinit(self.allocator);
@@ -64,7 +64,7 @@ pub const Rewriter = struct {
 
                 const eclass = &self.egraph.classes.items[canonical];
 
-                //platform.debug.print("[Rewriter] class {d} nodes: ", .{canonical});
+                //platform.dbg("[Rewriter] class {d} nodes: ", .{canonical});
                 for (eclass.nodes.items) |node_id| {
                     const node = self.store.get(node_id);
                     _ = node;
@@ -74,7 +74,7 @@ pub const Rewriter = struct {
 
                 // β‑réduction
                 if (try self.applyBetaReduction(canonical)) |new_class| {
-                    //platform.debug.print("[Rewriter] β‑réduction: new_class = {d}\n", .{new_class});
+                    //platform.dbg("[Rewriter] β‑réduction: new_class = {d}\n", .{new_class});
                     merge_count += 1;
                     try new_worklist.append(self.allocator, canonical);
                     try new_worklist.append(self.allocator, new_class);
@@ -84,7 +84,10 @@ pub const Rewriter = struct {
                 var rule_idx: u32 = 0;
                 while (rule_idx < self.store.len()) : (rule_idx += 1) {
                     const rule_node = self.store.get(rule_idx);
+                    // Règles : uniquement les relations "rule" (pas "=>", pas les théorèmes)
                     if (rule_node.tag != .relation) continue;
+                    const head = self.store.interner.resolve(rule_node.payload);
+                    if (!std.mem.eql(u8, head, "rule")) continue;
                     // Le LHS est dans span_a, le RHS dans span_b
                     const lhs_span = rule_node.span_a.slice(self.store.pool.items);
                     const rhs_span = rule_node.span_b.slice(self.store.pool.items);
@@ -94,7 +97,7 @@ pub const Rewriter = struct {
 
                     const lhs_str = expr.toString(self.store, lhs_id, self.allocator) catch "?";
                     const rhs_str = expr.toString(self.store, rhs_id, self.allocator) catch "?";
-                    //platform.debug.print("[Rewriter] rule {d}: {s} => {s}\n", .{ rule_idx, lhs_str, rhs_str });
+                    //platform.dbg("[Rewriter] rule {d}: {s} => {s}\n", .{ rule_idx, lhs_str, rhs_str });
                     defer self.allocator.free(lhs_str);
                     defer self.allocator.free(rhs_str);
 
@@ -105,6 +108,11 @@ pub const Rewriter = struct {
                         const cache_key = (@as(u64, @intCast(rule_idx)) << 32) | @as(u64, @intCast(canonical));
                         if (self.match_cache.get(cache_key)) |cached| {
                             if (cached != 0) {
+                                // GUARD : Id invalide = substitution corrompue → skipper
+                                if (cached >= self.store.len() or !validTree(self.store, cached)) {
+                                    platform.dbg("[Rewriter] CACHE CORROMPU: règle {d}, id {d} — skip\n", .{ rule_idx, cached });
+                                    continue;
+                                }
                                 const new_class = try self.egraph.addExpr(cached);
                                 const merged = try self.egraph.merge(canonical, new_class);
                                 if (merged != canonical) {
@@ -123,6 +131,11 @@ pub const Rewriter = struct {
                         }
 
                         const new_id = try pattern.substitutePattern(self.store, rhs_id, &bindings, self.allocator);
+                        // Ne JAMAIS cacher un arbre corrompu
+                        if (new_id >= self.store.len() or !validTree(self.store, new_id)) {
+                            platform.dbg("[Rewriter] SUBSTITUTION CORROMPUE: règle {d} ({s} => {s}) — skip\n", .{ rule_idx, lhs_str, rhs_str });
+                            continue;
+                        }
                         try self.match_cache.put(self.allocator, cache_key, new_id);
                         const new_class = try self.egraph.addExpr(new_id);
 
@@ -177,22 +190,22 @@ pub const Rewriter = struct {
         for (eclass.nodes.items) |node_id| {
             const pattern_str = expr.toString(self.store, pattern_id, self.allocator) catch "?";
             const target_str = expr.toString(self.store, node_id, self.allocator) catch "?";
-            //platform.debug.print("[matchPattern] comparing pattern: {s}  with target: {s}\n", .{ pattern_str, target_str });
+            //platform.dbg("[matchPattern] comparing pattern: {s}  with target: {s}\n", .{ pattern_str, target_str });
             defer self.allocator.free(pattern_str);
             defer self.allocator.free(target_str);
 
             if (pattern.exprPatternMatch(self.store, pattern_id, node_id, bindings, self.allocator)) {
-                //platform.debug.print("[matchPattern] MATCH SUCCESS\n", .{});
+                //platform.dbg("[matchPattern] MATCH SUCCESS\n", .{});
                 return true;
             } else {
-                //platform.debug.print("[matchPattern] MATCH FAILED\n", .{});
+                platform.dbg("[matchPattern] MATCH FAILED\n", .{});
             }
         }
         return false;
     }
 
     fn applyBetaReduction(self: *Rewriter, class: ClassId) !?ClassId {
-        //platform.debug.print("[applyBetaReduction] class {d}\n", .{class});
+        //platform.dbg("[applyBetaReduction] class {d}\n", .{class});
         const eclass = &self.egraph.classes.items[class];
         const pool = self.store.pool.items;
         for (eclass.nodes.items) |node_id| {
@@ -201,13 +214,13 @@ pub const Rewriter = struct {
             // --------------------------------------------------------
 
             const node = self.store.get(node_id);
-            //platform.debug.print("[applyBetaReduction] checking node {d} tag={s}\n", .{ node_id, @tagName(node.tag) });
+            //platform.dbg("[applyBetaReduction] checking node {d} tag={s}\n", .{ node_id, @tagName(node.tag) });
             if (node.tag == .apply) {
                 const func_id = node.payload;
                 const func_node = self.store.get(func_id);
-                //platform.debug.print("[applyBetaReduction] apply func {d} tag={s}\n", .{ func_id, @tagName(func_node.tag) });
+                //platform.dbg("[applyBetaReduction] apply func {d} tag={s}\n", .{ func_id, @tagName(func_node.tag) });
                 if (func_node.tag == .lambda) {
-                    //platform.debug.print("[applyBetaReduction] found lambda application\n", .{});
+                    //platform.dbg("[applyBetaReduction] found lambda application\n", .{});
 
                     // --- NOUVEAU : Marquer comme réduit AVANT de faire le travail ---
                     try self.beta_reduced.put(self.allocator, node_id, {});
@@ -216,17 +229,17 @@ pub const Rewriter = struct {
                     const param_sym = func_node.payload;
                     const body_slice = func_node.span_a.slice(pool);
                     if (body_slice.len == 0) {
-                        //platform.debug.print("[applyBetaReduction] body empty\n", .{});
+                        //platform.dbg("[applyBetaReduction] body empty\n", .{});
                         continue;
                     }
                     const body = body_slice[0];
                     const args = node.span_a.slice(pool);
                     if (args.len < 2) {
-                        //platform.debug.print("[applyBetaReduction] args len < 2\n", .{});
+                        //platform.dbg("[applyBetaReduction] args len < 2\n", .{});
                         continue;
                     }
                     const actual_arg = args[1];
-                    //platform.debug.print("[applyBetaReduction] param_sym={d}, body={d}, arg={d}\n", .{ param_sym, body, actual_arg });
+                    //platform.dbg("[applyBetaReduction] param_sym={d}, body={d}, arg={d}\n", .{ param_sym, body, actual_arg });
 
                     // Construction manuelle du corps réduit
                     const body_node = self.store.get(body);
@@ -253,7 +266,7 @@ pub const Rewriter = struct {
                                     }
                                     const op_sym = try self.store.sym(op_name);
                                     new_body_id = try self.store.apply(op_sym, &.{ new_a, new_b });
-                                    //platform.debug.print("[applyBetaReduction] manual new_body={d}\n", .{new_body_id.?});
+                                    //platform.dbg("[applyBetaReduction] manual new_body={d}\n", .{new_body_id.?});
                                 }
                             }
                         }
@@ -264,7 +277,7 @@ pub const Rewriter = struct {
                         defer subst.deinit();
                         try subst.put(param_sym, actual_arg);
                         new_body_id = try self.substitute(body, &subst);
-                        //platform.debug.print("[applyBetaReduction] substitute new_body={d}\n", .{new_body_id.?});
+                        //platform.dbg("[applyBetaReduction] substitute new_body={d}\n", .{new_body_id.?});
                     }
 
                     const new_body = new_body_id.?;
@@ -279,9 +292,9 @@ pub const Rewriter = struct {
                     });
 
                     if (merged != class) {
-                        //platform.debug.print("[applyBetaReduction] fusion réussie, retourne new_class={d}\n", .{new_class});
+                        //platform.dbg("[applyBetaReduction] fusion réussie, retourne new_class={d}\n", .{new_class});
                     } else {
-                        //platform.debug.print("[applyBetaReduction] classes déjà équivalentes, utilise new_class={d}\n", .{new_class});
+                        //platform.dbg("[applyBetaReduction] classes déjà équivalentes, utilise new_class={d}\n", .{new_class});
                     }
                     return new_class;
                 }
@@ -335,5 +348,34 @@ pub const Rewriter = struct {
             },
             else => return id,
         }
+    }
+
+    /// Valide RÉCURSIVEMENT qu'un arbre ne contient aucun Id invalide.
+    fn validTree(store: *Store, id: Id) bool {
+        if (id >= store.len()) return false;
+        const node = store.get(id);
+        switch (node.tag) {
+            .apply => {
+                if (!validTree(store, node.payload)) return false;
+                for (node.span_a.slice(store.pool.items)) |child| {
+                    if (!validTree(store, child)) return false;
+                }
+            },
+            .relation => {
+                for (node.span_a.slice(store.pool.items)) |child| {
+                    if (!validTree(store, child)) return false;
+                }
+                for (node.span_b.slice(store.pool.items)) |child| {
+                    if (!validTree(store, child)) return false;
+                }
+            },
+            .lambda => {
+                for (node.span_a.slice(store.pool.items)) |child| {
+                    if (!validTree(store, child)) return false;
+                }
+            },
+            else => {},
+        }
+        return true;
     }
 };

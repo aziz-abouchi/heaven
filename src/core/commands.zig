@@ -32,6 +32,9 @@ const math_mod = @import("math");
 const proof_helpers_mod = @import("proof_helpers");
 const simplify_engine_mod = @import("simplify_engine");
 
+const debug = std.posix.getenv("HEAVEN_DEBUG") != null;
+// HEAVEN_DEBUG=1 ./heaven pour activer les logs.
+
 pub const HeavenError = error{
     ExtensionNotLowered,
     EvaluationFailed,
@@ -72,6 +75,8 @@ pub const HeavenError = error{
     CannotLowerFrontendTag,
     InvalidLambda,
     InvalidExpr,
+    InvalidPatternId,
+    InvalidBinding,
 } || std.mem.Allocator.Error || mir.MirError || engine_expr.EvalError;
 
 pub const Commands = struct {
@@ -486,10 +491,12 @@ pub const Commands = struct {
 
         // Pipeline : simplifyBasic (rapide/fiable) → E-Graph (cas complexes) → simplifyBasic (nettoyage)
         const after_basic = try self.math.simplifyBasic(id);
-        const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
-        const final = try self.math.simplifyBasic(after_egraph);
-
-        return expr.toStringInfix(self.store, final, self.allocator);
+        if (after_basic == id) {
+            // Rien à simplifier en direct → cas complexe, tenter l'E-Graph
+            const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
+            return expr.toStringInfix(self.store, try self.math.simplifyBasic(after_egraph), self.allocator);
+        }
+        return expr.toStringInfix(self.store, after_basic, self.allocator);
     }
 
     fn evalHelp(self: *Commands) ![]u8 {
@@ -1053,11 +1060,35 @@ pub const Commands = struct {
     }
 
     fn parseExpression(self: *Commands, input: []const u8) anyerror!Id {
-        // ✅ Exposants Unicode : x² → x^2
-        if (expr.containsSuperscript(input)) {
-            const normalized = try expr.normalizeUnicodePowers(input, self.allocator);
+        const trimmed = std.mem.trim(u8, input, " \t");
+        if (trimmed.len == 0) return error.InvalidInput;
+
+        // Unicode : x² → x^2
+        if (expr.containsSuperscript(trimmed)) {
+            const normalized = try expr.normalizeUnicodePowers(trimmed, self.allocator);
             defer self.allocator.free(normalized);
             return self.parseExpression(normalized);
+        }
+
+        // SYNTAXE NATIVE : tout ce qui ne commence pas par '('
+        if (trimmed[0] != '(') {
+            var arena = std.heap.ArenaAllocator.init(self.allocator);
+            defer arena.deinit();
+            const sexpr = expr.nativeToSExpr(trimmed, arena.allocator()) catch {
+                // Fallback : atome simple (ex: "+", identifiant exotique)
+                return self.store.sym(trimmed);
+            };
+            if (sexpr.len > 0 and sexpr[0] == '(') {
+                // Forme composée → re-parser en Lisp (récursion sûre)
+                const owned = try self.allocator.dupe(u8, sexpr);
+                defer self.allocator.free(owned);
+                return self.parseExpression(owned);
+            }
+            // Atome (nombre, identifiant, string) — interner duplique la chaîne ✓
+            if (std.fmt.parseInt(i64, sexpr, 10)) |val| {
+                return self.store.int(val);
+            } else |_| {}
+            return self.store.sym(sexpr);
         }
 
         if (self.shell_parser.parse(input)) |matrix| {
@@ -1076,7 +1107,6 @@ pub const Commands = struct {
             }
         } else |_| {}
 
-        const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len >= 2 and trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
             return self.parser.parseSExpr(trimmed);
         }
@@ -1227,7 +1257,7 @@ pub const Commands = struct {
         const id = try self.parser.parseSExpr(input); // ← Utilise self.parser au lieu de self.bridge.importExpr
         const debug_str = try expr.toStringInfix(self.store, id, self.allocator);
         defer self.allocator.free(debug_str);
-        platform.debug.print("[core.commands.simplify] input: {s}\n", .{debug_str});
+        platform.dbg("[core.commands.simplify] input: {s}\n", .{debug_str});
 
         var current = id;
 
@@ -1305,7 +1335,7 @@ pub const Commands = struct {
     }
 
     pub fn simplifyRec(self: *Commands, id: Id, depth: u32) !Id {
-        platform.debug.print("[src/core/commands.zig simplifyRec] called with id={d}, depth={d}\n", .{ id, depth });
+        platform.dbg("[src/core/commands.zig simplifyRec] called with id={d}, depth={d}\n", .{ id, depth });
         if (depth > 50) return id;
         if (id >= self.store.len()) return id;
         const node = self.store.get(id);
@@ -1449,25 +1479,50 @@ pub const Commands = struct {
                 }
 
                 if (std.mem.eql(u8, name, "assert_eq") and args.len == 2) {
+                    // Interpréter derive/simplify inline avant d'évaluer
+                    var left = args[0];
+                    var right = args[1];
+                    inline for (.{ &left, &right }) |side| {
+                        const n = self.store.get(side.*);
+                        if (n.tag == .apply) {
+                            const fnode = self.store.get(n.payload);
+                            if (fnode.tag == .sym) {
+                                const head = self.store.interner.resolve(fnode.payload);
+                                const cargs = self.store.spanSliceConst(n.span_a)[1..];
+                                if (cargs.len == 1) {
+                                    const arg_str = try expr.toStringInfix(self.store, cargs[0], self.allocator);
+                                    defer self.allocator.free(arg_str);
+                                    var rstr: ?[]u8 = null;
+                                    defer if (rstr) |r| self.allocator.free(r);
+                                    if (std.mem.eql(u8, head, "derive")) {
+                                        rstr = self.math.derive(arg_str, "x") catch null;
+                                    } else if (std.mem.eql(u8, head, "simplify")) {
+                                        rstr = self.evalSimplify(arg_str) catch null;
+                                    }
+                                    if (rstr) |rs| side.* = self.parseExpression(rs) catch side.*;
+                                }
+                            }
+                        }
+                    }
                     self.engine.fuel = 1_000_000;
-                    const left = engine_expr.evaluate(self.store, self.env, self.engine, args[0], 0) catch args[0];
-                    const right = engine_expr.evaluate(self.store, self.env, self.engine, args[1], 0) catch args[1];
+                    const left_v = engine_expr.evaluate(self.store, self.env, self.engine, left, 0) catch left;
+                    const right_v = engine_expr.evaluate(self.store, self.env, self.engine, right, 0) catch right;
 
                     // 1. Identité rapide
-                    if (left == right) {
+                    if (left_v == right_v) {
                         return try self.allocator.dupe(u8, "✓ assert_eq passed");
                     }
 
                     // 2. Comparaison textuelle
-                    const l_str = try expr.toStringInfix(self.store, left, self.allocator);
-                    const r_str = try expr.toStringInfix(self.store, right, self.allocator);
+                    const l_str = try expr.toStringInfix(self.store, left_v, self.allocator);
+                    const r_str = try expr.toStringInfix(self.store, right_v, self.allocator);
                     if (std.mem.eql(u8, l_str, r_str)) {
                         return try self.allocator.dupe(u8, "✓ assert_eq passed");
                     }
 
                     // 3. Comparaison sémantique : simplifier les deux puis comparer
-                    const l_simp = self.math.simplifyBasic(left) catch left;
-                    const r_simp = self.math.simplifyBasic(right) catch right;
+                    const l_simp = self.math.simplifyBasic(left_v) catch left_v;
+                    const r_simp = self.math.simplifyBasic(right_v) catch right_v;
 
                     if (self.math.structuralEq(l_simp, r_simp)) {
                         return try self.allocator.dupe(u8, "✓ assert_eq passed");

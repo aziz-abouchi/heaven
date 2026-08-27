@@ -381,7 +381,7 @@ pub const Matrix = struct {
             switch (node) {
                 .Spawn => |s| {
                     // Un message envoyé à un Spawn pourrait relancer la tâche
-                    platform.debug.print("[REACTION] Message reçu par Task {d}\n", .{s.task});
+                    platform.dbg("[REACTION] Message reçu par Task {d}\n", .{s.task});
                 },
                 .Symbol => |name| {
                     // ATTENTION : self.mutex est tenu à ce point. Toute fonction enregistrée dans
@@ -623,7 +623,7 @@ pub const Matrix = struct {
         }
 
         if (count > 0) {
-            // platform.debug.print("[MATRIX] {d} nouvelles connaissances intégrées.\n", .{count});
+            // platform.dbg("[MATRIX] {d} nouvelles connaissances intégrées.\n", .{count});
         }
     }
     pub fn mergeDelta(self: *Matrix, data: []const u8) !void {

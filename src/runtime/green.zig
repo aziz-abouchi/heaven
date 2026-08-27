@@ -57,7 +57,7 @@ pub const GreenScheduler = struct {
     pub fn fireEvent(self: *GreenScheduler, event: []const u8) !void {
         for (self.hooks.items) |h| {
             if (std.mem.eql(u8, h.event, event)) {
-                // platform.debug.print("[HOOK] Event '{s}' → spawning '{s}'\n", .{ event, h.agent_expr });
+                // platform.dbg("[HOOK] Event '{s}' → spawning '{s}'\n", .{ event, h.agent_expr });
                 _ = try self.spawn(h.agent_expr);
             }
         }

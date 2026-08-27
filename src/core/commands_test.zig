@@ -129,7 +129,7 @@ test "actor lifecycle: spawn, send, state" {
 
     // Vérifier l'état
     const state_result = try cmds.eval("state(Adder)");
-    platform.debug.print("[TEST DEBUG] state(Adder) a retourné : {s}\n", .{state_result});
+    platform.dbg("[TEST DEBUG] state(Adder) a retourné : {s}\n", .{state_result});
     try testing.expectEqualStrings("5", state_result);
 }
 

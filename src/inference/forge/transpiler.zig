@@ -154,7 +154,7 @@ pub const SurvivalTranspiler = struct {
 
     /// Remplace récursivement un ID par sa forme canonique (simplifiée)
     pub fn simplify(self: *SurvivalTranspiler, id: matrix_lib.BobId) matrix_lib.BobId {
-        platform.debug.print("[inference forge SIMPLIFY] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
+        platform.dbg("[inference forge SIMPLIFY] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
         return self.matrix.findCanonical(id);
     }
 

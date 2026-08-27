@@ -145,7 +145,7 @@ pub fn decode(payload: []const u8) !protocol.Incoming {
         1 => .handshake,
         // Ajoutez d'autres cas ici...
         else => {
-            // platform.debug.print("[CODEC] Type de message inconnu reçu: 0x{X} (taille: {d})\n", .{ msg_type_raw, payload.len });
+            // platform.dbg("[CODEC] Type de message inconnu reçu: 0x{X} (taille: {d})\n", .{ msg_type_raw, payload.len });
             return error.InvalidFormat;
         },
     };

@@ -21,7 +21,7 @@ pub const ReactionEngine = struct {
                     for (rule.body) |condition_id| {
                         if (unify_lib.unify(ctx.engine.matrix, &subst, ctx.fact_id, condition_id) catch false) {
                             ctx.engine.triggerRule(rule.head, &subst) catch |err| {
-                                platform.debug.print("[REACTION] Erreur triggerRule: {s}\n", .{@errorName(err)});
+                                platform.dbg("[REACTION] Erreur triggerRule: {s}\n", .{@errorName(err)});
                             };
                         }
                     }
@@ -37,7 +37,7 @@ pub const ReactionEngine = struct {
         const new_fact_id = try self.materialize(head_id, subst);
 
         // On informe le monde
-        platform.debug.print("[REACTION] Règle activée ! Conclusion matérialisée (ID: {d})\n", .{new_fact_id});
+        platform.dbg("[REACTION] Règle activée ! Conclusion matérialisée (ID: {d})\n", .{new_fact_id});
     }
 
     fn materialize(self: *ReactionEngine, node_id: BobId, subst: *unify_lib.Substitution) !BobId {

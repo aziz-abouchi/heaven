@@ -40,6 +40,6 @@ pub const CScanner = struct {
             },
         };
         _ = try self.matrix.addNode(node);
-        // platform.debug.print("[ABSORB-C] {s} injecté dans la Matrix.\n", .{name});
+        // platform.dbg("[ABSORB-C] {s} injecté dans la Matrix.\n", .{name});
     }
 };

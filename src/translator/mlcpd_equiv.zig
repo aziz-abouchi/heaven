@@ -86,7 +86,7 @@ pub fn proveEquivalence(
     defer ctx.deinit();
 
     const t1 = checker.inferType(&ctx, e1) catch |err| {
-        // platform.debug.print("[proveEquivalence] inferType(e1) failed: {}\n", .{err});
+        // platform.dbg("[proveEquivalence] inferType(e1) failed: {}\n", .{err});
         return EquivResult{
             .equivalent = false,
             .proof = null,
@@ -96,10 +96,10 @@ pub fn proveEquivalence(
             .error_message = try std.fmt.allocPrint(allocator, "Type inference failed for e1: {}", .{err}),
         };
     };
-    // platform.debug.print("[proveEquivalence] inferType(e1) OK: t1={}\n", .{t1});
+    // platform.dbg("[proveEquivalence] inferType(e1) OK: t1={}\n", .{t1});
 
     const t2 = checker.inferType(&ctx, e2) catch |err| {
-        // platform.debug.print("[proveEquivalence] inferType(e2) failed: {}\n", .{err});
+        // platform.dbg("[proveEquivalence] inferType(e2) failed: {}\n", .{err});
         return EquivResult{
             .equivalent = false,
             .proof = null,
@@ -109,11 +109,11 @@ pub fn proveEquivalence(
             .error_message = try std.fmt.allocPrint(allocator, "Type inference failed for e2: {}", .{err}),
         };
     };
-    // platform.debug.print("[proveEquivalence] inferType(e2) OK: t2={}\n", .{t2});
+    // platform.dbg("[proveEquivalence] inferType(e2) OK: t2={}\n", .{t2});
 
     // Étape 2 : Si types différents → non équivalents
     const types_eq = checker.typesEqual(t1, t2);
-    // platform.debug.print("[proveEquivalence] typesEqual(t1, t2) = {}\n", .{types_eq});
+    // platform.dbg("[proveEquivalence] typesEqual(t1, t2) = {}\n", .{types_eq});
     if (!types_eq) {
         return EquivResult{
             .equivalent = false,
@@ -126,23 +126,23 @@ pub fn proveEquivalence(
     }
 
     // Étape 3 : Normaliser vers WHNF
-    // platform.debug.print("[proveEquivalence] Normalizing to WHNF...\n", .{});
+    // platform.dbg("[proveEquivalence] Normalizing to WHNF...\n", .{});
     const n1 = checker.whnf(e1) catch |err| {
         // Fallback : comparaison syntaxique
         return proveStructuralFallback(allocator, store, e1, e2, err);
     };
-    // platform.debug.print("[proveEquivalence] whnf(e1) = {}\n", .{n1});
+    // platform.dbg("[proveEquivalence] whnf(e1) = {}\n", .{n1});
 
     const n2 = checker.whnf(e2) catch |err| {
-        // platform.debug.print("[proveEquivalence] whnf(e2) failed: {}\n", .{err});
+        // platform.dbg("[proveEquivalence] whnf(e2) failed: {}\n", .{err});
         return proveStructuralFallback(allocator, store, e1, e2, err);
     };
-    // platform.debug.print("[proveEquivalence] whnf(e2) = {}\n", .{n2});
-    // platform.debug.print("[proveEquivalence] n1 == n2 ? {}\n", .{n1 == n2});
+    // platform.dbg("[proveEquivalence] whnf(e2) = {}\n", .{n2});
+    // platform.dbg("[proveEquivalence] n1 == n2 ? {}\n", .{n1 == n2});
 
     // Étape 4 : Si WHNF identiques (même Id) → construire ProofTerm par réflexivité
     if (n1 == n2) {
-        // platform.debug.print("[proveEquivalence] Reflexivity (same Id)\n", .{});
+        // platform.dbg("[proveEquivalence] Reflexivity (same Id)\n", .{});
         return EquivResult{
             .equivalent = true,
             .proof = ProofTerm{ .refl = @intCast(n1) },
@@ -154,12 +154,12 @@ pub fn proveEquivalence(
     }
 
     // Étape 5 : Comparaison structurelle des WHNF (valeurs égales mais Id différents)
-    // platform.debug.print("[proveEquivalence] Trying structural comparison...\n", .{});
+    // platform.dbg("[proveEquivalence] Trying structural comparison...\n", .{});
     const structurally_equal = compareWhnfStructures(store, n1, n2);
-    // platform.debug.print("[proveEquivalence] structurally_equal = {}\n", .{structurally_equal});
+    // platform.dbg("[proveEquivalence] structurally_equal = {}\n", .{structurally_equal});
 
     if (structurally_equal) {
-        // platform.debug.print("[proveEquivalence] Structurally equal\n", .{});
+        // platform.dbg("[proveEquivalence] Structurally equal\n", .{});
         // Construire preuve par congruence
         const proof = try buildCongruenceProof(allocator, store, n1, n2);
         return EquivResult{

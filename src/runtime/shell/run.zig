@@ -69,7 +69,7 @@ pub fn run(self: *Shell) !void {
                 {
                     found = true;
                     if (comptime std.mem.eql(u8, cmd_def.name, "exit")) {
-                        platform.debug.print("[HEAVEN] Arrêt du noyau.\n", .{});
+                        platform.dbg("[HEAVEN] Arrêt du noyau.\n", .{});
                         break :main_loop;
                     } else if (comptime std.mem.eql(u8, cmd_def.name, "run*")) {
                         commands.cmdRunStar(self, args, 20);

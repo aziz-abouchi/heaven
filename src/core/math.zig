@@ -47,7 +47,7 @@ pub const Math = struct {
 
         const id = try self.bridge.importExpr(processed);
 
-        // ✅ Récupérer le Sym de la variable (pas l'Id)
+        // Récupérer le Sym de la variable (pas l'Id)
         const var_node = self.store.get(try self.store.sym(var_name));
         const var_sym = var_node.payload; // C'est un Sym !
 
@@ -128,14 +128,14 @@ pub const Math = struct {
         const node = self.store.get(expr_id);
 
         if (@import("builtin").mode == .Debug) {
-            platform.debug.print("[deriveExpr] node tag={s}\n", .{@tagName(node.tag)});
+            platform.dbg("[deriveExpr] node tag={s}\n", .{@tagName(node.tag)});
         }
 
         return switch (node.tag) {
             .lit => try self.store.int(0),
 
             .sym => blk: {
-                // ✅ MAINTENANT : node.payload et variable sont tous les deux des Sym
+                // MAINTENANT : node.payload et variable sont tous les deux des Sym
                 if (node.payload == variable) {
                     break :blk try self.store.int(1);
                 }
@@ -153,7 +153,7 @@ pub const Math = struct {
                 const args = all[1..];
 
                 if (@import("builtin").mode == .Debug) {
-                    platform.debug.print("[deriveExpr] apply op={s}, args.len={d}\n", .{ op, args.len });
+                    platform.dbg("[deriveExpr] apply op={s}, args.len={d}\n", .{ op, args.len });
                 }
 
                 if (std.mem.eql(u8, op, "+")) {
@@ -213,14 +213,31 @@ pub const Math = struct {
                     const two = try self.store.int(2);
                     const v_sq = try self.store.apply(pow_sym, &.{ v, two });
                     break :blk try self.store.apply(div_sym, &.{ num, v_sq });
-                } else {
-                    platform.debug.print("[deriveExpr] unsupported op: {s}\n", .{op});
+                } else if (std.mem.eql(u8, op, "sin")) {
+                    const du = try self.deriveExpr(args[0], variable);
+                    const cos_sym = try self.store.sym("cos");
+                    const mul_sym = try self.store.sym("*");
+                    const cos_u = try self.store.apply(cos_sym, &.{args[0]});
+                    break :blk try self.store.apply(mul_sym, &.{ cos_u, du });
+                } else if (std.mem.eql(u8, op, "cos")) {
+                    const du = try self.deriveExpr(args[0], variable);
+                    const sin_sym = try self.store.sym("sin");
+                    const mul_sym = try self.store.sym("*");
+                    const minus_sym = try self.store.sym("-");
+                    const zero = try self.store.int(0);
+                    const sin_u = try self.store.apply(sin_sym, &.{args[0]});
+                    const neg_sin = try self.store.apply(minus_sym, &.{ zero, sin_u });
+                    break :blk try self.store.apply(mul_sym, &.{ neg_sin, du });
+                }
+                // exp, log : même pattern
+                else {
+                    platform.dbg("[deriveExpr] unsupported op: {s}\n", .{op});
                     return error.UnsupportedDeriveOp;
                 }
             },
 
             else => {
-                platform.debug.print("[deriveExpr] fallback tag={s}\n", .{@tagName(node.tag)});
+                platform.dbg("[deriveExpr] fallback tag={s}\n", .{@tagName(node.tag)});
                 return try self.store.int(0);
             },
         };
@@ -253,11 +270,39 @@ pub const Math = struct {
                 if (all.len < 1) return expr_id;
                 const args = all[1..];
 
-                // ✅ Simplifier récursivement les enfants d'abord
+                // Simplifier récursivement les enfants d'abord
                 var new_args = try self.allocator.alloc(Id, args.len);
                 defer self.allocator.free(new_args);
                 for (args, 0..) |arg, i| {
                     new_args[i] = try self.simplifyStep(arg, changed);
+                }
+
+                // ── Constant folding : (+ 2 3) → 5 ──
+                if (args.len == 2) {
+                    if (self.getIntLit(new_args[0])) |a| {
+                        if (self.getIntLit(new_args[1])) |b| {
+                            if (std.mem.eql(u8, op, "+")) {
+                                changed.* = true;
+                                return try self.store.int(a + b);
+                            }
+                            if (std.mem.eql(u8, op, "-")) {
+                                changed.* = true;
+                                return try self.store.int(a - b);
+                            }
+                            if (std.mem.eql(u8, op, "*")) {
+                                changed.* = true;
+                                return try self.store.int(a * b);
+                            }
+                            if (std.mem.eql(u8, op, "/") and b != 0) {
+                                changed.* = true;
+                                return try self.store.int(@divTrunc(a, b));
+                            }
+                            if (std.mem.eql(u8, op, "^") and b >= 0 and b < 32) {
+                                changed.* = true;
+                                return try self.store.int(std.math.pow(i64, a, b));
+                            }
+                        }
+                    }
                 }
 
                 // Règle : (* 1 x) → x  et  (* x 1) → x
@@ -333,6 +378,15 @@ pub const Math = struct {
     }
 
     // Helper :
+    fn getIntLit(self: *Math, id: Id) ?i64 {
+        const node = self.store.get(id);
+        if (node.tag != .lit) return null;
+        return switch (self.store.lits.items[node.aux]) {
+            .int => |v| v,
+            else => null,
+        };
+    }
+
     pub fn structuralEq(self: *Math, a: Id, b: Id) bool {
         if (a == b) return true;
         const na = self.store.get(a);
@@ -346,7 +400,7 @@ pub const Math = struct {
             },
             .sym => return na.payload == nb.payload,
             .apply => {
-                if (na.payload != nb.payload) return false;
+                //  Le span_a contient [func, args...] — tout est comparé récursivement
                 const sa = self.store.spanSliceConst(na.span_a);
                 const sb = self.store.spanSliceConst(nb.span_a);
                 if (sa.len != sb.len) return false;
@@ -903,7 +957,7 @@ pub const Math = struct {
     }
 
     pub fn simplify(self: *Math, input: []const u8) ![]u8 {
-        platform.debug.print("[core math SIMPLIFY] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
+        platform.dbg("[core math SIMPLIFY] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
         const id = try self.bridge.importExpr(input);
         const simplified = try self.simplifyMath(id);
         return expr.toString(self.store, simplified, self.allocator);
@@ -1208,5 +1262,34 @@ pub const Math = struct {
         for (0..width - 19) |_| try buf.append(self.allocator, ' ');
         try buf.appendSlice(self.allocator, "10\n");
         return buf.toOwnedSlice(self.allocator);
+    }
+
+    /// Pliage constant récursif pur : (* 2 3) → 6, sans appliquer de règles.
+    pub fn foldConstants(self: *Math, expr_id: Id) !Id {
+        const node = self.store.get(expr_id);
+        switch (node.tag) {
+            .lit, .sym => return expr_id,
+            .apply => {
+                const fnode = self.store.get(node.payload);
+                if (fnode.tag != .sym) return expr_id;
+                const op = self.store.interner.resolve(fnode.payload);
+                const all = self.store.spanSliceConst(node.span_a);
+                if (all.len != 3) return expr_id;
+                const a_f = try self.foldConstants(all[1]);
+                const b_f = try self.foldConstants(all[2]);
+                if (self.getIntLit(a_f)) |a| {
+                    if (self.getIntLit(b_f)) |b| {
+                        if (std.mem.eql(u8, op, "+")) return try self.store.int(a + b);
+                        if (std.mem.eql(u8, op, "-")) return try self.store.int(a - b);
+                        if (std.mem.eql(u8, op, "*")) return try self.store.int(a * b);
+                        if (std.mem.eql(u8, op, "/") and b != 0) return try self.store.int(@divTrunc(a, b));
+                        if (std.mem.eql(u8, op, "^") and b >= 0 and b < 16) return try self.store.int(std.math.pow(i64, a, b));
+                    }
+                }
+                const f = try self.store.sym(op);
+                return try self.store.apply(f, &.{ a_f, b_f });
+            },
+            else => return expr_id,
+        }
     }
 };

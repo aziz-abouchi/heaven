@@ -46,11 +46,7 @@ fn setupCommands(allocator: std.mem.Allocator) !*TestContext {
 
     ctx.store = Store.init(ctx.alloc);
     ctx.env = engine_expr.Env.init(ctx.alloc);
-    ctx.engine = Engine{
-        .allocator = ctx.alloc,
-        .store = &ctx.store,
-        .env = &ctx.env,
-    };
+    ctx.engine = engine_expr.Engine.initTest(ctx.alloc, &ctx.store, &ctx.env);
     ctx.bridge = matrix_bridge.MatrixBridge.init(&ctx.store, ctx.alloc);
     ctx.parser = parse.Parser.init(&ctx.store, &ctx.engine, &ctx.env, ctx.alloc);
     ctx.math_inst = math.Math.init(&ctx.store, &ctx.engine, &ctx.bridge, &ctx.parser, ctx.alloc);

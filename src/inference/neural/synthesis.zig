@@ -48,7 +48,7 @@ pub const ProofSynthesizer = struct {
             };
 
             if (is_match or name_match) {
-                // platform.debug.print("[SYNTH] Preuve directe: {d} -> {d}\n", .{ term_id, hole_id });
+                // platform.dbg("[SYNTH] Preuve directe: {d} -> {d}\n", .{ term_id, hole_id });
                 self.matrix.fuseNodes(hole_id, term_id); // remplacé unify par fuseNodes
                 _ = self.matrix.addEdge(term_id, hole_id, "PROVES") catch {};
                 return true;
@@ -82,7 +82,7 @@ pub const ProofSynthesizer = struct {
                             _ = self.matrix.addEdge(arg_hole, app_id, "ARG") catch {};
                             _ = self.matrix.addEdge(app_id, hole_id, "RESOLVE") catch {};
 
-                            // platform.debug.print("[SYNTH] Déduction réussie via Application {d}\n", .{app_id});
+                            // platform.dbg("[SYNTH] Déduction réussie via Application {d}\n", .{app_id});
                             return true;
                         }
                     }

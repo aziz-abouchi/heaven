@@ -63,7 +63,7 @@ pub fn init(port: u16) !void {
 
     current_port = port;
 
-    // platform.debug.print("[NET] Listening on {d}\n", .{port});
+    // platform.dbg("[NET] Listening on {d}\n", .{port});
 }
 
 // --------------------------------------------------
@@ -128,7 +128,7 @@ fn sendPacket(addr: std.net.Address, header: protocol.Header, payload: []const u
     // Écriture du payload
     try writer.writeAll(payload);
 
-    // platform.debug.print("[SEND] Magic: {X:0>8} | Version: {d} | Kind: {any}\n", .{ header.magic, header.version, header.kind });
+    // platform.dbg("[SEND] Magic: {X:0>8} | Version: {d} | Kind: {any}\n", .{ header.magic, header.version, header.kind });
 
     _ = try platform.posix.sendto(sock, buf[0..fbs.pos], 0, &addr.any, addr.getOsSockLen());
 }
@@ -206,7 +206,7 @@ fn parsePacket(buf: []u8, n: usize) ?struct { header: protocol.Header, payload: 
 
     const header_size = @sizeOf(protocol.Header);
     if (header_size + h.length > n) {
-        // platform.debug.print("[NET] ERREUR: Payload trop grand ({d} > {d})\n", .{ h.length, n - header_size });
+        // platform.dbg("[NET] ERREUR: Payload trop grand ({d} > {d})\n", .{ h.length, n - header_size });
         return null;
     }
     const payload = buf[header_size .. header_size + h.length];
@@ -222,7 +222,7 @@ fn parseHeader(reader: anytype) !?protocol.Header {
     const version = try reader.readInt(u8, .big);
     const kind_raw = try reader.readInt(u8, .big);
     const kind = std.meta.intToEnum(protocol.MsgKind, kind_raw) catch {
-        // platform.debug.print("[NET] ERREUR: Kind inconnu {any}\n", .{err});
+        // platform.dbg("[NET] ERREUR: Kind inconnu {any}\n", .{err});
         return null; // On abandonne le paquet proprement sans crash
     };
     const ttl = try reader.readInt(u8, .big);
@@ -255,18 +255,18 @@ pub fn listen(allocator: std.mem.Allocator) !?IncomingWithAddr {
     // Si le paquet est trop court pour contenir un header, on ignore silencieusement
     if (n < @sizeOf(protocol.Header)) {
         // Optionnel : logger uniquement si c'est un ping/discovery
-        // platform.debug.print("[HEX DUMP] {d}, {any}\n", .{ n, buf[0..n] });
+        // platform.dbg("[HEX DUMP] {d}, {any}\n", .{ n, buf[0..n] });
         return null;
     }
 
     if (n == 6) {
         // C'est un paquet de présence, on traite l'émetteur
         // Pas besoin de parser tout le header
-        // platform.debug.print("[HEX DUMP] {d}, {any}\n", .{ n, buf[0..n] });
+        // platform.dbg("[HEX DUMP] {d}, {any}\n", .{ n, buf[0..n] });
         // C'est un Ping, on lit juste le début pour valider le Magic
         const magic = std.mem.readInt(u32, buf[0..4], .big);
         if (magic == protocol.MAGIC) {
-            // platform.debug.print("[NET] MAGIC lu comme (Big-Endian): {X:0>8}, buffer:{any}\n", .{ magic, buf[0..n] });
+            // platform.dbg("[NET] MAGIC lu comme (Big-Endian): {X:0>8}, buffer:{any}\n", .{ magic, buf[0..n] });
             updatePeer(allocator, std.net.Address{ .any = addr_raw }) catch {};
         }
         return null;
@@ -284,22 +284,22 @@ pub fn listen(allocator: std.mem.Allocator) !?IncomingWithAddr {
         // On lit en Big-Endian explicite (les octets arrivent dans l'ordre 0B 0B CA FE)
         const magic = std.mem.readInt(u32, raw_magic, .big);
 
-        // platform.debug.print("[NET] MAGIC lu comme (Big-Endian): {X:0>8}, buffer:{any}\n", .{ magic, buf[0..4] });
-        // platform.debug.print("[HEX DUMP] {d}, {any}\n", .{ n, buf[0..n] });
+        // platform.dbg("[NET] MAGIC lu comme (Big-Endian): {X:0>8}, buffer:{any}\n", .{ magic, buf[0..4] });
+        // platform.dbg("[HEX DUMP] {d}, {any}\n", .{ n, buf[0..n] });
 
         // 2. Lecture du reste du Header (le reader est déjà positionné juste après le magic)
         const h_opt = try parseHeader(reader);
         const h = h_opt orelse {
-            // platform.debug.print("[NET] Header invalide ou paquet ignoré\n", .{});
+            // platform.dbg("[NET] Header invalide ou paquet ignoré\n", .{});
             return null;
         };
 
         // 3. Diagnostics sur le paquet reçu
-        // platform.debug.print("[NET] Reçu {d} octets | Kind: {any} | Len: {d}\n", .{ n, h.kind, h.length });
-        // platform.debug.print("[RECV] Magic: {X:0>8} | Version: {d} | Kind: {any}\n", .{ h.magic, h.version, h.kind });
+        // platform.dbg("[NET] Reçu {d} octets | Kind: {any} | Len: {d}\n", .{ n, h.kind, h.length });
+        // platform.dbg("[RECV] Magic: {X:0>8} | Version: {d} | Kind: {any}\n", .{ h.magic, h.version, h.kind });
 
         if (magic != protocol.MAGIC) {
-            // platform.debug.print("[NET] Échec ! Attendu {X:0>8}\n", .{protocol.MAGIC});
+            // platform.dbg("[NET] Échec ! Attendu {X:0>8}\n", .{protocol.MAGIC});
             return null;
         }
 
@@ -307,13 +307,13 @@ pub fn listen(allocator: std.mem.Allocator) !?IncomingWithAddr {
 
         const header_size = @sizeOf(protocol.Header);
         if (header_size + h.length > n) {
-            // platform.debug.print("[NET] ERREUR: Payload trop grand ({d} > {d})\n", .{ h.length, n - header_size });
+            // platform.dbg("[NET] ERREUR: Payload trop grand ({d} > {d})\n", .{ h.length, n - header_size });
             return null;
         }
         const payload = buf[header_size .. header_size + h.length];
 
         if (protocol.computeChecksum(payload) != h.checksum) {
-            // platform.debug.print("[NET] Erreur checksum !\n", .{});
+            // platform.dbg("[NET] Erreur checksum !\n", .{});
             return null;
         }
 
@@ -352,7 +352,7 @@ pub fn listen(allocator: std.mem.Allocator) !?IncomingWithAddr {
 fn printAddr(addr: std.net.Address) void {
     const port = addr.getPort();
     if (addr.any.family == platform.posix.AF.INET6) {
-        platform.debug.print("[::1]:{d}", .{port});
+        platform.dbg("[::1]:{d}", .{port});
     } else {
         platform.debug.print("127.0.0.1:{d}", .{port});
     }
@@ -443,7 +443,7 @@ pub fn handleIncoming(allocator: std.mem.Allocator, matrix: *matrix_lib.Matrix, 
 
     switch (incoming) {
         .Signal => {
-            // platform.debug.print("[NET] Sync demandée par ", .{});
+            // platform.dbg("[NET] Sync demandée par ", .{});
             printAddr(src_addr);
             // platform.debug.print("\n", .{});
 
@@ -458,7 +458,7 @@ pub fn handleIncoming(allocator: std.mem.Allocator, matrix: *matrix_lib.Matrix, 
             if (data.len == @sizeOf(swarm_proto.SwarmTask)) {
                 const task = std.mem.bytesToValue(swarm_proto.SwarmTask, data[0..@sizeOf(swarm_proto.SwarmTask)]);
                 if (task.magic == 0x5441534B) {
-                    // platform.debug.print("[SWARM] Task reçue: {s}\n", .{task.getExpr()});
+                    // platform.dbg("[SWARM] Task reçue: {s}\n", .{task.getExpr()});
                     if (swarm_rt.global_inbox) |inbox| {
                         inbox.append(allocator, task) catch {};
                     }
@@ -468,7 +468,7 @@ pub fn handleIncoming(allocator: std.mem.Allocator, matrix: *matrix_lib.Matrix, 
             if (data.len == @sizeOf(swarm_proto.SwarmResult)) {
                 const result = std.mem.bytesToValue(swarm_proto.SwarmResult, data[0..@sizeOf(swarm_proto.SwarmResult)]);
                 if (result.magic == 0x52455355) {
-                    // platform.debug.print("[SWARM] Résultat: {s} (de Bob:{d})\n", .{ result.getResult(), result.solver_port });
+                    // platform.dbg("[SWARM] Résultat: {s} (de Bob:{d})\n", .{ result.getResult(), result.solver_port });
                     if (swarm_rt.global_results) |results| {
                         results.append(allocator, result) catch {};
                     }
@@ -478,14 +478,14 @@ pub fn handleIncoming(allocator: std.mem.Allocator, matrix: *matrix_lib.Matrix, 
             // Else: regular MatrixSync
             if (false) {
                 // TASK
-                // platform.debug.print("[SWARM] Task reçue\n", .{});
+                // platform.dbg("[SWARM] Task reçue\n", .{});
                 if (swarm_rt.global_inbox) |inbox| {
                     const task = std.mem.bytesToValue(swarm_proto.SwarmTask, data[0..@sizeOf(swarm_proto.SwarmTask)]);
                     inbox.append(allocator, task) catch {};
                 }
             } else {
                 if (data.len > 100) {
-                    // platform.debug.print("[NET] Fusion massive reçue ({d} octets)\n", .{data.len});
+                    // platform.dbg("[NET] Fusion massive reçue ({d} octets)\n", .{data.len});
                 }
                 const node = try allocator.create(dispatch.CommandNode);
                 node.* = .{
@@ -504,7 +504,7 @@ pub fn handleIncoming(allocator: std.mem.Allocator, matrix: *matrix_lib.Matrix, 
 
             _ = egraph.uf.merge(class_a, class_b);
 
-            // platform.debug.print("[SWARM] Union fusionnée: {X} == {X}\n", .{ union_payload.hash_a, union_payload.hash_b });
+            // platform.dbg("[SWARM] Union fusionnée: {X} == {X}\n", .{ union_payload.hash_a, union_payload.hash_b });
         },
         else => {},
     }
@@ -553,7 +553,7 @@ pub const SwarmManager = struct {
     pub fn processSwarmMessage(self: *SwarmManager, header: protocol.Header, payload: []const u8, src_addr: std.net.Address) !void {
         switch (header.kind) {
             .SwarmQueryProlog => {
-                // platform.debug.print("[SWARM] Requête reçue de {any}: :ask {s}\n", .{ src_addr, payload });
+                // platform.dbg("[SWARM] Requête reçue de {any}: :ask {s}\n", .{ src_addr, payload });
 
                 // 1. Exécuter le solveur Prolog local sur le payload
                 // (Ici on simule la réponse, à connecter à ton prolog.solve())
@@ -578,7 +578,7 @@ pub const SwarmManager = struct {
             },
 
             .SwarmReplyProlog => {
-                // platform.debug.print("[SWARM] Résolution reçue de l'essaim: {s}\n", .{payload});
+                // platform.dbg("[SWARM] Résolution reçue de l'essaim: {s}\n", .{payload});
                 // Injecter le résultat sous forme de fait dans la Matrix locale
                 // pour que le shell ou l'E-graph puisse consommer la donnée immédiate.
                 const cmd_node = try self.allocator.create(dispatch.CommandNode);
@@ -603,7 +603,7 @@ pub const SwarmManager = struct {
                 // 3. Trigger de saturation (pour que l'eGraph propage les nouvelles égalités)
                 self.egraph.rebuild();
 
-                // platform.debug.print("[SWARM] Fusion des classes {X} et {X}\n", .{ union_payload.hash_a, union_payload.hash_b });
+                // platform.dbg("[SWARM] Fusion des classes {X} et {X}\n", .{ union_payload.hash_a, union_payload.hash_b });
             },
             else => {},
         }

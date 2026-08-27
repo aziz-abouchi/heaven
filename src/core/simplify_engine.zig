@@ -138,7 +138,7 @@ pub const SimplifyEngine = struct {
     }
 
     pub fn simplifyRec(self: *SimplifyEngine, id: Id, depth: u32) !Id {
-        platform.debug.print("[src/core/simplify_engine.zig simplifyRec] called with id={d}, depth={d}\n", .{ id, depth });
+        platform.dbg("[src/core/simplify_engine.zig simplifyRec] called with id={d}, depth={d}\n", .{ id, depth });
         if (depth > 50) return id;
         if (id >= self.store.len()) return id;
         const node = self.store.get(id);
@@ -179,11 +179,11 @@ pub const SimplifyEngine = struct {
                 const rhs_id = rhs_span[0];
                 var bindings: std.AutoHashMapUnmanaged(u32, Id) = .{};
                 defer bindings.deinit(self.allocator);
-                //platform.debug.print("[simplifyRec] trying rule {d}: lhs={d}, rhs={d} on current={d}\n", .{ rule_id, lhs_id, rhs_id, current });
+                //platform.dbg("[simplifyRec] trying rule {d}: lhs={d}, rhs={d} on current={d}\n", .{ rule_id, lhs_id, rhs_id, current });
                 if (pattern_mod.exprPatternMatch(self.store, lhs_id, current, &bindings, self.allocator)) {
                     const new_id = try pattern_mod.substitutePattern(self.store, rhs_id, &bindings, self.allocator);
                     if (new_id < self.store.len() and new_id != current) {
-                        platform.debug.print("[simplifyRec] applying rule, new_id={d}\n", .{new_id});
+                        platform.dbg("[simplifyRec] applying rule, new_id={d}\n", .{new_id});
                         current = new_id;
                         changed = true;
                         break;
@@ -246,18 +246,18 @@ pub const SimplifyEngine = struct {
     }
 
     pub fn simplifyWithEGraph(self: *SimplifyEngine, id: Id, qtt: ?*egraph_mod.QttCost, type_env: ?*types.TypeEnv) !Id {
-        platform.debug.print("[SimplifyEngine] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
+        platform.dbg("[SimplifyEngine] kb.rules.len = {d}\n", .{self.kb.rules.items.len});
         if (id >= self.store.len()) {
-            platform.debug.print("[EGraph] ID invalide: {} >= store.len() = {}\n", .{ id, self.store.len() });
+            platform.dbg("[EGraph] ID invalide: {} >= store.len() = {}\n", .{ id, self.store.len() });
             return id;
         }
 
         const node = self.store.get(id);
         const tag_int = @intFromEnum(node.tag);
-        platform.debug.print("[EGraph] node tag int = {d}\n", .{tag_int});
+        platform.dbg("[EGraph] node tag int = {d}\n", .{tag_int});
         if (tag_int < @intFromEnum(expr.Tag.relation) + 1) {
             const tag = @as(expr.Tag, @enumFromInt(tag_int));
-            platform.debug.print("[EGraph] node tag = {s}\n", .{@tagName(tag)});
+            platform.dbg("[EGraph] node tag = {s}\n", .{@tagName(tag)});
         } else {
             return id;
         }
@@ -277,7 +277,7 @@ pub const SimplifyEngine = struct {
         defer rewriter.deinit();
 
         const merges = try rewriter.saturate(10000);
-        platform.debug.print("[EGraph] saturation: {} merges\n", .{merges});
+        platform.dbg("[EGraph] saturation: {} merges\n", .{merges});
 
         const extracted = if (type_env) |tenv| blk: {
             var mem_cost = egraph_mod.MemoryCost{

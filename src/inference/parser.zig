@@ -64,7 +64,7 @@ pub const Parser = struct {
 
     pub fn unifyEverything(self: *Parser) !void {
         _ = try reasoning.Reasoner.process(self.matrix);
-        // platform.debug.print("[PARSER] Unification globale terminée.\n", .{});
+        // platform.dbg("[PARSER] Unification globale terminée.\n", .{});
     }
 
     fn parseTypeExpression(self: *Parser, expr_str: []const u8) !matrix_lib.BobId {

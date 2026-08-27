@@ -43,15 +43,15 @@ pub const UniversalIngestor = struct {
     // ─── Points d'entrée publics ──────────────────────────────
 
     pub fn ingest(self: *UniversalIngestor, file_path: []const u8, content: []const u8) !void {
-        // platform.debug.print("[INGEST] fichier={s}\n", .{file_path});
+        // platform.dbg("[INGEST] fichier={s}\n", .{file_path});
         const lang_name = self.getLanguageFromExt(file_path) orelse {
-            // platform.debug.print("[FORGE] Extension non reconnue: {s}\n", .{file_path});
+            // platform.dbg("[FORGE] Extension non reconnue: {s}\n", .{file_path});
             return error.LanguageNotFound;
         };
 
         const ts_lang = self.getTSLanguage(lang_name);
         const ok = ts.ts_parser_set_language(self.parser, @ptrCast(ts_lang));
-        if (!ok) platform.debug.print("[FORGE] ERREUR: set_language ECHEC!\n", .{});
+        if (!ok) platform.dbg("[FORGE] ERREUR: set_language ECHEC!\n", .{});
 
         const tree = ts.ts_parser_parse_string(self.parser, null, content.ptr, @intCast(content.len));
         if (tree == null) return error.ParseFailed;
@@ -63,19 +63,19 @@ pub const UniversalIngestor = struct {
         self.runQueries(root, content, lang_name) catch {};
 
         // Phase 2 : Traversée IR récursive
-        // platform.debug.print("[DIAG] lang={s} children={d}\n", .{ lang_name, ts.ts_node_named_child_count(root) });
+        // platform.dbg("[DIAG] lang={s} children={d}\n", .{ lang_name, ts.ts_node_named_child_count(root) });
         var di: u32 = 0;
         while (di < @min(ts.ts_node_named_child_count(root), 5)) : (di += 1) {
             const dc = ts.ts_node_named_child(root, di);
             const dt = ts.ts_node_type(dc);
-            if (dt != null) platform.debug.print("[DIAG]   child[{d}]: {s}\n", .{ di, std.mem.span(dt) });
+            if (dt != null) platform.dbg("[DIAG]   child[{d}]: {s}\n", .{ di, std.mem.span(dt) });
         }
         _ = try self.traverseToIR(root, content);
 
         // GREEN : Libérer toutes les allocations temporaires d'un coup
         _ = self.arena.reset(.retain_capacity);
 
-        platform.debug.print("[FORGE] ✓ {s} ({s}) → {d} nœuds\n", .{
+        platform.dbg("[FORGE] ✓ {s} ({s}) → {d} nœuds\n", .{
             file_path,
             lang_name,
             self.matrix.nodes.count(),

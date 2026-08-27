@@ -24,7 +24,7 @@ pub fn ingest_commands(matrix: *matrix_lib.Matrix) void {
 
             .MatrixSync => |data| {
                 matrix.mergeDelta(data) catch |err| {
-                    platform.debug.print("[LOOP] Échec de fusion: {s}\n", .{@errorName(err)});
+                    platform.dbg("[LOOP] Échec de fusion: {s}\n", .{@errorName(err)});
                 };
             },
 
@@ -47,9 +47,9 @@ pub fn select_actions(engine: *heaven.Engine, matrix: *matrix_lib.Matrix) void {
             _ = _symbol;
             const selected = ctx.engine.srg.select(id);
             if (selected != 0) {
-                platform.debug.print("[LOOP] Action {d} activée pour le symbole {d}\n", .{ selected, id });
+                platform.dbg("[LOOP] Action {d} activée pour le symbole {d}\n", .{ selected, id });
                 ctx.engine.pulse(ctx.matrix, selected, 0) catch |err| {
-                    platform.debug.print("[LOOP] Échec pulse: {s}\n", .{@errorName(err)});
+                    platform.dbg("[LOOP] Échec pulse: {s}\n", .{@errorName(err)});
                 };
             }
         }

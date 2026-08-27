@@ -101,7 +101,7 @@ fn allocator() std.mem.Allocator {
     return platform.allocator();
 }
 
-var heaven: ?Heaven = null;
+var heaven: ?*Heaven = null;
 const ProofEntry = struct { name: [64]u8, name_len: u8, stmt: [128]u8, stmt_len: u8, verified: bool };
 var proof_list: [64]ProofEntry = undefined;
 var proof_count: u32 = 0;
@@ -171,7 +171,7 @@ export fn heavenEval(len: u32) u32 {
     }
 
     // Fallback : utiliser l'ancien evaluate (sans commandes)
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     h.engine.fuel = 1000000;
 
     // Try function call by juxtaposition: "fib 5" -> "fib(5)"
@@ -219,7 +219,7 @@ export fn heavenEval(len: u32) u32 {
 }
 
 export fn heavenSimplify(len: u32) u32 {
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     const result = h.simplify(input_buf[0..len]) catch {
         setOutput("error");
         return 5;
@@ -230,7 +230,7 @@ export fn heavenSimplify(len: u32) u32 {
 }
 
 export fn heavenTypeOf(len: u32) u32 {
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     const result = h.typeOf(input_buf[0..len]) catch {
         setOutput("?");
         return 1;
@@ -241,7 +241,7 @@ export fn heavenTypeOf(len: u32) u32 {
 }
 
 export fn heavenExplain(len: u32) u32 {
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     const result = h.explain(input_buf[0..len]) catch {
         setOutput("error");
         return 5;
@@ -252,7 +252,7 @@ export fn heavenExplain(len: u32) u32 {
 }
 
 export fn heavenLatex(len: u32) u32 {
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     h.ensureInit();
     const id = h.importExpr(input_buf[0..len]) catch {
         setOutput("error");
@@ -268,7 +268,7 @@ export fn heavenLatex(len: u32) u32 {
 }
 
 export fn heavenQuote(len: u32) u32 {
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     const result = h.dumpAst(input_buf[0..len]) catch {
         setOutput("error");
         return 5;
@@ -280,7 +280,7 @@ export fn heavenQuote(len: u32) u32 {
 
 export fn heavenDefine(name_len: u32, val_offset: u32, val_len: u32) u32 {
     if (heaven == null) return 0;
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     const name = input_buf[0..name_len];
     const val = input_buf[val_offset .. val_offset + val_len];
     const result = h.define(name, val) catch {
@@ -294,7 +294,7 @@ export fn heavenDefine(name_len: u32, val_offset: u32, val_len: u32) u32 {
 
 export fn heavenRewrite(lhs_len: u32, rhs_offset: u32, rhs_len: u32) u32 {
     if (heaven == null) return 0;
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     const lhs = input_buf[0..lhs_len];
     const rhs = input_buf[rhs_offset .. rhs_offset + rhs_len];
     const result = h.addRewrite(lhs, rhs) catch {
@@ -308,7 +308,7 @@ export fn heavenRewrite(lhs_len: u32, rhs_offset: u32, rhs_len: u32) u32 {
 
 export fn heavenToC(len: u32) u32 {
     if (heaven == null) return 0;
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     h.ensureInit();
     const id = h.importExpr(input_buf[0..len]) catch {
         setOutput("error");
@@ -330,7 +330,7 @@ export fn heavenToC(len: u32) u32 {
 
 export fn heavenDerive(len: u32) u32 {
     if (heaven == null) return 0;
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     const result = h.derive(input_buf[0..len], "x") catch {
         setOutput("error");
         return 5;
@@ -342,7 +342,7 @@ export fn heavenDerive(len: u32) u32 {
 
 export fn heavenSolve(len: u32) u32 {
     if (heaven == null) return 0;
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     const result = h.solve(input_buf[0..len], "x") catch {
         setOutput("no solution");
         return 11;
@@ -354,7 +354,7 @@ export fn heavenSolve(len: u32) u32 {
 
 export fn heavenIntegrate(len: u32) u32 {
     if (heaven == null) return 0;
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     const result = h.integrate(input_buf[0..len], "x") catch {
         setOutput("error");
         return 5;
@@ -366,7 +366,7 @@ export fn heavenIntegrate(len: u32) u32 {
 
 export fn heavenExpand(len: u32) u32 {
     if (heaven == null) return 0;
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     const result = h.expand(input_buf[0..len]) catch {
         setOutput("error");
         return 5;
@@ -378,7 +378,7 @@ export fn heavenExpand(len: u32) u32 {
 
 export fn heavenFnDef(len: u32) u32 {
     if (heaven == null) return 0;
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     h.ensureInit();
     const alloc = allocator();
     const line = input_buf[0..len];
@@ -448,7 +448,7 @@ export fn heavenFnDef(len: u32) u32 {
 
 export fn heavenTheorem(len: u32) u32 {
     if (heaven == null) return 0;
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     h.ensureInit();
     const line = input_buf[0..len];
     const colon = std.mem.indexOf(u8, line, " : ") orelse {
@@ -492,7 +492,7 @@ export fn heavenTheorem(len: u32) u32 {
 
 export fn heavenAxiom(len: u32) u32 {
     if (heaven == null) return 0;
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     h.ensureInit();
     const line = input_buf[0..len];
     const colon = std.mem.indexOf(u8, line, " : ") orelse {
@@ -536,7 +536,7 @@ export fn heavenAxiom(len: u32) u32 {
 
 export fn heavenProof(len: u32) u32 {
     if (heaven == null) return 0;
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     const line = input_buf[0..len];
     var tokens = std.mem.tokenizeScalar(u8, line, ' ');
     const name = tokens.next() orelse {
@@ -697,7 +697,7 @@ export fn dispatch(cmd_len: u32, arg_len: u32) u32 {
     }
 
     // Fallback : utiliser l'ancien évaluateur
-    var h = &(heaven orelse return 0);
+    var h = heaven orelse return 0;
     h.engine.fuel = 1000000;
     const res = h.eval(full_input) catch {
         setOutput("()");
@@ -863,7 +863,7 @@ export fn tick_swarm() void {
     }
 
     // PHASE 3 : Diffuser les demandes de preuve en attente
-    if (heaven) |*h| {
+    if (heaven) |h| {
         if (h.pending_proof_request) |msg| {
             const alloc = platform.allocator();
             if (pending_proof_request_global) |old| alloc.free(old);
@@ -1139,7 +1139,7 @@ export fn getCompletions(prefix_ptr: [*]const u8, prefix_len: u32) u32 {
 
 export fn wasm_entry_process_input(ptr: [*]const u8, len: usize) void {
     const data = ptr[0..len];
-    if (heaven) |*h| {
+    if (heaven) |h| {
         // Appelez ici la fonction de votre moteur qui traite les données
         // Si vous voulez traiter cela comme une commande, utilisez dispatch :
         _ = h.eval(data) catch {

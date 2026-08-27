@@ -199,12 +199,12 @@ zig build run -- --run-test core/test_suite.hvn
 
 | Score | Fonctionnalité | Statut |
 |-------|---------------|--------|
-| 1-3 | Noyau logique, arithmétique de Peano, E-Graphs | ✅ |
-| 4-6 | Pipeline MLCPD, macros hygiéniques (`quote`/`unquote`) | ✅ |
-| 7-9 | Acteurs typés synchrones (`spawn`, `send`, `state`) | ✅ |
-| 10 | Effets algébriques (`perform`, `handle`) | ✅ |
-| 11 | Inférence de type Hindley-Milner | ✅ |
-| 12 | Green Profiling (énergie via effets algébriques) | ✅ |
+| 1-3 | Noyau logique, arithmétique de Peano, E-Graphs | |
+| 4-6 | Pipeline MLCPD, macros hygiéniques (`quote`/`unquote`) | |
+| 7-9 | Acteurs typés synchrones (`spawn`, `send`, `state`) | |
+| 10 | Effets algébriques (`perform`, `handle`) | |
+| 11 | Inférence de type Hindley-Milner | |
+| 12 | Green Profiling (énergie via effets algébriques) | |
 
 ## Limitations actuelles
 

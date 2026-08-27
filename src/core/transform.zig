@@ -53,6 +53,8 @@ pub const TransformError = error{
     InvalidPi,
     InvalidTypeAnn,
     CannotLowerFrontendTag,
+    InvalidPatternId,
+    InvalidBinding,
 };
 
 pub const TransformResult = union(enum) {

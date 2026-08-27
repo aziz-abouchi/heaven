@@ -1,5 +1,12 @@
 const std = @import("std");
 
+pub var debug_enabled: bool = false;
+
+/// Debug conditionnel : activé par HEAVEN_DEBUG=1
+pub fn dbg(comptime fmt: []const u8, args: anytype) void {
+    if (debug_enabled) debug.print(fmt, args);
+}
+
 // On définit le type localement pour éviter la dépendance circulaire avec driver.zig
 pub const NetworkDriver = struct {
     send_fn: *const fn (ctx: *anyopaque, data: []const u8) void,

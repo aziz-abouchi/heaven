@@ -564,7 +564,7 @@ pub const Store = struct {
 
     pub fn lowerRec(self: *Store, id: Id) LowerError!Id {
         const node = self.get(id);
-        //platform.debug.print("[lowerRec] id={d} tag={s}\n", .{ id, @tagName(node.tag) });
+        //platform.dbg("[lowerRec] id={d} tag={s}\n", .{ id, @tagName(node.tag) });
 
         if (node.tag.isPrimitive()) {
             var new_span_a = node.span_a;
@@ -933,6 +933,219 @@ pub fn normalizeUnicodePowers(input: []const u8, allocator: Allocator) ![]u8 {
         }
     }
     return buf.toOwnedSlice(allocator);
+}
+
+// ═══════════════════════════════════════════════════
+// SYNTAXE NATIVE → S-EXPRESSION
+// "2 + 3 * x^2" → "(+ 2 (* 3 (^ x 2)))"
+// Appeler normalizeUnicodePowers AVANT si nécessaire.
+// ═══════════════════════════════════════════════════
+
+pub const NativeError = error{ InvalidSyntax, OutOfMemory };
+
+const TokKind = enum { num, ident, str, op, lparen, rparen, comma, eof };
+const Tok = struct { kind: TokKind, text: []const u8 };
+
+const Lexer = struct {
+    src: []const u8,
+    pos: usize = 0,
+
+    fn next(self: *Lexer) NativeError!Tok {
+        while (self.pos < self.src.len and std.ascii.isWhitespace(self.src[self.pos])) self.pos += 1;
+        if (self.pos >= self.src.len) return .{ .kind = .eof, .text = "" };
+        const c = self.src[self.pos];
+
+        if (std.ascii.isDigit(c)) {
+            const start = self.pos;
+            while (self.pos < self.src.len and (std.ascii.isDigit(self.src[self.pos]) or self.src[self.pos] == '.'))
+                self.pos += 1;
+            return .{ .kind = .num, .text = self.src[start..self.pos] };
+        }
+
+        if (std.ascii.isAlphabetic(c) or c == '_' or c == '?') {
+            const start = self.pos;
+            while (self.pos < self.src.len and (std.ascii.isAlphanumeric(self.src[self.pos]) or self.src[self.pos] == '_' or self.src[self.pos] == '?'))
+                self.pos += 1;
+            return .{ .kind = .ident, .text = self.src[start..self.pos] };
+        }
+
+        if (c == '"') {
+            const start = self.pos;
+            self.pos += 1;
+            while (self.pos < self.src.len and self.src[self.pos] != '"') self.pos += 1;
+            if (self.pos >= self.src.len) return error.InvalidSyntax;
+            self.pos += 1;
+            return .{ .kind = .str, .text = self.src[start..self.pos] };
+        }
+        if (c == '(') {
+            self.pos += 1;
+            return .{ .kind = .lparen, .text = "(" };
+        }
+        if (c == ')') {
+            self.pos += 1;
+            return .{ .kind = .rparen, .text = ")" };
+        }
+        if (c == ',') {
+            self.pos += 1;
+            return .{ .kind = .comma, .text = "," };
+        }
+
+        // Opérateurs 2 chars
+        if (self.pos + 1 < self.src.len) {
+            const two = self.src[self.pos .. self.pos + 2];
+            const two_ops = [_][]const u8{ "==", "!=", "<=", ">=", "&&", "||" };
+            for (two_ops) |o| {
+                if (std.mem.eql(u8, two, o)) {
+                    self.pos += 2;
+                    return .{ .kind = .op, .text = two };
+                }
+            }
+        }
+        // Opérateurs 1 char
+        const one_ops = "+-*/%^<>!";
+        if (std.mem.indexOfScalar(u8, one_ops, c) != null) {
+            const t = self.src[self.pos .. self.pos + 1];
+            self.pos += 1;
+            return .{ .kind = .op, .text = t };
+        }
+        return error.InvalidSyntax;
+    }
+
+    fn peek(self: *Lexer) NativeError!Tok {
+        const saved = self.pos;
+        defer self.pos = saved;
+        return self.next();
+    }
+};
+
+const NativeParser = struct {
+    lex: *Lexer,
+    allocator: Allocator,
+
+    fn eq(a: []const u8, b: []const u8) bool {
+        return std.mem.eql(u8, a, b);
+    }
+
+    fn prec(op: []const u8) u8 {
+        if (eq(op, "||") or eq(op, "or")) return 1;
+        if (eq(op, "&&") or eq(op, "and")) return 2;
+        if (eq(op, "==") or eq(op, "!=")) return 3;
+        if (eq(op, "<") or eq(op, ">") or eq(op, "<=") or eq(op, ">=")) return 4;
+        if (eq(op, "+") or eq(op, "-")) return 5;
+        if (eq(op, "*") or eq(op, "/") or eq(op, "%")) return 6;
+        if (eq(op, "^")) return 8;
+        return 0;
+    }
+
+    /// Pratt parser : précédence minimale min_prec.
+    fn parseExpr(self: *NativeParser, min_prec: u8) NativeError![]u8 {
+        var lhs = try self.parseUnary();
+        while (true) {
+            const t = try self.lex.peek();
+            var op_text: []const u8 = undefined;
+            var p: u8 = 0;
+            switch (t.kind) {
+                .op => {
+                    op_text = t.text;
+                    p = prec(t.text);
+                    if (p == 0 or p < min_prec) break;
+                },
+                .ident => {
+                    if (eq(t.text, "and")) {
+                        op_text = "&&";
+                        p = 2;
+                    } else if (eq(t.text, "or")) {
+                        op_text = "||";
+                        p = 1;
+                    } else break;
+                    if (p < min_prec) break;
+                },
+                else => break,
+            }
+            _ = try self.lex.next(); // consommer l'opérateur
+            // ^ right-assoc : min = p ; les autres : min = p+1
+            const next_min: u8 = if (eq(op_text, "^")) p else p + 1;
+            const rhs = try self.parseExpr(next_min);
+            const sym = if (eq(op_text, "&&")) "and" else if (eq(op_text, "||")) "or" else op_text;
+            lhs = try std.fmt.allocPrint(self.allocator, "({s} {s} {s})", .{ sym, lhs, rhs });
+        }
+        return lhs;
+    }
+
+    fn parseUnary(self: *NativeParser) NativeError![]u8 {
+        const t = try self.lex.peek();
+        if (t.kind == .op and eq(t.text, "-")) {
+            _ = try self.lex.next();
+            // Nombre négatif direct : -5
+            const nxt = try self.lex.peek();
+            if (nxt.kind == .num) {
+                _ = try self.lex.next();
+                return std.fmt.allocPrint(self.allocator, "-{s}", .{nxt.text});
+            }
+            const operand = try self.parseUnary();
+            return std.fmt.allocPrint(self.allocator, "(- 0 {s})", .{operand});
+        }
+        if ((t.kind == .op and eq(t.text, "!")) or (t.kind == .ident and eq(t.text, "not"))) {
+            _ = try self.lex.next();
+            const operand = try self.parseUnary();
+            return std.fmt.allocPrint(self.allocator, "(! {s})", .{operand});
+        }
+        return self.parsePostfix();
+    }
+
+    fn parsePostfix(self: *NativeParser) NativeError![]u8 {
+        var base = try self.parsePrimary();
+        while (true) {
+            const t = try self.lex.peek();
+            if (t.kind != .lparen) break;
+            _ = try self.lex.next(); // (
+            var buf: std.ArrayListUnmanaged(u8) = .{};
+            try buf.append(self.allocator, '(');
+            try buf.appendSlice(self.allocator, base);
+            const first = try self.lex.peek();
+            if (first.kind == .rparen) {
+                _ = try self.lex.next();
+            } else {
+                while (true) {
+                    const arg = try self.parseExpr(0);
+                    try buf.append(self.allocator, ' ');
+                    try buf.appendSlice(self.allocator, arg);
+                    const sep = try self.lex.next();
+                    if (sep.kind == .comma) continue;
+                    if (sep.kind == .rparen) break;
+                    return error.InvalidSyntax;
+                }
+            }
+            try buf.append(self.allocator, ')');
+            base = try buf.toOwnedSlice(self.allocator);
+        }
+        return base;
+    }
+
+    fn parsePrimary(self: *NativeParser) NativeError![]u8 {
+        const t = try self.lex.next();
+        switch (t.kind) {
+            .num, .ident, .str => return self.allocator.dupe(u8, t.text),
+            .lparen => {
+                const inner = try self.parseExpr(0);
+                const close = try self.lex.next();
+                if (close.kind != .rparen) return error.InvalidSyntax;
+                return inner;
+            },
+            else => return error.InvalidSyntax,
+        }
+    }
+};
+
+/// Convertit la syntaxe native en S-expression (chaîne).
+/// ⚠️ Alloue beaucoup de chaînes intermédiaires → utiliser un ArenaAllocator.
+pub fn nativeToSExpr(input: []const u8, allocator: Allocator) NativeError![]u8 {
+    var lex = Lexer{ .src = input };
+    var p = NativeParser{ .lex = &lex, .allocator = allocator };
+    const result = try p.parseExpr(0);
+    const t = try lex.next();
+    if (t.kind != .eof) return error.InvalidSyntax; // tokens en trop
+    return result;
 }
 
 test "core invariant — lowered expression contains only six primitives" {

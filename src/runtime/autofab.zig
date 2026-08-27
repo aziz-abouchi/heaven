@@ -42,7 +42,7 @@ pub const ExternalLinker = struct {
                 // dlopen(NULL) est la clé pour Guix/NixOS : on lie le binaire actuel
                 const handle = dlopen(null, RTLD_NOW) orelse return error.GlobalLinkerFailed;
                 self.global_raw_handle = handle;
-                // platform.debug.print("[AUTOFAB] Linker global (Self-Link) initialisé.\n", .{});
+                // platform.dbg("[AUTOFAB] Linker global (Self-Link) initialisé.\n", .{});
             }
             return;
         }
@@ -240,7 +240,7 @@ pub const AutoFab = struct {
             const main_fn: *const fn () callconv(.c) void = @ptrCast(main_ptr);
             main_fn();
         } else {
-            // platform.debug.print("[AUTOFAB ERR] Point d'entrée '{s}' introuvable !\n", .{entry_symbol});
+            // platform.dbg("[AUTOFAB ERR] Point d'entrée '{s}' introuvable !\n", .{entry_symbol});
         }
     }
 
@@ -304,7 +304,7 @@ pub const AutoFab = struct {
 
         if (term == .Exited and term.Exited == 0) {
             const stat = try platform.fs.cwd().statFile(out_wasm);
-            // platform.debug.print("[AutoFab] Wasm Forge Success: {d} bytes\n", .{stat.size});
+            // platform.dbg("[AutoFab] Wasm Forge Success: {d} bytes\n", .{stat.size});
             return @intCast(stat.size);
         } else {
             return error.WasmCompilationFailed;
@@ -316,7 +316,7 @@ pub const AutoFab = struct {
         const file = try platform.fs.cwd().createFile("forge_output.c", .{});
         defer file.close();
         try file.writeAll(source);
-        // platform.debug.print("[AutoFab] Source exported to forge_output.c\n", .{});
+        // platform.dbg("[AutoFab] Source exported to forge_output.c\n", .{});
     }
 
     pub fn quickForge(self: *AutoFab, c_code: [:0]const u8) !void {

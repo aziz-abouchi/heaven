@@ -59,7 +59,7 @@ fn bobLog(comptime level: []const u8, comptime fmt: []const u8, args: anytype) v
     const secs = day_seconds.getSecondsIntoMinute();
     const ms = @mod(std.time.milliTimestamp(), 1000);
 
-    platform.debug.print("[{d:0>2}:{d:0>2}:{d:0>2}.{d:0>3}] [{s}] [{s}] ", .{ hours, mins, secs, ms, bob_identity, level });
+    platform.dbg("[{d:0>2}:{d:0>2}:{d:0>2}.{d:0>3}] [{s}] [{s}] ", .{ hours, mins, secs, ms, bob_identity, level });
     platform.debug.print(fmt ++ "\n", args);
 }
 
@@ -70,8 +70,12 @@ const heaven_expr_mod = @import("heaven_expr");
 fn swarmWorkerLoop(allocator: std.mem.Allocator, swarm: *swarm_runtime.SwarmRuntime, ex: *const std.atomic.Value(bool)) void {
     // Create dedicated Heaven for this thread
     var heaven = heaven_expr_mod.Heaven.init(allocator) catch @panic("Failed to init Heaven");
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
 
-    platform.debug.print("[SWARM] Worker thread started (Bob:{d})\n", .{swarm.self_port});
+    platform.dbg("[SWARM] Worker thread started (Bob:{d})\n", .{swarm.self_port});
 
     while (!ex.load(.acquire)) {
         // Process incoming tasks from other Bobs
@@ -116,6 +120,8 @@ pub fn syncMatrixWithFile(_: *matrix_lib.Matrix, _: *autofab_lib.AutoFab, _: std
 }
 
 pub fn main() !void {
+    platform.debug_enabled = std.posix.getenv("HEAVEN_DEBUG") != null;
+
     var gpa = std.heap.GeneralPurposeAllocator(.{
         .safety = true, // active toutes les vérifications
         .thread_safe = true, // support multi-thread
@@ -209,8 +215,10 @@ pub fn main() !void {
     // NOUVEAU : Évaluateur de script pour les tests de non-régression
     if (std.mem.eql(u8, args[1], "--run-test") and args.len >= 3) {
         var heaven = heaven_expr_mod.Heaven.init(allocator) catch @panic("Failed to init Heaven");
-        defer heaven.deinit();
-        heaven.ensureInit();
+        defer {
+            heaven.deinit();
+            allocator.destroy(heaven);
+        }
 
         const file = try platform.fs.cwd().openFile(args[2], .{});
         defer file.close();
@@ -230,10 +238,10 @@ pub fn main() !void {
                 platform.debug.print("❌ FAIL: {s}\n  Error: {}\n", .{ trimmed, err });
                 continue;
             };
-            defer allocator.free(result);
 
             // Afficher le résultat de la ligne
             platform.debug.print("✓ {s} → {s}\n", .{ trimmed, result });
+            allocator.free(result);
         }
 
         platform.debug.print("── Tests finished ──\n", .{});
@@ -279,7 +287,7 @@ pub fn main() !void {
     // On ne lance le réseau QUE si on n'est pas en local
     if (!is_local) {
         network.init(port) catch {
-            platform.debug.print("[NET] Init failed on port {d}\n", .{port});
+            platform.dbg("[NET] Init failed on port {d}\n", .{port});
         };
         try platform.rtc.WebRTC.init();
         platform.debug.print("RTC initialized\n", .{});
@@ -297,7 +305,7 @@ pub fn main() !void {
     defer allocator.free(bootstrap_source);
 
     uni_ingest.ingest(bootstrap_path, bootstrap_source) catch |err| {
-        platform.debug.print("[BOOT] Ingestion echouee: {s}\n", .{@errorName(err)});
+        platform.dbg("[BOOT] Ingestion echouee: {s}\n", .{@errorName(err)});
     };
 
     // --- Chargement du Noyau et de la Logique ---
@@ -305,16 +313,16 @@ pub fn main() !void {
 
     for (files_to_load) |filename| {
         const source = platform.fs.cwd().readFileAlloc(allocator, filename, 1024 * 1024) catch |err| {
-            platform.debug.print("[BOOT] Erreur lecture {s}: {s}\n", .{ filename, @errorName(err) });
+            platform.dbg("[BOOT] Erreur lecture {s}: {s}\n", .{ filename, @errorName(err) });
             continue;
         };
         defer allocator.free(source);
 
         uni_ingest.ingest(filename, source) catch |err| {
-            platform.debug.print("[BOOT] Erreur ingestion {s}: {s}\n", .{ filename, @errorName(err) });
+            platform.dbg("[BOOT] Erreur ingestion {s}: {s}\n", .{ filename, @errorName(err) });
         };
     }
-    platform.debug.print("[BOOT] Noyau logique (kernel/logic) chargé.\n", .{});
+    platform.dbg("[BOOT] Noyau logique (kernel/logic) chargé.\n", .{});
 
     // Engine & Autofab
     var fab = autofab_lib.AutoFab.init(allocator, &matrix, bob_identity);
@@ -374,17 +382,17 @@ pub fn main() !void {
                 while (!ex.load(.acquire)) {
                     // 1. TRAITEMENT : Vidage de la file réseau (Consommateur)
                     while (queue.pop()) |msg| {
-                        platform.debug.print("[NET] Reçu {d} octets: {any}\n", .{ msg.payload.len, msg.payload[0..@min(msg.payload.len, 8)] });
+                        platform.dbg("[NET] Reçu {d} octets: {any}\n", .{ msg.payload.len, msg.payload[0..@min(msg.payload.len, 8)] });
                         // 1. Décodage du binaire vers le type attendu
                         const incoming = codec.decode(msg.payload) catch {
-                            platform.debug.print("[NET] Échec décodage message\n", .{});
+                            platform.dbg("[NET] Échec décodage message\n", .{});
                             a.free(msg.payload);
                             continue;
                         };
                         // Traitement métier du message
                         const addr = std.net.Address{ .in = std.net.Address.initIp4([4]u8{ 0, 0, 0, 0 }, 0).in };
                         network.handleIncoming(a, m, egraph, incoming, addr) catch |err| {
-                            platform.debug.print("[NET] Handle error: {any}\n", .{err});
+                            platform.dbg("[NET] Handle error: {any}\n", .{err});
                         };
                         // Libération de la mémoire allouée par le 'push'
                         a.free(msg.payload);
@@ -393,7 +401,7 @@ pub fn main() !void {
                     // 2. RÉCEPTION : Écoute du réseau et remplissage de la file (Producteur)
                     if (try network.listen(a)) |incoming| {
                         // Log pour confirmer la réception
-                        platform.debug.print("[NET] Traitement de {d} octets\n", .{incoming.len});
+                        platform.dbg("[NET] Traitement de {d} octets\n", .{incoming.len});
 
                         // Accès direct au buffer selon le type contenu dans l'union
                         const raw_slice: []u8 = switch (incoming.data) {
@@ -505,7 +513,7 @@ export fn on_rtc_message(remote_peer_id: [*c]const u8, msg: [*c]const u8, len: u
         .payload = payload,
         .timestamp = @as(u64, @intCast(std.time.milliTimestamp())),
     }) catch |err| {
-        platform.debug.print("[RTC] Erreur injection queue: {any}\n", .{err});
+        platform.dbg("[RTC] Erreur injection queue: {any}\n", .{err});
         global_allocator.free(payload);
     };
 }

@@ -244,7 +244,7 @@ pub const EGraph = struct {
         const node = self.store.get(id);
         const tag_int = @intFromEnum(node.tag);
         if (tag_int > @intFromEnum(expr.Tag.relation)) {
-            platform.debug.print("[EGraph] tag invalide: {d}\n", .{tag_int});
+            platform.dbg("[EGraph] tag invalide: {d}\n", .{tag_int});
             return error.OutOfMemory; // ou une erreur personnalisée
         }
         const pool = self.store.pool.items;

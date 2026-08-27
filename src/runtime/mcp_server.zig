@@ -50,7 +50,7 @@ pub const McpTool = struct {
 
 pub const McpServer = struct {
     allocator: Allocator,
-    heaven: ?heaven_expr_mod.Heaven,
+    heaven: ?*heaven_expr_mod.Heaven,
     tools: []const McpTool,
 
     pub fn init(allocator: Allocator) McpServer {
@@ -176,7 +176,7 @@ pub const McpServer = struct {
 
     fn callTool(self: *McpServer, id: ?std.json.Value, name: []const u8, args: ?std.json.Value) ![]const u8 {
         self.ensureHeaven();
-        var h = &self.heaven.?;
+        var h = self.heaven.?;
 
         const result_text = blk: {
             if (std.mem.eql(u8, name, "heaven_eval")) {
@@ -221,7 +221,7 @@ pub const McpServer = struct {
             } else if (std.mem.eql(u8, name, "mlcpd_equiv")) {
                 const json1 = getArgString(args, "json1") orelse break :blk "error: missing 'json1'";
                 const json2 = getArgString(args, "json2") orelse break :blk "error: missing 'json2'";
-                var he = &self.heaven.?;
+                var he = self.heaven.?;
 
                 var p1 = mlcpd_mod.parseMlcpdJson(self.allocator, json1) catch break :blk "error: parse failed for json1";
                 defer p1.deinit();
@@ -261,13 +261,13 @@ pub const McpServer = struct {
                 break :blk try std.fmt.allocPrint(self.allocator, "{{\"equivalent\":{s},\"strategy\":\"{s}\",\"proof_available\":{s},\"canon1\":\"{s}\",\"canon2\":\"{s}\"}}", .{ if (equiv_result.equivalent) "true" else "false", @tagName(equiv_result.strategy), proof_available, s1_str, s2_str });
             } else if (std.mem.eql(u8, name, "egraph_query")) {
                 const expr_str = getArgString(args, "expr") orelse break :blk "error: missing 'expr'";
-                var he = &self.heaven.?;
+                var he = self.heaven.?;
                 const result = he.eval(expr_str) catch break :blk "error: eval failed";
                 defer self.allocator.free(result);
                 break :blk try std.fmt.allocPrint(self.allocator, "{{\"canonical_form\":\"{s}\"}}", .{result});
             } else if (std.mem.eql(u8, name, "heaven_prove")) {
                 const stmt = getArgString(args, "statement") orelse break :blk "error: missing 'statement'";
-                var he = &self.heaven.?;
+                var he = self.heaven.?;
                 // Utiliser le noyau logique pour tenter une preuve
                 const result = he.eval(stmt) catch |err| {
                     break :blk try std.fmt.allocPrint(self.allocator, "{{\"proved\":false,\"error\":\"{}\"}}", .{err});

@@ -27,7 +27,7 @@ test "function definition and call persist" {
 
     var store = Store.init(alloc);
     var env = engine_expr.Env.init(alloc);
-    var engine = Engine{ .allocator = alloc, .store = &store, .env = &env };
+    var engine = engine_expr.Engine.initTest(alloc, &store, &env);
     var bridge = matrix_bridge.MatrixBridge.init(&store, alloc);
     var parser = parse.Parser.init(&store, &engine, &env, alloc);
     var kb = transform.KnowledgeBase.init(alloc);
@@ -77,7 +77,7 @@ test "actor lifecycle: spawn, send, state" {
 
     var store = Store.init(alloc);
     var env = engine_expr.Env.init(alloc);
-    var engine = Engine{ .allocator = alloc, .store = &store, .env = &env };
+    var engine = engine_expr.Engine.initTest(alloc, &store, &env);
     var bridge = matrix_bridge.MatrixBridge.init(&store, alloc);
     var parser = parse.Parser.init(&store, &engine, &env, alloc);
     var kb = transform.KnowledgeBase.init(alloc);
@@ -121,7 +121,7 @@ test "actor lifecycle: spawn, send, state" {
 
     // Vérifier l'état
     const state_result = try cmds.eval("state(Adder)");
-    platform.debug.print("[TEST DEBUG] state(Adder) a retourné : {s}\n", .{state_result});
+    platform.dbg("[TEST DEBUG] state(Adder) a retourné : {s}\n", .{state_result});
     try testing.expectEqualStrings("5", state_result);
 }
 
@@ -133,7 +133,7 @@ test "walrus operator := defines function correctly" {
 
     var store = Store.init(alloc);
     var env = engine_expr.Env.init(alloc);
-    var engine = Engine{ .allocator = alloc, .store = &store, .env = &env };
+    var engine = engine_expr.Engine.initTest(alloc, &store, &env);
     var bridge = matrix_bridge.MatrixBridge.init(&store, alloc);
     var parser = parse.Parser.init(&store, &engine, &env, alloc);
     var kb = transform.KnowledgeBase.init(alloc);

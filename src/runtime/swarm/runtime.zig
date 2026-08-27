@@ -61,7 +61,7 @@ pub const SwarmRuntime = struct {
             net.sendTo(peer.address, payload) catch continue;
         }
 
-        platform.debug.print("[SWARM] Tâche broadcast: {s} ({s}) → {d} peers\n", .{
+        platform.dbg("[SWARM] Tâche broadcast: {s} ({s}) → {d} peers\n", .{
             expression,
             @tagName(kind),
             net.known_peers.items.len,
@@ -73,7 +73,7 @@ pub const SwarmRuntime = struct {
     /// Recevoir et tenter de résoudre une tâche
     pub fn tryResolve(self: *SwarmRuntime, task: proto.SwarmTask, heaven: anytype) ?proto.SwarmResult {
         const expr = task.getExpr();
-        platform.debug.print("[SWARM] Tentative résolution: {s} (de Bob:{d})\n", .{ expr, task.origin_port });
+        platform.dbg("[SWARM] Tentative résolution: {s} (de Bob:{d})\n", .{ expr, task.origin_port });
 
         const result_str: ?[]const u8 = switch (task.kind) {
             .solve => heaven.solve(expr, "x") catch null,
@@ -115,7 +115,7 @@ pub const SwarmRuntime = struct {
         };
 
         if (result_str) |res| {
-            // platform.debug.print("[SWARM] ✓ Résolu: {s} → {s}\n", .{ expr, res });
+            // platform.dbg("[SWARM] ✓ Résolu: {s} → {s}\n", .{ expr, res });
             const sr = proto.SwarmResult.init(task.id, self.self_port, res, 1.0);
 
             // Log
@@ -132,7 +132,7 @@ pub const SwarmRuntime = struct {
             return sr;
         }
 
-        // platform.debug.print("[SWARM] ✗ Pas résolu: {s}\n", .{expr});
+        // platform.dbg("[SWARM] ✗ Pas résolu: {s}\n", .{expr});
         return null;
     }
 
@@ -144,7 +144,7 @@ pub const SwarmRuntime = struct {
                 task.status = .solved;
                 self.results.append(self.allocator, result) catch {};
 
-                platform.debug.print("[SWARM] Résultat reçu de Bob:{d}: {s}\n", .{
+                platform.dbg("[SWARM] Résultat reçu de Bob:{d}: {s}\n", .{
                     result.solver_port,
                     result.getResult(),
                 });

@@ -45,7 +45,7 @@ async function runTests(wasm) {
     for (const test of tests) {
         const result = wasm.heavenEval(test.input.length);
         if (result === test.expected) {
-            console.log(`✅ ${test.input} → ${result}`);
+            console.log(`${test.input} → ${result}`);
             passed++;
         } else {
             console.error(`❌ ${test.input} → ${result} (attendu ${test.expected})`);

@@ -141,7 +141,7 @@ pub const Engine = struct {
         if (matrix.nodes.get(atom_id)) |n| {
             if (n == .NativeCode and std.ascii.isDigit(n.NativeCode.code[0])) {
                 if (self.evaluate(matrix, atom_id)) |val| {
-                    platform.debug.print("[EVAL] Node {d} => {d}\n", .{ atom_id, val });
+                    platform.dbg("[EVAL] Node {d} => {d}\n", .{ atom_id, val });
                     return;
                 }
             }
@@ -276,7 +276,7 @@ pub const Engine = struct {
             }
         }
         if (self.evaluate(matrix, atom_id)) |val| {
-            platform.debug.print("[EVAL] Node {d} => {d}\n", .{ atom_id, val });
+            platform.dbg("[EVAL] Node {d} => {d}\n", .{ atom_id, val });
         }
     }
 };

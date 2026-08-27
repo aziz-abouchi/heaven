@@ -9,7 +9,7 @@ pub fn startLSPServer(matrix: *matrix_lib.Matrix, port: u16) !void {
     const address = std.net.Address.parseIp4("127.0.0.1", port) catch return;
     var server = try address.listen(.{ .reuse_address = true });
 
-    // platform.debug.print("[LSP] Serveur Heaven-LSP actif sur port {d}\n", .{port});
+    // platform.dbg("[LSP] Serveur Heaven-LSP actif sur port {d}\n", .{port});
 
     while (true) {
         const conn = try server.accept();

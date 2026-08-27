@@ -10,6 +10,13 @@ const c = @cImport({
 const Driver = @import("driver");
 const NetworkDriver = Driver.NetworkDriver;
 
+pub var debug_enabled: bool = false;
+
+/// Debug conditionnel : activé par HEAVEN_DEBUG=1
+pub fn dbg(comptime fmt: []const u8, args: anytype) void {
+    if (debug_enabled) debug.print(fmt, args);
+}
+
 // Alias to standard library for full feature support
 pub const posix = std.posix;
 pub const os = std.os;

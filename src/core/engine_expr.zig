@@ -99,6 +99,29 @@ pub const FunctionRegistry = struct {
     }
 };
 
+pub const HeavenVTable = struct {
+    parse: *const fn (*anyopaque, []const u8) EvalError!Id,
+    deriveId: *const fn (*anyopaque, []const u8, []const u8) EvalError!Id,
+    simplify: *const fn (*anyopaque, []const u8) EvalError![]const u8,
+};
+
+// Vtable factice pour les tests (ne devrait jamais être appelée)
+const testHeavenVTable = HeavenVTable{
+    .parse = testParse,
+    .deriveId = testDerive,
+    .simplify = testSimplify,
+};
+
+fn testParse(_: *anyopaque, _: []const u8) EvalError!Id {
+    @panic("testParse called unexpectedly");
+}
+fn testDerive(_: *anyopaque, _: []const u8, _: []const u8) EvalError!Id {
+    @panic("testDerive called unexpectedly");
+}
+fn testSimplify(_: *anyopaque, _: []const u8) EvalError![]const u8 {
+    @panic("testSimplify called unexpectedly");
+}
+
 pub const Engine = struct {
     allocator: std.mem.Allocator,
     store: *Store,
@@ -118,11 +141,15 @@ pub const Engine = struct {
     fuel: u64 = 1_000_000,
     max_recursion_depth: usize = 1000,
     recursion_depth: usize = 0,
+    heaven_ctx: *anyopaque,
+    vtable: *const HeavenVTable,
 
     pub fn init(
         allocator: std.mem.Allocator,
         store: *Store,
         env: *Env,
+        heaven_ctx: *anyopaque,
+        vtable: *const HeavenVTable,
     ) Engine {
         return .{
             .allocator = allocator,
@@ -130,6 +157,8 @@ pub const Engine = struct {
             .env = env,
             .fns = .{},
             .fuel = 100_000,
+            .heaven_ctx = heaven_ctx,
+            .vtable = vtable,
         };
     }
 
@@ -144,6 +173,14 @@ pub const Engine = struct {
         self.actors.deinit(self.allocator);
     }
 
+    // Contexte factice pour les tests (ne sera jamais utilisé)
+    var test_ctx_dummy: u8 = 0;
+
+    // Fonction d'initialisation pour les tests
+    pub fn initTest(allocator: std.mem.Allocator, store: *Store, env: *Env) Engine {
+        return init(allocator, store, env, @ptrCast(&test_ctx_dummy), &testHeavenVTable);
+    }
+
     pub fn eval(self: *Engine, id: Id) EvalError!Id {
         const store = self.store;
         const env = self.env;
@@ -153,8 +190,8 @@ pub const Engine = struct {
     }
 
     pub fn evalFunction(self: *Engine, name: []const u8, args: []const Id) EvalError!Id {
-        const store = self.store orelse return error.UnboundVariable;
-        const env = &self.env;
+        const store = self.store;
+        const env = self.env;
 
         const fn_def = self.fns.get(name) orelse return error.UnknownSymbol;
         if (fn_def.num_clauses == 0) return error.UnknownSymbol;
@@ -201,10 +238,10 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             if (isFrontendExtension(name)) return error.ExtensionNotLowered;
             if (isMagicSymbol(name)) return id;
             if (env.get(node.payload)) |bound| {
-                //platform.debug.print("[DEBUG eval] sym '{s}' trouvé dans env, valeur={d}\n", .{ name, bound });
+                //platform.dbg("[DEBUG eval] sym '{s}' trouvé dans env, valeur={d}\n", .{ name, bound });
                 return bound;
             }
-            //platform.debug.print("[DEBUG eval] sym '{s}' NON trouvé dans env\n", .{name});
+            //platform.dbg("[DEBUG eval] sym '{s}' NON trouvé dans env\n", .{name});
             return error.UnboundVariable;
         },
         .apply => {
@@ -302,6 +339,22 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         }
     }
 
+    if (std.mem.eql(u8, op, "derive")) {
+        if (args.len != 1) return error.ArityMismatch;
+        const expr_str = try expr.toString(store, args[0], engine.allocator);
+        defer engine.allocator.free(expr_str);
+        return try engine.vtable.deriveId(engine.heaven_ctx, expr_str, "x");
+    }
+    if (std.mem.eql(u8, op, "simplify")) {
+        if (args.len != 1) return error.ArityMismatch;
+        const expr_str = try expr.toString(store, args[0], engine.allocator);
+        defer engine.allocator.free(expr_str);
+        const result_str = try engine.vtable.simplify(engine.heaven_ctx, expr_str);
+        defer engine.allocator.free(result_str);
+        const result_id = try engine.vtable.parse(engine.heaven_ctx, result_str);
+        return result_id;
+    }
+
     // ═══ 2. OPÉRATEURS MAGIQUES ═══
     if (std.mem.eql(u8, op, "if")) {
         if (args.len != 3) return error.ArityMismatch;
@@ -365,9 +418,9 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                         if (p2.tag == .sym) try new_env.put(p2.payload, msg_val);
                     }
                     const new_state = try evaluate(store, &new_env, engine, clause.body, depth + 1);
-                    // platform.debug.print("[DEBUG SEND] handler evaluated to: {d}\n", .{new_state});
+                    // platform.dbg("[DEBUG SEND] handler evaluated to: {d}\n", .{new_state});
                     actor_ptr.state = new_state;
-                    // platform.debug.print("[DEBUG SEND] actor state updated to: {d}\n", .{actor_ptr.state});
+                    // platform.dbg("[DEBUG SEND] actor state updated to: {d}\n", .{actor_ptr.state});
                     return new_state;
                 }
             }
@@ -402,7 +455,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const actor_id_lit = store.lits.items[actor_node.aux];
         if (actor_id_lit != .int) return error.ActorIdNotLiteral;
         const actor_ptr = engine.actors.getPtr(@intCast(actor_id_lit.int)) orelse return error.ActorNotFound;
-        // platform.debug.print("[DEBUG STATE] returning state: {d}\n", .{actor_ptr.state});
+        // platform.dbg("[DEBUG STATE] returning state: {d}\n", .{actor_ptr.state});
         return actor_ptr.state;
     }
 
@@ -555,7 +608,7 @@ test "engine rejects non-lowered frontend expressions" {
     defer store.deinit();
     var env = Env.init(allocator);
     defer env.deinit();
-    var engine = Engine.init(allocator, &store, &env);
+    var engine = Engine.initTest(allocator, &store, &env);
     defer engine.deinit();
 
     const x = try engine.store.sym("x");
@@ -575,7 +628,7 @@ test "engine evaluates lowered expression" {
     defer store.deinit();
     var env = Env.init(allocator);
     defer env.deinit();
-    var engine = Engine.init(allocator, &store, &env);
+    var engine = Engine.initTest(allocator, &store, &env);
     defer engine.deinit();
 
     const x = try engine.store.int(2);

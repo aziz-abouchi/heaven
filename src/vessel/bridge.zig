@@ -216,7 +216,7 @@ fn serveFile(path_in_url: []const u8, stream: std.net.Server.Connection.Stream, 
         var file_path_buf: [1024]u8 = undefined;
         const file_path = try std.fmt.bufPrint(&file_path_buf, "{s}{s}", .{ public_dir, path_in_url });
         const file = platform.fs.cwd().openFile(file_path, .{}) catch |err| {
-            platform.debug.print("[serveFile] Error: {any}\n", .{err});
+            platform.dbg("[serveFile] Error: {any}\n", .{err});
             try respond(stream, "404 Not Found", "text/plain", "File not found");
             return;
         };
@@ -345,7 +345,7 @@ fn handleLsp(args: HandlerArgs, request: []const u8) !void {
         const header = try std.fmt.bufPrint(&h_buf, "Content-Length: {d}\r\n\r\n", .{resp.len});
         try args.conn.stream.writeAll(header);
         try args.conn.stream.writeAll(resp);
-        // platform.debug.print("[LSP] Réponse initialize envoyée (ID: {s})\n", .{id_slice});
+        // platform.dbg("[LSP] Réponse initialize envoyée (ID: {s})\n", .{id_slice});
     } else if (std.mem.indexOf(u8, request, "textDocument/didSave") != null) {
         const path = extractUri(args.allocator, request) orelse return;
         defer args.allocator.free(path);
@@ -361,7 +361,7 @@ fn handleLsp(args: HandlerArgs, request: []const u8) !void {
         // platform.debug.print("\n[LSP] Synchronisation (Unique) : {s}\n", .{path});
 
         _ = main_mod.syncMatrixWithFile(args.bridge.matrix, args.bridge.fab, args.allocator, path) catch |err| {
-            platform.debug.print("[LSP ERR] {any}\n", .{err});
+            platform.dbg("[LSP ERR] {any}\n", .{err});
         };
         // On affiche le résultat immédiatement dans le flux de logs
         platform.debug.print(">>> MATRIX UPDATED: {d} nodes, {d} symbols <<<\n", .{
@@ -381,7 +381,7 @@ fn handleClient(args: HandlerArgs) void {
         const request = read_buf[0..n];
 
         // On logue systématiquement pour voir si Codium parle
-        // platform.debug.print("[VESSEL] Message reçu ({d} octets)\n", .{n});
+        // platform.dbg("[VESSEL] Message reçu ({d} octets)\n", .{n});
 
         if (std.mem.indexOf(u8, request, "GET /") != null) {
             handleHttp(args, request) catch {};
@@ -390,7 +390,7 @@ fn handleClient(args: HandlerArgs) void {
             // Ici, on traite le message. Si c'est juste un header Content-Length,
             // le prochain tour de boucle lira le JSON.
             handleLsp(args, request) catch |err| {
-                platform.debug.print("[LSP ERR] {any}\n", .{err});
+                platform.dbg("[LSP ERR] {any}\n", .{err});
             };
         }
     }
@@ -404,7 +404,7 @@ pub fn startVesselServer(
 ) void {
     const address = std.net.Address.parseIp4("127.0.0.1", dash_port) catch return;
     var server = address.listen(.{ .reuse_address = true }) catch |err| {
-        platform.debug.print("[VESSEL] Listen Error: {any}\n", .{err});
+        platform.dbg("[VESSEL] Listen Error: {any}\n", .{err});
         return;
     };
     var bridge = WebBridge{ .matrix = matrix, .fab = fab, .port = dash_port };
