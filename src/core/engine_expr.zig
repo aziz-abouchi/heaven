@@ -516,7 +516,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         }
         return result;
     }
-    
+
     // ═══ 5. OPÉRATEURS ARITHMÉTIQUES ═══
     if (args.len == 0) return error.ArityMismatch;
     if (std.mem.eql(u8, op, "!")) {
@@ -632,6 +632,7 @@ fn evalCmp(store: *Store, a: Id, b: Id, op: CmpOp) EvalError!Id {
         .span_a = Span.EMPTY,
         .span_b = Span.EMPTY,
     });
+}
 
     pub fn expandMacro(store: *expr.Store, allocator: Allocator, body: expr.Id, params: []const expr.Id, args: []const expr.Id) !expr.Id {
     const node = store.get(body);
@@ -664,7 +665,7 @@ fn evalCmp(store: *Store, a: Id, b: Id, op: CmpOp) EvalError!Id {
         },
         else => return body,
     }
-}
+
 }
 
 test "engine rejects non-lowered frontend expressions" {
