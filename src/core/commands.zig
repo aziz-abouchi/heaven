@@ -138,6 +138,11 @@ pub const Commands = struct {
     }
 
     pub fn deinit(self: *Commands) void {
+        if (self.active_theorem.*) |th| {
+            self.allocator.free(th);
+            self.active_theorem.* = null;
+        }
+
         self.shell_parser.deinit();
     }
 
@@ -1445,18 +1450,23 @@ pub const Commands = struct {
     }
 
     fn evalGreen(self: *Commands, input: []const u8) ![]u8 {
-        const id = self.parseExpression(input) catch try self.bridge.importExpr(input);
+        // ✅ Même mécanisme que cmdGreen : wrapper dans (handle expr greenHandler)
+        _ = self.eval("let greenHandler(v1, v2, cost) = (+ v1 v2)") catch {};
+        const expr_id = try self.bridge.importExpr(input);
+        const handle_op = try self.store.sym("handle");
+        const handler_sym = try self.store.sym("greenHandler");
+        const handle_node = try self.store.apply(handle_op, &.{ expr_id, handler_sym });
 
         self.engine.green_call_count = 0;
         self.engine.green_mode = true;
         defer self.engine.green_mode = false;
-
         self.engine.fuel = 1_000_000;
-        const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch |err| {
+
+        const result = engine_expr.evaluate(self.store, self.env, self.engine, handle_node, 0) catch |err| {
             return try std.fmt.allocPrint(self.allocator, "green eval error: {}", .{err});
         };
-
         const res_str = try expr.toStringInfix(self.store, result, self.allocator);
+        defer self.allocator.free(res_str);
         return try std.fmt.allocPrint(self.allocator, "{s} (green calls: {d})", .{ res_str, self.engine.green_call_count });
     }
 
