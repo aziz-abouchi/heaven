@@ -31,6 +31,7 @@ const parse_mod = @import("parse");
 const math_mod = @import("math");
 const proof_helpers_mod = @import("proof_helpers");
 const simplify_engine_mod = @import("simplify_engine");
+const rules_mod = @import("rules");
 
 const debug = std.posix.getenv("HEAVEN_DEBUG") != null;
 // HEAVEN_DEBUG=1 ./heaven pour activer les logs.
@@ -1259,48 +1260,32 @@ pub const Commands = struct {
     }
 
     pub fn simplify(self: *Commands, input: []const u8) ![]u8 {
-        const id = try self.parser.parseSExpr(input); // ← Utilise self.parser au lieu de self.bridge.importExpr
+        const id = try self.parser.parseSExpr(input);
         const debug_str = try expr.toStringInfix(self.store, id, self.allocator);
         defer self.allocator.free(debug_str);
         platform.dbg("[core.commands.simplify] input: {s}\n", .{debug_str});
 
+        // ✅ Pipeline : réécriture directe (rules.zig) → E-Graph → nettoyage
         var current = id;
 
+        // 1. Réécriture directe à point fixe via le module rules
         var changed = true;
         var iterations: u32 = 0;
         while (changed and iterations < 50) : (iterations += 1) {
             changed = false;
-
-            for (self.kb.rules.items) |rule_id| {
-                if (rule_id >= self.store.len()) continue;
-                const rule_node = self.store.get(rule_id);
-                if (rule_node.tag != .relation) continue;
-                const lhs_rhs = rule_node.span_a.slice(self.store.pool.items);
-                if (lhs_rhs.len != 2) continue;
-                const lhs = lhs_rhs[0];
-                const rhs = lhs_rhs[1];
-
-                var bindings = std.AutoHashMapUnmanaged(u32, Id){};
-                defer bindings.deinit(self.allocator);
-                if (pattern_mod.exprPatternMatch(self.store, lhs, current, &bindings, self.allocator)) {
-                    const new_id = try pattern_mod.substitutePattern(self.store, rhs, &bindings, self.allocator);
-                    if (new_id != current) {
-                        current = new_id;
-                        changed = true;
-                        break;
-                    }
-                }
-            }
-
-            const math_simplified = try self.math.simplifyMath(current);
-            if (math_simplified != current) {
-                current = math_simplified;
+            if (try rules_mod.applyFirstRule(self.store, self.kb.rules.items, current, self.allocator)) |match| {
+                current = match.new_id;
                 changed = true;
             }
         }
 
-        const canonical = try canon_mod.canonicalize(self.store, self.allocator, current);
-        return expr.toStringInfix(self.store, canonical, self.allocator);
+        // 2. E-Graph pour les cas complexes (distributivité/factorisation croisées)
+        const after_egraph = try self.simplify_eng.simplifyWithEGraph(current, null, null);
+
+        // 3. Nettoyage final (identités 0/1, constant folding)
+        const simplified = try self.math.simplifyBasic(after_egraph);
+
+        return expr.toStringInfix(self.store, simplified, self.allocator);
     }
 
     fn simplifyWithEGraph(self: *Commands, id: Id, qtt: ?*egraph_mod.QttCost) !Id {

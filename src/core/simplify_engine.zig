@@ -14,6 +14,9 @@ const canon_mod = @import("canon");
 const platform = @import("platform");
 const types = @import("types");
 
+const rules_mod = @import("rules");
+const Rule = rules_mod.Rule;
+
 pub const SimplifyEngine = struct {
     store: *Store,
     engine: *engine_expr.Engine,
@@ -79,25 +82,17 @@ pub const SimplifyEngine = struct {
             }
         }
         if (current >= self.store.len()) return current;
+
         for (self.kb.rules.items) |rule_id| {
-            if (rule_id >= self.store.len()) continue;
-            const rule_node = self.store.get(rule_id);
-            if (rule_node.tag != .relation) continue;
-            const lhs_rhs = rule_node.span_a.slice(self.store.pool.items);
-            if (lhs_rhs.len != 2) continue;
-            const lhs_id = lhs_rhs[0];
-            const rhs_id = lhs_rhs[1];
-            var bindings: std.AutoHashMapUnmanaged(u32, Id) = .{};
-            defer bindings.deinit(self.allocator);
-            if (pattern_mod.exprPatternMatch(self.store, lhs_id, current, &bindings, self.allocator)) {
-                const new_id = pattern_mod.substitutePattern(self.store, rhs_id, &bindings, self.allocator) catch continue;
-                if (new_id < self.store.len() and new_id != current) {
-                    const lhs_str = expr.toString(self.store, lhs_id, self.allocator) catch continue;
+                const rule = Rule.fromNode(self.store, rule_id) orelse continue;
+                if (try rule.apply(self.store, current, self.allocator)) |new_id| {
+                    const lhs_str = expr.toString(self.store, rule.lhs, self.allocator) catch continue;
                     defer self.allocator.free(lhs_str);
-                    const rhs_str = expr.toString(self.store, rhs_id, self.allocator) catch continue;
+                    const rhs_str = expr.toString(self.store, rule.rhs, self.allocator) catch continue;
                     defer self.allocator.free(rhs_str);
                     const new_str = expr.toString(self.store, new_id, self.allocator) catch continue;
                     defer self.allocator.free(new_str);
+
                     var tmp: [16]u8 = undefined;
                     const sn = std.fmt.bufPrint(&tmp, "  step {d}: ", .{step.*}) catch "  step ?: ";
                     buf.appendSlice(self.allocator, sn) catch continue;
@@ -111,7 +106,7 @@ pub const SimplifyEngine = struct {
                     return new_id;
                 }
             }
-        }
+
         if (current < self.store.len()) {
             self.engine.fuel = 100;
             const folded = engine_expr.evaluate(self.store, self.env, self.engine, current, 0) catch current;
@@ -162,33 +157,18 @@ pub const SimplifyEngine = struct {
                 }
             }
         }
+        
         // Appliquer les règles jusqu'à saturation
         var changed = true;
         var iterations: u32 = 0;
         while (changed and iterations < 10) : (iterations += 1) {
             changed = false;
             if (current >= self.store.len()) break;
-            for (self.kb.rules.items) |rule_id| {
-                if (rule_id >= self.store.len()) continue;
-                const rule_node = self.store.get(rule_id);
-                if (rule_node.tag != .relation) continue;
-                const lhs_span = rule_node.span_a.slice(self.store.pool.items);
-                const rhs_span = rule_node.span_b.slice(self.store.pool.items);
-                if (lhs_span.len != 1 or rhs_span.len != 1) continue;
-                const lhs_id = lhs_span[0];
-                const rhs_id = rhs_span[0];
-                var bindings: std.AutoHashMapUnmanaged(u32, Id) = .{};
-                defer bindings.deinit(self.allocator);
-                //platform.dbg("[simplifyRec] trying rule {d}: lhs={d}, rhs={d} on current={d}\n", .{ rule_id, lhs_id, rhs_id, current });
-                if (pattern_mod.exprPatternMatch(self.store, lhs_id, current, &bindings, self.allocator)) {
-                    const new_id = try pattern_mod.substitutePattern(self.store, rhs_id, &bindings, self.allocator);
-                    if (new_id < self.store.len() and new_id != current) {
-                        platform.dbg("[simplifyRec] applying rule, new_id={d}\n", .{new_id});
-                        current = new_id;
-                        changed = true;
-                        break;
-                    }
-                }
+
+            if (try rules_mod.applyFirstRule(self.store, self.kb.rules.items, current, self.allocator)) |match| {
+                platform.dbg("[simplifyRec] applying rule {d}, new_id={d}\n", .{ match.rule.id, match.new_id });
+                current = match.new_id;
+                changed = true;
             }
         }
         return current;

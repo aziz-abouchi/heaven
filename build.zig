@@ -386,6 +386,14 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const rules_mod = b.addModule("rules", .{
+        .root_source_file = b.path("src/core/rules.zig"),
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "pattern", .module = pattern_mod },
+        },
+    });
+
     const simplify_engine_mod = b.addModule("simplify_engine", .{
         .root_source_file = b.path("src/core/simplify_engine.zig"),
         .target = target,
@@ -399,6 +407,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "egraph_rewriter", .module = egraph_rewriter_mod },
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "types", .module = types_mod },
+            .{ .name = "rules", .module = rules_mod },
         },
     });
 
@@ -470,6 +479,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "mlcpd", .module = mlcpd_mod },
             .{ .name = "mlcpd_equiv", .module = mlcpd_equiv_mod },
             .{ .name = "universal_translator", .module = universal_translator_mod },
+            .{ .name = "rules", .module = rules_mod },
         },
     });
     commands_mod.addOptions("build_options", options);

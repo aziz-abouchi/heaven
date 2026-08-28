@@ -123,31 +123,64 @@ pub const ProofCore = struct {
 
     pub fn verifyBySimplify(self: *ProofCore, name: []const u8, heaven: anytype) !bool {
         const thm = self.theorems.getPtr(name) orelse return false;
-        const eq_pos = std.mem.indexOf(u8, thm.statement, " = ") orelse return false;
-        const lhs_str = thm.statement[0..eq_pos];
-        const rhs_str = thm.statement[eq_pos + 3 ..];
-        const ls = heaven.simplify(lhs_str) catch lhs_str;
+
+        // ✅ Support des deux formats : "a = b" ET "Eq<a, b>"
+        var lhs_str: []const u8 = undefined;
+        var rhs_str: []const u8 = undefined;
+        if (std.mem.startsWith(u8, thm.statement, "Eq<") and std.mem.endsWith(u8, thm.statement, ">")) {
+            const inner = thm.statement[3 .. thm.statement.len - 1];
+            var depth: usize = 0;
+            var comma: ?usize = null;
+            for (inner, 0..) |c, i| {
+                switch (c) {
+                    '(' => depth += 1,
+                    ')' => if (depth > 0) { depth -= 1; },
+                    ',' => {
+    if (depth == 0 and comma == null) comma = i;
+},                    else => {},
+                }
+            }
+            const cp = comma orelse return false;
+            lhs_str = std.mem.trim(u8, inner[0..cp], " ");
+            rhs_str = std.mem.trim(u8, inner[cp + 1 ..], " ");
+        } else {
+            const eq_pos = std.mem.indexOf(u8, thm.statement, " = ") orelse return false;
+            lhs_str = thm.statement[0..eq_pos];
+            rhs_str = thm.statement[eq_pos + 3 ..];
+        }
+
+        // ✅ Normaliser les op lowered (add/sub/mul/div → + - * /)
+        const lhs_norm = normalizeLoweredOps(lhs_str, heaven.allocator) catch lhs_str;
+        defer if (lhs_norm.ptr != lhs_str.ptr) heaven.allocator.free(lhs_norm);
+        const rhs_norm = normalizeLoweredOps(rhs_str, heaven.allocator) catch rhs_str;
+        defer if (rhs_norm.ptr != rhs_str.ptr) heaven.allocator.free(rhs_norm);
+
+        platform.dbg("[prove] statement = '{s}' lhs='{s}' rhs='{s}'\n", .{ thm.statement, lhs_norm, rhs_norm });
+
+        const ls = heaven.simplify(lhs_norm) catch lhs_norm;
         defer heaven.allocator.free(ls);
-        const rs = heaven.simplify(rhs_str) catch rhs_str;
+        const rs = heaven.simplify(rhs_norm) catch rhs_norm;
         defer heaven.allocator.free(rs);
+        platform.dbg("[prove] ls = '{s}' rs = '{s}'\n", .{ ls, rs });
+
         if (std.mem.eql(u8, ls, rs)) {
             thm.verified = true;
             return true;
         }
-        if (std.mem.eql(u8, lhs_str, rs) or std.mem.eql(u8, rhs_str, ls)) {
+        if (std.mem.eql(u8, lhs_norm, rs) or std.mem.eql(u8, rhs_norm, ls)) {
             thm.verified = true;
             return true;
         }
         // commutativité sur originaux
-        if (lhs_str.len > 2 and rhs_str.len > 2) {
-            const op_l = std.mem.indexOfAny(u8, lhs_str, "+-*");
-            const op_r = std.mem.indexOfAny(u8, rhs_str, "+-*");
+        if (lhs_norm.len > 2 and rhs_norm.len > 2) {
+            const op_l = std.mem.indexOfAny(u8, lhs_norm, "+-*");
+            const op_r = std.mem.indexOfAny(u8, rhs_norm, "+-*");
             if (op_l != null and op_r != null) {
-                const al = std.mem.trim(u8, lhs_str[0..op_l.?], " ");
-                const ar = std.mem.trim(u8, lhs_str[op_l.? + 1 ..], " ");
-                const bl = std.mem.trim(u8, rhs_str[0..op_r.?], " ");
-                const br = std.mem.trim(u8, rhs_str[op_r.? + 1 ..], " ");
-                if (lhs_str[op_l.?] == rhs_str[op_r.?] and std.mem.eql(u8, al, br) and std.mem.eql(u8, ar, bl)) {
+                const al = std.mem.trim(u8, lhs_norm[0..op_l.?], " ");
+                const ar = std.mem.trim(u8, lhs_norm[op_l.? + 1 ..], " ");
+                const bl = std.mem.trim(u8, rhs_norm[0..op_r.?], " ");
+                const br = std.mem.trim(u8, rhs_norm[op_r.? + 1 ..], " ");
+                if (lhs_norm[op_l.?] == rhs_norm[op_r.?] and std.mem.eql(u8, al, br) and std.mem.eql(u8, ar, bl)) {
                     thm.verified = true;
                     return true;
                 }
@@ -490,3 +523,42 @@ pub const ProofCore = struct {
         }
     }
 };
+
+/// "(add x 0)" → "(+ x 0)" — les règles du KB sont en op natifs.
+fn normalizeLoweredOps(input: []const u8, allocator: std.mem.Allocator) ![]const u8 {
+    const pairs = [_]struct { from: []const u8, to: []const u8 }{
+        .{ .from = "(add ", .to = "(+ " },
+        .{ .from = "(sub ", .to = "(- " },
+        .{ .from = "(mul ", .to = "(* " },
+        .{ .from = "(div ", .to = "(/ " },
+    };
+    var needed = false;
+    for (pairs) |p| {
+        if (std.mem.indexOf(u8, input, p.from) != null) { needed = true; break; }
+    }
+    if (!needed) return input;
+
+    const out = try allocator.alloc(u8, input.len);
+    var out_len: usize = 0;
+    var i: usize = 0;
+    while (i < input.len) {
+        var matched = false;
+        for (pairs) |p| {
+            if (i + p.from.len <= input.len and
+                std.mem.eql(u8, input[i .. i + p.from.len], p.from))
+            {
+                @memcpy(out[out_len .. out_len + p.to.len], p.to);
+                out_len += p.to.len;
+                i += p.from.len;
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) {
+            out[out_len] = input[i];
+            out_len += 1;
+            i += 1;
+        }
+    }
+    return out[0..out_len];
+}

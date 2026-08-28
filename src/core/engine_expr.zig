@@ -678,13 +678,48 @@ test "engine rejects non-lowered frontend expressions" {
     var engine = Engine.initTest(allocator, &store, &env);
     defer engine.deinit();
 
-    const x = try engine.store.sym("x");
-    const zero = try engine.store.int(0);
-    const frontend = try engine.store.binop("quote", x, zero);
+    // ✅ Contrat mis à jour : les SYMBOLES NUS restent du sucre non-lowered.
+    // Les apply (quote x 0) / (perform ...) sont devenus ÉVALUABLES
+    // (expandMacro + branches effets dans evalMagic) — c'est ce qui
+    // fait marcher macro_double et effect_handle.
 
+    const quote_nu = try engine.store.sym("quote");
     try std.testing.expectError(
         error.ExtensionNotLowered,
-        engine.eval(frontend),
+        engine.eval(quote_nu),
+    );
+
+    const perform_nu = try engine.store.sym("perform");
+    try std.testing.expectError(
+        error.ExtensionNotLowered,
+        engine.eval(perform_nu),
+    );
+
+    const handle_nu = try engine.store.sym("handle");
+    try std.testing.expectError(
+        error.ExtensionNotLowered,
+        engine.eval(handle_nu),
+    );
+
+    const unquote_nu = try engine.store.sym("unquote");
+    try std.testing.expectError(
+        error.ExtensionNotLowered,
+        engine.eval(unquote_nu),
+    );
+
+    const nil_nu = try engine.store.sym("Nil");
+    try std.testing.expectError(
+        error.ExtensionNotLowered,
+        engine.eval(nil_nu),
+    );
+
+    // ✅ En apply, unquote reste rejeté (hors expansion de macro)
+    const x = try engine.store.sym("x");
+    const zero = try engine.store.int(0);
+    const unquote_apply = try engine.store.binop("unquote", x, zero);
+    try std.testing.expectError(
+        error.ExtensionNotLowered,
+        engine.eval(unquote_apply),
     );
 }
 
