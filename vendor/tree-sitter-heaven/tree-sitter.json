@@ -1,0 +1,42 @@
+{
+  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/config.schema.json",
+  "grammars": [
+    {
+      "name": "heaven",
+      "camelcase": "Heaven",
+      "title": "Heaven",
+      "scope": "source.heaven",
+      "file-types": [
+        "heaven"
+      ],
+      "injection-regex": "^heaven$",
+      "class-name": "TreeSitterHeaven"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Computer Lang",
+    "authors": [
+      {
+        "name": "Aziz ABOUCHI",
+        "email": "aziz.abouchi@gmail.com",
+        "url": ""
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/aziz-abouchi/heaven",
+      "funding": ""
+    }
+  },
+  "bindings": {
+    "c": true,
+    "go": true,
+    "java": true,
+    "node": true,
+    "python": true,
+    "rust": true,
+    "swift": true,
+    "zig": true
+  }
+}
