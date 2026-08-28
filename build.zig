@@ -4,6 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const network = b.option(bool, "network", "Enable native networking (WebRTC/SCUT)") orelse true;
+    const tcc_runtime = b.option(bool, "tcc", "Runtime C compilation via libtcc") orelse true;
 
     // 1. Options globales
     const options = b.addOptions();
@@ -666,25 +667,39 @@ pub fn build(b: *std.Build) void {
         exe.root_module.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
         exe.root_module.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
 
-        // WebRTC + TCC + libc
+        // ═══ Headers plateforme requis par les @cImport Zig (tous modes) ═══
+        // c_rtc.h (webrtc.zig) et libtcc.h (native.zig) doivent être trouvables,
+        // quel que soit le mode — les stubs C fournissent les symboles manquants.
+        exe.addIncludePath(b.path("src/platform"));
+
         if (network) {
             exe.addIncludePath(b.path("vendor/libdatachannel/include"));
             exe.addCSourceFile(.{
                 .file = b.path("src/platform/webrtc_impl.cpp"),
                 .flags = &.{ "-std=c++17", "-Drtc_EXPORTS", "-fno-sanitize=undefined" },
             });
-            exe.addIncludePath(b.path("src/platform"));
             exe.linkSystemLibrary("datachannel");
             exe.linkLibCpp();
         } else {
-            exe.root_module.addAnonymousImport("network_stub", .{
-                .root_source_file = b.path("src/platform/network_stub.zig"),
+            // Symboles c_rtc.h en no-op (webrtc.zig link sans libdatachannel)
+            exe.addCSourceFile(.{
+                .file = b.path("src/platform/webrtc_stub.c"),
+                .flags = &.{"-std=c99"},
+            });
+        }
+
+        if (tcc_runtime) {
+            exe.linkSystemLibrary("tcc");
+        } else {
+            // tcc_new() → NULL : compilation runtime désactivée proprement
+            exe.addCSourceFile(.{
+                .file = b.path("src/platform/tcc_stub.c"),
+                .flags = &.{"-std=c99"},
             });
         }
 
         exe.root_module.link_libc = true;
         exe.linkSystemLibrary("tree-sitter");
-        exe.linkSystemLibrary("tcc");
         exe.linkLibC();
     } else {
         // ─── WASM : pas de tree-sitter C (freestanding = pas de libc) ───

@@ -1,4 +1,5 @@
-#!/bin/bash set -e
+#!/bin/bash
+set -e
 
 ROOT_DIR=$(pwd) VENDOR_DIR="$ROOT_DIR/vendor"
 
@@ -25,7 +26,7 @@ setup_parser() {
 	fi
 }
 
-setup_parser "heaven" "$VENDOR_DIR/tree-sitter-heaven"
+#setup_parser "heaven" "https://github.com/aziz-abouchi/tree-sitter-heaven.git"
 setup_parser "pie" "https://github.com/syrkis/tree-sitter-pie"
 setup_parser "c" "https://github.com/tree-sitter/tree-sitter-c"
 setup_parser "zig" "https://github.com/maxxnino/tree-sitter-zig"

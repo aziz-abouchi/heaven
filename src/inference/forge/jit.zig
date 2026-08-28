@@ -25,7 +25,7 @@ pub const JitEngine = struct {
         if (autofab.tcc_relocate(tmp_state, autofab.TCC_RELOCATE_AUTO) < 0) return error.RelocationFailed;
 
         const func_ptr = autofab.tcc_get_symbol(tmp_state, entry_point.ptr) orelse return error.SymbolNotFound;
-        const func = @as(*const fn () callconv(.c) void, @ptrCast(func_ptr));
+        const func = @as(*const fn () callconv(.c) void, @ptrCast(@alignCast(func_ptr)));
 
         func(); // <--- C'est ici que Bob parle !
     }

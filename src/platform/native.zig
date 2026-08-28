@@ -26,10 +26,6 @@ pub const ts = @cImport({
     @cInclude("tree_sitter/api.h");
 });
 
-pub const libtcc = @cImport({
-    @cInclude("libtcc.h");
-});
-
 // Déclarations des parsers (on unifie le typage ici)
 pub extern fn tree_sitter_heaven() *ts.TSLanguage;
 pub extern fn tree_sitter_pie() *ts.TSLanguage;

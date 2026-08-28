@@ -248,7 +248,7 @@ pub const Engine = struct {
 
                 if (ptr) |func_ptr| {
                     log("[HEAVEN] Activation JIT : {s} @ {p}\n", .{ link.symbol_name, func_ptr });
-                    const func: *const fn () callconv(.c) void = @ptrCast(func_ptr);
+                    const func: *const fn () callconv(.c) void = @ptrCast(@alignCast(func_ptr));
                     func();
                     atom.state = .Resolved;
                     return;
@@ -265,7 +265,7 @@ pub const Engine = struct {
 
                 if (fab.linker.getSymbol(link.lib_name, symbol_z)) |sys_ptr| {
                     log("[HEAVEN] Appel système (libc) : {s} @ {p}\n", .{ link.symbol_name, sys_ptr });
-                    const func: *const fn () callconv(.c) void = @ptrCast(sys_ptr);
+                    const func: *const fn () callconv(.c) void = @ptrCast(@alignCast(sys_ptr));
                     func();
                     atom.state = .Resolved;
                     return;

@@ -234,10 +234,10 @@ pub const AutoFab = struct {
         defer self.allocator.free(entry_z);
 
         if (tcc_get_symbol(s, entry_z.ptr)) |func| {
-            const entry_fn: *const fn () callconv(.c) void = @ptrCast(func);
+            const entry_fn: *const fn () callconv(.c) void = @ptrCast(@alignCast(func));
             entry_fn();
         } else if (tcc_get_symbol(s, "main")) |main_ptr| { // Fallback si c'est un main() standard
-            const main_fn: *const fn () callconv(.c) void = @ptrCast(main_ptr);
+            const main_fn: *const fn () callconv(.c) void = @ptrCast(@alignCast(main_ptr));
             main_fn();
         } else {
             // platform.dbg("[AUTOFAB ERR] Point d'entrée '{s}' introuvable !\n", .{entry_symbol});
@@ -338,14 +338,14 @@ pub const AutoFab = struct {
         if (tcc_relocate(s, TCC_RELOCATE_AUTO) < 0) return error.RelocateError;
 
         const func = tcc_get_symbol(s, "main") orelse return error.SymbolNotFound;
-        const main_fn: *const fn () callconv(.c) void = @ptrCast(func);
+        const main_fn: *const fn () callconv(.c) void = @ptrCast(@alignCast(func));
         main_fn();
     }
 
     pub fn executeDeterministic(self: *AutoFab, id: u32, code: []const u8) !void {
         // compilation lazy + cache
         const fn_ptr = try self.compileIfNeeded(id, code);
-        const func: *const fn () callconv(.c) void = @ptrCast(fn_ptr);
+        const func: *const fn () callconv(.c) void = @ptrCast(@alignCast(fn_ptr));
         func();
     }
 
@@ -387,7 +387,7 @@ pub const AutoFab = struct {
 
     pub fn executeSymbol(self: *AutoFab, symbol: []const u8) !void {
         if (self.resolveSymbol(symbol)) |ptr| {
-            const f: *const fn () callconv(.c) void = @ptrCast(ptr);
+            const f: *const fn () callconv(.c) void = @ptrCast(@alignCast(ptr));
             f();
             return;
         }

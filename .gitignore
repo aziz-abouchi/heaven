@@ -43,7 +43,9 @@ wasm_dist/
 config.local.json
 
 # Dependencies (managed locally or as git submodules)
-vendor/
+vendor/*
+!vendor/tree-sitter-heaven/
+vendor/tree-sitter-heaven/node_modules/
 
 # Git backups
 .git.bak/
