@@ -138,6 +138,7 @@ pub const Engine = struct {
     next_actor_id: u32 = 0,
     green_call_count: u32 = 0,
     green_mode: bool = false,
+    last_performed: ?expr.Id = null,
     fuel: u64 = 1_000_000,
     max_recursion_depth: usize = 1000,
     recursion_depth: usize = 0,
@@ -259,7 +260,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             }
 
             const op_name = store.interner.resolve(op_node.payload);
-            if (isFrontendExtension(op_name)) return error.ExtensionNotLowered;
+            if (isFrontendExtensionApply(op_name)) return error.ExtensionNotLowered;
 
             const args = if (all_args.len > 1 and all_args[0] == op_id) all_args[1..] else all_args;
             return try evalMagic(store, env, engine, op_name, args, depth);
@@ -307,6 +308,16 @@ fn isFrontendExtension(name: []const u8) bool {
     if (std.mem.eql(u8, name, "quote")) return true;
     if (std.mem.eql(u8, name, "unquote")) return true;
     if (std.mem.eql(u8, name, "perform")) return true;
+    if (std.mem.eql(u8, name, "handle")) return true;
+    if (std.mem.eql(u8, name, "Nil")) return true;
+    if (std.mem.eql(u8, name, "Cons")) return true;
+    if (std.mem.startsWith(u8, name, "Type_")) return true;
+    return false;
+}
+
+fn isFrontendExtensionApply(name: []const u8) bool {
+    // perform/handle/quote en tête d'apply = ÉVALUABLES
+    if (std.mem.eql(u8, name, "unquote")) return true;
     if (std.mem.eql(u8, name, "Nil")) return true;
     if (std.mem.eql(u8, name, "Cons")) return true;
     if (std.mem.startsWith(u8, name, "Type_")) return true;
@@ -314,6 +325,16 @@ fn isFrontendExtension(name: []const u8) bool {
 }
 
 fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
+    // ═══ MACROS : expansion quote/unquote ═══
+    if (store.interner.lookup(op)) |op_sym| {
+        if (engine.macros.get(op_sym)) |m| {
+            const params = m.params_span.slice(store.pool.items);
+            if (args.len != params.len) return error.ArityMismatch;
+            const expansion = try expandMacro(store, engine.allocator, m.body, params, args);
+            return evaluate(store, env, engine, expansion, depth + 1);
+        }
+    }
+
     // ═══ 1. FONCTIONS UTILISATEUR EN PREMIER ═══
     if (engine.fns.get(op)) |fn_def| {
         if (fn_def.num_clauses > 0) {
@@ -461,29 +482,41 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     // ═══ 3. EFFETS ALGÉBRIQUES : perform et handle ═══
     if (std.mem.eql(u8, op, "perform")) {
-        // Si on est en mode "green" (profiling), on compte l'effet
-        if (engine.green_mode) {
-            engine.green_call_count += 1;
+        if (engine.green_mode) engine.green_call_count += 1;
+        if (args.len > 1) {
+            const val = try evaluate(store, env, engine, args[1], depth + 1);
+            engine.last_performed = val;
+            return val;
         }
-        // Un perform retourne simplement son argument (le calcul évalué)
-        if (args.len > 1) return evaluate(store, env, engine, args[1], depth + 1);
         return args[0];
     }
 
     if (std.mem.eql(u8, op, "handle")) {
-        // handle(body, handler)
-        // Pour le profiling, on active le mode green pendant l'évaluation du corps
         const old_mode = engine.green_mode;
         engine.green_mode = true;
         engine.green_call_count = 0;
+        const old_performed = engine.last_performed;
+        engine.last_performed = null;
 
-        const result = try evaluate(store, env, engine, args[0], depth + 1);
+        const result = evaluate(store, env, engine, args[0], depth + 1) catch |err| {
+            engine.green_mode = old_mode;
+            engine.last_performed = old_performed;
+            return err;
+        };
 
+        const performed = engine.last_performed;
         engine.green_mode = old_mode;
-        // On retourne le résultat (le compteur est stocké dans engine.green_call_count)
+        engine.last_performed = old_performed;
+
+        if (performed) |val| {
+            if (args.len > 1) {
+                const call_id = try store.apply(args[1], &.{val});
+                return evaluate(store, env, engine, call_id, depth + 1);
+            }
+        }
         return result;
     }
-
+    
     // ═══ 5. OPÉRATEURS ARITHMÉTIQUES ═══
     if (args.len == 0) return error.ArityMismatch;
     if (std.mem.eql(u8, op, "!")) {
@@ -599,6 +632,39 @@ fn evalCmp(store: *Store, a: Id, b: Id, op: CmpOp) EvalError!Id {
         .span_a = Span.EMPTY,
         .span_b = Span.EMPTY,
     });
+
+    pub fn expandMacro(store: *expr.Store, allocator: Allocator, body: expr.Id, params: []const expr.Id, args: []const expr.Id) !expr.Id {
+    const node = store.get(body);
+    switch (node.tag) {
+        .sym => {
+            for (params, 0..) |p, i| {
+                if (i >= args.len) break;
+                const pn = store.get(p);
+                if (pn.tag == .sym and pn.payload == node.payload) return args[i];
+            }
+            return body;
+        },
+        .lit => return body,
+        .apply => {
+            const fnode = store.get(node.payload);
+            var head: []const u8 = "";
+            if (fnode.tag == .sym) head = store.interner.resolve(fnode.payload);
+            const children = store.spanSliceConst(node.span_a);
+            if (std.mem.eql(u8, head, "quote") and children.len == 2)
+                return expandMacro(store, allocator, children[1], params, args);
+            if (std.mem.eql(u8, head, "unquote") and children.len == 2)
+                return expandMacro(store, allocator, children[1], params, args);
+            if (children.len < 2) return body;
+            var new_args: std.ArrayListUnmanaged(expr.Id) = .{};
+            defer new_args.deinit(allocator);
+            for (children[1..]) |c| {
+                try new_args.append(allocator, try expandMacro(store, allocator, c, params, args));
+            }
+            return store.apply(node.payload, new_args.items);
+        },
+        else => return body,
+    }
+}
 }
 
 test "engine rejects non-lowered frontend expressions" {

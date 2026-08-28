@@ -278,9 +278,25 @@ pub const Heaven = struct {
             return self.plot(rest, "x");
         }
         if (std.mem.eql(u8, trimmed, "rules")) return self.listRules();
+
+        // ✅ FALLBACK : fonctions/macros user via la pile Commands
+        if (self.commands) |cmds| {
+            if (cmds.eval(src)) |r| {
+                const is_echo = std.mem.eql(u8, r, trimmed);
+                const is_err = std.mem.startsWith(u8, r, "eval error") or
+                    std.mem.startsWith(u8, r, "actor error") or
+                    std.mem.startsWith(u8, r, "parse error") or
+                    std.mem.startsWith(u8, r, "syntax error");
+                if (!is_echo and !is_err) {
+                    return r;
+                }
+                self.allocator.free(r);
+            } else |_| {}
+        }
+
         return self.allocator.dupe(u8, trimmed);
     }
-
+    
     fn addRelation(self: *Heaven, input: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, input, " ");
         const arrow_pos = std.mem.indexOf(u8, trimmed, "=>") orelse

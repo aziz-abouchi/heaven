@@ -737,28 +737,26 @@ pub const Store = struct {
         });
     }
 
-    pub fn handle(self: *Store, body: Id, handler: Id) !Id {
-        _ = self;
-        _ = body;
-        _ = handler;
-        return 0;
-    }
-    pub fn quote(self: *Store, inner: Id) !Id {
-        _ = self;
-        _ = inner;
-        return 0;
-    }
-    pub fn perform(self: *Store, name: []const u8, args: []const Id) !Id {
-        _ = self;
-        _ = name;
-        _ = args;
-        return 0; // Stub temporaire
-    }
-    pub fn unquote(self: *Store, inner: Id) !Id {
-        _ = self;
-        _ = inner;
-        return 0; // Stub temporaire
-    }
+pub fn handle(self: *Store, body: Id, handler: Id) !Id {
+    const h = try self.sym("handle");
+    return self.apply(h, &.{ body, handler });
+}
+pub fn quote(self: *Store, inner: Id) !Id {
+    const q = try self.sym("quote");
+    return self.apply(q, &.{inner});
+}
+pub fn unquote(self: *Store, inner: Id) !Id {
+    const u = try self.sym("unquote");
+    return self.apply(u, &.{inner});
+}
+pub fn perform(self: *Store, name: []const u8, args: []const Id) !Id {
+    const p = try self.sym("perform");
+    var all: std.ArrayListUnmanaged(Id) = .{};
+    defer all.deinit(self.allocator);
+    try all.append(self.allocator, try self.sym(name));
+    for (args) |a| try all.append(self.allocator, a);
+    return self.apply(p, all.items);
+}
     pub fn bindSym(self: *Store, sym_id: Sym, body: Id) !Id {
         _ = self;
         _ = sym_id;
