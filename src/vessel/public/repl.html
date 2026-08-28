@@ -244,7 +244,7 @@
             
             // Forcer un tick immédiat
             if (wasm) {
-              wasm.tick_swarm();
+              //wasm.tick_swarm();
             }
             break;
           }
@@ -631,7 +631,7 @@
         let lastTick = 0;
         function tickLoop(timestamp) {
             if (timestamp - lastTick >= 16) {
-                wasm.tick_swarm();
+                //wasm.tick_swarm();
                 checkPendingResponse();
                 checkPendingProofResponse();
                 lastTick = timestamp;

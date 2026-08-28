@@ -305,7 +305,7 @@
         addLine(`Commandes : ${availableCommands.join(' ')}`, 'info');
 
         function tickLoop(ts) {
-          if (wasm) wasm.tick_swarm();
+          //if (wasm) wasm.tick_swarm();
           requestAnimationFrame(tickLoop);
         }
         requestAnimationFrame(tickLoop);
