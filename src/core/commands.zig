@@ -933,7 +933,9 @@ pub const Commands = struct {
             const name_sym_id = try self.store.sym(name);
             try self.env.put(name_sym, name_sym_id);
 
-            return std.fmt.allocPrint(self.allocator, "{s} clause ({d} patterns) registered", .{ name, num_pats });
+            const msg =  try std.fmt.allocPrint(self.allocator, "{s} clause ({d} patterns) registered", .{ name, num_pats });
+            platform.dbg("[evalFnDef] alloc addr={d} name={s}\n", .{ @intFromPtr(msg.ptr), name });
+            return msg;
         }
 
         return self.allocator.dupe(u8, "syntax error in function definition");
@@ -1436,7 +1438,10 @@ pub const Commands = struct {
 
     fn evalGreen(self: *Commands, input: []const u8) ![]u8 {
         // ✅ Même mécanisme que cmdGreen : wrapper dans (handle expr greenHandler)
-        _ = self.eval("let greenHandler(v1, v2, cost) = (+ v1 v2)") catch {};
+        if (self.eval("let greenHandler(v1, v2, cost) = (+ v1 v2)")) |r| {
+            self.allocator.free(r);
+        } else |_| {}
+
         const expr_id = try self.bridge.importExpr(input);
         const handle_op = try self.store.sym("handle");
         const handler_sym = try self.store.sym("greenHandler");

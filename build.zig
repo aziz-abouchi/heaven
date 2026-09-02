@@ -32,6 +32,22 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const syntax_ast_mod = b.addModule("syntax_ast", .{
+        .root_source_file = b.path("src/syntax/ast.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const syntax_lower_mod = b.addModule("syntax_lower", .{
+        .root_source_file = b.path("src/syntax/lower.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "ast", .module = syntax_ast_mod },
+            .{ .name = "platform", .module = platform_mod },
+        },
+    });
+
     const profiler_mod = b.addModule("profiler", .{
         .root_source_file = b.path("src/core/profiler.zig"),
         .target = target,
@@ -1027,6 +1043,41 @@ pub fn build(b: *std.Build) void {
     }
 
     const test_step = b.step("test", "Run all tests");
+
+    if (target.query.cpu_arch != .wasm32) {
+        const test_syntax_lower = b.addTest(.{
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/syntax/lower_test.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{
+                    .{ .name = "lower", .module = syntax_lower_mod },
+                },
+            }),
+        });
+
+        const test_ts_flags = &.{"-std=c99"};
+
+        test_syntax_lower.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-heaven/src/parser.c"),
+            .flags = test_ts_flags,
+        });
+
+        test_syntax_lower.root_module.addIncludePath(
+            b.path("vendor/tree-sitter-heaven/src"),
+        );
+        test_syntax_lower.root_module.addIncludePath(
+            b.path("vendor/tree-sitter/lib/include"),
+        );
+        test_syntax_lower.root_module.link_libc = true;
+        test_syntax_lower.linkSystemLibrary("tree-sitter");
+
+        const run_test_syntax_lower =
+            b.addRunArtifact(test_syntax_lower);
+
+        test_step.dependOn(&run_test_syntax_lower.step);
+    }
+
     test_step.dependOn(&b.addRunArtifact(test_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_kanren).step);

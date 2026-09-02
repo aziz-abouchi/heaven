@@ -22,8 +22,22 @@
     </script>
     <script type="module">
         import { runTests } from './test_heaven.js';
+
+        // Définir les imports requis par le WASM
+        const importObject = {
+            env: {
+                js_performance_now: () => performance.now(), // ou Date.now()
+                js_console_log: (ptr, len) => console.log("WASM log:", ptr, len),
+                js_console_error: (ptr, len) => console.error("WASM error:", ptr, len),
+                js_ollama_query: (ptr, len) => console.log("WASM ollama query:", ptr, len),
+                send_proof_response: (ptr, len) => console.log("WASM send proof response:", ptr, len),
+                js_drain_message_queue: (ptr, len) => console.log("WASM drain message queue:", ptr, len),
+                // Ajoutez d'autres fonctions si besoin
+            }
+        };
+
         async function loadWasm() {
-            const wasm = await WebAssembly.instantiateStreaming(fetch('heaven.wasm'));
+            const wasm = await WebAssembly.instantiateStreaming(fetch('heaven.wasm'), importObject);
             // Adaptez selon l'export réel (ex: 'eval', 'heavenEval', etc.)
             const evalFn = wasm.instance.exports.eval;
             return { heavenEval: (input) => evalFn(input) };

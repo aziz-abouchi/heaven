@@ -241,6 +241,7 @@ pub fn main() !void {
 
             // Afficher le résultat de la ligne
             platform.debug.print("✓ {s} → {s}\n", .{ trimmed, result });
+            platform.dbg("[main free] addr={d} input='{s}'\n", .{ @intFromPtr(result.ptr), trimmed });
             allocator.free(result);
         }
 
