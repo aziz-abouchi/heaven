@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Heaven – Web Tests</title>
+    <style>
+        body{background:#0a0a0a;color:#00ff41;font-family:monospace;padding:20px;}
+        .pass{color:#00ff41;}.fail{color:#ff4444;}
+        #summary{margin-top:20px;font-weight:bold;}
+    </style>
+</head>
+<body>
+    <h1>🧪 HEAVEN WebAssembly Test Suite</h1>
+    <div id="output"></div>
+    <div id="summary"></div>
+    <script type="importmap">
+    {
+        "imports": {
+            "./test_heaven.js": "./test_heaven.js"
+        }
+    }
+    </script>
+    <script type="module">
+        import { runTests } from './test_heaven.js';
+        async function loadWasm() {
+            const wasm = await WebAssembly.instantiateStreaming(fetch('heaven.wasm'));
+            // Adaptez selon l'export réel (ex: 'eval', 'heavenEval', etc.)
+            const evalFn = wasm.instance.exports.eval;
+            return { heavenEval: (input) => evalFn(input) };
+        }
+        try {
+            const wasm = await loadWasm();
+            // Rediriger console.log vers la page
+            const output = document.getElementById('output');
+            console.log = (...args) => {
+                const div = document.createElement('div');
+                div.className = 'test-result';
+                div.textContent = args.join(' ');
+                output.appendChild(div);
+            };
+            console.error = (...args) => {
+                const div = document.createElement('div');
+                div.className = 'test-result fail';
+                div.textContent = '❌ ' + args.join(' ');
+                output.appendChild(div);
+            };
+            await runTests(wasm);
+            const pass = output.querySelectorAll('.pass').length;
+            const fail = output.querySelectorAll('.fail').length;
+            document.getElementById('summary').innerHTML = `✅ ${pass} passed, ❌ ${fail} failed`;
+        } catch(e) {
+            document.getElementById('output').innerHTML = `<div class="fail">Erreur : ${e.message}</div>`;
+        }
+    </script>
+</body>
+</html>

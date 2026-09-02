@@ -1024,6 +1024,20 @@ pub const Heaven = struct {
     /// Égalité sémantique : même e-class après saturation, OU intersection
     /// des formes pliées (foldConstants) des deux classes.
     fn egraphSemanticEq(self: *Heaven, a: Id, b: Id) bool {
+        // ✅ Guard : arbre invalide = corruption en amont → échec propre + log
+        if (a >= self.store.len() or b >= self.store.len()) {
+            platform.dbg("[egraphSemanticEq] SKIP: id racine invalide a={d} b={d} (len={d})\n",
+                .{ a, b, self.store.len() });
+            return false;
+        }
+        if (!self.validExprTree(a)) {
+            platform.dbg("[egraphSemanticEq] SKIP: arbre A invalide (id={d})\n", .{a});
+            return false;
+        }
+        if (!self.validExprTree(b)) {
+            platform.dbg("[egraphSemanticEq] SKIP: arbre B invalide (id={d})\n", .{b});
+            return false;
+        }
         var egraph = egraph_mod.EGraph.init(self.store, self.allocator);
         defer egraph.deinit();
         const ca = egraph.addExpr(a) catch return false;
@@ -1101,6 +1115,39 @@ pub const Heaven = struct {
         };
         self.commands = cmds;
         return cmds;
+    }
+
+    fn validExprTree(self: *Heaven, id: Id) bool {
+        if (id >= self.store.len()) return false;
+        const node = self.store.get(id);
+        switch (node.tag) {
+            .apply => {
+                if (!self.validExprTree(node.payload)) return false;
+                for (self.store.spanSliceConst(node.span_a)) |child| {
+                    if (!self.validExprTree(child)) return false;
+                }
+            },
+            .relation => {
+                for (self.store.spanSliceConst(node.span_a)) |child| {
+                    if (!self.validExprTree(child)) return false;
+                }
+                for (self.store.spanSliceConst(node.span_b)) |child| {
+                    if (!self.validExprTree(child)) return false;
+                }
+            },
+            .lambda => {
+                for (self.store.spanSliceConst(node.span_a)) |child| {
+                    if (!self.validExprTree(child)) return false;
+                }
+            },
+            .bind => {
+                if (node.aux < self.store.len()) {
+                    if (!self.validExprTree(node.aux)) return false;
+                }
+            },
+            else => {},
+        }
+        return true;
     }
 };
 

@@ -228,9 +228,20 @@ pub const Math = struct {
                     const sin_u = try self.store.apply(sin_sym, &.{args[0]});
                     const neg_sin = try self.store.apply(minus_sym, &.{ zero, sin_u });
                     break :blk try self.store.apply(mul_sym, &.{ neg_sin, du });
-                }
-                // exp, log : même pattern
-                else {
+                } else if (std.mem.eql(u8, op, "exp")) {
+                    // d/dx (exp u) = (exp u) * u'
+                    const du = try self.deriveExpr(args[0], variable);
+                    const exp_sym = try self.store.sym("exp");
+                    const mul_sym = try self.store.sym("*");
+                    const exp_u = try self.store.apply(exp_sym, &.{args[0]});
+                    break :blk try self.store.apply(mul_sym, &.{ exp_u, du });
+
+                } else if (std.mem.eql(u8, op, "log")) {
+                    // d/dx (log u) = u' / u
+                    const du = try self.deriveExpr(args[0], variable);
+                    const div_sym = try self.store.sym("/");
+                    break :blk try self.store.apply(div_sym, &.{ du, args[0] });
+                } else {
                     platform.dbg("[deriveExpr] unsupported op: {s}\n", .{op});
                     return error.UnsupportedDeriveOp;
                 }

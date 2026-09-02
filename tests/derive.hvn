@@ -1,0 +1,10 @@
+# ═══════════════════════════════════════════════════
+# Tests de Dérivation Symbolique
+# ═══════════════════════════════════════════════════
+
+(test "derive_sin" (assert_eq (derive (sin x)) (cos x)))
+(test "derive_cos" (assert_eq (derive (cos x)) (- 0 (sin x))))
+(test "derive_exp" (assert_eq (derive (exp x)) (exp x)))
+(test "derive_log" (assert_eq (derive (log x)) (/ 1 x)))
+(test "derive_product" (assert_eq (derive (* x (sin x))) (+ (sin x) (* x (cos x)))))
+(test "derive_quotient" (assert_eq (derive (/ x (cos x))) (/ (+ (cos x) (* x (sin x))) (^ (cos x) 2))))

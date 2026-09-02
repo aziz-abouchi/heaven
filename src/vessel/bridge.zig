@@ -20,6 +20,7 @@ const editor_frame_html = @embedFile("public/editor-frame.html");
 const repl_frame_html = @embedFile("public/repl-frame.html");
 const debugger_frame_html = @embedFile("public/debugger-frame.html");
 const process_frame_html = @embedFile("public/process-frame.html");
+const test_html = @embedFile("public/test.html");
 
 pub const WebBridge = struct {
     matrix: *matrix_lib.Matrix,
@@ -287,6 +288,15 @@ fn handleHttp(args: HandlerArgs, request: []const u8) !void {
         const header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nConnection: close\r\n\r\n";
         try args.conn.stream.writeAll(header);
         try args.conn.stream.writeAll(process_frame_html);
+    } else if (std.mem.indexOf(u8, request, "GET /test") != null) {
+        const header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nConnection: close\r\n\r\n";
+        try args.conn.stream.writeAll(header);
+        try args.conn.stream.writeAll(test_html);
+    } else if (std.mem.indexOf(u8, request, "GET /test_heaven.js") != null) {
+        const test_js = @embedFile("public/test_heaven.js");
+        const header = "HTTP/1.1 200 OK\r\nContent-Type: application/javascript\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nConnection: close\r\n\r\n";
+        try args.conn.stream.writeAll(header);
+        try args.conn.stream.writeAll(test_js);
     } else {
         const header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nConnection: close\r\n\r\n";
         try args.conn.stream.writeAll(header);
