@@ -1,0 +1,73 @@
+==============================
+Equation — définition simple
+==============================
+
+add zero n = n
+
+---
+
+(source_file
+  (eq_decl
+    (identifier)
+    (pattern
+      (ctor_pat
+        (identifier)
+        (identifier)))
+    (identifier)))
+
+==============================
+Equation — pattern constructeur
+==============================
+
+add (succ n) m = succ (add n m)
+
+---
+
+(source_file
+  (eq_decl
+    (identifier)
+    (pattern
+      (pattern
+        (ctor_pat
+          (identifier)
+          (identifier))))
+    (pattern
+      (identifier))
+    (call
+      (identifier)
+      (app_expr
+        (simple_expr
+          (identifier))
+        (simple_expr
+          (identifier))
+        (simple_expr
+          (identifier))))))
+
+==============================
+Equation — expression composée
+==============================
+
+factorial (succ n) = (succ n) * factorial n
+
+---
+
+(source_file
+  (eq_decl
+    (identifier)
+    (pattern
+      (pattern
+        (ctor_pat
+          (identifier)
+          (identifier))))
+    (binary
+      (paren_expr
+        (app_expr
+          (simple_expr
+            (identifier))
+          (simple_expr
+            (identifier))))
+      (app_expr
+        (simple_expr
+          (identifier))
+        (simple_expr
+          (identifier))))))

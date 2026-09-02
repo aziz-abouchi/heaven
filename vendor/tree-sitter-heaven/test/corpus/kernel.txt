@@ -1,0 +1,164 @@
+==============================
+Kernel — data Nat
+==============================
+
+data Nat
+    = Zero
+    | Succ Nat
+
+---
+
+(source_file
+  (data_decl
+    (prim_type)
+    (data_constructor
+      (type_name))
+    (data_constructor
+      (type_name)
+      (ctor_arg_type
+        (prim_type)))))
+
+==============================
+Kernel — data Term
+==============================
+
+data Term
+    = Lit Int
+    | Var String
+    | Apply String List<Term>
+
+---
+
+(source_file
+  (data_decl
+    (type_name)
+    (data_constructor
+      (type_name)
+      (ctor_arg_type
+        (prim_type)))
+    (data_constructor
+      (type_name)
+      (ctor_arg_type
+        (prim_type)))
+    (data_constructor
+      (type_name)
+      (ctor_arg_type
+        (prim_type))
+      (ctor_arg_type
+        (generic_type
+          (type_name)
+          (type_ident
+            (type_name)))))))
+
+==============================
+Kernel — axiom
+==============================
+
+axiom refl :
+    forall (a : Term). Eq<a,a>
+
+---
+
+(source_file
+  (axiom_decl
+    (identifier)
+    (forall_type
+      (identifier)
+      (type_ident
+        (type_name))
+      (generic_type
+        (type_name)
+        (type_ident
+          (identifier))
+        (type_ident
+          (identifier))))))
+
+==============================
+Kernel — axiom avec implication
+==============================
+
+axiom sym :
+    forall (a b : Term). Eq<a,b> -> Eq<b,a>
+
+---
+
+(source_file
+  (axiom_decl
+    (identifier)
+    (forall_type
+      (identifier)
+      (identifier)
+      (type_ident
+        (type_name))
+      (arrow_type
+        (generic_type
+          (type_name)
+          (type_ident
+            (identifier))
+          (type_ident
+            (identifier)))
+        (generic_type
+          (type_name)
+          (type_ident
+            (identifier))
+          (type_ident
+            (identifier)))))))
+
+==============================
+Kernel — theorem
+==============================
+
+theorem add_zero :
+    forall (n : Nat). Eq<Add<n,Zero>, n>
+
+---
+
+(source_file
+  (theorem_decl
+    (identifier)
+    (forall_type
+      (identifier)
+      (prim_type)
+      (generic_type
+        (type_name)
+        (generic_type
+          (type_name)
+          (type_ident
+            (identifier))
+          (type_ident
+            (type_name)))
+        (type_ident
+          (identifier))))))
+
+==============================
+Kernel — theorem avec preuve par induction
+==============================
+
+theorem add_zero : forall (n : Nat). Eq<Add<n,Zero>, n> {
+  proof by induction n {
+    qed
+  }
+}
+
+---
+
+(source_file
+  (theorem_decl
+    (identifier)
+    (forall_type
+      (identifier)
+      (prim_type)
+      (generic_type
+        (type_name)
+        (generic_type
+          (type_name)
+          (type_ident
+            (identifier))
+          (type_ident
+            (type_name)))
+        (type_ident
+          (identifier))))
+    (proof_block
+      (proof_strategy
+        (identifier))
+      (proof_step))))
