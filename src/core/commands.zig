@@ -321,7 +321,7 @@ pub const Commands = struct {
         if (std.mem.eql(u8, trimmed, "help")) return self.evalHelp();
         if (std.mem.eql(u8, trimmed, "stats")) return self.evalStats();
         if (std.mem.eql(u8, trimmed, "theorems")) return self.evalTheorems();
-        if (std.mem.eql(u8, trimmed, "rules")) return self.evalRules();
+        if (std.mem.eql(u8, trimmed, "meta") or std.mem.eql(u8, trimmed, "rules")) return self.evalRules();
 
         if (std.mem.startsWith(u8, trimmed, "let ")) return self.evalLet(trimmed["let ".len..]);
         if (std.mem.startsWith(u8, trimmed, "transform ")) return try self.evalTransform(trimmed["transform ".len..]);

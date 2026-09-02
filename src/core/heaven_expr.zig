@@ -277,7 +277,9 @@ pub const Heaven = struct {
             const rest = std.mem.trim(u8, trimmed["plot ".len..], " ");
             return self.plot(rest, "x");
         }
-        if (std.mem.eql(u8, trimmed, "rules")) return self.listRules();
+        if (std.mem.eql(u8, trimmed, "meta") or std.mem.eql(u8, trimmed, "rules")) {
+            return self.listRules();
+        }
 
         // ✅ FALLBACK : fonctions/macros user via la pile Commands
         if (self.commands) |cmds| {
