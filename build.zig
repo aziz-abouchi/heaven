@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -690,6 +691,9 @@ pub fn build(b: *std.Build) void {
             });
             exe.linkSystemLibrary("datachannel");
             exe.linkLibCpp();
+                        
+            // ✅ RPATH macOS/Homebrew (ignoré sur les autres OS)
+            exe.addRPath(.{ .cwd_relative = "/opt/homebrew/lib" });
         } else {
             // Symboles c_rtc.h en no-op (webrtc.zig link sans libdatachannel)
             exe.addCSourceFile(.{
