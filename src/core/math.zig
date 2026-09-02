@@ -369,6 +369,56 @@ pub const Math = struct {
                     }
                 }
 
+                // ═══ RÈGLES DE NÉGATION ═══
+                // (- 0 X) → (* -1 X)    [négation unaire canonique]
+                if (std.mem.eql(u8, op, "-") and args.len == 2) {
+                    if (self.isIntLit(new_args[0], 0)) {
+                        changed.* = true;
+                        const m_one = try self.store.int(-1);
+                        const mul_sym = try self.store.sym("*");
+                        return try self.store.apply(mul_sym, &.{ m_one, new_args[1] });
+                    }
+                }
+
+                // (+ A (* -1 B)) → (- A B)   [absorbe la négation dans la soustraction]
+                if (std.mem.eql(u8, op, "+") and args.len == 2) {
+                    if (self.isMulByLit(new_args[1], -1)) {
+                        changed.* = true;
+                        const minus_sym = try self.store.sym("-");
+                        const inner = self.getMulInner(new_args[1]);
+                        return try self.store.apply(minus_sym, &.{ new_args[0], inner });
+                    }
+                    if (self.isMulByLit(new_args[0], -1)) {
+                        changed.* = true;
+                        const minus_sym = try self.store.sym("-");
+                        const inner = self.getMulInner(new_args[0]);
+                        return try self.store.apply(minus_sym, &.{ new_args[1], inner });
+                    }
+                }
+
+                // (- A (* -1 B)) → (+ A B)   [double négation dans la soustraction]
+                if (std.mem.eql(u8, op, "-") and args.len == 2) {
+                    if (self.isMulByLit(new_args[1], -1)) {
+                        changed.* = true;
+                        const plus_sym = try self.store.sym("+");
+                        const inner = self.getMulInner(new_args[1]);
+                        return try self.store.apply(plus_sym, &.{ new_args[0], inner });
+                    }
+                }
+
+                // ═══ NÉGATION NICHÉE ═══
+                // (- A (* B (* -1 C))) → (+ A (* B C))
+                // et (- A (* B (* C -1))) → (+ A (* B C))
+                // Cas général : si un argument de la soustraction contient un
+                // facteur -1 quelque part, l'extraire et transformer en addition
+                if (std.mem.eql(u8, op, "-") and args.len == 2) {
+                    if (try self.extractNegOne(new_args[1])) |inner_expr| {
+                        changed.* = true;
+                        const plus_sym = try self.store.sym("+");
+                        return try self.store.apply(plus_sym, &.{ new_args[0], inner_expr });
+                    }
+                }
+
                 // Reconstruire l'apply avec les args simplifiés
                 const func_sym = try self.store.sym(op);
                 return try self.store.apply(func_sym, new_args);
@@ -376,6 +426,101 @@ pub const Math = struct {
 
             else => return expr_id,
         }
+    }
+
+        /// Si expr contient un facteur -1 niché, retourne l'expression sans le -1.
+    /// (* x (* -1 (sin x))) → (* x (sin x))
+    /// (* -1 x) → x
+    /// (* x -1) → x
+    fn extractNegOne(self: *Math, expr_id: Id) !?Id {
+        if (expr_id >= self.store.len()) return null;
+        const node = self.store.get(expr_id);
+        if (node.tag != .apply) return null;
+
+        const fnode = self.store.get(node.payload);
+        if (fnode.tag != .sym) return null;
+        const op = self.store.interner.resolve(fnode.payload);
+        if (!std.mem.eql(u8, op, "*")) return null;
+
+        const args = self.store.spanSliceConst(node.span_a);
+        if (args.len != 3) return null;
+
+        // Cas 1 : (* -1 X) → X
+        if (self.isIntLit(args[1], -1)) return args[2];
+        // Cas 2 : (* X -1) → X
+        if (self.isIntLit(args[2], -1)) return args[1];
+
+        // Cas 3 : (* A (* -1 B)) → (* A B)  — le -1 est niché dans le second
+        const sub_node = self.store.get(args[2]);
+        if (sub_node.tag == .apply) {
+            const sub_fnode = self.store.get(sub_node.payload);
+            if (sub_fnode.tag == .sym) {
+                const sub_op = self.store.interner.resolve(sub_fnode.payload);
+                if (std.mem.eql(u8, sub_op, "*")) {
+                    const sub_args = self.store.spanSliceConst(sub_node.span_a);
+                    if (sub_args.len == 3) {
+                        if (self.isIntLit(sub_args[1], -1)) {
+                            // (* A (* -1 B)) → (* A B)
+                            const mul_sym = try self.store.sym("*");
+                            return try self.store.apply(mul_sym, &.{ args[1], sub_args[2] });
+                        }
+                        if (self.isIntLit(sub_args[2], -1)) {
+                            // (* A (* B -1)) → (* A B)
+                            const mul_sym = try self.store.sym("*");
+                            return try self.store.apply(mul_sym, &.{ args[1], sub_args[1] });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Cas 4 : symétrique — le -1 est niché dans le PREMIER argument
+        const first_node = self.store.get(args[1]);
+        if (first_node.tag == .apply) {
+            const first_fnode = self.store.get(first_node.payload);
+            if (first_fnode.tag == .sym) {
+                const first_op = self.store.interner.resolve(first_fnode.payload);
+                if (std.mem.eql(u8, first_op, "*")) {
+                    const first_args = self.store.spanSliceConst(first_node.span_a);
+                    if (first_args.len == 3) {
+                        if (self.isIntLit(first_args[1], -1)) {
+                            // ((* -1 A) B) → (* A B)
+                            const mul_sym = try self.store.sym("*");
+                            return try self.store.apply(mul_sym, &.{ first_args[2], args[2] });
+                        }
+                        if (self.isIntLit(first_args[2], -1)) {
+                            // ((* A -1) B) → (* A B)
+                            const mul_sym = try self.store.sym("*");
+                            return try self.store.apply(mul_sym, &.{ first_args[1], args[2] });
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    fn isMulByLit(self: *Math, id: Id, val: i64) bool {
+        const node = self.store.get(id);
+        if (node.tag != .apply) return false;
+        const fnode = self.store.get(node.payload);
+        if (fnode.tag != .sym) return false;
+        const op = self.store.interner.resolve(fnode.payload);
+        if (!std.mem.eql(u8, op, "*")) return false;
+        const args = self.store.spanSliceConst(node.span_a);
+        if (args.len != 3) return false;
+        return self.isIntLit(args[1], val) or self.isIntLit(args[2], val);
+    }
+
+    fn getMulInner(self: *Math, id: Id) Id {
+        const node = self.store.get(id);
+        const args = self.store.spanSliceConst(node.span_a);
+        if (args.len == 3) {
+            if (self.isIntLit(args[1], -1)) return args[2];
+            if (self.isIntLit(args[2], -1)) return args[1];
+        }
+        return id;
     }
 
     fn isIntLit(self: *Math, id: Id, val: i64) bool {
