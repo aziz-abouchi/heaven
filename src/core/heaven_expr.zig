@@ -103,6 +103,7 @@ pub const Heaven = struct {
     agent_inst: ?*agent_mod.Agent = null,
     active_theorem: ?[]const u8 = null,
     pending_proof_request: ?[]const u8 = null,
+    in_interp: bool = false,
 
     pub fn init(allocator: std.mem.Allocator) !*Heaven {
         const self = try allocator.create(Heaven);
@@ -843,7 +844,15 @@ pub const Heaven = struct {
     }
     pub fn evaluateExpr(self: *Heaven, id: Id) HeavenError!Id {
         self.engine.fuel = 1_000_000;
-        return engine_expr.evaluate(self.store, &self.env, &self.engine, id, 0);
+        const result = engine_expr.evaluate(self.store, &self.env, &self.engine, id, 0) catch |err| {
+            if (!self.in_interp and (err == error.UnboundVariable or err == error.UnknownSymbol)) {
+                self.in_interp = true;
+                defer self.in_interp = false;
+                return self.interpForAssert(id) catch id;
+            }
+            return err;
+        };
+        return result;
     }
 
     fn evalSpecialExpr(self: *Heaven, id: Id) HeavenError!Id {
@@ -885,13 +894,104 @@ pub const Heaven = struct {
     /// d'assertion, car elles ne sont pas des fonctions évaluables par l'engine.
     fn interpForAssert(self: *Heaven, id: Id) HeavenError!Id {
         const node = self.store.get(id);
-        if (node.tag != .apply) return id;
-        const fnode = self.store.get(node.payload);
-        if (fnode.tag != .sym) return id;
-        const head = self.store.interner.resolve(fnode.payload);
+        if (node.tag != .apply) {
+            return self.evaluateExpr(id) catch id;   // ✅ Fix 1 : syms nus évalués
+        }
+
         const all = self.store.spanSliceConst(node.span_a);
         if (all.len < 1) return id;
         const args = all[1..];
+
+        const fnode = self.store.get(node.payload);
+
+        platform.dbg("[preFix2] func_tag={s} args.len={d}\n", .{ @tagName(fnode.tag), args.len });
+
+        // ✅ Fix 2a : FUNC = LAMBDA NODE (lambdaNative : payload=param, span_a=[body])
+        if (fnode.tag == .lambda and args.len == 1) {
+            const lam_span = self.store.spanSliceConst(fnode.span_a);
+            if (lam_span.len == 1) {
+                const param_sym = fnode.payload;
+                const arg_val = self.evaluateExpr(args[0]) catch args[0];
+                try self.env.put(param_sym, arg_val);
+                defer self.env.delete(param_sym);
+                return self.interpForAssert(lam_span[0]) catch id;
+            }
+        }
+
+        // ✅ Fix 2b : FUNC = APPLY sym"lambda" (structure alternative du parser)
+        if (fnode.tag == .apply and args.len == 1) {
+            const inner_func = self.store.get(fnode.payload);
+            if (inner_func.tag == .sym) {
+                const inner_head = self.store.interner.resolve(inner_func.payload);
+                if (std.mem.eql(u8, inner_head, "lambda")) {
+                    const lam_args = self.store.spanSliceConst(fnode.span_a);
+                    if (lam_args.len == 3) {
+                        const param_node = self.store.get(lam_args[1]);
+                        if (param_node.tag == .sym) {
+                            const arg_val = self.evaluateExpr(args[0]) catch args[0];
+                            try self.env.put(param_node.payload, arg_val);
+                            defer self.env.delete(param_node.payload);
+                            return self.interpForAssert(lam_args[2]) catch id;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ✅ Fix 3 : FONCTION ENV-BOUND (f arg) où f est une lambda dans l'env
+        // L'engine ne cherche l'env que pour les syms nus — pas les appels.
+        {
+            platform.dbg("[fix3-enter] fnode.payload={d} env has: ", .{fnode.payload});
+            if (self.env.get(fnode.payload)) |bound| {
+                platform.dbg("YES bound.tag={s}\n", .{@tagName(self.store.get(bound).tag)});
+                // bound = la valeur liée (peut être un nœud .lambda !)
+                const bound_node = self.store.get(bound);
+                
+                // ✅ Cas .lambda : appliquer directement (payload=param, span_a=[body])
+                if (bound_node.tag == .lambda and args.len == 1) {
+                    const lam_span = self.store.spanSliceConst(bound_node.span_a);
+                    if (lam_span.len == 1) {
+                        const param_sym = bound_node.payload;
+                        const arg_val = self.evaluateExpr(args[0]) catch args[0];
+                        try self.env.put(param_sym, arg_val);
+                        defer self.env.delete(param_sym);
+                        return self.interpForAssert(lam_span[0]) catch id;
+                    }
+                }
+                
+                // ✅ Cas .apply sym"lambda" (structure alternative)
+                if (bound_node.tag == .apply and args.len == 1) {
+                    const inner_func = self.store.get(bound_node.payload);
+                    if (inner_func.tag == .sym) {
+                        const inner_head = self.store.interner.resolve(inner_func.payload);
+                        if (std.mem.eql(u8, inner_head, "lambda")) {
+                            const lam_args = self.store.spanSliceConst(bound_node.span_a);
+                            if (lam_args.len == 3) {
+                                const param_node = self.store.get(lam_args[1]);
+                                if (param_node.tag == .sym) {
+                                    const arg_val = self.evaluateExpr(args[0]) catch args[0];
+                                    try self.env.put(param_node.payload, arg_val);
+                                    defer self.env.delete(param_node.payload);
+                                    return self.interpForAssert(lam_args[2]) catch id;
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                platform.dbg("NO\n", .{});
+            }
+        }
+
+        if (fnode.tag != .sym) return id;
+        const head = self.store.interner.resolve(fnode.payload);
+
+        // ✅ DUMP : la structure complète du nœud
+        if (std.mem.eql(u8, head, "lambda") or args.len > 1) {
+            const s = try expr.toStringInfix(self.store, id, self.allocator);
+            defer self.allocator.free(s);
+            platform.dbg("[dump] id={d} head='{s}' struct='{s}'\n", .{ id, head, s });
+        }
 
         if (args.len == 1) {
             const arg_str = try expr.toStringInfix(self.store, args[0], self.allocator);

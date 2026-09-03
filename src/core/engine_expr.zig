@@ -332,7 +332,28 @@ fn isFrontendExtensionApply(name: []const u8) bool {
 }
 
 fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
-    // ═══ MACROS : expansion quote/unquote ═══
+    platform.dbg("[evalMagic] op='{s}'\n", .{op});
+
+    // ✅ ENV-BOUND LAMBDA — EN PREMIER, avant tout autre check
+    // (récursion locale : (let fact (lambda n ...) (fact 5)))
+    if (args.len == 1) {
+        if (store.interner.lookup(op)) |op_sym| {
+            if (env.get(op_sym)) |bound| {
+                const bound_node = store.get(bound);
+                if (bound_node.tag == .lambda) {
+                    const lam_span = bound_node.span_a.slice(store.pool.items);
+                    if (lam_span.len == 1) {
+                        const arg_val = try evaluate(store, env, engine, args[0], depth + 1);
+                        try env.put(bound_node.payload, arg_val);
+                        defer env.delete(bound_node.payload);
+                        return evaluate(store, env, engine, lam_span[0], depth + 1);
+                    }
+                }
+            }
+        }
+    }
+
+    // ═══ MACROS ═══
     if (store.interner.lookup(op)) |op_sym| {
         if (engine.macros.get(op_sym)) |m| {
             const params = m.params_span.slice(store.pool.items);
@@ -549,6 +570,25 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     if (std.mem.eql(u8, op, ">") or std.mem.eql(u8, op, "gt")) return evalCmp(store, a, b, .gt);
     if (std.mem.eql(u8, op, "<=") or std.mem.eql(u8, op, "le")) return evalCmp(store, a, b, .le);
     if (std.mem.eql(u8, op, ">=") or std.mem.eql(u8, op, "ge")) return evalCmp(store, a, b, .ge);
+
+    // ═══ ENV-BOUND LAMBDA : (f arg) où f est une lambda dans l'env ═══
+    // Permet la récursion locale : (let fact (lambda n ...) (fact 5))
+    // L'engine résout fact via l'env, applique la lambda récursivement.
+    if (store.interner.lookup(op)) |op_sym| {
+        if (env.get(op_sym)) |bound| {
+            platform.dbg("[engine-lambda] op='{s}' found!\n", .{op});
+            const bound_node = store.get(bound);
+            if (bound_node.tag == .lambda and args.len == 1) {
+                const lam_span = bound_node.span_a.slice(store.pool.items);
+                if (lam_span.len == 1) {
+                    const arg_val = try evaluate(store, env, engine, args[0], depth + 1);
+                    try env.put(bound_node.payload, arg_val);
+                    defer env.delete(bound_node.payload);
+                    return evaluate(store, env, engine, lam_span[0], depth + 1);
+                }
+            }
+        }
+    }
 
     return error.UnknownSymbol;
 }

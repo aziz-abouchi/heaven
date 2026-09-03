@@ -33,7 +33,7 @@ const proof_helpers_mod = @import("proof_helpers");
 const simplify_engine_mod = @import("simplify_engine");
 const rules_mod = @import("rules");
 
-const debug = std.posix.getenv("HEAVEN_DEBUG") != null;
+const debug = platform.posix.getenv("HEAVEN_DEBUG") != null;
 // HEAVEN_DEBUG=1 ./heaven pour activer les logs.
 
 pub const HeavenError = error{

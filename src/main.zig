@@ -120,7 +120,7 @@ pub fn syncMatrixWithFile(_: *matrix_lib.Matrix, _: *autofab_lib.AutoFab, _: std
 }
 
 pub fn main() !void {
-    platform.debug_enabled = std.posix.getenv("HEAVEN_DEBUG") != null;
+    platform.debug_enabled = platform.posix.getenv("HEAVEN_DEBUG") != null;
 
     var gpa = std.heap.GeneralPurposeAllocator(.{
         .safety = true, // active toutes les vérifications
