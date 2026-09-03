@@ -10,9 +10,9 @@ add zero n = n
   (eq_decl
     (identifier)
     (pattern
-      (ctor_pat
-        (identifier)
-        (identifier)))
+      (identifier))
+    (pattern
+      (identifier))
     (identifier)))
 
 ==============================
@@ -27,10 +27,9 @@ add (succ n) m = succ (add n m)
   (eq_decl
     (identifier)
     (pattern
-      (pattern
-        (ctor_pat
-          (identifier)
-          (identifier))))
+      (ctor_pat
+        (identifier)
+        (identifier)))
     (pattern
       (identifier))
     (call
@@ -55,10 +54,9 @@ factorial (succ n) = (succ n) * factorial n
   (eq_decl
     (identifier)
     (pattern
-      (pattern
-        (ctor_pat
-          (identifier)
-          (identifier))))
+      (ctor_pat
+        (identifier)
+        (identifier)))
     (binary
       (paren_expr
         (app_expr

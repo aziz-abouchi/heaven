@@ -110,9 +110,13 @@ pub const Rewriter = struct {
                             if (cached != 0) {
                                 // GUARD : Id invalide = substitution corrompue → skipper
                                 if (cached >= self.store.len() or !validTree(self.store, cached)) {
-                                    platform.dbg("[Rewriter] CACHE CORROMPU: règle {d}, id {d} — skip\n", .{ rule_idx, cached });
+                                    platform.dbg("[Rewriter] CACHE CORROMPU: règle {d}, id {d}, store.len={d} — LE CRASH ÉVITÉ ?\n", .{ rule_idx, cached, self.store.len() });
                                     continue;
                                 }
+
+                                platform.dbg("[pre-crash] cached={d} tag={s} span_a.start={d} len={d}\n", 
+                                    .{ cached, @tagName(self.store.get(cached).tag), 
+                                    self.store.get(cached).span_a.start, self.store.get(cached).span_a.len });
                                 const new_class = try self.egraph.addExpr(cached);
                                 const merged = try self.egraph.merge(canonical, new_class);
                                 if (merged != canonical) {
@@ -194,6 +198,7 @@ pub const Rewriter = struct {
             defer self.allocator.free(pattern_str);
             defer self.allocator.free(target_str);
 
+            bindings.clearRetainingCapacity();     // RESET avant chaque tentative !
             if (pattern.exprPatternMatch(self.store, pattern_id, node_id, bindings, self.allocator)) {
                 //platform.dbg("[matchPattern] MATCH SUCCESS\n", .{});
                 return true;

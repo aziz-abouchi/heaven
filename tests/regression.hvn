@@ -1,0 +1,12 @@
+# ═══════════════════════════════════════════════════
+# Tests de Régression — Cas qui avaient causé des bugs
+# ═══════════════════════════════════════════════════
+
+;; Shadowing de variables
+(test "regression_bind_shadow" (assert_eq (let x 1 (let x 2 x)) 2))
+
+;; Application de lambda
+(test "regression_apply_lambda" (assert_eq ((lambda x (+ x 1)) 5) 6))
+
+;; Récursion avec let
+(test "regression_recursion" (assert_eq (let fact (lambda n (if (= n 0) 1 (* n (fact (- n 1))))) (fact 5)) 120))

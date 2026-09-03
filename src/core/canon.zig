@@ -200,6 +200,13 @@ fn rebuildAC(store: *Store, op_sym: Sym, items: []const Id) !Id {
     if (items.len == 0) unreachable;
     if (items.len == 1) return items[0];
 
+    // ✅ INSTRUMENTATION — avant toute écriture :
+    for (items, 0..) |it, i| {
+        if (it >= store.nodes.items.len) {
+            platform.debug.print("[CANON BUG] items[{d}]={d} >= len={d}\n", .{ i, it, store.nodes.items.len });
+        }
+    }
+
     const sym_node = try store.addNode(.{ .tag = .sym, .payload = op_sym, .aux = 0, .span_a = Span.EMPTY, .span_b = Span.EMPTY });
     var cur = items[0];
     for (items[1..]) |item| {

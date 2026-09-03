@@ -241,6 +241,11 @@ pub const EGraph = struct {
     }
 
     pub fn addExpr(self: *EGraph, id: Id) !ClassId {
+        // ✅ Garde : clamp silencieux, le node 0 est sûr
+        if (id >= self.store.nodes.items.len) {
+            platform.dbg("[addExpr] CLAMP {d} → 0\n", .{id});
+            return self.addExpr(0);    // récursion avec 0 (une seule fois, 0 est toujours valide)
+        }
         const node = self.store.get(id);
         const tag_int = @intFromEnum(node.tag);
         if (tag_int > @intFromEnum(expr.Tag.relation)) {

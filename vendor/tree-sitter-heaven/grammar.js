@@ -50,6 +50,7 @@ conflicts: ($) => [
     $.applied_type,
     $.ctor_pat,
   ],
+  [$.type_ident, $.simple_expr, $.pattern],
 
 ],
 
@@ -271,8 +272,6 @@ tparams: ($) =>
     ), ","),
     ">"
   ),
-
-pattern: ($) => choice( $.identifier, prec(-1, $.type_name), $.int, $.float, $.str, $.bool_lit, $.ctor_pat, $.list_pat, $.tuple_pat, seq("(", $.pattern, ")"), "_" ),
 
 list_pat: ($) => seq("[", optional(sep1($.pattern, ",")), optional(seq("|", $.pattern)), "]"),
 tuple_pat: ($) => seq("(", $.pattern, ",", sep1($.pattern, ","), ")"),
@@ -1653,20 +1652,37 @@ app_expr: ($) =>
 // ═══════════════════════════════════════════════════════════════════════════
 
 _pat: ($) =>
-  choice("_", $.identifier, $.int, $.str, $.bool_lit, $.ctor_pat, $.atom, $.tuple_pat, $.list_pat),
+  choice(
+    "_",
+    $.identifier,
+    $.int,
+    $.str,
+    $.bool_lit,
+    $.atom,
+    $.tuple_pat,
+    $.list_pat,
+    seq("(", $.ctor_pat, ")")
+  ),
 
 ctor_pat: ($) =>
+  seq(
+    choice($.type_name, $.identifier),
+    repeat1($._pat)
+  ),
+
+pattern: ($) =>
   choice(
-    seq(
-      choice($.type_name, $.identifier),
-      repeat1($._pat)
-    ),
-    seq(
-      choice($.type_name, $.identifier),
-      "(",
-      optional(sep1($._pat, ",")),
-      ")"
-    )
+    $.identifier,
+    prec(-1, $.type_name),
+    $.int,
+    $.float,
+    $.str,
+    $.bool_lit,
+    seq("(", $.ctor_pat, ")"),
+    $.list_pat,
+    $.tuple_pat,
+    seq("(", $.pattern, ")"),
+    "_"
   ),
 
 // ═══════════════════════════════════════════════════════════════════════════

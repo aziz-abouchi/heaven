@@ -1,7 +1,7 @@
 //! Frontend Heaven - intégration du moteur de simplification EGraph
 const std = @import("std");
 const expr = @import("expr");
-const engine = @import("engine_expr");
+const engine_expr = @import("engine_expr");
 const types = @import("types");
 const canon = @import("canon");
 const pattern = @import("pattern");
@@ -22,6 +22,8 @@ const commands_mod = @import("commands");
 const skill_lib = @import("skill");
 const proof_core_mod = @import("proof_core");
 const agent_mod = @import("agent");
+
+const elab_mod = @import("elab");
 
 const Store = expr.Store;
 const Id = expr.Id;
@@ -72,7 +74,7 @@ pub const HeavenError = error{
     UnsupportedDeriveOp,
     UnsupportedPowerVarExp,
     UnsupportedPowerType,
-} || std.mem.Allocator.Error || platform.fs.File.OpenError || platform.fs.File.ReadError || mir.MirError || engine.EvalError;
+} || std.mem.Allocator.Error || platform.fs.File.OpenError || platform.fs.File.ReadError || mir.MirError || engine_expr.EvalError;
 
 const MacroDef = struct {
     params: []const []const u8,
@@ -82,9 +84,9 @@ const MacroDef = struct {
 pub const Heaven = struct {
     allocator: std.mem.Allocator,
     store: *Store,
-    env: engine.Env,
+    env: engine_expr.Env,
     type_env: types.TypeEnv,
-    engine: engine.Engine,
+    engine: engine_expr.Engine,
     kb: *transform_mod.KnowledgeBase,
     simplify_eng: simplify_engine_mod.SimplifyEngine,
     proof_core: proof.ProofEnv,
@@ -107,7 +109,7 @@ pub const Heaven = struct {
         errdefer allocator.destroy(self);
         const store = try allocator.create(Store);
         store.* = Store.init(allocator);
-        const env = engine.Env.init(allocator);
+        const env = engine_expr.Env.init(allocator);
         const type_env = types.TypeEnv.init(allocator);
 
         // Créer le bridge et le parser (ils ne dépendent pas encore de l'engine)
@@ -133,14 +135,14 @@ pub const Heaven = struct {
         };
 
         // Définir la vtable
-        const heaven_vtable = engine.HeavenVTable{
+        const heaven_vtable = engine_expr.HeavenVTable{
             .parse = parseHeavenExpr,
             .deriveId = deriveIdHeavenExpr,
             .simplify = simplifyHeavenExpr,
         };
 
         // Initialiser l'engine
-        var eng = engine.Engine.init(allocator, store, &self.env, @ptrCast(self), &heaven_vtable);
+        var eng = engine_expr.Engine.init(allocator, store, &self.env, @ptrCast(self), &heaven_vtable);
         self.engine = eng;
 
         // Initialiser le parser avec l'engine maintenant disponible
@@ -163,7 +165,67 @@ pub const Heaven = struct {
         // Ajouter les règles par défaut
         try self.addDefaultRules();
 
+        // Charger le noyau logique (bootstrap.hvn) dans le FunctionRegistry
+        self.loadBootstrap();
+
         return self;
+    }
+
+    fn loadBootstrap(self: *Heaven) void {
+        const source = std.fs.cwd().readFileAlloc(
+            self.allocator, "core/bootstrap.hvn", 64 * 1024,
+        ) catch |err| {
+            platform.dbg("[loadBootstrap] readFileAlloc failed: {}\n", .{err});
+            return;
+        };
+        defer self.allocator.free(source);
+
+        var tmp_registry = engine_expr.FunctionRegistry.init(self.allocator);
+        defer tmp_registry.deinit();
+
+        _ = elab_mod.elaborateSource(
+            self.allocator, self.store, source, &tmp_registry,
+        ) catch |err| {
+            platform.dbg("[loadBootstrap] elaborateSource failed: {}\n", .{err});
+            return;
+        };
+
+        platform.dbg("[loadBootstrap] elaboration ok, functions count = {d}\n", .{tmp_registry.functions.count()});
+
+        // Transférer les clauses de tmp_registry vers self.engine.fns
+        var it = tmp_registry.functions.iterator();
+        while (it.next()) |entry| {
+            const name = entry.key_ptr.*;
+            const def = entry.value_ptr.*;
+            var i: u8 = 0;
+            while (i < def.num_clauses) : (i += 1) {
+                const clause = def.clauses[i];
+                self.registerClause(name, clause.patterns[0..clause.num_patterns], clause.body) catch {};
+            }
+        }
+
+        platform.dbg("[loadBootstrap] after transfer, engine.fns count = {d}\n", .{self.engine.fns.count()});
+
+        // Pont majuscule → minuscule : Add/Mul/Zero/Succ → add/mul/zero/succ
+        const aliases = [_][2][]const u8{
+            .{ "Add", "add" },
+            .{ "Mul", "mul" },
+            .{ "Zero", "zero" },
+            .{ "Succ", "succ" },
+        };
+        for (aliases) |pair| {
+            if (self.engine.fns.getPtr(pair[1])) |def| {
+                var i: u8 = 0;
+                while (i < def.num_clauses) : (i += 1) {
+                    const clause = def.clauses[i];
+                    self.registerClause(
+                        pair[0],
+                        clause.patterns[0..clause.num_patterns],
+                        clause.body,
+                    ) catch {};
+                }
+            }
+        }
     }
 
     pub fn deinit(self: *Heaven) void {
@@ -209,6 +271,17 @@ pub const Heaven = struct {
         _ = self;
     }
 
+    fn registerClause(self: *Heaven, name: []const u8, patterns: []const Id, body: Id) !void {
+        const owned_key = try self.engine.allocator.dupe(u8, name);
+        const result = try self.engine.fns.getOrPut(self.engine.allocator, owned_key);
+        if (result.found_existing) {
+            self.engine.allocator.free(owned_key);   // ← clé redondante, getOrPut garde l'existante
+        } else {
+            result.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
+        }
+        result.value_ptr.addClause(patterns, body);
+    }
+
     pub fn eval(self: *Heaven, src: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, src, " \t\n\r");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "");
@@ -221,6 +294,7 @@ pub const Heaven = struct {
             std.mem.startsWith(u8, trimmed, "state(") or
             std.mem.startsWith(u8, trimmed, "spawn(") or
             std.mem.startsWith(u8, trimmed, "let ");
+
         if (is_mechanism) {
             if (self.ensureCommands()) |cmds| {
                 return cmds.eval(src) catch |err| {
@@ -625,7 +699,15 @@ pub const Heaven = struct {
         return self.allocator.dupe(u8, src);
     }
     pub fn evalProve(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        return self.allocator.dupe(u8, src);
+        if (self.ensureCommands()) |cmds| {
+            return cmds.evalProve(src) catch |err| {
+                return switch (err) {
+                    error.OutOfMemory => HeavenError.OutOfMemory,
+                    else => HeavenError.EvaluationFailed,
+                };
+            };
+        }
+        return self.allocator.dupe(u8, "✗ commands unavailable");
     }
     pub fn dumpAst(self: *Heaven, src: []const u8) HeavenError![]u8 {
         return self.allocator.dupe(u8, src);
@@ -697,7 +779,15 @@ pub const Heaven = struct {
         return self.math.plot(expr_str, var_name);
     }
     pub fn evalTheorem(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        return self.allocator.dupe(u8, src);
+        if (self.ensureCommands()) |cmds| {
+            return cmds.evalTheorem(src) catch |err| {
+                return switch (err) {
+                    error.OutOfMemory => HeavenError.OutOfMemory,
+                    else => HeavenError.EvaluationFailed,
+                };
+            };
+        }
+        return self.allocator.dupe(u8, "✗ commands unavailable");
     }
     pub fn substExpr(self: *Heaven, expression: []const u8, var_name: []const u8, val: []const u8) HeavenError![]u8 {
         _ = var_name;
@@ -753,7 +843,7 @@ pub const Heaven = struct {
     }
     pub fn evaluateExpr(self: *Heaven, id: Id) HeavenError!Id {
         self.engine.fuel = 1_000_000;
-        return engine.evaluate(self.store, &self.env, &self.engine, id, 0);
+        return engine_expr.evaluate(self.store, &self.env, &self.engine, id, 0);
     }
 
     fn evalSpecialExpr(self: *Heaven, id: Id) HeavenError!Id {
@@ -823,6 +913,62 @@ pub const Heaven = struct {
                 return self.parseExpression(rs);
             }
         }
+
+        // ═══ 1. LET-INLINE : (let x val body) ═══
+        if (std.mem.eql(u8, head, "let") and args.len == 3) {
+            const val = self.evaluateExpr(args[1]) catch args[1];
+            const var_node = self.store.get(args[0]);
+            if (var_node.tag == .sym) {
+                try self.env.put(var_node.payload, val);
+                defer self.env.delete(var_node.payload);
+                // ✅ RÉCURSIF : le body peut contenir d'autres let/lambdas
+                return self.interpForAssert(args[2]) catch id;
+            }
+        }
+
+        // ═══ 2. LAMBDA SYMBOLE : ((lambda x body) arg) — le func est apply(sym"lambda") ═══
+        {
+            const func_node = self.store.get(node.payload);
+            if (func_node.tag == .apply) {
+                const inner = self.store.get(func_node.payload);
+                if (inner.tag == .sym and std.mem.eql(u8, self.store.interner.resolve(inner.payload), "lambda")) {
+                    const lam_args = self.store.spanSliceConst(func_node.span_a);
+                    if (lam_args.len == 3) {   // [lambda, param, body]
+                        const param_node = self.store.get(lam_args[1]);
+                        if (param_node.tag == .sym) {
+                            const arg_val = self.evaluateExpr(args[0]) catch args[0];
+                            try self.env.put(param_node.payload, arg_val);
+                            defer self.env.delete(param_node.payload);
+                            return self.interpForAssert(lam_args[2]) catch id;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ═══ 3. FONCTION ENV-BOUND : (f arg) où f est une lambda dans l'env ═══
+        // L'engine ne cherche l'env que pour les syms nus — pas les appels.
+        // C'est ce qui fait marcher (fact 5) avec fact lié par let.
+        {
+            if (self.env.get(fnode.payload)) |bound| {
+                platform.dbg("[interp3] head='{s}' bound.tag={s}\n", .{ head, @tagName(self.store.get(bound).tag) });
+                const bound_node = self.store.get(bound);
+                if (bound_node.tag == .lambda and args.len == 1) {
+                    const lam_span = self.store.spanSliceConst(bound_node.span_a);
+                    if (lam_span.len == 1) {
+                        const param_sym = bound_node.payload;
+                        const arg_val = self.evaluateExpr(args[0]) catch args[0];
+                        try self.env.put(param_sym, arg_val);
+                        defer self.env.delete(param_sym);
+                        return self.interpForAssert(lam_span[0]) catch |err| {
+                            platform.dbg("[recursion] body eval failed: {} — n={d}\n", .{ err, arg_val });
+                            return id;
+                        };
+                    }
+                }
+            }
+        }
+
         // 1. D'ABORD l'évaluation engine normale
         if (self.evaluateExpr(id)) |v| {
             return v;
@@ -1151,7 +1297,7 @@ pub const Heaven = struct {
     }
 };
 
-fn parseHeavenExpr(ctx: *anyopaque, input: []const u8) engine.EvalError!expr.Id {
+fn parseHeavenExpr(ctx: *anyopaque, input: []const u8) engine_expr.EvalError!expr.Id {
     const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));
     return heaven.parseExpression(input) catch |err| switch (err) {
         error.OutOfMemory => return error.OutOfMemory,
@@ -1159,7 +1305,7 @@ fn parseHeavenExpr(ctx: *anyopaque, input: []const u8) engine.EvalError!expr.Id 
     };
 }
 
-fn deriveIdHeavenExpr(ctx: *anyopaque, input: []const u8, var_name: []const u8) engine.EvalError!expr.Id {
+fn deriveIdHeavenExpr(ctx: *anyopaque, input: []const u8, var_name: []const u8) engine_expr.EvalError!expr.Id {
     const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));
     return heaven.deriveToId(input, var_name) catch |err| switch (err) {
         error.OutOfMemory => return error.OutOfMemory,
@@ -1167,7 +1313,7 @@ fn deriveIdHeavenExpr(ctx: *anyopaque, input: []const u8, var_name: []const u8) 
     };
 }
 
-fn simplifyHeavenExpr(ctx: *anyopaque, input: []const u8) engine.EvalError![]const u8 {
+fn simplifyHeavenExpr(ctx: *anyopaque, input: []const u8) engine_expr.EvalError![]const u8 {
     const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));
     const result = heaven.simplify(input) catch |err| switch (err) {
         error.OutOfMemory => return error.OutOfMemory,

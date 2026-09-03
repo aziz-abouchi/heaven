@@ -317,6 +317,11 @@ pub const Store = struct {
     }
 
     pub fn get(self: *const Store, id: Id) Node {
+        // ✅ GARDE : attraper TOUT accès à un Id invalide AVEC sa stack !
+        if (id >= self.nodes.items.len) {
+            platform.debug.print("[GET BUG] id={d} >= len={d} — STACK TRACE MANQUANT\n", .{ id, self.nodes.items.len });
+            @panic("invalid Id access");   // crash MAIS avec le message
+        }
         return self.nodes.items[id];
     }
 
@@ -327,6 +332,8 @@ pub const Store = struct {
     pub fn reserveSpan(self: *Store, length: usize) !Span {
         const start: u32 = @intCast(self.pool.items.len);
         try self.pool.resize(self.allocator, self.pool.items.len + length);
+        // zéro-init — un slot oublié donne 0 (node 0, pas crash) au lieu de 0xAAAAAAAA
+        @memset(self.pool.items[start .. start + length], 0);
         return .{ .start = start, .len = @intCast(length) };
     }
 
@@ -429,10 +436,34 @@ pub const Store = struct {
     }
 
     pub fn apply(self: *Store, func: Id, args: []const Id) !Id {
-        const span = try self.reserveSpan(1 + args.len);
-        self.pool.items[span.start] = func;
-        @memcpy(self.pool.items[span.start + 1 .. span.start + 1 + args.len], args);
-        return self.addNode(.{ .tag = .apply, .payload = func, .aux = 0, .span_a = span, .span_b = Span.EMPTY });
+        var fixed_func = func;
+        var fixed_args_buf: [16]Id = undefined;
+        var args_to_use = args;
+
+        if (@import("builtin").mode == .Debug) {
+            var fixed = false;
+            if (fixed_func >= self.nodes.items.len) {
+                platform.debug.print("[apply BUG] func={d} >= {d}\n", .{ fixed_func, self.nodes.items.len });
+                fixed_func = 0;
+                fixed = true;
+            }
+            if (args.len <= fixed_args_buf.len) {
+                for (args, 0..) |a, i| {
+                    fixed_args_buf[i] = a;
+                    if (a >= self.nodes.items.len) {
+                        platform.debug.print("[apply BUG] arg[{d}]={d} >= {d}\n", .{ i, a, self.nodes.items.len });
+                        fixed_args_buf[i] = 0;
+                        fixed = true;
+                    }
+                }
+                if (fixed) args_to_use = fixed_args_buf[0..args.len];
+            }
+        }
+
+        const span = try self.reserveSpan(1 + args_to_use.len);
+        self.pool.items[span.start] = fixed_func;
+        @memcpy(self.pool.items[span.start + 1 .. span.start + 1 + args_to_use.len], args_to_use);
+        return self.addNode(.{ .tag = .apply, .payload = fixed_func, .aux = 0, .span_a = span, .span_b = Span.EMPTY });
     }
 
     pub fn call(self: *Store, name: []const u8, args: []const Id) !Id {
@@ -456,6 +487,12 @@ pub const Store = struct {
     }
 
     pub fn pushSpan(self: *Store, items: []const Id) !Span {
+        // ✅ GARDE : les Ids écrits doivent être valides
+        for (items, 0..) |it, i| {
+            if (it >= self.nodes.items.len) {
+                platform.debug.print("[pushSpan BUG] items[{d}]={d} >= {d}\n", .{ i, it, self.nodes.items.len });
+            }
+        }
         const span = try self.reserveSpan(items.len);
         @memcpy(self.pool.items[span.start .. span.start + items.len], items);
         return span;

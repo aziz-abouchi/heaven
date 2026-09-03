@@ -869,9 +869,10 @@ pub const Commands = struct {
             def.num_clauses = 1;
             def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = 0, .body = body_id };
 
-            const owned_name = try self.allocator.dupe(u8, name);
-            self.engine.fns.put(self.allocator, owned_name, def) catch |err| {
-                return std.fmt.allocPrint(self.allocator, "registration error: {s}", .{@errorName(err)});
+            const owned_name = try self.engine.allocator.dupe(u8, name);
+            platform.dbg("[fns.put] site=1 name='{s}' key_addr={d}\n", .{ name, @intFromPtr(owned_name.ptr) });
+            self.engine.fns.put(self.engine.allocator, owned_name, def) catch |err| {
+                return std.fmt.allocPrint(self.engine.allocator, "registration error: {s}", .{@errorName(err)});
             };
 
             const name_sym = try self.store.interner.intern(name);
@@ -926,8 +927,11 @@ pub const Commands = struct {
                 @memcpy(def.clauses[0].patterns[0..num_pats], pat_ids[0..num_pats]);
             }
 
-            const owned_name = try self.allocator.dupe(u8, name);
-            try self.engine.fns.put(self.engine.allocator, owned_name, def);
+            const owned_name = try self.engine.allocator.dupe(u8, name);
+            platform.dbg("[fns.put] site=2 name='{s}' key_addr={d}\n", .{ name, @intFromPtr(owned_name.ptr) });
+            self.engine.fns.put(self.engine.allocator, owned_name, def) catch |err| {
+                return std.fmt.allocPrint(self.engine.allocator, "registration error: {s}", .{@errorName(err)});
+            };
 
             const name_sym = try self.store.interner.intern(name);
             const name_sym_id = try self.store.sym(name);
@@ -2066,12 +2070,13 @@ pub const Commands = struct {
                 return self.evalFnDef(fn_def_str);
             }
 
-            if (std.mem.indexOfScalar(u8, name, ' ') != null) {
+            const has_params = std.mem.indexOfScalar(u8, name, '(') != null and
+                std.mem.endsWith(u8, name, ")");
+            if (has_params or std.mem.indexOfScalar(u8, name, ' ') != null) {
                 const fn_def_str = try std.fmt.allocPrint(self.allocator, "{s} = {s}", .{ name, expr_str });
                 defer self.allocator.free(fn_def_str);
                 return self.evalFnDef(fn_def_str);
             }
-
             return self.define(name, expr_str);
         }
 

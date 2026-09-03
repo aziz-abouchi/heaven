@@ -677,11 +677,15 @@ pub const Lowerer = struct {
             std.mem.eql(u8, k, "prim_type") or
             std.mem.eql(u8, k, "type_name"))
         {
-            if (self.namedCount(node) > 0 and !std.mem.eql(u8, k, "prim_type")) {
-                return self.lowerType(self.namedChild(node, 0));
-            }
+            return .{
+                .named = self.text(node),
+            };
+        }
 
-            return .{ .named = self.text(node) };
+        if (std.mem.eql(u8, k, "identifier")) {
+            return .{
+                .named = self.text(node),
+            };
         }
 
         if (std.mem.eql(u8, k, "generic_type") or

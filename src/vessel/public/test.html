@@ -32,6 +32,10 @@
                 js_ollama_query: (ptr, len) => console.log("WASM ollama query:", ptr, len),
                 send_proof_response: (ptr, len) => console.log("WASM send proof response:", ptr, len),
                 js_drain_message_queue: (ptr, len) => console.log("WASM drain message queue:", ptr, len),
+                js_get_peer_id: (ptr, len) => console.log("WASM get peer id:", ptr, len),
+                js_get_msg_type: (ptr, len) => console.log("WASM get msg type:", ptr, len),
+                js_get_payload_ptr: (ptr, len) => console.log("WASM get payload ptr:", ptr, len),
+                js_get_payload_len: (ptr, len) => console.log("WASM get payload len:", ptr, len),
                 // Ajoutez d'autres fonctions si besoin
             }
         };

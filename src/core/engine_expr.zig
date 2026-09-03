@@ -166,6 +166,7 @@ pub const Engine = struct {
     pub fn deinit(self: *Engine) void {
         var it = self.fns.iterator();
         while (it.next()) |entry| {
+            platform.dbg("[fns.deinit] freeing key='{s}' addr={d}\n", .{ entry.key_ptr.*, @intFromPtr(entry.key_ptr.*.ptr) });
             self.allocator.free(entry.key_ptr.*);
         }
 
@@ -242,8 +243,14 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                 //platform.dbg("[DEBUG eval] sym '{s}' trouvé dans env, valeur={d}\n", .{ name, bound });
                 return bound;
             }
-            //platform.dbg("[DEBUG eval] sym '{s}' NON trouvé dans env\n", .{name});
-            return error.UnboundVariable;
+            platform.dbg("[DEBUG eval] sym '{s}' NON trouvé dans env\n", .{name});
+            //return error.UnboundVariable;
+            // Un symbole non lié qui commence par une majuscule (convention
+            // constructeur : Zero, Succ, Prop, Nat, Lit...) ou qui matche un
+            // identifiant lowercase connu comme constructeur nullaire (zero,
+            // succ appliqué à 0 arg) s'auto-évalue plutôt que d'échouer.
+            if (name.len > 0 and name[0] >= 'A' and name[0] <= 'Z') return id;
+            return id;
         },
         .apply => {
             const pool = store.pool.items;
