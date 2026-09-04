@@ -5,14 +5,20 @@
     <title>Heaven – Web Tests</title>
     <style>
         body{background:#0a0a0a;color:#00ff41;font-family:monospace;padding:20px;}
-        .pass{color:#00ff41;}.fail{color:#ff4444;}
-        #summary{margin-top:20px;font-weight:bold;}
+        .pass{color:#00ff41;}
+        .fail{color:#ff4444;}
+        #summary{margin-top:20px;font-weight:bold;padding:10px;border:1px solid #00ff41;}
+        #output{margin-top:10px;max-height:600px;overflow:auto;}
+        .test-result{padding:2px 5px;border-bottom:1px solid #003300;}
+        .test-result.pass{color:#00ff41;}
+        .test-result.fail{color:#ff4444;}
     </style>
 </head>
 <body>
     <h1>🧪 HEAVEN WebAssembly Test Suite</h1>
     <div id="output"></div>
-    <div id="summary"></div>
+    <div id="summary">Chargement en cours...</div>
+
     <script type="importmap">
     {
         "imports": {
@@ -20,54 +26,77 @@
         }
     }
     </script>
+
     <script type="module">
         import { runTests } from './test_heaven.js';
 
-        // Définir les imports requis par le WASM
-        const importObject = {
-            env: {
-                js_performance_now: () => performance.now(), // ou Date.now()
-                js_console_log: (ptr, len) => console.log("WASM log:", ptr, len),
-                js_console_error: (ptr, len) => console.error("WASM error:", ptr, len),
-                js_ollama_query: (ptr, len) => console.log("WASM ollama query:", ptr, len),
-                send_proof_response: (ptr, len) => console.log("WASM send proof response:", ptr, len),
-                js_drain_message_queue: (ptr, len) => console.log("WASM drain message queue:", ptr, len),
-                js_get_peer_id: (ptr, len) => console.log("WASM get peer id:", ptr, len),
-                js_get_msg_type: (ptr, len) => console.log("WASM get msg type:", ptr, len),
-                js_get_payload_ptr: (ptr, len) => console.log("WASM get payload ptr:", ptr, len),
-                js_get_payload_len: (ptr, len) => console.log("WASM get payload len:", ptr, len),
-                // Ajoutez d'autres fonctions si besoin
-            }
+        const output = document.getElementById('output');
+        const summary = document.getElementById('summary');
+
+        // Rediriger console.log et console.error vers la page
+        console.log = (...args) => {
+            const div = document.createElement('div');
+            div.className = 'test-result pass';
+            div.textContent = args.join(' ');
+            output.appendChild(div);
+        };
+        console.error = (...args) => {
+            const div = document.createElement('div');
+            div.className = 'test-result fail';
+            div.textContent = '❌ ' + args.join(' ');
+            output.appendChild(div);
         };
 
         async function loadWasm() {
-            const wasm = await WebAssembly.instantiateStreaming(fetch('heaven.wasm'), importObject);
-            // Adaptez selon l'export réel (ex: 'eval', 'heavenEval', etc.)
-            const evalFn = wasm.instance.exports.eval;
-            return { heavenEval: (input) => evalFn(input) };
+            try {
+                const importObject = {
+                    env: new Proxy({}, {
+                        get: (target, prop) => {
+                            return (...args) => {
+                                if (String(prop).includes('now') || String(prop).includes('time')) {
+                                    return performance.now();
+                                }
+                                return 0;
+                            };
+                        }
+                    })
+                };
+
+                const response = await fetch('heaven.wasm?t=' + Date.now());
+                const bytes = await response.arrayBuffer();
+                const wasm = await WebAssembly.instantiate(bytes, importObject);
+                const exports = wasm.instance.exports;
+
+                if (exports.init) exports.init();
+
+                // Wrapper utilisant dispatch
+                const heavenEval = (input) => {
+                    const encoder = new TextEncoder();
+                    const bytes = encoder.encode(input);
+                    const inputPtr = exports.getInputPtr();
+                    const memory = exports.memory;
+                    new Uint8Array(memory.buffer).set(bytes, inputPtr);
+                    const outLen = exports.dispatch(bytes.length, 0);
+                    if (outLen > 0) {
+                        const outputPtr = exports.getOutputPtr();
+                        return new TextDecoder().decode(new Uint8Array(memory.buffer, outputPtr, outLen));
+                    }
+                    return "";
+                };
+
+                return { heavenEval };
+            } catch (err) {
+                summary.innerHTML = `❌ Erreur de chargement WASM: ${err.message}`;
+                console.error(err);
+                throw err;
+            }
         }
+
         try {
             const wasm = await loadWasm();
-            // Rediriger console.log vers la page
-            const output = document.getElementById('output');
-            console.log = (...args) => {
-                const div = document.createElement('div');
-                div.className = 'test-result';
-                div.textContent = args.join(' ');
-                output.appendChild(div);
-            };
-            console.error = (...args) => {
-                const div = document.createElement('div');
-                div.className = 'test-result fail';
-                div.textContent = '❌ ' + args.join(' ');
-                output.appendChild(div);
-            };
             await runTests(wasm);
-            const pass = output.querySelectorAll('.pass').length;
-            const fail = output.querySelectorAll('.fail').length;
-            document.getElementById('summary').innerHTML = `✅ ${pass} passed, ❌ ${fail} failed`;
-        } catch(e) {
-            document.getElementById('output').innerHTML = `<div class="fail">Erreur : ${e.message}</div>`;
+        } catch (err) {
+            // déjà géré
         }
     </script>
 </body>
