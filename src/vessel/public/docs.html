@@ -513,6 +513,9 @@ egraph.saturate(rules, budget) // sature avec budget temporel</code></pre>
       
       <h2>Exports WASM</h2>
 <pre><code>wasm.init()                      // initialise le moteur
+  if (wasm.exports.set_debug_logging) {
+    wasm.exports.set_debug_logging(false);
+}
 wasm.dispatch(cmd_len, arg_len)  // exécute une commande
 wasm.getInputPtr()               // buffer d'entrée
 wasm.getOutputPtr()              // buffer de sortie

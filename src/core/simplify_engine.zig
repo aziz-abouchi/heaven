@@ -17,6 +17,8 @@ const types = @import("types");
 const rules_mod = @import("rules");
 const Rule = rules_mod.Rule;
 
+pub var log_saturation: bool = false;   // silencieux par défaut
+
 pub const SimplifyEngine = struct {
     store: *Store,
     engine: *engine_expr.Engine,
@@ -257,7 +259,7 @@ pub const SimplifyEngine = struct {
         defer rewriter.deinit();
 
         const merges = try rewriter.saturate(10000);
-        platform.dbg("[EGraph] saturation: {} merges\n", .{merges});
+        if (log_saturation) platform.dbg("[EGraph] saturation: {} merges\n", .{merges});
 
         const extracted = if (type_env) |tenv| blk: {
             var mem_cost = egraph_mod.MemoryCost{

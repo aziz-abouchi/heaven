@@ -6,10 +6,6 @@
             .url = "https://github.com/unexge/parzig/archive/refs/heads/main.tar.gz",
             .hash = "parzig-0.0.0--S7BdiLmCQDRU-AW7qIJEFPbo4iflzLy0AHwhqDmAI_s",
         },
-        .Glacier2 = .{
-            .url = "https://github.com/M-Tesla/Glacier/archive/refs/heads/main.tar.gz",
-            .hash = "Glacier2-0.0.0-DdIf_fyZBgBLnLwmnEUCRVCPOGd1T31oLFVByQgQWZhu",
-        },
     },
     .paths = .{""},
     .fingerprint = 0x46edaec4f7b24134,

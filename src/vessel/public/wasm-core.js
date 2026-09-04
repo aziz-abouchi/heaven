@@ -12,6 +12,9 @@ window.loadWasm = async function() {
     window.wasm = result.instance.exports;
     window.memory = window.wasm.memory;
     window.wasm.init();
+    if (window.wasm.exports.set_debug_logging) {
+      window.wasm.exports.set_debug_logging(false);
+    }
     console.log('WASM exports:', Object.keys(window.wasm).filter(k => k.includes('proof')));
     return { wasm: window.wasm, memory: window.memory };
   } catch (e) {

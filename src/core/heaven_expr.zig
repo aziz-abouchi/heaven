@@ -173,7 +173,7 @@ pub const Heaven = struct {
     }
 
     fn loadBootstrap(self: *Heaven) void {
-        const source = std.fs.cwd().readFileAlloc(
+        const source = platform.fs.cwd().readFileAlloc(
             self.allocator, "core/bootstrap.hvn", 64 * 1024,
         ) catch |err| {
             platform.dbg("[loadBootstrap] readFileAlloc failed: {}\n", .{err});

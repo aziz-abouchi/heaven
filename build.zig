@@ -38,12 +38,19 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    //const tree_sitter_mod = b.createModule(.{
+    //    .root_source_file = b.path("src/platform/ts.zig"),
+    //    .target = target,
+    //    .optimize = optimize,
+    //});
+
     const syntax_lower_mod = b.addModule("syntax_lower", .{
         .root_source_file = b.path("src/syntax/lower.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
             .{ .name = "ast", .module = syntax_ast_mod },
+            //.{ .name = "tree_sitter", .module = tree_sitter_mod },
             .{ .name = "platform", .module = platform_mod },
         },
     });
@@ -1043,6 +1050,23 @@ pub fn build(b: *std.Build) void {
     }
 
     const test_step = b.step("test", "Run all tests");
+
+    if (target.query.cpu_arch != .wasm32) {
+        const syntax_tests = b.addTest(.{
+                .root_module = b.createModule(.{
+                    .root_source_file = b.path("src/syntax/core_lower_test.zig"),
+                    .target = target,
+                    .optimize = optimize,
+                    .imports = &.{
+                        .{ .name = "expr", .module = expr_mod },
+                        .{ .name = "engine_expr", .module = engine_expr_mod },
+                    },
+                }),
+        });
+
+        const run_syntax_tests = b.addRunArtifact(syntax_tests);
+        test_step.dependOn(&run_syntax_tests.step);
+    }
 
     if (target.query.cpu_arch != .wasm32) {
         const test_syntax_lower = b.addTest(.{

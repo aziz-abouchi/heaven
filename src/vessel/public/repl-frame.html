@@ -292,6 +292,9 @@
         window.heavenEngine = wasm;
         memory = wasm.memory;
         wasm.init();
+        if (wasm.exports.set_debug_logging) {
+    wasm.exports.set_debug_logging(false);
+}
 
         const cmdLen = wasm.getWasmCommands();
         const cmdPtr = wasm.getOutputPtr();
@@ -305,7 +308,7 @@
         addLine(`Commandes : ${availableCommands.join(' ')}`, 'info');
 
         function tickLoop(ts) {
-          //if (wasm) wasm.tick_swarm();
+          if (wasm) wasm.tick_swarm();
           requestAnimationFrame(tickLoop);
         }
         requestAnimationFrame(tickLoop);

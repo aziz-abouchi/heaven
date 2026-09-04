@@ -6,6 +6,7 @@ const SkillRegistry = @import("skill").SkillRegistry;
 const ProofCore = @import("proof_core").ProofCore;
 const Agent = @import("agent").Agent;
 const MatrixBridge = @import("matrix_bridge").MatrixBridge;
+const simplify_engine = @import("simplify_engine");
 
 var bridge: MatrixBridge = undefined;
 var parser: Parser = undefined;
@@ -1151,3 +1152,7 @@ export fn wasm_entry_process_input(ptr: [*]const u8, len: usize) void {
 
 extern fn js_ollama_query(prompt_ptr: [*]const u8, prompt_len: usize, out_ptr: [*]u8, out_max: usize) usize;
 extern fn js_broadcast_proof_request(ptr: [*]const u8, len: usize) void;
+
+export fn set_debug_logging(enabled: bool) void {
+    simplify_engine.log_saturation = enabled;
+}

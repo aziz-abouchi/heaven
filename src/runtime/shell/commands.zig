@@ -1209,7 +1209,7 @@ pub fn cmdMlcpdEquiv(self: *Shell, input: []const u8) void {
 // ═══════════════════════════════════════════════════════════
 
 pub fn cmdParseFile(self: *Shell, path: []const u8) void {
-    const ext = std.fs.path.extension(path);
+    const ext = platform.fs.path.extension(path);
     const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse {
         platform.debug.print("unsupported extension: {s}\n", .{ext});
         return;
@@ -1261,7 +1261,7 @@ pub fn cmdParseFile(self: *Shell, path: []const u8) void {
 }
 
 pub fn cmdDumpAstFile(self: *Shell, path: []const u8) void {
-    const ext = std.fs.path.extension(path);
+    const ext = platform.fs.path.extension(path);
     const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse {
         platform.debug.print("unsupported extension: {s}\n", .{ext});
         return;
@@ -1289,7 +1289,7 @@ pub fn cmdDumpAstFile(self: *Shell, path: []const u8) void {
 }
 
 pub fn cmdTranslateAndDump(self: *Shell, path: []const u8) void {
-    const ext = std.fs.path.extension(path);
+    const ext = platform.fs.path.extension(path);
     const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse {
         platform.debug.print("unsupported extension: {s}\n", .{ext});
         return;
@@ -1359,7 +1359,7 @@ pub fn cmdLoadFile(self: *Shell, path: []const u8) ![]u8 {
 
 /// Parse un fichier selon son extension (.hvn, .c, .zig) et l'exécute
 pub fn cmdParseFileWithLanguage(self: *Shell, path: []const u8) ![]u8 {
-    const ext = std.fs.path.extension(path);
+    const ext = platform.fs.path.extension(path);
     const lang = platform.shell_parser_types.Language.fromExtension(ext) orelse
         return std.fmt.allocPrint(self.allocator, "unsupported extension: {s}", .{ext});
 

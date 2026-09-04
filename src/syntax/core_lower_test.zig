@@ -1,4 +1,4 @@
-//! core_lower-v2.zig - Lowering sémantique : HIR (syntax/ast.zig) -> Core (core/expr.zig)
+//! core_lower.zig - Lowering sémantique : HIR (syntax/ast.zig) -> Core (core/expr.zig)
 //! 
 //! Cet outil est responsable de la traduction de l'arbre syntaxique de haut niveau (HIR)
 //! en expressions composées exclusivement des 6 primitives fondamentales de Heaven :
@@ -75,16 +75,12 @@ pub const CoreLowerer = struct {
             },
             .application => |apps| {
                 if (apps.len == 0) return try self.store.unitLit();
-
                 const head_id = try self.lowerExpr(apps[0]);
-
-                var args_ids = std.ArrayList(Id).init(self.allocator);
-                defer args_ids.deinit();
-
+                var args_ids: std.ArrayListUnmanaged(Id) = .empty;
+                defer args_ids.deinit(self.allocator);
                 for (apps[1..]) |arg| {
-                    try args_ids.append(try self.lowerExpr(arg));
+                    try args_ids.append(self.allocator, try self.lowerExpr(arg));
                 }
-
                 return try self.store.apply(head_id, args_ids.items);
             },
         }
@@ -160,14 +156,11 @@ pub const CoreLowerer = struct {
                 const op_arrow = try self.store.sym("->");
                 return try self.store.apply(op_arrow, &.{from_id, to_id});
             },
-            .generic, .applied => |g| {
-                const head_id = try self.store.sym(g.name);
-                var args_ids: std.ArrayListUnmanaged(Id) = .empty;
-                defer args_ids.deinit(self.allocator);
-                for (g.args) |arg| {
-                    try args_ids.append(self.allocator, try self.lowerTypeExpr(arg));
-                }
-                return try self.store.apply(head_id, args_ids.items);
+            .generic => |g| {
+                return try self.lowerGenericOrApplied(g.name, g.args);
+            },
+            .applied => |a| {
+                return try self.lowerGenericOrApplied(a.name, a.args);
             },
             .forall => |fa| {
                 // forall (x: A) (y: B). C -> apply(sym("forall"), [bind(x, A), bind(y, B), C])
@@ -185,5 +178,15 @@ pub const CoreLowerer = struct {
                 return try self.store.apply(forall_sym, binders.items);
             },
         }
+    }
+
+    fn lowerGenericOrApplied(self: *CoreLowerer, name: []const u8, args: []const ast.TypeExpr) anyerror!Id {
+        const head_id = try self.store.sym(name);
+        var args_ids: std.ArrayListUnmanaged(Id) = .empty;
+        defer args_ids.deinit(self.allocator);
+        for (args) |arg| {
+            try args_ids.append(self.allocator, try self.lowerTypeExpr(arg));
+        }
+        return try self.store.apply(head_id, args_ids.items);
     }
 };
