@@ -6,7 +6,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const ast = @import("ast");
+const ast = @import("syntax_ast");
 const platform = @import("platform");
 const ts = platform.ts;
 

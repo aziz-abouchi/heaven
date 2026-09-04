@@ -8,7 +8,7 @@
 //! le noyau logique après ce passage.
 
 const std = @import("std");
-const ast = @import("ast.zig");
+const ast = @import("syntax_ast");
 const expr = @import("expr");
 
 const Store = expr.Store;

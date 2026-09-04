@@ -44,12 +44,22 @@ pub fn build(b: *std.Build) void {
     //    .optimize = optimize,
     //});
 
+    const syntax_core_lower_mod = b.addModule("syntax_core_lower", .{
+                    .root_source_file = b.path("src/syntax/core_lower.zig"),
+                    .target = target,
+                    .optimize = optimize,
+                    .imports = &.{
+                        .{ .name = "expr", .module = expr_mod },
+                        .{ .name = "syntax_ast", .module = syntax_ast_mod },
+                    },
+        });
+
     const syntax_lower_mod = b.addModule("syntax_lower", .{
         .root_source_file = b.path("src/syntax/lower.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "ast", .module = syntax_ast_mod },
+            .{ .name = "syntax_ast", .module = syntax_ast_mod },
             //.{ .name = "tree_sitter", .module = tree_sitter_mod },
             .{ .name = "platform", .module = platform_mod },
         },
@@ -116,6 +126,8 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "engine_expr", .module = engine_expr_mod },
+            .{ .name = "lower", .module = syntax_lower_mod },
+            .{ .name = "core_lower", .module = syntax_core_lower_mod },
         },
     });
 
@@ -912,6 +924,8 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "engine_expr", .module = engine_expr_mod },
+            .{ .name = "lower", .module = syntax_lower_mod },
+            .{ .name = "core_lower", .module = syntax_core_lower_mod },
         },
     }) });
 

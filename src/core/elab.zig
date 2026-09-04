@@ -431,6 +431,10 @@ pub const Elaborator = struct {
         const name_node = field(node, "name") orelse return ElabError.MissingField;
         const name = self.text(name_node);
         const stmt = try self.elaborate(namedChild(node, 1)); // 0=name, 1=statement
+        {
+            const stmt_node = self.store.get(stmt);
+            platform.dbg("[DEBUG elabTheoremDecl] stmt id={d} tag={s}\n", .{ stmt, @tagName(stmt_node.tag) });
+        }
 
         // Chercher le proof_block (peut être à différentes positions)
         var proof_id: ?Id = null;
@@ -450,7 +454,12 @@ pub const Elaborator = struct {
         }
 
         // Sinon, juste bind(name, stmt)
-        return self.store.bind(name, stmt);
+        const result = try self.store.bind(name, stmt);
+        {
+            const result_node = self.store.get(result);
+            platform.dbg("[DEBUG elabTheoremDecl] AFTER bind: result_id={d} tag={s} payload={d} aux={d}\n", .{ result, @tagName(result_node.tag), result_node.payload, result_node.aux });
+        }
+        return result;
     }
 
     fn elabDataDecl(self: *Elaborator, node: ts.TSNode) ElabError!Id {
@@ -533,6 +542,7 @@ pub const Elaborator = struct {
         // accumule des identifiants jusqu'à rencontrer le _type qui les type tous.
         const n = namedChildCount(node);
         if (n == 0) return ElabError.MissingField;
+        platform.dbg("[DEBUG elabForallType] n={d}\n", .{n});
         var binders: std.ArrayListUnmanaged(Id) = .{};
         defer binders.deinit(self.allocator);
         var pending_names: std.ArrayListUnmanaged([]const u8) = .{};
@@ -541,6 +551,7 @@ pub const Elaborator = struct {
         var i: u32 = 0;
         while (i < n - 1) : (i += 1) {
             const child = namedChild(node, i);
+            platform.dbg("[DEBUG elabForallType] i={d} kind={s}\n", .{ i, kind(child) });
             if (std.mem.eql(u8, kind(child), "identifier")) {
                 try pending_names.append(self.allocator, self.text(child));
             } else {
@@ -552,6 +563,7 @@ pub const Elaborator = struct {
             }
         }
         const body = try self.elaborate(namedChild(node, n - 1));
+        platform.dbg("[DEBUG elabForallType] body computed, binders.len={d}\n", .{binders.items.len});
         try binders.append(self.allocator, body);
         return self.store.call("forall", binders.items);
     }
@@ -1118,12 +1130,54 @@ pub fn elaborateSource(
     return elaborateSourceImpl(allocator, store, source, opts);
 }
 
+fn elaborateViaCoreLowerer(
+    allocator: Allocator,
+    store: *Store,
+    source: []const u8,
+) !Id {
+    const lower = @import("lower");
+    const core_lower = @import("core_lower");
+
+    // Parsing & Abaissement en AST HIR
+    var ast_tree = try lower.lowerSource(allocator, source);
+    defer ast_tree.deinit();
+
+    if (ast_tree.items.len == 0) return error.UnsupportedNode;
+
+    // Traduction de chaque élément HIR en primitive du noyau
+    var lowerer = core_lower.CoreLowerer.init(allocator, store);
+    var item_ids: std.ArrayListUnmanaged(Id) = .empty;
+    defer item_ids.deinit(allocator);
+
+    for (ast_tree.items) |item| {
+        const item_id = try lowerer.lowerItem(item);
+        try item_ids.append(allocator, item_id);
+    }
+
+    // Encapsulation sous la forme d'un nœud .source_file
+    return try store.addNode(.{
+        .tag = .source_file,
+        .payload = 0,
+        .aux = 0,
+        .span_a = try store.pushSpan(item_ids.items),
+        .span_b = .{ .start = 0, .len = 0 },
+    });
+}
+
 fn elaborateSourceImpl(
     allocator: Allocator,
     store: *Store,
     source: []const u8,
     registry: ?*engine_expr.FunctionRegistry,
 ) !Id {
+    // Tente l'élaboration via le pipeline moderne HIR -> CoreLowerer
+    if (elaborateViaCoreLowerer(allocator, store, source)) |root_id| {
+        var checker = TypeChecker.init(allocator, store);
+        var ctx = TypingContext.init(allocator);
+        defer ctx.deinit();
+        _ = checker.inferType(&ctx, root_id) catch {};
+        return root_id;
+    } else |_| {}
     const parser = ts.ts_parser_new();
     defer ts.ts_parser_delete(parser);
     _ = ts.ts_parser_set_language(parser, platform.tree_sitter_heaven());

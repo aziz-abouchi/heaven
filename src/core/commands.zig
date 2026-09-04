@@ -1904,11 +1904,43 @@ pub const Commands = struct {
             var tmp_store = Store.init(self.allocator);
             defer tmp_store.deinit();
             if (@import("builtin").target.cpu.arch == .wasm32) return error.NotSupported;
+            platform.dbg("[DEBUG evalTheorem] src to elaborate: '{s}'\n", .{src});
             const root_id = elab_mod.elaborateSource(self.allocator, &tmp_store, src, null) catch |err| {
                 var buf: [128]u8 = undefined;
                 const msg = try std.fmt.bufPrint(&buf, "✗ elaboration failed: {}", .{err});
                 return try self.allocator.dupe(u8, msg);
             };
+
+            const dbg_str = expr.toString(&tmp_store, root_id, self.allocator) catch |err| {
+                platform.dbg("[DEBUG evalTheorem] root_id={d} toString FAILED: {}\n", .{ root_id, err });
+                const node = tmp_store.get(root_id);
+                platform.dbg("[DEBUG evalTheorem] root node tag={s} payload={d} aux={d}\n", .{ @tagName(node.tag), node.payload, node.aux });
+                return try self.allocator.dupe(u8, "✗ debug: toString failed");
+            };
+            platform.dbg("[DEBUG evalTheorem] root_id={d} tree={s}\n", .{ root_id, dbg_str });
+            self.allocator.free(dbg_str);
+            const root_node = tmp_store.get(root_id);
+            platform.dbg("[DEBUG evalTheorem] root_id={d} tag={s} payload={d} aux={d} span_a.len={d}\n", .{
+                root_id, @tagName(root_node.tag), root_node.payload, root_node.aux, root_node.span_a.len,
+            });
+            if (root_node.span_a.len > 0) {
+                const child_id = root_node.span_a.slice(tmp_store.pool.items)[0];
+                const child_node = tmp_store.get(child_id);
+                platform.dbg("[DEBUG evalTheorem] child_id={d} tag={s} payload={d} aux={d} span_a.len={d}\n", .{
+                    child_id, @tagName(child_node.tag), child_node.payload, child_node.aux, child_node.span_a.len,
+                });
+                if (child_node.tag == .apply) {
+                    const func_node = tmp_store.get(child_node.payload);
+                    const fname = if (func_node.tag == .sym) tmp_store.interner.resolve(func_node.payload) else "???";
+                    platform.dbg("[DEBUG evalTheorem] child is apply, func_name='{s}'\n", .{fname});
+                }
+                if (child_node.tag == .bind) {
+                    const bname = tmp_store.interner.resolve(child_node.payload);
+                    const val_node = tmp_store.get(child_node.aux);
+                    platform.dbg("[DEBUG evalTheorem] child is bind, name='{s}', val_tag={s}\n", .{ bname, @tagName(val_node.tag) });
+                }
+            }
+
             const eq_args = proof_helpers_mod.extractEqArgsFromStore(&tmp_store, root_id) orelse
                 return try self.allocator.dupe(u8, "✗ could not extract Eq<lhs,rhs> from statement");
             const lhs = try proof_helpers_mod.copyIdBetweenStores(&tmp_store, self.store, eq_args.lhs);

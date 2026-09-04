@@ -287,6 +287,14 @@ pub const Heaven = struct {
         const trimmed = std.mem.trim(u8, src, " \t\n\r");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "");
 
+        // Théorèmes / preuves / axiomes → chemin dédié (elab.zig + ProofCore)
+        if (std.mem.startsWith(u8, trimmed, "theorem ")) {
+            return self.evalTheorem(trimmed["theorem ".len..]);
+        }
+        if (std.mem.startsWith(u8, trimmed, "prove ")) {
+            return self.evalProve(trimmed["prove ".len..]);
+        }
+
         // Les lignes mécanismes (actor/macro/fn/send/state) → Commands
         const is_mechanism = std.mem.startsWith(u8, trimmed, "let actor ") or
             std.mem.startsWith(u8, trimmed, "let macro ") or
@@ -314,6 +322,28 @@ pub const Heaven = struct {
             std.mem.startsWith(u8, trimmed, "(assert_err "))
         {
             return self.evalAssertion(trimmed);
+        }
+
+        // Assertions sémantiques dans le REPL
+        if (std.mem.startsWith(u8, trimmed, "(test ") or
+            std.mem.startsWith(u8, trimmed, "(assert_eq ") or
+            std.mem.startsWith(u8, trimmed, "(assert_err "))
+        {
+            return self.evalAssertion(trimmed);
+        }
+
+        // ✅ ROUTING S-EXPR : (let ...) / ((lambda ...) arg) → interpForAssert
+        // La machinery des tests (Fix 1-3 + env-bound lambda) devient
+        // accessible directement au REPL.
+        if (trimmed.len > 0 and trimmed[0] == '(') {
+            if (std.mem.indexOf(u8, trimmed, "let ") != null or
+                std.mem.indexOf(u8, trimmed, "lambda") != null)
+            {
+                if (self.parseExpression(trimmed)) |id| {
+                    const result = self.interpForAssert(id) catch id;
+                    return try expr.toStringInfix(self.store, result, self.allocator);
+                } else |_| {}
+            }
         }
 
         if (std.mem.startsWith(u8, trimmed, "(relation ")) {
