@@ -213,4 +213,5 @@ zig build run -- --run-test core/test_suite.hvn
 
 ## Licence
 
-Propriétaire
+
+Apache 2.0
