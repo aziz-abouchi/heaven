@@ -50,3 +50,4 @@ vendor/tree-sitter-heaven/node_modules/
 # Git backups
 .git.bak/
 log.html
+.heaven_history
