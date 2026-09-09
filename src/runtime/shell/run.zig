@@ -8,6 +8,7 @@ const expr_mod = @import("expr");
 const mlcpd_mod = @import("mlcpd");
 const mlcpd_equiv_mod = @import("mlcpd_equiv");
 const history_mod = @import("history.zig");
+const interactive = @import("interactive.zig");
 
 pub fn run(self: *Shell) !void {
     @import("utils.zig").global_heaven_ptr = self.heaven;
@@ -21,86 +22,90 @@ pub fn run(self: *Shell) !void {
     defer self.allocator.free(history_file);
     history.loadFromFile(history_file) catch {};
 
-    var buf: [4096]u8 = undefined;
+    var reader = try interactive.Reader.init(self.allocator, self.heaven, &history);
+    defer reader.deinit();
 
-    while (true) {
-        platform.debug.print("heaven> ", .{});
-        const bytes_read = platform.readStdin(&buf) catch break;
-        if (bytes_read == 0) break;
-        const raw = buf[0..bytes_read];
+    outer: while (true) {
+        const line = reader.readLine("heaven> ") catch |err| {
+            if (err == error.EndOfStream) break;
+            platform.debug.print("Erreur de lecture : {}\n", .{err});
+            continue;
+        };
+        if (line.len == 0) continue;
 
-        var line_it = std.mem.splitScalar(u8, raw, '\n');
-        while (line_it.next()) |raw_line| {
-            const line = std.mem.trim(u8, raw_line, " \r\t");
-            if (line.len < 1) continue;
-
-            // Commande !n pour répéter une commande historique
-            if (line.len > 1 and line[0] == '!') {
-                const num_str = line[1..];
-                const num = std.fmt.parseInt(usize, num_str, 10) catch {
-                    platform.debug.print("  Syntaxe : !<numéro> (ex: !3)\n", .{});
-                    continue;
-                };
-                if (num == 0 or num > history.items.items.len) {
-                    platform.debug.print("  Commande historique {d} introuvable\n", .{num});
-                    continue;
-                }
-                const cmd = history.items.items[num - 1];
-                platform.debug.print("{s}\n", .{cmd});
-                // Exécuter cette commande comme si elle était saisie
-                try processLine(self, cmd, &history);
+        // Commande !n
+        if (line.len > 1 and line[0] == '!') {
+            const num_str = line[1..];
+            const num = std.fmt.parseInt(usize, num_str, 10) catch {
+                platform.debug.print("  Syntaxe : !<numéro> (ex: !3)\n", .{});
+                continue;
+            };
+            if (num == 0 or num > history.items.items.len) {
+                platform.debug.print("  Commande historique {d} introuvable\n", .{num});
                 continue;
             }
-
-            // Stocker dans l'historique (sauf les commandes spéciales)
-            if (line[0] != ':') {
-                try history.push(line);
-            }
-
-            // Traiter la ligne
-            try processLine(self, line, &history);
+            const cmd = history.items.items[num - 1];
+            platform.debug.print("{s}\n", .{cmd});
+            if (!try processLine(self, cmd, &history)) break :outer;
+            continue;
         }
+
+        // Stocker dans l'historique (sauf commandes spéciales)
+        if (line[0] != ':') {
+            try history.push(line);
+        }
+
+        // Traiter la ligne
+        if (!try processLine(self, line, &history)) break :outer;
     }
 
     history.saveToFile(history_file) catch {};
 }
 
-fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !void {
+fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !bool {
     const had_colon = line[0] == ':';
     const rest_line = if (had_colon) std.mem.trim(u8, line[1..], " ") else line;
-    if (rest_line.len < 1) return;
+    if (rest_line.len < 1) return true;
 
     var it = std.mem.tokenizeAny(u8, rest_line, " ");
-    const cmd = it.next() orelse return;
+    const cmd = it.next() orelse return true;
     const args = it.rest();
 
     if (had_colon) {
+        // ─── QUITTER ───
+        if (std.mem.eql(u8, cmd, "q") or std.mem.eql(u8, cmd, "quit")) {
+            return false;
+        }
         if (std.mem.eql(u8, cmd, "history")) {
             for (history.items.items, 0..) |item, i| {
                 platform.debug.print("{d}: {s}\n", .{ i+1, item });
             }
-            return;
+            return true;
         }
         if (std.mem.eql(u8, cmd, "save-history")) {
             // déjà sauvegardé à la sortie
             platform.debug.print("  Historique sauvegardé dans .heaven_history\n", .{});
-            return;
+            return true;
         }
         if (std.mem.eql(u8, cmd, "equiv") or std.mem.eql(u8, cmd, "prove")) {
             try runMlcpdEquivCommand(self, args);
-            return;
+            return true;
         }
         if (std.mem.eql(u8, cmd, "defs")) {
             platform.debug.print("  (Définitions non gérées)\n", .{});
-            return;
+            return true;
         }
         if (std.mem.eql(u8, cmd, "clear")) {
             platform.debug.print("  (Mémoire nettoyée)\n", .{});
-            return;
+            return true;
+        }
+        if (std.mem.eql(u8, cmd, "complete")) {
+            eval.cmdComplete(self, args);
+            return true;
         }
         // Commande inconnue
         platform.debug.print("   commande inconnue: {s}\n", .{cmd});
-        return;
+        return true;
     }
 
     // Commandes natives
@@ -113,14 +118,14 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !v
             if (comptime std.mem.eql(u8, cmd_def.name, "exit")) {
                 platform.dbg("[HEAVEN] Arrêt du noyau.\n", .{});
                 // On sortira par le haut
-                return;
+                return false;
             } else if (comptime std.mem.eql(u8, cmd_def.name, "run*")) {
                 commands.cmdRunStar(self, args, 20);
             } else if (comptime std.mem.eql(u8, cmd_def.name, "load")) {
                 if (args.len > 0) {
                     const result = commands.cmdLoadFile(self, args) catch |err| {
                         platform.debug.print("Error loading file: {}\n", .{err});
-                        return;
+                        return true;
                     };
                     defer self.allocator.free(result);
                     platform.debug.print("{s}\n", .{result});
@@ -143,10 +148,11 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !v
         if (std.mem.startsWith(u8, line, "(simplify ")) {
             const inner = line["(simplify ".len .. line.len - 1];
             eval.exprSimplify(self, inner);
-            return;
+            return true;
         }
         eval.evalHeavenCode(self, line);
     }
+    return true;
 }
 
 pub fn printHelp(self: *Shell) void {
