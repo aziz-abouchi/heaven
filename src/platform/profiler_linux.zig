@@ -26,10 +26,12 @@ pub fn measureMemory() !u64 {
 
 pub fn measureCPU() !u64 {
     // Via perf_event_open pour les cycles CPU
+    var perf_attr: std.os.linux.perf_event_attr = .{};
     const fd = std.os.linux.syscall2(
         .perf_event_open,
         @intFromPtr(&perf_attr),
         0, // pid = self
     );
+    _ = fd;
     // ... lecture des cycles
 }

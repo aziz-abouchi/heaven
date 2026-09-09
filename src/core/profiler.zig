@@ -42,11 +42,11 @@ pub const Profiler = struct {
 
         const elapsed_ns = @as(u64, @intCast(end_time - self.start_time));
 
-        const rusage = platform.posix.getrusage(platform.posix.rusage.SELF);
+        const usage = platform.profiler.getResourceUsage();
 
         // Calcul du temps CPU (User + System) en nanosecondes
-        const cpu_time_ns = @as(u64, @intCast(rusage.utime.sec + rusage.stime.sec)) * platform.time.ns_per_s +
-            @as(u64, @intCast(rusage.utime.usec + rusage.stime.usec)) * platform.time.ns_per_us;
+        const cpu_time_ns = @as(u64, @intCast(usage.utime.sec + usage.stime.sec)) * platform.time.ns_per_s +
+            @as(u64, @intCast(usage.utime.usec + usage.stime.usec)) * platform.time.ns_per_us;
 
         const energy_diff_uj = if (end_energy_uj > self.start_energy_uj) end_energy_uj - self.start_energy_uj else 0;
 
@@ -54,7 +54,7 @@ pub const Profiler = struct {
             .wall_time_ns = elapsed_ns,
             .cpu_time_ns = cpu_time_ns,
             .energy_joules = @as(f64, @floatFromInt(energy_diff_uj)) / 1_000_000.0,
-            .memory_peak_kb = @intCast(rusage.maxrss),
+            .memory_peak_kb = @intCast(usage.maxrss),
         };
     }
 };

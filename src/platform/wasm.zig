@@ -43,7 +43,7 @@ pub const posix = struct {
     pub const SEEK = struct {
         pub const SET = 0;
     };
-    pub const STDIN_FILENO = 0;
+    pub const STDIN_FILENO = std.posix.STDIN_FILENO; // 0
     pub const STDOUT_FILENO = 1;
     pub const STDERR_FILENO = 2;
 

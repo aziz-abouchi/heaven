@@ -66,15 +66,13 @@ pub const McpServer = struct {
             self.heaven = heaven_expr_mod.Heaven.init(self.allocator) catch @panic("Failed to init Heaven");
         }
     }
-
+    
     /// Boucle principale MCP: lit JSON-RPC sur stdin, répond sur stdout
     pub fn run(self: *McpServer) !void {
-        const stdin_fd = platform.posix.STDIN_FILENO;
-        const stdout_fd = platform.posix.STDOUT_FILENO;
         var buf: [65536]u8 = undefined;
 
         while (true) {
-            const bytes_read = platform.posix.read(stdin_fd, &buf) catch break;
+            const bytes_read = platform.readStdin(&buf) catch break;
             if (bytes_read == 0) break;
             const data = buf[0..bytes_read];
 
@@ -97,13 +95,13 @@ pub const McpServer = struct {
                         error.UnknownMethod => "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32601,\"message\":\"Method not found\"},\"id\":null}\n",
                         else => "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32603,\"message\":\"Internal error\"},\"id\":null}\n",
                     };
-                    _ = platform.posix.write(stdout_fd, err_msg) catch {};
+                    _ = platform.writeStdout(err_msg) catch {};
                     continue;
                 };
 
                 if (response.len > 0) {
-                    _ = platform.posix.write(stdout_fd, response) catch {};
-                    _ = platform.posix.write(stdout_fd, "\n") catch {};
+                    _ = platform.writeStdout(response) catch {};
+                    _ = platform.writeStdout("\n") catch {};
                 }
             }
         }

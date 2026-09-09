@@ -72,7 +72,7 @@ fn readMessage(allocator: std.mem.Allocator) ?[]u8 {
 
     while (true) {
         var byte: [1]u8 = undefined;
-        const n = platform.posix.read(0, &byte) catch return null;
+        const n = platform.readStdin(&byte) catch return null;
         if (n == 0) return null;
         if (byte[0] == '\n') {
             const trimmed = std.mem.trim(u8, header_buf[0..hi], &.{ '\r', '\n', ' ' });
@@ -94,7 +94,7 @@ fn readMessage(allocator: std.mem.Allocator) ?[]u8 {
     const buf = allocator.alloc(u8, content_len) catch return null;
     var total: usize = 0;
     while (total < content_len) {
-        const n = platform.posix.read(0, buf[total..]) catch {
+        const n = platform.readStdin(buf[total..]) catch {
             allocator.free(buf);
             return null;
         };
@@ -110,8 +110,8 @@ fn readMessage(allocator: std.mem.Allocator) ?[]u8 {
 fn writeMessage(content: []const u8) void {
     var header_buf: [64]u8 = undefined;
     const header = std.fmt.bufPrint(&header_buf, "Content-Length: {d}\r\n\r\n", .{content.len}) catch return;
-    _ = platform.posix.write(1, header) catch {};
-    _ = platform.posix.write(1, content) catch {};
+    _ = platform.writeStdout(header) catch {};
+    _ = platform.writeStdout(content) catch {};
 }
 
 fn extractId(json: []const u8) i64 {

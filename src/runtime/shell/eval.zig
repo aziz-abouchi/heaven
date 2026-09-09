@@ -44,15 +44,13 @@ pub fn evalHeavenCode(self: *Shell, code: []const u8) void {
 
     // Évaluation standard pour tout le reste
     const result = self.heaven.eval(trimmed) catch |err| {
-        platform.debug.print(
-            "[EVAL ERROR] {}\n",
-            .{err},
-        );
+        platform.debug.print("[EVAL ERROR] {}\n", .{err},);
         self.ingestor.ingest("repl.hvn", trimmed) catch {};
         return;
     };
 
-    platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
+    // DEBUG
+    platform.debug.print("[DEBUG] result = '{s}'\n", .{result});
 }
 
 // Fonctions requises par commands.zig — redirigent toutes vers Heaven.eval

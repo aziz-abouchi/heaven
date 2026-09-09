@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 const expr = @import("expr");
 const Store = expr.Store;
 const Id = expr.Id;
+const builtin = @import("builtin");
 const platform = @import("platform");
 const ts = platform.ts;
 const engine_expr = @import("engine_expr");
@@ -1126,7 +1127,7 @@ pub fn elaborateSource(
     opts: anytype,
 ) !expr.Id {
     // WASM stub : retourne une erreur
-    if (@import("builtin").target.cpu.arch == .wasm32) return error.NotSupported;
+    //if (@import("builtin").target.cpu.arch == .wasm32) return error.NotSupported;
     return elaborateSourceImpl(allocator, store, source, opts);
 }
 
@@ -1178,7 +1179,10 @@ fn elaborateSourceImpl(
         _ = checker.inferType(&ctx, root_id) catch {};
         return root_id;
     } else |_| {}
-    const parser = ts.ts_parser_new();
+    if (builtin.target.cpu.arch.isWasm()) {
+    return error.UnsupportedNode;
+}
+const parser = ts.ts_parser_new();
     defer ts.ts_parser_delete(parser);
     _ = ts.ts_parser_set_language(parser, platform.tree_sitter_heaven());
 

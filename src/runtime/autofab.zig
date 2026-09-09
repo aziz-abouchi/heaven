@@ -24,46 +24,41 @@ pub const RTLD_NOW = 2;
 // --- External Linker pour le Polyglotte ---
 pub const ExternalLinker = struct {
     allocator: std.mem.Allocator,
-    loaded_libs: std.StringHashMap(std.DynLib),
-    // On stocke le handle brut pour "native" pour éviter les caprices de std.DynLib
-    global_raw_handle: ?*anyopaque = null,
+    libs: std.StringHashMap(std.DynLib),
 
     pub fn init(allocator: std.mem.Allocator) ExternalLinker {
         return .{
             .allocator = allocator,
-            .loaded_libs = std.StringHashMap(std.DynLib).init(allocator),
-            .global_raw_handle = null,
+            .libs = std.StringHashMap(std.DynLib).init(allocator),
         };
     }
 
     pub fn loadLibrary(self: *ExternalLinker, path: []const u8) !void {
-        if (std.mem.eql(u8, path, "native")) {
-            if (self.global_raw_handle == null) {
-                // dlopen(NULL) est la clé pour Guix/NixOS : on lie le binaire actuel
-                const handle = dlopen(null, RTLD_NOW) orelse return error.GlobalLinkerFailed;
-                self.global_raw_handle = handle;
-                // platform.dbg("[AUTOFAB] Linker global (Self-Link) initialisé.\n", .{});
-            }
-            return;
-        }
-
-        if (self.loaded_libs.contains(path)) return;
+        if (std.mem.eql(u8, path, "native")) return;
         const lib = try std.DynLib.open(path);
-        try self.loaded_libs.put(path, lib);
+        try self.libs.put(path, lib);
     }
 
-    pub fn getSymbol(self: *ExternalLinker, lib_path: []const u8, name: [:0]const u8) ?*anyopaque {
-        if (std.mem.eql(u8, lib_path, "native")) {
-            if (self.global_raw_handle) |h| {
-                // On utilise dlsym directement pour le handle brut
-                return dlsym(h, name);
-            }
-            return null;
-        }
-        if (self.loaded_libs.getPtr(lib_path)) |lib| {
-            return lib.lookup(*anyopaque, name);
+    pub fn getSymbol(self: *ExternalLinker, lib_name: []const u8, symbol_name: [:0]const u8) ?*anyopaque {
+        if (self.libs.getPtr(lib_name)) |lib| {
+            return lib.lookup(*anyopaque, symbol_name);
         }
         return null;
+    }
+
+    pub fn deinit(self: *ExternalLinker) void {
+        var iter = self.libs.valueIterator();
+        while (iter.next()) |lib| {
+            lib.close();
+        }
+        self.libs.deinit();
+    }
+    
+    pub fn close(self: *ExternalLinker) void {
+        if (self.lib) |*l| {
+            l.close();
+            self.lib = null;
+        }
     }
 };
 

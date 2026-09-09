@@ -324,17 +324,7 @@ pub const Heaven = struct {
             return self.evalAssertion(trimmed);
         }
 
-        // Assertions sémantiques dans le REPL
-        if (std.mem.startsWith(u8, trimmed, "(test ") or
-            std.mem.startsWith(u8, trimmed, "(assert_eq ") or
-            std.mem.startsWith(u8, trimmed, "(assert_err "))
-        {
-            return self.evalAssertion(trimmed);
-        }
-
         // ✅ ROUTING S-EXPR : (let ...) / ((lambda ...) arg) → interpForAssert
-        // La machinery des tests (Fix 1-3 + env-bound lambda) devient
-        // accessible directement au REPL.
         if (trimmed.len > 0 and trimmed[0] == '(') {
             if (std.mem.indexOf(u8, trimmed, "let ") != null or
                 std.mem.indexOf(u8, trimmed, "lambda") != null)
@@ -363,7 +353,6 @@ pub const Heaven = struct {
 
         if (std.mem.startsWith(u8, trimmed, "derive ")) {
             const rest = std.mem.trim(u8, trimmed["derive ".len..], " ");
-            // Par défaut variable "x"
             return self.derive(rest, "x");
         }
         if (std.mem.startsWith(u8, trimmed, "integrate ")) {
@@ -386,22 +375,132 @@ pub const Heaven = struct {
             return self.listRules();
         }
 
-        // ✅ FALLBACK : fonctions/macros user via la pile Commands
-        if (self.commands) |cmds| {
-            if (cmds.eval(src)) |r| {
-                const is_echo = std.mem.eql(u8, r, trimmed);
-                const is_err = std.mem.startsWith(u8, r, "eval error") or
-                    std.mem.startsWith(u8, r, "actor error") or
-                    std.mem.startsWith(u8, r, "parse error") or
-                    std.mem.startsWith(u8, r, "syntax error");
-                if (!is_echo and !is_err) {
-                    return r;
-                }
-                self.allocator.free(r);
-            } else |_| {}
+        // ─── DÉFINITION DE FONCTION (syntaxe équationnelle) ───
+        if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_pos| {
+            const lhs = std.mem.trim(u8, trimmed[0..eq_pos], " ");
+            const rhs = std.mem.trim(u8, trimmed[eq_pos+1..], " ");
+            if (!std.mem.startsWith(u8, lhs, "(") and lhs.len > 0 and rhs.len > 0) {
+                return self.evalEquation(lhs, rhs);
+            }
         }
 
+        // ─── ÉVALUATION GÉNÉRIQUE (infixe + application) ───
+        // 1. Essayer la conversion infixe → S‑expression (opérateurs binaires)
+        if (expr.nativeToSExpr(trimmed, self.allocator)) |sexpr| {
+            defer self.allocator.free(sexpr);
+            if (sexpr.len > 0 and sexpr[0] == '(') {
+                const id = try self.parseExpression(sexpr);
+                // Utiliser engine.eval pour l'évaluation
+                const evaluated = try self.engine.eval(id);
+                return expr.toStringInfix(self.store, evaluated, self.allocator);
+            }
+        } else |_| {}
+
+        // 2. Sinon, tenter comme une application de fonction (nom arg1 arg2 ...)
+        var tokens = std.ArrayListUnmanaged([]const u8){};
+        defer tokens.deinit(self.allocator);
+        var start: usize = 0;
+        var depth: usize = 0;
+        var in_token = false;
+        for (trimmed, 0..) |c, i| {
+            if (c == '(') {
+                if (depth == 0 and !in_token) { start = i; in_token = true; }
+                depth += 1;
+            } else if (c == ')') {
+                depth -= 1;
+                if (depth == 0 and in_token) {
+                    try tokens.append(self.allocator, trimmed[start..i+1]);
+                    in_token = false;
+                    start = i+1;
+                }
+            } else if (c == ' ' and depth == 0) {
+                if (in_token) {
+                    try tokens.append(self.allocator, trimmed[start..i]);
+                    in_token = false;
+                }
+                start = i+1;
+            } else if (depth == 0 and !in_token) {
+                start = i;
+                in_token = true;
+            }
+        }
+        if (in_token) try tokens.append(self.allocator, trimmed[start..]);
+
+        if (tokens.items.len >= 2) {
+            const func_name = tokens.items[0];
+            const ops = [_][]const u8{ "+", "-", "*", "/", "^", "%", "==", "!=", "<", ">", "<=", ">=" };
+            var is_op = false;
+            for (ops) |op| {
+                if (std.mem.eql(u8, func_name, op)) { is_op = true; break; }
+            }
+            if (!is_op) {
+                var sexpr = std.ArrayListUnmanaged(u8){};
+                defer sexpr.deinit(self.allocator);
+                try sexpr.append(self.allocator, '(');
+                try sexpr.appendSlice(self.allocator, func_name);
+                for (tokens.items[1..]) |arg| {
+                    try sexpr.append(self.allocator, ' ');
+                    try sexpr.appendSlice(self.allocator, arg);
+                }
+                try sexpr.append(self.allocator, ')');
+                const s = try sexpr.toOwnedSlice(self.allocator);
+                defer self.allocator.free(s);
+                const id = try self.parseExpression(s);
+                // Utiliser engine.eval pour l'évaluation
+                const evaluated = try self.engine.eval(id);
+                return expr.toStringInfix(self.store, evaluated, self.allocator);
+            }
+        }
         return self.allocator.dupe(u8, trimmed);
+    }
+
+    fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
+        // Tokeniser le LHS avec gestion des parenthèses
+        var tokens = std.ArrayListUnmanaged([]const u8){};
+        defer tokens.deinit(self.allocator);
+
+        var start: usize = 0;
+        var depth: usize = 0;
+        var in_token = false;
+        for (lhs, 0..) |c, i| {
+            if (c == '(') {
+                if (depth == 0 and !in_token) { start = i; in_token = true; }
+                depth += 1;
+            } else if (c == ')') {
+                depth -= 1;
+                if (depth == 0 and in_token) {
+                    try tokens.append(self.allocator, lhs[start..i+1]);
+                    in_token = false;
+                    start = i+1;
+                }
+            } else if (c == ' ' and depth == 0) {
+                if (in_token) {
+                    try tokens.append(self.allocator, lhs[start..i]);
+                    in_token = false;
+                }
+                start = i+1;
+            } else if (depth == 0 and !in_token) {
+                start = i;
+                in_token = true;
+            }
+        }
+        if (in_token) try tokens.append(self.allocator, lhs[start..]);
+
+        if (tokens.items.len == 0) return error.InvalidSyntax;
+
+        const name = tokens.items[0];
+        var patterns = std.ArrayListUnmanaged(Id){};
+        defer patterns.deinit(self.allocator);
+
+        for (tokens.items[1..]) |tok| {
+            const id = try self.parseExpression(tok);
+            try patterns.append(self.allocator, id);
+        }
+
+        const body = try self.parseExpression(rhs);
+        try self.registerClause(name, patterns.items, body);
+
+        return std.fmt.allocPrint(self.allocator, "✓ clause enregistrée pour '{s}'", .{name});
     }
     
     fn addRelation(self: *Heaven, input: []const u8) HeavenError![]u8 {

@@ -33,7 +33,7 @@ const proof_helpers_mod = @import("proof_helpers");
 const simplify_engine_mod = @import("simplify_engine");
 const rules_mod = @import("rules");
 
-const debug = platform.posix.getenv("HEAVEN_DEBUG") != null;
+const debug = platform.getenv("HEAVEN_DEBUG") != null;
 // HEAVEN_DEBUG=1 ./heaven pour activer les logs.
 
 pub const HeavenError = error{
@@ -1903,7 +1903,7 @@ pub const Commands = struct {
             const src = try std.fmt.bufPrint(&src_buf, "theorem {s} : {s}", .{ name, stmt_clean });
             var tmp_store = Store.init(self.allocator);
             defer tmp_store.deinit();
-            if (@import("builtin").target.cpu.arch == .wasm32) return error.NotSupported;
+            //if (@import("builtin").target.cpu.arch == .wasm32) return error.NotSupported;
             platform.dbg("[DEBUG evalTheorem] src to elaborate: '{s}'\n", .{src});
             const root_id = elab_mod.elaborateSource(self.allocator, &tmp_store, src, null) catch |err| {
                 var buf: [128]u8 = undefined;

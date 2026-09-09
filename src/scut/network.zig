@@ -58,8 +58,9 @@ pub fn init(port: u16) !void {
     const addr = try std.net.Address.parseIp6("::", port);
     try platform.posix.bind(socket.?, &addr.any, addr.getOsSockLen());
 
-    const flags = try platform.posix.fcntl(socket.?, platform.posix.F.GETFL, 0);
-    _ = try platform.posix.fcntl(socket.?, platform.posix.F.SETFL, flags | @as(u32, @bitCast(platform.posix.O{ .NONBLOCK = true })));
+    if (socket) |s| {
+        try platform.setNonBlocking(s);
+    }
 
     current_port = port;
 

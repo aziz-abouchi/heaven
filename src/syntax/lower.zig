@@ -8,6 +8,7 @@ const Allocator = std.mem.Allocator;
 
 const ast = @import("syntax_ast");
 const platform = @import("platform");
+const builtin = @import("builtin");
 const ts = platform.ts;
 
 pub const LowerError = error{
@@ -790,7 +791,10 @@ pub fn lowerSource(
     allocator: Allocator,
     source: []const u8,
 ) LowerError!ast.Ast {
-    const parser = ts.ts_parser_new();
+    if (builtin.target.cpu.arch.isWasm()) {
+    return error.UnsupportedNode;
+}
+const parser = ts.ts_parser_new();
     defer ts.ts_parser_delete(parser);
 
     _ = ts.ts_parser_set_language(

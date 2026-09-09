@@ -120,7 +120,7 @@ pub fn syncMatrixWithFile(_: *matrix_lib.Matrix, _: *autofab_lib.AutoFab, _: std
 }
 
 pub fn main() !void {
-    platform.debug_enabled = platform.posix.getenv("HEAVEN_DEBUG") != null;
+    platform.debug_enabled = platform.getenv("HEAVEN_DEBUG") != null;
 
     var gpa = std.heap.GeneralPurposeAllocator(.{
         .safety = true, // active toutes les vérifications
@@ -209,7 +209,7 @@ pub fn main() !void {
     }
     if (std.mem.eql(u8, args[1], "run") and args.len >= 3) {
         const run_cmd = @import("commands/run.zig");
-        try run_cmd.runRun(allocator, args[2]);
+        try run_cmd.runRun(allocator, &.{args[2]});
         return;
     }
     // NOUVEAU : Évaluateur de script pour les tests de non-régression
@@ -250,7 +250,7 @@ pub fn main() !void {
     }
     if (std.mem.eql(u8, args[1], "test") and args.len >= 3) {
         const test_cmd = @import("commands/test_cmd.zig");
-        try test_cmd.runTest(allocator, args[2]);
+        try test_cmd.runTest(allocator, &.{args[2]});
         return;
     }
     if (std.mem.eql(u8, args[1], "fmt") and args.len >= 3) {

@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const queue_mod = @import("queue");
 pub const MessageQueue = queue_mod.MessageQueue;
 pub const rtc = @import("webrtc.zig");
@@ -16,6 +17,83 @@ pub var debug_enabled: bool = false;
 pub fn dbg(comptime fmt: []const u8, args: anytype) void {
     if (debug_enabled) debug.print(fmt, args);
 }
+
+pub fn getenv(key: []const u8) ?[]const u8 {
+    if (comptime builtin.os.tag == .windows) {
+        return std.process.getEnvVarOwned(std.heap.page_allocator, key) catch null;
+    } else {
+        return std.posix.getenv(key);
+    }
+}
+
+
+// --- STDIN / STDOUT / STDERR ---
+
+pub fn writeStdout(buf: []const u8) !usize {
+    if (comptime builtin.os.tag == .windows) {
+        const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_OUTPUT_HANDLE) 
+            orelse return error.BadFileDescriptor;
+        if (handle == std.os.windows.INVALID_HANDLE_VALUE) return error.BadFileDescriptor;
+        return std.posix.write(handle, buf);
+    } else {
+        return std.posix.write(std.posix.STDOUT_FILENO, buf);
+    }
+}
+
+pub fn readStdin(buf: []u8) !usize {
+    if (comptime builtin.os.tag == .windows) {
+        const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_INPUT_HANDLE) 
+            orelse return error.BadFileDescriptor;
+        if (handle == std.os.windows.INVALID_HANDLE_VALUE) return error.BadFileDescriptor;
+        return std.posix.read(handle, buf);
+    } else {
+        return std.posix.read(std.posix.STDIN_FILENO, buf);
+    }
+}
+
+// --- NETWORK & SOCKETS ---
+
+pub fn setNonBlocking(socket: std.posix.socket_t) !void {
+    if (comptime builtin.os.tag == .windows) {
+        var mode: c_ulong = 1;
+        _ = std.os.windows.ws2_32.ioctlsocket(socket, std.os.windows.ws2_32.FIONBIO, &mode);
+    } else {
+        const flags = try std.posix.fcntl(socket, std.posix.F.GETFL, 0);
+        _ = try std.posix.fcntl(socket, std.posix.F.SETFL, flags | std.posix.O.NONBLOCK);
+    }
+}
+
+// --- PROCESS CONTROL ---
+
+pub const ProcessResult = struct {
+    exit_code: u8,
+};
+
+pub fn spawnProcess(alloc: std.mem.Allocator, argv: []const []const u8) !ProcessResult {
+    var child = std.process.Child.init(argv, alloc);
+    const term = try child.spawnAndWait();
+    
+    return switch (term) {
+        .Exited => |code| ProcessResult{ .exit_code = @truncate(code) },
+        else => ProcessResult{ .exit_code = 1 },
+    };
+}
+
+pub const profiler = switch (builtin.os.tag) {
+    .linux => @import("profiler_linux.zig"),
+    .macos, .ios, .tvos, .watchos => @import("profiler_darwin.zig"),
+    .windows => @import("profiler_windows.zig"),
+    else => struct {
+        pub const ResourceUsage = struct {
+            user_time_ns: u64 = 0,
+            system_time_ns: u64 = 0,
+            max_rss_bytes: usize = 0,
+        };
+        pub fn getResourceUsage() ResourceUsage {
+            return .{};
+        }
+    },
+};
 
 // Alias to standard library for full feature support
 pub const posix = std.posix;

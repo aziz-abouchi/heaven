@@ -1,11 +1,22 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+fn isWindows(target: std.Build.ResolvedTarget) bool {
+    return target.result.os.tag == .windows;
+}
+fn isMacOS(target: std.Build.ResolvedTarget) bool {
+    return target.result.os.tag == .macos;
+}
+fn isLinux(target: std.Build.ResolvedTarget) bool {
+    return target.result.os.tag == .linux;
+}
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const network = b.option(bool, "network", "Enable native networking (WebRTC/SCUT)") orelse true;
-    const tcc_runtime = b.option(bool, "tcc", "Runtime C compilation via libtcc") orelse true;
+
+    const network_default = !isWindows(target);
+    const network = b.option(bool, "network", "Enable native networking") orelse network_default;
 
     // 1. Options globales
     const options = b.addOptions();
@@ -13,7 +24,7 @@ pub fn build(b: *std.Build) void {
     options.addOption(bool, "network", network);
     options.addOption(i64, "build_timestamp", std.time.timestamp());
 
-    // 2. Création dynamique des modules
+    // 2. Module platform
     const platform_mod = b.addModule("platform", .{
         .root_source_file = b.path(if (target.query.cpu_arch == .wasm32)
             "src/platform/wasm.zig"
@@ -22,6 +33,106 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    // Ajouter les include paths de tree-sitter
+    if (target.query.cpu_arch != .wasm32) {
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter/lib/src"));
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter/lib/src/unicode"));
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter-c/src"));
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter-pie/src"));
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
+    }
+
+    // ─── TCC : bibliothèque statique (uniquement sur Linux/macOS) ───
+    const tcc_lib = if (target.query.cpu_arch != .wasm32 and !isWindows(target)) blk: {
+        const lib = b.addLibrary(.{
+            .name = "tcc",
+            .linkage = .static,
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
+
+        const cflags = &.{"-std=c99", "-DONE_SOURCE=0"};
+
+        // Sources communes
+        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tcc.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/libtcc.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccpp.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccgen.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccelf.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccasm.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccrun.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccdbg.c"), .flags = cflags });
+
+        // x86_64 (sur Linux/macOS)
+        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/x86_64-gen.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/x86_64-link.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/x86_64-asm.c"), .flags = cflags });
+
+        // arm64 (sur macOS/Apple Silicon)
+        if (target.result.cpu.arch == .aarch64 and isMacOS(target)) {
+            lib.addCSourceFile(.{ .file = b.path("vendor/tcc/arm64-gen.c"), .flags = cflags });
+            lib.addCSourceFile(.{ .file = b.path("vendor/tcc/arm64-link.c"), .flags = cflags });
+            lib.addCSourceFile(.{ .file = b.path("vendor/tcc/arm64-asm.c"), .flags = cflags });
+        }
+
+        // Fichiers spécifiques à l'OS
+        if (isMacOS(target)) {
+            lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccmacho.c"), .flags = cflags });
+        } else {
+            // Linux/ELF (tccelf.c déjà inclus)
+        }
+
+        // Macros via config.h (généré par build.sh)
+        lib.addIncludePath(b.path("vendor/tcc"));
+        lib.addIncludePath(b.path("vendor/tcc/include"));
+        lib.root_module.link_libc = true;
+        break :blk lib;
+    } else null;
+
+    // ─── Tree‑sitter : bibliothèque statique ───
+    const tree_sitter_lib = if (target.query.cpu_arch != .wasm32) blk: {
+        const lib = b.addLibrary(.{
+            .name = "tree-sitter",
+            .linkage = .static,
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
+        const cflags = &.{"-std=c99"};
+        lib.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
+        lib.addIncludePath(b.path("vendor/tree-sitter/lib/src"));
+        lib.addIncludePath(b.path("vendor/tree-sitter/lib/src/unicode"));
+        lib.addIncludePath(b.path("vendor/tree-sitter-c/src"));
+        lib.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
+        lib.addIncludePath(b.path("vendor/tree-sitter-pie/src"));
+        lib.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
+
+        lib.addCSourceFile(.{ .file = b.path("vendor/tree-sitter/lib/src/lib.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tree-sitter-c/src/parser.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tree-sitter-heaven/src/parser.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tree-sitter-pie/src/parser.c"), .flags = cflags });
+        lib.addCSourceFile(.{ .file = b.path("vendor/tree-sitter-zig/src/parser.c"), .flags = cflags });
+
+        lib.root_module.link_libc = true;
+        break :blk lib;
+    } else null;
+
+    // Ajouter les chemins pour tree-sitter (toutes cibles non-WASM)
+    if (target.query.cpu_arch != .wasm32) {
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter/lib/src"));
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter/lib/src/unicode"));
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter-c/src"));
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter-pie/src"));
+        platform_mod.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
+    }
 
     const expr_mod = b.addModule("expr", .{
         .root_source_file = b.path("src/core/expr.zig"),
@@ -38,21 +149,15 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    //const tree_sitter_mod = b.createModule(.{
-    //    .root_source_file = b.path("src/platform/ts.zig"),
-    //    .target = target,
-    //    .optimize = optimize,
-    //});
-
     const syntax_core_lower_mod = b.addModule("syntax_core_lower", .{
-                    .root_source_file = b.path("src/syntax/core_lower.zig"),
-                    .target = target,
-                    .optimize = optimize,
-                    .imports = &.{
-                        .{ .name = "expr", .module = expr_mod },
-                        .{ .name = "syntax_ast", .module = syntax_ast_mod },
-                    },
-        });
+        .root_source_file = b.path("src/syntax/core_lower.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "syntax_ast", .module = syntax_ast_mod },
+        },
+    });
 
     const syntax_lower_mod = b.addModule("syntax_lower", .{
         .root_source_file = b.path("src/syntax/lower.zig"),
@@ -60,7 +165,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "syntax_ast", .module = syntax_ast_mod },
-            //.{ .name = "tree_sitter", .module = tree_sitter_mod },
             .{ .name = "platform", .module = platform_mod },
         },
     });
@@ -93,7 +197,6 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    // Mettre à jour platform_mod pour qu'il puisse utiliser driver/queue si besoin
     platform_mod.addImport("driver", driver_mod);
     platform_mod.addImport("queue", queue_mod);
 
@@ -335,6 +438,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "platform", .module = platform_mod },
         },
     });
+
     const parse_mod = b.addModule("parse", .{
         .root_source_file = b.path("src/core/parse.zig"),
         .target = target,
@@ -636,6 +740,7 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // ─── Exécutable principal ───
     const exe = b.addExecutable(.{
         .name = "heaven",
         .root_module = b.createModule(
@@ -696,74 +801,29 @@ pub fn build(b: *std.Build) void {
 
     exe.root_module.addOptions("build_options", options);
 
-    // ═══════════════════════════════════════════════════
-    // Tree-sitter : grammaires compilées pour NATIF et WASM
-    // ═══════════════════════════════════════════════════
+    // Lier les bibliothèques statiques
+    if (tree_sitter_lib) |lib| exe.linkLibrary(lib);
+    // TCC
+    if (tcc_lib) |lib| exe.linkLibrary(lib) else {
+        exe.addCSourceFile(.{ .file = b.path("src/platform/tcc_stub.c"), .flags = &.{"-std=c99"} });
+    }
 
+    // WebRTC (désactivé par défaut sur Windows, stub utilisé)
     if (target.query.cpu_arch != .wasm32) {
-        // ─── NATIF : tree-sitter (runtime système + grammaires) ───
-        const ts_grammar_flags = &.{"-std=c99"};
-        exe.root_module.addCSourceFile(.{ .file = b.path("vendor/tree-sitter-c/src/parser.c"), .flags = ts_grammar_flags });
-        exe.root_module.addCSourceFile(.{ .file = b.path("vendor/tree-sitter-heaven/src/parser.c"), .flags = ts_grammar_flags });
-        exe.root_module.addCSourceFile(.{ .file = b.path("vendor/tree-sitter-pie/src/parser.c"), .flags = ts_grammar_flags });
-        exe.root_module.addCSourceFile(.{ .file = b.path("vendor/tree-sitter-zig/src/parser.c"), .flags = ts_grammar_flags });
-        exe.root_module.addIncludePath(b.path("vendor/tree-sitter-c/src"));
-        exe.root_module.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
-        exe.root_module.addIncludePath(b.path("vendor/tree-sitter-pie/src"));
-        exe.root_module.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
-        exe.root_module.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
-
-        // ═══ Headers plateforme requis par les @cImport Zig (tous modes) ═══
-        // c_rtc.h (webrtc.zig) et libtcc.h (native.zig) doivent être trouvables,
-        // quel que soit le mode — les stubs C fournissent les symboles manquants.
         exe.addIncludePath(b.path("src/platform"));
-
-        if (network) {
-            exe.addIncludePath(b.path("vendor/libdatachannel/include"));
-            exe.addCSourceFile(.{
-                .file = b.path("src/platform/webrtc_impl.cpp"),
-                .flags = &.{ "-std=c++17", "-Drtc_EXPORTS", "-fno-sanitize=undefined" },
-            });
-            exe.linkSystemLibrary("datachannel");
-            exe.linkLibCpp();
-                        
-            // ✅ RPATH macOS/Homebrew (ignoré sur les autres OS)
-            exe.addRPath(.{ .cwd_relative = "/opt/homebrew/lib" });
-        } else {
-            // Symboles c_rtc.h en no-op (webrtc.zig link sans libdatachannel)
-            exe.addCSourceFile(.{
-                .file = b.path("src/platform/webrtc_stub.c"),
-                .flags = &.{"-std=c99"},
-            });
-        }
-
-        if (tcc_runtime) {
-            exe.linkSystemLibrary("tcc");
-        } else {
-            // tcc_new() → NULL : compilation runtime désactivée proprement
-            exe.addCSourceFile(.{
-                .file = b.path("src/platform/tcc_stub.c"),
-                .flags = &.{"-std=c99"},
-            });
-        }
-
+        // On utilise toujours le stub pour l'instant, même si network est true
+        exe.addCSourceFile(.{ .file = b.path("src/platform/webrtc_stub.c"), .flags = &.{"-std=c99"} });
         exe.root_module.link_libc = true;
-        exe.linkSystemLibrary("tree-sitter");
         exe.linkLibC();
     } else {
-        // ─── WASM : pas de tree-sitter C (freestanding = pas de libc) ───
-        // Le ShellParser WASM retourne NotSupported, et commands.zig
-        // bascule sur bridge.importExpr (fallback).
+        // WASM
         exe.entry = .disabled;
         exe.rdynamic = true;
     }
 
     b.installArtifact(exe);
 
-    // ═══════════════════════════════════════════════════
-    //  Tests (nouveau noyau — pas besoin de tree-sitter)
-    // ═══════════════════════════════════════════════════
-
+    // ─── Tests ───
     const test_expr = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/core/expr.zig"),
         .target = target,
@@ -993,96 +1053,41 @@ pub fn build(b: *std.Build) void {
         },
     }) });
 
-    // Protection des liens C pour les tests
-    if (target.query.cpu_arch != .wasm32) {
-        test_heaven_expr.root_module.addCSourceFile(.{
-            .file = b.path("vendor/tree-sitter-heaven/src/parser.c"),
-            .flags = &.{"-std=c99"},
-        });
-        test_heaven_expr.root_module.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
-        test_heaven_expr.root_module.link_libc = true;
-        test_heaven_expr.linkSystemLibrary("tree-sitter");
-
-        test_elab.root_module.addCSourceFile(.{
-            .file = b.path("vendor/tree-sitter-heaven/src/parser.c"),
-            .flags = &.{"-std=c99"},
-        });
-        test_elab.root_module.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
-        test_elab.root_module.link_libc = true;
-        test_elab.linkSystemLibrary("tree-sitter");
-
-        // Liens C pour test_commands (utilise MultiParser → 4 grammaires)
-        const test_ts_flags = &.{"-std=c99"};
-        test_commands.root_module.addCSourceFile(.{
-            .file = b.path("vendor/tree-sitter-heaven/src/parser.c"),
-            .flags = test_ts_flags,
-        });
-        test_commands.root_module.addCSourceFile(.{
-            .file = b.path("vendor/tree-sitter-pie/src/parser.c"),
-            .flags = test_ts_flags,
-        });
-        test_commands.root_module.addCSourceFile(.{
-            .file = b.path("vendor/tree-sitter-c/src/parser.c"),
-            .flags = test_ts_flags,
-        });
-        test_commands.root_module.addCSourceFile(.{
-            .file = b.path("vendor/tree-sitter-zig/src/parser.c"),
-            .flags = test_ts_flags,
-        });
-        test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
-        test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter-pie/src"));
-        test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter-c/src"));
-        test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
-        test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
-        test_commands.root_module.link_libc = true;
-        test_commands.linkSystemLibrary("tree-sitter");
-
-        // Liens C pour test_commands_full
-        test_commands_full.root_module.addCSourceFile(.{
-            .file = b.path("vendor/tree-sitter-heaven/src/parser.c"),
-            .flags = &.{"-std=c99"},
-        });
-        test_commands_full.root_module.addCSourceFile(.{
-            .file = b.path("vendor/tree-sitter-pie/src/parser.c"),
-            .flags = &.{"-std=c99"},
-        });
-        test_commands_full.root_module.addCSourceFile(.{
-            .file = b.path("vendor/tree-sitter-c/src/parser.c"),
-            .flags = &.{"-std=c99"},
-        });
-        test_commands_full.root_module.addCSourceFile(.{
-            .file = b.path("vendor/tree-sitter-zig/src/parser.c"),
-            .flags = &.{"-std=c99"},
-        });
-        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
-        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-pie/src"));
-        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-c/src"));
-        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
-        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
-        test_commands_full.root_module.link_libc = true;
-        test_commands_full.linkSystemLibrary("tree-sitter");
+    // Lier tree-sitter aux tests qui en ont besoin (uniquement si la bibliothèque existe)
+    if (tree_sitter_lib) |ts_lib| {
+        test_heaven_expr.linkLibrary(ts_lib);
+        test_elab.linkLibrary(ts_lib);
+        test_commands.linkLibrary(ts_lib);
+        test_commands_full.linkLibrary(ts_lib);
     }
+
+    // Ajouter les include paths pour les tests qui en ont besoin (même si la lib est liée, les headers doivent être trouvés)
+    // Déjà ajoutés dans platform_mod, donc les modules qui importent platform_mod les ont.
 
     const test_step = b.step("test", "Run all tests");
 
-    if (target.query.cpu_arch != .wasm32) {
+    // Les tests de syntaxe ne sont construits que pour les cibles natives (car ils utilisent tree-sitter)
+    if (target.query.cpu_arch != .wasm32 and tree_sitter_lib != null) {
         const syntax_tests = b.addTest(.{
-                .root_module = b.createModule(.{
-                    .root_source_file = b.path("src/syntax/core_lower_test.zig"),
-                    .target = target,
-                    .optimize = optimize,
-                    .imports = &.{
-                        .{ .name = "expr", .module = expr_mod },
-                        .{ .name = "engine_expr", .module = engine_expr_mod },
-                    },
-                }),
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/syntax/core_lower_test.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{
+                    .{ .name = "expr", .module = expr_mod },
+                    .{ .name = "engine_expr", .module = engine_expr_mod },
+                },
+            }),
         });
-
+        // Lier tree-sitter si la bibliothèque existe
+        if (tree_sitter_lib) |ts_lib| {
+            syntax_tests.linkLibrary(ts_lib);
+        }
         const run_syntax_tests = b.addRunArtifact(syntax_tests);
         test_step.dependOn(&run_syntax_tests.step);
     }
 
-    if (target.query.cpu_arch != .wasm32) {
+    if (target.query.cpu_arch != .wasm32 and tree_sitter_lib != null) {
         const test_syntax_lower = b.addTest(.{
             .root_module = b.createModule(.{
                 .root_source_file = b.path("src/syntax/lower_test.zig"),
@@ -1093,26 +1098,10 @@ pub fn build(b: *std.Build) void {
                 },
             }),
         });
-
-        const test_ts_flags = &.{"-std=c99"};
-
-        test_syntax_lower.root_module.addCSourceFile(.{
-            .file = b.path("vendor/tree-sitter-heaven/src/parser.c"),
-            .flags = test_ts_flags,
-        });
-
-        test_syntax_lower.root_module.addIncludePath(
-            b.path("vendor/tree-sitter-heaven/src"),
-        );
-        test_syntax_lower.root_module.addIncludePath(
-            b.path("vendor/tree-sitter/lib/include"),
-        );
-        test_syntax_lower.root_module.link_libc = true;
-        test_syntax_lower.linkSystemLibrary("tree-sitter");
-
-        const run_test_syntax_lower =
-            b.addRunArtifact(test_syntax_lower);
-
+        if (tree_sitter_lib) |ts_lib| {
+            test_syntax_lower.linkLibrary(ts_lib);
+        }
+        const run_test_syntax_lower = b.addRunArtifact(test_syntax_lower);
         test_step.dependOn(&run_test_syntax_lower.step);
     }
 
@@ -1152,4 +1141,8 @@ pub fn build(b: *std.Build) void {
         .install_dir = .prefix,
         .install_subdir = "docs",
     }).step);
+
+    const check_step = b.step("check", "Run all tests and regression suite");
+    check_step.dependOn(test_step);
+    check_step.dependOn(&run_tests_cmd.step);
 }
