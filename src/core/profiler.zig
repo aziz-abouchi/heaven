@@ -28,11 +28,13 @@ pub const ResourceMetrics = struct {
 pub const Profiler = struct {
     start_time: i128 = 0,
     start_energy_uj: u64 = 0,
+    start_usage: ?@TypeOf(platform.profiler.getResourceUsage()) = null,
 
     pub fn start() Profiler {
         return .{
             .start_time = platform.time.nanoTimestamp(),
             .start_energy_uj = platform.readEnergyUJ() catch 0,
+            .start_usage = platform.profiler.getResourceUsage(),
         };
     }
 
@@ -43,10 +45,19 @@ pub const Profiler = struct {
         const elapsed_ns = @as(u64, @intCast(end_time - self.start_time));
 
         const usage = platform.profiler.getResourceUsage();
+        const before = self.start_usage orelse usage;
 
         // Calcul du temps CPU (User + System) en nanosecondes
-        const cpu_time_ns = @as(u64, @intCast(usage.utime.sec + usage.stime.sec)) * platform.time.ns_per_s +
-            @as(u64, @intCast(usage.utime.usec + usage.stime.usec)) * platform.time.ns_per_us;
+        // DELTA user+sys en ns (plus de cumulatif)
+        const before_ns = @as(u64, @intCast(before.utime.sec))  * platform.time.ns_per_s +
+                          @as(u64, @intCast(before.utime.usec)) * platform.time.ns_per_us +
+                          @as(u64, @intCast(before.stime.sec))  * platform.time.ns_per_s +
+                          @as(u64, @intCast(before.stime.usec)) * platform.time.ns_per_us;
+        const after_ns  = @as(u64, @intCast(usage.utime.sec))   * platform.time.ns_per_s +
+                          @as(u64, @intCast(usage.utime.usec))  * platform.time.ns_per_us +
+                          @as(u64, @intCast(usage.stime.sec))   * platform.time.ns_per_s +
+                          @as(u64, @intCast(usage.stime.usec))  * platform.time.ns_per_us;
+        const cpu_time_ns = if (after_ns >= before_ns) after_ns - before_ns else 0;
 
         const energy_diff_uj = if (end_energy_uj > self.start_energy_uj) end_energy_uj - self.start_energy_uj else 0;
 

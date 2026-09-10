@@ -30,6 +30,7 @@ simplify (+ x (+ 0 x))
 derive x^2
 type (+ 1 x)
 green (+ 1 (* 2 3))
+green (handle (perform "Log" 42) logHandler)
 theorem add_zero : x + 0 = x
 prove add_zero by simplify
 
