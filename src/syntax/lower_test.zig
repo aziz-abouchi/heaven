@@ -119,8 +119,23 @@ test "syntax HIR — theorem" {
 }
 
 test "syntax HIR — vector literal" {
-    // TODO: implémenter le parsing de `[lo-hi]` dans lower.zig
-    // (aujourd'hui lower.zig:131 retourne UnsupportedNode)
+    // TODO: [lo-hi] n'est pas valide dans la grammaire Tree-sitter
+    // (qui utilise `1..3` via la règle `range`, grammar.js:1608).
+    //
+    // De plus, même `1..3` n'est pas supporté par le pipeline HIR :
+    //   - src/syntax/ast.zig : pas de variante Expr.range
+    //   - src/syntax/lower.zig : pas de case .range dans lowerExpr
+    //   - src/syntax/core_lower.zig : pas de case .range
+    //
+    // Les tags .vector_lit / .sum dans core/expr.zig concernent une
+    // AUTRE voie (parser natif via nativeToSExpr), pas ce pipeline.
+    //
+    // Étapes pour lever ce skip :
+    //   1. Ajouter Expr.range à ast.zig
+    //   2. lower.zig : convertir le nœud Tree-sitter `range` en Expr.range
+    //   3. core_lower.zig : Expr.range → apply(sym("range"), lo, hi)
+    //   4. Changer la source du test en "let v = 1..3"
+
     if (true) return error.SkipZigTest;
 
     const source =
