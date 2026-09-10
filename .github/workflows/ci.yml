@@ -1,11 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:    # manuel uniquement
 
 env:
   ZIG_VERSION: 0.15.2
@@ -17,7 +13,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Zig (${{ env.ZIG_VERSION }})
+      - name: Install Zig
         run: |
           cd /tmp
           curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz" -o zig.tar.xz
@@ -30,6 +26,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libtree-sitter-dev tcc
+
+      - name: Build vendor dependencies
+        run: bash build.sh
 
       - name: Build (no network)
         run: zig build -Dnetwork=false
