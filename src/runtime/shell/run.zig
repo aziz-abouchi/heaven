@@ -116,7 +116,7 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !b
         {
             found = true;
             if (comptime std.mem.eql(u8, cmd_def.name, "exit")) {
-                platform.dbg("[HEAVEN] Arrêt du noyau.\n", .{});
+                platform.debug.print("[HEAVEN] Arrêt du noyau.\n", .{});
                 // On sortira par le haut
                 return false;
             } else if (comptime std.mem.eql(u8, cmd_def.name, "run*")) {

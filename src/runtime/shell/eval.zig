@@ -56,7 +56,7 @@ pub fn evalHeavenCode(self: *Shell, code: []const u8) void {
 pub fn exprEval(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
 
-    platform.dbg("\xe2\x86\x92 {s}\n", .{result});
+    platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub fn exprSimplify(self: *Shell, input: []const u8) void {
@@ -71,25 +71,25 @@ pub fn exprSimplify(self: *Shell, input: []const u8) void {
 pub fn exprFact(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
 
-    platform.dbg("\xe2\x86\x92 {s}\n", .{result});
+    platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub fn exprRule(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
 
-    platform.dbg("\xe2\x86\x92 {s}\n", .{result});
+    platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub fn exprQuery(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
 
-    platform.dbg("\xe2\x86\x92 {s}\n", .{result});
+    platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub fn exprRewrite(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
 
-    platform.dbg("\xe2\x86\x92 {s}\n", .{result});
+    platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub const CompletionItem = struct {
