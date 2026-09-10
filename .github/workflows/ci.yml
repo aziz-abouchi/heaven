@@ -7,9 +7,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# NOTE: 0.15.2 n'est pas encore publiée sur ziglang.org (404 sur mlugg/setup-zig).
-# On utilise `master` tant que la version stable n'est pas dispo.
-# Dès que 0.15.2 (ou 0.15.3) est publiée, changer `version:` ci-dessous.
 env:
   ZIG_VERSION: 0.15.2
 
@@ -21,9 +18,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Zig (${{ env.ZIG_VERSION }})
-        uses: mlugg/setup-zig@v1
-        with:
-          version: ${{ env.ZIG_VERSION }}
+        run: |
+          cd /tmp
+          curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz" -o zig.tar.xz
+          tar -xf zig.tar.xz
+          sudo mv "zig-x86_64-linux-${ZIG_VERSION}" /opt/zig
+          sudo ln -sf /opt/zig/zig /usr/local/bin/zig
+          zig version
 
       - name: Install system dependencies
         run: |
