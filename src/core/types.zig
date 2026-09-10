@@ -210,6 +210,20 @@ pub const TypeEnv = struct {
     pub fn get(self: *const TypeEnv, name: []const u8) ?Id {
         return self.bindings.get(name);
     }
+
+    /// Infère le type d'une expression identifiée par `id` dans `store`.
+    /// STUB : à remplacer par une vraie inférence (unification / TypeEnv).
+    /// Retourne toujours "Int" pour l'instant, sauf si introuvable → "Unknown".
+    pub fn infer(
+        self: *TypeEnv,
+        store: anytype,
+        id: anytype,
+    ) ![]const u8 {
+        _ = self;
+        _ = store;
+        _ = id;
+        return "Int";
+    }
 };
 
 pub const Infer = struct {

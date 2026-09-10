@@ -287,6 +287,18 @@ pub const Heaven = struct {
         const trimmed = std.mem.trim(u8, src, " \t\n\r");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "");
 
+        // ─── Formes spéciales du langage : type / green ───
+        // Doivent être routées AVANT l'évaluation générique, sinon elles
+        // tombent dans l'evaluator qui ne les connaît pas et renvoie l'entrée brute.
+        if (std.mem.startsWith(u8, trimmed, "type ")) {
+            const inner = std.mem.trim(u8, trimmed["type ".len..], " \t");
+            return self.evalTypeExpr(inner);
+        }
+        if (std.mem.startsWith(u8, trimmed, "green ")) {
+            const inner = std.mem.trim(u8, trimmed["green ".len..], " \t");
+            return self.evalGreenExpr(inner);
+        }
+
         // ─── Commandes REPL à ne PAS évaluer comme des expressions ───
         const is_command = std.mem.startsWith(u8, trimmed, "type ") or
             std.mem.startsWith(u8, trimmed, "green ") or
@@ -388,6 +400,18 @@ pub const Heaven = struct {
         }
         if (std.mem.eql(u8, trimmed, "meta") or std.mem.eql(u8, trimmed, "rules")) {
             return self.listRules();
+        }
+
+        // ─── Formes spéciales : type <expr> ───
+        if (std.mem.startsWith(u8, trimmed, "type ")) {
+            const inner = std.mem.trim(u8, trimmed["type ".len..], " ");
+            return self.evalTypeExpr(inner);
+        }
+
+        // ─── Formes spéciales : green <expr> ───
+        if (std.mem.startsWith(u8, trimmed, "green ")) {
+            const inner = std.mem.trim(u8, trimmed["green ".len..], " ");
+            return self.evalGreenExpr(inner);
         }
 
         // ─── DÉFINITION DE FONCTION (syntaxe équationnelle) ───
@@ -1401,6 +1425,58 @@ pub const Heaven = struct {
             return std.fmt.allocPrint(self.allocator, "✓ test {s} passed", .{name});
         }
         return self.allocator.dupe(u8, input);
+    }
+
+    pub fn evalTypeExpr(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        // 1. Parser puis LOWER → l'inféreur n'accepte que les 6 primitives
+        //    (sinon typeOf renvoie error.ExtensionNotLowered, cf. types.zig:323)
+        const raw = try self.parseExpression(src);
+        const id = try self.ensureLowered(raw);
+
+        // 2. Inférence Hindley-Milner via Infer (pas TypeEnv)
+        var inf = types.Infer.init(self.store, self.allocator);
+        defer inf.deinit();
+
+        const ty = inf.typeOf(id) catch |err| {
+            return std.fmt.allocPrint(self.allocator, "type error: {}", .{err});
+        };
+
+        // 3. Rendu : Infer.typeStr gère ->, List, Π, _tN, ?
+        return inf.typeStr(&inf.subst, ty, self.allocator);
+    }
+
+    fn evalGreenExpr(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        // Snapshot avant
+        const before = platform.profiler.getResourceUsage();
+
+        // Évaluer
+        const id = try self.parseExpression(src);
+        const result = try self.evaluateExpr(id);
+        const result_str = try expr.toStringInfix(self.store, result, self.allocator);
+        defer self.allocator.free(result_str);
+
+        // Snapshot après
+        const after = platform.profiler.getResourceUsage();
+
+        // Conversion en ns ABSOLUES avant soustraction, sinon delta négatif
+        // quand les secondes avancent et les usec reculent.
+        const ns_per_s: u64 = std.time.ns_per_s;
+        const ns_per_us: u64 = std.time.ns_per_us;
+
+        const before_ns = @as(u64, @intCast(before.utime.sec)) * ns_per_s +
+                        @as(u64, @intCast(before.utime.usec)) * ns_per_us +
+                        @as(u64, @intCast(before.stime.sec)) * ns_per_s +
+                        @as(u64, @intCast(before.stime.usec)) * ns_per_us;
+        const after_ns  = @as(u64, @intCast(after.utime.sec)) * ns_per_s +
+                        @as(u64, @intCast(after.utime.usec)) * ns_per_us +
+                        @as(u64, @intCast(after.stime.sec)) * ns_per_s +
+                        @as(u64, @intCast(after.stime.usec)) * ns_per_us;
+
+        const cpu_ns = if (after_ns >= before_ns) after_ns - before_ns else 0;
+
+        return std.fmt.allocPrint(self.allocator,
+            "{s} (green calls: {d}, cpu: {d}ns)",
+            .{ result_str, 0, cpu_ns });
     }
 
     fn isInfixOp(tok: []const u8) bool {
