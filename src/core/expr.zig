@@ -160,6 +160,10 @@ pub const Tag = enum(u8) {
     block,
     seq,
     unit_lit,
+    vector,
+    vector_lit,
+    sum,
+    aggregate,
 
     // === Legacy tags (compatibilité descendante) ===
     source_file,
@@ -586,6 +590,55 @@ pub const Store = struct {
             },
             .var_tag => self.makeNode(.sym, node.payload, 0, Span.EMPTY, Span.EMPTY),
             .hole => id,
+                        // --- LOWERING VECTORIEL / LISTES ---
+
+            // 1. Vecteur n-aire : [x1, x2, ...] -> apply(sym("vector"), x1, x2, ...)
+            .vector => blk: {
+                const sym_id = try self.interner.intern("vector");
+                const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
+                const args = self.spanSliceConst(node.span_a);
+                const new_span = try self.reserveSpan(1 + args.len);
+                self.pool.items[new_span.start] = sym_node;
+                @memcpy(self.pool.items[new_span.start + 1 .. new_span.start + 1 + args.len], args);
+                break :blk self.makeNode(.apply, sym_node, 0, new_span, Span.EMPTY);
+            },
+
+            // 2. Chapelet structurel : [x, y] -> apply(Cons, x, apply(Cons, y, Nil))
+            .vector_lit => blk: {
+                const args = self.spanSliceConst(node.span_a);
+                const nil_sym = try self.interner.intern("Nil");
+                const cons_sym_id = try self.interner.intern("Cons");
+                
+                var current = try self.makeNode(.sym, nil_sym, 0, Span.EMPTY, Span.EMPTY);
+                const cons_node = try self.makeNode(.sym, cons_sym_id, 0, Span.EMPTY, Span.EMPTY);
+
+                var i: usize = args.len;
+                while (i > 0) {
+                    i -= 1;
+                    const elem = try self.lower(args[i]); // Lowering récursif des éléments
+                    
+                    const new_span = try self.reserveSpan(3);
+                    self.pool.items[new_span.start] = cons_node;
+                    self.pool.items[new_span.start + 1] = elem;
+                    self.pool.items[new_span.start + 2] = current;
+                    
+                    current = try self.makeNode(.apply, cons_node, 0, new_span, Span.EMPTY);
+                }
+                break :blk current;
+            },
+
+            // --- LOWERING DES AGRÉGATS MATHÉMATIQUES (Σ / Aggregate) ---
+
+            .sum, .aggregate => blk: {
+                // Traduction de Aggregate(op, init, vec) -> apply(sym("foldl"), op, init, vec)
+                const sym_id = try self.interner.intern("foldl");
+                const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
+                const args = self.spanSliceConst(node.span_a);
+                const new_span = try self.reserveSpan(1 + args.len);
+                self.pool.items[new_span.start] = sym_node;
+                @memcpy(self.pool.items[new_span.start + 1 .. new_span.start + 1 + args.len], args);
+                break :blk self.makeNode(.apply, sym_node, 0, new_span, Span.EMPTY);
+            },
             else => error.ExtensionNotLowered,
         };
     }
