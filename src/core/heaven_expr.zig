@@ -371,8 +371,11 @@ pub const Heaven = struct {
                     if (self.parseExpression(buf.items)) |id| {
                         const result = self.interpForAssert(id) catch id;
                         return try expr.toStringInfix(self.store, result, self.allocator);
-                    } else |_| {
-                        return self.allocator.dupe(u8, "syntax error in let");
+                    } else |err| switch (err) {
+                        error.LinearViolation => return std.fmt.allocPrint(self.allocator,
+                            "linear violation: '{s}' declared {s}, used wrong number of times",
+                            .{ name, qtt_kw orelse "many" }),
+                        else => return self.allocator.dupe(u8, "syntax error in let"),
                     }
                 }
             }
