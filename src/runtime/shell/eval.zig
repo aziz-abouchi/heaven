@@ -65,7 +65,7 @@ pub fn exprSimplify(self: *Shell, input: []const u8) void {
         return;
     };
 
-    platform.dbg("{s}\n", .{result});
+    platform.debug.print("{s}\n", .{result});
 }
 
 pub fn exprFact(self: *Shell, input: []const u8) void {
