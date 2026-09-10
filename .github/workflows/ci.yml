@@ -11,7 +11,7 @@ on:
 # On utilise `master` tant que la version stable n'est pas dispo.
 # Dès que 0.15.2 (ou 0.15.3) est publiée, changer `version:` ci-dessous.
 env:
-  ZIG_VERSION: master
+  ZIG_VERSION: 0.15.2
 
 jobs:
   build-and-test:
