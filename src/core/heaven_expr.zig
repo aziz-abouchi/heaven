@@ -287,6 +287,21 @@ pub const Heaven = struct {
         const trimmed = std.mem.trim(u8, src, " \t\n\r");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "");
 
+        // ─── Commandes REPL à ne PAS évaluer comme des expressions ───
+        const is_command = std.mem.startsWith(u8, trimmed, "type ") or
+            std.mem.startsWith(u8, trimmed, "green ") or
+            std.mem.startsWith(u8, trimmed, "help") or
+            std.mem.startsWith(u8, trimmed, "stats") or
+            std.mem.startsWith(u8, trimmed, "theorems") or
+            std.mem.startsWith(u8, trimmed, "axioms") or
+            std.mem.startsWith(u8, trimmed, "meta") or
+            std.mem.startsWith(u8, trimmed, "rules");
+
+        if (is_command) {
+            // Le shell va traiter ces commandes ; on ne les évalue pas ici.
+            return self.allocator.dupe(u8, trimmed);
+        }
+
         // Théorèmes / preuves / axiomes → chemin dédié (elab.zig + ProofCore)
         if (std.mem.startsWith(u8, trimmed, "theorem ")) {
             return self.evalTheorem(trimmed["theorem ".len..]);

@@ -1173,14 +1173,18 @@ const NativeParser = struct {
 };
 
 /// Convertit la syntaxe native en S-expression (chaîne).
-/// ⚠️ Alloue beaucoup de chaînes intermédiaires → utiliser un ArenaAllocator.
-pub fn nativeToSExpr(input: []const u8, allocator: Allocator) NativeError![]u8 {
+pub fn nativeToSExpr(input: []const u8, allocator: std.mem.Allocator) NativeError![]const u8 {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
     var lex = Lexer{ .src = input };
-    var p = NativeParser{ .lex = &lex, .allocator = allocator };
+    var p = NativeParser{ .lex = &lex, .allocator = a };
+
     const result = try p.parseExpr(0);
     const t = try lex.next();
     if (t.kind != .eof) return error.InvalidSyntax; // tokens en trop
-    return result;
+    return allocator.dupe(u8, result);  // copie hors de l'arène
 }
 
 test "core invariant — lowered expression contains only six primitives" {
