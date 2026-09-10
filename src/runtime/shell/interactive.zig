@@ -65,6 +65,7 @@ pub const Reader = struct {
 
     line: std.ArrayListUnmanaged(u8) = .{},
     cursor: usize = 0,
+    prompt: []const u8 = "",
 
     // Pour Unix raw mode
     raw_mode: bool = false,
@@ -101,24 +102,27 @@ pub const Reader = struct {
         // Désactiver ECHO et ICANON
         switch (builtin.os.tag) {
             .macos, .ios, .tvos, .watchos, .visionos => {
-                // Sur macOS, lflag est un packed struct avec champs nommés
-                termios.lflag.ECHO = false;
+                termios.lflag.ECHO   = false;
                 termios.lflag.ICANON = false;
+                termios.lflag.ISIG   = false;  // sinon Ctrl-C tue le process
+                termios.iflag.ICRNL  = false;  // CR (0x0D) ne devient PAS NL (0x0A)
+                termios.iflag.IXON   = false;  // Ctrl-S/Ctrl-Q ne gèlent pas
+                termios.iflag.INLCR  = false;
+                termios.iflag.IGNCR  = false;
             },
             .linux => {
-                // Sur Linux, lflag est un entier
-                const ECHO: u32 = 0x00000008;
+                const ECHO: u32   = 0x00000008;
                 const ICANON: u32 = 0x00000002;
-                termios.lflag &= ~@as(@TypeOf(termios.lflag), ECHO | ICANON);
+                const ISIG: u32   = 0x00000001;
+                const ICRNL: u32  = 0x00000100;
+                const IXON: u32   = 0x00000400;
+                termios.lflag &= ~@as(@TypeOf(termios.lflag), ECHO | ICANON | ISIG);
+                termios.iflag &= ~@as(@TypeOf(termios.iflag), ICRNL | IXON);
             },
-            else => {
-                // Fallback BSD générique
-                termios.lflag.ECHO = false;
-                termios.lflag.ICANON = false;
-            },
+            else => {},
         }
 
-        try std.posix.tcsetattr(fd, .FLUSH, termios);
+        try std.posix.tcsetattr(fd, .NOW, termios);
         self.raw_mode = true;
     }
 
@@ -216,6 +220,7 @@ pub const Reader = struct {
     }
 
     pub fn readLine(self: *Reader, prompt: []const u8) ![]const u8 {
+        self.prompt = prompt;
         if (!self.raw_mode) {
             // Chemin dégradé : lit ligne par ligne sur fd 0 (pipe, redirection, CI).
             // Pas de flèches, pas de Tab, pas de redraw.
@@ -343,8 +348,9 @@ pub const Reader = struct {
 
     fn redrawLine(self: *Reader) !void {
         _ = try platform.writeStdout("\r\x1b[K");
+        _ = try platform.writeStdout(self.prompt);
         _ = try platform.writeStdout(self.line.items);
-        try self.moveCursorTo(self.cursor);
+        try self.moveCursorTo(self.prompt.len + self.cursor);
     }
 
     fn moveCursorTo(self: *Reader, pos: usize) !void {
