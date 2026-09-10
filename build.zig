@@ -1066,6 +1066,116 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run all tests");
 
+    const scheduler_test_mod = b.createModule(.{
+        .root_source_file = b.path("src/runtime/scheduler/test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const scheduler_task_mod = b.addModule("scheduler_task", .{
+        .root_source_file = b.path("src/runtime/scheduler/task.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const scheduler_mod = b.addModule("scheduler", .{
+        .root_source_file = b.path("src/runtime/scheduler/scheduler.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "scheduler_task", .module = scheduler_task_mod },
+        },
+    });
+
+    scheduler_test_mod.addImport("scheduler_task", scheduler_task_mod);
+    scheduler_test_mod.addImport("scheduler", scheduler_mod);
+
+    const scheduler_test = b.addTest(.{
+        .root_module = scheduler_test_mod,
+    });
+
+    const lifecycle_mod = b.addModule("lifecycle", .{
+        .root_source_file = b.path("src/runtime/actor/lifecycle.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const mailbox_mod = b.addModule("mailbox", .{
+        .root_source_file = b.path("src/runtime/actor/mailbox.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const test_actor = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/runtime/actor/actor.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "lifecycle", .module = lifecycle_mod },
+                .{ .name = "mailbox", .module = mailbox_mod },
+                .{ .name = "scheduler_task", .module = scheduler_task_mod },
+            },
+        }),
+    });
+
+    const run_test_actor = b.addRunArtifact(test_actor);
+    test_step.dependOn(&run_test_actor.step);
+
+    const actor_mod = b.addModule("actor", .{
+        .root_source_file = b.path("src/runtime/actor/actor.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "lifecycle", .module = lifecycle_mod },
+            .{ .name = "mailbox", .module = mailbox_mod },
+            .{ .name = "scheduler_task", .module = scheduler_task_mod },
+        },
+    });
+
+    const registry_mod = b.addModule("registry", .{
+        .root_source_file = b.path("src/runtime/actor/registry.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "actor", .module = actor_mod },
+        },
+    });
+
+    const test_registry = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/runtime/actor/registry.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "actor", .module = actor_mod },
+            },
+        }),
+    });
+    const run_test_registry = b.addRunArtifact(test_registry);
+    test_step.dependOn(&run_test_registry.step);
+
+    const integration_test_mod = b.createModule(.{
+        .root_source_file = b.path("src/runtime/actor/integration_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    integration_test_mod.addImport("actor", actor_mod);
+    integration_test_mod.addImport("registry", registry_mod);
+    integration_test_mod.addImport("scheduler", scheduler_mod);
+    integration_test_mod.addImport("scheduler_task", scheduler_task_mod);
+
+    const test_integration = b.addTest(.{
+        .root_module = integration_test_mod,
+    });
+
+    const run_test_integration = b.addRunArtifact(test_integration);
+    test_step.dependOn(&run_test_integration.step);
+
+    const run_scheduler_test = b.addRunArtifact(scheduler_test);
+    test_step.dependOn(&run_scheduler_test.step);
+
     // Les tests de syntaxe ne sont construits que pour les cibles natives (car ils utilisent tree-sitter)
     if (target.query.cpu_arch != .wasm32 and tree_sitter_lib != null) {
         const syntax_tests = b.addTest(.{
