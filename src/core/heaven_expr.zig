@@ -1324,6 +1324,9 @@ pub const Heaven = struct {
         // Doublon non-linéaire : (+ ?x ?x) => (* 2 ?x)
         try self.addRule(try store.binop("+", x, x), try store.binop("*", two, x));
 
+        // Carré : (* ?x ?x) => (^ ?x 2)
+        try self.addRule(try store.binop("*", x, x), try store.binop("^", x, two));
+
         // Associativité (une seule direction)
         try self.addRule(
             try store.binop("+", try store.binop("+", a, b), c),

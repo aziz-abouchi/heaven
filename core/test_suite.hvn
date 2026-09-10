@@ -50,3 +50,5 @@ prove add_zero by simplify
 (test "simplify_mul_zero" (assert_eq (simplify (* x 0)) 0))
 (test "simplify_double_add" (assert_eq (simplify (+ (+ x 0) 0)) x))
 (test "simplify_double_mul" (assert_eq (simplify (* (* x 1) 1)) x))
+
+(test "square_detection" (assert_eq (simplify (* x x)) (^ x 2)))
