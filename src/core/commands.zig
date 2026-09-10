@@ -2070,19 +2070,70 @@ pub const Commands = struct {
     }
 
     fn evalLet(self: *Commands, input: []const u8) ![]u8 {
-        if (std.mem.indexOf(u8, input, " in ")) |_| {
-            const ast = self.parser.parseLetExpr(input) catch return try self.allocator.dupe(u8, "syntax error in let expression");
+        // QTT : préfixe de multiplicité (native)
+        var qty_kw: ?[]const u8 = null;
+        var rest = input;
+        const kws = [_][]const u8{ "linear", "erased", "many" };
+        for (kws) |kw| {
+            if (std.mem.startsWith(u8, rest, kw) and rest.len > kw.len
+                and (rest[kw.len] == ' ' or rest[kw.len] == '\t'))
+            {
+                const after = std.mem.trimLeft(u8, rest[kw.len..], " \t");
+                // Ne pas confondre avec `let linear = 5` (variable nommée "linear")
+                if (after.len > 0 and after[0] != '=') {
+                    qty_kw = kw;
+                    rest = after;
+                    break;
+                }
+            }
+        }
+
+        // Si un préfixe QTT est présent, on extrait le binding/body pour
+        // pouvoir compter les usages après évaluation de l'AST.
+        if (qty_kw != null) {
+            const in_pos = std.mem.indexOf(u8, rest, " in ") orelse
+                return self.allocator.dupe(u8, "syntax error in qtt let");
+            const binding_str = std.mem.trim(u8, rest[0..in_pos], " \t");
+            const body_str    = std.mem.trim(u8, rest[in_pos + 4 ..], " \t");
+
+            // binding_str = "x = 5" ou "x := 5"
+            const eq = std.mem.indexOfScalar(u8, binding_str, '=') orelse
+                return self.allocator.dupe(u8, "syntax error in qtt binding");
+            var name = std.mem.trim(u8, binding_str[0..eq], " \t:");
+            _ = &name;
+            // (on tolère "x :=" en trimmant aussi le ':')
+            const body_id = self.parseExpression(body_str) catch
+                return self.allocator.dupe(u8, "syntax error in qtt body");
+
+            const uses = expr.countSymUses(self.store, body_id, name);
+            const ok = if (std.mem.eql(u8, qty_kw.?, "linear"))
+                uses == 1
+            else if (std.mem.eql(u8, qty_kw.?, "erased"))
+                uses == 0
+            else
+                true;   // many : aucune contrainte
+
+            if (!ok) {
+                return std.fmt.allocPrint(self.allocator,
+                    "linear violation: '{s}' declared {s}, used {d} time(s)",
+                    .{ name, qty_kw.?, uses });
+            }
+            // Sinon, on continue : le reste du evalLet se charge de l'exécution normale.
+        }
+
+        if (std.mem.indexOf(u8, rest, " in ")) |_| {
+            const ast = self.parser.parseLetExpr(rest) catch return try self.allocator.dupe(u8, "syntax error in let expression");
             self.engine.fuel = 10_000;
             const result = engine_expr.evaluate(self.store, self.env, self.engine, ast, 0) catch ast;
             return expr.toStringInfix(self.store, result, self.allocator);
         }
 
-        const op_len: usize = if (std.mem.startsWith(u8, input, ":=")) 2 else 1;
+        const op_len: usize = if (std.mem.startsWith(u8, rest, ":=")) 2 else 1;
         var eq_pos: ?usize = null;
-        var i: usize = input.len;
+        var i: usize = rest.len;
         while (i > 1) : (i -= 1) {
-            if (input[i - 1] == '=') {
-                const prev_c = if (i >= 2) input[i - 2] else ' ';
+            if (rest[i - 1] == '=') {
+                const prev_c = if (i >= 2) rest[i - 2] else ' ';
                 if (prev_c != '!' and prev_c != '<' and prev_c != '>') {
                     if (op_len == 1 or prev_c == ':') {
                         eq_pos = i - 1;
@@ -2093,8 +2144,8 @@ pub const Commands = struct {
         }
 
         if (eq_pos) |eq| {
-            const name = std.mem.trim(u8, input[0..eq], " \t:");
-            const expr_str = std.mem.trim(u8, input[eq + 1 ..], " \t");
+            const name = std.mem.trim(u8, rest[0..eq], " \t:");
+            const expr_str = std.mem.trim(u8, rest[eq + 1 ..], " \t");
 
             if (std.mem.startsWith(u8, expr_str, "fn ") or std.mem.startsWith(u8, expr_str, "fn(")) {
                 const fn_def_str = try std.fmt.allocPrint(self.allocator, "{s} = {s}", .{ name, expr_str });
