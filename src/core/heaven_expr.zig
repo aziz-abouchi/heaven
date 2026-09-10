@@ -325,6 +325,59 @@ pub const Heaven = struct {
             return self.evalProve(trimmed["prove ".len..]);
         }
 
+        // ─── let <qtt?> <name> = <val> in <body> (natif, top-level) ───
+        // Converti en S-expr puis routé vers interpForAssert (même chemin
+        // que (let x 5 x) qui fonctionne déjà).
+        if (std.mem.startsWith(u8, trimmed, "let ") and
+            std.mem.indexOf(u8, trimmed, " in ") != null and
+            std.mem.indexOf(u8, trimmed, ":=") == null)
+        {
+            const after_let = trimmed["let ".len..];
+            var qtt_kw: ?[]const u8 = null;
+            var rest_native = after_let;
+            const kws = [_][]const u8{ "linear", "erased", "many" };
+            for (kws) |kw| {
+                if (std.mem.startsWith(u8, rest_native, kw) and
+                    rest_native.len > kw.len and
+                    (rest_native[kw.len] == ' ' or rest_native[kw.len] == '\t'))
+                {
+                    const after = std.mem.trimLeft(u8, rest_native[kw.len..], " \t");
+                    if (after.len > 0 and after[0] != '=') {
+                        qtt_kw = kw;
+                        rest_native = after;
+                        break;
+                    }
+                }
+            }
+
+            if (std.mem.indexOf(u8, rest_native, " in ")) |in_pos| {
+                const binding = std.mem.trim(u8, rest_native[0..in_pos], " \t");
+                const body    = std.mem.trim(u8, rest_native[in_pos + 4 ..], " \t");
+
+                if (std.mem.indexOfScalar(u8, binding, '=')) |eq| {
+                    const name = std.mem.trim(u8, binding[0..eq], " \t:");
+                    const val  = std.mem.trim(u8, binding[eq + 1 ..], " \t");
+
+                    var buf = std.ArrayListUnmanaged(u8){};
+                    defer buf.deinit(self.allocator);
+                    const head = if (qtt_kw) |kw|
+                        try std.fmt.allocPrint(self.allocator, "let-{s}", .{kw})
+                    else
+                        try self.allocator.dupe(u8, "let");
+                    defer self.allocator.free(head);
+                    try buf.writer(self.allocator).print("({s} {s} {s} {s})",
+                        .{ head, name, val, body });
+
+                    if (self.parseExpression(buf.items)) |id| {
+                        const result = self.interpForAssert(id) catch id;
+                        return try expr.toStringInfix(self.store, result, self.allocator);
+                    } else |_| {
+                        return self.allocator.dupe(u8, "syntax error in let");
+                    }
+                }
+            }
+        }
+
         // Les lignes mécanismes (actor/macro/fn/send/state) → Commands
         const is_mechanism = std.mem.startsWith(u8, trimmed, "let actor ") or
             std.mem.startsWith(u8, trimmed, "let macro ") or
@@ -354,8 +407,9 @@ pub const Heaven = struct {
             return self.evalAssertion(trimmed);
         }
 
-        // ✅ ROUTING S-EXPR : (let ...) / ((lambda ...) arg) → interpForAssert
+        // ✅ ROUTING S-EXPR : (let ...) / (lambda ...) / (+ 1 2) / toute S-expr pure
         if (trimmed.len > 0 and trimmed[0] == '(') {
+            // let/lambda → interpForAssert (engine ne gère pas bind au top-level)
             if (std.mem.indexOf(u8, trimmed, "let ") != null or
                 std.mem.indexOf(u8, trimmed, "lambda") != null)
             {
@@ -364,6 +418,12 @@ pub const Heaven = struct {
                     return try expr.toStringInfix(self.store, result, self.allocator);
                 } else |_| {}
             }
+            // Autres S-expr : parse + engine.eval direct
+            if (self.parseExpression(trimmed)) |id| {
+                self.engine.fuel = 1_000_000;
+                const evaluated = self.engine.eval(id) catch id;
+                return try expr.toStringInfix(self.store, evaluated, self.allocator);
+            } else |_| {}
         }
 
         if (std.mem.startsWith(u8, trimmed, "(relation ")) {
