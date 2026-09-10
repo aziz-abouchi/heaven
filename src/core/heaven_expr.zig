@@ -145,23 +145,20 @@ pub const Heaven = struct {
             .simplify = simplifyHeavenExpr,
         };
 
-        // Initialiser l'engine
-        var eng = engine_expr.Engine.init(allocator, store, &self.env, @ptrCast(self), &heaven_vtable);
-        self.engine = eng;
+        // Initialiser l'engine DANS self.engine (champ stable du heap)
+        self.engine = engine_expr.Engine.init(allocator, store, &self.env, @ptrCast(self), &heaven_vtable);
 
-        // Initialiser le parser avec l'engine maintenant disponible
-        parser.* = parse_mod.Parser.init(store, &eng, &self.env, allocator);
-
-        // Initialiser math
-        self.math = math_mod.Math.init(store, &eng, bridge, parser, allocator);
+        // Tous les composants qui ont besoin de l'engine pointent sur self.engine,
+        // pas sur une variable locale (sinon dangling pointer dès qu'init retourne).
+        parser.* = parse_mod.Parser.init(store, &self.engine, &self.env, allocator);
+        self.math = math_mod.Math.init(store, &self.engine, bridge, parser, allocator);
 
         // Initialiser kb, simplify_eng, proof_core
         const kb = try allocator.create(transform_mod.KnowledgeBase);
         kb.* = transform_mod.KnowledgeBase.init(allocator);
         self.kb = kb;
 
-        const simplify_eng = simplify_engine_mod.SimplifyEngine.init(store, &eng, &self.env, kb, allocator);
-        self.simplify_eng = simplify_eng;
+        self.simplify_eng = simplify_engine_mod.SimplifyEngine.init(store, &self.engine, &self.env, kb, allocator);
 
         const proof_core = proof.ProofEnv.init(allocator);
         self.proof_core = proof_core;
