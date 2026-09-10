@@ -203,7 +203,7 @@ pub const Rewriter = struct {
                 //platform.dbg("[matchPattern] MATCH SUCCESS\n", .{});
                 return true;
             } else {
-                platform.dbg("[matchPattern] MATCH FAILED\n", .{});
+                //platform.dbg("[matchPattern] MATCH FAILED\n", .{});
             }
         }
         return false;
