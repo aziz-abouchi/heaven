@@ -221,6 +221,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const mpst_mod = b.addModule("mpst", .{
+        .root_source_file = b.path("src/core/mpst.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+        },
+    });
+
     const elab_mod = b.createModule(.{
         .root_source_file = b.path("src/core/elab.zig"),
         .target = target,
@@ -231,6 +240,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "engine_expr", .module = engine_expr_mod },
             .{ .name = "lower", .module = syntax_lower_mod },
             .{ .name = "core_lower", .module = syntax_core_lower_mod },
+            .{ .name = "mpst", .module = mpst_mod },
         },
     });
 
