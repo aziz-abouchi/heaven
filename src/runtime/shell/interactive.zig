@@ -86,8 +86,15 @@ pub const Reader = struct {
     }
 
     fn enableRawMode(self: *Reader) !void {
-        if (comptime builtin.os.tag == .windows) return;
-        const fd = @as(std.posix.fd_t, 0);
+        const fd = std.posix.STDIN_FILENO;
+
+        // Pipe, redirection, CI headless : pas de TTY → pas de mode raw,
+        // pas d'erreur non plus. On bascule en mode ligne (readUntilDelimiter).
+        if (!std.posix.isatty(fd)) {
+            self.raw_mode = false;
+            return;
+        }
+
         var termios = try std.posix.tcgetattr(fd);
         self.termios_orig = termios;
 
@@ -119,7 +126,7 @@ pub const Reader = struct {
         if (comptime builtin.os.tag == .windows) return;
         if (self.raw_mode) {
             if (self.termios_orig) |orig| {
-                _ = std.posix.tcsetattr(0, .FLUSH, orig) catch {};
+                _ = std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, orig) catch {};
             }
             self.raw_mode = false;
         }
@@ -209,6 +216,28 @@ pub const Reader = struct {
     }
 
     pub fn readLine(self: *Reader, prompt: []const u8) ![]const u8 {
+        if (!self.raw_mode) {
+            // Chemin dégradé : lit ligne par ligne sur fd 0 (pipe, redirection, CI).
+            // Pas de flèches, pas de Tab, pas de redraw.
+            _ = try platform.writeStdout(prompt);
+            self.line.clearRetainingCapacity();
+            self.cursor = 0;
+            var buf: [1]u8 = undefined;
+            while (true) {
+                const n = std.posix.read(0, &buf) catch return error.ReadError;
+                if (n == 0) {
+                    if (self.line.items.len == 0) return error.EndOfStream;
+                    break;
+                }
+                const c = buf[0];
+                if (c == '\n') break;
+                if (c == '\r') continue;
+                try self.line.append(self.allocator, c);
+            }
+            const line = try self.line.toOwnedSlice(self.allocator);
+            if (line.len > 0) try self.history.push(line);
+            return line;
+        }
         _ = try platform.writeStdout(prompt);
 
         self.line.clearRetainingCapacity();

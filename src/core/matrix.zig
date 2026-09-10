@@ -234,7 +234,7 @@ pub const Matrix = struct {
                 },
                 // AJOUT : Libérer les tableaux de la Forge
                 .HFunc => |func| {
-                    self.allocator.free(func.params);
+                    if (func.params.len > 0) self.allocator.free(func.params);
                 },
                 .HBlock => |ids| {
                     self.allocator.free(ids);
