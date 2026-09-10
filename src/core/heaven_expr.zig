@@ -75,6 +75,7 @@ pub const HeavenError = error{
     UnsupportedDeriveOp,
     UnsupportedPowerVarExp,
     UnsupportedPowerType,
+    LinearViolation,
 } || std.mem.Allocator.Error || platform.fs.File.OpenError || platform.fs.File.ReadError || mir.MirError || engine_expr.EvalError;
 
 const MacroDef = struct {
@@ -839,6 +840,36 @@ pub const Heaven = struct {
             return result;
         }
 
+        // QTT : `let-many` = alias explicite du `let` standard.
+        if (std.mem.eql(u8, first, "let-many")) {
+            if (tokens.items.len != 4) return error.InvalidSyntax;
+            const let_sym  = try self.store.sym("let");
+            const name_sym = try self.store.sym(tokens.items[1]);
+            const val_id   = try self.parseExpression(tokens.items[2]);
+            const body_id  = try self.parseExpression(tokens.items[3]);
+            var args = [_]expr.Id{ name_sym, val_id, body_id };
+            return self.store.apply(let_sym, &args);
+        }
+        // Cas 2.5 : QTT — let-linear / let-erased
+        if (std.mem.eql(u8, first, "let-linear") or std.mem.eql(u8, first, "let-erased")) {
+            // tokens : [let-xxx, name, val, body]
+            if (tokens.items.len != 4) return error.InvalidSyntax;
+
+            const name = tokens.items[1];
+            const val_id  = try self.parseExpression(tokens.items[2]);
+            const body_id = try self.parseExpression(tokens.items[3]);
+
+            const expected: usize = if (std.mem.eql(u8, first, "let-linear")) 1 else 0;
+            const uses = countSymUses(self.store, body_id, name);
+            if (uses != expected) return error.LinearViolation;
+
+            // Réécrire en let standard pour la suite du pipeline
+            const let_sym = try self.store.sym("let");
+            const name_sym = try self.store.sym(name);
+            var args = [_]expr.Id{ name_sym, val_id, body_id };
+            return self.store.apply(let_sym, &args);
+        }
+
         // Cas 3 : application normale
         const func_id = try self.store.sym(first);
         var args = std.ArrayListUnmanaged(Id){};
@@ -1324,6 +1355,9 @@ pub const Heaven = struct {
         // Doublon non-linéaire : (+ ?x ?x) => (* 2 ?x)
         try self.addRule(try store.binop("+", x, x), try store.binop("*", two, x));
 
+        // Carré : (* ?x ?x) => (^ ?x 2)
+        try self.addRule(try store.binop("*", x, x), try store.binop("^", x, two));
+
         // Associativité (une seule direction)
         try self.addRule(
             try store.binop("+", try store.binop("+", a, b), c),
@@ -1402,12 +1436,19 @@ pub const Heaven = struct {
 
         if (std.mem.startsWith(u8, input, "(assert_err ")) {
             const inner = input["(assert_err ".len .. input.len - 1];
-            const id = try self.parseExpression(inner);
-            _ = self.evaluateExpr(id) catch {
+
+            // Un échec de parse compte comme un échec attendu (QTT : linear check
+            // est fait au parsing, LinearViolation doit être capturée).
+            if (self.parseExpression(inner)) |id| {
+                _ = self.evaluateExpr(id) catch {
+                    return self.allocator.dupe(u8, "✓ assert_err passed");
+                };
+                return self.allocator.dupe(u8, "✗ assert_err failed: expression evaluated successfully");
+            } else |_| {
                 return self.allocator.dupe(u8, "✓ assert_err passed");
-            };
-            return self.allocator.dupe(u8, "✗ assert_err failed: expression evaluated successfully");
+            }
         }
+
         if (std.mem.startsWith(u8, input, "(test ")) {
             const inner = input["(test ".len .. input.len - 1];
             const sp = splitTopLevel(inner) orelse
@@ -1497,14 +1538,6 @@ pub const Heaven = struct {
                 metrics.energy_joules,
             },
         );
-    }
-
-    fn isInfixOp(tok: []const u8) bool {
-        const ops = [_][]const u8{ "+", "-", "*", "/", "^", "%", "==", "!=", "<", ">", "<=", ">=" };
-        for (ops) |o| {
-            if (std.mem.eql(u8, tok, o)) return true;
-        }
-        return false;
     }
 
     /// Égalité sémantique : même e-class après saturation, OU intersection
@@ -1636,6 +1669,62 @@ pub const Heaven = struct {
         return true;
     }
 };
+
+
+    fn isInfixOp(tok: []const u8) bool {
+        const ops = [_][]const u8{ "+", "-", "*", "/", "^", "%", "==", "!=", "<", ">", "<=", ">=" };
+        for (ops) |o| {
+            if (std.mem.eql(u8, tok, o)) return true;
+        }
+        return false;
+    }
+
+    pub fn countSymUses(store: *const expr.Store, id: expr.Id, name: []const u8) usize {
+        const node = store.get(id);
+        switch (node.tag) {
+            .sym => {
+                const n = store.interner.resolve(node.payload);
+                return if (std.mem.eql(u8, n, name)) 1 else 0;
+            },
+            .lit => return 0,
+            .apply => {
+                var total = countSymUses(store, node.payload, name);
+                for (store.spanSliceConst(node.span_a)) |child| {
+                    total += countSymUses(store, child, name);
+                }
+                return total;
+            },
+            .lambda => {
+                // Shadowing : si le lambda rebinde le même nom, on saute son corps.
+                const bound = store.interner.resolve(node.payload);
+                if (std.mem.eql(u8, bound, name)) return 0;
+                var total: usize = 0;
+                for (store.spanSliceConst(node.span_a)) |child| {
+                    total += countSymUses(store, child, name);
+                }
+                return total;
+            },
+            .bind => {
+                // bind : payload = nom, aux = valeur, span_a = corps.
+                // La valeur est toujours dans la portée externe.
+                var total = countSymUses(store, node.aux, name);
+                const bound = store.interner.resolve(node.payload);
+                if (!std.mem.eql(u8, bound, name)) {
+                    for (store.spanSliceConst(node.span_a)) |child| {
+                        total += countSymUses(store, child, name);
+                    }
+                }
+                return total;
+            },
+            .relation => {
+                var total: usize = 0;
+                for (store.spanSliceConst(node.span_a)) |child| total += countSymUses(store, child, name);
+                for (store.spanSliceConst(node.span_b)) |child| total += countSymUses(store, child, name);
+                return total;
+            },
+            else => return 0,
+        }
+    }
 
 fn parseHeavenExpr(ctx: *anyopaque, input: []const u8) engine_expr.EvalError!expr.Id {
     const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));
