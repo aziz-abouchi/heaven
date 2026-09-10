@@ -46,7 +46,7 @@ pub fn build(b: *std.Build) void {
     }
 
     // ─── TCC : bibliothèque statique (uniquement sur Linux/macOS) ───
-    const tcc_lib = if (target.query.cpu_arch != .wasm32) blk: {
+    const tcc_lib = if (target.query.cpu_arch != .wasm32 and !isWindows(target)) blk: {
         const lib = b.addLibrary(.{
             .name = "tcc",
             .linkage = .static,
@@ -1076,7 +1076,8 @@ pub fn build(b: *std.Build) void {
         });
         test_heaven_expr.root_module.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
         test_heaven_expr.root_module.link_libc = true;
-        test_heaven_expr.linkSystemLibrary("tree-sitter");
+        //test_heaven_expr.linkSystemLibrary("tree-sitter");
+        if (tree_sitter_lib) |lib| test_heaven_expr.linkLibrary(lib);
 
         test_elab.root_module.addCSourceFile(.{
             .file = b.path("vendor/tree-sitter-heaven/src/parser.c"),
@@ -1084,7 +1085,8 @@ pub fn build(b: *std.Build) void {
         });
         test_elab.root_module.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
         test_elab.root_module.link_libc = true;
-        test_elab.linkSystemLibrary("tree-sitter");
+        //test_elab.linkSystemLibrary("tree-sitter");
+        if (tree_sitter_lib) |lib| test_elab.linkLibrary(lib);
 
         // Liens C pour test_commands (utilise MultiParser → 4 grammaires)
         const test_ts_flags = &.{"-std=c99"};
@@ -1110,7 +1112,8 @@ pub fn build(b: *std.Build) void {
         test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
         test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
         test_commands.root_module.link_libc = true;
-        test_commands.linkSystemLibrary("tree-sitter");
+        //test_commands.linkSystemLibrary("tree-sitter");
+        if (tree_sitter_lib) |lib| test_commands.linkLibrary(lib);
 
         // Liens C pour test_commands_full
         test_commands_full.root_module.addCSourceFile(.{
@@ -1135,7 +1138,8 @@ pub fn build(b: *std.Build) void {
         test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
         test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
         test_commands_full.root_module.link_libc = true;
-        test_commands_full.linkSystemLibrary("tree-sitter");
+        //test_commands_full.linkSystemLibrary("tree-sitter");
+        if (tree_sitter_lib) |lib| test_commands_full.linkLibrary(lib);
     }
 
     const test_step = b.step("test", "Run all tests");

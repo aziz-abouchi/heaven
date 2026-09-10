@@ -5,6 +5,17 @@ const History = @import("history.zig").History;
 const Heaven = @import("heaven_expr").Heaven;
 const eval = @import("eval.zig");
 
+fn readStdinByte(buf: []u8) !usize {
+    if (comptime builtin.os.tag == .windows) {
+        const handle = try std.os.windows.GetStdHandle(
+            std.os.windows.STD_INPUT_HANDLE,
+        );
+        return std.os.windows.ReadFile(handle, buf, null);
+    } else {
+        return std.posix.read(std.posix.STDIN_FILENO, buf);
+    }
+}
+
 const KEY_EVENT: u16 = 0x0001;
 const VK_LEFT: u16 = 0x25;
 const VK_UP: u16 = 0x26;
@@ -87,6 +98,10 @@ pub const Reader = struct {
     }
 
     fn enableRawMode(self: *Reader) !void {
+        if (comptime builtin.os.tag == .windows) {
+            self.raw_mode = false;
+            return;
+        }
         const fd = std.posix.STDIN_FILENO;
 
         // Pipe, redirection, CI headless : pas de TTY → pas de mode raw,
@@ -229,7 +244,7 @@ pub const Reader = struct {
             self.cursor = 0;
             var buf: [1]u8 = undefined;
             while (true) {
-                const n = std.posix.read(0, &buf) catch return error.ReadError;
+                const n = readStdinByte(&buf) catch return error.ReadError;
                 if (n == 0) {
                     if (self.line.items.len == 0) return error.EndOfStream;
                     break;
