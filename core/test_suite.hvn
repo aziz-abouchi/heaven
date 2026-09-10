@@ -66,3 +66,4 @@ prove add_zero by simplify
 (assert_err (let erased x = 5 in (+ x 1)))
 (assert_eq (let erased x = 5 in 42) 42)
 (assert_eq (let many x = 5 in (+ x x)) 10)
+

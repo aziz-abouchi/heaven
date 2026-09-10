@@ -786,3 +786,10 @@ test "engine evaluates lowered expression" {
     try engine.store.assertCoreExpr(lowered);
     _ = try engine.eval(lowered);
 }
+
+test "Env.get ne crash pas après init" {
+    var env = Env.init(std.testing.allocator);
+    defer env.deinit();
+    try env.put(42, 0);
+    try std.testing.expectEqual(@as(?Id, 0), env.get(42));
+}
