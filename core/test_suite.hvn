@@ -58,4 +58,4 @@ prove add_zero by simplify
 (assert_eq (let-linear x 5 (+ x 1)) 6)
 (assert_err (let-erased x 5 (+ x 1)))
 (assert_eq (let-erased x 5 42) 42)
-(assert_eq (let many x 5 (+ x x)) 10)
+(assert_eq (let-many x 5 (+ x x)) 10)

@@ -840,6 +840,16 @@ pub const Heaven = struct {
             return result;
         }
 
+        // QTT : `let-many` = alias explicite du `let` standard.
+        if (std.mem.eql(u8, first, "let-many")) {
+            if (tokens.items.len != 4) return error.InvalidSyntax;
+            const let_sym  = try self.store.sym("let");
+            const name_sym = try self.store.sym(tokens.items[1]);
+            const val_id   = try self.parseExpression(tokens.items[2]);
+            const body_id  = try self.parseExpression(tokens.items[3]);
+            var args = [_]expr.Id{ name_sym, val_id, body_id };
+            return self.store.apply(let_sym, &args);
+        }
         // Cas 2.5 : QTT — let-linear / let-erased
         if (std.mem.eql(u8, first, "let-linear") or std.mem.eql(u8, first, "let-erased")) {
             // tokens : [let-xxx, name, val, body]
@@ -1669,7 +1679,7 @@ pub const Heaven = struct {
         return false;
     }
 
-    fn countSymUses(store: *const expr.Store, id: expr.Id, name: []const u8) usize {
+    pub fn countSymUses(store: *const expr.Store, id: expr.Id, name: []const u8) usize {
         const node = store.get(id);
         switch (node.tag) {
             .sym => {
