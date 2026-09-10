@@ -676,6 +676,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "proof_core", .module = proof_core_mod },
             .{ .name = "agent", .module = agent_mod },
             .{ .name = "commands", .module = commands_mod },
+            .{ .name = "profiler", .module = profiler_mod },
         },
     });
     heaven_expr_mod.addOptions("build_options", options);

@@ -24,6 +24,7 @@ const proof_core_mod = @import("proof_core");
 const agent_mod = @import("agent");
 
 const elab_mod = @import("elab");
+const profiler_mod = @import("profiler");
 
 const Store = expr.Store;
 const Id = expr.Id;
@@ -1445,38 +1446,55 @@ pub const Heaven = struct {
         return inf.typeStr(&inf.subst, ty, self.allocator);
     }
 
-    fn evalGreenExpr(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        // Snapshot avant
-        const before = platform.profiler.getResourceUsage();
+    pub fn evalGreenExpr(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        // 1. Parser l'expression
+        const expr_id = try self.parseExpression(src);
 
-        // Évaluer
-        const id = try self.parseExpression(src);
-        const result = try self.evaluateExpr(id);
+        // 2. Handler green (idempotent — redéfinition à chaque appel, comme cmdGreen)
+        {
+            const hres = self.eval("let greenHandler(v1, v2, cost) = (+ v1 v2)") catch |err| {
+                return err;
+            };
+            self.allocator.free(hres);
+        }
+
+        // 3. Profiler matériel + activation du mode green
+        var prof = profiler_mod.Profiler.start();
+        self.engine.green_call_count = 0;
+        self.engine.green_mode = true;
+        defer self.engine.green_mode = false;
+
+        // 4. Construire l'AST (handle <expr> greenHandler)
+        const handle_op   = try self.store.sym("handle");
+        const handler_sym = try self.store.sym("greenHandler");
+        var args_buf = [_]expr.Id{ expr_id, handler_sym };
+        const handle_node = try self.store.apply(handle_op, &args_buf);
+
+        // 5. Évaluer avec interception des effets
+        self.engine.fuel = 1_000_000;
+        const result = self.evaluateExpr(handle_node) catch |err| {
+            _ = prof.stop();     // ne pas fuiter les métriques
+            return err;
+        };
+
+        // 6. Arrêter le profiler
+        const metrics = prof.stop();
+
         const result_str = try expr.toStringInfix(self.store, result, self.allocator);
         defer self.allocator.free(result_str);
 
-        // Snapshot après
-        const after = platform.profiler.getResourceUsage();
-
-        // Conversion en ns ABSOLUES avant soustraction, sinon delta négatif
-        // quand les secondes avancent et les usec reculent.
-        const ns_per_s: u64 = std.time.ns_per_s;
-        const ns_per_us: u64 = std.time.ns_per_us;
-
-        const before_ns = @as(u64, @intCast(before.utime.sec)) * ns_per_s +
-                        @as(u64, @intCast(before.utime.usec)) * ns_per_us +
-                        @as(u64, @intCast(before.stime.sec)) * ns_per_s +
-                        @as(u64, @intCast(before.stime.usec)) * ns_per_us;
-        const after_ns  = @as(u64, @intCast(after.utime.sec)) * ns_per_s +
-                        @as(u64, @intCast(after.utime.usec)) * ns_per_us +
-                        @as(u64, @intCast(after.stime.sec)) * ns_per_s +
-                        @as(u64, @intCast(after.stime.usec)) * ns_per_us;
-
-        const cpu_ns = if (after_ns >= before_ns) after_ns - before_ns else 0;
-
-        return std.fmt.allocPrint(self.allocator,
-            "{s} (green calls: {d}, cpu: {d}ns)",
-            .{ result_str, 0, cpu_ns });
+        // 7. Sortie composable, une seule ligne
+        return std.fmt.allocPrint(
+            self.allocator,
+            "{s} (green calls: {d}, cpu: {d}ns, wall: {d}ns, energy: {d:.3}J)",
+            .{
+                result_str,
+                self.engine.green_call_count,
+                metrics.cpu_time_ns,
+                metrics.wall_time_ns,
+                metrics.energy_joules,
+            },
+        );
     }
 
     fn isInfixOp(tok: []const u8) bool {
