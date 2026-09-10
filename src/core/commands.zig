@@ -199,11 +199,26 @@ pub const Commands = struct {
             return try self.allocator.dupe(u8, "()");
         }
 
-        if (std.mem.startsWith(u8, trimmed, "let actor ")) {
-            return self.evalActorDef(trimmed["let actor ".len..], self.env);
-        }
-        if (std.mem.startsWith(u8, trimmed, "let macro ")) {
-            return self.evalMacroDef(trimmed["let macro ".len..]);
+        // Let : tout ce qui commence par "let " passe par un dispatch unifié.
+        // - let actor X = ... with H
+        // - let macro name(...) = ...
+        // - let [linear|erased|many] x = v in b
+        // - let x = v in b
+        // - let x := v
+        if (std.mem.startsWith(u8, trimmed, "let ")) {
+            const after = trimmed["let ".len..];
+            if (std.mem.startsWith(u8, after, "actor ")) {
+                return self.evalActorDef(after["actor ".len..], self.env);
+            }
+            if (std.mem.startsWith(u8, after, "macro ")) {
+                return self.evalMacroDef(after["macro ".len..]);
+            }
+            // let x = v in b, let linear x = v in b, let x := v
+            if (std.mem.indexOf(u8, after, " in ") != null or
+                std.mem.indexOf(u8, after, ":=") != null)
+            {
+                return self.evalLet(after);
+            }
         }
 
         // === INTERCEPTION (simplify ...) avec parenthèses ===
