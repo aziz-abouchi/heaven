@@ -840,34 +840,75 @@ pub const Heaven = struct {
             return result;
         }
 
-        // QTT : `let-many` = alias explicite du `let` standard.
-        if (std.mem.eql(u8, first, "let-many")) {
-            if (tokens.items.len != 4) return error.InvalidSyntax;
-            const let_sym  = try self.store.sym("let");
-            const name_sym = try self.store.sym(tokens.items[1]);
-            const val_id   = try self.parseExpression(tokens.items[2]);
-            const body_id  = try self.parseExpression(tokens.items[3]);
-            var args = [_]expr.Id{ name_sym, val_id, body_id };
-            return self.store.apply(let_sym, &args);
-        }
-        // Cas 2.5 : QTT — let-linear / let-erased
-        if (std.mem.eql(u8, first, "let-linear") or std.mem.eql(u8, first, "let-erased")) {
-            // tokens : [let-xxx, name, val, body]
-            if (tokens.items.len != 4) return error.InvalidSyntax;
+        // QTT : let avec multiplicité
+        //   (let-linear x v b)       — 1 usage exact
+        //   (let-erased x v b)       — 0 usage
+        //   (let-many   x v b)       — aucune contrainte
+        //   (let linear x = v in b)  — forme "native" injectée en S-expr
+        //   (let erased x = v in b)
+        //   (let many   x = v in b)
+        {
+            var kw: ?[]const u8 = null;
+            var qtt_name: []const u8 = "";
+            var qtt_val:  []const u8 = "";
+            var qtt_body: ?expr.Id = null;
 
-            const name = tokens.items[1];
-            const val_id  = try self.parseExpression(tokens.items[2]);
-            const body_id = try self.parseExpression(tokens.items[3]);
+            if (std.mem.eql(u8, first, "let-linear") and tokens.items.len == 4) {
+                kw = "linear";
+                qtt_name = tokens.items[1];
+                qtt_val  = tokens.items[2];
+                qtt_body = try self.parseExpression(tokens.items[3]);
+            } else if (std.mem.eql(u8, first, "let-erased") and tokens.items.len == 4) {
+                kw = "erased";
+                qtt_name = tokens.items[1];
+                qtt_val  = tokens.items[2];
+                qtt_body = try self.parseExpression(tokens.items[3]);
+            } else if (std.mem.eql(u8, first, "let-many") and tokens.items.len == 4) {
+                kw = "many";
+                qtt_name = tokens.items[1];
+                qtt_val  = tokens.items[2];
+                qtt_body = try self.parseExpression(tokens.items[3]);
+            } else if (std.mem.eql(u8, first, "let") and tokens.items.len >= 7) {
+                const k = tokens.items[1];
+                const is_kw = std.mem.eql(u8, k, "linear")
+                        or std.mem.eql(u8, k, "erased")
+                        or std.mem.eql(u8, k, "many");
+                if (is_kw and std.mem.eql(u8, tokens.items[3], "=")
+                        and std.mem.eql(u8, tokens.items[5], "in"))
+                {
+                    kw = k;
+                    qtt_name = tokens.items[2];
+                    qtt_val  = tokens.items[4];
 
-            const expected: usize = if (std.mem.eql(u8, first, "let-linear")) 1 else 0;
-            const uses = expr.countSymUses(self.store, body_id, name);
-            if (uses != expected) return error.LinearViolation;
+                    var body_buf = std.ArrayListUnmanaged(u8){};
+                    defer body_buf.deinit(self.allocator);
+                    for (tokens.items[6..], 0..) |t, i| {
+                        if (i > 0) try body_buf.append(self.allocator, ' ');
+                        try body_buf.appendSlice(self.allocator, t);
+                    }
+                    qtt_body = try self.parseExpression(body_buf.items);
+                }
+            }
 
-            // Réécrire en let standard pour la suite du pipeline
-            const let_sym = try self.store.sym("let");
-            const name_sym = try self.store.sym(name);
-            var args = [_]expr.Id{ name_sym, val_id, body_id };
-            return self.store.apply(let_sym, &args);
+            if (kw) |k| {
+                const b = qtt_body.?;
+                const uses = expr.countSymUses(self.store, b, qtt_name);
+
+                const ok = if (std.mem.eql(u8, k, "linear"))
+                    uses == 1
+                else if (std.mem.eql(u8, k, "erased"))
+                    uses == 0
+                else
+                    true;   // many : aucune contrainte
+
+                if (!ok) return error.LinearViolation;
+
+                const val_id = try self.parseExpression(qtt_val);
+                const let_sym  = try self.store.sym("let");
+                const name_sym = try self.store.sym(qtt_name);
+                var args = [_]expr.Id{ name_sym, val_id, b };
+                return self.store.apply(let_sym, &args);
+            }
         }
 
         // Cas 3 : application normale

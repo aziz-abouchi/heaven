@@ -2106,12 +2106,14 @@ pub const Commands = struct {
                 return self.allocator.dupe(u8, "syntax error in qtt body");
 
             const uses = expr.countSymUses(self.store, body_id, name);
+            const ok = if (std.mem.eql(u8, qty_kw.?, "linear"))
+                uses == 1
+            else if (std.mem.eql(u8, qty_kw.?, "erased"))
+                uses == 0
+            else
+                true;   // many : aucune contrainte
 
-            const expected: usize = if (std.mem.eql(u8, qty_kw.?, "linear")) 1
-                                    else if (std.mem.eql(u8, qty_kw.?, "erased")) 0
-                                    else std.math.maxInt(usize);
-
-            if (uses != expected) {
+            if (!ok) {
                 return std.fmt.allocPrint(self.allocator,
                     "linear violation: '{s}' declared {s}, used {d} time(s)",
                     .{ name, qty_kw.?, uses });
