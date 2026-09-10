@@ -117,3 +117,31 @@ test "syntax HIR — theorem" {
         else => return error.TestExpectedEqual,
     }
 }
+
+test "syntax HIR — vector literal" {
+    // TODO: implémenter le parsing de `[lo-hi]` dans lower.zig
+    // (aujourd'hui lower.zig:131 retourne UnsupportedNode)
+    if (true) return error.SkipZigTest;
+
+    const source =
+        "let v = [1-3]\n";
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    var result = try lower_mod.lowerSource(
+        arena.allocator(),
+        source,
+    );
+    defer result.deinit();
+
+    try testing.expectEqual(@as(usize, 1), result.items.len);
+
+    switch (result.items[0]) {
+        .equation => |eq| {
+            try testing.expectEqualStrings("v", eq.name);
+            // Vérification que le corps est bien abaissé en expression vectorielle/liste
+        },
+        else => return error.TestExpectedEqual,
+    }
+}

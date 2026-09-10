@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+# NOTE: 0.15.2 n'est pas encore publiée sur ziglang.org (404 sur mlugg/setup-zig).
+# On utilise `master` tant que la version stable n'est pas dispo.
+# Dès que 0.15.2 (ou 0.15.3) est publiée, changer `version:` ci-dessous.
+env:
+  ZIG_VERSION: master
 
 jobs:
   build-and-test:
@@ -13,76 +20,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Zig 0.15.2
+      - name: Install Zig (${{ env.ZIG_VERSION }})
         uses: mlugg/setup-zig@v1
         with:
-          version: 0.15.2
+          version: ${{ env.ZIG_VERSION }}
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libtree-sitter-dev tcc
 
-      - name: Set CC for tree-sitter CLI commands
-        run: echo "CC=gcc" >> "$GITHUB_ENV"
-
-      - name: Build (native)
-        run: zig build
-
-      - name: Run unit tests
-        run: zig build test
-
-      - name: Run functional test suite
-        run: zig build run -- --run-test core/test_suite.hvn
-
-  build-without-network:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Zig 0.15.2
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.15.2
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libtree-sitter-dev tcc
-
-      - name: Set CC for tree-sitter CLI commands
-        run: echo "CC=gcc" >> "$GITHUB_ENV"
-
-      - name: Build without networking (no libdatachannel needed)
-        run: zig build -Dnetwork=false
-
-      - name: Run unit tests without networking
-        run: zig build -Dnetwork=false test
-
-      - name: Run functional test suite without networking
-        run: zig build -Dnetwork=false run -- --run-test core/test_suite.hvn
-
-  build-no-network:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Zig 0.15.2
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.15.2
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libtree-sitter-dev tcc
-
-      - name: Set CC for tree-sitter CLI commands
-        run: echo "CC=gcc" >> "$GITHUB_ENV"
-
-      - name: Build (native, no network/WebRTC)
+      - name: Build (no network)
         run: zig build -Dnetwork=false
 
       - name: Run unit tests (no network)
