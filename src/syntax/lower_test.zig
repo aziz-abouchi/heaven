@@ -1,7 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 
-const lower_mod = @import("lower");
+const lower_mod = @import("syntax_lower");
 
 test "syntax HIR — equation" {
     const source =

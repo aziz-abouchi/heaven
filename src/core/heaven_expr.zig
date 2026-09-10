@@ -272,7 +272,7 @@ pub const Heaven = struct {
         _ = self;
     }
 
-    fn registerClause(self: *Heaven, name: []const u8, patterns: []const Id, body: Id) !void {
+    pub fn registerClause(self: *Heaven, name: []const u8, patterns: []const Id, body: Id) !void {
         const owned_key = try self.engine.allocator.dupe(u8, name);
         const result = try self.engine.fns.getOrPut(self.engine.allocator, owned_key);
         if (result.found_existing) {

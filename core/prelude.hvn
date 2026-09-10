@@ -37,3 +37,6 @@ theorem append_nil :
 
 theorem length_nil :
     length nil = 0
+
+rule distrib : (* a (+ b c)) = (+ (* a b) (* a c))
+rule factor  : (+ (* a b) (* a c)) = (* a (+ b c))

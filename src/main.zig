@@ -310,7 +310,7 @@ pub fn main() !void {
     };
 
     // --- Chargement du Noyau et de la Logique ---
-    const files_to_load = &[_][]const u8{ "core/kernel.hvn", "core/logic.hvn" };
+    const files_to_load = &[_][]const u8{ "core/kernel.hvn", "core/logic.hvn", "core/prelude.hvn" };
 
     for (files_to_load) |filename| {
         const source = platform.fs.cwd().readFileAlloc(allocator, filename, 1024 * 1024) catch |err| {

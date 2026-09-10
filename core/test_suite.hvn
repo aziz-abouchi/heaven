@@ -43,3 +43,9 @@ prove add_zero by simplify
 (test "derive_power2" (assert_eq (derive x^2) (* 2 x)))
 (test "derive_power3" (assert_eq (derive x^3) (* 3 (^ x 2))))
 (test "simplify_egraph_double" (assert_eq (simplify (+ x (+ 0 x))) (* 2 x)))
+
+(test "simplify_add_zero" (assert_eq (simplify (+ x 0)) x))
+(test "simplify_mul_one" (assert_eq (simplify (* x 1)) x))
+(test "simplify_mul_zero" (assert_eq (simplify (* x 0)) 0))
+(test "simplify_double_add" (assert_eq (simplify (+ (+ x 0) 0)) x))
+(test "simplify_double_mul" (assert_eq (simplify (* (* x 1) 1)) x))

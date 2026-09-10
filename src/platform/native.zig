@@ -58,8 +58,15 @@ pub fn setNonBlocking(socket: std.posix.socket_t) !void {
         var mode: c_ulong = 1;
         _ = std.os.windows.ws2_32.ioctlsocket(socket, std.os.windows.ws2_32.FIONBIO, &mode);
     } else {
-        const flags = try std.posix.fcntl(socket, std.posix.F.GETFL, 0);
-        _ = try std.posix.fcntl(socket, std.posix.F.SETFL, flags | std.posix.O.NONBLOCK);
+        const fd = socket;
+        const flags = try std.posix.fcntl(fd, std.posix.F.GETFL, 0);
+        // Sur macOS, O.NONBLOCK est dans un packed struct ; on utilise la constante POSIX
+        const O_NONBLOCK = switch (builtin.os.tag) {
+            .macos, .ios, .tvos, .watchos, .visionos => @as(u32, 0x0004),
+            .linux => @as(u32, 0o4000),
+            else => @as(u32, 0x0004),
+        };
+        _ = try std.posix.fcntl(fd, std.posix.F.SETFL, flags | O_NONBLOCK);
     }
 }
 

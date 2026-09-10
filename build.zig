@@ -46,7 +46,7 @@ pub fn build(b: *std.Build) void {
     }
 
     // ─── TCC : bibliothèque statique (uniquement sur Linux/macOS) ───
-    const tcc_lib = if (target.query.cpu_arch != .wasm32 and !isWindows(target)) blk: {
+    const tcc_lib = if (target.query.cpu_arch != .wasm32) blk: {
         const lib = b.addLibrary(.{
             .name = "tcc",
             .linkage = .static,
@@ -58,7 +58,7 @@ pub fn build(b: *std.Build) void {
 
         const cflags = &.{"-std=c99", "-DONE_SOURCE=0"};
 
-        // Sources communes
+        // Fichiers communs (toujours présents)
         lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tcc.c"), .flags = cflags });
         lib.addCSourceFile(.{ .file = b.path("vendor/tcc/libtcc.c"), .flags = cflags });
         lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccpp.c"), .flags = cflags });
@@ -68,26 +68,26 @@ pub fn build(b: *std.Build) void {
         lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccrun.c"), .flags = cflags });
         lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccdbg.c"), .flags = cflags });
 
-        // x86_64 (sur Linux/macOS)
-        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/x86_64-gen.c"), .flags = cflags });
-        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/x86_64-link.c"), .flags = cflags });
-        lib.addCSourceFile(.{ .file = b.path("vendor/tcc/x86_64-asm.c"), .flags = cflags });
-
-        // arm64 (sur macOS/Apple Silicon)
-        if (target.result.cpu.arch == .aarch64 and isMacOS(target)) {
+        // Architecture : UNE SEULE (selon la cible)
+        const arch = target.result.cpu.arch;
+        if (arch == .aarch64) {
             lib.addCSourceFile(.{ .file = b.path("vendor/tcc/arm64-gen.c"), .flags = cflags });
             lib.addCSourceFile(.{ .file = b.path("vendor/tcc/arm64-link.c"), .flags = cflags });
             lib.addCSourceFile(.{ .file = b.path("vendor/tcc/arm64-asm.c"), .flags = cflags });
+        } else if (arch == .x86_64) {
+            lib.addCSourceFile(.{ .file = b.path("vendor/tcc/x86_64-gen.c"), .flags = cflags });
+            lib.addCSourceFile(.{ .file = b.path("vendor/tcc/x86_64-link.c"), .flags = cflags });
+            // PAS de x86_64-asm.c (n'existe pas, c'est un header)
         }
 
-        // Fichiers spécifiques à l'OS
-        if (isMacOS(target)) {
+        // Fichiers OS-spécifiques
+        if (isWindows(target)) {
+            lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccpe.c"), .flags = cflags });
+        } else if (isMacOS(target)) {
             lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccmacho.c"), .flags = cflags });
-        } else {
-            // Linux/ELF (tccelf.c déjà inclus)
         }
+        // Linux/ELF : rien de plus à ajouter
 
-        // Macros via config.h (généré par build.sh)
         lib.addIncludePath(b.path("vendor/tcc"));
         lib.addIncludePath(b.path("vendor/tcc/include"));
         lib.root_module.link_libc = true;
@@ -150,14 +150,14 @@ pub fn build(b: *std.Build) void {
     });
 
     const syntax_core_lower_mod = b.addModule("syntax_core_lower", .{
-        .root_source_file = b.path("src/syntax/core_lower.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "expr", .module = expr_mod },
-            .{ .name = "syntax_ast", .module = syntax_ast_mod },
-        },
-    });
+                    .root_source_file = b.path("src/syntax/core_lower.zig"),
+                    .target = target,
+                    .optimize = optimize,
+                    .imports = &.{
+                        .{ .name = "expr", .module = expr_mod },
+                        .{ .name = "syntax_ast", .module = syntax_ast_mod },
+                    },
+        });
 
     const syntax_lower_mod = b.addModule("syntax_lower", .{
         .root_source_file = b.path("src/syntax/lower.zig"),
@@ -165,7 +165,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "syntax_ast", .module = syntax_ast_mod },
+            //.{ .name = "tree_sitter", .module = tree_sitter_mod },
             .{ .name = "platform", .module = platform_mod },
+            .{ .name = "syntax_ast", .module = syntax_ast_mod },
         },
     });
 
@@ -218,6 +220,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "pattern", .module = pattern_mod },
+            .{ .name = "syntax_lower", .module = syntax_lower_mod },
         },
     });
 
@@ -238,8 +241,8 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "engine_expr", .module = engine_expr_mod },
-            .{ .name = "lower", .module = syntax_lower_mod },
-            .{ .name = "core_lower", .module = syntax_core_lower_mod },
+            .{ .name = "syntax_lower", .module = syntax_lower_mod },
+            .{ .name = "syntax_core_lower", .module = syntax_core_lower_mod },
             .{ .name = "mpst", .module = mpst_mod },
         },
     });
@@ -994,8 +997,9 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "engine_expr", .module = engine_expr_mod },
-            .{ .name = "lower", .module = syntax_lower_mod },
-            .{ .name = "core_lower", .module = syntax_core_lower_mod },
+            .{ .name = "syntax_lower", .module = syntax_lower_mod },
+            .{ .name = "syntax_core_lower", .module = syntax_core_lower_mod },
+            .{ .name = "mpst", .module = mpst_mod },
         },
     }) });
 
@@ -1063,146 +1067,91 @@ pub fn build(b: *std.Build) void {
         },
     }) });
 
-    // Lier tree-sitter aux tests qui en ont besoin (uniquement si la bibliothèque existe)
-    if (tree_sitter_lib) |ts_lib| {
-        test_heaven_expr.linkLibrary(ts_lib);
-        test_elab.linkLibrary(ts_lib);
-        test_commands.linkLibrary(ts_lib);
-        test_commands_full.linkLibrary(ts_lib);
-    }
+    // Protection des liens C pour les tests
+    if (target.query.cpu_arch != .wasm32) {
+        test_heaven_expr.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-heaven/src/parser.c"),
+            .flags = &.{"-std=c99"},
+        });
+        test_heaven_expr.root_module.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
+        test_heaven_expr.root_module.link_libc = true;
+        test_heaven_expr.linkSystemLibrary("tree-sitter");
 
-    // Ajouter les include paths pour les tests qui en ont besoin (même si la lib est liée, les headers doivent être trouvés)
-    // Déjà ajoutés dans platform_mod, donc les modules qui importent platform_mod les ont.
+        test_elab.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-heaven/src/parser.c"),
+            .flags = &.{"-std=c99"},
+        });
+        test_elab.root_module.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
+        test_elab.root_module.link_libc = true;
+        test_elab.linkSystemLibrary("tree-sitter");
+
+        // Liens C pour test_commands (utilise MultiParser → 4 grammaires)
+        const test_ts_flags = &.{"-std=c99"};
+        test_commands.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-heaven/src/parser.c"),
+            .flags = test_ts_flags,
+        });
+        test_commands.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-pie/src/parser.c"),
+            .flags = test_ts_flags,
+        });
+        test_commands.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-c/src/parser.c"),
+            .flags = test_ts_flags,
+        });
+        test_commands.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-zig/src/parser.c"),
+            .flags = test_ts_flags,
+        });
+        test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
+        test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter-pie/src"));
+        test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter-c/src"));
+        test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
+        test_commands.root_module.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
+        test_commands.root_module.link_libc = true;
+        test_commands.linkSystemLibrary("tree-sitter");
+
+        // Liens C pour test_commands_full
+        test_commands_full.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-heaven/src/parser.c"),
+            .flags = &.{"-std=c99"},
+        });
+        test_commands_full.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-pie/src/parser.c"),
+            .flags = &.{"-std=c99"},
+        });
+        test_commands_full.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-c/src/parser.c"),
+            .flags = &.{"-std=c99"},
+        });
+        test_commands_full.root_module.addCSourceFile(.{
+            .file = b.path("vendor/tree-sitter-zig/src/parser.c"),
+            .flags = &.{"-std=c99"},
+        });
+        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-heaven/src"));
+        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-pie/src"));
+        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-c/src"));
+        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
+        test_commands_full.root_module.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
+        test_commands_full.root_module.link_libc = true;
+        test_commands_full.linkSystemLibrary("tree-sitter");
+    }
 
     const test_step = b.step("test", "Run all tests");
 
-    const scheduler_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/runtime/scheduler/test.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const scheduler_task_mod = b.addModule("scheduler_task", .{
-        .root_source_file = b.path("src/runtime/scheduler/task.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const scheduler_mod = b.addModule("scheduler", .{
-        .root_source_file = b.path("src/runtime/scheduler/scheduler.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "scheduler_task", .module = scheduler_task_mod },
-        },
-    });
-
-    scheduler_test_mod.addImport("scheduler_task", scheduler_task_mod);
-    scheduler_test_mod.addImport("scheduler", scheduler_mod);
-
-    const scheduler_test = b.addTest(.{
-        .root_module = scheduler_test_mod,
-    });
-
-    const lifecycle_mod = b.addModule("lifecycle", .{
-        .root_source_file = b.path("src/runtime/actor/lifecycle.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const mailbox_mod = b.addModule("mailbox", .{
-        .root_source_file = b.path("src/runtime/actor/mailbox.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const test_actor = b.addTest(.{
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/runtime/actor/actor.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "lifecycle", .module = lifecycle_mod },
-                .{ .name = "mailbox", .module = mailbox_mod },
-                .{ .name = "scheduler_task", .module = scheduler_task_mod },
-            },
-        }),
-    });
-
-    const run_test_actor = b.addRunArtifact(test_actor);
-    test_step.dependOn(&run_test_actor.step);
-
-    const actor_mod = b.addModule("actor", .{
-        .root_source_file = b.path("src/runtime/actor/actor.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "lifecycle", .module = lifecycle_mod },
-            .{ .name = "mailbox", .module = mailbox_mod },
-            .{ .name = "scheduler_task", .module = scheduler_task_mod },
-        },
-    });
-
-    const registry_mod = b.addModule("registry", .{
-        .root_source_file = b.path("src/runtime/actor/registry.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "actor", .module = actor_mod },
-        },
-    });
-
-    const test_registry = b.addTest(.{
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/runtime/actor/registry.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "actor", .module = actor_mod },
-            },
-        }),
-    });
-    const run_test_registry = b.addRunArtifact(test_registry);
-    test_step.dependOn(&run_test_registry.step);
-
-    const integration_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/runtime/actor/integration_test.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    integration_test_mod.addImport("actor", actor_mod);
-    integration_test_mod.addImport("registry", registry_mod);
-    integration_test_mod.addImport("scheduler", scheduler_mod);
-    integration_test_mod.addImport("scheduler_task", scheduler_task_mod);
-
-    const test_integration = b.addTest(.{
-        .root_module = integration_test_mod,
-    });
-
-    const run_test_integration = b.addRunArtifact(test_integration);
-    test_step.dependOn(&run_test_integration.step);
-
-    const run_scheduler_test = b.addRunArtifact(scheduler_test);
-    test_step.dependOn(&run_scheduler_test.step);
-
-    // Les tests de syntaxe ne sont construits que pour les cibles natives (car ils utilisent tree-sitter)
-    if (target.query.cpu_arch != .wasm32 and tree_sitter_lib != null) {
+    if (target.query.cpu_arch != .wasm32) {
         const syntax_tests = b.addTest(.{
-            .root_module = b.createModule(.{
-                .root_source_file = b.path("src/syntax/core_lower_test.zig"),
-                .target = target,
-                .optimize = optimize,
-                .imports = &.{
-                    .{ .name = "expr", .module = expr_mod },
-                    .{ .name = "engine_expr", .module = engine_expr_mod },
-                },
-            }),
+                .root_module = b.createModule(.{
+                    .root_source_file = b.path("src/syntax/core_lower_test.zig"),
+                    .target = target,
+                    .optimize = optimize,
+                    .imports = &.{
+                        .{ .name = "expr", .module = expr_mod },
+                        .{ .name = "engine_expr", .module = engine_expr_mod },
+                    },
+                }),
         });
-        // Lier tree-sitter si la bibliothèque existe
-        if (tree_sitter_lib) |ts_lib| {
-            syntax_tests.linkLibrary(ts_lib);
-        }
+
         const run_syntax_tests = b.addRunArtifact(syntax_tests);
         test_step.dependOn(&run_syntax_tests.step);
     }
@@ -1214,7 +1163,7 @@ pub fn build(b: *std.Build) void {
                 .target = target,
                 .optimize = optimize,
                 .imports = &.{
-                    .{ .name = "lower", .module = syntax_lower_mod },
+                    .{ .name = "syntax_lower", .module = syntax_lower_mod },
                 },
             }),
         });

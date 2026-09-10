@@ -84,6 +84,15 @@
                     return "";
                 };
 
+                // Ajouter les règles manquantes pour distributivité et factorisation
+                try {
+                    heavenEval('rule distrib : (* a (+ b c)) = (+ (* a b) (* a c))');
+                    heavenEval('rule factor  : (+ (* a b) (* a c)) = (* a (+ b c))');
+                    console.log('✅ Règles de distributivité/factorisation ajoutées');
+                } catch (e) {
+                    console.warn('⚠️ Erreur lors de l’ajout des règles :', e);
+                }
+
                 return { heavenEval };
             } catch (err) {
                 summary.innerHTML = `❌ Erreur de chargement WASM: ${err.message}`;

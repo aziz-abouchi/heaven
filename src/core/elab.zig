@@ -819,6 +819,39 @@ pub const TypeChecker = struct {
         };
     }
 
+    /// Infère le type d'une expression de spawn d'acteur : spawn(actor, protocol)
+    /// Vérifie la conformité comportementale vis-à-vis de la projection locale MPST.
+    pub fn inferSpawn(self: *TypeChecker, ctx: *const TypingContext, spawn_id: Id) !Id {
+        const node = self.store.get(spawn_id);
+        const p = self.store.pool.items;
+        
+        if (node.tag != .apply) return TypeError.NotAFunction;
+        
+        const args = node.span_a.slice(p);
+        if (args.len < 2) return TypeError.TypeMismatch;
+        
+        const actor_id = args;
+        const protocol_id = args[1];
+        
+        // 1. Inférence du rôle de l'acteur et du protocole global
+        const actor_type = try self.inferType(ctx, actor_id);
+        const protocol_type = try self.inferType(ctx, protocol_id);
+        _ = protocol_type;
+        
+        // Validation nominale des métatypes dans le Store
+        const actor_name = self.store.interner.resolve(self.store.get(actor_id).payload);
+        _ = actor_name;
+        
+        // 2. Récupération sémantique du protocole et calcul de la projection locale S = G ↾ actor
+        const mpst = @import("mpst");
+        _ = mpst;
+        // TODO: Extraire la structure GlobalProtocol depuis l'Id symbolique `protocol_id`
+        // const local_session = try global_proto.project(actor_name, self.allocator);
+        
+        // 3. Retourne le type de processus paramétré par son type de session local S
+        return try self.store.call("Process", &.{actor_type});
+    }
+
     /// Check that an expression has a given type: Γ ⊢ e ⇐ τ
     pub fn checkType(self: *TypeChecker, ctx: *const TypingContext, expr_id: Id, expected_type: Id) !void {
         const expr_node = self.store.get(expr_id);
@@ -1116,42 +1149,6 @@ pub const TypeChecker = struct {
             else => return expr_id, // Unknown tags: return as-is
         }
     }
-
-    /// Infer the type of an actor spawn expression: spawn(actor, protocol)
-    /// Verifies behavioral conformance with the local MPST projection.
-    pub fn inferSpawn(
-        self: *TypeChecker,
-        ctx: *const TypingContext,
-        spawn_id: Id,
-    ) !Id {
-        const node = self.store.get(spawn_id);
-        const p = self.store.pool.items;
-
-        if (node.tag != .apply) return TypeError.NotAFunction;
-
-        const args = node.span_a.slice(p);
-        if (args.len < 2) return TypeError.TypeMismatch;
-
-        const actor_id = args[0];
-        const protocol_id = args[1];
-
-        const actor_type = try self.inferType(ctx, actor_id);
-        const protocol_type = try self.inferType(ctx, protocol_id);
-        _ = protocol_type;
-
-        const actor_name = self.store.interner.resolve(
-            self.store.get(actor_id).payload,
-        );
-        _ = actor_name;
-
-        const mpst = @import("mpst");
-        _ = mpst;
-
-        // TODO: Extract GlobalProtocol from protocol_id and project it to actor_name.
-        // const local_session = try global_proto.project(actor_name, self.allocator);
-
-        return try self.store.call("Process", &.{actor_type});
-    }
 };
 
 // ─── Point d'entrée ───
@@ -1172,8 +1169,8 @@ fn elaborateViaCoreLowerer(
     store: *Store,
     source: []const u8,
 ) !Id {
-    const lower = @import("lower");
-    const core_lower = @import("core_lower");
+    const lower = @import("syntax_lower");
+    const core_lower = @import("syntax_core_lower");
 
     // Parsing & Abaissement en AST HIR
     var ast_tree = try lower.lowerSource(allocator, source);
@@ -1450,4 +1447,42 @@ test "typesEqual - different types" {
 
     // These should NOT be equal
     try std.testing.expect(!checker.typesEqual(pi1, pi2));
+}
+
+
+// ─── Tests d'intégration sémantique MPST ───
+test "TypeChecker et MPST - Validation de dualité de protocole synchrone" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    const mpst = @import("mpst");
+
+    const alice_next = try allocator.create(mpst.SessionType);
+    alice_next.* = .end;
+    defer allocator.destroy(alice_next);
+
+    const alice_sess = mpst.SessionType{
+        .send = .{
+            .dest = "Bob",
+            .label = "ping",
+            .ty = 1,
+            .next = alice_next,
+        },
+    };
+
+    const bob_next = try allocator.create(mpst.SessionType);
+    bob_next.* = .end;
+    defer allocator.destroy(bob_next);
+
+    const bob_sess = mpst.SessionType{
+        .receive = .{
+            .src = "Alice",
+            .label = "ping",
+            .ty = 1,
+            .next = bob_next,
+        },
+    };
+
+    try std.testing.expect(alice_sess.isDual("Alice", bob_sess, "Bob", &store));
 }

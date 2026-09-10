@@ -90,7 +90,27 @@ pub const Reader = struct {
         const fd = @as(std.posix.fd_t, 0);
         var termios = try std.posix.tcgetattr(fd);
         self.termios_orig = termios;
-        termios.lflag &= ~@as(std.os.linux.tcflag_t, std.os.linux.ECHO | std.os.linux.ICANON);
+
+        // Désactiver ECHO et ICANON
+        switch (builtin.os.tag) {
+            .macos, .ios, .tvos, .watchos, .visionos => {
+                // Sur macOS, lflag est un packed struct avec champs nommés
+                termios.lflag.ECHO = false;
+                termios.lflag.ICANON = false;
+            },
+            .linux => {
+                // Sur Linux, lflag est un entier
+                const ECHO: u32 = 0x00000008;
+                const ICANON: u32 = 0x00000002;
+                termios.lflag &= ~@as(@TypeOf(termios.lflag), ECHO | ICANON);
+            },
+            else => {
+                // Fallback BSD générique
+                termios.lflag.ECHO = false;
+                termios.lflag.ICANON = false;
+            },
+        }
+
         try std.posix.tcsetattr(fd, .FLUSH, termios);
         self.raw_mode = true;
     }

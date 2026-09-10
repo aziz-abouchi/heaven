@@ -10,6 +10,7 @@ pub const ResourceUsage = struct {
     utime: TimeVal = .{},
     stime: TimeVal = .{},
     maxrss: i64 = 0,
+    max_rss_bytes: usize = 0,
 };
 
 extern "kernel32" fn GetProcessTimes(

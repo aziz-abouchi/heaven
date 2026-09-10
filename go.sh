@@ -13,4 +13,4 @@ zig build $NETWORK_FLAG && \
 zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall -p zig-out/wasm && \
 cp zig-out/wasm/bin/heaven.wasm src/vessel/public/ && \
 zig build test $NETWORK_FLAG && \
-rlwrap -f <(./zig-out/bin/heaven --completions) ./zig-out/bin/heaven 8080
+HEAVEN_DEBUG=1 rlwrap -f <(./zig-out/bin/heaven --completions) ./zig-out/bin/heaven 8080

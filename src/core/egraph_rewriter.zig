@@ -175,7 +175,7 @@ pub const Rewriter = struct {
         }
 
         const elapsed = platform.time.milliTimestamp() - start;
-        platform.debug.print("EGraph saturation: {} ms, {} merges, {} iterations\n", .{
+        platform.dbg("EGraph saturation: {} ms, {} merges, {} iterations\n", .{
             elapsed,
             merge_count,
             iterations,

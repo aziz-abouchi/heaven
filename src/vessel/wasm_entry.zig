@@ -685,6 +685,23 @@ pub fn enableLowering(self: *Heaven, v: bool) void {
 export fn dispatch(cmd_len: u32, arg_len: u32) u32 {
     const full_input = input_buf[0 .. cmd_len + arg_len];
 
+    // ✅ S-EXPR let/lambda → Heaven.eval (le routing interpForAssert)
+    if (full_input.len > 0 and full_input[0] == '(') {
+        if (std.mem.indexOf(u8, full_input, "let ") != null or
+            std.mem.indexOf(u8, full_input, "lambda") != null)
+        {
+            if (heaven) |h| {
+                const result = h.eval(full_input) catch {
+                    setOutput("error");
+                    return 5;
+                };
+                defer allocator().free(result);
+                setOutput(result);
+                return output_len;
+            }
+        }
+    }
+
     if (cmds) |*c| {
         const result = c.eval(full_input) catch |err| {
             var buf: [128]u8 = undefined;
