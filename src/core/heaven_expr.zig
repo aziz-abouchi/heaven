@@ -105,6 +105,7 @@ pub const Heaven = struct {
     active_theorem: ?[]const u8 = null,
     pending_proof_request: ?[]const u8 = null,
     in_interp: bool = false,
+    green_handler_defined: bool = false,
 
     pub fn init(allocator: std.mem.Allocator) !*Heaven {
         const self = try allocator.create(Heaven);
@@ -1451,11 +1452,12 @@ pub const Heaven = struct {
         const expr_id = try self.parseExpression(src);
 
         // 2. Handler green (idempotent — redéfinition à chaque appel, comme cmdGreen)
-        {
+        if (!self.green_handler_defined) {
             const hres = self.eval("let greenHandler(v1, v2, cost) = (+ v1 v2)") catch |err| {
                 return err;
             };
             self.allocator.free(hres);
+            self.green_handler_defined = true;
         }
 
         // 3. Profiler matériel + activation du mode green
