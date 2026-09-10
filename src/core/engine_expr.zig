@@ -11,7 +11,6 @@ const platform = @import("platform");
 
 const Span = expr.Span;
 
-const PROOF_DEBUG = false;
 const log = std.log.scoped(.engine);
 
 pub const Env = struct {
