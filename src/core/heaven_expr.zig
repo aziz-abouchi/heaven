@@ -860,7 +860,7 @@ pub const Heaven = struct {
             const body_id = try self.parseExpression(tokens.items[3]);
 
             const expected: usize = if (std.mem.eql(u8, first, "let-linear")) 1 else 0;
-            const uses = countSymUses(self.store, body_id, name);
+            const uses = expr.countSymUses(self.store, body_id, name);
             if (uses != expected) return error.LinearViolation;
 
             // Réécrire en let standard pour la suite du pipeline
@@ -1671,60 +1671,13 @@ pub const Heaven = struct {
 };
 
 
-    fn isInfixOp(tok: []const u8) bool {
-        const ops = [_][]const u8{ "+", "-", "*", "/", "^", "%", "==", "!=", "<", ">", "<=", ">=" };
-        for (ops) |o| {
-            if (std.mem.eql(u8, tok, o)) return true;
-        }
-        return false;
+fn isInfixOp(tok: []const u8) bool {
+    const ops = [_][]const u8{ "+", "-", "*", "/", "^", "%", "==", "!=", "<", ">", "<=", ">=" };
+    for (ops) |o| {
+        if (std.mem.eql(u8, tok, o)) return true;
     }
-
-    pub fn countSymUses(store: *const expr.Store, id: expr.Id, name: []const u8) usize {
-        const node = store.get(id);
-        switch (node.tag) {
-            .sym => {
-                const n = store.interner.resolve(node.payload);
-                return if (std.mem.eql(u8, n, name)) 1 else 0;
-            },
-            .lit => return 0,
-            .apply => {
-                var total = countSymUses(store, node.payload, name);
-                for (store.spanSliceConst(node.span_a)) |child| {
-                    total += countSymUses(store, child, name);
-                }
-                return total;
-            },
-            .lambda => {
-                // Shadowing : si le lambda rebinde le même nom, on saute son corps.
-                const bound = store.interner.resolve(node.payload);
-                if (std.mem.eql(u8, bound, name)) return 0;
-                var total: usize = 0;
-                for (store.spanSliceConst(node.span_a)) |child| {
-                    total += countSymUses(store, child, name);
-                }
-                return total;
-            },
-            .bind => {
-                // bind : payload = nom, aux = valeur, span_a = corps.
-                // La valeur est toujours dans la portée externe.
-                var total = countSymUses(store, node.aux, name);
-                const bound = store.interner.resolve(node.payload);
-                if (!std.mem.eql(u8, bound, name)) {
-                    for (store.spanSliceConst(node.span_a)) |child| {
-                        total += countSymUses(store, child, name);
-                    }
-                }
-                return total;
-            },
-            .relation => {
-                var total: usize = 0;
-                for (store.spanSliceConst(node.span_a)) |child| total += countSymUses(store, child, name);
-                for (store.spanSliceConst(node.span_b)) |child| total += countSymUses(store, child, name);
-                return total;
-            },
-            else => return 0,
-        }
-    }
+    return false;
+}
 
 fn parseHeavenExpr(ctx: *anyopaque, input: []const u8) engine_expr.EvalError!expr.Id {
     const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));

@@ -1187,6 +1187,53 @@ pub fn nativeToSExpr(input: []const u8, allocator: std.mem.Allocator) NativeErro
     return allocator.dupe(u8, result);  // copie hors de l'arène
 }
 
+/// Compte les occurrences d'un symbole `name` dans l'arbre d'AST `id`.
+/// Gère le shadowing : un `lambda` ou un `bind` qui rebinde `name`
+/// masque les occurrences dans son corps.
+pub fn countSymUses(store: *const Store, id: Id, name: []const u8) usize {
+    const node = store.get(id);
+    switch (node.tag) {
+        .sym => {
+            const n = store.interner.resolve(node.payload);
+            return if (std.mem.eql(u8, n, name)) 1 else 0;
+        },
+        .lit => return 0,
+        .apply => {
+            var total = countSymUses(store, node.payload, name);
+            for (store.spanSliceConst(node.span_a)) |child| {
+                total += countSymUses(store, child, name);
+            }
+            return total;
+        },
+        .lambda => {
+            const bound = store.interner.resolve(node.payload);
+            if (std.mem.eql(u8, bound, name)) return 0;
+            var total: usize = 0;
+            for (store.spanSliceConst(node.span_a)) |child| {
+                total += countSymUses(store, child, name);
+            }
+            return total;
+        },
+        .bind => {
+            var total = countSymUses(store, node.aux, name);
+            const bound = store.interner.resolve(node.payload);
+            if (!std.mem.eql(u8, bound, name)) {
+                for (store.spanSliceConst(node.span_a)) |child| {
+                    total += countSymUses(store, child, name);
+                }
+            }
+            return total;
+        },
+        .relation => {
+            var total: usize = 0;
+            for (store.spanSliceConst(node.span_a)) |child| total += countSymUses(store, child, name);
+            for (store.spanSliceConst(node.span_b)) |child| total += countSymUses(store, child, name);
+            return total;
+        },
+        else => return 0,
+    }
+}
+
 test "core invariant — lowered expression contains only six primitives" {
     const allocator = std.testing.allocator;
 

@@ -144,30 +144,67 @@ pub fn typeSize(allocator: std.mem.Allocator, store: *const Store, ty: Type) u32
 
 pub const LinearChecker = struct {
     usage: std.StringHashMapUnmanaged(Quantity) = .{},
+    declared: std.StringHashMapUnmanaged(Quantity) = .{},
+    allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) LinearChecker {
-        _ = allocator;
-        return .{};
+        return .{ .allocator = allocator };
     }
+
     pub fn deinit(self: *LinearChecker) void {
-        _ = self;
+        var it1 = self.usage.iterator();
+        while (it1.next()) |e| self.allocator.free(e.key_ptr.*);
+        self.usage.deinit(self.allocator);
+
+        var it2 = self.declared.iterator();
+        while (it2.next()) |e| self.allocator.free(e.key_ptr.*);
+        self.declared.deinit(self.allocator);
     }
+
     pub fn declare(self: *LinearChecker, name: []const u8, qty: Quantity) !void {
-        _ = self;
-        _ = name;
-        _ = qty;
+        if (self.declared.getPtr(name)) |v| {
+            v.* = qty;
+            return;
+        }
+        const key = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(key);
+        try self.declared.put(self.allocator, key, qty);
     }
+
     pub fn use(self: *LinearChecker, name: []const u8) !void {
-        _ = self;
-        _ = name;
+        if (self.usage.getPtr(name)) |v| {
+            v.* = switch (v.*) {
+                .zero => .one,
+                .one  => .many,
+                .many => .many,
+            };
+            return;
+        }
+        const key = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(key);
+        try self.usage.put(self.allocator, key, .one);
     }
+
     pub fn check(self: *LinearChecker) !void {
-        _ = self;
+        var it = self.declared.iterator();
+        while (it.next()) |e| {
+            const name = e.key_ptr.*;
+            const expected = e.value_ptr.*;
+            const actual = self.usage.get(name) orelse .zero;
+            const ok = switch (expected) {
+                .zero => actual == .zero,
+                .one  => actual == .one,
+                .many => true,
+            };
+            if (!ok) return error.LinearViolation;
+        }
     }
+
     pub fn hasErrors(self: *LinearChecker) bool {
-        _ = self;
+        self.check() catch return true;
         return false;
     }
+
     pub fn formatErrors(self: *LinearChecker, allocator: std.mem.Allocator) ![]u8 {
         _ = self;
         return allocator.dupe(u8, "") catch return error.OutOfMemory;
