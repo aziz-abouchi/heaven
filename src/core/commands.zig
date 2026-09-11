@@ -463,7 +463,7 @@ pub const Commands = struct {
             };
         };
         const result = try engine_expr.evaluate(self.store, self.env, self.engine, id0, 0);
-        const canon = if (@import("builtin").target.cpu.arch.isWasm())
+        const canon = if (platform.target.is_wasm)
             try canon_mod.canonicalize(self.store, self.allocator, result)
         else
             result;
@@ -1480,6 +1480,7 @@ pub const Commands = struct {
     }
 
     fn evalTestExpr(self: *Commands, id: Id) ![]u8 {
+        platform.dbg("[DEBUG evalTestExpr] id={d}\n", .{ id });
         const node = self.store.get(id);
         if (node.tag == .apply) {
             const func_id = node.payload;

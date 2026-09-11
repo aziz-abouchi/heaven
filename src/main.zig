@@ -233,10 +233,8 @@ pub fn main() !void {
         defer allocator.free(file_content);
         _ = try file.readAll(file_content);
 
-        const use_color = switch (builtin.os.tag) {
-            .windows => false,
-            else => std.posix.isatty(std.posix.STDOUT_FILENO),
-        };
+        const use_color = if (platform.target.is_windows) false
+            else std.posix.isatty(std.posix.STDOUT_FILENO);
         const C_GREEN  = if (use_color) "\x1b[32m" else "";
         const C_RED    = if (use_color) "\x1b[31m" else "";
         const C_YELLOW = if (use_color) "\x1b[33m" else "";
@@ -323,7 +321,7 @@ pub fn main() !void {
 
         const total = passed + failed + ignored;
         const final_usage = platform.profiler.getResourceUsage();
-        const rss_kb: u64 = if (builtin.os.tag.isDarwin())
+        const rss_kb: u64 = if (platform.target.is_darwin)
             final_usage.maxrss / 1024
         else
             final_usage.maxrss;

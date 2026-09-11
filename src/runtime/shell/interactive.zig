@@ -1,12 +1,11 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const platform = @import("platform");
 const History = @import("history.zig").History;
 const Heaven = @import("heaven_expr").Heaven;
 const eval = @import("eval.zig");
 
 fn readStdinByte(buf: []u8) !usize {
-    if (comptime builtin.os.tag == .windows) {
+    if (platform.target.is_windows) {
         const handle = try std.os.windows.GetStdHandle(
             std.os.windows.STD_INPUT_HANDLE,
         );
@@ -98,7 +97,7 @@ pub const Reader = struct {
     }
 
     fn enableRawMode(self: *Reader) !void {
-        if (comptime builtin.os.tag == .windows) {
+        if (platform.target.is_windows) {
             self.raw_mode = false;
             return;
         }
@@ -115,8 +114,8 @@ pub const Reader = struct {
         self.termios_orig = termios;
 
         // Désactiver ECHO et ICANON
-        switch (builtin.os.tag) {
-            .macos, .ios, .tvos, .watchos, .visionos => {
+        if (platform.target.is_windows) {}
+        if (platform.target.is_darwin) {
                 termios.lflag.ECHO   = false;
                 termios.lflag.ICANON = false;
                 termios.lflag.ISIG   = false;  // sinon Ctrl-C tue le process
@@ -124,8 +123,8 @@ pub const Reader = struct {
                 termios.iflag.IXON   = false;  // Ctrl-S/Ctrl-Q ne gèlent pas
                 termios.iflag.INLCR  = false;
                 termios.iflag.IGNCR  = false;
-            },
-            .linux => {
+        }
+        if (platform.target.is_linux) {
                 const ECHO: u32   = 0x00000008;
                 const ICANON: u32 = 0x00000002;
                 const ISIG: u32   = 0x00000001;
@@ -133,8 +132,6 @@ pub const Reader = struct {
                 const IXON: u32   = 0x00000400;
                 termios.lflag &= ~@as(@TypeOf(termios.lflag), ECHO | ICANON | ISIG);
                 termios.iflag &= ~@as(@TypeOf(termios.iflag), ICRNL | IXON);
-            },
-            else => {},
         }
 
         try std.posix.tcsetattr(fd, .NOW, termios);
@@ -142,7 +139,7 @@ pub const Reader = struct {
     }
 
     fn disableRawMode(self: *Reader) void {
-        if (comptime builtin.os.tag == .windows) return;
+        if (platform.target.is_windows) return;
         if (self.raw_mode) {
             if (self.termios_orig) |orig| {
                 _ = std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, orig) catch {};
@@ -152,7 +149,7 @@ pub const Reader = struct {
     }
 
     pub fn readKey(self: *Reader) !KeyEvent {
-        if (comptime builtin.os.tag == .windows) {
+        if (platform.target.is_windows) {
             return self.readKeyWindows();
         } else {
             return self.readKeyUnix();

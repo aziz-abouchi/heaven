@@ -260,7 +260,7 @@ pub const Transform = struct {
 
     fn executeStep(self: *Transform, step: Step, engine: anytype) !void {
         _ = engine;
-        const is_wasm = @import("builtin").target.cpu.arch == .wasm32;
+        const is_wasm = platform.target.is_wasm;
 
         switch (step.engine) {
             .EGraph => {

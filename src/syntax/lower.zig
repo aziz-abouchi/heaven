@@ -791,7 +791,7 @@ pub fn lowerSource(
     allocator: Allocator,
     source: []const u8,
 ) LowerError!ast.Ast {
-    if (builtin.target.cpu.arch.isWasm()) {
+    if (platform.target.is_wasm) {
     return error.UnsupportedNode;
 }
 const parser = ts.ts_parser_new();

@@ -1,11 +1,13 @@
 const std = @import("std");
+const platform = @import("platform");
+
 const Allocator = std.mem.Allocator;
 
 extern fn js_ollama_query(prompt_ptr: [*]const u8, prompt_len: usize, out_ptr: [*]u8, out_max: usize) usize;
 
 pub fn query(prompt: []const u8, allocator: Allocator) !?[]const u8 {
     // Tenter Ollama en WASM (si disponible)
-    if (@import("builtin").target.cpu.arch.isWasm()) {
+    if (platform.target.is_wasm) {
         var buf: [1024]u8 = undefined;
         const len = js_ollama_query(prompt.ptr, prompt.len, &buf, buf.len);
         if (len > 0) {

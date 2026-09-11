@@ -24,8 +24,7 @@ pub const MessageQueue = struct {
     max_capacity: usize,
     mutex: MutexType = .{},
 
-    const builtin = @import("builtin");
-    const MutexType = if (builtin.target.cpu.arch == .wasm32) WasmMutex else StdMutex;
+    const MutexType = if (platform.target.is_wasm) WasmMutex else StdMutex;
 
     const WasmMutex = struct {
         pub fn lock(_: *WasmMutex) void {}
