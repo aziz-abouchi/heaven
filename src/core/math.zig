@@ -824,6 +824,11 @@ pub const Math = struct {
 
     pub fn integrate(self: *Math, expr_str: []const u8, variable: []const u8) ![]u8 {
         const id = try self.bridge.importExpr(expr_str);
+        {
+            const s = try expr.toString(self.store, id, self.allocator);
+            defer self.allocator.free(s);
+            platform.debug.print("[integrate] parsed '{s}' → {s}\n", .{ expr_str, s });
+        }
         const var_id = try self.store.sym(variable);
         const result = try self.integrateExpr(id, var_id);
         const str = try expr.toStringInfix(self.store, result, self.allocator);
@@ -832,12 +837,15 @@ pub const Math = struct {
 
     fn integrateExpr(self: *Math, expr_id: Id, variable: Id) !Id {
         const node = self.store.get(expr_id);
+        platform.debug.print("[integrateExpr] tag={s}\n", .{@tagName(node.tag)});
         switch (node.tag) {
             .lit => {
                 const lit = self.store.lits.items[node.aux];
                 if (lit == .int) {
-                    // ∫ a dx = a*x
-                    const x = try self.store.sym(self.store.interner.resolve(variable));
+                    // ∫ a dx = a*x — récupérer le Sym via le nœud
+                    const var_node = self.store.get(variable);
+                    const var_sym = var_node.payload;
+                    const x = try self.store.symId(var_sym);
                     return self.store.binop("*", expr_id, x);
                 }
                 return self.store.int(0);
@@ -855,8 +863,10 @@ pub const Math = struct {
             },
             .apply => {
                 const p = self.store.pool.items;
-                const args = node.span_a.slice(p);
-                if (args.len < 1) return self.store.int(0);
+                const raw = node.span_a.slice(p);
+                // span_a = [func_id, arg1, arg2, ...] — on saute le func
+                if (raw.len < 2) return self.store.int(0);
+                const args = raw[1..];
                 const op_node = self.store.get(node.payload);
                 if (op_node.tag != .sym) return self.store.int(0);
                 const op = self.store.interner.resolve(op_node.payload);
@@ -1215,8 +1225,9 @@ pub const Math = struct {
         const func_node = self.store.get(node.payload);
         if (func_node.tag != .sym) return id;
         const op = self.store.interner.resolve(func_node.payload);
-        const args = node.span_a.slice(self.store.pool.items);
-        if (args.len != 2) return id;
+        const raw = node.span_a.slice(self.store.pool.items);
+        if (raw.len != 3) return id;         // func + 2 args
+        const args = raw[1..];
         const a0 = args[0];
         const a1 = args[1];
         if (std.mem.eql(u8, op, "*")) {

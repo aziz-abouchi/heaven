@@ -405,7 +405,8 @@ pub const Infer = struct {
                 if (func_node.tag == .sym) {
                     const name = self.store.interner.resolve(func_node.payload);
                     if (std.mem.eql(u8, name, "+") or std.mem.eql(u8, name, "-") or
-                        std.mem.eql(u8, name, "*") or std.mem.eql(u8, name, "/"))
+                        std.mem.eql(u8, name, "*") or std.mem.eql(u8, name, "/") or
+                        std.mem.eql(u8, name, "^"))
                     {
                         return self.int();
                     }
