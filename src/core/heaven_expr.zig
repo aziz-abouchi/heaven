@@ -407,6 +407,18 @@ pub const Heaven = struct {
             return self.evalAssertion(trimmed);
         }
 
+        // Assertions natives :
+        //   test "name": lhs == rhs
+        //   test "name": assert_err expr
+        //   assert_eq lhs == rhs
+        //   assert_err expr
+        if (std.mem.startsWith(u8, trimmed, "test \"") or
+            std.mem.startsWith(u8, trimmed, "assert_eq ") or
+            std.mem.startsWith(u8, trimmed, "assert_err "))
+        {
+            return self.evalAssertionNative(trimmed);
+        }
+
         // ✅ ROUTING S-EXPR : (let ...) / (lambda ...) / (+ 1 2) / toute S-expr pure
         if (trimmed.len > 0 and trimmed[0] == '(') {
             // let/lambda → interpForAssert (engine ne gère pas bind au top-level)
@@ -1568,6 +1580,110 @@ pub const Heaven = struct {
             };
             return std.fmt.allocPrint(self.allocator, "✓ test {s} passed", .{name});
         }
+        return self.allocator.dupe(u8, input);
+    }
+
+    /// Cherche ` == ` au niveau 0 (hors parenthèses et strings).
+    fn splitTopLevelEq(inner: []const u8) ?struct { a: []const u8, b: []const u8 } {
+        var depth: usize = 0;
+        var in_str = false;
+        var i: usize = 0;
+        while (i + 3 < inner.len) : (i += 1) {
+            const c = inner[i];
+            if (c == '"') { in_str = !in_str; continue; }
+            if (in_str) continue;
+            if (c == '(') { depth += 1; continue; }
+            if (c == ')') { if (depth > 0) depth -= 1; continue; }
+            if (depth == 0 and c == ' ' and
+                inner[i + 1] == '=' and inner[i + 2] == '=' and inner[i + 3] == ' ')
+            {
+                const a = std.mem.trim(u8, inner[0..i], " \t");
+                const b = std.mem.trim(u8, inner[i + 4 ..], " \t");
+                if (a.len > 0 and b.len > 0) return .{ .a = a, .b = b };
+            }
+        }
+        return null;
+    }
+
+    fn evalAssertionNative(self: *Heaven, input: []const u8) HeavenError![]u8 {
+        // ─── test "name": body ───
+        if (std.mem.startsWith(u8, input, "test \"")) {
+            const after_test = input["test \"".len..];
+            const quote_end = std.mem.indexOfScalar(u8, after_test, '"') orelse
+                return self.allocator.dupe(u8, "✗ test: quote manquante");
+            const name = after_test[0..quote_end];
+            const after_name = std.mem.trimLeft(u8, after_test[quote_end + 1 ..], " \t");
+            if (after_name.len == 0 or after_name[0] != ':')
+                return self.allocator.dupe(u8, "✗ test: ':' manquant après le nom");
+            const body = std.mem.trim(u8, after_name[1..], " \t");
+
+            // Sous-cas : test "name": assert_err expr
+            if (std.mem.startsWith(u8, body, "assert_err ")) {
+                const res = try self.evalAssertionNative(body);
+                defer self.allocator.free(res);
+                return std.fmt.allocPrint(self.allocator, "test {s}: {s}", .{ name, res });
+            }
+
+            // Cas principal : test "name": lhs == rhs
+            const sp = splitTopLevelEq(body) orelse
+                return std.fmt.allocPrint(self.allocator,
+                    "✗ test {s}: opérateur '==' manquant", .{name});
+
+            const lhs = try self.parseExpression(sp.a);
+            const rhs = try self.parseExpression(sp.b);
+            const ls = try self.interpForAssert(lhs);
+            const rs = try self.interpForAssert(rhs);
+            const ls_simp = try self.math.simplifyBasic(ls);
+            const rs_simp = try self.math.simplifyBasic(rs);
+            if (self.math.structuralEq(ls_simp, rs_simp))
+                return std.fmt.allocPrint(self.allocator, "test {s}: ✓ passed", .{name});
+            if (self.egraphSemanticEq(ls_simp, rs_simp))
+                return std.fmt.allocPrint(self.allocator, "test {s}: ✓ passed (e-graph)", .{name});
+            const l_str = try expr.toStringInfix(self.store, ls, self.allocator);
+            defer self.allocator.free(l_str);
+            const r_str = try expr.toStringInfix(self.store, rs, self.allocator);
+            defer self.allocator.free(r_str);
+            return std.fmt.allocPrint(self.allocator,
+                "✗ test {s}: {s} != {s}", .{ name, l_str, r_str });
+        }
+
+        // ─── assert_eq lhs == rhs ───
+        if (std.mem.startsWith(u8, input, "assert_eq ")) {
+            const body = std.mem.trim(u8, input["assert_eq ".len..], " \t");
+            const sp = splitTopLevelEq(body) orelse
+                return self.allocator.dupe(u8, "✗ assert_eq: '==' manquant");
+
+            const lhs = try self.parseExpression(sp.a);
+            const rhs = try self.parseExpression(sp.b);
+            const ls = try self.interpForAssert(lhs);
+            const rs = try self.interpForAssert(rhs);
+            const ls_simp = try self.math.simplifyBasic(ls);
+            const rs_simp = try self.math.simplifyBasic(rs);
+            if (self.math.structuralEq(ls_simp, rs_simp))
+                return self.allocator.dupe(u8, "✓ assert_eq passed");
+            if (self.egraphSemanticEq(ls_simp, rs_simp))
+                return self.allocator.dupe(u8, "✓ assert_eq passed (e-graph)");
+            const l_str = try expr.toStringInfix(self.store, ls, self.allocator);
+            defer self.allocator.free(l_str);
+            const r_str = try expr.toStringInfix(self.store, rs, self.allocator);
+            defer self.allocator.free(r_str);
+            return std.fmt.allocPrint(self.allocator,
+                "✗ assert_eq failed: {s} != {s}", .{ l_str, r_str });
+        }
+
+        // ─── assert_err expr ───
+        if (std.mem.startsWith(u8, input, "assert_err ")) {
+            const inner = std.mem.trim(u8, input["assert_err ".len..], " \t");
+            if (self.parseExpression(inner)) |id| {
+                _ = self.evaluateExpr(id) catch {
+                    return self.allocator.dupe(u8, "✓ assert_err passed");
+                };
+                return self.allocator.dupe(u8, "✗ assert_err failed: expression evaluated successfully");
+            } else |_| {
+                return self.allocator.dupe(u8, "✓ assert_err passed");
+            }
+        }
+
         return self.allocator.dupe(u8, input);
     }
 
