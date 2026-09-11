@@ -29,11 +29,53 @@ const tests = [
     { input: "simplify (+ (* 3 x) (* 3 y))", expected: "(* 3 (+ x y))" },
     // Dérivation, intégration, LaTeX
     { input: "derive x^2 + 2*x + 1", expected: "(+ (* 2 x) 2)" },
+
     { input: "integrate 2*x", expected: "(* 2 (/ (^ x 2) 2)) + C" },
     { input: "latex (x + y)^2", expected: "latex|\\mathrm{(x} + \\mathrm{y)^2}" },
     // Théorèmes
     { input: "theorem add_zero : n + 0 = n", expected: "✓ theorem add_zero stated" },
     { input: "prove add_zero by simplify", expected: "✓ [add_zero] proved (simplify)" },
+    // ─── Mécanismes (macro / actor / effet) ───
+    { input: "let macro double(x) = (quote (* (unquote x) 2))", expected: "macro double defined" },
+    { input: "double 21", expected: "42" },
+
+    { input: "fn counterHandler(state, msg) = (+ state msg)", expected: "counterHandler clause (2 patterns) registered" },
+    { input: "let actor Counter = 0 with counterHandler", expected: "actor Counter spawned" },
+    { input: "send(Counter, 10)", expected: "10" },
+    { input: "send(Counter, 5)", expected: "15" },
+    { input: "state(Counter)", expected: "15" },
+
+    { input: "fn logHandler(msg) = (+ msg 100)", expected: "logHandler clause (1 patterns) registered" },
+    { input: "handle (perform \"Log\" 42) logHandler", expected: "142" },
+
+    // ─── Assertions natives ───
+    { input: "test \"native_addition\": (+ 1 2) == 3", expected: "test native_addition: ✓ passed" },
+    { input: "test \"native_div_zero\": assert_err (/ 5 0)", expected: "test native_div_zero: ✓ assert_err passed" },
+    { input: "assert_eq (+ 1 2) == 3", expected: "✓ assert_eq passed" },
+    { input: "assert_err (/ 5 0)", expected: "✓ assert_err passed" },
+    { input: "assert_err (send 999 5)", expected: "✓ assert_err passed" },
+    { input: "assert_err (+ 1 true)", expected: "✓ assert_err passed" },
+
+    // ─── Env unifié ───
+    { input: "let env_x := 5", expected: "x := 5" },
+    { input: "let env_y = 10", expected: "y := 10" },
+    { input: "let env_v:Int = 77", expected: "v := 77" },
+
+    // ─── QTT ───
+    { input: "let linear qx = 5 in (+ qx 1)", expected: "6" },
+    { input: "let linear qx = 5 in (+ qx qx)", expected: "linear violation: 'qx' declared linear" },
+
+    // ─── Types étendus ───
+    { input: "type (+ 1 x)", expected: "Int" },
+    { input: "type (^ x 2)", expected: "Int" },
+
+    // ─── Derive / Square ───
+    { input: "derive x^2", expected: "(* 2 x)" },
+    { input: "simplify (* x x)", expected: "(^ x 2)" },
+
+    // ─── Greffes QTT S-expr ───
+    { input: "(assert_eq (let-linear qz 5 (+ qz 1)) 6)", expected: "✓ assert_eq passed" },
+    { input: "(assert_err (let-linear qz 5 (+ qz qz)))", expected: "✓ assert_err passed" },
 ];
 
 async function runTests(wasm) {
@@ -69,7 +111,9 @@ async function runTests(wasm) {
         // WASM retourne le résultat brut (pas de marqueurs ✓/✗ comme le natif)
         // → on classe par comparaison avec expected
         const hasFailMarker = result.includes('✗');
-        const matches = result === t.expected || result.includes(t.expected);
+        const matches = result === t.expected
+             || result.includes(t.expected)
+             || result.startsWith(t.expected);
 
         let icon, cls;
         if (hasFailMarker || !matches) { icon = '✗'; cls = 'fail'; failed++; }
