@@ -241,28 +241,62 @@ pub const EGraph = struct {
     }
 
     pub fn addExpr(self: *EGraph, id: Id) !ClassId {
-        // ✅ Garde : clamp silencieux, le node 0 est sûr
         if (id >= self.store.nodes.items.len) {
-            platform.dbg("[addExpr] CLAMP {d} → 0\n", .{id});
-            return self.addExpr(0);    // récursion avec 0 (une seule fois, 0 est toujours valide)
+            platform.dbg(
+                "[EGraph] INVALID ID={d} store.len={d}\n",
+                .{ id, self.store.nodes.items.len },
+            );
+            return error.InvalidExpr;
         }
         const node = self.store.get(id);
+
+        if (node.tag == .apply) {
+            platform.dbg(
+                "[EGraph] addExpr apply id={d} payload={d} span_a={d}..{d}\n",
+                .{
+                    id,
+                    node.payload,
+                    node.span_a.start,
+                    node.span_a.start + node.span_a.len,
+                },
+            );
+        }
+
         const tag_int = @intFromEnum(node.tag);
         if (tag_int > @intFromEnum(expr.Tag.relation)) {
             platform.dbg("[EGraph] tag invalide: {d}\n", .{tag_int});
-            return error.OutOfMemory; // ou une erreur personnalisée
+            return error.OutOfMemory;
         }
-        const pool = self.store.pool.items;
+
         switch (node.tag) {
             .sym, .lit, .hole => {},
             .apply => {
+                platform.dbg("[EGraph] apply id={d} payload={d}\n", .{ id, node.payload });
+
                 _ = try self.addExpr(node.payload);
-                for (node.span_a.slice(pool)) |child| _ = try self.addExpr(child);
+
+                // Snapshot AVANT tout addExpr récursif
+                const span_raw = self.store.spanSliceConst(node.span_a);
+                const span = try self.store.allocator.dupe(expr.Id, span_raw);
+                defer self.store.allocator.free(span);
+
+                if (span.len > 1) {
+                    for (span[1..]) |child| {
+                        platform.dbg("[EGraph] apply arg={d}\n", .{child});
+                        _ = try self.addExpr(child);
+                    }
+                }
             },
             .bind => _ = try self.addExpr(node.aux),
             .relation => {
-                for (node.span_a.slice(pool)) |child| _ = try self.addExpr(child);
-                for (node.span_b.slice(pool)) |child| _ = try self.addExpr(child);
+                // Snapshot les DEUX spans avant les addExpr récursifs
+                const span_a = try self.store.allocator.dupe(expr.Id, self.store.spanSliceConst(node.span_a));
+                defer self.store.allocator.free(span_a);
+                const span_b = try self.store.allocator.dupe(expr.Id, self.store.spanSliceConst(node.span_b));
+                defer self.store.allocator.free(span_b);
+
+                for (span_a) |child| _ = try self.addExpr(child);
+                for (span_b) |child| _ = try self.addExpr(child);
             },
             else => return 0,
         }

@@ -244,10 +244,15 @@ pub fn substitutePattern(store: *Store, pattern_id: Id, bindings: anytype, alloc
         .lit => return pattern_id,
         .apply => {
             const new_func = try substitutePattern(store, node.payload, bindings, allocator);
-            const old_args = node.span_a.slice(store.pool.items);
+
+            // Snapshot AVANT tout appel récursif
+            const old_args_src = node.span_a.slice(store.pool.items);
+            const old_args = try allocator.dupe(Id, old_args_src);
+            defer allocator.free(old_args);
+
             var new_args: std.ArrayListUnmanaged(Id) = .{};
             defer new_args.deinit(allocator);
-            // span_a[0] == func (déjà substitué via node.payload) — SAUTER
+
             if (old_args.len > 1) {
                 for (old_args[1..]) |arg| {
                     try new_args.append(allocator, try substitutePattern(store, arg, bindings, allocator));
@@ -286,7 +291,10 @@ pub fn substitutePattern(store: *Store, pattern_id: Id, bindings: anytype, alloc
             }
             if (shadowed) return pattern_id;
 
-            const old_body = node.span_a.slice(store.pool.items);
+            const old_body_src = node.span_a.slice(store.pool.items);
+            const old_body = try allocator.dupe(Id, old_body_src);
+            defer allocator.free(old_body);
+
             var new_body: std.ArrayListUnmanaged(Id) = .{};
             defer new_body.deinit(allocator);
             for (old_body) |child| {
@@ -302,7 +310,11 @@ pub fn substitutePattern(store: *Store, pattern_id: Id, bindings: anytype, alloc
             });
         },
         .relation => {
-            const old_args = node.span_a.slice(store.pool.items);
+            // Snapshot span_a AVANT les récursions
+            const old_args_src = node.span_a.slice(store.pool.items);
+            const old_args = try allocator.dupe(Id, old_args_src);
+            defer allocator.free(old_args);
+
             var new_args: std.ArrayListUnmanaged(Id) = .{};
             defer new_args.deinit(allocator);
             for (old_args) |arg| {
@@ -310,7 +322,11 @@ pub fn substitutePattern(store: *Store, pattern_id: Id, bindings: anytype, alloc
             }
             const span_a = try store.pushSpan(new_args.items);
 
-            const old_args_b = node.span_b.slice(store.pool.items);
+            // Snapshot span_b — INDÉPENDANT, car pushSpan ci-dessus a pu realloc
+            const old_args_b_src = node.span_b.slice(store.pool.items);
+            const old_args_b = try allocator.dupe(Id, old_args_b_src);
+            defer allocator.free(old_args_b);
+
             var new_args_b: std.ArrayListUnmanaged(Id) = .{};
             defer new_args_b.deinit(allocator);
             for (old_args_b) |arg| {
