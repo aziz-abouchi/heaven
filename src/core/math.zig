@@ -127,7 +127,7 @@ pub const Math = struct {
     pub fn deriveExpr(self: *Math, expr_id: Id, variable: expr.Sym) !Id {
         const node = self.store.get(expr_id);
 
-        if (@import("builtin").mode == .Debug) {
+        if (platform.target.is_debug) {
             platform.dbg("[deriveExpr] node tag={s}\n", .{@tagName(node.tag)});
         }
 
@@ -152,7 +152,7 @@ pub const Math = struct {
                 if (all.len < 1) return error.UnsupportedDeriveOp;
                 const args = all[1..];
 
-                if (@import("builtin").mode == .Debug) {
+                if (platform.target.is_debug) {
                     platform.dbg("[deriveExpr] apply op={s}, args.len={d}\n", .{ op, args.len });
                 }
 

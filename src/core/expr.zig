@@ -444,7 +444,7 @@ pub const Store = struct {
         var fixed_args_buf: [16]Id = undefined;
         var args_to_use = args;
 
-        if (@import("builtin").mode == .Debug) {
+        if (platform.target.is_debug) {
             var fixed = false;
             if (fixed_func >= self.nodes.items.len) {
                 platform.debug.print("[apply BUG] func={d} >= {d}\n", .{ fixed_func, self.nodes.items.len });

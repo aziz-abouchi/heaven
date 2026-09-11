@@ -1212,7 +1212,7 @@ fn elaborateSourceImpl(
         _ = checker.inferType(&ctx, root_id) catch {};
         return root_id;
     } else |_| {}
-    if (builtin.target.cpu.arch.isWasm()) {
+    if (platform.target.is_wasm) {
     return error.UnsupportedNode;
 }
 const parser = ts.ts_parser_new();
