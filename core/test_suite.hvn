@@ -69,3 +69,9 @@ test "square_detection": simplify (* x x) == (^ x 2)
 
 assert_eq (+ 1 2) == 3
 assert_err (/ 5 0)
+
+let test_env_var := 42
+assert_eq test_env_var == 42
+
+let typed_var:Int = 42
+assert_eq typed_var == 42

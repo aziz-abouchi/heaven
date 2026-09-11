@@ -565,6 +565,17 @@ pub const Heaven = struct {
                 return expr.toStringInfix(self.store, evaluated, self.allocator);
             }
         }
+        // Atome nu : lookup dans l'env avant de retourner tel quel.
+        // `x` doit résoudre vers la valeur liée par `let x := 5`.
+        if (trimmed.len > 0 and trimmed[0] != '(' and
+            std.mem.indexOfScalar(u8, trimmed, ' ') == null)
+        {
+            if (self.store.interner.lookup(trimmed)) |sym| {
+                if (self.env.get(sym)) |val| {
+                    return expr.toStringInfix(self.store, val, self.allocator);
+                }
+            }
+        }
         return self.allocator.dupe(u8, trimmed);
     }
 

@@ -2086,9 +2086,15 @@ pub const Commands = struct {
     }
 
     fn evalLet(self: *Commands, input: []const u8) ![]u8 {
+        // Défensif : certains call sites passent le "let " préfixé (ligne 254).
+        var rest = std.mem.trim(u8, input, " \t");
+        if (std.mem.startsWith(u8, rest, "let ")) {
+            rest = std.mem.trim(u8, rest["let ".len..], " \t");
+        }
+
         // QTT : préfixe de multiplicité (native)
         var qty_kw: ?[]const u8 = null;
-        var rest = input;
+
         const kws = [_][]const u8{ "linear", "erased", "many" };
         for (kws) |kw| {
             if (std.mem.startsWith(u8, rest, kw) and rest.len > kw.len
@@ -2160,7 +2166,11 @@ pub const Commands = struct {
         }
 
         if (eq_pos) |eq| {
-            const name = std.mem.trim(u8, rest[0..eq], " \t:");
+            var name = std.mem.trim(u8, rest[0..eq], " \t:");
+            // Support "name:Type" → garder seulement "name"
+            if (std.mem.indexOfScalar(u8, name, ':')) |colon| {
+                name = std.mem.trim(u8, name[0..colon], " \t");
+            }
             const expr_str = std.mem.trim(u8, rest[eq + 1 ..], " \t");
 
             if (std.mem.startsWith(u8, expr_str, "fn ") or std.mem.startsWith(u8, expr_str, "fn(")) {
