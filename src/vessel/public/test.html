@@ -7,11 +7,13 @@
         body{background:#0a0a0a;color:#00ff41;font-family:monospace;padding:20px;}
         .pass{color:#00ff41;}
         .fail{color:#ff4444;}
+        .neutral{color:#888;}
         #summary{margin-top:20px;font-weight:bold;padding:10px;border:1px solid #00ff41;}
         #output{margin-top:10px;max-height:600px;overflow:auto;}
         .test-result{padding:2px 5px;border-bottom:1px solid #003300;}
         .test-result.pass{color:#00ff41;}
         .test-result.fail{color:#ff4444;}
+        .test-result.neutral{color:#888;}
     </style>
 </head>
 <body>
@@ -84,16 +86,7 @@
                     return "";
                 };
 
-                // Ajouter les règles manquantes pour distributivité et factorisation
-                try {
-                    heavenEval('rule distrib : (* a (+ b c)) = (+ (* a b) (* a c))');
-                    heavenEval('rule factor  : (+ (* a b) (* a c)) = (* a (+ b c))');
-                    console.log('✅ Règles de distributivité/factorisation ajoutées');
-                } catch (e) {
-                    console.warn('⚠️ Erreur lors de l’ajout des règles :', e);
-                }
-
-                return { heavenEval };
+                return { heavenEval, memory: exports.memory };
             } catch (err) {
                 summary.innerHTML = `❌ Erreur de chargement WASM: ${err.message}`;
                 console.error(err);
