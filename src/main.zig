@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const platform = @import("platform");
 
 const signaling = @import("runtime/signaling_server.zig");
@@ -212,7 +213,7 @@ pub fn main() !void {
         try run_cmd.runRun(allocator, &.{args[2]});
         return;
     }
-    // NOUVEAU : Évaluateur de script pour les tests de non-régression
+    // Évaluateur de script pour les tests de non-régression
     if (std.mem.eql(u8, args[1], "--run-test") and args.len >= 3) {
         var heaven = heaven_expr_mod.Heaven.init(allocator) catch @panic("Failed to init Heaven");
         defer {
@@ -227,25 +228,71 @@ pub fn main() !void {
         defer allocator.free(file_content);
         _ = try file.readAll(file_content);
 
-        platform.debug.print("── Running tests from {s} ──\n", .{args[2]});
+        // Couleurs uniquement si stdout est un TTY (pas en CI, pas en pipe)
+        const use_color = switch (builtin.os.tag) {
+            .windows => false,
+            else => std.posix.isatty(std.posix.STDOUT_FILENO),
+        };
+        const C_GREEN  = if (use_color) "\x1b[32m" else "";
+        const C_RED    = if (use_color) "\x1b[31m" else "";
+        const C_YELLOW = if (use_color) "\x1b[33m" else "";
+        const C_BOLD   = if (use_color) "\x1b[1m"  else "";
+        const C_RESET  = if (use_color) "\x1b[0m"  else "";
+
+        platform.debug.print("── Running tests from {s} ──\n\n", .{args[2]});
+
+        var passed:  usize = 0;
+        var failed:  usize = 0;
+        var ignored: usize = 0;
+        var neutral: usize = 0;
 
         var lines = std.mem.splitScalar(u8, file_content, '\n');
         while (lines.next()) |line| {
             const trimmed = std.mem.trim(u8, line, " \t\r");
-            if (trimmed.len == 0 or trimmed[0] == '#') continue; // Ignorer commentaires et lignes vides
+            if (trimmed.len == 0 or trimmed[0] == '#') continue;
 
             const result = heaven.eval(trimmed) catch |err| {
-                platform.debug.print("❌ FAIL: {s}\n  Error: {}\n", .{ trimmed, err });
+                platform.debug.print("{s}✗{s} {s}\n  {s}error:{s} {}\n",
+                    .{ C_RED, C_RESET, trimmed, C_RED, C_RESET, err });
+                failed += 1;
                 continue;
             };
+            defer allocator.free(result);
 
-            // Afficher le résultat de la ligne
-            platform.debug.print("✓ {s} → {s}\n", .{ trimmed, result });
-            platform.dbg("[main free] addr={d} input='{s}'\n", .{ @intFromPtr(result.ptr), trimmed });
-            allocator.free(result);
+            // Classifier : le résultat contient-il un marqueur ?
+            const is_fail = std.mem.indexOf(u8, result, "✗") != null;
+            const is_pass = !is_fail and (std.mem.startsWith(u8, result, "✓") or
+                                        std.mem.indexOf(u8, result, ": ✓") != null);
+            const is_skip = std.mem.indexOf(u8, result, "Skip") != null or
+                            std.mem.indexOf(u8, result, "skipped") != null;
+
+            if (is_skip) {
+                platform.debug.print("{s}⏭{s}  {s} → {s}\n", .{ C_YELLOW, C_RESET, trimmed, result });
+                ignored += 1;
+            } else if (is_fail) {
+                platform.debug.print("{s}✗{s} {s} → {s}\n", .{ C_RED, C_RESET, trimmed, result });
+                failed += 1;
+            } else if (is_pass) {
+                platform.debug.print("{s}✓{s} {s} → {s}\n", .{ C_GREEN, C_RESET, trimmed, result });
+                passed += 1;
+            } else {
+                platform.debug.print("· {s} → {s}\n", .{ trimmed, result });
+                neutral += 1;
+            }
         }
 
-        platform.debug.print("── Tests finished ──\n", .{});
+        const total = passed + failed + ignored;
+        platform.debug.print("\n── Tests finished ──\n", .{});
+        platform.debug.print("{s}  ✓ {d} passed{s}\n", .{ C_GREEN, passed, C_RESET });
+        if (failed > 0)
+            platform.debug.print("{s}  ✗ {d} failed{s}\n", .{ C_RED, failed, C_RESET });
+        if (ignored > 0)
+            platform.debug.print("{s}  ⏭  {d} ignored{s}\n", .{ C_YELLOW, ignored, C_RESET });
+        platform.debug.print("  ·  {d} neutral\n", .{neutral});
+        platform.debug.print("{s}  ─────────────{s}\n", .{ C_BOLD, C_RESET });
+        platform.debug.print("{s}  Total: {d} / {d}{s}\n", .{ C_BOLD, passed, total, C_RESET });
+
+        if (failed > 0) std.process.exit(1);
         return;
     }
     if (std.mem.eql(u8, args[1], "test") and args.len >= 3) {
