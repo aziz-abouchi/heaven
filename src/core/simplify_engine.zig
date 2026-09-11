@@ -268,7 +268,7 @@ pub const SimplifyEngine = struct {
                 .cache = std.AutoHashMap(Id, types.Type).init(self.allocator),
             };
             defer mem_cost.cache.deinit();
-            defer mem_cost.cache.deinit();
+
             const cost_fn = struct {
                 fn cost(store: *const expr.Store, node_id: expr.Id, ctx: ?*anyopaque) u32 {
                     const mc = @as(*egraph_mod.MemoryCost, @ptrCast(@alignCast(ctx orelse unreachable)));

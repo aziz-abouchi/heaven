@@ -55,6 +55,7 @@ pub const TransformError = error{
     CannotLowerFrontendTag,
     InvalidPatternId,
     InvalidBinding,
+    InvalidExpr,
 };
 
 pub const TransformResult = union(enum) {
