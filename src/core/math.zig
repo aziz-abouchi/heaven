@@ -647,8 +647,9 @@ pub const Math = struct {
                 const func_node = self.store.get(node.payload);
                 if (func_node.tag != .sym) return self.allocator.dupe(u8, "?");
                 const op = self.store.interner.resolve(func_node.payload);
-                const args = node.span_a.slice(pool);
-                if (args.len == 2) {
+                const raw = node.span_a.slice(pool);
+                if (raw.len == 3) {
+                    const args = raw[1..];
                     const lhs = try self.idToInfix(args[0]);
                     defer self.allocator.free(lhs);
                     const rhs = try self.idToInfix(args[1]);
@@ -664,7 +665,8 @@ pub const Math = struct {
                     };
                     return std.fmt.allocPrint(self.allocator, "{s}{s}{s}", .{ lhs, infix_op, rhs });
                 }
-                if (args.len == 1) {
+                if (raw.len == 2) {
+                    const args = raw[1..];
                     const arg = try self.idToInfix(args[0]);
                     defer self.allocator.free(arg);
                     return std.fmt.allocPrint(self.allocator, "{s}({s})", .{ op, arg });
@@ -1152,7 +1154,6 @@ pub const Math = struct {
                 const li = getIntFromId(self.store, left);
                 const ri = getIntFromId(self.store, right);
 
-                platform.debug.print("simplifyMath: op={s}, left={d}, right={d}, li={any}, ri={any}\n", .{ op, left, right, li, ri });
 
                 // Vérification directe de 0 et 1
                 const left_is_zero = blk: {
@@ -1213,6 +1214,20 @@ pub const Math = struct {
                     if (right_is_one) return left;
                     if (li != null and ri != null) return self.store.int(li.? * ri.?);
                     return self.store.binop("*", left, right);
+                }
+
+                if (std.mem.eql(u8, op, "^")) {
+                    if (li != null and ri != null) {
+                        const base = li.?;
+                        const exp  = ri.?;
+                        if (exp >= 0 and exp <= 20) {
+                            var acc: i64 = 1;
+                            var k: i64 = 0;
+                            while (k < exp) : (k += 1) acc *= base;
+                            return self.store.int(acc);
+                        }
+                    }
+                    return self.store.binop("^", left, right);
                 }
 
                 return self.store.binop(op, left, right);
