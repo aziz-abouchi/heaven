@@ -1629,8 +1629,8 @@ pub const Heaven = struct {
                 return std.fmt.allocPrint(self.allocator,
                     "✗ test {s}: opérateur '==' manquant", .{name});
 
-            const lhs = try self.parseExpression(sp.a);
-            const rhs = try self.parseExpression(sp.b);
+            const lhs = try self.parseOrDispatch(sp.a);
+            const rhs = try self.parseOrDispatch(sp.b);
             const ls = try self.interpForAssert(lhs);
             const rs = try self.interpForAssert(rhs);
             const ls_simp = try self.math.simplifyBasic(ls);
@@ -1653,8 +1653,8 @@ pub const Heaven = struct {
             const sp = splitTopLevelEq(body) orelse
                 return self.allocator.dupe(u8, "✗ assert_eq: '==' manquant");
 
-            const lhs = try self.parseExpression(sp.a);
-            const rhs = try self.parseExpression(sp.b);
+            const lhs = try self.parseOrDispatch(sp.a);
+            const rhs = try self.parseOrDispatch(sp.b);
             const ls = try self.interpForAssert(lhs);
             const rs = try self.interpForAssert(rhs);
             const ls_simp = try self.math.simplifyBasic(ls);
@@ -1685,6 +1685,32 @@ pub const Heaven = struct {
         }
 
         return self.allocator.dupe(u8, input);
+    }
+
+    /// Parse une sous-expression d'assertion. Si elle commence par une
+    /// commande native (derive/simplify/expand/integrate/solve), l'exécute
+    /// puis re-parse le résultat en Id.
+    fn parseOrDispatch(self: *Heaven, s: []const u8) HeavenError!Id {
+        const prefixes = [_]struct { p: []const u8, f: enum { derive, simplify, expand, integrate } }{
+            .{ .p = "derive ",     .f = .derive },
+            .{ .p = "simplify ",   .f = .simplify },
+            .{ .p = "expand ",     .f = .expand },
+            .{ .p = "integrate ",  .f = .integrate },
+        };
+        for (prefixes) |pfx| {
+            if (std.mem.startsWith(u8, s, pfx.p)) {
+                const inner = std.mem.trim(u8, s[pfx.p.len..], " \t");
+                const result_str: []u8 = switch (pfx.f) {
+                    .derive    => try self.derive(inner, "x"),
+                    .simplify  => try self.simplify(inner),
+                    .expand    => try self.expand(inner),
+                    .integrate => try self.integrate(inner, "x"),
+                };
+                defer self.allocator.free(result_str);
+                return self.parseExpression(result_str);
+            }
+        }
+        return self.parseExpression(s);
     }
 
     pub fn evalTypeExpr(self: *Heaven, src: []const u8) HeavenError![]u8 {
