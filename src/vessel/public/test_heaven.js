@@ -28,8 +28,8 @@ const tests = [
     { input: "simplify (* 2 (+ x 3))", expected: "(* 2 (+ x 3))" },
     { input: "simplify (+ (* 3 x) (* 3 y))", expected: "(* 3 (+ x y))" },
     // Dérivation, intégration, LaTeX
-    { input: "derive x^2 + 2*x + 1", expected: "(+ (+ (+ 0 (* 0 x)) (* 2 1)) (* (* 2 (^ x 1)) 1))" },
-    { input: "integrate 2*x", expected: "(* (* * x) 2) + C" },
+    { input: "derive x^2 + 2*x + 1", expected: "(+ (* 2 x) 2)" },
+    { input: "integrate 2*x", expected: "(* 2 (/ (^ x 2) 2)) + C" },
     { input: "latex (x + y)^2", expected: "latex|\\mathrm{(x} + \\mathrm{y)^2}" },
     // Théorèmes
     { input: "theorem add_zero : n + 0 = n", expected: "✓ theorem add_zero stated" },
