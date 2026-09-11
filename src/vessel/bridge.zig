@@ -6,7 +6,7 @@ const main_mod = @import("../main.zig");
 const platform = @import("platform");
 
 // En mode DEBUG, on lit depuis le disque pour éviter de recompiler
-const DEBUG_MODE = @import("builtin").mode == .Debug;
+const DEBUG_MODE = platform.target.is_debug;
 const public_dir = "src/vessel/public/";
 
 const index_html = @embedFile("public/index.html");

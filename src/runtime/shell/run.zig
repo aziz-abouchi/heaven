@@ -157,8 +157,7 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !b
 
 pub fn printHelp(self: *Shell) void {
     _ = self;
-    const builtin = @import("builtin");
-    const is_wasm = builtin.target.cpu.arch.isWasm();
+    const is_wasm = platform.target.is_wasm;
     platform.debug.print("\n═══ Commandes Disponibles ═══\n", .{});
     inline for (cmd_list.commands) |cmd| {
         const skip = switch (cmd.target) {

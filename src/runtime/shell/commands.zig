@@ -919,8 +919,7 @@ pub fn cmdHook(self: *Shell, input: []const u8) void {
 
 pub fn printHelp(self: *Shell) void {
     _ = self;
-    const builtin = @import("builtin");
-    const is_wasm = builtin.target.cpu.arch.isWasm();
+    const is_wasm = platform.target.is_wasm;
     platform.debug.print("\n═══ Commandes Disponibles ═══\n", .{});
     inline for (cmd_list.commands) |cmd| {
         const skip = switch (cmd.target) {
@@ -960,7 +959,35 @@ pub fn exprQuery(self: *Shell, input: []const u8) void {
 }
 
 pub fn exprRewrite(self: *Shell, input: []const u8) void {
-    eval.exprRewrite(self, input);
+    // Syntaxe attendue : rewrite(lhs, rhs)
+    // Exemple : rewrite(x + 0, x)  → ajoute la règle (x+0) => x
+    const trimmed = std.mem.trim(u8, input, " \t");
+    if (!std.mem.startsWith(u8, trimmed, "(") or
+        trimmed[trimmed.len - 1] != ')')
+    {
+        platform.debug.print("usage: rewrite(lhs, rhs)\n", .{});
+        return;
+    }
+    const inner = trimmed[1 .. trimmed.len - 1];
+    const comma = std.mem.indexOfScalar(u8, inner, ',') orelse {
+        platform.debug.print("usage: rewrite(lhs, rhs) — virgule manquante\n", .{});
+        return;
+    };
+    const lhs_str = std.mem.trim(u8, inner[0..comma], " \t");
+    const rhs_str = std.mem.trim(u8, inner[comma + 1 ..], " \t");
+
+    const lhs_id = self.heaven.parseExpression(lhs_str) catch {
+        platform.debug.print("rewrite: lhs invalide\n", .{});
+        return;
+    };
+    const rhs_id = self.heaven.parseExpression(rhs_str) catch {
+        platform.debug.print("rewrite: rhs invalide\n", .{});
+        return;
+    };
+    const rule = self.heaven.store.relation("rule", &.{lhs_id}, &.{rhs_id}) catch return;
+    self.heaven.kb.rules.append(self.heaven.allocator, rule) catch return;
+
+    platform.debug.print("✓ règle ajoutée\n", .{});
 }
 
 pub fn exprType(self: *Shell, input: []const u8) void {

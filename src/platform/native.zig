@@ -1,4 +1,5 @@
 const std = @import("std");
+pub const target = @import("target.zig");
 const builtin = @import("builtin");
 const queue_mod = @import("queue");
 pub const MessageQueue = queue_mod.MessageQueue;
@@ -19,7 +20,7 @@ pub fn dbg(comptime fmt: []const u8, args: anytype) void {
 }
 
 pub fn getenv(key: []const u8) ?[]const u8 {
-    if (comptime builtin.os.tag == .windows) {
+    if (target.is_windows) {
         return std.process.getEnvVarOwned(std.heap.page_allocator, key) catch null;
     } else {
         return std.posix.getenv(key);
@@ -30,7 +31,7 @@ pub fn getenv(key: []const u8) ?[]const u8 {
 // --- STDIN / STDOUT / STDERR ---
 
 pub fn writeStdout(buf: []const u8) !usize {
-    if (comptime builtin.os.tag == .windows) {
+    if (target.is_windows) {
         const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_OUTPUT_HANDLE) 
             orelse return error.BadFileDescriptor;
         if (handle == std.os.windows.INVALID_HANDLE_VALUE) return error.BadFileDescriptor;
@@ -41,7 +42,7 @@ pub fn writeStdout(buf: []const u8) !usize {
 }
 
 pub fn readStdin(buf: []u8) !usize {
-    if (comptime builtin.os.tag == .windows) {
+    if (target.is_windows) {
         const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_INPUT_HANDLE) 
             orelse return error.BadFileDescriptor;
         if (handle == std.os.windows.INVALID_HANDLE_VALUE) return error.BadFileDescriptor;
@@ -54,7 +55,7 @@ pub fn readStdin(buf: []u8) !usize {
 // --- NETWORK & SOCKETS ---
 
 pub fn setNonBlocking(socket: std.posix.socket_t) !void {
-    if (comptime builtin.os.tag == .windows) {
+    if (target.is_windows) {
         var mode: c_ulong = 1;
         _ = std.os.windows.ws2_32.ioctlsocket(socket, std.os.windows.ws2_32.FIONBIO, &mode);
     } else {
