@@ -183,14 +183,6 @@ pub const Commands = struct {
         const actual = if (trimmed0.len > 0 and trimmed0[0] == ':') trimmed0[1..] else trimmed0;
         const trimmed = std.mem.trim(u8, actual, " \t\r\n");
 
-        if (std.mem.startsWith(u8, trimmed, "(test ") or
-            std.mem.startsWith(u8, trimmed, "(assert_eq ") or
-            std.mem.startsWith(u8, trimmed, "(assert_err "))
-        {
-            const id = try self.parser.parseSExpr(trimmed);
-            return try self.evalTestExpr(id);
-        }
-
         if (std.mem.startsWith(u8, trimmed, "module ") or
             std.mem.startsWith(u8, trimmed, "data ") or
             std.mem.startsWith(u8, trimmed, "zero :") or
@@ -1477,100 +1469,6 @@ pub const Commands = struct {
         const res_str = try expr.toStringInfix(self.store, result, self.allocator);
         defer self.allocator.free(res_str);
         return try std.fmt.allocPrint(self.allocator, "{s} (green calls: {d})", .{ res_str, self.engine.green_call_count });
-    }
-
-    fn evalTestExpr(self: *Commands, id: Id) ![]u8 {
-        platform.dbg("[DEBUG evalTestExpr] id={d}\n", .{ id });
-        const node = self.store.get(id);
-        if (node.tag == .apply) {
-            const func_id = node.payload;
-            const func_node = self.store.get(func_id);
-            if (func_node.tag == .sym) {
-                const name = self.store.interner.resolve(func_node.payload);
-                const args = node.span_a.slice(self.store.pool.items);
-
-                if (std.mem.eql(u8, name, "test") and args.len >= 2) {
-                    const body_id = args[args.len - 1];
-                    self.engine.fuel = 1_000_000;
-                    const body_result = engine_expr.evaluate(self.store, self.env, self.engine, body_id, 0) catch |err| {
-                        return try std.fmt.allocPrint(self.allocator, "✗ test error: {}", .{err});
-                    };
-                    return try self.evalTestExpr(body_result);
-                }
-
-                if (std.mem.eql(u8, name, "assert_eq") and args.len == 2) {
-                    // Interpréter derive/simplify inline avant d'évaluer
-                    var left = args[0];
-                    var right = args[1];
-                    inline for (.{ &left, &right }) |side| {
-                        const n = self.store.get(side.*);
-                        if (n.tag == .apply) {
-                            const fnode = self.store.get(n.payload);
-                            if (fnode.tag == .sym) {
-                                const head = self.store.interner.resolve(fnode.payload);
-                                const cargs = self.store.spanSliceConst(n.span_a)[1..];
-                                if (cargs.len == 1) {
-                                    const arg_str = try expr.toStringInfix(self.store, cargs[0], self.allocator);
-                                    defer self.allocator.free(arg_str);
-                                    var rstr: ?[]u8 = null;
-                                    defer if (rstr) |r| self.allocator.free(r);
-                                    if (std.mem.eql(u8, head, "derive")) {
-                                        rstr = self.math.derive(arg_str, "x") catch null;
-                                    } else if (std.mem.eql(u8, head, "simplify")) {
-                                        rstr = self.evalSimplify(arg_str) catch null;
-                                    }
-                                    if (rstr) |rs| side.* = self.parseExpression(rs) catch side.*;
-                                }
-                            }
-                        }
-                    }
-                    self.engine.fuel = 1_000_000;
-                    const left_v = engine_expr.evaluate(self.store, self.env, self.engine, left, 0) catch left;
-                    const right_v = engine_expr.evaluate(self.store, self.env, self.engine, right, 0) catch right;
-
-                    // 1. Identité rapide
-                    if (left_v == right_v) {
-                        return try self.allocator.dupe(u8, "✓ assert_eq passed");
-                    }
-
-                    // 2. Comparaison textuelle
-                    const l_str = try expr.toStringInfix(self.store, left_v, self.allocator);
-                    const r_str = try expr.toStringInfix(self.store, right_v, self.allocator);
-                    if (std.mem.eql(u8, l_str, r_str)) {
-                        return try self.allocator.dupe(u8, "✓ assert_eq passed");
-                    }
-
-                    // 3. Comparaison sémantique : simplifier les deux puis comparer
-                    const l_simp = self.math.simplifyBasic(left_v) catch left_v;
-                    const r_simp = self.math.simplifyBasic(right_v) catch right_v;
-
-                    if (self.math.structuralEq(l_simp, r_simp)) {
-                        return try self.allocator.dupe(u8, "✓ assert_eq passed");
-                    }
-                    const ls_str = try expr.toStringInfix(self.store, l_simp, self.allocator);
-                    const rs_str = try expr.toStringInfix(self.store, r_simp, self.allocator);
-                    if (std.mem.eql(u8, ls_str, rs_str)) {
-                        return try self.allocator.dupe(u8, "✓ assert_eq passed");
-                    }
-
-                    return try std.fmt.allocPrint(self.allocator, "✗ assert_eq failed: {s} != {s}", .{ l_str, r_str });
-                }
-
-                if (std.mem.eql(u8, name, "assert_err") and args.len == 1) {
-                    self.engine.fuel = 1_000_000;
-                    const result = engine_expr.evaluate(self.store, self.env, self.engine, args[0], 0);
-                    if (result) |_| {
-                        return try self.allocator.dupe(u8, "✗ assert_err failed: expected error but got value");
-                    } else |_| {
-                        return try self.allocator.dupe(u8, "✓ assert_err passed");
-                    }
-                }
-            }
-        }
-        // Fallback
-        self.engine.fuel = 1_000_000;
-        const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch id;
-        return expr.toStringInfix(self.store, result, self.allocator);
     }
 
     fn evalOptimize(self: *Commands, input: []const u8) ![]u8 {
