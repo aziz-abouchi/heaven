@@ -1710,6 +1710,16 @@ pub const Heaven = struct {
                 return self.parseExpression(result_str);
             }
         }
+
+        // Forme composée sans parenthèses : "handle (perform ...) logHandler"
+        // parseExpression la voit comme un atome. On l'enveloppe en S-expr
+        // pour que parseSExpr construise le bon apply.
+        if (s.len > 0 and s[0] != '(' and std.mem.indexOfScalar(u8, s, ' ') != null) {
+            const wrapped = try std.fmt.allocPrint(self.allocator, "({s})", .{s});
+            defer self.allocator.free(wrapped);
+            return self.parseExpression(wrapped);
+        }
+
         return self.parseExpression(s);
     }
 
