@@ -68,8 +68,18 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !b
     if (rest_line.len < 1) return true;
 
     var it = std.mem.tokenizeAny(u8, rest_line, " ");
-    const cmd = it.next() orelse return true;
-    const args = it.rest();
+    var cmd = it.next() orelse return true;
+    var args = it.rest();
+
+    // Cas `cmd(...)` collés : `rewrite(x, y)` arrive en un seul token
+    // "rewrite(x,". On re-découpe à la première parenthèse pour que
+    // cmd="rewrite" et args="(x, y)".
+    if (std.mem.indexOfScalar(u8, cmd, '(')) |paren_pos| {
+        if (paren_pos > 0) {
+            args = rest_line[paren_pos..];
+            cmd = rest_line[0..paren_pos];
+        }
+    }
 
     if (had_colon) {
         // ─── QUITTER ───
