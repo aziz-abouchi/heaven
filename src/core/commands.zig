@@ -502,14 +502,11 @@ pub const Commands = struct {
         const raw_id = self.parseExpression(trimmed) catch try self.bridge.importExpr(trimmed);
         const id = try self.store.lowerRec(raw_id);
 
-        // Pipeline : simplifyBasic (rapide/fiable) → E-Graph (cas complexes) → simplifyBasic (nettoyage)
-        const after_basic = try self.math.simplifyBasic(id);
-        if (after_basic == id) {
-            // Rien à simplifier en direct → cas complexe, tenter l'E-Graph
-            const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
-            return expr.toStringInfix(self.store, try self.math.simplifyBasic(after_egraph), self.allocator);
-        }
-        return expr.toStringInfix(self.store, after_basic, self.allocator);
+        // Aligné sur Heaven.simplify : TOUJOURS passer par l'EGraph
+        const after_basic  = try self.math.simplifyBasic(id);
+        const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
+        const final        = try self.math.simplifyBasic(after_egraph);
+        return expr.toStringInfix(self.store, final, self.allocator);
     }
 
     fn evalHelp(self: *Commands) ![]u8 {
