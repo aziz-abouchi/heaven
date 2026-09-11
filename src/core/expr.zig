@@ -333,6 +333,21 @@ pub const Store = struct {
         self.nodes.items[id] = node;
     }
 
+    /// Duplique le contenu d'un Span dans un ArrayListUnmanaged.
+    /// Utiliser AVANT tout appel qui peut réallouer `pool` :
+    /// reserveSpan, pushSpan, apply, relation.
+    pub fn dupSpan(self: *Store, span: Span) !std.ArrayListUnmanaged(Id) {
+        var copy = std.ArrayListUnmanaged(Id){};
+        try copy.appendSlice(self.allocator, self.spanSliceConst(span));
+        return copy;
+    }
+
+    fn copyPoolSlice(self: *Store, s: []const Id) ![]Id {
+        const copy = try self.allocator.alloc(Id, s.len);
+        @memcpy(copy, s);
+        return copy;
+    }
+
     pub fn reserveSpan(self: *Store, length: usize) !Span {
         const start: u32 = @intCast(self.pool.items.len);
         try self.pool.resize(self.allocator, self.pool.items.len + length);
@@ -430,44 +445,82 @@ pub const Store = struct {
         return self.lambda(params, body);
     }
 
-    pub fn relation(self: *Store, head: []const u8, args1: []const Id, args2: []const Id) !Id {
+    pub fn relation(
+        self: *Store,
+        head: []const u8,
+        args1: []const Id,
+        args2: []const Id,
+    ) !Id {
+        // Snapshot les DEUX args avant les reserveSpan
+        var snap1 = std.ArrayListUnmanaged(Id){};
+        defer snap1.deinit(self.allocator);
+        try snap1.appendSlice(self.allocator, args1);
+
+        var snap2 = std.ArrayListUnmanaged(Id){};
+        defer snap2.deinit(self.allocator);
+        try snap2.appendSlice(self.allocator, args2);
+
         const s = try self.interner.intern(head);
-        const span_a = try self.reserveSpan(args1.len);
-        @memcpy(self.pool.items[span_a.start .. span_a.start + args1.len], args1);
-        const span_b = try self.reserveSpan(args2.len);
-        @memcpy(self.pool.items[span_b.start .. span_b.start + args2.len], args2);
-        return self.addNode(.{ .tag = .relation, .payload = s, .aux = 0, .span_a = span_a, .span_b = span_b });
+
+        const span_a = try self.reserveSpan(snap1.items.len);
+        @memcpy(self.pool.items[span_a.start .. span_a.start + snap1.items.len], snap1.items);
+
+        const span_b = try self.reserveSpan(snap2.items.len);
+        @memcpy(self.pool.items[span_b.start .. span_b.start + snap2.items.len], snap2.items);
+
+        return self.addNode(.{
+            .tag = .relation,
+            .payload = s,
+            .aux = 0,
+            .span_a = span_a,
+            .span_b = span_b,
+        });
     }
 
     pub fn apply(self: *Store, func: Id, args: []const Id) !Id {
+        // ── DEBUG : détecter l'ID avant qu'il soit écrit ──
+        for (args, 0..) |a, i| {
+            if (a == 0xAAAAAAAA) {
+                platform.debug.print("[apply CORRUPT] func={d} arg[{d}]=0xAA store.len={d}\n",
+                    .{ func, i, self.nodes.items.len });
+                @panic("apply received corrupted arg");
+            }
+        }
+        // Snapshot args AVANT reserveSpan
+        var args_snap = std.ArrayListUnmanaged(Id){};
+        defer args_snap.deinit(self.allocator);
+        try args_snap.appendSlice(self.allocator, args);
+
         var fixed_func = func;
-        var fixed_args_buf: [16]Id = undefined;
-        var args_to_use = args;
 
         if (platform.target.is_debug) {
-            var fixed = false;
             if (fixed_func >= self.nodes.items.len) {
-                platform.debug.print("[apply BUG] func={d} >= {d}\n", .{ fixed_func, self.nodes.items.len });
+                platform.debug.print("[apply BUG] func={d} >= {d}\n",
+                    .{ fixed_func, self.nodes.items.len });
                 fixed_func = 0;
-                fixed = true;
             }
-            if (args.len <= fixed_args_buf.len) {
-                for (args, 0..) |a, i| {
-                    fixed_args_buf[i] = a;
-                    if (a >= self.nodes.items.len) {
-                        platform.debug.print("[apply BUG] arg[{d}]={d} >= {d}\n", .{ i, a, self.nodes.items.len });
-                        fixed_args_buf[i] = 0;
-                        fixed = true;
-                    }
+            for (args_snap.items, 0..) |a, i| {
+                if (a >= self.nodes.items.len) {
+                    platform.debug.print("[apply BUG] arg[{d}]={d} >= {d}\n",
+                        .{ i, a, self.nodes.items.len });
+                    args_snap.items[i] = 0;
                 }
-                if (fixed) args_to_use = fixed_args_buf[0..args.len];
             }
         }
 
-        const span = try self.reserveSpan(1 + args_to_use.len);
+        const span = try self.reserveSpan(1 + args_snap.items.len);
         self.pool.items[span.start] = fixed_func;
-        @memcpy(self.pool.items[span.start + 1 .. span.start + 1 + args_to_use.len], args_to_use);
-        return self.addNode(.{ .tag = .apply, .payload = fixed_func, .aux = 0, .span_a = span, .span_b = Span.EMPTY });
+        @memcpy(
+            self.pool.items[span.start + 1 .. span.start + 1 + args_snap.items.len],
+            args_snap.items,
+        );
+        return self.addNode(.{
+            .tag = .apply,
+            .payload = fixed_func,
+            .aux = 0,
+            .span_a = span,
+            .span_b = Span.EMPTY,
+        });
     }
 
     pub fn call(self: *Store, name: []const u8, args: []const Id) !Id {
@@ -491,14 +544,20 @@ pub const Store = struct {
     }
 
     pub fn pushSpan(self: *Store, items: []const Id) !Span {
-        // ✅ GARDE : les Ids écrits doivent être valides
-        for (items, 0..) |it, i| {
+        // Snapshot AVANT reserveSpan : items peut aliasing pool
+        var snap = std.ArrayListUnmanaged(Id){};
+        defer snap.deinit(self.allocator);
+        try snap.appendSlice(self.allocator, items);
+
+        // GARDE : les Ids écrits doivent être valides
+        for (snap.items, 0..) |it, i| {
             if (it >= self.nodes.items.len) {
-                platform.debug.print("[pushSpan BUG] items[{d}]={d} >= {d}\n", .{ i, it, self.nodes.items.len });
+                platform.debug.print("[pushSpan BUG] items[{d}]={d} >= {d}\n",
+                    .{ i, it, self.nodes.items.len });
             }
         }
-        const span = try self.reserveSpan(items.len);
-        @memcpy(self.pool.items[span.start .. span.start + items.len], items);
+        const span = try self.reserveSpan(snap.items.len);
+        @memcpy(self.pool.items[span.start .. span.start + snap.items.len], snap.items);
         return span;
     }
 
@@ -549,7 +608,9 @@ pub const Store = struct {
                 };
                 const sym_id = try self.interner.intern(sym_str);
                 const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
-                const args = self.spanSliceConst(node.span_a);
+                const args_src = self.spanSliceConst(node.span_a);
+                const args = try self.copyPoolSlice(args_src);   // ← snapshot AVANT reserveSpan
+                defer self.allocator.free(args);
                 const new_span = try self.reserveSpan(1 + args.len);
                 self.pool.items[new_span.start] = sym_node;
                 @memcpy(self.pool.items[new_span.start + 1 .. new_span.start + 1 + args.len], args);
@@ -564,7 +625,9 @@ pub const Store = struct {
                 };
                 const sym_id = try self.interner.intern(sym_str);
                 const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
-                const args = self.spanSliceConst(node.span_a);
+                const args_src = self.spanSliceConst(node.span_a);
+                const args = try self.copyPoolSlice(args_src);   // ← snapshot AVANT reserveSpan
+                defer self.allocator.free(args);
                 const new_span = try self.reserveSpan(1 + args.len);
                 self.pool.items[new_span.start] = sym_node;
                 @memcpy(self.pool.items[new_span.start + 1 .. new_span.start + 1 + args.len], args);
@@ -573,7 +636,9 @@ pub const Store = struct {
             .tuple => blk: {
                 const sym_id = try self.interner.intern("tuple");
                 const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
-                const args = self.spanSliceConst(node.span_a);
+                const args_src = self.spanSliceConst(node.span_a);
+                const args = try self.copyPoolSlice(args_src);   // ← snapshot AVANT reserveSpan
+                defer self.allocator.free(args);
                 const new_span = try self.reserveSpan(1 + args.len);
                 self.pool.items[new_span.start] = sym_node;
                 @memcpy(self.pool.items[new_span.start + 1 .. new_span.start + 1 + args.len], args);
@@ -582,7 +647,9 @@ pub const Store = struct {
             .block, .seq => blk: {
                 const sym_id = try self.interner.intern(if (node.tag == .block) "block" else "seq");
                 const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
-                const args = self.spanSliceConst(node.span_a);
+                const args_src = self.spanSliceConst(node.span_a);
+                const args = try self.copyPoolSlice(args_src);   // ← snapshot AVANT reserveSpan
+                defer self.allocator.free(args);
                 const new_span = try self.reserveSpan(1 + args.len);
                 self.pool.items[new_span.start] = sym_node;
                 @memcpy(self.pool.items[new_span.start + 1 .. new_span.start + 1 + args.len], args);
@@ -596,7 +663,9 @@ pub const Store = struct {
             .vector => blk: {
                 const sym_id = try self.interner.intern("vector");
                 const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
-                const args = self.spanSliceConst(node.span_a);
+                const args_src = self.spanSliceConst(node.span_a);
+                const args = try self.copyPoolSlice(args_src);   // ← snapshot AVANT reserveSpan
+                defer self.allocator.free(args);
                 const new_span = try self.reserveSpan(1 + args.len);
                 self.pool.items[new_span.start] = sym_node;
                 @memcpy(self.pool.items[new_span.start + 1 .. new_span.start + 1 + args.len], args);
@@ -605,23 +674,26 @@ pub const Store = struct {
 
             // 2. Chapelet structurel : [x, y] -> apply(Cons, x, apply(Cons, y, Nil))
             .vector_lit => blk: {
-                const args = self.spanSliceConst(node.span_a);
+                const args_src = self.spanSliceConst(node.span_a);
+                const args = try self.copyPoolSlice(args_src);
+                defer self.allocator.free(args);
+
                 const nil_sym = try self.interner.intern("Nil");
                 const cons_sym_id = try self.interner.intern("Cons");
-                
+
                 var current = try self.makeNode(.sym, nil_sym, 0, Span.EMPTY, Span.EMPTY);
                 const cons_node = try self.makeNode(.sym, cons_sym_id, 0, Span.EMPTY, Span.EMPTY);
 
                 var i: usize = args.len;
                 while (i > 0) {
                     i -= 1;
-                    const elem = try self.lower(args[i]); // Lowering récursif des éléments
-                    
+                    const elem = try self.lower(args[i]);   // args est notre copie → stable
+
                     const new_span = try self.reserveSpan(3);
                     self.pool.items[new_span.start] = cons_node;
                     self.pool.items[new_span.start + 1] = elem;
                     self.pool.items[new_span.start + 2] = current;
-                    
+
                     current = try self.makeNode(.apply, cons_node, 0, new_span, Span.EMPTY);
                 }
                 break :blk current;
@@ -633,7 +705,9 @@ pub const Store = struct {
                 // Traduction de Aggregate(op, init, vec) -> apply(sym("foldl"), op, init, vec)
                 const sym_id = try self.interner.intern("foldl");
                 const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
-                const args = self.spanSliceConst(node.span_a);
+                const args_src = self.spanSliceConst(node.span_a);
+                const args = try self.copyPoolSlice(args_src);   // ← snapshot AVANT reserveSpan
+                defer self.allocator.free(args);
                 const new_span = try self.reserveSpan(1 + args.len);
                 self.pool.items[new_span.start] = sym_node;
                 @memcpy(self.pool.items[new_span.start + 1 .. new_span.start + 1 + args.len], args);
@@ -662,33 +736,39 @@ pub const Store = struct {
             var changed = false;
 
             if (node.span_a.len > 0) {
-                const old = self.spanSliceConst(node.span_a);
+                // 1. Snapshot AVANT tout appel récursif
+                const old_snap = try self.copyPoolSlice(self.spanSliceConst(node.span_a));
+                defer self.allocator.free(old_snap);
+
+                // 2. Un seul passage : lower chaque enfant une fois
+                const new_args = try self.allocator.alloc(Id, old_snap.len);
+                defer self.allocator.free(new_args);
+
                 var any_changed = false;
-                for (old) |child| {
-                    const lowered = try self.lowerRec(child);
-                    if (lowered != child) any_changed = true;
+                for (old_snap, 0..) |child, i| {
+                    new_args[i] = try self.lowerRec(child);
+                    if (new_args[i] != child) any_changed = true;
                 }
                 if (any_changed) {
-                    new_span_a = try self.reserveSpan(old.len);
-                    for (0..old.len) |i| {
-                        self.pool.items[new_span_a.start + i] = try self.lowerRec(old[i]);
-                    }
+                    new_span_a = try self.pushSpan(new_args);   // pushSpan est déjà safe
                     changed = true;
                 }
             }
 
             if (node.span_b.len > 0) {
-                const old = self.spanSliceConst(node.span_b);
+                const old_snap = try self.copyPoolSlice(self.spanSliceConst(node.span_b));
+                defer self.allocator.free(old_snap);
+
+                const new_args = try self.allocator.alloc(Id, old_snap.len);
+                defer self.allocator.free(new_args);
+
                 var any_changed = false;
-                for (old) |child| {
-                    const lowered = try self.lowerRec(child);
-                    if (lowered != child) any_changed = true;
+                for (old_snap, 0..) |child, i| {
+                    new_args[i] = try self.lowerRec(child);
+                    if (new_args[i] != child) any_changed = true;
                 }
                 if (any_changed) {
-                    new_span_b = try self.reserveSpan(old.len);
-                    for (0..old.len) |i| {
-                        self.pool.items[new_span_b.start + i] = try self.lowerRec(old[i]);
-                    }
+                    new_span_b = try self.pushSpan(new_args);
                     changed = true;
                 }
             }
@@ -703,21 +783,23 @@ pub const Store = struct {
             });
         }
 
-        var lowered_children: std.ArrayList(Id) = .empty;
+        var lowered_children: std.ArrayListUnmanaged(Id) = .{};
         defer lowered_children.deinit(self.allocator);
 
         if (node.span_a.len > 0) {
-            const old = self.spanSliceConst(node.span_a);
-            try lowered_children.ensureTotalCapacity(self.allocator, old.len);
-            for (old) |child| {
+            // Snapshot AVANT tout lowerRec (qui peut reserveSpan)
+            const old_snap = try self.copyPoolSlice(self.spanSliceConst(node.span_a));
+            defer self.allocator.free(old_snap);
+
+            try lowered_children.ensureTotalCapacity(self.allocator, old_snap.len);
+            for (old_snap) |child| {
                 try lowered_children.append(self.allocator, try self.lowerRec(child));
             }
         }
 
         const new_span_a = if (lowered_children.items.len > 0) blk: {
-            const sp = try self.reserveSpan(lowered_children.items.len);
-            @memcpy(self.pool.items[sp.start .. sp.start + sp.len], lowered_children.items);
-            break :blk sp;
+            // pushSpan est safe (snapshot interne)
+            break :blk try self.pushSpan(lowered_children.items);
         } else Span.EMPTY;
 
         const temp_id = try self.addNode(.{
