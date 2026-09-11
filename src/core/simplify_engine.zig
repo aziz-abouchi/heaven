@@ -299,20 +299,33 @@ pub const SimplifyEngine = struct {
 fn nodeCountCost(store: *const expr.Store, id: expr.Id, ctx: ?*anyopaque) u32 {
     _ = ctx;
     const node = store.get(id);
-    var count: u32 = 1;
+
+    // Bonus/malus par opérateur — départage les formes à nombre de nœuds égal.
+    // ^ est préféré à * (notation compacte), / est pénalisé (coûteux).
+    var bonus: i32 = 0;
+    if (node.tag == .apply) {
+        const fn_node = store.get(node.payload);
+        if (fn_node.tag == .sym) {
+            const name = store.interner.resolve(fn_node.payload);
+            if (std.mem.eql(u8, name, "^")) bonus = -1;
+            if (std.mem.eql(u8, name, "/")) bonus = 2;
+        }
+    }
+
+    var count: i32 = 1 + bonus;
     switch (node.tag) {
         .apply => {
-            count += nodeCountCost(store, node.payload, null);
+            count += @as(i32, @intCast(nodeCountCost(store, node.payload, null)));
             for (node.span_a.slice(store.pool.items)) |child| {
-                count += nodeCountCost(store, child, null);
+                count += @as(i32, @intCast(nodeCountCost(store, child, null)));
             }
         },
         .bind, .lambda, .relation => {
             for (node.span_a.slice(store.pool.items)) |child| {
-                count += nodeCountCost(store, child, null);
+                count += @as(i32, @intCast(nodeCountCost(store, child, null)));
             }
         },
         else => {},
     }
-    return count;
+    return if (count < 0) 0 else @intCast(count);
 }
