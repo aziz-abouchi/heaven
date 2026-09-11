@@ -1,4 +1,22 @@
 const std = @import("std");
+pub const target = @import("target.zig");
+
+// Stub profiler pour WASM
+pub const profiler = struct {
+    pub const ResourceUsage = struct {
+        utime: struct { sec: i64 = 0, usec: i64 = 0 } = .{},
+        stime: struct { sec: i64 = 0, usec: i64 = 0 } = .{},
+        maxrss: u64 = 0,
+    };
+    pub fn getResourceUsage() ResourceUsage {
+        return .{};
+    }
+};
+
+// readEnergyUJ doit être un error union pour que `catch 0` marche
+pub fn readEnergyUJ() error{Unsupported}!u64 {
+    return error.Unsupported;
+}
 
 pub var debug_enabled: bool = false;
 
@@ -352,6 +370,10 @@ pub const time = struct {
     // En WASM, on utilise performance.now() via JS
     extern fn js_performance_now() f64;
 
+    pub const ns_per_s:  u64 = 1_000_000_000;
+    pub const ns_per_ms: u64 = 1_000_000;
+    pub const ns_per_us: u64 = 1_000;
+
     pub fn milliTimestamp() i64 {
         return @intFromFloat(js_performance_now());
     }
@@ -362,7 +384,7 @@ pub const time = struct {
 
     pub fn sleep(ns: u64) void {
         _ = ns;
-        // No-op en WASM (on ne peut pas bloquer le thread principal)
+        // No-op en WASM
     }
 };
 
