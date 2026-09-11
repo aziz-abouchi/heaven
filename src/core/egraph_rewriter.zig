@@ -59,14 +59,29 @@ pub const Rewriter = struct {
 
             for (worklist.items) |class_idx| {
                 if (class_idx >= self.egraph.classes.items.len) continue;
-                const canonical = self.egraph.uf.find(class_idx);
-                if (canonical != class_idx) continue;
+                    const canonical = self.egraph.uf.find(class_idx);
+                    if (canonical != class_idx) continue;
 
-                const eclass = &self.egraph.classes.items[canonical];
+                    var node_ids = std.ArrayListUnmanaged(Id){};
+                    defer node_ids.deinit(self.allocator);
 
-                //platform.dbg("[Rewriter] class {d} nodes: ", .{canonical});
-                for (eclass.nodes.items) |node_id| {
-                    const node = self.store.get(node_id);
+                    try node_ids.appendSlice(
+                        self.allocator,
+                        self.egraph.classes.items[canonical].nodes.items,
+                    );
+
+                    for (node_ids.items) |node_id| {
+                        if (node_id >= self.store.len()) {
+                            platform.dbg(
+                                "[Rewriter] INVALID node_id={d}, store.len={d}\n",
+                                .{ node_id, self.store.len() },
+                            );
+                            continue;
+                        }
+
+                        // Tout le reste du traitement.
+                        // Aucune référence persistante vers eclass.nodes.
+                        const node = self.store.get(node_id);
                     _ = node;
                     //platform.debug.print("{s} ", .{@tagName(node.tag)});
                 }
