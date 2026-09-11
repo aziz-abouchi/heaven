@@ -3,12 +3,12 @@
 # ═══════════════════════════════════════════════════
 
 # --- 1. Arithmétique & CAS ---
-(test "addition" (assert_eq (+ 1 2) 3))
-(test "multiplication" (assert_eq (* 3 4) 12))
-(test "derive_x2" (assert_eq (derive x^2) (* 2 x)))
-(test "simplify_0_add" (assert_eq (simplify (+ x (+ 0 x))) (* 2 x)))
-(test "distributivity" (assert_eq (simplify (* 2 (+ x 3))) (+ (* 2 x) 6)))
-(test "factorization" (assert_eq (simplify (+ (* 3 x) (* 3 y))) (* 3 (+ x y))))
+test "addition": (+ 1 2) == 3
+test "multiplication": (* 3 4) == 12
+test "derive_x2": derive x^2 == (* 2 x)
+test "simplify_0_add": simplify (+ x (+ 0 x)) == (* 2 x)
+test "distributivity": simplify (* 2 (+ x 3)) == (+ (* 2 x) 6)
+test "factorization": simplify (+ (* 3 x) (* 3 y)) == (* 3 (+ x y))
 
 # --- 2. Macros Hygiéniques ---
 let macro double(x) = (quote (* (unquote x) 2))
