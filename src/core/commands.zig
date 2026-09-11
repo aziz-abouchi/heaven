@@ -495,19 +495,19 @@ pub const Commands = struct {
     }
 
     // ─── evalSimplify : pipeline simplifyBasic → E-Graph → simplifyBasic ───
-    pub fn evalSimplify(self: *Commands, input: []const u8) HeavenError![]u8 {
-        const trimmed = std.mem.trim(u8, input, " \t");
-        if (trimmed.len == 0) return self.allocator.dupe(u8, "usage: simplify <expr>");
+        pub fn evalSimplify(self: *Commands, input: []const u8) HeavenError![]u8 {
+            const trimmed = std.mem.trim(u8, input, " \t");
+            if (trimmed.len == 0) return self.allocator.dupe(u8, "usage: simplify <expr>");
 
-        const raw_id = self.parseExpression(trimmed) catch try self.bridge.importExpr(trimmed);
-        const id = try self.store.lowerRec(raw_id);
+            const raw_id = self.parseExpression(trimmed) catch try self.bridge.importExpr(trimmed);
+            const id = try self.store.lowerRec(raw_id);
 
-        // Aligné sur Heaven.simplify : TOUJOURS passer par l'EGraph
-        const after_basic  = try self.math.simplifyBasic(id);
-        const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
-        const final        = try self.math.simplifyBasic(after_egraph);
-        return expr.toStringInfix(self.store, final, self.allocator);
-    }
+            // Aligné sur Heaven.simplify : TOUJOURS passer par l'EGraph
+            const after_basic  = try self.math.simplifyBasic(id);
+            const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
+            const final        = try self.math.simplifyBasic(after_egraph);
+            return expr.toStringInfix(self.store, final, self.allocator);
+        }
 
     fn evalHelp(self: *Commands) ![]u8 {
         return try self.allocator.dupe(u8, "═══ Heaven ═══\n" ++
