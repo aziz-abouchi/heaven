@@ -1027,8 +1027,10 @@ pub const Math = struct {
                 const func_node = self.store.get(node.payload);
                 if (func_node.tag != .sym) return;
                 const op = self.store.interner.resolve(func_node.payload);
-                const args = node.span_a.slice(self.store.pool.items);
-                if (args.len != 2) return;
+                const raw = node.span_a.slice(self.store.pool.items);
+                if (raw.len < 3) return;          // func + au moins 2 args
+                const args = raw[1..];             // skip func
+                if (args.len != 2) return;         // binaire pour l'instant
                 if (std.mem.eql(u8, op, "+")) {
                     self.collectCoeffs(args[0], v, a, b, c);
                     self.collectCoeffs(args[1], v, a, b, c);
