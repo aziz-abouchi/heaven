@@ -12,10 +12,7 @@ theorem mul_comm : a * b = b * a
 theorem add_assoc : (a + b) + c = a + (b + c)
 theorem mul_assoc : (a * b) * c = a * (b * c)
 
-theorem dist_left :
-    a * (b + c)
-    =
-    a * b + a * c
+theorem dist_left : a * (b + c) = a * b + a * c
 
 theorem add_zero :
     a + 0 = a
@@ -38,5 +35,5 @@ theorem append_nil :
 theorem length_nil :
     length nil = 0
 
-rule distrib : (* a (+ b c)) = (+ (* a b) (* a c))
-rule factor  : (+ (* a b) (* a c)) = (* a (+ b c))
+# rule distrib : (* a (+ b c)) = (+ (* a b) (* a c))
+# rule factor  : (+ (* a b) (* a c)) = (* a (+ b c))
