@@ -35,9 +35,9 @@ theorem add_zero : x + 0 = x
 prove add_zero by simplify
 
 # --- 6. Tests d'Erreurs (Robustesse) ---
-(test "div_by_zero" (assert_err (/ 5 0)))
-(test "actor_not_found" (assert_err (send 999 5)))
-(test "type_mismatch" (assert_err (+ 1 true)))
+test "div_by_zero": assert_err (/ 5 0)
+test "actor_not_found": assert_err (send 999 5)
+test "type_mismatch": assert_err (+ 1 true)
 
 # --- 7. Tests de simplification et dérivation améliorés ---
 (test "simplify_double" (assert_eq (simplify (+ x x)) (* 2 x)))
