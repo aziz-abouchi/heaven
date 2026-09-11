@@ -1142,8 +1142,9 @@ pub const Math = struct {
                 if (func_node.tag != .sym) return id;
                 const op = self.store.interner.resolve(func_node.payload);
                 const p = self.store.pool.items;
-                const args = node.span_a.slice(p);
-                if (args.len != 2) return id;
+                const raw = node.span_a.slice(p);
+                if (raw.len != 3) return id;          // func + 2 args
+                const args = raw[1..];                 // skip func
 
                 const left = try self.simplifyMath(args[0]);
                 const right = try self.simplifyMath(args[1]);
