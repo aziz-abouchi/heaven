@@ -1240,8 +1240,9 @@ pub const Math = struct {
                 if (ln.tag == .apply) {
                     const lf = self.store.get(ln.payload);
                     if (lf.tag == .sym and std.mem.eql(u8, self.store.interner.resolve(lf.payload), "+")) {
-                        const la = ln.span_a.slice(self.store.pool.items);
-                        if (la.len == 2) {
+                        const la_raw = ln.span_a.slice(self.store.pool.items);
+                        if (la_raw.len >= 3) {                     // func + au moins 2 args
+                            const la = la_raw[1..];                // skip func
                             const la0 = la[0];
                             const la1 = la[1];
                             if (right < self.store.len()) {
@@ -1249,8 +1250,9 @@ pub const Math = struct {
                                 if (rn.tag == .apply) {
                                     const rf = self.store.get(rn.payload);
                                     if (rf.tag == .sym and std.mem.eql(u8, self.store.interner.resolve(rf.payload), "+")) {
-                                        const ra = rn.span_a.slice(self.store.pool.items);
-                                        if (ra.len == 2) {
+                                        const ra_raw = rn.span_a.slice(self.store.pool.items);
+                                        if (ra_raw.len >= 3) {
+                                            const ra = ra_raw[1..];
                                             const ra0 = ra[0];
                                             const ra1 = ra[1];
                                             const ac = try self.store.binop("*", la0, ra0);
@@ -1276,8 +1278,9 @@ pub const Math = struct {
                 if (rn.tag == .apply) {
                     const rf = self.store.get(rn.payload);
                     if (rf.tag == .sym and std.mem.eql(u8, self.store.interner.resolve(rf.payload), "+")) {
-                        const ra = rn.span_a.slice(self.store.pool.items);
-                        if (ra.len == 2) {
+                        const ra_raw = rn.span_a.slice(self.store.pool.items);
+                        if (ra_raw.len >= 3) {
+                            const ra = ra_raw[1..];
                             const ra0 = ra[0];
                             const ra1 = ra[1];
                             const t1 = try self.store.binop("*", left, ra0);
@@ -1299,8 +1302,9 @@ pub const Math = struct {
                         if (val >= 2 and val <= 12) {
                             const bf = self.store.get(base_node.payload);
                             if (bf.tag == .sym and std.mem.eql(u8, self.store.interner.resolve(bf.payload), "+")) {
-                                const ba = base_node.span_a.slice(self.store.pool.items);
-                                if (ba.len == 2) {
+                                const ba_raw = base_node.span_a.slice(self.store.pool.items);
+                                if (ba_raw.len >= 3) {
+                                    const ba = ba_raw[1..];
                                     const ba0 = ba[0];
                                     const ba1 = ba[1];
                                     // Développement binomial direct: Σ C(n,k) * a^(n-k) * b^k
