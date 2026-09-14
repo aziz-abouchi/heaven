@@ -1,5 +1,7 @@
 #!/bin/bash
+rm -fr zig-out .zig-cache
+zig build
 for f in tests/*.hvn; do
   echo "===== $f ====="
-  HEAVEN_DEBUG=1 zig build run -- --run-test "$f" 2>&1 | grep -v '^\s*$' || echo "  (exit $?)"
+  zig-out/bin/heaven --run-test "$f" 2>&1 | grep -v '^\s*$' || echo "  (exit $?)"
 done
