@@ -56,7 +56,7 @@ pub fn build(b: *std.Build) void {
             }),
         });
 
-        const cflags = &.{"-std=c99", "-DONE_SOURCE=0"};
+        const cflags = &.{ "-std=c99", "-DONE_SOURCE=0", "-DTCC_TARGET_X86_64", "-DTCC_TARGET_ELF" };
 
         // Fichiers communs (toujours présents)
         lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tcc.c"), .flags = cflags });
@@ -77,7 +77,7 @@ pub fn build(b: *std.Build) void {
         } else if (arch == .x86_64) {
             lib.addCSourceFile(.{ .file = b.path("vendor/tcc/x86_64-gen.c"), .flags = cflags });
             lib.addCSourceFile(.{ .file = b.path("vendor/tcc/x86_64-link.c"), .flags = cflags });
-            // PAS de x86_64-asm.c (n'existe pas, c'est un header)
+            lib.addCSourceFile(.{ .file = b.path("vendor/tcc/i386-asm.c"), .flags = cflags });
         }
 
         // Fichiers OS-spécifiques
@@ -104,7 +104,7 @@ pub fn build(b: *std.Build) void {
                 .optimize = optimize,
             }),
         });
-        const cflags = &.{"-std=c99"};
+        const cflags = &.{ "-std=c99", "-D_DEFAULT_SOURCE", "-D_GNU_SOURCE", "-D_POSIX_C_SOURCE=200809L" };
         lib.addIncludePath(b.path("vendor/tree-sitter/lib/include"));
         lib.addIncludePath(b.path("vendor/tree-sitter/lib/src"));
         lib.addIncludePath(b.path("vendor/tree-sitter/lib/src/unicode"));
@@ -150,14 +150,14 @@ pub fn build(b: *std.Build) void {
     });
 
     const syntax_core_lower_mod = b.addModule("syntax_core_lower", .{
-                    .root_source_file = b.path("src/syntax/core_lower.zig"),
-                    .target = target,
-                    .optimize = optimize,
-                    .imports = &.{
-                        .{ .name = "expr", .module = expr_mod },
-                        .{ .name = "syntax_ast", .module = syntax_ast_mod },
-                    },
-        });
+        .root_source_file = b.path("src/syntax/core_lower.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "syntax_ast", .module = syntax_ast_mod },
+        },
+    });
 
     const syntax_lower_mod = b.addModule("syntax_lower", .{
         .root_source_file = b.path("src/syntax/lower.zig"),
@@ -1146,15 +1146,15 @@ pub fn build(b: *std.Build) void {
 
     if (target.query.cpu_arch != .wasm32) {
         const syntax_tests = b.addTest(.{
-                .root_module = b.createModule(.{
-                    .root_source_file = b.path("src/syntax/core_lower_test.zig"),
-                    .target = target,
-                    .optimize = optimize,
-                    .imports = &.{
-                        .{ .name = "expr", .module = expr_mod },
-                        .{ .name = "engine_expr", .module = engine_expr_mod },
-                    },
-                }),
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/syntax/core_lower_test.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{
+                    .{ .name = "expr", .module = expr_mod },
+                    .{ .name = "engine_expr", .module = engine_expr_mod },
+                },
+            }),
         });
 
         const run_syntax_tests = b.addRunArtifact(syntax_tests);
