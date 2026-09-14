@@ -53,7 +53,7 @@ pub const ExternalLinker = struct {
         }
         self.libs.deinit();
     }
-    
+
     pub fn close(self: *ExternalLinker) void {
         if (self.lib) |*l| {
             l.close();

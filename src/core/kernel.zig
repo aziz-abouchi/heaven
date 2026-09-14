@@ -601,23 +601,11 @@ pub fn initNatAxioms(pool: *TermPool) !void {
     // Lemmes de réduction pour add (utilisés par le type-checker)
     // add_zero_right : Πn:Nat. Eq(add(n, zero), n)
     // Encodé comme axiome pour permettre la conversion dans les preuves
-    const add_n_zero_eq_n = try pool.mkPi(nat_ref,
-        try pool.mkEq(
-            try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(0)), try pool.mkZero()),
-            try pool.mkVar(0)
-        )
-    );
+    const add_n_zero_eq_n = try pool.mkPi(nat_ref, try pool.mkEq(try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(0)), try pool.mkZero()), try pool.mkVar(0)));
     _ = try pool.declareAxiom("add_zero_right", add_n_zero_eq_n);
 
     // add_succ_right : Πn:Nat. Πm:Nat. Eq(add(n, succ(m)), succ(add(n, m)))
-    const add_n_sm_eq_s_anm = try pool.mkPi(nat_ref,
-        try pool.mkPi(nat_ref,
-            try pool.mkEq(
-                try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(1)), try pool.mkSucc(try pool.mkVar(0))),
-                try pool.mkSucc(try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(1)), try pool.mkVar(0)))
-            )
-        )
-    );
+    const add_n_sm_eq_s_anm = try pool.mkPi(nat_ref, try pool.mkPi(nat_ref, try pool.mkEq(try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(1)), try pool.mkSucc(try pool.mkVar(0))), try pool.mkSucc(try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(1)), try pool.mkVar(0))))));
     _ = try pool.declareAxiom("add_succ_right", add_n_sm_eq_s_anm);
 }
 

@@ -45,7 +45,10 @@ pub fn evalHeavenCode(self: *Shell, code: []const u8) void {
 
     // Évaluation standard pour tout le reste
     const result = self.heaven.eval(trimmed) catch |err| {
-        platform.debug.print("[EVAL ERROR] {}\n", .{err},);
+        platform.debug.print(
+            "[EVAL ERROR] {}\n",
+            .{err},
+        );
         self.ingestor.ingest("repl.hvn", trimmed) catch {};
         return;
     };

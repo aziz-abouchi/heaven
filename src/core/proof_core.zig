@@ -132,10 +132,13 @@ pub const ProofCore = struct {
             for (inner, 0..) |c, i| {
                 switch (c) {
                     '(' => depth += 1,
-                    ')' => if (depth > 0) { depth -= 1; },
+                    ')' => if (depth > 0) {
+                        depth -= 1;
+                    },
                     ',' => {
-    if (depth == 0 and comma == null) comma = i;
-},                    else => {},
+                        if (depth == 0 and comma == null) comma = i;
+                    },
+                    else => {},
                 }
             }
             const cp = comma orelse return false;
@@ -530,7 +533,10 @@ fn normalizeLoweredOps(input: []const u8, allocator: std.mem.Allocator) ![]const
     };
     var needed = false;
     for (pairs) |p| {
-        if (std.mem.indexOf(u8, input, p.from) != null) { needed = true; break; }
+        if (std.mem.indexOf(u8, input, p.from) != null) {
+            needed = true;
+            break;
+        }
     }
     if (!needed) return input;
 

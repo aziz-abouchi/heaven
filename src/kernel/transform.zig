@@ -47,7 +47,7 @@ pub fn transform(
     for (plan.steps) |step| {
         const res = try executeStep(allocator, step, kb);
         try tracer.append(step, res);
-        
+
         if (res.is_err) {
             return .{ .failure = .{ .error_msg = res.err, .certificate = tracer.steps } };
         }
