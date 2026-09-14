@@ -439,6 +439,60 @@ pub const Commands = struct {
             }
         }
 
+        // ─── Fallback : application de fonction utilisateur ───
+        // "double 21" ou "add (succ zero) (succ zero)"
+        // parseExpression internerait "double 21" comme un seul sym,
+        // donc on split ici AVANT le chemin S-expr.
+        {
+            var head_tokens = std.mem.tokenizeScalar(u8, trimmed, ' ');
+            if (head_tokens.next()) |head| {
+                const rest = head_tokens.rest();
+                if (rest.len > 0 and self.engine.fns.get(head) != null) {
+                    var args: std.ArrayListUnmanaged(Id) = .{};
+                    defer args.deinit(self.allocator);
+
+                    // Splitter au niveau 0 pour respecter les parenthèses
+                    var depth: usize = 0;
+                    var start: usize = 0;
+                    var i: usize = 0;
+                    while (i < rest.len) : (i += 1) {
+                        switch (rest[i]) {
+                            '(' => depth += 1,
+                            ')' => if (depth > 0) {
+                                depth -= 1;
+                            },
+                            ' ' => if (depth == 0) {
+                                if (i > start) {
+                                    const tok = rest[start..i];
+                                    const id = self.parseExpression(tok) catch |err| switch (err) {
+                                        error.OutOfMemory => return error.OutOfMemory,
+                                        else => return try std.fmt.allocPrint(self.allocator, "parse error for arg: {s}", .{tok}),
+                                    };
+                                    try args.append(self.allocator, id);
+                                }
+                                start = i + 1;
+                            },
+                            else => {},
+                        }
+                    }
+                    if (start < rest.len) {
+                        const tok = rest[start..];
+                        const id = self.parseExpression(tok) catch |err| switch (err) {
+                            error.OutOfMemory => return error.OutOfMemory,
+                            else => return try std.fmt.allocPrint(self.allocator, "parse error for arg: {s}", .{tok}),
+                        };
+                        try args.append(self.allocator, id);
+                    }
+
+                    self.engine.fuel = 1_000_000;
+                    const result = self.engine.evalFunction(self.env, head, args.items) catch |err| {
+                        return try std.fmt.allocPrint(self.allocator, "eval error: {}", .{err});
+                    };
+                    return expr.toStringInfix(self.store, result, self.allocator);
+                }
+            }
+        }
+
         if (self.parseExpression(trimmed)) |expr_id| {
             const lowered = try self.store.lowerRec(expr_id);
             self.engine.fuel = 1_000_000;
@@ -495,19 +549,19 @@ pub const Commands = struct {
     }
 
     // ─── evalSimplify : pipeline simplifyBasic → E-Graph → simplifyBasic ───
-        pub fn evalSimplify(self: *Commands, input: []const u8) HeavenError![]u8 {
-            const trimmed = std.mem.trim(u8, input, " \t");
-            if (trimmed.len == 0) return self.allocator.dupe(u8, "usage: simplify <expr>");
+    pub fn evalSimplify(self: *Commands, input: []const u8) HeavenError![]u8 {
+        const trimmed = std.mem.trim(u8, input, " \t");
+        if (trimmed.len == 0) return self.allocator.dupe(u8, "usage: simplify <expr>");
 
-            const raw_id = self.parseExpression(trimmed) catch try self.bridge.importExpr(trimmed);
-            const id = try self.store.lowerRec(raw_id);
+        const raw_id = self.parseExpression(trimmed) catch try self.bridge.importExpr(trimmed);
+        const id = try self.store.lowerRec(raw_id);
 
-            // Aligné sur Heaven.simplify : TOUJOURS passer par l'EGraph
-            const after_basic  = try self.math.simplifyBasic(id);
-            const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
-            const final        = try self.math.simplifyBasic(after_egraph);
-            return expr.toStringInfix(self.store, final, self.allocator);
-        }
+        // Aligné sur Heaven.simplify : TOUJOURS passer par l'EGraph
+        const after_basic = try self.math.simplifyBasic(id);
+        const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
+        const final = try self.math.simplifyBasic(after_egraph);
+        return expr.toStringInfix(self.store, final, self.allocator);
+    }
 
     fn evalHelp(self: *Commands) ![]u8 {
         return try self.allocator.dupe(u8, "═══ Heaven ═══\n" ++
@@ -941,7 +995,7 @@ pub const Commands = struct {
             const name_sym_id = try self.store.sym(name);
             try self.env.put(name_sym, name_sym_id);
 
-            const msg =  try std.fmt.allocPrint(self.allocator, "{s} clause ({d} patterns) registered", .{ name, num_pats });
+            const msg = try std.fmt.allocPrint(self.allocator, "{s} clause ({d} patterns) registered", .{ name, num_pats });
             platform.dbg("[evalFnDef] alloc addr={d} name={s}\n", .{ @intFromPtr(msg.ptr), name });
             return msg;
         }
@@ -1992,9 +2046,7 @@ pub const Commands = struct {
 
         const kws = [_][]const u8{ "linear", "erased", "many" };
         for (kws) |kw| {
-            if (std.mem.startsWith(u8, rest, kw) and rest.len > kw.len
-                and (rest[kw.len] == ' ' or rest[kw.len] == '\t'))
-            {
+            if (std.mem.startsWith(u8, rest, kw) and rest.len > kw.len and (rest[kw.len] == ' ' or rest[kw.len] == '\t')) {
                 const after = std.mem.trimLeft(u8, rest[kw.len..], " \t");
                 // Ne pas confondre avec `let linear = 5` (variable nommée "linear")
                 if (after.len > 0 and after[0] != '=') {
@@ -2011,7 +2063,7 @@ pub const Commands = struct {
             const in_pos = std.mem.indexOf(u8, rest, " in ") orelse
                 return self.allocator.dupe(u8, "syntax error in qtt let");
             const binding_str = std.mem.trim(u8, rest[0..in_pos], " \t");
-            const body_str    = std.mem.trim(u8, rest[in_pos + 4 ..], " \t");
+            const body_str = std.mem.trim(u8, rest[in_pos + 4 ..], " \t");
 
             // binding_str = "x = 5" ou "x := 5"
             const eq = std.mem.indexOfScalar(u8, binding_str, '=') orelse
@@ -2028,12 +2080,10 @@ pub const Commands = struct {
             else if (std.mem.eql(u8, qty_kw.?, "erased"))
                 uses == 0
             else
-                true;   // many : aucune contrainte
+                true; // many : aucune contrainte
 
             if (!ok) {
-                return std.fmt.allocPrint(self.allocator,
-                    "linear violation: '{s}' declared {s}, used {d} time(s)",
-                    .{ name, qty_kw.?, uses });
+                return std.fmt.allocPrint(self.allocator, "linear violation: '{s}' declared {s}, used {d} time(s)", .{ name, qty_kw.?, uses });
             }
             // Sinon, on continue : le reste du evalLet se charge de l'exécution normale.
         }
