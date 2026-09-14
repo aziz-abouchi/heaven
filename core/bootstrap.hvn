@@ -1,7 +1,9 @@
 add zero n = n
 add (succ n) m = succ (add n m)
+
 mul zero n = zero
 mul (succ n) m = add m (mul n m)
+
 theorem : String -> Expr -> Expr -> Theorem
 prove : Theorem -> Tactic -> Proof
 skill : String -> Skill

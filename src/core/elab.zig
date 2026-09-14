@@ -210,27 +210,9 @@ pub const Elaborator = struct {
                 var j: u32 = 0;
                 while (j < pat_child_count) : (j += 1) {
                     const sub_child = namedChild(child, j);
-                    const sub_k = kind(sub_child);
-
-                    // Si c'est un ctor_pat, le déballer : constructeur + arguments
-                    if (std.mem.eql(u8, sub_k, "ctor_pat")) {
-                        const ctor_child_count = namedChildCount(sub_child);
-                        var k_idx: u32 = 0;
-                        while (k_idx < ctor_child_count) : (k_idx += 1) {
-                            const ctor_sub = namedChild(sub_child, k_idx);
-                            const pat_id = try self.elaborate(ctor_sub);
-                            try patterns.append(self.allocator, pat_id);
-                        }
-                    } else {
-                        const pat_id = try self.elaborate(sub_child);
-                        try patterns.append(self.allocator, pat_id);
-                    }
+                    const pat_id = try self.elaborate(sub_child);
+                    try patterns.append(self.allocator, pat_id);
                 }
-            } else {
-                // Tout le reste est un pattern : identifier, int, ctor_pat, etc.
-                const pat_id = try self.elaborate(child);
-                // platform.debug.print("  DEBUG: pattern[{d}] elaborated to id={d}\\n", .{ patterns.items.len, pat_id });
-                try patterns.append(self.allocator, pat_id);
             }
         }
 
@@ -298,23 +280,40 @@ pub const Elaborator = struct {
     // ─── Appels & binaire ───
 
     fn elabCall(self: *Elaborator, node: ts.TSNode) ElabError!Id {
-        const n = namedChildCount(node);
-        if (n == 0) return ElabError.MissingField;
-        const callee = try self.elaborate(namedChild(node, 0));
+        return self.elabAppExpr(node);
+    }
+
+    fn elabAppExpr(self: *Elaborator, node: ts.TSNode) ElabError!Id {
+        // Aplatir les applications imbriquées : ((f a) b) → (f a b)
+        // tree-sitter peut produire `call` ou `app_expr` selon la forme.
+        var callee: Id = undefined;
         var args: std.ArrayListUnmanaged(Id) = .{};
         defer args.deinit(self.allocator);
+
+        const n = namedChildCount(node);
+        if (n == 0) return ElabError.MissingField;
+
+        const first = namedChild(node, 0);
+        const fk = kind(first);
+        if (std.mem.eql(u8, fk, "app_expr") or std.mem.eql(u8, fk, "call")) {
+            const inner = try self.elabAppExpr(first);
+            const inner_node = self.store.get(inner);
+            if (inner_node.tag == .apply) {
+                callee = inner_node.payload;
+                const inner_span = self.store.spanSliceConst(inner_node.span_a);
+                for (inner_span[1..]) |a| try args.append(self.allocator, a);
+            } else {
+                callee = inner;
+            }
+        } else {
+            callee = try self.elaborate(first);
+        }
+
         var i: u32 = 1;
         while (i < n) : (i += 1) {
             try args.append(self.allocator, try self.elaborate(namedChild(node, i)));
         }
         return self.store.apply(callee, args.items);
-    }
-
-    fn elabAppExpr(self: *Elaborator, node: ts.TSNode) ElabError!Id {
-        // Même traitement que call, en n-aire plat (cohérent avec la résolution
-        // d'ambiguïté call/app_expr faite dans la grammaire : les deux doivent
-        // produire la même forme d'IR).
-        return self.elabCall(node);
     }
 
     fn elabBinary(self: *Elaborator, node: ts.TSNode) ElabError!Id {
@@ -824,30 +823,30 @@ pub const TypeChecker = struct {
     pub fn inferSpawn(self: *TypeChecker, ctx: *const TypingContext, spawn_id: Id) !Id {
         const node = self.store.get(spawn_id);
         const p = self.store.pool.items;
-        
+
         if (node.tag != .apply) return TypeError.NotAFunction;
-        
+
         const args = node.span_a.slice(p);
         if (args.len < 2) return TypeError.TypeMismatch;
-        
+
         const actor_id = args;
         const protocol_id = args[1];
-        
+
         // 1. Inférence du rôle de l'acteur et du protocole global
         const actor_type = try self.inferType(ctx, actor_id);
         const protocol_type = try self.inferType(ctx, protocol_id);
         _ = protocol_type;
-        
+
         // Validation nominale des métatypes dans le Store
         const actor_name = self.store.interner.resolve(self.store.get(actor_id).payload);
         _ = actor_name;
-        
+
         // 2. Récupération sémantique du protocole et calcul de la projection locale S = G ↾ actor
         const mpst = @import("mpst");
         _ = mpst;
         // TODO: Extraire la structure GlobalProtocol depuis l'Id symbolique `protocol_id`
         // const local_session = try global_proto.project(actor_name, self.allocator);
-        
+
         // 3. Retourne le type de processus paramétré par son type de session local S
         return try self.store.call("Process", &.{actor_type});
     }
@@ -1213,9 +1212,9 @@ fn elaborateSourceImpl(
         return root_id;
     } else |_| {}
     if (platform.target.is_wasm) {
-    return error.UnsupportedNode;
-}
-const parser = ts.ts_parser_new();
+        return error.UnsupportedNode;
+    }
+    const parser = ts.ts_parser_new();
     defer ts.ts_parser_delete(parser);
     _ = ts.ts_parser_set_language(parser, platform.tree_sitter_heaven());
 
@@ -1448,7 +1447,6 @@ test "typesEqual - different types" {
     // These should NOT be equal
     try std.testing.expect(!checker.typesEqual(pi1, pi2));
 }
-
 
 // ─── Tests d'intégration sémantique MPST ───
 test "TypeChecker et MPST - Validation de dualité de protocole synchrone" {

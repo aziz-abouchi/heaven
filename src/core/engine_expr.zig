@@ -37,7 +37,7 @@ pub const Env = struct {
 pub const EvalError = error{
     TypeError,
     ArityMismatch,
-    DivisionByZero,
+    DivisionByzero,
     StackOverflow,
     OutOfMemory,
     RecursionLimitExceeded,
@@ -60,6 +60,7 @@ pub const FunctionClause = struct {
 pub const FunctionDef = struct {
     clauses: [16]FunctionClause,
     num_clauses: u8,
+    ctor_arity: ?u8 = null, // null = fonction, sinon constructeur d'arité N
 
     pub fn addClause(self: *FunctionDef, patterns: []const Id, body: Id) void {
         if (self.num_clauses >= 16) return;
@@ -190,37 +191,95 @@ pub const Engine = struct {
         return evaluate(store, env, self, id, 0);
     }
 
-    pub fn evalFunction(self: *Engine, name: []const u8, args: []const Id) EvalError!Id {
+    pub fn evalFunction(self: *Engine, caller_env: *Env, name: []const u8, args: []const Id) EvalError!Id {
         const store = self.store;
-        const env = self.env;
 
         const fn_def = self.fns.get(name) orelse return error.UnknownSymbol;
         if (fn_def.num_clauses == 0) return error.UnknownSymbol;
 
         for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
+            //platform.dbg("[clause] name='{s}' num_patterns={d} args.len={d}\n", .{ name, clause.num_patterns, args.len });
             if (args.len != clause.num_patterns) continue;
+
+            var new_env = Env.init(self.allocator);
+            defer new_env.deinit();
+            var it = caller_env.bindings.iterator();
+            while (it.next()) |entry| {
+                try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
+            }
 
             var matched = true;
             for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
-                const arg_val = try evaluate(store, env, self, args[i], 0);
+                const arg_val = try evaluate(store, caller_env, self, args[i], 0);
                 const p_node = store.get(p);
 
                 if (p_node.tag == .sym) {
-                    try env.put(p_node.payload, arg_val);
+                    const p_name = store.interner.resolve(p_node.payload);
+                    if (self.fns.get(p_name)) |pfn| {
+                        if (pfn.ctor_arity) |arity| {
+                            const a_node = store.get(arg_val);
+                            if (arity == 0) {
+                                if (a_node.tag != .sym or a_node.payload != p_node.payload) {
+                                    matched = false;
+                                    break;
+                                }
+                            } else {
+                                matched = false;
+                                break;
+                            }
+                            continue;
+                        }
+                    }
+                    try new_env.put(p_node.payload, arg_val);
                 } else if (p_node.tag == .lit) {
                     const arg_node = store.get(arg_val);
                     if (arg_node.tag != .lit or !store.lits.items[p_node.aux].eql(store.lits.items[arg_node.aux])) {
                         matched = false;
                         break;
                     }
-                } else if (!pattern_mod.exprStructuralEq(store, p, arg_val)) {
-                    matched = false;
-                    break;
+                } else if (p_node.tag == .apply) {
+                    const p_args = store.spanSliceConst(p_node.span_a);
+                    const a_node = store.get(arg_val);
+                    if (a_node.tag != .apply) {
+                        matched = false;
+                        break;
+                    }
+                    const a_args = store.spanSliceConst(a_node.span_a);
+                    if (p_args.len != a_args.len) {
+                        matched = false;
+                        break;
+                    }
+                    for (p_args, a_args, 0..) |pp, aa, arg_idx| {
+                        if (arg_idx == 0) {
+                            if (!pattern_mod.exprStructuralEq(store, pp, aa)) {
+                                matched = false;
+                                break;
+                            }
+                            continue;
+                        }
+                        const pp_node = store.get(pp);
+                        if (pp_node.tag == .sym) {
+                            const pp_name = store.interner.resolve(pp_node.payload);
+                            if (self.fns.get(pp_name)) |sub_def| {
+                                if (sub_def.ctor_arity != null) {
+                                    if (!pattern_mod.exprStructuralEq(store, pp, aa)) {
+                                        matched = false;
+                                        break;
+                                    }
+                                    continue;
+                                }
+                            }
+                            try new_env.put(pp_node.payload, aa);
+                        } else if (!pattern_mod.exprStructuralEq(store, pp, aa)) {
+                            matched = false;
+                            break;
+                        }
+                    }
                 }
             }
 
             if (matched) {
-                return evaluate(store, env, self, clause.body, 0);
+                return evaluate(store, &new_env, self, clause.body, 0);
             }
         }
         return error.ArityMismatch;
@@ -245,7 +304,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             platform.dbg("[DEBUG eval] sym '{s}' NON trouvé dans env\n", .{name});
             //return error.UnboundVariable;
             // Un symbole non lié qui commence par une majuscule (convention
-            // constructeur : Zero, Succ, Prop, Nat, Lit...) ou qui matche un
+            // constructeur : zero, succ, Prop, Nat, Lit...) ou qui matche un
             // identifiant lowercase connu comme constructeur nullaire (zero,
             // succ appliqué à 0 arg) s'auto-évalue plutôt que d'échouer.
             if (name.len > 0 and name[0] >= 'A' and name[0] <= 'Z') return id;
@@ -331,7 +390,27 @@ fn isFrontendExtensionApply(name: []const u8) bool {
 }
 
 fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
-    platform.dbg("[evalMagic] op='{s}'\n", .{op});
+    //platform.dbg("[evalMagic] op='{s}'\n", .{op});
+
+    // ═══ 0. CONSTRUCTEURS ═══
+    if (engine.fns.get(op)) |fn_def| {
+        //platform.dbg("[ctor-branch] op='{s}' clauses={d} ctor_arity={?d} args.len={d}\n", .{ op, fn_def.num_clauses, fn_def.ctor_arity, args.len });
+
+        if (fn_def.ctor_arity) |arity| {
+            if (args.len != arity) return error.ArityMismatch;
+            const op_sym = store.interner.lookup(op) orelse return error.UnknownSymbol;
+            const op_id = try store.symId(op_sym);
+            if (args.len == 0) return try store.apply(op_id, &.{});
+            const evaled = try engine.allocator.alloc(Id, args.len);
+            defer engine.allocator.free(evaled);
+            for (args, 0..) |a, i| {
+                evaled[i] = try evaluate(store, env, engine, a, depth + 1);
+            }
+            return try store.apply(op_id, evaled);
+        } else {
+            //platform.dbg("[ctor-branch] op='{s}' NOT IN FNS MAP\n", .{op});
+        }
+    }
 
     // ✅ ENV-BOUND LAMBDA — EN PREMIER, avant tout autre check
     // (récursion locale : (let fact (lambda n ...) (fact 5)))
@@ -362,28 +441,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         }
     }
 
-    // ═══ 1. FONCTIONS UTILISATEUR EN PREMIER ═══
+    // ═══ 1. FONCTIONS UTILISATEUR — délégué à evalFunction ═══
     if (engine.fns.get(op)) |fn_def| {
-        if (fn_def.num_clauses > 0) {
-            const clause = fn_def.clauses[0];
-            if (args.len == clause.num_patterns) {
-                // CORRECTION : Créer un nouvel environnement isolé
-                var new_env = Env.init(env.allocator);
-                defer new_env.deinit();
-                var it = env.bindings.iterator();
-                while (it.next()) |entry| {
-                    try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
-                }
-
-                for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
-                    const arg_val = try evaluate(store, env, engine, args[i], depth + 1);
-                    const p_node = store.get(p);
-                    if (p_node.tag == .sym) {
-                        try new_env.put(p_node.payload, arg_val);
-                    }
-                }
-                return evaluate(store, &new_env, engine, clause.body, depth + 1);
-            }
+        if (fn_def.num_clauses > 0 and fn_def.ctor_arity == null) {
+            return engine.evalFunction(env, op, args);
         }
     }
 
@@ -608,8 +669,8 @@ fn evalBinary(store: *Store, a: Id, b: Id, op: BinOp) EvalError!Id {
                 .add => .{ .int = va + vb },
                 .sub => .{ .int = va - vb },
                 .mul => .{ .int = va * vb },
-                .div => if (vb == 0) return error.DivisionByZero else .{ .int = @divTrunc(va, vb) },
-                .mod => if (vb == 0) return error.DivisionByZero else .{ .int = @mod(va, vb) },
+                .div => if (vb == 0) return error.DivisionByzero else .{ .int = @divTrunc(va, vb) },
+                .mod => if (vb == 0) return error.DivisionByzero else .{ .int = @mod(va, vb) },
                 .and_op, .or_op => return error.TypeError,
             },
             else => return error.TypeError,
@@ -680,7 +741,7 @@ fn evalCmp(store: *Store, a: Id, b: Id, op: CmpOp) EvalError!Id {
     });
 }
 
-    pub fn expandMacro(store: *expr.Store, allocator: Allocator, body: expr.Id, params: []const expr.Id, args: []const expr.Id) !expr.Id {
+pub fn expandMacro(store: *expr.Store, allocator: Allocator, body: expr.Id, params: []const expr.Id, args: []const expr.Id) !expr.Id {
     const node = store.get(body);
     switch (node.tag) {
         .sym => {
@@ -711,7 +772,6 @@ fn evalCmp(store: *Store, a: Id, b: Id, op: CmpOp) EvalError!Id {
         },
         else => return body,
     }
-
 }
 
 test "engine rejects non-lowered frontend expressions" {

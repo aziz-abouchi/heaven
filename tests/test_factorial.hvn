@@ -7,16 +7,13 @@ factorial (succ n) = mul (succ n) (factorial n)
 add zero n = n
 add (succ n) m = succ (add n m)
 
-# Tests
-factorial zero
-factorial (succ zero)
-factorial (succ (succ zero))
-factorial (succ (succ (succ zero)))
-factorial (succ (succ (succ (succ zero))))
-factorial (succ (succ (succ (succ (succ zero)))))
+mul zero m = zero
+mul (succ n) m = add m (mul n m)
 
-add zero zero
-add (succ zero) zero
-add zero (succ zero)
-add (succ zero) (succ zero)
-add (succ (succ zero)) (succ (succ (succ zero)))
+# Tests
+assert_eq factorial zero == succ zero
+assert_eq factorial (succ zero) == succ zero
+assert_eq factorial (succ (succ zero)) == succ (succ zero)
+assert_eq factorial (succ (succ (succ zero))) == succ (succ (succ (succ (succ (succ zero)))))
+assert_eq add (succ zero) zero == succ zero
+assert_eq add (succ zero) (succ zero) == succ (succ zero)

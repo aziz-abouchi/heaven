@@ -169,12 +169,49 @@ pub const Heaven = struct {
         // Charger le noyau logique (bootstrap.hvn) dans le FunctionRegistry
         self.loadBootstrap();
 
+        const ctors = [_]struct { name: []const u8, arity: u8 }{
+            .{ .name = "zero", .arity = 0 },  .{ .name = "Zero", .arity = 0 },
+            .{ .name = "nil", .arity = 0 },   .{ .name = "Nil", .arity = 0 },
+            .{ .name = "true", .arity = 0 },  .{ .name = "True", .arity = 0 },
+            .{ .name = "false", .arity = 0 }, .{ .name = "False", .arity = 0 },
+            .{ .name = "unit", .arity = 0 },  .{ .name = "Unit", .arity = 0 },
+            .{ .name = "succ", .arity = 1 },  .{ .name = "Succ", .arity = 1 },
+        };
+
+        for (ctors) |ctor| {
+            const owned = try self.allocator.dupe(u8, ctor.name);
+            const gop = try self.engine.fns.getOrPut(self.allocator, owned);
+            if (gop.found_existing) {
+                self.allocator.free(owned);
+            } else {
+                gop.value_ptr.* = .{
+                    .clauses = undefined,
+                    .num_clauses = 0,
+                };
+            }
+
+            gop.value_ptr.ctor_arity = ctor.arity;
+            //platform.dbg("[ctor-reg] {s} arity={d}\n", .{ ctor.name, ctor.arity });
+        }
+
+        //if (self.engine.fns.get("succ")) |def| {
+        //platform.dbg("[ctor-verify] succ.ctor_arity = {?d}\n", .{def.ctor_arity});
+        //}
+
+        //platform.dbg("[ctor-check] fns registered:\n", .{});
+        var it = self.engine.fns.iterator();
+        while (it.next()) |e| {
+            platform.dbg("  - '{s}' ({d} clauses)\n", .{ e.key_ptr.*, e.value_ptr.num_clauses });
+        }
+
         return self;
     }
 
     fn loadBootstrap(self: *Heaven) void {
         const source = platform.fs.cwd().readFileAlloc(
-            self.allocator, "core/bootstrap.hvn", 64 * 1024,
+            self.allocator,
+            "core/bootstrap.hvn",
+            64 * 1024,
         ) catch |err| {
             platform.dbg("[loadBootstrap] readFileAlloc failed: {}\n", .{err});
             return;
@@ -185,7 +222,10 @@ pub const Heaven = struct {
         defer tmp_registry.deinit();
 
         _ = elab_mod.elaborateSource(
-            self.allocator, self.store, source, &tmp_registry,
+            self.allocator,
+            self.store,
+            source,
+            &tmp_registry,
         ) catch |err| {
             platform.dbg("[loadBootstrap] elaborateSource failed: {}\n", .{err});
             return;
@@ -276,7 +316,7 @@ pub const Heaven = struct {
         const owned_key = try self.engine.allocator.dupe(u8, name);
         const result = try self.engine.fns.getOrPut(self.engine.allocator, owned_key);
         if (result.found_existing) {
-            self.engine.allocator.free(owned_key);   // ← clé redondante, getOrPut garde l'existante
+            self.engine.allocator.free(owned_key); // ← clé redondante, getOrPut garde l'existante
         } else {
             result.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
         }
@@ -349,11 +389,11 @@ pub const Heaven = struct {
 
             if (std.mem.indexOf(u8, rest_native, " in ")) |in_pos| {
                 const binding = std.mem.trim(u8, rest_native[0..in_pos], " \t");
-                const body    = std.mem.trim(u8, rest_native[in_pos + 4 ..], " \t");
+                const body = std.mem.trim(u8, rest_native[in_pos + 4 ..], " \t");
 
                 if (std.mem.indexOfScalar(u8, binding, '=')) |eq| {
                     const name = std.mem.trim(u8, binding[0..eq], " \t:");
-                    const val  = std.mem.trim(u8, binding[eq + 1 ..], " \t");
+                    const val = std.mem.trim(u8, binding[eq + 1 ..], " \t");
 
                     var buf = std.ArrayListUnmanaged(u8){};
                     defer buf.deinit(self.allocator);
@@ -362,16 +402,13 @@ pub const Heaven = struct {
                     else
                         try self.allocator.dupe(u8, "let");
                     defer self.allocator.free(head);
-                    try buf.writer(self.allocator).print("({s} {s} {s} {s})",
-                        .{ head, name, val, body });
+                    try buf.writer(self.allocator).print("({s} {s} {s} {s})", .{ head, name, val, body });
 
                     if (self.parseExpression(buf.items)) |id| {
                         const result = self.interpForAssert(id) catch id;
                         return try expr.toStringInfix(self.store, result, self.allocator);
                     } else |err| switch (err) {
-                        error.LinearViolation => return std.fmt.allocPrint(self.allocator,
-                            "linear violation: '{s}' declared {s}, used wrong number of times",
-                            .{ name, qtt_kw orelse "many" }),
+                        error.LinearViolation => return std.fmt.allocPrint(self.allocator, "linear violation: '{s}' declared {s}, used wrong number of times", .{ name, qtt_kw orelse "many" }),
                         else => return self.allocator.dupe(u8, "syntax error in let"),
                     }
                 }
@@ -492,7 +529,7 @@ pub const Heaven = struct {
         // ─── DÉFINITION DE FONCTION (syntaxe équationnelle) ───
         if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_pos| {
             const lhs = std.mem.trim(u8, trimmed[0..eq_pos], " ");
-            const rhs = std.mem.trim(u8, trimmed[eq_pos+1..], " ");
+            const rhs = std.mem.trim(u8, trimmed[eq_pos + 1 ..], " ");
             if (!std.mem.startsWith(u8, lhs, "(") and lhs.len > 0 and rhs.len > 0) {
                 return self.evalEquation(lhs, rhs);
             }
@@ -518,21 +555,24 @@ pub const Heaven = struct {
         var in_token = false;
         for (trimmed, 0..) |c, i| {
             if (c == '(') {
-                if (depth == 0 and !in_token) { start = i; in_token = true; }
+                if (depth == 0 and !in_token) {
+                    start = i;
+                    in_token = true;
+                }
                 depth += 1;
             } else if (c == ')') {
                 depth -= 1;
                 if (depth == 0 and in_token) {
-                    try tokens.append(self.allocator, trimmed[start..i+1]);
+                    try tokens.append(self.allocator, trimmed[start .. i + 1]);
                     in_token = false;
-                    start = i+1;
+                    start = i + 1;
                 }
             } else if (c == ' ' and depth == 0) {
                 if (in_token) {
                     try tokens.append(self.allocator, trimmed[start..i]);
                     in_token = false;
                 }
-                start = i+1;
+                start = i + 1;
             } else if (depth == 0 and !in_token) {
                 start = i;
                 in_token = true;
@@ -545,7 +585,10 @@ pub const Heaven = struct {
             const ops = [_][]const u8{ "+", "-", "*", "/", "^", "%", "==", "!=", "<", ">", "<=", ">=" };
             var is_op = false;
             for (ops) |op| {
-                if (std.mem.eql(u8, func_name, op)) { is_op = true; break; }
+                if (std.mem.eql(u8, func_name, op)) {
+                    is_op = true;
+                    break;
+                }
             }
             if (!is_op) {
                 var sexpr = std.ArrayListUnmanaged(u8){};
@@ -589,21 +632,24 @@ pub const Heaven = struct {
         var in_token = false;
         for (lhs, 0..) |c, i| {
             if (c == '(') {
-                if (depth == 0 and !in_token) { start = i; in_token = true; }
+                if (depth == 0 and !in_token) {
+                    start = i;
+                    in_token = true;
+                }
                 depth += 1;
             } else if (c == ')') {
                 depth -= 1;
                 if (depth == 0 and in_token) {
-                    try tokens.append(self.allocator, lhs[start..i+1]);
+                    try tokens.append(self.allocator, lhs[start .. i + 1]);
                     in_token = false;
-                    start = i+1;
+                    start = i + 1;
                 }
             } else if (c == ' ' and depth == 0) {
                 if (in_token) {
                     try tokens.append(self.allocator, lhs[start..i]);
                     in_token = false;
                 }
-                start = i+1;
+                start = i + 1;
             } else if (depth == 0 and !in_token) {
                 start = i;
                 in_token = true;
@@ -627,7 +673,7 @@ pub const Heaven = struct {
 
         return std.fmt.allocPrint(self.allocator, "✓ clause enregistrée pour '{s}'", .{name});
     }
-    
+
     fn addRelation(self: *Heaven, input: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, input, " ");
         const arrow_pos = std.mem.indexOf(u8, trimmed, "=>") orelse
@@ -682,7 +728,13 @@ pub const Heaven = struct {
             var arena = std.heap.ArenaAllocator.init(self.allocator);
             defer arena.deinit();
             const sexpr = expr.nativeToSExpr(trimmed, arena.allocator()) catch {
-                // Fallback : atome simple (ex: "+", identifiant exotique)
+                // Fallback : "func arg1 arg2" non parsable en infixe → wrapper S-expr
+                if (std.mem.indexOfScalar(u8, trimmed, ' ') != null) {
+                    const wrapped = std.fmt.allocPrint(self.allocator, "({s})", .{trimmed}) catch
+                        return self.store.sym(trimmed);
+                    defer self.allocator.free(wrapped);
+                    return self.parseExpression(wrapped) catch self.store.sym(trimmed);
+                }
                 return self.store.sym(trimmed);
             };
             if (sexpr.len > 0 and sexpr[0] == '(') {
@@ -873,7 +925,7 @@ pub const Heaven = struct {
         if (tokens.items.len == 0) return error.InvalidSyntax;
 
         const first = tokens.items[0];
-        platform.dbg("[parseSExpr] first token: '{s}' (len={d})\n", .{ first, first.len });
+        //platform.dbg("[parseSExpr] first token: '{s}' (len={d})\n", .{ first, first.len });
 
         // DÉTECTION INFIXE : un opérateur au milieu → syntaxe infixe
         // (x + 3) → apply(x, [+, 3]) serait faux → déléguer au parser natif
@@ -933,35 +985,31 @@ pub const Heaven = struct {
         {
             var kw: ?[]const u8 = null;
             var qtt_name: []const u8 = "";
-            var qtt_val:  []const u8 = "";
+            var qtt_val: []const u8 = "";
             var qtt_body: ?expr.Id = null;
 
             if (std.mem.eql(u8, first, "let-linear") and tokens.items.len == 4) {
                 kw = "linear";
                 qtt_name = tokens.items[1];
-                qtt_val  = tokens.items[2];
+                qtt_val = tokens.items[2];
                 qtt_body = try self.parseExpression(tokens.items[3]);
             } else if (std.mem.eql(u8, first, "let-erased") and tokens.items.len == 4) {
                 kw = "erased";
                 qtt_name = tokens.items[1];
-                qtt_val  = tokens.items[2];
+                qtt_val = tokens.items[2];
                 qtt_body = try self.parseExpression(tokens.items[3]);
             } else if (std.mem.eql(u8, first, "let-many") and tokens.items.len == 4) {
                 kw = "many";
                 qtt_name = tokens.items[1];
-                qtt_val  = tokens.items[2];
+                qtt_val = tokens.items[2];
                 qtt_body = try self.parseExpression(tokens.items[3]);
             } else if (std.mem.eql(u8, first, "let") and tokens.items.len >= 7) {
                 const k = tokens.items[1];
-                const is_kw = std.mem.eql(u8, k, "linear")
-                        or std.mem.eql(u8, k, "erased")
-                        or std.mem.eql(u8, k, "many");
-                if (is_kw and std.mem.eql(u8, tokens.items[3], "=")
-                        and std.mem.eql(u8, tokens.items[5], "in"))
-                {
+                const is_kw = std.mem.eql(u8, k, "linear") or std.mem.eql(u8, k, "erased") or std.mem.eql(u8, k, "many");
+                if (is_kw and std.mem.eql(u8, tokens.items[3], "=") and std.mem.eql(u8, tokens.items[5], "in")) {
                     kw = k;
                     qtt_name = tokens.items[2];
-                    qtt_val  = tokens.items[4];
+                    qtt_val = tokens.items[4];
 
                     var body_buf = std.ArrayListUnmanaged(u8){};
                     defer body_buf.deinit(self.allocator);
@@ -982,12 +1030,12 @@ pub const Heaven = struct {
                 else if (std.mem.eql(u8, k, "erased"))
                     uses == 0
                 else
-                    true;   // many : aucune contrainte
+                    true; // many : aucune contrainte
 
                 if (!ok) return error.LinearViolation;
 
                 const val_id = try self.parseExpression(qtt_val);
-                const let_sym  = try self.store.sym("let");
+                const let_sym = try self.store.sym("let");
                 const name_sym = try self.store.sym(qtt_name);
                 var args = [_]expr.Id{ name_sym, val_id, b };
                 return self.store.apply(let_sym, &args);
@@ -1220,7 +1268,7 @@ pub const Heaven = struct {
     fn interpForAssert(self: *Heaven, id: Id) HeavenError!Id {
         const node = self.store.get(id);
         if (node.tag != .apply) {
-            return self.evaluateExpr(id) catch id;   // ✅ Fix 1 : syms nus évalués
+            return self.evaluateExpr(id) catch id; // ✅ Fix 1 : syms nus évalués
         }
 
         const all = self.store.spanSliceConst(node.span_a);
@@ -1229,7 +1277,7 @@ pub const Heaven = struct {
 
         const fnode = self.store.get(node.payload);
 
-        platform.dbg("[preFix2] func_tag={s} args.len={d}\n", .{ @tagName(fnode.tag), args.len });
+        //platform.dbg("[preFix2] func_tag={s} args.len={d}\n", .{ @tagName(fnode.tag), args.len });
 
         // ✅ Fix 2a : FUNC = LAMBDA NODE (lambdaNative : payload=param, span_a=[body])
         if (fnode.tag == .lambda and args.len == 1) {
@@ -1266,12 +1314,12 @@ pub const Heaven = struct {
         // ✅ Fix 3 : FONCTION ENV-BOUND (f arg) où f est une lambda dans l'env
         // L'engine ne cherche l'env que pour les syms nus — pas les appels.
         {
-            platform.dbg("[fix3-enter] fnode.payload={d} env has: ", .{fnode.payload});
+            //platform.dbg("[fix3-enter] fnode.payload={d} env has: ", .{fnode.payload});
             if (self.env.get(fnode.payload)) |bound| {
                 platform.dbg("YES bound.tag={s}\n", .{@tagName(self.store.get(bound).tag)});
                 // bound = la valeur liée (peut être un nœud .lambda !)
                 const bound_node = self.store.get(bound);
-                
+
                 // ✅ Cas .lambda : appliquer directement (payload=param, span_a=[body])
                 if (bound_node.tag == .lambda and args.len == 1) {
                     const lam_span = self.store.spanSliceConst(bound_node.span_a);
@@ -1283,7 +1331,7 @@ pub const Heaven = struct {
                         return self.interpForAssert(lam_span[0]) catch id;
                     }
                 }
-                
+
                 // ✅ Cas .apply sym"lambda" (structure alternative)
                 if (bound_node.tag == .apply and args.len == 1) {
                     const inner_func = self.store.get(bound_node.payload);
@@ -1358,7 +1406,7 @@ pub const Heaven = struct {
                 const inner = self.store.get(func_node.payload);
                 if (inner.tag == .sym and std.mem.eql(u8, self.store.interner.resolve(inner.payload), "lambda")) {
                     const lam_args = self.store.spanSliceConst(func_node.span_a);
-                    if (lam_args.len == 3) {   // [lambda, param, body]
+                    if (lam_args.len == 3) { // [lambda, param, body]
                         const param_node = self.store.get(lam_args[1]);
                         if (param_node.tag == .sym) {
                             const arg_val = self.evaluateExpr(args[0]) catch args[0];
@@ -1601,10 +1649,19 @@ pub const Heaven = struct {
         var i: usize = 0;
         while (i + 3 < inner.len) : (i += 1) {
             const c = inner[i];
-            if (c == '"') { in_str = !in_str; continue; }
+            if (c == '"') {
+                in_str = !in_str;
+                continue;
+            }
             if (in_str) continue;
-            if (c == '(') { depth += 1; continue; }
-            if (c == ')') { if (depth > 0) depth -= 1; continue; }
+            if (c == '(') {
+                depth += 1;
+                continue;
+            }
+            if (c == ')') {
+                if (depth > 0) depth -= 1;
+                continue;
+            }
             if (depth == 0 and c == ' ' and
                 inner[i + 1] == '=' and inner[i + 2] == '=' and inner[i + 3] == ' ')
             {
@@ -1637,8 +1694,7 @@ pub const Heaven = struct {
 
             // Cas principal : test "name": lhs == rhs
             const sp = splitTopLevelEq(body) orelse
-                return std.fmt.allocPrint(self.allocator,
-                    "✗ test {s}: opérateur '==' manquant", .{name});
+                return std.fmt.allocPrint(self.allocator, "✗ test {s}: opérateur '==' manquant", .{name});
 
             const lhs = try self.parseOrDispatch(sp.a);
             const rhs = try self.parseOrDispatch(sp.b);
@@ -1654,8 +1710,7 @@ pub const Heaven = struct {
             defer self.allocator.free(l_str);
             const r_str = try expr.toStringInfix(self.store, rs, self.allocator);
             defer self.allocator.free(r_str);
-            return std.fmt.allocPrint(self.allocator,
-                "✗ test {s}: {s} != {s}", .{ name, l_str, r_str });
+            return std.fmt.allocPrint(self.allocator, "✗ test {s}: {s} != {s}", .{ name, l_str, r_str });
         }
 
         // ─── assert_eq lhs == rhs ───
@@ -1678,8 +1733,7 @@ pub const Heaven = struct {
             defer self.allocator.free(l_str);
             const r_str = try expr.toStringInfix(self.store, rs, self.allocator);
             defer self.allocator.free(r_str);
-            return std.fmt.allocPrint(self.allocator,
-                "✗ assert_eq failed: {s} != {s}", .{ l_str, r_str });
+            return std.fmt.allocPrint(self.allocator, "✗ assert_eq failed: {s} != {s}", .{ l_str, r_str });
         }
 
         // ─── assert_err expr ───
@@ -1703,18 +1757,18 @@ pub const Heaven = struct {
     /// puis re-parse le résultat en Id.
     fn parseOrDispatch(self: *Heaven, s: []const u8) HeavenError!Id {
         const prefixes = [_]struct { p: []const u8, f: enum { derive, simplify, expand, integrate } }{
-            .{ .p = "derive ",     .f = .derive },
-            .{ .p = "simplify ",   .f = .simplify },
-            .{ .p = "expand ",     .f = .expand },
-            .{ .p = "integrate ",  .f = .integrate },
+            .{ .p = "derive ", .f = .derive },
+            .{ .p = "simplify ", .f = .simplify },
+            .{ .p = "expand ", .f = .expand },
+            .{ .p = "integrate ", .f = .integrate },
         };
         for (prefixes) |pfx| {
             if (std.mem.startsWith(u8, s, pfx.p)) {
                 const inner = std.mem.trim(u8, s[pfx.p.len..], " \t");
                 const result_str: []u8 = switch (pfx.f) {
-                    .derive    => try self.derive(inner, "x"),
-                    .simplify  => try self.simplify(inner),
-                    .expand    => try self.expand(inner),
+                    .derive => try self.derive(inner, "x"),
+                    .simplify => try self.simplify(inner),
+                    .expand => try self.expand(inner),
                     .integrate => try self.integrate(inner, "x"),
                 };
                 defer self.allocator.free(result_str);
@@ -1772,7 +1826,7 @@ pub const Heaven = struct {
         defer self.engine.green_mode = false;
 
         // 4. Construire l'AST (handle <expr> greenHandler)
-        const handle_op   = try self.store.sym("handle");
+        const handle_op = try self.store.sym("handle");
         const handler_sym = try self.store.sym("greenHandler");
         var args_buf = [_]expr.Id{ expr_id, handler_sym };
         const handle_node = try self.store.apply(handle_op, &args_buf);
@@ -1780,7 +1834,7 @@ pub const Heaven = struct {
         // 5. Évaluer avec interception des effets
         self.engine.fuel = 1_000_000;
         const result = self.evaluateExpr(handle_node) catch |err| {
-            _ = prof.stop();     // ne pas fuiter les métriques
+            _ = prof.stop(); // ne pas fuiter les métriques
             return err;
         };
 
@@ -1809,8 +1863,7 @@ pub const Heaven = struct {
     fn egraphSemanticEq(self: *Heaven, a: Id, b: Id) bool {
         // ✅ Guard : arbre invalide = corruption en amont → échec propre + log
         if (a >= self.store.len() or b >= self.store.len()) {
-            platform.dbg("[egraphSemanticEq] SKIP: id racine invalide a={d} b={d} (len={d})\n",
-                .{ a, b, self.store.len() });
+            platform.dbg("[egraphSemanticEq] SKIP: id racine invalide a={d} b={d} (len={d})\n", .{ a, b, self.store.len() });
             return false;
         }
         if (!self.validExprTree(a)) {
@@ -1933,7 +1986,6 @@ pub const Heaven = struct {
         return true;
     }
 };
-
 
 fn isInfixOp(tok: []const u8) bool {
     const ops = [_][]const u8{ "+", "-", "*", "/", "^", "%", "==", "!=", "<", ">", "<=", ">=" };

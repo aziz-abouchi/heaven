@@ -15,7 +15,7 @@ pub const MirError = error{
     UnsupportedLiteral,
     UnsupportedOp,
     OutOfMemory,
-    DivisionByZero,
+    DivisionByzero,
     InvalidInstruction,
     ValueNotDefined,
     UndefinedVariable,
@@ -420,7 +420,7 @@ pub const MirFunction = struct {
                     },
                     .div => |a| {
                         if (a.dest >= self.values.items.len) try self.values.resize(self.allocator, a.dest + 1);
-                        if (self.values.items[a.rhs] == 0) return error.DivisionByZero;
+                        if (self.values.items[a.rhs] == 0) return error.DivisionByzero;
                         self.values.items[a.dest] = @divTrunc(self.values.items[a.lhs], self.values.items[a.rhs]);
                     },
                     .cmp_lt => |a| {
@@ -504,7 +504,7 @@ pub const MirFunction = struct {
                                 const id = try store.int(val);
                                 try args_list.append(self.allocator, id);
                             }
-                            const result_id = engine.evalFunction(name, args_list.items) catch return error.InvalidInstruction;
+                            const result_id = engine.evalFunction(engine.env, name, args_list.items) catch return error.InvalidInstruction;
                             const result_node = store.get(result_id);
                             if (result_node.tag == .lit) {
                                 const lit = store.lits.items[result_node.aux];

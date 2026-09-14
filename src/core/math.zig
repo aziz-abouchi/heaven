@@ -235,7 +235,6 @@ pub const Math = struct {
                     const mul_sym = try self.store.sym("*");
                     const exp_u = try self.store.apply(exp_sym, &.{args[0]});
                     break :blk try self.store.apply(mul_sym, &.{ exp_u, du });
-
                 } else if (std.mem.eql(u8, op, "log")) {
                     // d/dx (log u) = u' / u
                     const du = try self.deriveExpr(args[0], variable);
@@ -281,10 +280,14 @@ pub const Math = struct {
                 if (all.len < 1) return expr_id;
                 const args = all[1..];
 
-                // Simplifier récursivement les enfants d'abord
-                var new_args = try self.allocator.alloc(Id, args.len);
+                // Snapshot AVANT toute mutation du pool
+                const args_snapshot = try self.allocator.alloc(Id, args.len);
+                defer self.allocator.free(args_snapshot);
+                @memcpy(args_snapshot, args);
+
+                const new_args = try self.allocator.alloc(Id, args.len);
                 defer self.allocator.free(new_args);
-                for (args, 0..) |arg, i| {
+                for (args_snapshot, 0..) |arg, i| {
                     new_args[i] = try self.simplifyStep(arg, changed);
                 }
 
@@ -428,7 +431,7 @@ pub const Math = struct {
         }
     }
 
-        /// Si expr contient un facteur -1 niché, retourne l'expression sans le -1.
+    /// Si expr contient un facteur -1 niché, retourne l'expression sans le -1.
     /// (* x (* -1 (sin x))) → (* x (sin x))
     /// (* -1 x) → x
     /// (* x -1) → x
@@ -1030,9 +1033,9 @@ pub const Math = struct {
                 if (func_node.tag != .sym) return;
                 const op = self.store.interner.resolve(func_node.payload);
                 const raw = node.span_a.slice(self.store.pool.items);
-                if (raw.len < 3) return;          // func + au moins 2 args
-                const args = raw[1..];             // skip func
-                if (args.len != 2) return;         // binaire pour l'instant
+                if (raw.len < 3) return; // func + au moins 2 args
+                const args = raw[1..]; // skip func
+                if (args.len != 2) return; // binaire pour l'instant
                 if (std.mem.eql(u8, op, "+")) {
                     self.collectCoeffs(args[0], v, a, b, c);
                     self.collectCoeffs(args[1], v, a, b, c);
@@ -1145,15 +1148,14 @@ pub const Math = struct {
                 const op = self.store.interner.resolve(func_node.payload);
                 const p = self.store.pool.items;
                 const raw = node.span_a.slice(p);
-                if (raw.len != 3) return id;          // func + 2 args
-                const args = raw[1..];                 // skip func
+                if (raw.len != 3) return id; // func + 2 args
+                const args = raw[1..]; // skip func
 
                 const left = try self.simplifyMath(args[0]);
                 const right = try self.simplifyMath(args[1]);
 
                 const li = getIntFromId(self.store, left);
                 const ri = getIntFromId(self.store, right);
-
 
                 // Vérification directe de 0 et 1
                 const left_is_zero = blk: {
@@ -1219,7 +1221,7 @@ pub const Math = struct {
                 if (std.mem.eql(u8, op, "^")) {
                     if (li != null and ri != null) {
                         const base = li.?;
-                        const exp  = ri.?;
+                        const exp = ri.?;
                         if (exp >= 0 and exp <= 20) {
                             var acc: i64 = 1;
                             var k: i64 = 0;
@@ -1244,7 +1246,7 @@ pub const Math = struct {
         if (func_node.tag != .sym) return id;
         const op = self.store.interner.resolve(func_node.payload);
         const raw = node.span_a.slice(self.store.pool.items);
-        if (raw.len != 3) return id;         // func + 2 args
+        if (raw.len != 3) return id; // func + 2 args
         const args = raw[1..];
         const a0 = args[0];
         const a1 = args[1];
@@ -1257,8 +1259,8 @@ pub const Math = struct {
                     const lf = self.store.get(ln.payload);
                     if (lf.tag == .sym and std.mem.eql(u8, self.store.interner.resolve(lf.payload), "+")) {
                         const la_raw = ln.span_a.slice(self.store.pool.items);
-                        if (la_raw.len >= 3) {                     // func + au moins 2 args
-                            const la = la_raw[1..];                // skip func
+                        if (la_raw.len >= 3) { // func + au moins 2 args
+                            const la = la_raw[1..]; // skip func
                             const la0 = la[0];
                             const la1 = la[1];
                             if (right < self.store.len()) {
