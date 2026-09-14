@@ -116,22 +116,25 @@ pub const Reader = struct {
         // Désactiver ECHO et ICANON
         if (platform.target.is_windows) {}
         if (platform.target.is_darwin) {
-                termios.lflag.ECHO   = false;
-                termios.lflag.ICANON = false;
-                termios.lflag.ISIG   = false;  // sinon Ctrl-C tue le process
-                termios.iflag.ICRNL  = false;  // CR (0x0D) ne devient PAS NL (0x0A)
-                termios.iflag.IXON   = false;  // Ctrl-S/Ctrl-Q ne gèlent pas
-                termios.iflag.INLCR  = false;
-                termios.iflag.IGNCR  = false;
+            termios.lflag.ECHO = false;
+            termios.lflag.ICANON = false;
+            termios.lflag.ISIG = false; // sinon Ctrl-C tue le process
+            termios.iflag.ICRNL = false; // CR (0x0D) ne devient PAS NL (0x0A)
+            termios.iflag.IXON = false; // Ctrl-S/Ctrl-Q ne gèlent pas
+            termios.iflag.INLCR = false;
+            termios.iflag.IGNCR = false;
         }
         if (platform.target.is_linux) {
-                const ECHO: u32   = 0x00000008;
-                const ICANON: u32 = 0x00000002;
-                const ISIG: u32   = 0x00000001;
-                const ICRNL: u32  = 0x00000100;
-                const IXON: u32   = 0x00000400;
-                termios.lflag &= ~@as(@TypeOf(termios.lflag), ECHO | ICANON | ISIG);
-                termios.iflag &= ~@as(@TypeOf(termios.iflag), ICRNL | IXON);
+            //const ECHO: u32 = 0x00000008;
+            //const ICANON: u32 = 0x00000002;
+            //const ISIG: u32 = 0x00000001;
+            //const ICRNL: u32 = 0x00000100;
+            //const IXON: u32 = 0x00000400;
+            termios.lflag.ECHO = false;
+            termios.lflag.ICANON = false;
+            termios.lflag.ISIG = false;
+            termios.iflag.ICRNL = false;
+            termios.iflag.IXON = false;
         }
 
         try std.posix.tcsetattr(fd, .NOW, termios);
@@ -200,7 +203,7 @@ pub const Reader = struct {
             var seq: [2]u8 = undefined;
             var count: usize = 0;
             while (count < 2) {
-                const r = try std.posix.read(0, seq[count..count+1]);
+                const r = try std.posix.read(0, seq[count .. count + 1]);
                 if (r == 0) break;
                 count += 1;
             }
