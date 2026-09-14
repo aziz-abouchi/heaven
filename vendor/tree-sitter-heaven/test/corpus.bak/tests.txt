@@ -1,0 +1,19 @@
+================ Simple test
+test "addition" { assert 1 + 1 == 2; }
+
+(source_file (test_decl name: (str) (block (assert_stmt (binary (binary (int) (int)) (int))))))
+
+================ Test with tags
+test "slow test" @slow @integration { assert true; }
+
+(source_file (test_decl name: (str) (tag_list (identifier) (identifier)) (block (assert_stmt (bool_lit)))))
+
+================ Describe block
+describe "Math" { test "add" { assert_eq add(1, 2), 3; } }
+
+(source_file (describe_block name: (str) (test_decl name: (str) (block (assert_stmt (call (identifier) (int) (int)) (int))))))
+
+================ Bench
+bench "sort" { setup { let data = random(1000); } run { sort(data); } assert time < 5ms; }
+
+(source_file (bench_decl name: (str) (block (var_decl name: (identifier) (call (identifier) (int)))) (block (call (identifier) (identifier))) (assert_stmt (binary (identifier) (duration_lit)))))

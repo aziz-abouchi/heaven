@@ -1,0 +1,4 @@
+================ Evolve declaration
+evolve optimizer Sorter { genome { chunk_size: i64 in 64..4096, } fitness(x: i64) -> f64 { return 1.0; } }
+
+(source_file (evolve_decl name: (identifier) (genome_block (identifier) (prim_type) (range (int) (int))) (fitness_block (params (param (identifier) (prim_type))) (prim_type) (block (ret (float))))))

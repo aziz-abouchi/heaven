@@ -1,0 +1,46 @@
+================================================================================
+Effect
+================================================================================
+
+effect State<S> { fn get() -> S; fn put(s: S) -> (); }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (effect_decl
+    (type_name)
+    (tparams
+      (type_name))
+    (fn_sig
+      (identifier)
+      (params)
+      (type_ident
+        (type_name)))
+    (fn_sig
+      (identifier)
+      (params
+        (param
+          (identifier)
+          (type_ident
+            (type_name))))
+      (unit_type))))
+
+================================================================================
+Perform
+================================================================================
+
+fn t() { let x = perform get(); }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (fn_decl
+    name: (identifier)
+    params: (params)
+    (block
+      (var_decl
+        name: (identifier)
+        (perform_expr
+          (call
+            (identifier)))))))
+

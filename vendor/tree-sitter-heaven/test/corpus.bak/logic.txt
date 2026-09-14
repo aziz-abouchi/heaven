@@ -1,0 +1,19 @@
+================ Facts
+fact parent(tom, bob). fact parent(bob, ann).
+
+(source_file (fact_decl pred: (identifier) (identifier) (identifier)) (fact_decl pred: (identifier) (identifier) (identifier)))
+
+================ Rules
+rule ancestor(X, Y) :- parent(X, Y).
+
+(source_file (rule_decl head: (latom pred: (identifier) (lvar) (lvar)) (latom pred: (identifier) (lvar) (lvar))))
+
+================ Query
+query ancestor(tom, Who)?
+
+(source_file (query_expr (latom pred: (identifier) (identifier) (lvar))))
+
+================ Relation (miniKanren)
+relation appendo(l, s, out) { conde { { l == []; } } }
+
+(source_file (relation_decl name: (identifier) (params (param (identifier)) (param (identifier)) (param (identifier))) (conde_expr (block (binary (identifier) (arr))))))

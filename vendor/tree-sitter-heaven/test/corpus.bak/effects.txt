@@ -1,0 +1,14 @@
+================ Effect declaration
+effect State<S> { fn get() -> S; fn put(s: S) -> (); }
+
+(source_file (effect_decl (type_name) (tparams (identifier)) (identifier) (params) (type_ident) (identifier) (params (param (identifier) (type_ident))) (unit_type)))
+
+================ Handler declaration
+handler run_state(initial: i64) : State<i64> { return(v) => v, get() k => k(initial), }
+
+(source_file (handler_decl name: (identifier) (params (param (identifier) (prim_type))) (generic_type (type_name) (prim_type)) (handler_arm (identifier) (identifier)) (handler_arm (identifier) (identifier) (call (identifier) (identifier)))))
+
+================ Effect row on function
+fn compute(x: i64) -> i64 ! {State<i64>, Error<String>} { return x; }
+
+(source_file (fn_decl name: (identifier) (params (param (identifier) (prim_type))) (prim_type) (effect_row (generic_type (type_name) (prim_type)) (generic_type (type_name) (prim_type))) (block (ret (identifier)))))

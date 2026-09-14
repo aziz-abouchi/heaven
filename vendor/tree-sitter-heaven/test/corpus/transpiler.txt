@@ -1,0 +1,39 @@
+================================================================================
+Registry
+================================================================================
+
+registry Languages { python: python_def, rust: rust_def, }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (registry_decl
+    name: (type_name)
+    (identifier)
+    (identifier)
+    (identifier)
+    (identifier)))
+
+================================================================================
+Pipeline
+================================================================================
+
+pipeline Ingest : RawData ~> IndexedData { parse : RawData -> ParsedData }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (pipeline_decl
+    name: (type_name)
+    (type_ident
+      (type_name))
+    (type_ident
+      (type_name))
+    (sig_decl
+      name: (identifier)
+      (arrow_type
+        (type_ident
+          (type_name))
+        (type_ident
+          (type_name))))))
+

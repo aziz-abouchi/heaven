@@ -1,0 +1,364 @@
+-- ═══════════════════════════════════════════════════════════
+-- Heaven — Comprehensive Test File
+-- ═══════════════════════════════════════════════════════════
+
+-- ─── Core: Functions ─────────────────────────────────────
+
+pub fn main() { let x = 42; let y = x + 1; print("hello"); }
+
+fn add(a: i64, b: i64) -> i64 { return a + b; }
+
+-- ─── Core: Structs & Enums ──────────────────────────────
+
+struct Point { x: f64, y: f64, }
+
+enum Shape { Circle(f64), Rectangle(f64, f64), }
+
+impl Point { fn distance(self, other: Point) -> f64 { return 0.0; } }
+
+-- ─── Equational Declarations (Idris-style) ──────────────
+
+total sum : [i64] -> i64
+
+sum [] = 0 sum [x | xs] = x + sum(xs)
+
+total fib : Nat -> Nat -> Nat -> Nat fib 0 a _ = a fib n a b = fib(n - 1, b, a + b)
+
+-- ─── QTT: Quantitative Type Theory ─────────────────────
+
+length : forall 0 t 0 n . [t] -> Nat
+
+read_once : String -> String
+
+-- ─── Annotations ────────────────────────────────────────
+
+@complexity(time: "O(n)", memory: "O(1)")
+@budget(cpu: 10ms, ram: 4MB)
+@energy(estimate: 0.3J)
+fn process(data: [i64]) -> i64 { let mut total = 0; for item in data { total += item; } return total; }
+
+-- ─── Effects (Algebraic) ────────────────────────────────
+
+effect State<S> { fn get() -> S; fn put(s: S) -> (); }
+
+effect Error<E> { fn raise(e: E) -> (); }
+
+effect Energy { fn consume(j: f64) -> (); fn remaining() -> f64; }
+
+handler run_state(initial: i64) : State<i64> { return(v) => v, get() k => k(initial), put(s) k => k(()), }
+
+fn stateful_compute(x: i64) -> i64 ! {State<i64>, Error<String>} { let current = perform get(); perform put(current + x); return current + x; }
+
+-- ─── Typeclasses ────────────────────────────────────────
+
+class Monad(M: Type) extends Functor {
+    pure : forall a . a -> M
+    bind : forall a b . M -> M -> M
+    law left_identity : bind(pure(a), f) == f(a)
+    law right_identity : bind(m, pure) == m
+}
+
+instance Monad(Option) {
+    pure a = Some(a)
+    bind None _ = None
+    bind Some(a) f = f(a)
+}
+
+-- ─── Categories ─────────────────────────────────────────
+
+category Cat { id : forall a . a -> a law identity_left : compose(f, id) == f law identity_right : compose(id, f) == f law associativity : compose(compose(f, g), h) == compose(f, compose(g, h)) }
+
+functor TaskPipeline : Cat -> Cat { map_ob : Type -> Type law preserves_id : map_hom(id) == id }
+
+natural_transform distribute : LocalQueue ~> DistributedQueue { component : forall a . LocalQueue -> DistributedQueue law naturality : compose(component, map(f)) == compose(map(f), component) }
+
+monad IOMonad : Cat -> Cat { pure : forall a . a -> IOMonad join : forall a . IOMonad -> IOMonad law left_unit : compose(join, pure) == id }
+
+-- ─── Proofs & Theorems ──────────────────────────────────
+
+axiom add_zero<N> : Nat;
+
+theorem add_comm : a + b == b + a { proof by induction a { case 0 => apply add_zero qed case n => assume ih : n + b == b + n apply ih qed } }
+
+-- ─── HoTT: Higher Inductive Types ──────────────────────
+
+HIT Circle { base : Circle, loop_path : Path Circle base base, }
+
+-- ─── Actors & Concurrency ───────────────────────────────
+
+actor Counter(state: i64) implements Countable { var count: i64 = 0;
+
+@observable
+metric energy_per_op: f64 = 0.0;
+
+receive {
+    Increment() => {
+        count = count + 1;
+        become Counter(count);
+    },
+    Get(sender) => {
+        sender ! count;
+    },
+}
+
+fn reset(self) {
+    count = 0;
+}
+}
+
+supervisor Pool { strategy: :one_for_one, max_restarts: 5, children: [Counter(0), Counter(0), Counter(0)], }
+
+-- ─── Protocols (MPST) ───────────────────────────────────
+
+protocol EnergySteal { roles: { Scheduler, HotWorker, ColdWorker },
+
+Scheduler -> HotWorker : QueryEnergy()
+HotWorker -> Scheduler : ReportEnergy(joules: f64)
+
+choice at Scheduler {
+    :steal =>
+        Scheduler -> HotWorker : StealTasks(count: i64)
+        HotWorker -> Scheduler : StolenTasks()
+        Scheduler -> ColdWorker : ReceiveTasks()
+        ColdWorker -> Scheduler : Ack()
+    :hold =>
+        Scheduler -> HotWorker : Hold()
+        Scheduler -> ColdWorker : Hold()
+}
+}
+
+-- ─── Scheduler & Work Stealing ──────────────────────────
+
+scheduler EnergyBalancer implements EnergySteal { strategy: :energy_steal, sample_rate: 50ms, }
+
+steal_policy :greedy { trigger when energy_per_op > 0.5 { let tasks = steal(50); } }
+
+topology { node eu_west { cores: 8, energy_source: :renewable, carbon_intensity: 50, }
+
+affinity :green_first {
+    let preferred = :renewable;
+}
+}
+
+-- ─── Logic: Prolog ──────────────────────────────────────
+
+fact parent(tom, bob). fact parent(bob, ann). fact parent(bob, pat).
+
+rule ancestor(X, Y) :- parent(X, Y). rule ancestor(X, Y) :- parent(X, Z), ancestor(Z, Y).
+
+query ancestor(tom, Who)?
+
+-- ─── Logic: miniKanren ──────────────────────────────────
+
+relation appendo(l, s, out) { conde { { l == []; } { l == [head, tail]; } } fresh (head, tail, rest) { l == [head, tail]; } }
+
+-- ─── Tests ──────────────────────────────────────────────
+
+test "addition de deux entiers" { let result = add(2, 3); assert result == 5; }
+
+test "opérations sur les listes" @slow @integration { assert_eq sum([1, 2, 3]), 6; assert_not false; assert_err divide(10, 0); }
+
+describe "Math" { before_each { let x = 0; }
+
+test "addition" {
+    assert_eq add(1, 2), 3;
+}
+
+test "paramétrique" with [1, 2, 3] as n {
+    assert n > 0;
+}
+
+describe "avancé" {
+    test "puissance" {
+        assert_eq pow(2, 8), 256;
+    }
+}
+}
+
+bench "tri de 10000 éléments" { setup { let data = random_vec(10000); } run { sort(data); } assert time < 5ms; assert ram < 2MB; }
+
+verify sort_function with [100, 1000, 10000] as n { assert scaling == :linear; }
+
+-- ─── Probabilistic ──────────────────────────────────────
+
+prob model traffic_prediction(history: [f64]) -> f64 { let trend = sample(normal(0.0, 1.0)); let noise = sample(gamma(2.0, 0.1)); observe(normal(trend, noise), 0.5); return trend; }
+
+fn predict() { let posterior = infer(traffic_prediction(data), method: :hmc, samples: 10000); }
+
+-- ─── Temporal ───────────────────────────────────────────
+
+temporal property liveness : Always(task_submitted implies Eventually(task_completed))
+
+temporal property bounded_response : Always(request_received implies Eventually(response_sent) within 100ms)
+
+fn temporal_combinators() { after 5s { gc_force(); } every 1m { health_check(); } timeout 100ms { risky_operation(); } or_else { fallback(); } debounce 500ms { handle_input(); } throttle 1s { emit_metrics(); } }
+
+-- ─── Evolution ──────────────────────────────────────────
+
+search_space SortStrategy { type Genome = i64; }
+
+evolve optimizer SortEvolver { genome { chunk_size: i64 in 64..4096, par_depth: i64 in 1..8, }
+
+fitness(individual: i64) -> f64 {
+    return 1.0;
+}
+
+constraint correctness : execute(input) == reference(input)
+
+lifecycle {
+    let candidate = best();
+    canary(candidate, traffic: 5, duration: 10m) {
+        promote(candidate);
+    }
+}
+}
+
+-- ─── Spatial ────────────────────────────────────────────
+
+topology Grid2D<T> { dimensions : Nat dimensions = 2 }
+
+-- ─── Contracts ──────────────────────────────────────────
+
+contract EnergyStealService { invariant task_count { total_before == total_after; }
+
+sla {
+    steal_latency < 5ms,
+    energy_savings > 20,
+}
+
+adaptive contract throughput_target {
+    initial: 1000
+}
+}
+
+fn guarded(data: [i64]) -> i64 requires length(data) > 0 ensures result > 0 energy <= 0.01J within 5ms { return data[0]; }
+
+-- ─── Sensors & Monitoring ───────────────────────────────
+
+sensor module RAPL : EnergySource { fn read() -> f64; }
+
+sensor Thermal : TemperatureSource
+
+monitor ResourceTracker { sample_rate: 100ms,
+
+track {
+    cpu_usage,
+    ram_allocated,
+}
+
+alert when cpu_usage > 80 {
+    log_warn("CPU élevé");
+}
+}
+
+dashboard EnergyDash { layout: :grid,
+
+panel "Énergie par worker" {
+    type: :heatmap,
+    source: :workers,
+}
+
+panel "CO2 évité" {
+    type: :counter,
+    unit: :grams,
+}
+}
+
+profile "ingestion pipeline" { let data = read_file("large.csv"); let parsed = parse_csv(data); }
+
+-- ─── Narrative ──────────────────────────────────────────
+
+explain energy_steal { for :newcomer { style: :metaphor, detail: :low, } for :engineer { style: :technical, detail: :high, } for :auditor { style: :audit_trail, detail: :forensic, } }
+
+-- ─── E-graphs ───────────────────────────────────────────
+
+egraph PerfOptimizer { lang TaskExpr { Seq : TaskExpr -> TaskExpr, Par : TaskExpr -> TaskExpr, Map : TaskExpr -> TaskExpr, }
+
+rule fuse_maps :
+    map(f, map(g, x)) => map(compose(f, g), x)
+
+rule parallelize :
+    seq(map(f, a), map(f, b)) => par(map(f, a), map(f, b))
+    when independent(a, b)
+
+cost_fn energy_cost(node: TaskExpr) -> f64 {
+    Seq(a, b) => a + b,
+    Par(a, b) => max(a, b),
+}
+
+extract best : minimize(energy_cost)
+}
+
+-- ─── Transpiler ─────────────────────────────────────────
+
+transpile Python Rust { map_type list = "Vec" map_type dict = "HashMap" map_expr threading_thread(f) = spawn(f) }
+
+registry Languages { python: python_def, rust: rust_def, go: go_def, }
+
+pipeline Ingest : RawData ~> IndexedData { parse : RawData -> ParsedData validate : ParsedData -> ValidData }
+
+-- ─── FFI ────────────────────────────────────────────────
+
+extern "C" { fn printf(fmt: String) -> i32; }
+
+native asm { mov rax, 1 }
+
+vessel WasmModule from "module.wasm" { export add(a: i32, b: i32) -> i32; }
+
+-- ─── Expressions ────────────────────────────────────────
+
+fn expressions_demo() { -- Atoms let status = :ok; let priority = :high;
+
+-- Duration & Unit literals
+let t = 100ms;
+let e = 0.5J;
+let temp = 75C;
+
+-- Pipe
+let result = [1, 2, 3] |> map(double) |> sum;
+
+-- Spawn & Send
+let pid = spawn Counter(0);
+pid ! Increment();
+
+-- Await
+let data = await fetch("url");
+
+-- Lambda
+let f = |x| { x + 1 };
+let g = λ(x: i64) => x * 2;
+let h = \(x: i64) → x - 1;
+
+-- Range
+for i in 0..100 {
+    print(i);
+}
+
+-- Match expression
+let label = match status {
+    :ok => "Success",
+    :err => "failure",
+};
+
+-- If expression
+let max = if a > b then a else b;
+
+-- Math
+let s = ∑(1, 100, i);
+let grad = ∇ f;
+let root = √ 16;
+}
+
+-- ─── Distributed Function ───────────────────────────────
+
+distributed fn remote_compute(data: [i64]) -> i64 { return sum(data); }
+
+-- ─── Macro & Rewrite ────────────────────────────────────
+
+macro unless(cond) { if not(cond) { return true; } }
+
+rewrite { match: bubble_sort(x), replace: merge_sort(x), }
+
+-- ═══════════════════════════════════════════════════════════
+-- Fin du fichier de test
+-- ═══════════════════════════════════════════════════════════

@@ -1,0 +1,46 @@
+================================================================================
+Simple test
+================================================================================
+
+test "add" { let r = add(1, 2); assert r == 3; }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (test_decl
+    name: (str)
+    (block
+      (var_decl
+        name: (identifier)
+        (call
+          (identifier)
+          (int)
+          (int)))
+      (assert_stmt
+        (binary
+          (identifier)
+          (int))))))
+
+================================================================================
+Verify
+================================================================================
+
+verify sort_fn with [100, 1000] as n { assert scaling == :linear; }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (verify_block
+    (identifier)
+    (with_clause
+      (arr
+        (int)
+        (int))
+      (identifier))
+    (block
+      (assert_stmt
+        (binary
+          (identifier)
+          (atom
+            (identifier)))))))
+

@@ -1,0 +1,2 @@
+eq add_comm : a b ≡ b + a ;
+eq add_zero : x when x == 0 ≡ x ;

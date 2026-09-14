@@ -1,0 +1,19 @@
+================================================================================
+Scheduler
+================================================================================
+
+scheduler EB implements ES { strategy: :energy_steal, sample_rate: 50ms, }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (scheduler_decl
+    name: (type_name)
+    (type_ident
+      (type_name))
+    (identifier)
+    (atom
+      (identifier))
+    (identifier)
+    (duration_lit)))
+

@@ -1,0 +1,19 @@
+================ Annotations
+@complexity(time: "O(n)", memory: "O(1)") @budget(cpu: 10ms, ram: 4MB) fn process i64 { return 0; }
+
+(source_file (fn_decl (annotation_list (annotation (identifier) (identifier) (str) (identifier) (str)) (annotation (identifier) (identifier) (duration_lit) (identifier) (unit_lit))) name: (identifier) (params (param (identifier) (array_type (prim_type)))) (prim_type) (block (ret (int)))))
+
+================ Sensor declaration
+sensor module RAPL : EnergySource { fn read() -> f64; }
+
+(source_file (sensor_decl name: (type_name) (type_ident) (fn_decl name: (identifier) (params) (prim_type) )))
+
+================ Monitor
+monitor Tracker { sample_rate: 100ms, track { cpu_usage, } alert when cpu > 80 { log("high"); } }
+
+(source_file (monitor_decl name: (type_name) (identifier) (duration_lit) (identifier) (binary (identifier) (int)) (block (call (identifier) (str)))))
+
+================ Dashboard with panels
+dashboard Dash { panel "Energy" { type: :heatmap, } }
+
+(source_file (dashboard_decl name: (type_name) (panel_decl (str) (identifier) (atom))))

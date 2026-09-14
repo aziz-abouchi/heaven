@@ -1,0 +1,24 @@
+================ Equational declaration simple
+sum [] = 0
+
+(source_file (eq_decl name: (identifier) (pattern) (int)))
+
+================ Equational with pattern
+sum [x | xs] = x + sum(xs)
+
+(source_file (eq_decl name: (identifier) (pattern) (binary (identifier) (call (identifier) (identifier)))))
+
+================ Equational with guard
+abs x | x >= 0 = x
+
+(source_file (eq_decl name: (identifier) (pattern) guard: (binary (identifier) (int)) (identifier)))
+
+================ Total annotation
+total fib 0 a _ = a
+
+(source_file (eq_decl name: (identifier) (pattern) (pattern) (pattern) (identifier)))
+
+================ Signature declaration
+length : forall 0 t . [t] -> Nat
+
+(source_file (sig_decl name: (identifier) (forall_type (quantity) (identifier) (arrow_type (array_type (type_ident)) (prim_type)))))

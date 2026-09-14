@@ -1,0 +1,23 @@
+================================================================================
+HIT
+================================================================================
+
+HIT Circle { base : Circle, loop_path : Path Circle base base, }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (hit_decl
+    name: (type_name)
+    (hit_constructor
+      (identifier)
+      (type_ident
+        (type_name)))
+    (hit_constructor
+      (identifier)
+      (path_type
+        (type_ident
+          (type_name))
+        (identifier)
+        (identifier)))))
+

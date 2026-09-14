@@ -1,0 +1,4 @@
+================ Prob model
+prob model predict(data: [f64]) -> f64 { let x = sample(normal(0.0, 1.0)); observe(normal(x, 0.1), 0.5); return x; }
+
+(source_file (prob_model_decl name: (identifier) (params (param (identifier) (array_type (prim_type)))) (prim_type) (block (var_decl name: (identifier) (sample_expr (call (identifier) (float) (float)))) (observe_expr (call (identifier) (identifier) (float)) (float)) (ret (identifier)))))

@@ -1,0 +1,14 @@
+================ Axiom
+axiom add_zero<N> : Nat;
+
+(source_file (axiom_decl (identifier) (tparams (identifier)) (prim_type)))
+
+================ Theorem with proof
+theorem add_comm : a + b == b + a { proof by induction a { case 0 => trivial qed } }
+
+(source_file (theorem_decl name: (identifier) (binary (binary (identifier) (identifier)) (binary (identifier) (identifier))) (proof_block (proof_strategy (identifier)) (proof_step (int) (proof_step) (proof_step)))))
+
+================ HIT declaration
+HIT Circle { base : Circle, loop : Path Circle base base, }
+
+(source_file (hit_decl name: (type_name) (hit_constructor (identifier) (type_ident)) (hit_constructor (identifier) (path_type (type_ident) (identifier) (identifier)))))

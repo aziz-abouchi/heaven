@@ -1,0 +1,19 @@
+================ Simple actor
+actor Counter { var count: i64 = 0; receive { Increment() => { count = count + 1; }, } }
+
+(source_file (actor_decl name: (type_name) (var_decl name: (identifier) (prim_type) (int)) (recv_block (ctor_pat (type_name)) (block (assign (identifier) (binary (identifier) (int)))))))
+
+================ Actor with params and implements
+actor Worker(id: i64) implements EnergySteal { var queue: i64 = 0; receive { Task(payload) => { queue = queue + 1; }, } }
+
+(source_file (actor_decl name: (type_name) (params (param (identifier) (prim_type))) (type_ident) (var_decl name: (identifier) (prim_type) (int)) (recv_block (ctor_pat (type_name) (identifier)) (block (assign (identifier) (binary (identifier) (int)))))))
+
+================ Supervisor
+supervisor Pool { strategy: :one_for_one, max_restarts: 5, children: [Counter(0)], }
+
+(source_file (supervisor_decl name: (type_name) (identifier) (atom) (identifier) (int) (identifier) (arr (call (type_name) (int)))))
+
+================ Spawn and send
+fn main() { let pid = spawn Counter(0); pid ! Increment(); }
+
+(source_file (fn_decl name: (identifier) (params) (block (var_decl name: (identifier) (spawn (call (type_name) (int)))) (send (identifier) (call (type_name))))))

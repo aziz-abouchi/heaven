@@ -1,0 +1,9 @@
+================ Temporal property
+temporal property liveness : Always(task implies Eventually(done))
+
+(source_file (temporal_property name: (identifier) (temporal_expr (binary (identifier) (temporal_expr (identifier))))))
+
+================ Temporal combinators
+fn timers() { after 5s { cleanup(); } every 1m { check(); } timeout 100ms { work(); } or_else { fallback(); } }
+
+(source_file (fn_decl name: (identifier) (params) (block (after_expr (duration_lit) (block (call (identifier)))) (every_expr (duration_lit) (block (call (identifier)))) (timeout_expr (duration_lit) (block (call (identifier))) (block (call (identifier)))))))

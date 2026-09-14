@@ -1,0 +1,9 @@
+================ Transpile declaration
+transpile Python Rust { map_type list = "Vec" map_type dict = "HashMap" }
+
+(source_file (transpile_decl (type_name) (type_name) (map_type_rule (identifier) (str)) (map_type_rule (identifier) (str))))
+
+================ Pipeline declaration
+pipeline Ingest : RawData ~> IndexedData { parse : RawData -> ParsedData }
+
+(source_file (pipeline_decl name: (type_name) (type_ident) (type_ident) (sig_decl name: (identifier) (arrow_type (type_ident) (type_ident)))))

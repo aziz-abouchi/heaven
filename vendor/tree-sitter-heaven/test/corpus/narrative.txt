@@ -1,0 +1,21 @@
+================================================================================
+Explain
+================================================================================
+
+explain energy_steal { for :newcomer { style: :metaphor, detail: :low, } }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (explain_block
+    (identifier)
+    (audience_block
+      (atom
+        (identifier))
+      (identifier)
+      (atom
+        (identifier))
+      (identifier)
+      (atom
+        (identifier)))))
+

@@ -1,0 +1,42 @@
+================================================================================
+Category
+================================================================================
+
+category Cat { id : forall a . a -> a }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (category_decl
+    name: (type_name)
+    (sig_decl
+      name: (identifier)
+      (forall_type
+        (identifier)
+        (arrow_type
+          (type_ident
+            (identifier))
+          (type_ident
+            (identifier)))))))
+
+================================================================================
+Functor
+================================================================================
+
+functor F : Cat -> Cat { map_ob : Type -> Type }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (functor_decl
+    name: (type_name)
+    (type_ident
+      (type_name))
+    (type_ident
+      (type_name))
+    (sig_decl
+      name: (identifier)
+      (arrow_type
+        (prim_type)
+        (prim_type)))))
+

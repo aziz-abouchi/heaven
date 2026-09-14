@@ -1,0 +1,11 @@
+================ E-graph declaration
+egraph Optimizer { rule fuse : map(f, map(g, x)) => map(compose(f, g), x)
+
+cost_fn cost(node: i64) -> f64 {
+    Seq(a, b) => a + b,
+}
+
+extract best : minimize(cost)
+}
+
+(source_file (egraph_decl name: (type_name) (egraph_rule (identifier) (call (identifier) (identifier) (call (identifier) (identifier) (identifier))) (call (identifier) (call (identifier) (identifier) (identifier)) (identifier))) (cost_fn_decl (identifier) (params (param (identifier) (prim_type))) (prim_type) (ctor_pat (type_name) (identifier) (identifier)) (binary (identifier) (identifier))) (extract_decl (identifier) (call (identifier) (identifier)))))

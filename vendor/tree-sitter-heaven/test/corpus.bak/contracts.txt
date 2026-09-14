@@ -1,0 +1,9 @@
+================ Contract declaration
+contract Service { invariant positive { count >= 0; } sla { latency < 5ms, } }
+
+(source_file (contract_decl name: (type_name) (invariant_decl name: (identifier) (block (binary (identifier) (int)))) (sla_block (binary (identifier) (duration_lit)))))
+
+================ Function with contract clauses
+fn safe(x: i64) -> i64 requires x > 0 ensures result > 0 energy <= 0.01J within 5ms { return x; }
+
+(source_file (fn_decl name: (identifier) (params (param (identifier) (prim_type))) (prim_type) (contract_clause (binary (identifier) (int)) (binary (identifier) (int)) (unit_lit) (duration_lit)) (block (ret (identifier)))))

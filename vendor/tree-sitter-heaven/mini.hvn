@@ -1,0 +1,1 @@
+class Monad(M: Type) { pure : forall a . a -> M }

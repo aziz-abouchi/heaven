@@ -1,0 +1,9 @@
+================ Simple protocol
+protocol Ping { roles: { Client, Server }, Client -> Server : Ping() Server -> Client : Pong() }
+
+(source_file (protocol_decl name: (type_name) (type_name) (type_name) (protocol_step (type_name) (type_name) (type_name)) (protocol_step (type_name) (type_name) (type_name))))
+
+================ Protocol with choice
+protocol Decision { roles: { A, B }, choice at A { :yes => A -> B : Accept() :no => A -> B : Reject() } }
+
+(source_file (protocol_decl name: (type_name) (type_name) (type_name) (protocol_step (type_name) (protocol_branch (atom) (protocol_step (type_name) (type_name) (type_name))) (protocol_branch (atom) (protocol_step (type_name) (type_name) (type_name))))))

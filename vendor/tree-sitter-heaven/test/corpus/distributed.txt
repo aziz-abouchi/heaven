@@ -1,0 +1,23 @@
+================================================================================
+Dist fn
+================================================================================
+
+distributed fn remote(data: [i64]) -> i64 { return sum(data); }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (dist_fn
+    name: (identifier)
+    (params
+      (param
+        (identifier)
+        (array_type
+          (prim_type))))
+    (prim_type)
+    (block
+      (ret
+        (call
+          (identifier)
+          (identifier))))))
+

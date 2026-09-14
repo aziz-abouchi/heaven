@@ -1,0 +1,22 @@
+================================================================================
+Vessel
+================================================================================
+
+vessel WasmModule from "module.wasm" { export add(a: i32, b: i32) -> i32; }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (vessel_decl
+    (type_name)
+    (str)
+    (identifier)
+    (params
+      (param
+        (identifier)
+        (prim_type))
+      (param
+        (identifier)
+        (prim_type)))
+    (prim_type)))
+

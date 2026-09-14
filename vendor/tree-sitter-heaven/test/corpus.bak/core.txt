@@ -1,0 +1,54 @@
+================ Simple function
+fn add(a: i64, b: i64) -> i64 { return a + b; }
+
+(source_file (fn_decl name: (identifier) (params (param (identifier) (prim_type)) (param (identifier) (prim_type))) (prim_type) (block (ret (binary (identifier) (identifier))))))
+
+================ Public function
+pub fn main() { let x = 42; }
+
+(source_file (fn_decl name: (identifier) (params) (block (var_decl name: (identifier) (int)))))
+
+================ Struct declaration
+struct Point { x: f64, y: f64, }
+
+(source_file (struct_decl name: (type_name) (identifier) (prim_type) (identifier) (prim_type)))
+
+================ Enum declaration
+enum Shape { Circle(f64), Rectangle(f64, f64), }
+
+(source_file (enum_decl name: (type_name) (type_name) (prim_type) (type_name) (prim_type) (prim_type)))
+
+================ Impl block
+impl Point { fn distance(self) -> f64 { return 0.0; } }
+
+(source_file (impl_block (type_name) (fn_decl name: (identifier) (params (param)) (prim_type) (block (ret (float))))))
+
+================ Variable declarations
+fn vars() { let x = 42; var y: i64 = 0; const z = true; let mut w = "hello"; }
+
+(source_file (fn_decl name: (identifier) (params) (block (var_decl name: (identifier) (int)) (var_decl name: (identifier) (prim_type) (int)) (var_decl name: (identifier) (bool_lit)) (var_decl name: (identifier) (str)))))
+
+================ If statement
+fn test() { if x > 0 { return x; } else { return 0; } }
+
+(source_file (fn_decl name: (identifier) (params) (block (if_stmt (binary (identifier) (int)) (block (ret (identifier))) (block (ret (int)))))))
+
+================ Match statement
+fn classify(x: i64) -> String { match x { 0 => { return "zero"; }, _ => { return "other"; }, } }
+
+(source_file (fn_decl name: (identifier) (params (param (identifier) (prim_type))) (prim_type) (block (match_stmt (identifier) (int) (block (ret (str))) (_) (block (ret (str)))))))
+
+================ For and while loops
+fn loops() { for i in 0..10 { print(i); } while x > 0 { x -= 1; } }
+
+(source_file (fn_decl name: (identifier) (params) (block (for_stmt (identifier) (range (int) (int)) (block (call (identifier) (identifier)))) (while_stmt (binary (identifier) (int)) (block (assign (identifier) (int)))))))
+
+================ Lambda expressions
+fn lambdas() { let f = |x| x + 1; let g = λ(x: i64) => x * 2; }
+
+(source_file (fn_decl name: (identifier) (params) (block (var_decl name: (identifier) (lambda (identifier) (binary (identifier) (int)))) (var_decl name: (identifier) (lambda (param (identifier) (prim_type)) (binary (identifier) (int)))))))
+
+================ Pipe operator
+fn pipes() { let result = data |> map(f) |> filter(g); }
+
+(source_file (fn_decl name: (identifier) (params) (block (var_decl name: (identifier) (pipe (pipe (identifier) (call (identifier) (identifier))) (call (identifier) (identifier)))))))

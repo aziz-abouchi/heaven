@@ -1,0 +1,14 @@
+================ Class declaration
+class Monad(M: Type) { pure : forall a . a -> M law left_identity : bind(pure(a), f) == f(a) }
+
+(source_file (class_decl name: (type_name) (param (identifier) (prim_type)) (sig_decl name: (identifier) (forall_type (identifier) (arrow_type (type_ident) (type_ident)))) (law_decl name: (identifier) (binary (call (identifier) (call (identifier) (identifier)) (identifier)) (call (identifier) (identifier))))))
+
+================ Functor declaration
+functor F : Cat -> Cat { map_ob : Type -> Type }
+
+(source_file (functor_decl name: (type_name) (type_ident) (type_ident) (sig_decl name: (identifier) (arrow_type (prim_type) (prim_type)))))
+
+================ Natural transform
+natural_transform eta : Option ~> List { component : forall a . Option -> List }
+
+(source_file (natural_transform_decl name: (identifier) (type_ident) (type_ident) (sig_decl name: (identifier) (forall_type (identifier) (arrow_type (type_ident) (type_ident))))))
