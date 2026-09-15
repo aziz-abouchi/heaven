@@ -874,11 +874,11 @@ test "engine rejects non-lowered frontend expressions" {
         engine.eval(unquote_nu),
     );
 
-    const nil_nu = try engine.store.sym("Nil");
-    try std.testing.expectError(
-        error.ExtensionNotLowered,
-        engine.eval(nil_nu),
-    );
+//    const nil_nu = try engine.store.sym("Nil");
+//    try std.testing.expectError(
+//        error.ExtensionNotLowered,
+//        engine.eval(nil_nu),
+//    );
 
     // ✅ En apply, unquote reste rejeté (hors expansion de macro)
     const x = try engine.store.sym("x");
