@@ -1274,32 +1274,53 @@ const NativeParser = struct {
     }
 
     fn parsePostfix(self: *NativeParser) NativeError![]u8 {
-        var base = try self.parsePrimary();
+        const base = try self.parsePrimary();
+
+        // Collecte les arguments en position juxtaposée ou parenthésée.
+        // f(a, b) c d → (f a b c d)
+        var args: std.ArrayListUnmanaged([]const u8) = .{};
+        defer {
+            for (args.items) |a| self.allocator.free(a);
+            args.deinit(self.allocator);
+        }
+
         while (true) {
             const t = try self.lex.peek();
-            if (t.kind != .lparen) break;
-            _ = try self.lex.next(); // (
-            var buf: std.ArrayListUnmanaged(u8) = .{};
-            try buf.append(self.allocator, '(');
-            try buf.appendSlice(self.allocator, base);
-            const first = try self.lex.peek();
-            if (first.kind == .rparen) {
-                _ = try self.lex.next();
-            } else {
+            if (t.kind == .lparen) {
+                _ = try self.lex.next(); // (
+                const first = try self.lex.peek();
+                if (first.kind == .rparen) {
+                    _ = try self.lex.next();
+                    continue;
+                }
                 while (true) {
                     const arg = try self.parseExpr(0);
-                    try buf.append(self.allocator, ' ');
-                    try buf.appendSlice(self.allocator, arg);
+                    try args.append(self.allocator, arg);
                     const sep = try self.lex.next();
                     if (sep.kind == .comma) continue;
                     if (sep.kind == .rparen) break;
                     return error.InvalidSyntax;
                 }
+            } else if (t.kind == .ident or t.kind == .num) {
+                const arg = try self.parsePrimary();
+                try args.append(self.allocator, arg);
+            } else {
+                break;
             }
-            try buf.append(self.allocator, ')');
-            base = try buf.toOwnedSlice(self.allocator);
         }
-        return base;
+
+        if (args.items.len == 0) return base;
+
+        var buf: std.ArrayListUnmanaged(u8) = .{};
+        defer buf.deinit(self.allocator);
+        try buf.append(self.allocator, '(');
+        try buf.appendSlice(self.allocator, base);
+        for (args.items) |a| {
+            try buf.append(self.allocator, ' ');
+            try buf.appendSlice(self.allocator, a);
+        }
+        try buf.append(self.allocator, ')');
+        return try buf.toOwnedSlice(self.allocator);
     }
 
     fn parsePrimary(self: *NativeParser) NativeError![]u8 {

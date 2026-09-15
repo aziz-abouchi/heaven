@@ -1,0 +1,17 @@
+data Stream a = Cons a (Stream a) | End
+
+inc x = x + 1
+dbl x = x * 2
+isBig x = x > 1
+
+map f End = End
+map f (Cons x rest) = Cons (f x) (map f rest)
+
+filter p End = End
+filter p (Cons x rest) = if (p x) (Cons x (filter p rest)) (filter p rest)
+
+assert_eq map inc End == End
+assert_eq map inc (Cons 1 (Cons 2 End)) == Cons 2 (Cons 3 End)
+assert_eq filter isBig (Cons 1 (Cons 2 (Cons 3 End))) == Cons 2 (Cons 3 End)
+assert_eq map (inc >>> dbl) (Cons 1 (Cons 2 End)) == Cons 4 (Cons 6 End)
+assert_eq map inc (filter isBig (Cons 1 (Cons 2 End))) == Cons 3 End

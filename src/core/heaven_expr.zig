@@ -526,6 +526,11 @@ pub const Heaven = struct {
             return self.evalGreenExpr(inner);
         }
 
+        // ─── Déclaration de type : data Name params = C1 | C2 args | ... ───
+        if (std.mem.startsWith(u8, trimmed, "data ")) {
+            return self.evalDataDecl(trimmed["data ".len..]);
+        }
+
         // ─── DÉFINITION DE FONCTION (syntaxe équationnelle) ───
         if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_pos| {
             const lhs = std.mem.trim(u8, trimmed[0..eq_pos], " ");
@@ -620,6 +625,54 @@ pub const Heaven = struct {
             }
         }
         return self.allocator.dupe(u8, trimmed);
+    }
+
+    fn evalDataDecl(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        const eq_pos = std.mem.indexOfScalar(u8, src, '=') orelse
+            return self.allocator.dupe(u8, "syntax error in data");
+        const rhs = std.mem.trim(u8, src[eq_pos + 1 ..], " \t");
+
+        var it = std.mem.splitScalar(u8, rhs, '|');
+        var count: usize = 0;
+        while (it.next()) |raw| {
+            const ctor = std.mem.trim(u8, raw, " \t");
+            if (ctor.len == 0) continue;
+
+            // Nom = premier token
+            var name_end: usize = 0;
+            while (name_end < ctor.len and ctor[name_end] != ' ' and ctor[name_end] != '\t') : (name_end += 1) {}
+            const name = ctor[0..name_end];
+
+            // Compter les args en respectant les parenthèses
+            var arity: u8 = 0;
+            var i = name_end;
+            while (i < ctor.len) {
+                while (i < ctor.len and (ctor[i] == ' ' or ctor[i] == '\t')) : (i += 1) {}
+                if (i >= ctor.len) break;
+                if (ctor[i] == '(') {
+                    var depth: usize = 1;
+                    i += 1;
+                    while (i < ctor.len and depth > 0) : (i += 1) {
+                        if (ctor[i] == '(') depth += 1
+                        else if (ctor[i] == ')') depth -= 1;
+                    }
+                } else {
+                    while (i < ctor.len and ctor[i] != ' ' and ctor[i] != '\t') : (i += 1) {}
+                }
+                arity += 1;
+            }
+
+            const owned = try self.allocator.dupe(u8, name);
+            const gop = try self.engine.fns.getOrPut(self.allocator, owned);
+            if (gop.found_existing) {
+                self.allocator.free(owned);
+            } else {
+                gop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
+            }
+            gop.value_ptr.ctor_arity = arity;
+            count += 1;
+        }
+        return std.fmt.allocPrint(self.allocator, "✓ data type registered ({d} constructors)", .{count});
     }
 
     fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {

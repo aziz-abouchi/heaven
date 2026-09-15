@@ -389,17 +389,12 @@ fn isFrontendExtension(name: []const u8) bool {
     if (std.mem.eql(u8, name, "unquote")) return true;
     if (std.mem.eql(u8, name, "perform")) return true;
     if (std.mem.eql(u8, name, "handle")) return true;
-    if (std.mem.eql(u8, name, "Nil")) return true;
-    if (std.mem.eql(u8, name, "Cons")) return true;
     if (std.mem.startsWith(u8, name, "Type_")) return true;
     return false;
 }
 
 fn isFrontendExtensionApply(name: []const u8) bool {
-    // perform/handle/quote en tête d'apply = ÉVALUABLES
     if (std.mem.eql(u8, name, "unquote")) return true;
-    if (std.mem.eql(u8, name, "Nil")) return true;
-    if (std.mem.eql(u8, name, "Cons")) return true;
     if (std.mem.startsWith(u8, name, "Type_")) return true;
     return false;
 }
@@ -424,6 +419,30 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             return try store.apply(op_id, evaled);
         } else {
             //platform.dbg("[ctor-branch] op='{s}' NOT IN FNS MAP\n", .{op});
+        }
+    }
+
+    // ═══ DISPATCH ENV : head lié à une fonction ou expression ═══
+    if (store.interner.lookup(op)) |op_sym| {
+        if (env.get(op_sym)) |bound| {
+            const bound_node = store.get(bound);
+
+            // Cas 1 : symbole lié à un autre symbole de fonction connue
+            //   map inc → f = inc_sym → dispatch vers evalFunction("inc")
+            if (bound_node.tag == .sym) {
+                const target = store.interner.resolve(bound_node.payload);
+                if (engine.fns.get(target) != null) {
+                    return engine.evalFunction(env, target, args);
+                }
+            }
+
+            // Cas 2 : symbole lié à une expression (ex : >>> produit un apply)
+            //   map (inc >>> dbl) → f = apply(>>>, [inc, dbl])
+            //   → on reconstruit apply(f, args) et on laisse evaluate gérer
+            if (bound_node.tag == .apply or bound_node.tag == .lambda) {
+                const new_apply = try store.apply(bound, args);
+                return evaluate(store, env, engine, new_apply, depth + 1);
+            }
         }
     }
 
@@ -452,6 +471,13 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                         try env.put(bound_node.payload, arg_val);
                         defer env.delete(bound_node.payload);
                         return evaluate(store, env, engine, lam_span[0], depth + 1);
+                    }
+                }
+                // ✅ NOUVEAU : symbole lié à un autre symbole de fonction
+                if (bound_node.tag == .sym) {
+                    const target = store.interner.resolve(bound_node.payload);
+                    if (engine.fns.get(target) != null) {
+                        return engine.evalFunction(env, target, args);
                     }
                 }
             }
