@@ -198,9 +198,17 @@ pub const Engine = struct {
         const fn_def = self.fns.get(name) orelse return error.UnknownSymbol;
         if (fn_def.num_clauses == 0) return error.UnknownSymbol;
 
+        // Snapshot args AVANT toute évaluation récursive.
+        // args est une slice sur store.pool.items ; les évaluations
+        // récursives (ex : `>>>` qui construit un lambda) peuvent
+        // réallouer pool.items, rendant la slice dangling.
+        const args_snap = try self.allocator.alloc(Id, args.len);
+        defer self.allocator.free(args_snap);
+        @memcpy(args_snap, args);
+
         for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
-            //platform.dbg("[clause] name='{s}' num_patterns={d} args.len={d}\n", .{ name, clause.num_patterns, args.len });
-            if (args.len != clause.num_patterns) continue;
+            //platform.dbg("[clause] name='{s}' num_patterns={d} args_snap.len={d}\n", .{ name, clause.num_patterns, args_snap.len });
+            if (args_snap.len != clause.num_patterns) continue;
 
             var new_env = Env.init(self.allocator);
             defer new_env.deinit();
@@ -211,7 +219,7 @@ pub const Engine = struct {
 
             var matched = true;
             for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
-                const arg_val = try evaluate(store, caller_env, self, args[i], 0);
+                const arg_val = try evaluate(store, caller_env, self, args_snap[i], 0);
                 const p_node = store.get(p);
 
                 if (p_node.tag == .sym) {

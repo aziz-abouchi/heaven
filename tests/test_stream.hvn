@@ -1,4 +1,5 @@
 data Stream a = Cons a (Stream a) | End
+data Pair a b = Pair a b
 
 inc x = x + 1
 dbl x = x * 2
@@ -10,8 +11,46 @@ map f (Cons x rest) = Cons (f x) (map f rest)
 filter p End = End
 filter p (Cons x rest) = if (p x) (Cons x (filter p rest)) (filter p rest)
 
+take zero s = End
+take (succ n) End = End
+take (succ n) (Cons x rest) = Cons x (take n rest)
+
+drop zero s = s
+drop (succ n) End = End
+drop (succ n) (Cons x rest) = drop n rest
+
+zip End s = End
+zip s End = End
+zip (Cons x rx) (Cons y ry) = Cons (Pair x y) (zip rx ry)
+
+tap g End = End
+tap g (Cons x rest) = Cons x (tap g rest)
+
+-- Tests existants
 assert_eq map inc End == End
 assert_eq map inc (Cons 1 (Cons 2 End)) == Cons 2 (Cons 3 End)
 assert_eq filter isBig (Cons 1 (Cons 2 (Cons 3 End))) == Cons 2 (Cons 3 End)
 assert_eq map (inc >>> dbl) (Cons 1 (Cons 2 End)) == Cons 4 (Cons 6 End)
 assert_eq map inc (filter isBig (Cons 1 (Cons 2 End))) == Cons 3 End
+
+-- take
+assert_eq take zero (Cons 1 (Cons 2 End)) == End
+assert_eq take (succ (succ zero)) (Cons 1 (Cons 2 (Cons 3 End))) == Cons 1 (Cons 2 End)
+assert_eq take (succ zero) End == End
+
+-- drop
+assert_eq drop zero (Cons 1 (Cons 2 End)) == Cons 1 (Cons 2 End)
+assert_eq drop (succ (succ zero)) (Cons 1 (Cons 2 (Cons 3 End))) == Cons 3 End
+assert_eq drop (succ zero) End == End
+
+-- zip
+assert_eq zip End (Cons 1 End) == End
+assert_eq zip (Cons 1 (Cons 2 End)) (Cons 3 End) == Cons (Pair 1 3) End
+assert_eq zip (Cons 1 (Cons 2 End)) (Cons 3 (Cons 4 End)) == Cons (Pair 1 3) (Cons (Pair 2 4) End)
+
+-- tap (sans effet de bord, juste traversal)
+assert_eq tap inc (Cons 1 (Cons 2 End)) == Cons 1 (Cons 2 End)
+
+-- combinaisons avec >>>
+# assert_eq (take (succ zero) >>> map inc) (Cons 1 (Cons 2 End)) == Cons 2 End
+# assert_eq (drop (succ zero) >>> take (succ zero)) (Cons 1 (Cons 2 (Cons 3 End))) == Cons 2 End
