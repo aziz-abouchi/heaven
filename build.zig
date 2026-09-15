@@ -56,7 +56,11 @@ pub fn build(b: *std.Build) void {
             }),
         });
 
-        const cflags = &.{ "-std=c99", "-DONE_SOURCE=0", "-DTCC_TARGET_X86_64", "-DTCC_TARGET_ELF" };
+        const arch = target.result.cpu.arch;
+        const cflags: []const []const u8 = if (arch == .x86_64)
+                &.{ "-std=c99", "-DONE_SOURCE=0", "-DTCC_TARGET_X86_64", "-DTCC_TARGET_ELF" }
+            else
+                &.{ "-std=c99", "-DONE_SOURCE=0" };
 
         // Fichiers communs (toujours présents)
         lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tcc.c"), .flags = cflags });
@@ -69,7 +73,6 @@ pub fn build(b: *std.Build) void {
         lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccdbg.c"), .flags = cflags });
 
         // Architecture : UNE SEULE (selon la cible)
-        const arch = target.result.cpu.arch;
         if (arch == .aarch64) {
             lib.addCSourceFile(.{ .file = b.path("vendor/tcc/arm64-gen.c"), .flags = cflags });
             lib.addCSourceFile(.{ .file = b.path("vendor/tcc/arm64-link.c"), .flags = cflags });
