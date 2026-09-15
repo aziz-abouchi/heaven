@@ -1,0 +1,6 @@
+inc x = x + 1
+dbl x = x * 2
+
+assert_eq ((inc >>> dbl) 3) == 8
+assert_eq ((inc >>> inc >>> inc) 0) == 3
+assert_eq ((dbl >>> inc) 5) == 11

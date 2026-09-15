@@ -49,6 +49,7 @@ pub const EvalError = error{
     UnknownSymbol,
     UnboundVariable,
     ExtensionNotLowered,
+    NotALambda,
 };
 
 pub const FunctionClause = struct {
@@ -320,6 +321,20 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 
             if (op_node.tag != .sym) {
                 const evaled_op = try evaluate(store, env, engine, op_id, depth + 1);
+                const evaled_node = store.get(evaled_op);
+
+                // Beta-réduction directe : (\x -> body) arg → body[x := arg]
+                if (evaled_node.tag == .lambda) {
+                    if (all_args.len != 2) return error.ArityMismatch;
+                    const arg_val = try evaluate(store, env, engine, all_args[1], depth + 1);
+                    const lam_span = store.spanSliceConst(evaled_node.span_a);
+                    if (lam_span.len != 1) return error.NotALambda;
+                    const param_sym = evaled_node.payload;
+                    try env.put(param_sym, arg_val);
+                    defer env.delete(param_sym);
+                    return evaluate(store, env, engine, lam_span[0], depth + 1);
+                }
+
                 const new_apply = try store.addNode(.{ .tag = .apply, .payload = evaled_op, .aux = 0, .span_a = node.span_a, .span_b = Span.EMPTY });
                 return evaluate(store, env, engine, new_apply, depth + 1);
             }
@@ -362,7 +377,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -410,6 +425,18 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         } else {
             //platform.dbg("[ctor-branch] op='{s}' NOT IN FNS MAP\n", .{op});
         }
+    }
+
+    // ═══ `>>>` : composition de fonctions ═══
+    // f >>> g = \__pipe_x -> g (f __pipe_x)
+    if (std.mem.eql(u8, op, ">>>")) {
+        if (args.len != 2) return error.ArityMismatch;
+        const f = args[0];
+        const g = args[1];
+        const x_sym_id = try store.sym("__pipe_x");
+        const fx = try store.apply(f, &.{x_sym_id});
+        const gfx = try store.apply(g, &.{fx});
+        return try store.lambdaNative(&.{"__pipe_x"}, gfx);
     }
 
     // ✅ ENV-BOUND LAMBDA — EN PREMIER, avant tout autre check

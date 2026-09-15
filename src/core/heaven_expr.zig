@@ -1356,7 +1356,9 @@ pub const Heaven = struct {
             }
         }
 
-        if (fnode.tag != .sym) return id;
+        if (fnode.tag != .sym) {
+            return self.evaluateExpr(id) catch id;
+        }
         const head = self.store.interner.resolve(fnode.payload);
 
         // ✅ DUMP : la structure complète du nœud
@@ -1988,7 +1990,7 @@ pub const Heaven = struct {
 };
 
 fn isInfixOp(tok: []const u8) bool {
-    const ops = [_][]const u8{ "+", "-", "*", "/", "^", "%", "==", "!=", "<", ">", "<=", ">=" };
+    const ops = [_][]const u8{ "+", "-", "*", "/", "^", "%", "==", "!=", "<", ">", "<=", ">=", ">>>" };
     for (ops) |o| {
         if (std.mem.eql(u8, tok, o)) return true;
     }

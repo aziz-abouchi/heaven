@@ -1160,6 +1160,15 @@ const Lexer = struct {
             return .{ .kind = .comma, .text = "," };
         }
 
+        // Opérateurs 3 chars
+        if (self.pos + 2 < self.src.len) {
+            const three = self.src[self.pos .. self.pos + 3];
+            if (std.mem.eql(u8, three, ">>>")) {
+                self.pos += 3;
+                return .{ .kind = .op, .text = three };
+            }
+        }
+
         // Opérateurs 2 chars
         if (self.pos + 1 < self.src.len) {
             const two = self.src[self.pos .. self.pos + 2];
@@ -1197,6 +1206,7 @@ const NativeParser = struct {
     }
 
     fn prec(op: []const u8) u8 {
+        if (eq(op, ">>>")) return 0xFE;
         if (eq(op, "||") or eq(op, "or")) return 1;
         if (eq(op, "&&") or eq(op, "and")) return 2;
         if (eq(op, "==") or eq(op, "!=")) return 3;
