@@ -1,0 +1,3 @@
+data Stream a = Cons a (Stream a) | End
+
+assert_eq Cons 1 End == Cons 1 End

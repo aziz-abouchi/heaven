@@ -1,0 +1,35 @@
+-- ═══ Stream ═══
+data Stream a = Cons a (Stream a) | End
+
+-- ═══ Pair ═══
+data Pair a b = Pair a b
+
+-- ═══ map ═══
+map f End = End
+map f (Cons x rest) = Cons (f x) (map f rest)
+
+-- ═══ filter ═══
+filter p End = End
+filter p (Cons x rest) = if (p x) (Cons x (filter p rest)) (filter p rest)
+
+-- ═══ take ═══
+-- take (succ^n zero) stream → les n premiers éléments
+take zero s = End
+take (succ n) End = End
+take (succ n) (Cons x rest) = Cons x (take n rest)
+
+-- ═══ drop ═══
+drop zero s = s
+drop (succ n) End = End
+drop (succ n) (Cons x rest) = drop n rest
+
+-- ═══ zip ═══
+zip End s = End
+zip s End = End
+zip (Cons x rx) (Cons y ry) = Cons (Pair x y) (zip rx ry)
+
+-- ═══ tap ═══
+-- tap g stream : applique g à chaque élément, retourne le stream inchangé
+-- Note : si `let _ = ... in ...` ne marche pas, on reviendra sur cette def
+tap g End = End
+tap g (Cons x rest) = Cons x (tap g rest)
