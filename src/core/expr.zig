@@ -308,6 +308,28 @@ pub const Store = struct {
         self.interner.deinit();
     }
 
+    /// Snapshot d'une slice d'Ids issue de pool.items.
+    /// À utiliser AVANT tout appel qui peut réallouer le pool
+    /// (apply, pushSpan, reserveSpan, lowerRec, evaluate, etc.).
+    ///
+    /// Libération : `self.allocator.free(snapshot)`, ou via `defer`.
+    pub fn snapshotArgs(self: *Store, allocator: Allocator, args: []const Id) ![]Id {
+        _ = self;
+        assertNoDangling(args);
+        const copy = try allocator.alloc(Id, args.len);
+        @memcpy(copy, args);
+        return copy;
+    }
+
+    pub fn assertNoDangling(slice: []const Id) void {
+        if (!platform.target.is_debug) return;
+        for (slice) |id| {
+            if (id == 0xAAAAAAAA) {
+                @panic("dangling Id in slice — snapshot manquant");
+            }
+        }
+    }
+
     pub fn addNode(self: *Store, node: Node) !Id {
         const id: Id = @intCast(self.nodes.items.len);
         try self.nodes.append(self.allocator, node);
@@ -324,7 +346,7 @@ pub const Store = struct {
         // ✅ GARDE : attraper TOUT accès à un Id invalide AVEC sa stack !
         if (id >= self.nodes.items.len) {
             platform.debug.print("[GET BUG] id={d} >= len={d} — STACK TRACE MANQUANT\n", .{ id, self.nodes.items.len });
-            @panic("invalid Id access");   // crash MAIS avec le message
+            @panic("invalid Id access"); // crash MAIS avec le message
         }
         return self.nodes.items[id];
     }
@@ -481,8 +503,7 @@ pub const Store = struct {
         // ── DEBUG : détecter l'ID avant qu'il soit écrit ──
         for (args, 0..) |a, i| {
             if (a == 0xAAAAAAAA) {
-                platform.debug.print("[apply CORRUPT] func={d} arg[{d}]=0xAA store.len={d}\n",
-                    .{ func, i, self.nodes.items.len });
+                platform.debug.print("[apply CORRUPT] func={d} arg[{d}]=0xAA store.len={d}\n", .{ func, i, self.nodes.items.len });
                 @panic("apply received corrupted arg");
             }
         }
@@ -495,14 +516,12 @@ pub const Store = struct {
 
         if (platform.target.is_debug) {
             if (fixed_func >= self.nodes.items.len) {
-                platform.debug.print("[apply BUG] func={d} >= {d}\n",
-                    .{ fixed_func, self.nodes.items.len });
+                platform.debug.print("[apply BUG] func={d} >= {d}\n", .{ fixed_func, self.nodes.items.len });
                 fixed_func = 0;
             }
             for (args_snap.items, 0..) |a, i| {
                 if (a >= self.nodes.items.len) {
-                    platform.debug.print("[apply BUG] arg[{d}]={d} >= {d}\n",
-                        .{ i, a, self.nodes.items.len });
+                    platform.debug.print("[apply BUG] arg[{d}]={d} >= {d}\n", .{ i, a, self.nodes.items.len });
                     args_snap.items[i] = 0;
                 }
             }
@@ -552,8 +571,7 @@ pub const Store = struct {
         // GARDE : les Ids écrits doivent être valides
         for (snap.items, 0..) |it, i| {
             if (it >= self.nodes.items.len) {
-                platform.debug.print("[pushSpan BUG] items[{d}]={d} >= {d}\n",
-                    .{ i, it, self.nodes.items.len });
+                platform.debug.print("[pushSpan BUG] items[{d}]={d} >= {d}\n", .{ i, it, self.nodes.items.len });
             }
         }
         const span = try self.reserveSpan(snap.items.len);
@@ -609,7 +627,7 @@ pub const Store = struct {
                 const sym_id = try self.interner.intern(sym_str);
                 const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
                 const args_src = self.spanSliceConst(node.span_a);
-                const args = try self.copyPoolSlice(args_src);   // ← snapshot AVANT reserveSpan
+                const args = try self.copyPoolSlice(args_src); // ← snapshot AVANT reserveSpan
                 defer self.allocator.free(args);
                 const new_span = try self.reserveSpan(1 + args.len);
                 self.pool.items[new_span.start] = sym_node;
@@ -626,7 +644,7 @@ pub const Store = struct {
                 const sym_id = try self.interner.intern(sym_str);
                 const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
                 const args_src = self.spanSliceConst(node.span_a);
-                const args = try self.copyPoolSlice(args_src);   // ← snapshot AVANT reserveSpan
+                const args = try self.copyPoolSlice(args_src); // ← snapshot AVANT reserveSpan
                 defer self.allocator.free(args);
                 const new_span = try self.reserveSpan(1 + args.len);
                 self.pool.items[new_span.start] = sym_node;
@@ -637,7 +655,7 @@ pub const Store = struct {
                 const sym_id = try self.interner.intern("tuple");
                 const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
                 const args_src = self.spanSliceConst(node.span_a);
-                const args = try self.copyPoolSlice(args_src);   // ← snapshot AVANT reserveSpan
+                const args = try self.copyPoolSlice(args_src); // ← snapshot AVANT reserveSpan
                 defer self.allocator.free(args);
                 const new_span = try self.reserveSpan(1 + args.len);
                 self.pool.items[new_span.start] = sym_node;
@@ -648,7 +666,7 @@ pub const Store = struct {
                 const sym_id = try self.interner.intern(if (node.tag == .block) "block" else "seq");
                 const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
                 const args_src = self.spanSliceConst(node.span_a);
-                const args = try self.copyPoolSlice(args_src);   // ← snapshot AVANT reserveSpan
+                const args = try self.copyPoolSlice(args_src); // ← snapshot AVANT reserveSpan
                 defer self.allocator.free(args);
                 const new_span = try self.reserveSpan(1 + args.len);
                 self.pool.items[new_span.start] = sym_node;
@@ -657,14 +675,14 @@ pub const Store = struct {
             },
             .var_tag => self.makeNode(.sym, node.payload, 0, Span.EMPTY, Span.EMPTY),
             .hole => id,
-                        // --- LOWERING VECTORIEL / LISTES ---
+            // --- LOWERING VECTORIEL / LISTES ---
 
             // 1. Vecteur n-aire : [x1, x2, ...] -> apply(sym("vector"), x1, x2, ...)
             .vector => blk: {
                 const sym_id = try self.interner.intern("vector");
                 const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
                 const args_src = self.spanSliceConst(node.span_a);
-                const args = try self.copyPoolSlice(args_src);   // ← snapshot AVANT reserveSpan
+                const args = try self.copyPoolSlice(args_src); // ← snapshot AVANT reserveSpan
                 defer self.allocator.free(args);
                 const new_span = try self.reserveSpan(1 + args.len);
                 self.pool.items[new_span.start] = sym_node;
@@ -687,7 +705,7 @@ pub const Store = struct {
                 var i: usize = args.len;
                 while (i > 0) {
                     i -= 1;
-                    const elem = try self.lower(args[i]);   // args est notre copie → stable
+                    const elem = try self.lower(args[i]); // args est notre copie → stable
 
                     const new_span = try self.reserveSpan(3);
                     self.pool.items[new_span.start] = cons_node;
@@ -706,7 +724,7 @@ pub const Store = struct {
                 const sym_id = try self.interner.intern("foldl");
                 const sym_node = try self.makeNode(.sym, sym_id, 0, Span.EMPTY, Span.EMPTY);
                 const args_src = self.spanSliceConst(node.span_a);
-                const args = try self.copyPoolSlice(args_src);   // ← snapshot AVANT reserveSpan
+                const args = try self.copyPoolSlice(args_src); // ← snapshot AVANT reserveSpan
                 defer self.allocator.free(args);
                 const new_span = try self.reserveSpan(1 + args.len);
                 self.pool.items[new_span.start] = sym_node;
@@ -750,7 +768,7 @@ pub const Store = struct {
                     if (new_args[i] != child) any_changed = true;
                 }
                 if (any_changed) {
-                    new_span_a = try self.pushSpan(new_args);   // pushSpan est déjà safe
+                    new_span_a = try self.pushSpan(new_args); // pushSpan est déjà safe
                     changed = true;
                 }
             }
@@ -850,8 +868,27 @@ pub const Store = struct {
                 buf.appendSlice(allocator, self.interner.resolve(node.payload)) catch return error.OutOfMemory;
             },
             .apply => {
-                buf.append(allocator, '(') catch return error.OutOfMemory;
                 const args = node.span_a.slice(self.pool.items);
+                // Détecter quote/unquote pour affichage lossless
+                if (args.len >= 2) {
+                    const head_node = self.get(args[0]);
+                    if (head_node.tag == .sym) {
+                        const head_name = self.interner.resolve(head_node.payload);
+                        if (std.mem.eql(u8, head_name, "quote")) {
+                            buf.appendSlice(allocator, "(quote ") catch return error.OutOfMemory;
+                            try self.serialize(args[1], buf, allocator);
+                            buf.append(allocator, ')') catch return error.OutOfMemory;
+                            return;
+                        }
+                        if (std.mem.eql(u8, head_name, "unquote")) {
+                            buf.appendSlice(allocator, "(unquote ") catch return error.OutOfMemory;
+                            try self.serialize(args[1], buf, allocator);
+                            buf.append(allocator, ')') catch return error.OutOfMemory;
+                            return;
+                        }
+                    }
+                }
+                buf.append(allocator, '(') catch return error.OutOfMemory;
                 for (args, 0..) |arg, i| {
                     if (i > 0) buf.append(allocator, ' ') catch return error.OutOfMemory;
                     try self.serialize(arg, buf, allocator);
@@ -909,26 +946,26 @@ pub const Store = struct {
         });
     }
 
-pub fn handle(self: *Store, body: Id, handler: Id) !Id {
-    const h = try self.sym("handle");
-    return self.apply(h, &.{ body, handler });
-}
-pub fn quote(self: *Store, inner: Id) !Id {
-    const q = try self.sym("quote");
-    return self.apply(q, &.{inner});
-}
-pub fn unquote(self: *Store, inner: Id) !Id {
-    const u = try self.sym("unquote");
-    return self.apply(u, &.{inner});
-}
-pub fn perform(self: *Store, name: []const u8, args: []const Id) !Id {
-    const p = try self.sym("perform");
-    var all: std.ArrayListUnmanaged(Id) = .{};
-    defer all.deinit(self.allocator);
-    try all.append(self.allocator, try self.sym(name));
-    for (args) |a| try all.append(self.allocator, a);
-    return self.apply(p, all.items);
-}
+    pub fn handle(self: *Store, body: Id, handler: Id) !Id {
+        const h = try self.sym("handle");
+        return self.apply(h, &.{ body, handler });
+    }
+    pub fn quote(self: *Store, inner: Id) !Id {
+        const q = try self.sym("quote");
+        return self.apply(q, &.{inner});
+    }
+    pub fn unquote(self: *Store, inner: Id) !Id {
+        const u = try self.sym("unquote");
+        return self.apply(u, &.{inner});
+    }
+    pub fn perform(self: *Store, name: []const u8, args: []const Id) !Id {
+        const p = try self.sym("perform");
+        var all: std.ArrayListUnmanaged(Id) = .{};
+        defer all.deinit(self.allocator);
+        try all.append(self.allocator, try self.sym(name));
+        for (args) |a| try all.append(self.allocator, a);
+        return self.apply(p, all.items);
+    }
     pub fn bindSym(self: *Store, sym_id: Sym, body: Id) !Id {
         _ = self;
         _ = sym_id;
@@ -1350,7 +1387,7 @@ pub fn nativeToSExpr(input: []const u8, allocator: std.mem.Allocator) NativeErro
     const result = try p.parseExpr(0);
     const t = try lex.next();
     if (t.kind != .eof) return error.InvalidSyntax; // tokens en trop
-    return allocator.dupe(u8, result);  // copie hors de l'arène
+    return allocator.dupe(u8, result); // copie hors de l'arène
 }
 
 /// Compte les occurrences d'un symbole `name` dans l'arbre d'AST `id`.

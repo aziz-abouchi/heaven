@@ -281,9 +281,8 @@ pub const Math = struct {
                 const args = all[1..];
 
                 // Snapshot AVANT toute mutation du pool
-                const args_snapshot = try self.allocator.alloc(Id, args.len);
+                const args_snapshot = try self.store.snapshotArgs(self.allocator, args);
                 defer self.allocator.free(args_snapshot);
-                @memcpy(args_snapshot, args);
 
                 const new_args = try self.allocator.alloc(Id, args.len);
                 defer self.allocator.free(new_args);

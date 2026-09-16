@@ -202,9 +202,8 @@ pub const Engine = struct {
         // args est une slice sur store.pool.items ; les évaluations
         // récursives (ex : `>>>` qui construit un lambda) peuvent
         // réallouer pool.items, rendant la slice dangling.
-        const args_snap = try self.allocator.alloc(Id, args.len);
+        const args_snap = try self.store.snapshotArgs(self.allocator, args);
         defer self.allocator.free(args_snap);
-        @memcpy(args_snap, args);
 
         for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
             //platform.dbg("[clause] name='{s}' num_patterns={d} args_snap.len={d}\n", .{ name, clause.num_patterns, args_snap.len });
@@ -327,6 +326,10 @@ pub const Engine = struct {
 
 /// Évaluateur à 6 branches (primitives fondamentales uniquement).
 pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) EvalError!Id {
+    if (platform.target.is_debug and id == 0xAAAAAAAA) {
+        @panic("poison Id at evaluate entry");
+    }
+
     if (depth > 1000) return error.RecursionLimitExceeded;
     const node = store.get(id);
 
@@ -423,7 +426,6 @@ fn isMagicSymbol(name: []const u8) bool {
 }
 
 fn isFrontendExtension(name: []const u8) bool {
-    if (std.mem.eql(u8, name, "quote")) return true;
     if (std.mem.eql(u8, name, "unquote")) return true;
     if (std.mem.eql(u8, name, "perform")) return true;
     if (std.mem.eql(u8, name, "handle")) return true;
@@ -440,9 +442,8 @@ fn isFrontendExtensionApply(name: []const u8) bool {
 fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
     // Snapshot : les appels récursifs à evaluate() peuvent realloc pool.items,
     // rendant la slice `args` dangling. On copie une fois pour toutes.
-    const args_snap = try engine.allocator.alloc(Id, args.len);
+    const args_snap = try store.snapshotArgs(engine.allocator, args);
     defer engine.allocator.free(args_snap);
-    @memcpy(args_snap, args);
 
     // ═══ 0. CONSTRUCTEURS ═══
     if (engine.fns.get(op)) |fn_def| {
@@ -884,11 +885,11 @@ test "engine rejects non-lowered frontend expressions" {
     // (expandMacro + branches effets dans evalMagic) — c'est ce qui
     // fait marcher macro_double et effect_handle.
 
+    // quote n'est plus une extension frontend — c'est un constructeur de données
+    // Il s'auto-évalue comme un symbole ordinaire (pas d'erreur)
     const quote_nu = try engine.store.sym("quote");
-    try std.testing.expectError(
-        error.ExtensionNotLowered,
-        engine.eval(quote_nu),
-    );
+    const quote_result = try engine.eval(quote_nu);
+    try std.testing.expectEqual(quote_nu, quote_result);
 
     const perform_nu = try engine.store.sym("perform");
     try std.testing.expectError(
