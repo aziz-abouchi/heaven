@@ -596,10 +596,11 @@ pub const Commands = struct {
         return self.math.expand(input);
     }
 
-    fn evalLatex(self: *Commands, input: []const u8) ![]u8 {
+    pub fn evalLatex(self: *Commands, input: []const u8) ![]u8 {
         const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
         const id = try self.store.lowerRec(raw_id);
         const latex = try self.toLaTeXInline(id);
+        defer self.allocator.free(latex); // ← ajouter
         return std.fmt.allocPrint(self.allocator, "latex|{s}", .{latex});
     }
 
