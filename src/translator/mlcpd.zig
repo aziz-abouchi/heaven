@@ -12,6 +12,7 @@ const Allocator = std.mem.Allocator;
 const expr_mod = @import("expr");
 const Store = expr_mod.Store;
 const Id = expr_mod.Id;
+const platform = @import("platform");
 
 pub const MlcpdError = error{
     InvalidSchema,
@@ -193,7 +194,6 @@ pub const ParsedFile = struct {
     }
 
     fn convertNode(self: *ParsedFile, store: *Store, node: *const MlcpdNode, children: []const Id) MlcpdError!Id {
-        _ = self;
         switch (node.role) {
             .literal_expr => {
                 // Essayer de parser comme entier
@@ -224,47 +224,93 @@ pub const ParsedFile = struct {
                 return store.apply(sym, children) catch return error.OutOfMemory;
             },
             .function_decl => {
-                // Créer un lambda: λ(params). body
-                // children[0] = nom de la fonction (identifier)
-                // children[1] = paramètres (peut être un tuple ou liste)
-                // children[2] = corps de la fonction
+                if (children.len < 2) return store.unitLit();
 
-                if (children.len < 3) {
-                    // Pas assez d'enfants, fallback
-                    return store.unitLit();
+                var param_names: std.ArrayListUnmanaged([]const u8) = .{};
+                defer param_names.deinit(store.allocator);
+
+                var body_id: ?Id = null;
+
+                const start = node.children_start;
+                const count = node.children_count;
+                if (start + count > self.nodes.items.len) return store.unitLit();
+                const child_nodes = self.nodes.items[start..][0..count];
+
+                for (child_nodes, 0..) |child_node, i| {
+                    if (i >= children.len) break;
+                    const converted = children[i];
+
+                    switch (child_node.role) {
+                        .parameter_decl => {
+                            // Container (parameters / formal_parameters) : itère ses enfants
+                            if (std.mem.eql(u8, child_node.node_type, "parameters") or
+                                std.mem.eql(u8, child_node.node_type, "formal_parameters"))
+                            {
+                                const sub_start = child_node.children_start;
+                                const sub_count = child_node.children_count;
+                                if (sub_start + sub_count > self.nodes.items.len) continue;
+                                const sub_nodes = self.nodes.items[sub_start..][0..sub_count];
+                                for (sub_nodes) |sub_node| {
+                                    if (std.mem.eql(u8, sub_node.node_type, "identifier")) {
+                                        try param_names.append(store.allocator, sub_node.code_snippet);
+                                    }
+                                }
+                                continue;
+                            }
+                            // Identifiant nu (param aplati)
+                            if (std.mem.eql(u8, child_node.node_type, "identifier")) {
+                                try param_names.append(store.allocator, child_node.code_snippet);
+                            }
+                        },
+                        .block_stmt => {
+                            body_id = converted;
+                        },
+                        else => {},
+                    }
                 }
 
-                const func_name_id = children[0];
-                const params_id = children[1];
-                const body_id = children[2];
+                const body = body_id orelse children[children.len - 1];
 
-                // Pour l'instant, créer un lambda simple avec un paramètre "x"
-                // TODO: extraire les vrais noms de paramètres depuis params_id
-                // Extraire le VRAI nom du paramètre depuis params_id
-                const param_node = store.get(params_id);
-                const param_name: []const u8 = if (param_node.tag == .sym)
-                    store.interner.resolve(param_node.payload)
-                else
-                    "x"; // Fallback
-                const lambda = store.lambdaNative(&.{param_name}, body_id) catch return error.OutOfMemory;
+                if (param_names.items.len == 0) {
+                    try param_names.append(store.allocator, "x");
+                }
 
-                _ = func_name_id;
+                const lambda = store.lambdaNative(param_names.items, body) catch return error.OutOfMemory;
                 return lambda;
             },
             .parameter_decl => {
-                // Retourner le nom du paramètre comme symbole
-                // Chercher le premier enfant qui est un symbole (le nom)
+                // Distinguer container (parameters/formal_parameters) vs identifier
+                const is_container = std.mem.eql(u8, node.node_type, "parameters") or
+                    std.mem.eql(u8, node.node_type, "formal_parameters");
+
+                if (!is_container) {
+                    if (node.code_snippet.len > 0) {
+                        return store.sym(node.code_snippet) catch return error.OutOfMemory;
+                    }
+                    for (children) |child_id| {
+                        const child_node = store.get(child_id);
+                        if (child_node.tag == .sym) return child_id;
+                    }
+                    return store.sym("param") catch return error.OutOfMemory;
+                }
+
+                // Container : collecter tous les syms
+                var syms: std.ArrayListUnmanaged(Id) = .{};
+                defer syms.deinit(store.allocator);
                 for (children) |child_id| {
                     const child_node = store.get(child_id);
                     if (child_node.tag == .sym) {
-                        return child_id;
+                        try syms.append(store.allocator, child_id);
                     }
                 }
-                // Fallback
-                if (children.len > 0) {
-                    return children[0];
+                if (syms.items.len == 0) {
+                    return store.sym("param") catch return error.OutOfMemory;
                 }
-                return store.sym("param") catch return error.OutOfMemory;
+                if (syms.items.len == 1) {
+                    return syms.items[0];
+                }
+                const tag = store.sym("__params__") catch return error.OutOfMemory;
+                return store.apply(tag, syms.items) catch return error.OutOfMemory;
             },
             .return_stmt => {
                 if (children.len == 1) return children[0];
