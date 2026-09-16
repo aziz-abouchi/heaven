@@ -1210,7 +1210,7 @@ pub fn cmdMlcpdEquiv(self: *Shell, input: []const u8) void {
             platform.io.print("  Forme canonique: {s}\n", .{str1});
         }
         if (equiv_result.proof != null) {
-            platform.io.print("  📜 Certificat de preuve: disponible\n", .{});
+            platform.io.print("   Trace de preuve: disponible (non revérifiée par le noyau)\n", .{});
         }
     } else {
         platform.io.print("❌ DIFFERENT: Les expressions ne sont pas équivalentes (stratégie: {s})\n", .{@tagName(equiv_result.strategy)});
