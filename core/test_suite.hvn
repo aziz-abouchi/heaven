@@ -15,7 +15,7 @@ let macro double(x) = (quote (* (unquote x) 2))
 test "macro_double": (double 21) == 42
 
 # --- 3. Acteurs Typés ---
-counterHandler state msg = (+ state msg)
+fn counterHandler(state, msg) = (+ state msg)
 let actor Counter = 0 with counterHandler
 send(Counter, 10)
 send(Counter, 5)
@@ -23,7 +23,7 @@ test "actor_state": state(Counter) == 15
 
 
 # --- 4. Effets Algébriques ---
-logHandler msg = (+ msg 100)
+fn logHandler msg = (+ msg 100)
 test "effect_handle": handle (perform "Log" 42) logHandler == 142
 
 # --- 5. Commandes Shell (hors framework natif car elles retournent des chaînes) ---
@@ -76,3 +76,21 @@ assert_eq test_env_var == 42
 let typed_var:Int = 42
 assert_eq typed_var == 42
 
+
+# ── Portage des ex-tests web-only (test_heaven.js) ──
+test "infix_add": 2 + 3 == 5
+test "infix_precedence": 2 * 3 + 1 == 7
+test "infix_div": 10 / 2 == 5
+test "if_true": (if (> 3 2) 1 0) == 1
+test "if_false": (if (< 2 1) 10 20) == 20
+double x = x * 2
+test "fn_infix_body": (double 21) == 42
+triple x := x * 3
+test "fn_walrus_body": (triple 21) == 63
+test "derive_poly": derive x^2 + 2*x + 1 == (+ (* 2 x) 2)
+
+# Fumigue (neutral, sortie non canonique — attrape les crashes, pas les valeurs)
+type (λx.x)
+type ((λx.x) 42)
+latex (x + y)^2
+integrate 2*x

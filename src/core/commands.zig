@@ -923,8 +923,11 @@ pub const Commands = struct {
             const name = self.store.interner.resolve(lhs_node.payload);
             const body_id = self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
 
-            var def: engine_expr.FunctionDef = undefined;
-            def.num_clauses = 1;
+            var def: engine_expr.FunctionDef = .{
+                .clauses = undefined,
+                .num_clauses = 1,
+                .ctor_arity = null, // ← explicite
+            };
             def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = 0, .body = body_id };
 
             const owned_name = try self.engine.allocator.dupe(u8, name);
@@ -974,8 +977,11 @@ pub const Commands = struct {
             const body_id = self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
             const lowered_body = try self.store.lowerRec(body_id);
 
-            var def: engine_expr.FunctionDef = undefined;
-            def.num_clauses = 1;
+            var def: engine_expr.FunctionDef = .{
+                .clauses = undefined,
+                .num_clauses = 1,
+                .ctor_arity = null, // ← explicite
+            };
             def.clauses[0] = .{
                 .patterns = .{0} ** 8,
                 .num_patterns = @intCast(num_pats),
@@ -995,7 +1001,7 @@ pub const Commands = struct {
             const name_sym_id = try self.store.sym(name);
             try self.env.put(name_sym, name_sym_id);
 
-            const msg = try std.fmt.allocPrint(self.allocator, "{s} clause ({d} patterns) registered", .{ name, num_pats });
+            const msg = try std.fmt.allocPrint(self.allocator, "✓ clause enregistrée pour '{s}' ({d} patterns)", .{ name, num_pats });
             platform.dbg("[evalFnDef] alloc addr={d} name={s}\n", .{ @intFromPtr(msg.ptr), name });
             return msg;
         }
