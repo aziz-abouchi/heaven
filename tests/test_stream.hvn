@@ -52,5 +52,5 @@ assert_eq zip (Cons 1 (Cons 2 End)) (Cons 3 (Cons 4 End)) == Cons (Pair 1 3) (Co
 assert_eq tap inc (Cons 1 (Cons 2 End)) == Cons 1 (Cons 2 End)
 
 -- combinaisons avec >>>
-# assert_eq (take (succ zero) >>> map inc) (Cons 1 (Cons 2 End)) == Cons 2 End
-# assert_eq (drop (succ zero) >>> take (succ zero)) (Cons 1 (Cons 2 (Cons 3 End))) == Cons 2 End
+assert_eq (take (succ zero) >>> map inc) (Cons 1 (Cons 2 End)) == Cons 2 End
+assert_eq (drop (succ zero) >>> take (succ zero)) (Cons 1 (Cons 2 (Cons 3 End))) == Cons 2 End

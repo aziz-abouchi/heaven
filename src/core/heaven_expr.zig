@@ -653,8 +653,7 @@ pub const Heaven = struct {
                     var depth: usize = 1;
                     i += 1;
                     while (i < ctor.len and depth > 0) : (i += 1) {
-                        if (ctor[i] == '(') depth += 1
-                        else if (ctor[i] == ')') depth -= 1;
+                        if (ctor[i] == '(') depth += 1 else if (ctor[i] == ')') depth -= 1;
                     }
                 } else {
                     while (i < ctor.len and ctor[i] != ' ' and ctor[i] != '\t') : (i += 1) {}
@@ -822,8 +821,18 @@ pub const Heaven = struct {
                 i += 1;
             }
             if (i >= trimmed.len or trimmed[i] != ')') return error.InvalidSyntax;
-            if (i + 1 < trimmed.len and std.mem.trim(u8, trimmed[i + 1 ..], " ").len > 0)
-                return error.InvalidSyntax;
+
+            const trailing = std.mem.trim(u8, trimmed[i + 1 ..], " \t");
+            if (trailing.len > 0) {
+                // (X) Y Z  →  wrap en  ((X) Y Z)  puis parseSExpr
+                const wrapped = try std.fmt.allocPrint(
+                    self.allocator,
+                    "({s} {s})",
+                    .{ trimmed[0 .. i + 1], trailing },
+                );
+                defer self.allocator.free(wrapped);
+                return self.parseExpression(wrapped);
+            }
 
             const inner = trimmed[1..i];
             return self.parseSExpr(inner);

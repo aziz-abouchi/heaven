@@ -291,6 +291,36 @@ pub const Engine = struct {
                 return evaluate(store, &new_env, self, clause.body, 0);
             }
         }
+        // ─── Currying partiel : args.len < min_patterns ───
+        // take (succ zero)  →  \__curry_0 -> take (succ zero) __curry_0
+        var min_patterns: usize = 32;
+        for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
+            if (clause.num_patterns < min_patterns) min_patterns = clause.num_patterns;
+        }
+        if (args_snap.len < min_patterns and min_patterns != 32) {
+            const missing = min_patterns - args_snap.len;
+
+            const new_params = try self.allocator.alloc([]const u8, missing);
+            defer {
+                for (new_params) |p| self.allocator.free(p);
+                self.allocator.free(new_params);
+            }
+            for (0..missing) |i| {
+                new_params[i] = try std.fmt.allocPrint(self.allocator, "__curry_{d}", .{i});
+            }
+
+            const call_args = try self.allocator.alloc(Id, min_patterns);
+            defer self.allocator.free(call_args);
+            @memcpy(call_args[0..args_snap.len], args_snap);
+            for (0..missing) |i| {
+                call_args[args_snap.len + i] = try store.sym(new_params[i]);
+            }
+
+            const name_sym = try store.sym(name);
+            const body = try store.apply(name_sym, call_args);
+            return try store.lambda(new_params, body);
+        }
+
         return error.ArityMismatch;
     }
 };
@@ -874,11 +904,11 @@ test "engine rejects non-lowered frontend expressions" {
         engine.eval(unquote_nu),
     );
 
-//    const nil_nu = try engine.store.sym("Nil");
-//    try std.testing.expectError(
-//        error.ExtensionNotLowered,
-//        engine.eval(nil_nu),
-//    );
+    //    const nil_nu = try engine.store.sym("Nil");
+    //    try std.testing.expectError(
+    //        error.ExtensionNotLowered,
+    //        engine.eval(nil_nu),
+    //    );
 
     // ✅ En apply, unquote reste rejeté (hors expansion de macro)
     const x = try engine.store.sym("x");
