@@ -438,20 +438,24 @@ fn isFrontendExtensionApply(name: []const u8) bool {
 }
 
 fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
-    //platform.dbg("[evalMagic] op='{s}'\n", .{op});
+    // Snapshot : les appels récursifs à evaluate() peuvent realloc pool.items,
+    // rendant la slice `args` dangling. On copie une fois pour toutes.
+    const args_snap = try engine.allocator.alloc(Id, args.len);
+    defer engine.allocator.free(args_snap);
+    @memcpy(args_snap, args);
 
     // ═══ 0. CONSTRUCTEURS ═══
     if (engine.fns.get(op)) |fn_def| {
-        //platform.dbg("[ctor-branch] op='{s}' clauses={d} ctor_arity={?d} args.len={d}\n", .{ op, fn_def.num_clauses, fn_def.ctor_arity, args.len });
+        //platform.dbg("[ctor-branch] op='{s}' clauses={d} ctor_arity={?d} args_snap.len={d}\n", .{ op, fn_def.num_clauses, fn_def.ctor_arity, args_snap.len });
 
         if (fn_def.ctor_arity) |arity| {
-            if (args.len != arity) return error.ArityMismatch;
+            if (args_snap.len != arity) return error.ArityMismatch;
             const op_sym = store.interner.lookup(op) orelse return error.UnknownSymbol;
             const op_id = try store.symId(op_sym);
-            if (args.len == 0) return try store.apply(op_id, &.{});
-            const evaled = try engine.allocator.alloc(Id, args.len);
+            if (args_snap.len == 0) return try store.apply(op_id, &.{});
+            const evaled = try engine.allocator.alloc(Id, args_snap.len);
             defer engine.allocator.free(evaled);
-            for (args, 0..) |a, i| {
+            for (args_snap, 0..) |a, i| {
                 evaled[i] = try evaluate(store, env, engine, a, depth + 1);
             }
             return try store.apply(op_id, evaled);
@@ -470,15 +474,15 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             if (bound_node.tag == .sym) {
                 const target = store.interner.resolve(bound_node.payload);
                 if (engine.fns.get(target) != null) {
-                    return engine.evalFunction(env, target, args);
+                    return engine.evalFunction(env, target, args_snap);
                 }
             }
 
             // Cas 2 : symbole lié à une expression (ex : >>> produit un apply)
             //   map (inc >>> dbl) → f = apply(>>>, [inc, dbl])
-            //   → on reconstruit apply(f, args) et on laisse evaluate gérer
+            //   → on reconstruit apply(f, args_snap) et on laisse evaluate gérer
             if (bound_node.tag == .apply or bound_node.tag == .lambda) {
-                const new_apply = try store.apply(bound, args);
+                const new_apply = try store.apply(bound, args_snap);
                 return evaluate(store, env, engine, new_apply, depth + 1);
             }
         }
@@ -487,9 +491,9 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // ═══ `>>>` : composition de fonctions ═══
     // f >>> g = \__pipe_x -> g (f __pipe_x)
     if (std.mem.eql(u8, op, ">>>")) {
-        if (args.len != 2) return error.ArityMismatch;
-        const f = args[0];
-        const g = args[1];
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const f = args_snap[0];
+        const g = args_snap[1];
         const x_sym_id = try store.sym("__pipe_x");
         const fx = try store.apply(f, &.{x_sym_id});
         const gfx = try store.apply(g, &.{fx});
@@ -498,14 +502,14 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     // ✅ ENV-BOUND LAMBDA — EN PREMIER, avant tout autre check
     // (récursion locale : (let fact (lambda n ...) (fact 5)))
-    if (args.len == 1) {
+    if (args_snap.len == 1) {
         if (store.interner.lookup(op)) |op_sym| {
             if (env.get(op_sym)) |bound| {
                 const bound_node = store.get(bound);
                 if (bound_node.tag == .lambda) {
                     const lam_span = bound_node.span_a.slice(store.pool.items);
                     if (lam_span.len == 1) {
-                        const arg_val = try evaluate(store, env, engine, args[0], depth + 1);
+                        const arg_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
                         try env.put(bound_node.payload, arg_val);
                         defer env.delete(bound_node.payload);
                         return evaluate(store, env, engine, lam_span[0], depth + 1);
@@ -515,7 +519,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 if (bound_node.tag == .sym) {
                     const target = store.interner.resolve(bound_node.payload);
                     if (engine.fns.get(target) != null) {
-                        return engine.evalFunction(env, target, args);
+                        return engine.evalFunction(env, target, args_snap);
                     }
                 }
             }
@@ -526,8 +530,8 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     if (store.interner.lookup(op)) |op_sym| {
         if (engine.macros.get(op_sym)) |m| {
             const params = m.params_span.slice(store.pool.items);
-            if (args.len != params.len) return error.ArityMismatch;
-            const expansion = try expandMacro(store, engine.allocator, m.body, params, args);
+            if (args_snap.len != params.len) return error.ArityMismatch;
+            const expansion = try expandMacro(store, engine.allocator, m.body, params, args_snap);
             return evaluate(store, env, engine, expansion, depth + 1);
         }
     }
@@ -535,19 +539,19 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // ═══ 1. FONCTIONS UTILISATEUR — délégué à evalFunction ═══
     if (engine.fns.get(op)) |fn_def| {
         if (fn_def.num_clauses > 0 and fn_def.ctor_arity == null) {
-            return engine.evalFunction(env, op, args);
+            return engine.evalFunction(env, op, args_snap);
         }
     }
 
     if (std.mem.eql(u8, op, "derive")) {
-        if (args.len != 1) return error.ArityMismatch;
-        const expr_str = try expr.toString(store, args[0], engine.allocator);
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const expr_str = try expr.toString(store, args_snap[0], engine.allocator);
         defer engine.allocator.free(expr_str);
         return try engine.vtable.deriveId(engine.heaven_ctx, expr_str, "x");
     }
     if (std.mem.eql(u8, op, "simplify")) {
-        if (args.len != 1) return error.ArityMismatch;
-        const expr_str = try expr.toString(store, args[0], engine.allocator);
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const expr_str = try expr.toString(store, args_snap[0], engine.allocator);
         defer engine.allocator.free(expr_str);
         const result_str = try engine.vtable.simplify(engine.heaven_ctx, expr_str);
         defer engine.allocator.free(result_str);
@@ -557,37 +561,37 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     // ═══ 2. OPÉRATEURS MAGIQUES ═══
     if (std.mem.eql(u8, op, "if")) {
-        if (args.len != 3) return error.ArityMismatch;
-        const cond = try evaluate(store, env, engine, args[0], depth + 1);
+        if (args_snap.len != 3) return error.ArityMismatch;
+        const cond = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const cond_node = store.get(cond);
         if (cond_node.tag != .lit) return error.TypeError;
         const lit = store.lits.items[cond_node.aux];
         if (lit != .boolean) return error.TypeError;
-        return if (lit.boolean) evaluate(store, env, engine, args[1], depth + 1) else evaluate(store, env, engine, args[2], depth + 1);
+        return if (lit.boolean) evaluate(store, env, engine, args_snap[1], depth + 1) else evaluate(store, env, engine, args_snap[2], depth + 1);
     }
     if (std.mem.eql(u8, op, "seq") or std.mem.eql(u8, op, "block")) {
         var last: Id = undefined;
-        for (args) |arg| last = try evaluate(store, env, engine, arg, depth + 1);
+        for (args_snap) |arg| last = try evaluate(store, env, engine, arg, depth + 1);
         return last;
     }
     if (std.mem.eql(u8, op, "tuple")) {
-        const new_span = try store.reserveSpan(args.len);
-        for (0..args.len) |i| {
-            store.pool.items[new_span.start + i] = try evaluate(store, env, engine, args[i], depth + 1);
+        const new_span = try store.reserveSpan(args_snap.len);
+        for (0..args_snap.len) |i| {
+            store.pool.items[new_span.start + i] = try evaluate(store, env, engine, args_snap[i], depth + 1);
         }
         const sym = try store.interner.intern("tuple");
         const sym_node = try store.addNode(.{ .tag = .sym, .payload = sym, .aux = 0, .span_a = Span.EMPTY, .span_b = Span.EMPTY });
-        const apply_span = try store.reserveSpan(1 + args.len);
+        const apply_span = try store.reserveSpan(1 + args_snap.len);
         store.pool.items[apply_span.start] = sym_node;
-        @memcpy(store.pool.items[apply_span.start + 1 .. apply_span.start + 1 + args.len], store.pool.items[new_span.start .. new_span.start + args.len]);
+        @memcpy(store.pool.items[apply_span.start + 1 .. apply_span.start + 1 + args_snap.len], store.pool.items[new_span.start .. new_span.start + args_snap.len]);
         return store.addNode(.{ .tag = .apply, .payload = sym_node, .aux = 0, .span_a = apply_span, .span_b = Span.EMPTY });
     }
 
     // ═══ 3. ACTEURS : send et state ═══
     if (std.mem.eql(u8, op, "send")) {
-        if (args.len != 2) return error.ArityMismatch;
-        const actor_id_val = try evaluate(store, env, engine, args[0], depth + 1);
-        const msg_val = try evaluate(store, env, engine, args[1], depth + 1);
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const actor_id_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const msg_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const actor_node = store.get(actor_id_val);
         if (actor_node.tag != .lit) return error.ActorIdNotLiteral;
         const actor_id_lit = store.lits.items[actor_node.aux];
@@ -648,8 +652,8 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return error.HandlerFailed;
     }
     if (std.mem.eql(u8, op, "state")) {
-        if (args.len != 1) return error.ArityMismatch;
-        const actor_id_val = try evaluate(store, env, engine, args[0], depth + 1);
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const actor_id_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const actor_node = store.get(actor_id_val);
         if (actor_node.tag != .lit) return error.ActorIdNotLiteral;
         const actor_id_lit = store.lits.items[actor_node.aux];
@@ -662,12 +666,12 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // ═══ 3. EFFETS ALGÉBRIQUES : perform et handle ═══
     if (std.mem.eql(u8, op, "perform")) {
         if (engine.green_mode) engine.green_call_count += 1;
-        if (args.len > 1) {
-            const val = try evaluate(store, env, engine, args[1], depth + 1);
+        if (args_snap.len > 1) {
+            const val = try evaluate(store, env, engine, args_snap[1], depth + 1);
             engine.last_performed = val;
             return val;
         }
-        return args[0];
+        return args_snap[0];
     }
 
     if (std.mem.eql(u8, op, "handle")) {
@@ -677,7 +681,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const old_performed = engine.last_performed;
         engine.last_performed = null;
 
-        const result = evaluate(store, env, engine, args[0], depth + 1) catch |err| {
+        const result = evaluate(store, env, engine, args_snap[0], depth + 1) catch |err| {
             engine.green_mode = old_mode;
             engine.last_performed = old_performed;
             return err;
@@ -688,8 +692,8 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         engine.last_performed = old_performed;
 
         if (performed) |val| {
-            if (args.len > 1) {
-                const call_id = try store.apply(args[1], &.{val});
+            if (args_snap.len > 1) {
+                const call_id = try store.apply(args_snap[1], &.{val});
                 return evaluate(store, env, engine, call_id, depth + 1);
             }
         }
@@ -697,15 +701,15 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     // ═══ 5. OPÉRATEURS ARITHMÉTIQUES ═══
-    if (args.len == 0) return error.ArityMismatch;
+    if (args_snap.len == 0) return error.ArityMismatch;
     if (std.mem.eql(u8, op, "!")) {
-        if (args.len != 1) return error.ArityMismatch;
-        const a = try evaluate(store, env, engine, args[0], depth + 1);
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const a = try evaluate(store, env, engine, args_snap[0], depth + 1);
         return evalUnary(store, a, .not);
     }
-    if (args.len != 2) return error.ArityMismatch;
-    const a = try evaluate(store, env, engine, args[0], depth + 1);
-    const b = try evaluate(store, env, engine, args[1], depth + 1);
+    if (args_snap.len != 2) return error.ArityMismatch;
+    const a = try evaluate(store, env, engine, args_snap[0], depth + 1);
+    const b = try evaluate(store, env, engine, args_snap[1], depth + 1);
 
     // Gérer à la fois les noms natifs (+, *) et lowered (add, mul)
     if (std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "add")) return evalBinary(store, a, b, .add);
@@ -729,10 +733,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (env.get(op_sym)) |bound| {
             platform.dbg("[engine-lambda] op='{s}' found!\n", .{op});
             const bound_node = store.get(bound);
-            if (bound_node.tag == .lambda and args.len == 1) {
+            if (bound_node.tag == .lambda and args_snap.len == 1) {
                 const lam_span = bound_node.span_a.slice(store.pool.items);
                 if (lam_span.len == 1) {
-                    const arg_val = try evaluate(store, env, engine, args[0], depth + 1);
+                    const arg_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
                     try env.put(bound_node.payload, arg_val);
                     defer env.delete(bound_node.payload);
                     return evaluate(store, env, engine, lam_span[0], depth + 1);

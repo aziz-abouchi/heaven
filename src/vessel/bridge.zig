@@ -21,6 +21,7 @@ const repl_frame_html = @embedFile("public/repl-frame.html");
 const debugger_frame_html = @embedFile("public/debugger-frame.html");
 const process_frame_html = @embedFile("public/process-frame.html");
 const test_html = @embedFile("public/test.html");
+const test_suite_hvn = @embedFile("public/test_suite.hvn");
 
 pub const WebBridge = struct {
     matrix: *matrix_lib.Matrix,
@@ -205,31 +206,54 @@ fn getMimeType(path: []const u8) []const u8 {
     if (std.mem.endsWith(u8, path, ".js")) return "application/javascript";
     return "text/html";
 }
-fn respond(stream: std.net.Server.Connection.Stream, statusLine: []const u8, mimeType: []const u8, payload: []const u8) !void {
-    const header = "HTTP/1.1 " ++ statusLine ++ "\r\nContent-Type: " ++ mimeType ++ "\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n";
+
+fn respond(
+    stream: std.net.Stream,
+    statusLine: []const u8,
+    mimeType: []const u8,
+    payload: []const u8,
+) !void {
+    var header_buf: [1024]u8 = undefined;
+
+    const header = try std.fmt.bufPrint(
+        &header_buf,
+        "HTTP/1.1 {s}\r\n" ++
+            "Content-Type: {s}\r\n" ++
+            "Access-Control-Allow-Origin: *\r\n" ++
+            "Connection: close\r\n" ++
+            "Content-Length: {d}\r\n" ++
+            "\r\n",
+        .{ statusLine, mimeType, payload.len },
+    );
+    //platform.dbg("[VESSEL] Respond header:{s} payload:{s}\n", .{ header, payload });
     try stream.writeAll(header);
     try stream.writeAll(payload);
 }
 
-fn serveFile(path_in_url: []const u8, stream: std.net.Server.Connection.Stream, allocator: std.mem.Allocator) !void {
-    if (DEBUG_MODE) {
-        // Sécuriser le chemin
-        var file_path_buf: [1024]u8 = undefined;
-        const file_path = try std.fmt.bufPrint(&file_path_buf, "{s}{s}", .{ public_dir, path_in_url });
-        const file = platform.fs.cwd().openFile(file_path, .{}) catch |err| {
-            platform.dbg("[serveFile] Error: {any}\n", .{err});
-            try respond(stream, "404 Not Found", "text/plain", "File not found");
-            return;
-        };
-        defer file.close();
-        const data = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
-        defer allocator.free(data);
-        const mime = getMimeType(path_in_url);
-        try respond(stream, "200 OK", mime, data);
-    } else {
-        // Release : on utilise @embedFile (comportement actuel)
-        // ... (gardez vos @embedFile et routes existantes)
+fn serveFile(path_in_url: []const u8, stream: std.net.Stream, allocator: std.mem.Allocator) !void {
+    // Sécuriser : ne pas laisser remonter avec ../
+    if (std.mem.indexOf(u8, path_in_url, "..") != null) {
+        try respond(stream, "400 Bad Request", "text/plain", "bad path");
+        return;
     }
+
+    const rel = std.mem.trimLeft(u8, path_in_url, "/");
+    var file_path_buf: [1024]u8 = undefined;
+    const full_path = try std.fmt.bufPrint(&file_path_buf, "{s}{s}", .{ public_dir, rel });
+
+    const file = std.fs.cwd().openFile(full_path, .{}) catch {
+        try respond(stream, "404 Not Found", "text/plain", "not found");
+        return;
+    };
+    defer file.close();
+
+    const stat = try file.stat();
+    const data = try allocator.alloc(u8, stat.size);
+    defer allocator.free(data);
+    _ = try file.readAll(data);
+
+    const mime = getMimeType(full_path);
+    try respond(stream, "200 OK", mime, data);
 }
 
 // --- LOGIQUE HTTP (RÉINTÉGRÉE) ---
@@ -237,6 +261,8 @@ fn handleHttp(args: HandlerArgs, request: []const u8) !void {
     var arena = std.heap.ArenaAllocator.init(args.allocator);
     defer arena.deinit();
     const aa = arena.allocator();
+
+    //platform.dbg("[handleHttp] request:{s}\n", .{request});
 
     if (std.mem.indexOf(u8, request, "GET /telemetry") != null) {
         const telemetry = try args.bridge.serveTelemetry(aa);
@@ -288,17 +314,19 @@ fn handleHttp(args: HandlerArgs, request: []const u8) !void {
         const header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nConnection: close\r\n\r\n";
         try args.conn.stream.writeAll(header);
         try args.conn.stream.writeAll(process_frame_html);
-
     } else if (std.mem.indexOf(u8, request, "GET /test_heaven.js") != null) {
         const test_js = @embedFile("public/test_heaven.js");
         const header = "HTTP/1.1 200 OK\r\nContent-Type: application/javascript\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nConnection: close\r\n\r\n";
         try args.conn.stream.writeAll(header);
         try args.conn.stream.writeAll(test_js);
+    } else if (std.mem.indexOf(u8, request, "GET /test_suite.hvn") != null) {
+        const header = "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n";
+        try args.conn.stream.writeAll(header);
+        try args.conn.stream.writeAll(test_suite_hvn);
     } else if (std.mem.indexOf(u8, request, "GET /test") != null) {
         const header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nConnection: close\r\n\r\n";
         try args.conn.stream.writeAll(header);
         try args.conn.stream.writeAll(test_html);
-
     } else {
         const header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nConnection: close\r\n\r\n";
         try args.conn.stream.writeAll(header);

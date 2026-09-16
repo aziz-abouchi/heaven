@@ -540,6 +540,17 @@ pub const Heaven = struct {
             }
         }
 
+        if (std.mem.startsWith(u8, trimmed, "latex ")) {
+            const inner = std.mem.trim(u8, trimmed["latex ".len..], " \t");
+            if (self.ensureCommands()) |cmds| {
+                return cmds.evalLatex(inner) catch |err| switch (err) {
+                    error.OutOfMemory => HeavenError.OutOfMemory,
+                    else => HeavenError.EvaluationFailed,
+                };
+            }
+            return self.allocator.dupe(u8, "✗ commands unavailable");
+        }
+
         // ─── ÉVALUATION GÉNÉRIQUE (infixe + application) ───
         // 1. Essayer la conversion infixe → S‑expression (opérateurs binaires)
         if (expr.nativeToSExpr(trimmed, self.allocator)) |sexpr| {
@@ -824,12 +835,22 @@ pub const Heaven = struct {
 
             const trailing = std.mem.trim(u8, trimmed[i + 1 ..], " \t");
             if (trailing.len > 0) {
-                // (X) Y Z  →  wrap en  ((X) Y Z)  puis parseSExpr
-                const wrapped = try std.fmt.allocPrint(
-                    self.allocator,
-                    "({s} {s})",
-                    .{ trimmed[0 .. i + 1], trailing },
-                );
+                // Cas opérateur infixe après parenthèses : (X)^Y, (X)+Y, ...
+                // → déléguer au Pratt parser natif qui gère la précédence.
+                const op_chars = "^*+-/<>=";
+                if (std.mem.indexOfScalar(u8, op_chars, trailing[0]) != null) {
+                    var arena = std.heap.ArenaAllocator.init(self.allocator);
+                    defer arena.deinit();
+                    const sexpr = expr.nativeToSExpr(trimmed, arena.allocator()) catch {
+                        return error.InvalidSyntax;
+                    };
+                    const owned = try self.allocator.dupe(u8, sexpr);
+                    defer self.allocator.free(owned);
+                    return self.parseExpression(owned);
+                }
+
+                // Fallback : juxtaposition ((X) Y Z) → groupement
+                const wrapped = try std.fmt.allocPrint(self.allocator, "({s} {s})", .{ trimmed[0 .. i + 1], trailing });
                 defer self.allocator.free(wrapped);
                 return self.parseExpression(wrapped);
             }
@@ -1488,7 +1509,6 @@ pub const Heaven = struct {
         // C'est ce qui fait marcher (fact 5) avec fact lié par let.
         {
             if (self.env.get(fnode.payload)) |bound| {
-                platform.dbg("[interp3] head='{s}' bound.tag={s}\n", .{ head, @tagName(self.store.get(bound).tag) });
                 const bound_node = self.store.get(bound);
                 if (bound_node.tag == .lambda and args.len == 1) {
                     const lam_span = self.store.spanSliceConst(bound_node.span_a);
@@ -1509,7 +1529,9 @@ pub const Heaven = struct {
         // 1. D'ABORD l'évaluation engine normale
         if (self.evaluateExpr(id)) |v| {
             return v;
-        } else |_| {}
+        } else |err| {
+            platform.dbg("[interp-err] id={d} err={}\n", .{ id, err });
+        }
 
         // 2. FALLBACK uniquement : macro/fonction user via la pile
         if (self.commands) |cmds| {

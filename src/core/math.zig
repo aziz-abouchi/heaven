@@ -837,6 +837,7 @@ pub const Math = struct {
         const var_id = try self.store.sym(variable);
         const result = try self.integrateExpr(id, var_id);
         const str = try expr.toStringInfix(self.store, result, self.allocator);
+        defer self.allocator.free(str);
         return try std.fmt.allocPrint(self.allocator, "{s} + C", .{str});
     }
 
