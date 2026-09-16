@@ -54,18 +54,30 @@ pub const AxiomEntry = struct {
     type_idx: u32, // Index du type dans le pool (construit lors de l'init)
 };
 
+pub const DeltaScheme = enum {
+    peano_add, // add(zero, n) → n ; add(succ(k), n) → succ(add(k, n))
+    // d'autres viendront : mul, sub, div...
+};
+
 pub const TermPool = struct {
     terms: std.ArrayListUnmanaged(Term),
     axioms: std.ArrayListUnmanaged(AxiomEntry),
+    delta_schemes: std.AutoHashMapUnmanaged(u64, DeltaScheme), // name_hash → scheme
     allocator: Allocator,
 
     pub fn init(allocator: Allocator) TermPool {
-        return .{ .terms = .{}, .axioms = .{}, .allocator = allocator };
+        return .{ .terms = .{}, .axioms = .{}, .delta_schemes = .{}, .allocator = allocator };
     }
 
     pub fn deinit(self: *TermPool) void {
         self.terms.deinit(self.allocator);
         self.axioms.deinit(self.allocator);
+        self.delta_schemes.deinit(self.allocator);
+    }
+
+    pub fn registerDelta(self: *TermPool, name: []const u8, scheme: DeltaScheme) !void {
+        const hash = std.hash.Wyhash.hash(0, name);
+        try self.delta_schemes.put(self.allocator, hash, scheme);
     }
 
     /// Déclarer un axiome avec son type. Retourne le hash du nom.
@@ -223,25 +235,30 @@ pub fn eval(pool: *TermPool, term_idx: u32) !u32 {
                 const inner_func = pool.get(@as(u32, @intCast(func.payload)));
                 const first_arg = @as(u32, @intCast(func.payload2));
                 if (inner_func.tag == .ref) {
-                    if (inner_func.payload == std.hash.Wyhash.hash(0, "add")) {
-                        const first_arg_nf = try eval(pool, first_arg);
-                        const fa = pool.get(first_arg_nf);
-                        if (fa.tag == .nat_zero) {
-                            // add(zero, n) → n
-                            return eval(pool, arg_idx);
-                        }
-                        // add(n, zero) → n (si le second argument est zero)
-                        const second_arg_nf = try eval(pool, arg_idx);
-                        const sa = pool.get(second_arg_nf);
-                        if (sa.tag == .nat_zero) {
-                            return eval(pool, first_arg);
-                        }
-                        if (fa.tag == .nat_succ) {
-                            // add(succ(k), n) → succ(add(k, n))
-                            const k = @as(u32, @intCast(fa.payload));
-                            const add_k_n = try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), k), arg_idx);
-                            const reduced = try eval(pool, add_k_n);
-                            return pool.mkSucc(reduced);
+                    if (pool.delta_schemes.get(inner_func.payload)) |scheme| {
+                        switch (scheme) {
+                            .peano_add => {
+                                const first_arg_nf = try eval(pool, first_arg);
+                                const fa = pool.get(first_arg_nf);
+                                if (fa.tag == .nat_zero) {
+                                    // add(zero, n) → n
+                                    return eval(pool, arg_idx);
+                                }
+                                // add(n, zero) → n (si le second argument est zero)
+                                const second_arg_nf = try eval(pool, arg_idx);
+                                const sa = pool.get(second_arg_nf);
+                                if (sa.tag == .nat_zero) {
+                                    return eval(pool, first_arg);
+                                }
+                                if (fa.tag == .nat_succ) {
+                                    // add(succ(k), n) → succ(add(k, n))
+                                    const k = @as(u32, @intCast(fa.payload));
+                                    const add_k_n = try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), k), arg_idx);
+                                    const reduced = try eval(pool, add_k_n);
+                                    return pool.mkSucc(reduced);
+                                }
+                            },
+                            // autres schémas à venir
                         }
                     }
                 }
@@ -560,6 +577,7 @@ pub fn initNatAxioms(pool: *TermPool) !void {
     // add : Nat → Nat → Nat
     const nat_to_nat_to_nat = try pool.mkPi(nat_ref, try pool.mkPi(nat_ref, nat_ref));
     _ = try pool.declareAxiom("add", nat_to_nat_to_nat);
+    try pool.registerDelta("add", .peano_add);
 
     // mul : Nat → Nat → Nat
     _ = try pool.declareAxiom("mul", nat_to_nat_to_nat);
@@ -656,4 +674,120 @@ pub fn verify(pool: *TermPool, proof_term: u32, theorem_type: u32) KernelError!b
     defer ctx.deinit();
     check(pool, &ctx, proof_term, theorem_type) catch return false;
     return true;
+}
+
+test "kernel sanity" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+
+    const type0 = try pool.mkType(0);
+    const pi_id = try pool.mkPi(type0, type0);
+    const inferred = try infer(&pool, &ctx, pi_id);
+    const node = pool.terms.items[inferred];
+    try std.testing.expectEqual(@as(u64, 1), node.payload);
+}
+
+test "Pi rule: Type(i) x Type(j) : Type(max(i,j)+1)" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+
+    const t0 = try pool.mkType(0);
+    const t3 = try pool.mkType(3);
+    const t7 = try pool.mkType(7);
+
+    // Π(Type(0), Type(0)) : Type(1)
+    {
+        const pi = try pool.mkPi(t0, t0);
+        const inferred = try infer(&pool, &ctx, pi);
+        const node = pool.terms.items[inferred];
+        try std.testing.expectEqual(TermTag.type_, node.tag);
+        try std.testing.expectEqual(@as(u64, 1), node.payload);
+    }
+
+    // Π(Type(3), Type(7)) : Type(8) — pas Type(0)
+    {
+        const pi = try pool.mkPi(t3, t7);
+        const inferred = try infer(&pool, &ctx, pi);
+        const node = pool.terms.items[inferred];
+        try std.testing.expectEqual(TermTag.type_, node.tag);
+        try std.testing.expectEqual(@as(u64, 8), node.payload);
+    }
+}
+
+test "refl: Eq(Type(0), Type(0)) accepted" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+
+    const t0 = try pool.mkType(0);
+    const refl_t0 = try pool.mkRefl(t0);
+    const eq_t0_t0 = try pool.mkEq(t0, t0);
+
+    try check(&pool, &ctx, refl_t0, eq_t0_t0);
+    try std.testing.expect(try verify(&pool, refl_t0, eq_t0_t0));
+}
+
+test "type mismatch: refl(Type(0)) rejected against Eq(Type(0), Type(1))" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+
+    const t0 = try pool.mkType(0);
+    const t1 = try pool.mkType(1);
+    const refl_t0 = try pool.mkRefl(t0);
+    const eq_t0_t1 = try pool.mkEq(t0, t1);
+
+    try std.testing.expectError(
+        KernelError.TypeError,
+        check(&pool, &ctx, refl_t0, eq_t0_t1),
+    );
+    try std.testing.expect(!try verify(&pool, refl_t0, eq_t0_t1));
+}
+
+test "lam: λx:Type(0). x : Π(x:Type(0)). Type(0)" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+
+    const t0 = try pool.mkType(0);
+    const v0 = try pool.mkVar(0);
+    const lam = try pool.mkLam(t0, v0);
+    const inferred = try infer(&pool, &ctx, lam);
+    const node = pool.terms.items[inferred];
+    try std.testing.expectEqual(TermTag.pi, node.tag);
+}
+
+test "impredicativity closed: Π(Type(0), Type(0)) is not Type(0)" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+
+    const t0 = try pool.mkType(0);
+    const pi = try pool.mkPi(t0, t0);
+    const inferred = try infer(&pool, &ctx, pi);
+    const node = pool.terms.items[inferred];
+    try std.testing.expect(node.tag == .type_);
+    try std.testing.expect(node.payload != 0); // doit être > 0
+}
+
+test "Eq : Type(0)" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+
+    const t0 = try pool.mkType(0);
+    const eq = try pool.mkEq(t0, t0);
+    const inferred = try infer(&pool, &ctx, eq);
+    const node = pool.terms.items[inferred];
+    try std.testing.expectEqual(TermTag.type_, node.tag);
+    try std.testing.expectEqual(@as(u64, 0), node.payload);
 }

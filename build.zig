@@ -58,9 +58,9 @@ pub fn build(b: *std.Build) void {
 
         const arch = target.result.cpu.arch;
         const cflags: []const []const u8 = if (arch == .x86_64)
-                &.{ "-std=c99", "-DONE_SOURCE=0", "-DTCC_TARGET_X86_64", "-DTCC_TARGET_ELF" }
-            else
-                &.{ "-std=c99", "-DONE_SOURCE=0" };
+            &.{ "-std=c99", "-DONE_SOURCE=0", "-DTCC_TARGET_X86_64", "-DTCC_TARGET_ELF" }
+        else
+            &.{ "-std=c99", "-DONE_SOURCE=0" };
 
         // Fichiers communs (toujours présents)
         lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tcc.c"), .flags = cflags });
@@ -1146,6 +1146,19 @@ pub fn build(b: *std.Build) void {
     }
 
     const test_step = b.step("test", "Run all tests");
+
+    const kernel_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/core/kernel.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "platform", .module = platform_mod },
+            },
+        }),
+    });
+    const run_kernel_tests = b.addRunArtifact(kernel_tests);
+    test_step.dependOn(&run_kernel_tests.step);
 
     if (target.query.cpu_arch != .wasm32) {
         const syntax_tests = b.addTest(.{
