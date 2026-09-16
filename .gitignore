@@ -52,3 +52,10 @@ vendor/tree-sitter-heaven/node_modules/
 log.html
 .heaven_history
 Prompt de continuité — Projet Heaven.txt
+
+# Artefacts de run
+output.c
+output.h
+output.tex
+output.hvn
+*.heaven_session.json
