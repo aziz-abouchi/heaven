@@ -148,7 +148,11 @@ heaven> js (if 1 10 20)
 → (1 ? 10 : 20)
 ```
 
-## Équivalence Inter-Langages Certifiée (MLCPD)
+## Équivalence Inter-Langages (MLCPD)
+
+> ⚠️ Le terme « certifiée » serait un abus : le ProofTerm est construit
+> par l'algorithme mais jamais revérifié par le noyau. La vérification
+> effective est un type-check + WHNF compare. Voir `src/translator/mlcpd_equiv.zig`.
 
 Ce système prouve formellement l'équivalence sémantique de programmes écrits dans différents langages.
 

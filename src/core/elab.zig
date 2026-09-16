@@ -938,21 +938,15 @@ pub const TypeChecker = struct {
                     const app_children = node.span_a.slice(p);
                     if (app_children.len == 0) return error.NotImplemented;
                     const arg = app_children[app_children.len - 1];
-                    const arg_whnf = arg; // déjà en WHNF
                     const lambda_children = fn_node.span_a.slice(p);
                     if (lambda_children.len == 0) return error.NotImplemented;
                     const body = lambda_children[lambda_children.len - 1];
-                    const body_node = self.store.get(body);
-                    if (body_node.tag == .sym) {
-                        const body_name = self.store.interner.resolve(body_node.payload);
-                        if (std.mem.eql(u8, body_name, param_name)) {
-                            return arg_whnf;
-                        }
-                    }
-                    return id;
-                } else {
-                    return id;
+
+                    // β-réduction générale : body[param := arg]
+                    const reduced = try self.substituteVariable(body, param_name, arg);
+                    return try self.whnf(reduced);
                 }
+                return id;
             },
             else => return id,
         }

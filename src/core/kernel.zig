@@ -430,7 +430,11 @@ pub fn infer(pool: *TermPool, ctx: *const Context, term_idx: u32) KernelError!u3
             try ext_ctx.push(0, dom_ty); // Push bound variable
             _ = try checkIsType(pool, &ext_ctx, body_ty);
 
-            return pool.mkType(0) catch return KernelError.OutOfMemory; // Simplified: always Type(0)
+            const dom_node = pool.terms.items[dom_ty];
+            const body_node = pool.terms.items[body_ty];
+            const i: u32 = if (dom_node.tag == .type_) @intCast(dom_node.payload) else return KernelError.NotAType;
+            const j: u32 = if (body_node.tag == .type_) @intCast(body_node.payload) else return KernelError.NotAType;
+            return pool.mkType(@max(i, j) + 1) catch return KernelError.OutOfMemory;
         },
 
         .lam => {

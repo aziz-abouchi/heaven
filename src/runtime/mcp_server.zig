@@ -8,7 +8,7 @@
 //   - heaven_integrate: Intégrale symbolique
 //   - heaven_solve: Résolution d'équations
 //   - heaven_expand: Développement algébrique
-//   - heaven_simplify: Simplification certifiée
+//   - heaven_simplify: Simplification vérifiée par construction
 //   - heaven_prove: Vérification de preuve
 //   - heaven_theorems: Liste des théorèmes
 //   - mlcpd_parse: Parser du code via MLCPD universal schema
@@ -66,7 +66,7 @@ pub const McpServer = struct {
             self.heaven = heaven_expr_mod.Heaven.init(self.allocator) catch @panic("Failed to init Heaven");
         }
     }
-    
+
     /// Boucle principale MCP: lit JSON-RPC sur stdin, répond sur stdout
     pub fn run(self: *McpServer) !void {
         var buf: [65536]u8 = undefined;
@@ -347,7 +347,7 @@ const mcp_tools = [_]McpTool{
     },
     .{
         .name = "heaven_simplify",
-        .description = "Simplify expression using certified rewrite rules and EGraph",
+        .description = "Simplify expression using verified rewrite rules and EGraph",
         .input_schema = "{\"type\":\"object\",\"properties\":{\"expression\":{\"type\":\"string\"}},\"required\":[\"expression\"]}",
     },
     .{
@@ -372,7 +372,7 @@ const mcp_tools = [_]McpTool{
     },
     .{
         .name = "heaven_prove",
-        .description = "Attempt to prove a theorem or equivalence using Heaven's certified logical kernel. Returns proof status and certificate.",
+        .description = "Attempt to prove a theorem or equivalence using Heaven's logical kernel (verified by construction). Returns proof status and certificate.",
         .input_schema = "{\"type\":\"object\",\"properties\":{\"statement\":{\"type\":\"string\",\"description\":\"Theorem or equivalence to prove\"}},\"required\":[\"statement\"]}",
     },
 };

@@ -1,4 +1,11 @@
-//! Module d'équivalence MLCPD certifié
+//! Module d'équivalence MLCPD vérifiée par construction
+//!
+//! Nuance sémantique : ce module produit un ProofTerm qui enregistre
+//!    ce que l'algorithme a fait (refl, congruence), mais ce terme n'est
+//!    jamais revérifié par kernel.verify. La "preuve" est donc un
+//!    enregistrement, pas un certificat indépendamment auditable.
+//!    La vraie vérification d'équivalence, c'est le type-check + WHNF
+//!    compare lui-même. Dire "certifié" serait un abus de langage.
 //!
 //! Ce module remplace la comparaison syntaxique de strings par une preuve formelle
 //! utilisant le type checker et la normalisation WHNF.
@@ -7,7 +14,7 @@
 //! 1. Type checking : si les types diffèrent → non équivalents (preuve immédiate)
 //! 2. WHNF normalization : normaliser les deux expressions vers Weak Head Normal Form
 //! 3. Structural comparison : si les WHNF sont identiques → construire ProofTerm
-//! 4. Fallback syntaxique : si WHNF échoue, comparer les formes canonisées (non certifié)
+//! 4. Fallback syntaxique : si WHNF échoue, comparer les formes canonisées (non vérifié par construction)
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -38,18 +45,26 @@ pub const Strategy = enum(u8) {
     /// Preuve par congruence (même structure, sous-expressions équivalentes)
     congruence,
 
-    /// Fallback : comparaison syntaxique des formes canonisées (NON certifié)
+    /// Fallback : comparaison syntaxique des formes canonisées (NON vérifié par construction)
     structural_fallback,
 
     /// Types différents → non équivalents (preuve négative)
     type_mismatch,
 };
 
+pub const Verdict = enum {
+    equivalent,
+    not_equivalent,
+    unknown,
+};
+
 pub const EquivResult = struct {
     /// Les expressions sont-elles équivalentes ?
     equivalent: bool,
 
-    /// Certificat de preuve (null si non équivalent ou fallback non certifié)
+    verdict: Verdict = .unknown,
+
+    /// Trace de preuve (voir note d'en-tête)
     proof: ?ProofTerm,
 
     /// Stratégie utilisée pour la preuve
@@ -71,7 +86,7 @@ pub const EquivResult = struct {
     }
 };
 
-/// Prouve l'équivalence de deux expressions avec certificat formel
+/// Prouve l'équivalence de deux expressions avec trace de preuve
 pub fn proveEquivalence(
     allocator: Allocator,
     store: *Store,
@@ -89,6 +104,7 @@ pub fn proveEquivalence(
         // platform.dbg("[proveEquivalence] inferType(e1) failed: {}\n", .{err});
         return EquivResult{
             .equivalent = false,
+            .verdict = .unknown,
             .proof = null,
             .strategy = .type_mismatch,
             .canon1 = null,
@@ -102,6 +118,7 @@ pub fn proveEquivalence(
         // platform.dbg("[proveEquivalence] inferType(e2) failed: {}\n", .{err});
         return EquivResult{
             .equivalent = false,
+            .verdict = .unknown,
             .proof = null,
             .strategy = .type_mismatch,
             .canon1 = null,
@@ -117,6 +134,7 @@ pub fn proveEquivalence(
     if (!types_eq) {
         return EquivResult{
             .equivalent = false,
+            .verdict = .not_equivalent,
             .proof = null,
             .strategy = .type_mismatch,
             .canon1 = e1,
@@ -145,6 +163,7 @@ pub fn proveEquivalence(
         // platform.dbg("[proveEquivalence] Reflexivity (same Id)\n", .{});
         return EquivResult{
             .equivalent = true,
+            .verdict = .equivalent,
             .proof = ProofTerm{ .refl = @intCast(n1) },
             .strategy = .reflexivity,
             .canon1 = n1,
@@ -164,6 +183,7 @@ pub fn proveEquivalence(
         const proof = try buildCongruenceProof(allocator, store, n1, n2);
         return EquivResult{
             .equivalent = true,
+            .verdict = .equivalent,
             .proof = proof,
             .strategy = .congruence,
             .canon1 = n1,
@@ -176,6 +196,7 @@ pub fn proveEquivalence(
     return EquivResult{
         .equivalent = false,
         .proof = null,
+        .verdict = .not_equivalent,
         .strategy = .whnf_normalization,
         .canon1 = n1,
         .canon2 = n2,
@@ -183,7 +204,7 @@ pub fn proveEquivalence(
     };
 }
 
-/// Fallback : comparaison syntaxique des formes canonisées (NON certifié)
+/// Fallback : comparaison syntaxique des formes canonisées (NON vérifié par construction)
 fn proveStructuralFallback(
     allocator: Allocator,
     store: *Store,
@@ -197,6 +218,7 @@ fn proveStructuralFallback(
 
     return EquivResult{
         .equivalent = false,
+        .verdict = .unknown,
         .proof = null,
         .strategy = .structural_fallback,
         .canon1 = null,
