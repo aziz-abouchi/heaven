@@ -15,7 +15,7 @@ let macro double(x) = (quote (* (unquote x) 2))
 test "macro_double": (double 21) == 42
 
 # --- 3. Acteurs Typés ---
-fn counterHandler(state, msg) = (+ state msg)
+counterHandler state msg = (+ state msg)
 let actor Counter = 0 with counterHandler
 send(Counter, 10)
 send(Counter, 5)
@@ -23,7 +23,7 @@ test "actor_state": state(Counter) == 15
 
 
 # --- 4. Effets Algébriques ---
-fn logHandler(msg) = (+ msg 100)
+logHandler msg = (+ msg 100)
 test "effect_handle": handle (perform "Log" 42) logHandler == 142
 
 # --- 5. Commandes Shell (hors framework natif car elles retournent des chaînes) ---
