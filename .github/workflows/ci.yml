@@ -1,10 +1,10 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  #push:
+  #  branches: [main]
+  #pull_request:
+  #   branches: [main]
   workflow_dispatch:    # manuel uniquement
 
 env:
@@ -31,14 +31,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libtree-sitter-dev tcc
 
-      - name: Build vendor dependencies
+      - name: Prepare vendor + build (native + wasm)
         run: bash build.sh
-
-      - name: Build (no network)
-        run: zig build -Dnetwork=false
 
       - name: Run unit tests (no network)
         run: zig build -Dnetwork=false test
 
-      - name: Run functional test suite (no network)
+      - name: Run functional test suite
         run: zig build -Dnetwork=false run -- --run-test core/test_suite.hvn

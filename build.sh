@@ -124,7 +124,12 @@ fi
 echo "[FORGE] libdatachannel présent."
 
 #─── Build via zig build ───
-echo "[FORGE] Compilation..."
+echo "[FORGE] Building wasm (nécessaire pour @embedFile)..."
+zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
+cp zig-out/bin/heaven.wasm src/vessel/public/heaven.wasm
+rm -fr .zig-cache zig-out
+
+echo "[FORGE] Compilation native..."
 zig build
 
 echo "[FORGE] Tests..."
