@@ -17,7 +17,7 @@ const types = @import("types");
 const rules_mod = @import("rules");
 const Rule = rules_mod.Rule;
 
-pub var log_saturation: bool = false;   // silencieux par défaut
+pub var log_saturation: bool = false; // silencieux par défaut
 
 pub const SimplifyEngine = struct {
     store: *Store,
@@ -86,28 +86,28 @@ pub const SimplifyEngine = struct {
         if (current >= self.store.len()) return current;
 
         for (self.kb.rules.items) |rule_id| {
-                const rule = Rule.fromNode(self.store, rule_id) orelse continue;
-                if (try rule.apply(self.store, current, self.allocator)) |new_id| {
-                    const lhs_str = expr.toString(self.store, rule.lhs, self.allocator) catch continue;
-                    defer self.allocator.free(lhs_str);
-                    const rhs_str = expr.toString(self.store, rule.rhs, self.allocator) catch continue;
-                    defer self.allocator.free(rhs_str);
-                    const new_str = expr.toString(self.store, new_id, self.allocator) catch continue;
-                    defer self.allocator.free(new_str);
+            const rule = Rule.fromNode(self.store, rule_id) orelse continue;
+            if (try rule.apply(self.store, current, self.allocator)) |new_id| {
+                const lhs_str = expr.toString(self.store, rule.lhs, self.allocator) catch continue;
+                defer self.allocator.free(lhs_str);
+                const rhs_str = expr.toString(self.store, rule.rhs, self.allocator) catch continue;
+                defer self.allocator.free(rhs_str);
+                const new_str = expr.toString(self.store, new_id, self.allocator) catch continue;
+                defer self.allocator.free(new_str);
 
-                    var tmp: [16]u8 = undefined;
-                    const sn = std.fmt.bufPrint(&tmp, "  step {d}: ", .{step.*}) catch "  step ?: ";
-                    buf.appendSlice(self.allocator, sn) catch continue;
-                    buf.appendSlice(self.allocator, new_str) catch continue;
-                    buf.appendSlice(self.allocator, "  [") catch continue;
-                    buf.appendSlice(self.allocator, lhs_str) catch continue;
-                    buf.appendSlice(self.allocator, " → ") catch continue;
-                    buf.appendSlice(self.allocator, rhs_str) catch continue;
-                    buf.appendSlice(self.allocator, "]\n") catch continue;
-                    step.* += 1;
-                    return new_id;
-                }
+                var tmp: [16]u8 = undefined;
+                const sn = std.fmt.bufPrint(&tmp, "  step {d}: ", .{step.*}) catch "  step ?: ";
+                buf.appendSlice(self.allocator, sn) catch continue;
+                buf.appendSlice(self.allocator, new_str) catch continue;
+                buf.appendSlice(self.allocator, "  [") catch continue;
+                buf.appendSlice(self.allocator, lhs_str) catch continue;
+                buf.appendSlice(self.allocator, " → ") catch continue;
+                buf.appendSlice(self.allocator, rhs_str) catch continue;
+                buf.appendSlice(self.allocator, "]\n") catch continue;
+                step.* += 1;
+                return new_id;
             }
+        }
 
         if (current < self.store.len()) {
             self.engine.fuel = 100;
@@ -159,7 +159,7 @@ pub const SimplifyEngine = struct {
                 }
             }
         }
-        
+
         // Appliquer les règles jusqu'à saturation
         var changed = true;
         var iterations: u32 = 0;
@@ -177,6 +177,10 @@ pub const SimplifyEngine = struct {
     }
 
     pub fn evaluateLiteral(self: *SimplifyEngine, id: Id) ?Id {
+        if (platform.target.is_debug and id == 0xAAAAAAAA) {
+            @panic("poison Id at evaluate entry");
+        }
+
         if (id >= self.store.len()) return null;
         const node = self.store.get(id);
 

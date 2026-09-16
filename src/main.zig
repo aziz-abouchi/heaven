@@ -335,6 +335,7 @@ pub fn main() !void {
             vessel_lib.startVesselServer(m, f, p, ex);
         }
     }.wrapper, .{ &matrix, &fab, port + 2919, &exiting });
+    //}.wrapper, .{ &matrix, &fab, port, &exiting });
     // v_thread n'est pas jointe car elle peut être détachée
     // Si besoin de la joindre, décommenter : v_thread.join();
 

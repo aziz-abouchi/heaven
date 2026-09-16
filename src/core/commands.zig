@@ -234,10 +234,10 @@ pub const Commands = struct {
         }
 
         if (trimmed.len >= 2 and trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
-            const id = try self.parser.parseSExpr(trimmed);
+            const id = try self.bridge.importExpr(trimmed);
             self.engine.fuel = 1_000_000;
             const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch |err| {
-                return try std.fmt.allocPrint(self.allocator, "eval error: {}", .{err});
+                return try std.fmt.allocPrint(self.allocator, "eval error: {s}", .{@errorName(err)});
             };
             return expr.toStringInfix(self.store, result, self.allocator);
         }
@@ -1185,7 +1185,7 @@ pub const Commands = struct {
         } else |_| {}
 
         if (trimmed.len >= 2 and trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
-            return self.parser.parseSExpr(trimmed);
+            return self.bridge.importExpr(trimmed);
         }
 
         if (std.mem.indexOfScalar(u8, trimmed, ' ')) |space1| {

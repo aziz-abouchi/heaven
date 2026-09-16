@@ -447,6 +447,9 @@ pub fn startVesselServer(
         platform.dbg("[VESSEL] Listen Error: {any}\n", .{err});
         return;
     };
+
+    platform.debug.print("Vessel HTTP: http://localhost:{d}/\n", .{dash_port});
+
     var bridge = WebBridge{ .matrix = matrix, .fab = fab, .port = dash_port };
     while (true) {
         // Vérifier la sortie avant chaque accept

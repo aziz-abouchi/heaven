@@ -462,16 +462,17 @@ pub const Heaven = struct {
             if (std.mem.indexOf(u8, trimmed, "let ") != null or
                 std.mem.indexOf(u8, trimmed, "lambda") != null)
             {
-                if (self.parseExpression(trimmed)) |id| {
+                if (self.bridge.importExpr(trimmed)) |id| {
                     const result = self.interpForAssert(id) catch id;
                     return try expr.toStringInfix(self.store, result, self.allocator);
                 } else |_| {}
             }
             // Autres S-expr : parse + engine.eval direct
-            if (self.parseExpression(trimmed)) |id| {
+            if (self.bridge.importExpr(trimmed)) |id| {
                 self.engine.fuel = 1_000_000;
                 const evaluated = self.engine.eval(id) catch id;
-                return try expr.toStringInfix(self.store, evaluated, self.allocator);
+                const result_str = try expr.toStringInfix(self.store, evaluated, self.allocator);
+                return result_str;
             } else |_| {}
         }
 
@@ -1299,6 +1300,10 @@ pub const Heaven = struct {
         return self.allocator.dupe(u8, "");
     }
     pub fn evaluateExpr(self: *Heaven, id: Id) HeavenError!Id {
+        if (platform.target.is_debug and id == 0xAAAAAAAA) {
+            @panic("poison Id at evaluate entry");
+        }
+
         self.engine.fuel = 1_000_000;
         const result = engine_expr.evaluate(self.store, &self.env, &self.engine, id, 0) catch |err| {
             if (!self.in_interp and (err == error.UnboundVariable or err == error.UnknownSymbol)) {
@@ -1529,8 +1534,8 @@ pub const Heaven = struct {
         // 1. D'ABORD l'évaluation engine normale
         if (self.evaluateExpr(id)) |v| {
             return v;
-        } else |err| {
-            platform.dbg("[interp-err] id={d} err={}\n", .{ id, err });
+        } else |_| {
+            //platform.dbg("[interp-err] id={d} err={}\n", .{ id, err });
         }
 
         // 2. FALLBACK uniquement : macro/fonction user via la pile

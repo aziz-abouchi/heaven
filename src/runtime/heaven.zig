@@ -72,6 +72,10 @@ pub const Engine = struct {
     }
 
     pub fn evaluate(self: *Engine, matrix: *matrix_lib.Matrix, id: u32) ?i64 {
+        if (platform.target.is_debug and id == 0xAAAAAAAA) {
+            @panic("poison Id at evaluate entry");
+        }
+
         if (matrix.nodes.get(id)) |node| {
             switch (node) {
                 .NativeCode => |n| {
