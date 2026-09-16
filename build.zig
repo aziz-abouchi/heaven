@@ -492,6 +492,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "parzig", .module = parzig_mod },
+            .{ .name = "platform", .module = platform_mod },
         },
     });
 
