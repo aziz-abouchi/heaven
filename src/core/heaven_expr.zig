@@ -811,6 +811,23 @@ pub const Heaven = struct {
             if (std.fmt.parseInt(i64, sexpr, 10)) |val| {
                 return self.store.int(val);
             } else |_| {}
+
+            // Flottant : "3.14"
+            if (std.fmt.parseFloat(f64, sexpr)) |val| {
+                return self.store.float(val);
+            } else |_| {}
+
+            // Booléens : "true" / "false"
+            if (std.mem.eql(u8, sexpr, "true")) return self.store.boolean(true);
+            if (std.mem.eql(u8, sexpr, "false")) return self.store.boolean(false);
+
+            // Chaîne : "..."
+            if (sexpr.len >= 2 and sexpr[0] == '"' and sexpr[sexpr.len - 1] == '"') {
+                const inner = sexpr[1 .. sexpr.len - 1];
+                const s = try self.store.interner.intern(inner);
+                return self.store.lit(.{ .str = s });
+            }
+
             return self.store.sym(sexpr);
         }
 
@@ -1847,6 +1864,15 @@ pub const Heaven = struct {
     /// commande native (derive/simplify/expand/integrate/solve), l'exécute
     /// puis re-parse le résultat en Id.
     fn parseOrDispatch(self: *Heaven, s: []const u8) HeavenError!Id {
+        // ─── type <expr> : retourne le type comme littéral string ───
+        if (std.mem.startsWith(u8, s, "type ")) {
+            const inner = std.mem.trim(u8, s["type ".len..], " \t");
+            const ty_str = try self.evalTypeExpr(inner);
+            defer self.allocator.free(ty_str);
+            const sym = try self.store.interner.intern(ty_str);
+            return try self.store.lit(.{ .str = sym });
+        }
+
         const prefixes = [_]struct { p: []const u8, f: enum { derive, simplify, expand, integrate } }{
             .{ .p = "derive ", .f = .derive },
             .{ .p = "simplify ", .f = .simplify },
