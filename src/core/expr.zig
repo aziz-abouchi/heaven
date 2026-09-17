@@ -256,24 +256,200 @@ pub const LowerError = error{
     OutOfMemory,
 };
 
+/// Structural hash of a Core expression.
+///
+/// IMPORTANT:
+/// - source spans are deliberately ignored;
+/// - node IDs are deliberately ignored;
+/// - hashes accelerate structural lookup but never establish equality;
+/// - every semantic field of the six Core primitives participates.
+///
+/// The layout mirrors the Core encoding:
+///
+///   lit:      aux      -> literal
+///   sym:      payload  -> symbol
+///   apply:    payload  -> function, span_a -> arguments
+///   bind:     payload  -> name,     aux    -> value
+///   lambda:   payload  -> parameter, span_a -> body
+///   relation: payload  -> head,     span_a -> lhs, span_b -> rhs
 pub fn nodeHash(store: *const Store, id: Id) u64 {
     var hasher = std.hash.Wyhash.init(0);
     const node = store.get(id);
-    hasher.update(std.mem.asBytes(&node.tag));
-    if (node.tag == .lit) {
-        const lit = store.lits.items[node.aux];
-        hasher.update(std.mem.asBytes(&lit));
-    } else if (node.tag == .sym) {
-        const name = store.interner.resolve(node.payload);
-        hasher.update(name);
-    } else if (node.tag == .apply or node.tag == .bind or node.tag == .lambda or node.tag == .relation) {
-        const args = node.span_a.slice(store.pool.items);
-        for (args) |arg| {
-            const h = nodeHash(store, arg);
-            hasher.update(std.mem.asBytes(&h));
+
+    hashTag(&hasher, node.tag);
+
+    switch (node.tag) {
+        .lit => {
+            const lit = store.lits.items[node.aux];
+            hashU64(&hasher, lit.hash());
+        },
+
+        .sym => {
+            // Hash the interned symbol identity, not its source span.
+            hashU32(&hasher, node.payload);
+        },
+
+        .apply => {
+            hashU64(&hasher, nodeHash(store, node.payload));
+            hashSpan(&hasher, store, node.span_a);
+        },
+
+        .bind => {
+            hashU32(&hasher, node.payload);
+            hashU32(&hasher, node.aux);
+            hashSpan(&hasher, store, node.span_a);
+            hashSpan(&hasher, store, node.span_b);
+        },
+
+        .lambda => {
+            hashU32(&hasher, node.payload);
+            hashSpan(&hasher, store, node.span_a);
+            hashSpan(&hasher, store, node.span_b);
+        },
+
+        .relation => {
+            hashU32(&hasher, node.payload);
+            hashSpan(&hasher, store, node.span_a);
+            hashSpan(&hasher, store, node.span_b);
+        },
+
+        else => {
+            // nodeHash is primarily a Core operation. Keeping this
+            // deterministic for frontend nodes is useful for diagnostics,
+            // but such nodes must not enter the EGraph.
+            hashU32(&hasher, node.payload);
+            hashU32(&hasher, node.aux);
+            hashSpan(&hasher, store, node.span_a);
+            hashSpan(&hasher, store, node.span_b);
+        },
+    }
+
+    return hasher.final();
+}
+
+/// Structural equality for Core expressions.
+///
+/// This is the semantic equality used to disambiguate hash-consing
+/// candidates. A hash collision must never imply equality.
+///
+/// Source spans, node IDs and allocation locations are ignored.
+pub fn structuralEql(store: *const Store, a: Id, b: Id) bool {
+    if (a >= store.nodes.items.len or b >= store.nodes.items.len) {
+        return false;
+    }
+
+    const na = store.get(a);
+    const nb = store.get(b);
+
+    if (na.tag != nb.tag) return false;
+
+    switch (na.tag) {
+        .lit => {
+            if (na.aux >= store.lits.items.len or
+                nb.aux >= store.lits.items.len)
+            {
+                return false;
+            }
+
+            return store.lits.items[na.aux].eql(store.lits.items[nb.aux]);
+        },
+
+        .sym => {
+            return na.payload == nb.payload;
+        },
+
+        .apply => {
+            if (na.payload >= store.nodes.items.len or
+                nb.payload >= store.nodes.items.len)
+            {
+                return false;
+            }
+
+            if (!structuralEql(store, na.payload, nb.payload)) {
+                return false;
+            }
+
+            return structuralSpanEql(store, na.span_a, nb.span_a);
+        },
+
+        .bind => {
+            if (na.payload != nb.payload) return false;
+            if (na.aux != nb.aux) return false;
+
+            return structuralSpanEql(store, na.span_a, nb.span_a) and
+                structuralSpanEql(store, na.span_b, nb.span_b);
+        },
+
+        .lambda => {
+            if (na.payload != nb.payload) return false;
+
+            return structuralSpanEql(store, na.span_a, nb.span_a) and
+                structuralSpanEql(store, na.span_b, nb.span_b);
+        },
+
+        .relation => {
+            if (na.payload != nb.payload) return false;
+
+            return structuralSpanEql(store, na.span_a, nb.span_a) and
+                structuralSpanEql(store, na.span_b, nb.span_b);
+        },
+
+        else => {
+            // Frontend/legacy expressions are not Core identity objects.
+            // Still provide deterministic structural equality for callers
+            // outside the EGraph.
+            if (na.payload != nb.payload or na.aux != nb.aux) {
+                return false;
+            }
+
+            return structuralSpanEql(store, na.span_a, nb.span_a) and
+                structuralSpanEql(store, na.span_b, nb.span_b);
+        },
+    }
+}
+
+fn structuralSpanEql(
+    store: *const Store,
+    a: Span,
+    b: Span,
+) bool {
+    if (a.len != b.len) return false;
+
+    const aa = a.slice(store.pool.items);
+    const bb = b.slice(store.pool.items);
+
+    for (aa, bb) |x, y| {
+        if (!structuralEql(store, x, y)) {
+            return false;
         }
     }
-    return hasher.final();
+
+    return true;
+}
+
+fn hashTag(hasher: *std.hash.Wyhash, tag: Tag) void {
+    const value: u8 = @intFromEnum(tag);
+    hasher.update(std.mem.asBytes(&value));
+}
+
+fn hashU32(hasher: *std.hash.Wyhash, value: u32) void {
+    hasher.update(std.mem.asBytes(&value));
+}
+
+fn hashU64(hasher: *std.hash.Wyhash, value: u64) void {
+    hasher.update(std.mem.asBytes(&value));
+}
+
+fn hashSpan(
+    hasher: *std.hash.Wyhash,
+    store: *const Store,
+    span: Span,
+) void {
+    hashU32(hasher, span.len);
+
+    for (span.slice(store.pool.items)) |child| {
+        hashU64(hasher, nodeHash(store, child));
+    }
 }
 
 pub fn toString(store: *const Store, id: Id, allocator: std.mem.Allocator) ![]u8 {
@@ -388,6 +564,107 @@ pub const Store = struct {
 
     pub fn len(self: *const Store) usize {
         return self.nodes.items.len;
+    }
+
+    /// Returns true iff the expression node itself belongs to the six-node Core.
+    ///
+    /// This does not recursively validate children. Use `assertCoreExpr()`
+    /// for recursive validation.
+    pub fn isCore(self: *const Store, id: Id) bool {
+        if (id >= self.nodes.items.len) return false;
+        return self.nodes.items[id].tag.isPrimitive();
+    }
+
+    fn assertCoreSpan(self: *const Store, span: Span) error{ InvalidExpr, ExtensionNotLowered }!void {
+        const children = span.slice(self.pool.items);
+
+        for (children) |child| {
+            try self.assertCoreExpr(child);
+        }
+    }
+
+    pub fn assertCoreExpr(self: *const Store, id: Id) error{ InvalidExpr, ExtensionNotLowered }!void {
+        if (id == NULL or id >= self.nodes.items.len) {
+            return error.InvalidExpr;
+        }
+
+        const node = self.nodes.items[id];
+
+        if (!node.tag.isPrimitive()) {
+            return error.ExtensionNotLowered;
+        }
+
+        switch (node.tag) {
+            .lit => {
+                if (node.aux >= self.lits.items.len) {
+                    return error.InvalidExpr;
+                }
+
+                try self.assertCoreSpan(node.span_a);
+                try self.assertCoreSpan(node.span_b);
+            },
+
+            .sym => {
+                if (node.payload >= self.interner.list.items.len) {
+                    return error.InvalidExpr;
+                }
+
+                try self.assertCoreSpan(node.span_a);
+                try self.assertCoreSpan(node.span_b);
+            },
+
+            .apply => {
+                if (node.payload >= self.nodes.items.len) {
+                    return error.InvalidExpr;
+                }
+
+                if (node.span_a.len == 0) {
+                    return error.InvalidExpr;
+                }
+
+                const children = node.span_a.slice(self.pool.items);
+
+                if (children[0] != node.payload) {
+                    return error.InvalidExpr;
+                }
+
+                try self.assertCoreSpan(node.span_a);
+                try self.assertCoreSpan(node.span_b);
+            },
+
+            .bind => {
+                if (node.payload >= self.interner.list.items.len) {
+                    return error.InvalidExpr;
+                }
+
+                try self.assertCoreSpan(node.span_a);
+                try self.assertCoreSpan(node.span_b);
+            },
+
+            .lambda => {
+                // payload == 0 est actuellement utilisé comme sentinel
+                // pour certaines lambdas sans paramètre.
+                if (node.payload != 0 and
+                    node.payload >= self.interner.list.items.len)
+                {
+                    return error.InvalidExpr;
+                }
+
+                try self.assertCoreSpan(node.span_a);
+                try self.assertCoreSpan(node.span_b);
+            },
+
+            .relation => {
+                if (node.payload >= self.interner.list.items.len) {
+                    return error.InvalidExpr;
+                }
+
+                try self.assertCoreSpan(node.span_a);
+                try self.assertCoreSpan(node.span_b);
+            },
+
+            else => unreachable,
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -987,61 +1264,6 @@ pub const Store = struct {
         _ = body;
         return 0; // Stub temporaire
     }
-    pub fn assertCoreExpr(self: *const Store, id: Id) !void {
-        if (id >= self.nodes.items.len) {
-            return error.InvalidExpr;
-        }
-
-        const node = self.get(id);
-
-        if (!node.tag.isPrimitive()) {
-            return error.ExtensionNotLowered;
-        }
-
-        switch (node.tag) {
-            .lit, .sym => {},
-
-            .apply => {
-                const args = node.span_a.slice(self.pool.items);
-
-                try self.assertCoreExpr(node.payload);
-
-                for (args) |arg| {
-                    try self.assertCoreExpr(arg);
-                }
-            },
-
-            .bind => {
-                try self.assertCoreExpr(node.aux);
-            },
-
-            .lambda => {
-                try self.assertCoreExpr(node.payload);
-
-                const body = node.span_a.slice(self.pool.items);
-                for (body) |child| {
-                    try self.assertCoreExpr(child);
-                }
-            },
-
-            .relation => {
-                try self.assertCoreExpr(node.payload);
-
-                const lhs = node.span_a.slice(self.pool.items);
-                const rhs = node.span_b.slice(self.pool.items);
-
-                for (lhs) |child| {
-                    try self.assertCoreExpr(child);
-                }
-
-                for (rhs) |child| {
-                    try self.assertCoreExpr(child);
-                }
-            },
-
-            else => unreachable,
-        }
-    }
 };
 
 // ═══════════════════════════════════════════════════
@@ -1455,4 +1677,197 @@ test "core invariant — lowered expression contains only six primitives" {
     try std.testing.expect(
         store.get(lowered).tag.isPrimitive(),
     );
+}
+
+test "core structural hash distinguishes bind names" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const one = try store.int(1);
+
+    const a = try store.bind("x", one);
+    const b = try store.bind("y", one);
+
+    try std.testing.expect(!structuralEql(&store, a, b));
+    try std.testing.expect(nodeHash(&store, a) != nodeHash(&store, b));
+}
+
+test "core structural hash distinguishes lambda parameters" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const body = try store.int(1);
+
+    const a = try store.lambda(&.{"x"}, body);
+    const b = try store.lambda(&.{"y"}, body);
+
+    try std.testing.expect(!structuralEql(&store, a, b));
+    try std.testing.expect(nodeHash(&store, a) != nodeHash(&store, b));
+}
+
+test "core structural equality includes relation rhs" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const lhs = try store.int(1);
+    const rhs_a = try store.int(2);
+    const rhs_b = try store.int(3);
+
+    const a = try store.relation(
+        "R",
+        &.{lhs},
+        &.{rhs_a},
+    );
+
+    const b = try store.relation(
+        "R",
+        &.{lhs},
+        &.{rhs_b},
+    );
+
+    try std.testing.expect(!structuralEql(&store, a, b));
+}
+
+test "core structural equality includes relation head" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const lhs = try store.int(1);
+    const rhs = try store.int(2);
+
+    const a = try store.relation(
+        "R",
+        &.{lhs},
+        &.{rhs},
+    );
+
+    const b = try store.relation(
+        "S",
+        &.{lhs},
+        &.{rhs},
+    );
+
+    try std.testing.expect(!structuralEql(&store, a, b));
+}
+
+test "core structural equality ignores source spans" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const one = try store.int(1);
+
+    const a = try store.sym("x");
+    const b = try store.sym("x");
+
+    // Different NodeIds but identical semantic symbols.
+    try std.testing.expect(a != b);
+    try std.testing.expect(structuralEql(&store, a, b));
+    try std.testing.expectEqual(
+        nodeHash(&store, a),
+        nodeHash(&store, b),
+    );
+
+    _ = one;
+}
+
+test "core structural equality is recursive for apply" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const f1 = try store.sym("f");
+    const f2 = try store.sym("f");
+
+    const x1 = try store.int(1);
+    const x2 = try store.int(1);
+
+    const a = try store.apply(f1, &.{x1});
+    const b = try store.apply(f2, &.{x2});
+
+    try std.testing.expect(structuralEql(&store, a, b));
+    try std.testing.expectEqual(
+        nodeHash(&store, a),
+        nodeHash(&store, b),
+    );
+}
+
+test "core expressions satisfy structural hash/equality contract" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const one = try store.int(1);
+    const two = try store.int(2);
+    const f = try store.sym("f");
+
+    const expressions = [_]Id{
+        one,
+        two,
+        f,
+        try store.apply(f, &.{one}),
+        try store.bind("x", one),
+        try store.lambda(&.{"x"}, one),
+        try store.relation("R", &.{one}, &.{two}),
+    };
+
+    for (expressions) |a| {
+        try std.testing.expect(store.isCore(a));
+
+        for (expressions) |b| {
+            if (structuralEql(&store, a, b)) {
+                try std.testing.expectEqual(
+                    nodeHash(&store, a),
+                    nodeHash(&store, b),
+                );
+            }
+        }
+    }
+}
+
+test "lowering is idempotent" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const one = try store.int(1);
+    const two = try store.int(2);
+
+    const expr = try store.binop("+", one, two);
+
+    const lowered = try store.lowerRec(expr);
+    const lowered_again = try store.lowerRec(lowered);
+
+    try std.testing.expectEqual(lowered, lowered_again);
+    try store.assertCoreExpr(lowered);
+    try store.assertCoreExpr(lowered_again);
+}
+
+test "lowering preserves Core expressions" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const one = try store.int(1);
+
+    const f = try store.sym("f");
+    const application = try store.apply(f, &.{one});
+
+    const lowered = try store.lowerRec(application);
+
+    try std.testing.expectEqual(application, lowered);
+    try store.assertCoreExpr(lowered);
 }
