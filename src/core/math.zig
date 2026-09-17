@@ -831,7 +831,7 @@ pub const Math = struct {
         {
             const s = try expr.toString(self.store, id, self.allocator);
             defer self.allocator.free(s);
-            platform.debug.print("[integrate] parsed '{s}' → {s}\n", .{ expr_str, s });
+            platform.dbg("[integrate] parsed '{s}' → {s}\n", .{ expr_str, s });
         }
         const var_id = try self.store.sym(variable);
         const result = try self.integrateExpr(id, var_id);
@@ -842,7 +842,7 @@ pub const Math = struct {
 
     fn integrateExpr(self: *Math, expr_id: Id, variable: Id) !Id {
         const node = self.store.get(expr_id);
-        platform.debug.print("[integrateExpr] tag={s}\n", .{@tagName(node.tag)});
+        platform.dbg("[integrateExpr] tag={s}\n", .{@tagName(node.tag)});
         switch (node.tag) {
             .lit => {
                 const lit = self.store.lits.items[node.aux];

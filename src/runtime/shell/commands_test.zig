@@ -117,7 +117,7 @@ test "actor lifecycle: spawn, send, state" {
 
     // Envoyer un message
     const send_result = try cmds.eval("send(Adder, 5)");
-    platform.debug.print("\n[TEST DEBUG] send(Adder, 5) a retourné : {s}\n\n", .{send_result});
+    platform.dbg("\n[TEST DEBUG] send(Adder, 5) a retourné : {s}\n\n", .{send_result});
 
     // Vérifier l'état
     const state_result = try cmds.eval("state(Adder)");
@@ -169,7 +169,15 @@ test "walrus operator := defines function correctly" {
 
     // Vérifier qu'il n'y a qu'UNE clause avec 1 pattern
     const fn_def = cmds.engine.fns.get("triple").?;
+    platform.dbg(
+        "\n[Shell WALRUS DEBUG] clauses={d} patterns={d}\n",
+        .{
+            fn_def.num_clauses,
+            fn_def.clauses[0].num_patterns,
+        },
+    );
     try testing.expectEqual(@as(usize, 1), fn_def.num_clauses);
+    try testing.expectEqual(@as(usize, 1), fn_def.clauses[0].num_patterns);
 
     // Vérifier l'évaluation
     const result = try cmds.eval("triple 21");

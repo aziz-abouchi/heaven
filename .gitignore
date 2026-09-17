@@ -59,3 +59,4 @@ output.h
 output.tex
 output.hvn
 *.heaven_session.json
+core/book_suite.hvn
