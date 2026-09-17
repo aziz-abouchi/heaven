@@ -239,13 +239,12 @@ pub const SimplifyEngine = struct {
         }
 
         const node = self.store.get(id);
-        const tag_int = @intFromEnum(node.tag);
-        platform.dbg("[EGraph] node tag int = {d}\n", .{tag_int});
-        if (tag_int < @intFromEnum(expr.Tag.relation) + 1) {
-            const tag = @as(expr.Tag, @enumFromInt(tag_int));
-            platform.dbg("[EGraph] node tag = {s}\n", .{@tagName(tag)});
-        } else {
-            return id;
+        if (!node.tag.isPrimitive()) {
+            platform.dbg(
+                "[EGraph] extension non lowered: {s}\n",
+                .{@tagName(node.tag)},
+            );
+            return error.ExtensionNotLowered;
         }
 
         if (!node.tag.isPrimitive()) {
@@ -318,6 +317,7 @@ fn nodeCountCost(store: *const expr.Store, id: expr.Id, ctx: ?*anyopaque) u32 {
 
     var count: i32 = 1 + bonus;
     switch (node.tag) {
+        .sym, .lit => {},
         .apply => {
             count += @as(i32, @intCast(nodeCountCost(store, node.payload, null)));
             for (node.span_a.slice(store.pool.items)) |child| {

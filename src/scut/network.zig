@@ -500,10 +500,11 @@ pub fn handleIncoming(allocator: std.mem.Allocator, matrix: *matrix_lib.Matrix, 
             const union_payload = data;
 
             // Accès direct au champ du Swarm
-            const class_a = egraph.hashcons.get(union_payload.hash_a) orelse return error.UnknownHash;
-            const class_b = egraph.hashcons.get(union_payload.hash_b) orelse return error.UnknownHash;
+            const class_a = egraph.classForHash(union_payload.hash_a) orelse return error.UnknownHash;
 
-            _ = egraph.uf.merge(class_a, class_b);
+            const class_b = egraph.classForHash(union_payload.hash_b) orelse return error.UnknownHash;
+
+            _ = try egraph.merge(class_a, class_b);
 
             // platform.dbg("[SWARM] Union fusionnée: {X} == {X}\n", .{ union_payload.hash_a, union_payload.hash_b });
         },

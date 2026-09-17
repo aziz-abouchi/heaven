@@ -53,6 +53,7 @@ pub const TransformError = error{
     InvalidPi,
     InvalidTypeAnn,
     CannotLowerFrontendTag,
+    ExtensionNotLowered,
     InvalidPatternId,
     InvalidBinding,
     InvalidExpr,

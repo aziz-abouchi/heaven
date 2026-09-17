@@ -188,7 +188,11 @@ pub const EGraph = struct {
     uf: UnionFind,
     classes: std.ArrayListUnmanaged(EClass) = .{},
     node_to_class: std.AutoHashMapUnmanaged(Id, ClassId) = .{},
-    hashcons: std.AutoHashMapUnmanaged(u64, ClassId) = .{},
+    /// Hash-consing index.
+    ///
+    /// A hash maps to one or more candidate classes. The hash is only a
+    /// prefilter. `expr.structuralEql()` is the final identity check.
+    hashcons: std.AutoHashMapUnmanaged(u64, std.ArrayListUnmanaged(ClassId)) = .{},
     merge_count: u64 = 0,
     // Étape 5
     proofs: std.ArrayListUnmanaged(ProofStep) = .{},
@@ -206,6 +210,10 @@ pub const EGraph = struct {
         self.classes.deinit(self.allocator);
         self.uf.deinit();
         self.node_to_class.deinit(self.allocator);
+        var hash_it = self.hashcons.valueIterator();
+        while (hash_it.next()) |candidates| {
+            candidates.deinit(self.allocator);
+        }
         self.hashcons.deinit(self.allocator);
         self.proofs.deinit(self.allocator);
     }
@@ -215,28 +223,90 @@ pub const EGraph = struct {
     }
 
     pub fn add(self: *EGraph, id: Id) !ClassId {
-        const canonical = try canon_mod.canonicalize(self.store, self.allocator, id);
+        try self.store.assertCoreExpr(id);
+
+        const canonical = try canon_mod.canonicalize(
+            self.store,
+            self.allocator,
+            id,
+        );
+
         if (self.node_to_class.get(canonical)) |class| {
-            try self.node_to_class.put(self.allocator, id, class);
+            try self.node_to_class.put(
+                self.allocator,
+                id,
+                class,
+            );
             return self.uf.find(class);
         }
 
         const h = expr.nodeHash(self.store, canonical);
-        if (self.hashcons.get(h)) |existing| {
-            const existing_class = self.uf.find(existing);
-            try self.node_to_class.put(self.allocator, id, existing_class);
-            try self.node_to_class.put(self.allocator, canonical, existing_class);
-            try self.classes.items[existing_class].nodes.append(self.allocator, canonical);
-            return existing_class;
+
+        if (self.hashcons.get(h)) |candidates| {
+            for (candidates.items) |candidate| {
+                const class = self.uf.find(candidate);
+
+                for (self.classes.items[class].nodes.items) |existing_id| {
+                    if (expr.structuralEql(
+                        self.store,
+                        existing_id,
+                        canonical,
+                    )) {
+                        try self.node_to_class.put(
+                            self.allocator,
+                            id,
+                            class,
+                        );
+                        try self.node_to_class.put(
+                            self.allocator,
+                            canonical,
+                            class,
+                        );
+                        return class;
+                    }
+                }
+            }
         }
 
         const class = try self.uf.makeSet();
+
         var eclass = EClass.init(self.allocator);
-        try eclass.nodes.append(self.allocator, canonical);
-        try self.classes.append(self.allocator, eclass);
-        try self.node_to_class.put(self.allocator, canonical, class);
-        try self.node_to_class.put(self.allocator, id, class);
-        try self.hashcons.put(self.allocator, h, class);
+        try eclass.nodes.append(
+            self.allocator,
+            canonical,
+        );
+
+        try self.classes.append(
+            self.allocator,
+            eclass,
+        );
+
+        try self.node_to_class.put(
+            self.allocator,
+            canonical,
+            class,
+        );
+
+        try self.node_to_class.put(
+            self.allocator,
+            id,
+            class,
+        );
+
+        const gop = try self.hashcons.getOrPut(
+            self.allocator,
+            h,
+        );
+
+        if (!gop.found_existing) {
+            gop.value_ptr.* = .{};
+        }
+
+        try gop.value_ptr.append(
+            self.allocator,
+            class,
+        );
+
         return class;
     }
 
@@ -262,10 +332,12 @@ pub const EGraph = struct {
             );
         }
 
-        const tag_int = @intFromEnum(node.tag);
-        if (tag_int > @intFromEnum(expr.Tag.relation)) {
-            platform.dbg("[EGraph] tag invalide: {d}\n", .{tag_int});
-            return error.OutOfMemory;
+        if (!node.tag.isPrimitive()) {
+            platform.dbg(
+                "[EGraph] extension non lowered: {s}\n",
+                .{@tagName(node.tag)},
+            );
+            return error.ExtensionNotLowered;
         }
 
         switch (node.tag) {
@@ -287,7 +359,48 @@ pub const EGraph = struct {
                     }
                 }
             },
-            .bind => _ = try self.addExpr(node.aux),
+            .bind => {
+                const span_a = try self.store.allocator.dupe(
+                    expr.Id,
+                    self.store.spanSliceConst(node.span_a),
+                );
+                defer self.store.allocator.free(span_a);
+
+                const span_b = try self.store.allocator.dupe(
+                    expr.Id,
+                    self.store.spanSliceConst(node.span_b),
+                );
+                defer self.store.allocator.free(span_b);
+
+                for (span_a) |child| {
+                    _ = try self.addExpr(child);
+                }
+
+                for (span_b) |child| {
+                    _ = try self.addExpr(child);
+                }
+            },
+            .lambda => {
+                const span_a = try self.store.allocator.dupe(
+                    expr.Id,
+                    self.store.spanSliceConst(node.span_a),
+                );
+                defer self.store.allocator.free(span_a);
+
+                for (span_a) |child| {
+                    _ = try self.addExpr(child);
+                }
+
+                const span_b = try self.store.allocator.dupe(
+                    expr.Id,
+                    self.store.spanSliceConst(node.span_b),
+                );
+                defer self.store.allocator.free(span_b);
+
+                for (span_b) |child| {
+                    _ = try self.addExpr(child);
+                }
+            },
             .relation => {
                 // Snapshot les DEUX spans avant les addExpr récursifs
                 const span_a = try self.store.allocator.dupe(expr.Id, self.store.spanSliceConst(node.span_a));
@@ -415,6 +528,26 @@ pub const EGraph = struct {
 
         return best orelse eclass.nodes.items[0]; // fallback
     }
+
+    pub fn classForHash(self: *EGraph, h: u64) ?ClassId {
+        const candidates = self.hashcons.get(h) orelse return null;
+
+        var found: ?ClassId = null;
+
+        for (candidates.items) |class| {
+            const canonical = self.uf.find(class);
+
+            if (found) |existing| {
+                if (existing != canonical) {
+                    return null;
+                }
+            } else {
+                found = canonical;
+            }
+        }
+
+        return found;
+    }
 };
 
 pub fn cost(store: *const Store, id: Id) u32 {
@@ -500,4 +633,101 @@ test "egraph — extraction" {
 
     const best = egraph.extract(c_x, null).?;
     try std.testing.expect(cost(&store, best) == 1);
+}
+
+test "egraph — structurally equal nodes share a class" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    var egraph = EGraph.init(&store, allocator);
+    defer egraph.deinit();
+
+    const x = try store.sym("x");
+    const y = try store.sym("x");
+
+    try std.testing.expect(x != y);
+    try std.testing.expect(expr.structuralEql(&store, x, y));
+
+    const cx = try egraph.addExpr(x);
+    const cy = try egraph.addExpr(y);
+
+    try std.testing.expectEqual(cx, cy);
+    try std.testing.expect(egraph.areEqual(x, y));
+}
+
+test "egraph — structurally different relation rhs do not collide" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    var egraph = EGraph.init(&store, allocator);
+    defer egraph.deinit();
+
+    const lhs = try store.int(1);
+    const rhs1 = try store.int(2);
+    const rhs2 = try store.int(3);
+
+    const a = try store.relation(
+        "R",
+        &.{lhs},
+        &.{rhs1},
+    );
+
+    const b = try store.relation(
+        "R",
+        &.{lhs},
+        &.{rhs2},
+    );
+
+    const ca = try egraph.addExpr(a);
+    const cb = try egraph.addExpr(b);
+
+    try std.testing.expect(ca != cb);
+    try std.testing.expect(!egraph.areEqual(a, b));
+}
+
+test "egraph — structurally different lambda parameters do not collide" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    var egraph = EGraph.init(&store, allocator);
+    defer egraph.deinit();
+
+    const body = try store.int(1);
+
+    const a = try store.lambda(&.{"x"}, body);
+    const b = try store.lambda(&.{"y"}, body);
+
+    const ca = try egraph.addExpr(a);
+    const cb = try egraph.addExpr(b);
+
+    try std.testing.expect(ca != cb);
+    try std.testing.expect(!egraph.areEqual(a, b));
+}
+
+test "egraph — merge establishes explicit equivalence" {
+    const allocator = std.testing.allocator;
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    var egraph = EGraph.init(&store, allocator);
+    defer egraph.deinit();
+
+    const a = try store.int(1);
+    const b = try store.int(2);
+
+    const ca = try egraph.addExpr(a);
+    const cb = try egraph.addExpr(b);
+
+    try std.testing.expect(!egraph.areEqual(a, b));
+
+    _ = try egraph.merge(ca, cb);
+
+    try std.testing.expect(egraph.areEqual(a, b));
 }

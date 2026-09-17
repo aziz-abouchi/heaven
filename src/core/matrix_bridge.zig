@@ -217,10 +217,19 @@ pub const MatrixBridge = struct {
                 (inner.len > 0 and inner[0] == '|'))
             {
                 var arrow_pos: ?usize = null;
+                var arrow_len: usize = 2;
                 if (std.mem.indexOf(u8, inner, "=>")) |pos| {
                     arrow_pos = pos;
+                    arrow_len = 2;
                 } else if (std.mem.indexOf(u8, inner, "->")) |pos| {
                     arrow_pos = pos;
+                    arrow_len = 2;
+                } else if (std.mem.startsWith(u8, inner, "λ")) {
+                    // Pour λx. body, utiliser '.' comme séparateur
+                    if (std.mem.indexOf(u8, inner, ".")) |pos| {
+                        arrow_pos = pos;
+                        arrow_len = 1;
+                    }
                 }
 
                 if (arrow_pos) |ap| {
@@ -240,7 +249,12 @@ pub const MatrixBridge = struct {
                         if (rest.len >= 2 and rest[0] == '(' and rest[rest.len - 1] == ')') {
                             params_str = std.mem.trim(u8, rest[1 .. rest.len - 1], " ");
                         } else {
-                            params_str = std.mem.trim(u8, rest, " ");
+                            // Pour λx. body, enlever le point final si présent
+                            var clean_rest = std.mem.trim(u8, rest, " ");
+                            if (clean_rest.len > 0 and clean_rest[clean_rest.len - 1] == '.') {
+                                clean_rest = clean_rest[0 .. clean_rest.len - 1];
+                            }
+                            params_str = std.mem.trim(u8, clean_rest, " ");
                         }
                     } else if (std.mem.startsWith(u8, inner, "\\")) {
                         const rest = inner[2..ap];
@@ -259,7 +273,7 @@ pub const MatrixBridge = struct {
                         params_str = "";
                     }
 
-                    const body_str = std.mem.trim(u8, inner[ap + 2 ..], " ");
+                    const body_str = std.mem.trim(u8, inner[ap + arrow_len ..], " ");
 
                     var params: std.ArrayListUnmanaged([]const u8) = .{};
                     defer params.deinit(self.allocator);
