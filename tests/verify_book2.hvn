@@ -1,0 +1,19 @@
+-- Exemples du livre, partie 2 : théorèmes et acteurs.
+-- Chapitres 8 et 9.
+
+-- ═══ Chapitre 8 : Proofs and Theorems ═══
+theorem deux_plus_deux : 2 + 2 = 4
+prove deux_plus_deux by eval
+
+theorem mul_one : x * 1 = x
+prove mul_one by simplify
+
+theorem add_zero : x + 0 = x
+prove add_zero by simplify
+
+-- ═══ Chapitre 9 : Real World — acteurs ═══
+fn counterHandler(state, msg) = (+ state msg)
+let actor Counter = 0 with counterHandler
+send(Counter, 10)
+send(Counter, 5)
+assert_eq state(Counter) == 15

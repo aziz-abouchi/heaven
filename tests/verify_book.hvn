@@ -1,0 +1,64 @@
+-- Exemples du livre "Learn You Some Heaven"
+-- Chapitres 1 à 7 : chaque exemple testable est vérifié.
+-- Si un exemple du livre casse, ce fichier casse en CI.
+
+-- ═══ Chapitre 1 : Starting Out ═══
+assert_eq 2 + 3 == 5
+assert_eq 2 * 3 + 1 == 7
+assert_eq 10 / 2 == 5
+assert_eq (+ 1 2) == 3
+
+double x = x * 2
+assert_eq double 21 == 42
+
+-- ═══ Chapitre 2 : Believe the Type ═══
+assert_eq type 42 == "Int"
+assert_eq type 3.14 == "Float"
+assert_eq type "bonjour" == "String"
+assert_eq type true == "Bool"
+
+-- ═══ Chapitre 3 : Syntax in Functions ═══
+data Couleur = Rouge | Vert | Bleu
+assert_eq Rouge == Rouge
+
+data Maybe a = Rien | Juste a
+ouBien Rien defaut = defaut
+ouBien (Juste x) defaut = x
+assert_eq ouBien (Juste 42) 0 == 42
+assert_eq ouBien Rien 0 == 0
+
+-- ═══ Chapitre 4 : Hello, Recursion! ═══
+fact 0 = 1
+fact n = n * fact (n - 1)
+assert_eq fact 5 == 120
+
+data Arbre a = Feuille | Noeud (Arbre a) a (Arbre a)
+taille Feuille = 0
+taille (Noeud g x d) = 1 + taille g + taille d
+assert_eq taille Feuille == 0
+assert_eq taille (Noeud Feuille 1 Feuille) == 1
+
+data MaListe a = Fin | Element a (MaListe a)
+inverseAux Fin acc = acc
+inverseAux (Element x reste) acc = inverseAux reste (Element x acc)
+inverse xs = inverseAux xs Fin
+assert_eq inverse (Element 1 (Element 2 Fin)) == (Element 2 (Element 1 Fin))
+
+-- ═══ Chapitre 5 : Higher-Order Functions ═══
+inc x = x + 1
+dbl x = x * 2
+data Stream a = Cons a (Stream a) | End
+map f End = End
+map f (Cons x reste) = Cons (f x) (map f reste)
+assert_eq map inc (Cons 1 (Cons 2 End)) == Cons 2 (Cons 3 End)
+assert_eq (inc >>> dbl) 3 == 8
+
+-- ═══ Chapitre 6 : Effects ═══
+logHandler msg = (+ msg 100)
+assert_eq handle (perform "Log" 42) logHandler == 142
+
+-- ═══ Chapitre 7 : Streams ═══
+take zero s = End
+take (succ n) End = End
+take (succ n) (Cons x reste) = Cons x (take n reste)
+assert_eq take (succ zero) (Cons 1 (Cons 2 End)) == Cons 1 End
