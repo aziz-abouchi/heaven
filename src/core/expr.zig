@@ -1258,11 +1258,20 @@ pub const Store = struct {
         return 0;
     }
     pub fn letIn(self: *Store, name: []const u8, rhs: Id, body: Id) !Id {
-        _ = self;
-        _ = name;
-        _ = rhs;
-        _ = body;
-        return 0; // Stub temporaire
+        const name_sym = try self.interner.intern(name);
+        // Snapshot rhs et body AVANT reserveSpan (qui peut réallouer pool)
+        const saved_rhs = rhs;
+        const saved_body = body;
+        const span = try self.reserveSpan(2);
+        self.pool.items[span.start] = saved_rhs;
+        self.pool.items[span.start + 1] = saved_body;
+        return self.addNode(.{
+            .tag = .let,
+            .payload = name_sym,
+            .aux = 0,
+            .span_a = span,
+            .span_b = Span.EMPTY,
+        });
     }
 };
 

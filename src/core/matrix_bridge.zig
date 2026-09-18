@@ -5,6 +5,7 @@ const Allocator = std.mem.Allocator;
 const expr = @import("expr");
 const Store = expr.Store;
 const Id = expr.Id;
+const platform = @import("platform");
 
 pub const MatrixBridge = struct {
     store: *Store,
@@ -478,21 +479,48 @@ pub const MatrixBridge = struct {
             return self.store.unquote(expr_id);
         }
 
-        // let x expr (Lisp format) or let x = expr
+        // let x = value body (let expression with body)
         if (std.mem.startsWith(u8, trimmed, "let ")) {
             const rest = trimmed[4..];
 
-            if (std.mem.indexOfScalar(u8, rest, ' ')) |space_pos| {
-                const name = std.mem.trim(u8, rest[0..space_pos], " ");
-                const val_text = std.mem.trim(u8, rest[space_pos + 1 ..], " ");
-                const val = try self.parseAddSub(val_text);
-                return self.store.bind(name, val);
-            }
-
+            // Chercher le = pour séparer name, value, et body
             if (std.mem.indexOfScalar(u8, rest, '=')) |eq_pos| {
                 const name = std.mem.trim(u8, rest[0..eq_pos], " ");
-                const val_text = std.mem.trim(u8, rest[eq_pos + 1 ..], " ");
+                const after_eq = rest[eq_pos + 1 ..];
+
+                // Parser la value et trouver où elle se termine (début du body)
+                // La value se termine quand on atteint une parenthèse ouvrante ou la fin
+                var val_end: usize = after_eq.len;
+                var depth: i32 = 0;
+                var i: usize = 0;
+                while (i < after_eq.len) : (i += 1) {
+                    const ch = after_eq[i];
+                    if (ch == '(') depth += 1;
+                    if (ch == ')') depth -= 1;
+                    if (depth == 0 and ch == ' ' and i + 1 < after_eq.len) {
+                        // Vérifier si ce qui suit ressemble à un body (commence par '(')
+                        var j = i + 1;
+                        while (j < after_eq.len and after_eq[j] == ' ') : (j += 1) {}
+                        if (j < after_eq.len and after_eq[j] == '(') {
+                            val_end = i;
+                            break;
+                        }
+                    }
+                }
+
+                const val_text = std.mem.trim(u8, after_eq[0..val_end], " ");
                 const val = try self.parseAddSub(val_text);
+
+                // Parser le body s'il existe
+                if (val_end < after_eq.len) {
+                    const body_text = std.mem.trim(u8, after_eq[val_end..], " ");
+                    if (body_text.len > 0) {
+                        const body = try self.parseAddSub(body_text);
+                        return self.store.letIn(name, val, body);
+                    }
+                }
+
+                // Pas de body, juste un binding
                 return self.store.bind(name, val);
             }
         }
@@ -502,6 +530,7 @@ pub const MatrixBridge = struct {
     }
 
     fn parseFullExpr(self: *MatrixBridge, input: []const u8) Allocator.Error!Id {
+        platform.debug.print("[PARSE-FULL] input='{s}'\n", .{input});
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return self.store.unitLit();
 
@@ -535,8 +564,66 @@ pub const MatrixBridge = struct {
                 num_parts += 1;
             }
 
+            // Dispatch spécial pour les formes spéciales
+            if (num_parts >= 1 and std.mem.eql(u8, parts[0], "let")) {
+                platform.debug.print("[LET-DISPATCH] num_parts={d}\n", .{num_parts});
+                // Syntaxe : (let x = value body)
+                // Chercher le = dans les parts
+                var eq_idx: ?usize = null;
+                var i: usize = 1;
+                while (i < num_parts) : (i += 1) {
+                    if (std.mem.eql(u8, parts[i], "=")) {
+                        eq_idx = i;
+                        break;
+                    }
+                }
+                
+                platform.debug.print("[LET-DISPATCH] eq_idx={?}\n", .{eq_idx});
+                
+                if (eq_idx) |eq| {
+                    platform.debug.print("[LET-DISPATCH] eq={d}, condition: eq>=2={any}, eq+2<=num_parts={any}\n", 
+                        .{eq, eq >= 2, eq + 2 <= num_parts});
+                    if (eq >= 2 and eq + 2 <= num_parts) {
+                        const name = parts[1];
+                        platform.debug.print("[LET-DISPATCH] name={s}\n", .{name});
+                        // Reconstituer la value (parts[eq-1] si eq==2, sinon erreur)
+                        const val_str = parts[eq + 1];
+                        platform.debug.print("[LET-DISPATCH] val_str={s}\n", .{val_str});
+                        const val = try self.parseFullExpr(val_str);
+                        platform.debug.print("[LET-DISPATCH] val id={d}\n", .{val});
+                        
+                        // Reconstituer le body (tout ce qui reste après la value)
+                        if (eq + 2 < num_parts) {
+                            // Reconcatener les parts restantes
+                            var body_parts = std.ArrayListUnmanaged(u8){};
+                            defer body_parts.deinit(self.allocator);
+                            var j: usize = eq + 2;
+                            while (j < num_parts) : (j += 1) {
+                                if (j > eq + 2) try body_parts.appendSlice(self.allocator, " ");
+                                try body_parts.appendSlice(self.allocator, parts[j]);
+                            }
+                            const body_str = try body_parts.toOwnedSlice(self.allocator);
+                            defer self.allocator.free(body_str);
+                            platform.debug.print("[LET-DISPATCH] body_str={s}\n", .{body_str});
+                            const body = try self.parseFullExpr(body_str);
+                            platform.debug.print("[LET-DISPATCH] body id={d}\n", .{body});
+                            const result = try self.store.letIn(name, val, body);
+                            platform.debug.print("[LET-DISPATCH] result id={d}\n", .{result});
+                            return result;
+                        } else {
+                            // Pas de body explicite, juste un binding
+                            platform.debug.print("[LET-DISPATCH] no body, just binding\n", .{});
+                            return self.store.bind(name, val);
+                        }
+                    }
+                }
+                platform.debug.print("[LET-DISPATCH] no match, falling through\n", .{});
+            }
+
+            platform.debug.print("[PARSE-FULL] num_parts={d}\n", .{num_parts});
             // Parser récursivement chaque partie
             if (num_parts >= 2) {
+                platform.debug.print("[PARSE-FULL] parts[0]='{s}'\n", .{parts[0]});
                 const func_id = try self.parseFullExpr(parts[0]);
                 var arg_ids: std.ArrayListUnmanaged(Id) = .{};
                 defer arg_ids.deinit(self.allocator);
