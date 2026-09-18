@@ -530,7 +530,6 @@ pub const MatrixBridge = struct {
     }
 
     fn parseFullExpr(self: *MatrixBridge, input: []const u8) Allocator.Error!Id {
-        platform.debug.print("[PARSE-FULL] input='{s}'\n", .{input});
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return self.store.unitLit();
 
@@ -566,7 +565,6 @@ pub const MatrixBridge = struct {
 
             // Dispatch spécial pour les formes spéciales
             if (num_parts >= 1 and std.mem.eql(u8, parts[0], "let")) {
-                platform.debug.print("[LET-DISPATCH] num_parts={d}\n", .{num_parts});
                 // Syntaxe : (let x = value body)
                 // Chercher le = dans les parts
                 var eq_idx: ?usize = null;
@@ -577,21 +575,14 @@ pub const MatrixBridge = struct {
                         break;
                     }
                 }
-                
-                platform.debug.print("[LET-DISPATCH] eq_idx={?}\n", .{eq_idx});
-                
+
                 if (eq_idx) |eq| {
-                    platform.debug.print("[LET-DISPATCH] eq={d}, condition: eq>=2={any}, eq+2<=num_parts={any}\n", 
-                        .{eq, eq >= 2, eq + 2 <= num_parts});
                     if (eq >= 2 and eq + 2 <= num_parts) {
                         const name = parts[1];
-                        platform.debug.print("[LET-DISPATCH] name={s}\n", .{name});
                         // Reconstituer la value (parts[eq-1] si eq==2, sinon erreur)
                         const val_str = parts[eq + 1];
-                        platform.debug.print("[LET-DISPATCH] val_str={s}\n", .{val_str});
                         const val = try self.parseFullExpr(val_str);
-                        platform.debug.print("[LET-DISPATCH] val id={d}\n", .{val});
-                        
+
                         // Reconstituer le body (tout ce qui reste après la value)
                         if (eq + 2 < num_parts) {
                             // Reconcatener les parts restantes
@@ -604,26 +595,19 @@ pub const MatrixBridge = struct {
                             }
                             const body_str = try body_parts.toOwnedSlice(self.allocator);
                             defer self.allocator.free(body_str);
-                            platform.debug.print("[LET-DISPATCH] body_str={s}\n", .{body_str});
                             const body = try self.parseFullExpr(body_str);
-                            platform.debug.print("[LET-DISPATCH] body id={d}\n", .{body});
                             const result = try self.store.letIn(name, val, body);
-                            platform.debug.print("[LET-DISPATCH] result id={d}\n", .{result});
                             return result;
                         } else {
                             // Pas de body explicite, juste un binding
-                            platform.debug.print("[LET-DISPATCH] no body, just binding\n", .{});
                             return self.store.bind(name, val);
                         }
                     }
                 }
-                platform.debug.print("[LET-DISPATCH] no match, falling through\n", .{});
             }
 
-            platform.debug.print("[PARSE-FULL] num_parts={d}\n", .{num_parts});
             // Parser récursivement chaque partie
             if (num_parts >= 2) {
-                platform.debug.print("[PARSE-FULL] parts[0]='{s}'\n", .{parts[0]});
                 const func_id = try self.parseFullExpr(parts[0]);
                 var arg_ids: std.ArrayListUnmanaged(Id) = .{};
                 defer arg_ids.deinit(self.allocator);

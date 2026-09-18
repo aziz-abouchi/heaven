@@ -242,6 +242,25 @@ pub const Parser = struct {
         if (trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
             const inner = std.mem.trim(u8, trimmed[1 .. trimmed.len - 1], " ");
             if (inner.len == 0) return self.store.unitLit();
+            
+            // Conversion spéciale : (let x = value body) → (let x value body)
+            if (std.mem.startsWith(u8, inner, "let ")) {
+                const after_let = inner[4..];
+                if (std.mem.indexOfScalar(u8, after_let, '=')) |eq_pos| {
+                    // Vérifier que ce n'est pas ==
+                    if (eq_pos + 1 >= after_let.len or after_let[eq_pos + 1] != '=') {
+                        const before_eq = std.mem.trim(u8, after_let[0..eq_pos], " ");
+                        const after_eq = std.mem.trim(u8, after_let[eq_pos + 1 ..], " ");
+                        const converted = std.fmt.allocPrint(self.allocator, "(let {s} {s})", .{ before_eq, after_eq }) catch {
+                            return self.store.sym(trimmed);
+                        };
+                        defer self.allocator.free(converted);
+                        // Re-parser avec la string convertie
+                        return self.parseSExpr(converted);
+                    }
+                }
+            }
+            
             var parts: [16][]const u8 = undefined;
             var num_parts: usize = 0;
             var depth: i32 = 0;
@@ -303,11 +322,53 @@ pub const Parser = struct {
                 return engine_expr.evaluate(self.store, self.env, self.engine, inner_id, 0) catch inner_id;
             }
             if (std.mem.eql(u8, op, "let") and num_parts >= 3) {
-                const sym = try self.store.interner.intern(parts[1]);
-                const val_id = try self.parseSExpr(parts[2]);
-                if (num_parts == 3) return self.store.bindSym(sym, val_id);
-                const body_id = try self.parseSExpr(parts[3]);
-                return self.store.bindSymWithBody(sym, val_id, body_id);
+                // Support deux syntaxes :
+                // 1. (let x = value body) - syntaxe avec =
+                // 2. (let x value body) - syntaxe sans =
+                
+                // Chercher le = dans les parts
+                var eq_idx: ?usize = null;
+                var i: usize = 1;
+                while (i < num_parts) : (i += 1) {
+                    if (std.mem.eql(u8, parts[i], "=")) {
+                        eq_idx = i;
+                        break;
+                    }
+                }
+                
+                if (eq_idx) |eq| {
+                    // Syntaxe avec = : (let x = value body)
+                    if (eq >= 2 and eq + 1 < num_parts) {
+                        const sym = try self.store.interner.intern(parts[1]);
+                        const val_id = try self.parseSExpr(parts[eq + 1]);
+                        
+                        // Parser le body s'il existe
+                        if (eq + 2 < num_parts) {
+                            // Reconcatener les parts restantes pour le body
+                            var body_parts = std.ArrayListUnmanaged(u8){};
+                            defer body_parts.deinit(self.allocator);
+                            var j: usize = eq + 2;
+                            while (j < num_parts) : (j += 1) {
+                                if (j > eq + 2) try body_parts.appendSlice(self.allocator, " ");
+                                try body_parts.appendSlice(self.allocator, parts[j]);
+                            }
+                            const body_str = try body_parts.toOwnedSlice(self.allocator);
+                            defer self.allocator.free(body_str);
+                            const body_id = try self.parseSExpr(body_str);
+                            return self.store.letIn(parts[1], val_id, body_id);
+                        } else {
+                            // Pas de body, juste un binding
+                            return self.store.bindSym(sym, val_id);
+                        }
+                    }
+                } else {
+                    // Syntaxe sans = : (let x value body)
+                    const sym = try self.store.interner.intern(parts[1]);
+                    const val_id = try self.parseSExpr(parts[2]);
+                    if (num_parts == 3) return self.store.bindSym(sym, val_id);
+                    const body_id = try self.parseSExpr(parts[3]);
+                    return self.store.bindSymWithBody(sym, val_id, body_id);
+                }
             }
             if (std.mem.eql(u8, op, "while") and num_parts == 3) return self.store.binop("while", try self.parseSExpr(parts[1]), try self.parseSExpr(parts[2]));
             if (std.mem.eql(u8, op, "if") and num_parts == 4) return self.store.call("if", &.{ try self.parseSExpr(parts[1]), try self.parseSExpr(parts[2]), try self.parseSExpr(parts[3]) });
