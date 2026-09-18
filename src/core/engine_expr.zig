@@ -294,8 +294,20 @@ pub const Engine = struct {
         // take (succ zero)  →  \__curry_0 -> take (succ zero) __curry_0
         var min_patterns: usize = 32;
         for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
-            if (clause.num_patterns < min_patterns) min_patterns = clause.num_patterns;
+            if (clause.num_patterns < min_patterns) {
+                min_patterns = clause.num_patterns;
+            }
         }
+
+        platform.dbg(
+            "[call] name='{s}' args={d} clauses={d} min_patterns={d}\n",
+            .{
+                name,
+                args_snap.len,
+                fn_def.num_clauses,
+                min_patterns,
+            },
+        );
         if (args_snap.len < min_patterns and min_patterns != 32) {
             const missing = min_patterns - args_snap.len;
 

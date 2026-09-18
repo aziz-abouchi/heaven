@@ -533,11 +533,32 @@ pub const Heaven = struct {
         }
 
         // ─── DÉFINITION DE FONCTION (syntaxe équationnelle) ───
-        if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_pos| {
-            const lhs = std.mem.trim(u8, trimmed[0..eq_pos], " ");
-            const rhs = std.mem.trim(u8, trimmed[eq_pos + 1 ..], " ");
-            if (!std.mem.startsWith(u8, lhs, "(") and lhs.len > 0 and rhs.len > 0) {
-                return self.evalEquation(lhs, rhs);
+        // Vérifier d'abord := (walrus) avant = pour éviter la confusion
+        if (std.mem.indexOf(u8, trimmed, ":=")) |walrus_pos| {
+            // := trouvé : convertir en = et traiter comme équation
+            const before = trimmed[0..walrus_pos];
+            const after = trimmed[walrus_pos + 2 ..];
+            const converted = try std.fmt.allocPrint(self.allocator, "{s}={s}", .{ before, after });
+            defer self.allocator.free(converted);
+            // Re-parser la string convertie
+            if (std.mem.indexOfScalar(u8, converted, '=')) |eq_pos| {
+                const lhs = std.mem.trim(u8, converted[0..eq_pos], " ");
+                const rhs = std.mem.trim(u8, converted[eq_pos + 1 ..], " ");
+                if (!std.mem.startsWith(u8, lhs, "(") and lhs.len > 0 and rhs.len > 0) {
+                    return self.evalEquation(lhs, rhs);
+                }
+            }
+        } else if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_pos| {
+            // Pas de :=, chercher = simple
+            // Vérifier que ce n'est pas == ou !=
+            if (eq_pos + 1 < trimmed.len and trimmed[eq_pos + 1] == '=') {
+                // C'est ==, pas une définition
+            } else {
+                const lhs = std.mem.trim(u8, trimmed[0..eq_pos], " ");
+                const rhs = std.mem.trim(u8, trimmed[eq_pos + 1 ..], " ");
+                if (!std.mem.startsWith(u8, lhs, "(") and lhs.len > 0 and rhs.len > 0) {
+                    return self.evalEquation(lhs, rhs);
+                }
             }
         }
 

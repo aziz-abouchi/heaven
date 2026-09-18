@@ -341,7 +341,7 @@ pub const EGraph = struct {
         }
 
         switch (node.tag) {
-            .sym, .lit, .hole => {},
+            .sym, .lit => {},
             .apply => {
                 platform.dbg("[EGraph] apply id={d} payload={d}\n", .{ id, node.payload });
 
@@ -547,6 +547,211 @@ pub const EGraph = struct {
         }
 
         return found;
+    }
+
+    /// Congruence closure : après des unions, les parents des classes
+    /// fusionnées peuvent être devenus congruents — f(g(x)) ≡ f(h(x))
+    /// si g(x) ~ h(x). Itère jusqu'à point fixe.
+    pub fn rebuild(self: *EGraph) !void {
+        var changed = true;
+        while (changed) {
+            changed = false;
+            scan: for (self.classes.items, 0..) |_, ci_usize| {
+                const ci: ClassId = @intCast(ci_usize);
+                const rep = self.uf.find(ci);
+                if (rep != ci) continue; // classe absorbée par une fusion
+
+                var ni: usize = 0;
+                while (ni < self.classes.items[ci].nodes.items.len) : (ni += 1) {
+                    const nid = self.classes.items[ci].nodes.items[ni];
+                    const r = try self.remapNode(nid);
+                    if (!r.changed) continue;
+
+                    if (self.node_to_class.get(r.id)) |other_raw| {
+                        const other = self.uf.find(other_raw);
+                        if (other != rep) {
+                            try self.merge(rep, other);
+                            changed = true;
+                            break :scan; // une fusion invalide les vues : on rescanne
+                        }
+                    } else {
+                        // Forme congruente nouvelle : elle appartient à CETTE classe
+                        try self.classes.items[ci].nodes.append(self.allocator, r.id);
+                        try self.node_to_class.put(self.allocator, r.id, ci);
+                        const h = expr.nodeHash(self.store, r.id);
+                        const gop = try self.hashcons.getOrPut(self.allocator, h);
+                        if (!gop.found_existing) gop.value_ptr.* = .{};
+                        try gop.value_ptr.append(self.allocator, ci);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Remplace chaque enfant de `id` par le représentant de sa classe.
+    /// RÈGLE span_a : pour un .apply, span_a[0] EST le func_id — il fait
+    /// partie du remappage (f ~ g ⇒ f(a) ~ g(a)). Six bugs span_a déjà
+    /// mordus ; ne pas répéter ici.
+    fn remapNode(self: *EGraph, id: Id) !struct { id: Id, changed: bool } {
+        const node = self.store.get(id);
+
+        // Les feuilles n'ont aucun enfant à remapper.
+        switch (node.tag) {
+            .sym, .lit => {
+                return .{ .id = id, .changed = false };
+            },
+            else => {},
+        }
+
+        // Snapshot des deux spans AVANT toute allocation susceptible
+        // de réallouer le pool.
+        var new_a = std.ArrayListUnmanaged(expr.Id){};
+        defer new_a.deinit(self.allocator);
+
+        var new_b = std.ArrayListUnmanaged(expr.Id){};
+        defer new_b.deinit(self.allocator);
+
+        try new_a.appendSlice(
+            self.allocator,
+            self.store.spanSliceConst(node.span_a),
+        );
+        try new_b.appendSlice(
+            self.allocator,
+            self.store.spanSliceConst(node.span_b),
+        );
+
+        var changed = false;
+
+        // Remplace un ExprId par l'ExprId représentant son e-class.
+        const remapChild = struct {
+            fn apply(egraph: *EGraph, child: *expr.Id) void {
+                const original = child.*;
+
+                const class = egraph.node_to_class.get(original) orelse return;
+                const rep_class = egraph.uf.find(class);
+
+                if (rep_class >= egraph.classes.items.len) return;
+
+                const nodes = egraph.classes.items[rep_class].nodes.items;
+                if (nodes.len == 0) return;
+
+                const representative = nodes[0];
+
+                if (representative != original) {
+                    child.* = representative;
+                }
+            }
+        }.apply;
+
+        // span_a entier.
+        for (new_a.items) |*child| {
+            const before = child.*;
+            remapChild(self, child);
+            if (child.* != before) changed = true;
+        }
+
+        // span_b entier.
+        for (new_b.items) |*child| {
+            const before = child.*;
+            remapChild(self, child);
+            if (child.* != before) changed = true;
+        }
+
+        if (!changed) {
+            return .{ .id = id, .changed = false };
+        }
+
+        // Reconstruction du nœud en respectant les invariants propres
+        // à chaque primitive.
+        const new_id: expr.Id = switch (node.tag) {
+            .apply => blk: {
+                // apply :
+                //   span_a[0] = fonction
+                //   span_a[1..] = arguments
+                //
+                // payload doit être synchronisé avec span_a[0].
+                if (new_a.items.len == 0)
+                    return error.InvalidExpr;
+
+                const func = new_a.items[0];
+                const args = new_a.items[1..];
+
+                break :blk try self.store.apply(func, args);
+            },
+
+            .bind => blk: {
+                // bind :
+                //   payload = symbole
+                //   span_a[0] = valeur
+                //   span_a[1] = Unit
+                //
+                // Le payload n'est donc PAS un enfant à remapper.
+                if (new_a.items.len < 1)
+                    return error.InvalidExpr;
+
+                const name_id = node.payload;
+                if (name_id >= self.store.interner.list.items.len)
+                    return error.InvalidExpr;
+
+                const name = self.store.interner.resolve(name_id);
+                break :blk try self.store.bind(name, new_a.items[0]);
+            },
+
+            .lambda => blk: {
+                // lambda :
+                //   payload = symbole du paramètre
+                //   span_a[0] = body
+                //
+                // payload == 0 signifie lambda sans paramètre.
+                if (new_a.items.len == 0)
+                    return error.InvalidExpr;
+
+                const body = new_a.items[0];
+
+                if (node.payload == 0) {
+                    break :blk try self.store.lambda(&.{}, body);
+                }
+
+                if (node.payload >= self.store.interner.list.items.len)
+                    return error.InvalidExpr;
+
+                const param = self.store.interner.resolve(node.payload);
+
+                break :blk try self.store.lambda(&.{param}, body);
+            },
+
+            .relation => blk: {
+                const head_id = node.payload;
+
+                if (head_id >= self.store.interner.list.items.len)
+                    return error.InvalidExpr;
+
+                const head = self.store.interner.resolve(head_id);
+
+                break :blk try self.store.relation(
+                    head,
+                    new_a.items,
+                    new_b.items,
+                );
+            },
+
+            else => {
+                // Pour le moment, rebuild ne sait reconstruire que les
+                // primitives ayant une représentation explicite ci-dessus.
+                return error.ExtensionNotLowered;
+            },
+        };
+
+        const canon = try canon_mod.canonicalize(
+            self.store,
+            self.allocator,
+            new_id,
+        );
+
+        return .{
+            .id = canon,
+            .changed = true,
+        };
     }
 };
 

@@ -94,3 +94,8 @@ type (λx.x)
 type ((λx.x) 42)
 latex (x + y)^2
 integrate 2*x
+
+# ── Congruence closure — DOIT échouer tant que rebuild est un stub ──
+rewrite (zzx, 0)
+test "congruence_closure": simplify (+ zzx 1) == 1
+
