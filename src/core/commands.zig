@@ -243,18 +243,14 @@ pub const Commands = struct {
         }
 
         if (std.mem.indexOf(u8, trimmed, ":=") != null) {
-            return self.evalLet(trimmed);
-        }
-
-        if (std.mem.indexOf(u8, trimmed, ":=") != null) {
             const walrus_pos = std.mem.indexOf(u8, trimmed, ":=") orelse unreachable;
             const lhs = std.mem.trim(u8, trimmed[0..walrus_pos], " ");
-            
+
             // Détecter si c'est une définition de fonction (LHS avec paramètres)
             var token_count: usize = 0;
             var tok_it = std.mem.tokenizeScalar(u8, lhs, ' ');
             while (tok_it.next()) |_| token_count += 1;
-            
+
             if (token_count >= 2 or std.mem.indexOfScalar(u8, lhs, '(') != null) {
                 // C'est une fonction : construire une nouvelle string avec = au lieu de :=
                 const before = trimmed[0..walrus_pos];
@@ -263,12 +259,12 @@ pub const Commands = struct {
                 defer self.allocator.free(converted);
                 return self.evalFnDef(converted);
             }
-            
+
             // Sinon c'est un binding simple
             return self.evalLet(trimmed);
         }
 
-                const eq_idx = blk: {
+        const eq_idx = blk: {
             var i: usize = 0;
             while (i < trimmed.len) {
                 if (trimmed[i] == '=') {
