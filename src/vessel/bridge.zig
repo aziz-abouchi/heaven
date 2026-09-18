@@ -274,10 +274,7 @@ fn handleHttp(args: HandlerArgs, request: []const u8) !void {
         try args.conn.stream.writeAll(header);
         try args.conn.stream.writeAll(repl_html);
     } else if (std.mem.indexOf(u8, request, "GET /heaven.wasm") != null) {
-        const wasm_data = @embedFile("public/heaven.wasm");
-        const header = "HTTP/1.1 200 OK\r\nContent-Type: application/wasm\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n";
-        try args.conn.stream.writeAll(header);
-        try args.conn.stream.writeAll(wasm_data);
+        try serveFile("heaven.wasm", args.conn.stream, args.allocator);
     } else if (std.mem.indexOf(u8, request, "GET /dashboard") != null) {
         const header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nConnection: close\r\n\r\n";
         try args.conn.stream.writeAll(header);
