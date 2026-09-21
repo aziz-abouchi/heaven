@@ -36,7 +36,7 @@ une chose, soit une autre.
     heaven> data Color = Red | Green | Blue
     ✓ data type registered (3 constructors)
 
-`Couleur` est un type. `Rouge`, `Vert`, `Bleu` sont ses trois
+`Color` est un type. `Red`, `Green`, `Blue` sont ses trois
 **constructeurs**. On les utilise comme n'importe quelle valeur :
 
     heaven> Red
@@ -44,8 +44,8 @@ une chose, soit une autre.
     heaven> type Red
     Color
 
-Vous voyez ? `Rouge` n'est pas un mot réservé. C'est une valeur
-ordinaire, du type `Couleur`.
+Vous voyez ? `Red` n'est pas un mot réservé. C'est une valeur
+ordinaire, du type `Color`.
 
 ## Le filtrage par motif sur nos types
 
@@ -84,7 +84,7 @@ des constructeurs qui prennent des arguments :
     heaven> data Maybe a = Nothing | Just a
     ✓ data type registered (2 constructors)
 
-`Juste` prend un argument. `Rien` n'en prend aucun. On peut écrire :
+`Just` prend un argument. `Nothing` n'en prend aucun. On peut écrire :
 
     heaven> Just 42
     (Just 42)
@@ -98,7 +98,7 @@ Le filtrage par motif peut extraire le contenu :
     heaven> fromMaybe Nothing default = default
     heaven> fromMaybe (Just x) default = x
 
-Si on a un `Juste`, on rend le contenu. Sinon, on rend la valeur par
+Si on a un `Just`, on rend le contenu. Sinon, on rend la valeur par
 défaut.
 
     heaven> fromMaybe (Just 42) 0
@@ -172,13 +172,13 @@ n'a pas d'importance, la *forme* en a.
 
 ## Le pattern matching imbriqué
 
-On peut imbriquer les motifs. Par exemple, écrire `tete` qui rend le
-premier élément d'une liste, ou `Fin` si elle est vide :
+On peut imbriquer les motifs. Par exemple, écrire `head` qui rend le
+premier élément d'une liste, ou `Empty` si elle est vide :
 
     heaven> head (Cons x reste) = x
     heaven> head Empty = Empty
 
-Mais ce n'est pas très utile : `tete Fin` rend `Fin`, et `tete` est
+Mais ce n'est pas très utile : `head Fin` rend `Empty`, et `head` est
 censée rendre un élément. Le problème, c'est qu'on ne peut pas
 toujours garantir qu'une liste n'est pas vide. On verra comment
 exprimer ça avec les types au chapitre 8 (types dépendants), mais pour

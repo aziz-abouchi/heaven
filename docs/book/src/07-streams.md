@@ -71,7 +71,7 @@ Mais avec `>>>`, on écrit :
     heaven> pipeline stream
     (Cons 2 (Cons 3 End))
 
-`traitement` est une fonction. Elle prend un stream, en garde 2, puis
+`pipeline` est une fonction. Elle prend un stream, en garde 2, puis
 incrémente. Chaque étape est indépendante. C'est exactement le style
 d'astra-core.
 

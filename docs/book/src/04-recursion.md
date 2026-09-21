@@ -69,8 +69,8 @@ Deux clauses. La première dit : « si la liste est vide, la somme est
 zéro ». La seconde : « si la liste commence par `x` et continue par
 `reste`, la somme est `x + somme reste` ».
 
-Regardez la structure. Le cas de base correspond à `Fin`. Le cas
-récursif correspond à `Element x reste`. Ce n'est pas un hasard : la
+Regardez la structure. Le cas de base correspond à `Empty`. Le cas
+récursif correspond à `Cons x reste`. Ce n'est pas un hasard : la
 fonction a la **même forme** que le type.
 
 C'est le principe fondamental. Quand vous écrivez une fonction sur un
@@ -200,14 +200,14 @@ pour tous les cas. Exemple :
     eval error: error.ArityMismatch
 
 Heaven refuse. Ce n'est pas un bug, c'est une **fonction partielle**.
-Vous avez oublié de traiter `Fin`.
+Vous avez oublié de traiter `Empty`.
 
 En pratique, on évite les fonctions partielles en utilisant `Maybe` :
 
     heaven> head Empty = Nothing
     heaven> head (Cons x reste) = Just x
 
-Cette fois, `tete Fin` rend `Rien`, ce qui est explicite. Le
+Cette fois, `head Fin` rend `Nothing`, ce qui est explicite. Le
 programme ne plante pas, il dit « pas de résultat ».
 
 On verra les types dépendants plus tard, qui permettent d'exprimer

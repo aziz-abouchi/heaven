@@ -149,7 +149,7 @@ Dans le monde réel, on assemble beaucoup de transformations :
     heaven> pipeline (Cons 1 (Cons 2 (Cons 3 End)))
     (Cons 6 (Cons 8 End))
 
-`traitement` est une fonction comme une autre. Elle filtre, puis
+`pipeline` est une fonction comme une autre. Elle filtre, puis
 incrémente, puis double. Chaque étape est indépendante. On peut
 réordonner, tester, remplacer.
 

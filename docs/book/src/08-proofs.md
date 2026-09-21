@@ -89,8 +89,8 @@ Le mot « dépendant » signifie qu'un type peut dépendre d'une
 
     head : (n : Nat) -> Vecteur (succ n) -> a
 
-Cette signature dit : « `tete` prend un entier `n` et un vecteur de
-longueur `n + 1`, et rend un élément ». Impossible d'appeler `tete` sur
+Cette signature dit : « `head` prend un entier `n` et un vecteur de
+longueur `n + 1`, et rend un élément ». Impossible d'appeler `head` sur
 un vecteur vide — le type l'interdit.
 
 C'est une garantie qu'aucun test ne peut donner. Le type **est** la

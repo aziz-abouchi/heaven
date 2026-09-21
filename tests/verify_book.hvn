@@ -18,31 +18,31 @@ assert_eq type "bonjour" == "String"
 assert_eq type true == "Bool"
 
 -- ═══ Chapitre 3 : Syntax in Functions ═══
-data Couleur = Rouge | Vert | Bleu
-assert_eq Rouge == Rouge
+data Color = Red | Green | Blue
+assert_eq Red == Red
 
-data Maybe a = Rien | Juste a
-ouBien Rien defaut = defaut
-ouBien (Juste x) defaut = x
-assert_eq ouBien (Juste 42) 0 == 42
-assert_eq ouBien Rien 0 == 0
+data Maybe a = Nothing | Just a
+fromMaybe Nothing default = default
+fromMaybe (Just x) default = x
+assert_eq fromMaybe (Just 42) 0 == 42
+assert_eq fromMaybe Nothing 0 == 0
 
 -- ═══ Chapitre 4 : Hello, Recursion! ═══
 fact 0 = 1
 fact n = n * fact (n - 1)
 assert_eq fact 5 == 120
 
-data Arbre a = Feuille | Noeud (Arbre a) a (Arbre a)
-taille Feuille = 0
-taille (Noeud g x d) = 1 + taille g + taille d
-assert_eq taille Feuille == 0
-assert_eq taille (Noeud Feuille 1 Feuille) == 1
+data Tree a = Leaf | Node (Tree a) a (Tree a)
+size Leaf = 0
+size (Node g x d) = 1 + size g + size d
+assert_eq size Leaf == 0
+assert_eq size (Node Leaf 1 Leaf) == 1
 
-data MaListe a = Fin | Element a (MaListe a)
-inverseAux Fin acc = acc
-inverseAux (Element x reste) acc = inverseAux reste (Element x acc)
-inverse xs = inverseAux xs Fin
-assert_eq inverse (Element 1 (Element 2 Fin)) == (Element 2 (Element 1 Fin))
+data MyList a = Empty | Cons a (MyList a)
+reverseAux Empty acc = acc
+reverseAux (Cons x reste) acc = reverseAux reste (Cons x acc)
+reverse xs = reverseAux xs Empty
+assert_eq reverse (Cons 1 (Cons 2 Empty)) == (Cons 2 (Cons 1 Empty))
 
 -- ═══ Chapitre 5 : Higher-Order Functions ═══
 inc x = x + 1
