@@ -1,0 +1,2 @@
+write fd buf len =
+    @syscall(64, fd, ptr_of buf, len)  -- write sur Linux ARM64

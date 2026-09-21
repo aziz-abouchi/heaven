@@ -1,0 +1,7 @@
+-- core/platform/mod.hvn (signatures)
+read  : Fd -> Buf -> Int
+write : Fd -> Buf -> Int
+open  : Path -> OpenFlags -> Fd
+close : Fd -> Unit
+alloc : Int -> Ptr
+free  : Ptr -> Unit
