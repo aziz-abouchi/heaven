@@ -743,6 +743,28 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const term_bridge_mod = b.createModule(.{
+        .root_source_file = b.path("src/logic/term_bridge.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "kanren", .module = kanren_legacy_mod },
+            .{ .name = "expr", .module = expr_mod },
+        },
+    });
+
+    const typeo_mod = b.createModule(.{
+        .root_source_file = b.path("src/logic/typeo.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "kanren", .module = kanren_legacy_mod },
+            .{ .name = "kanren_expr", .module = kanren_expr_mod },
+            .{ .name = "term_bridge", .module = term_bridge_mod },
+        },
+    });
+    _ = typeo_mod;
+
     const codegen_c_legacy_mod = b.createModule(.{
         .root_source_file = b.path("src/codegen/c.zig"),
         .target = target,
@@ -861,11 +883,33 @@ pub fn build(b: *std.Build) void {
         },
     }) });
 
-    const test_kanren = b.addTest(.{ .root_module = b.createModule(.{
+    const test_kanren_expr = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/core/kanren_expr.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{.{ .name = "expr", .module = expr_mod }},
+    }) });
+
+    const test_typeo = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/logic/typeo.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "kanren", .module = kanren_legacy_mod },
+            .{ .name = "kanren_expr", .module = kanren_expr_mod },
+            .{ .name = "term_bridge", .module = term_bridge_mod },
+        },
+    }) });
+
+    const test_term_bridge = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/logic/term_bridge.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "kanren", .module = kanren_legacy_mod },
+            .{ .name = "expr", .module = expr_mod },
+        },
     }) });
 
     const test_egraph = b.addTest(.{ .root_module = b.createModule(.{
@@ -1198,7 +1242,9 @@ pub fn build(b: *std.Build) void {
 
     test_step.dependOn(&b.addRunArtifact(test_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
-    test_step.dependOn(&b.addRunArtifact(test_kanren).step);
+    test_step.dependOn(&b.addRunArtifact(test_kanren_expr).step);
+    test_step.dependOn(&b.addRunArtifact(test_typeo).step);
+    test_step.dependOn(&b.addRunArtifact(test_term_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_egraph).step);
     test_step.dependOn(&b.addRunArtifact(test_codegen_c).step);
     test_step.dependOn(&b.addRunArtifact(test_codegen_latex).step);
