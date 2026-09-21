@@ -763,7 +763,20 @@ pub fn build(b: *std.Build) void {
             .{ .name = "term_bridge", .module = term_bridge_mod },
         },
     });
-    _ = typeo_mod;
+
+    const typeo_bridge_mod = b.createModule(.{
+        .root_source_file = b.path("src/logic/typeo_bridge.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "kanren", .module = kanren_legacy_mod },
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "typeo", .module = typeo_mod },
+            .{ .name = "term_bridge", .module = term_bridge_mod },
+            .{ .name = "egraph", .module = egraph_mod },
+        },
+    });
+    _ = typeo_bridge_mod;
 
     const codegen_c_legacy_mod = b.createModule(.{
         .root_source_file = b.path("src/codegen/c.zig"),
@@ -912,6 +925,19 @@ pub fn build(b: *std.Build) void {
         },
     }) });
 
+    const test_typeo_bridge = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/logic/typeo_bridge.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "kanren", .module = kanren_legacy_mod },
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "typeo", .module = typeo_mod },
+            .{ .name = "term_bridge", .module = term_bridge_mod },
+            .{ .name = "egraph", .module = egraph_mod },
+        },
+    }) });
+
     const test_egraph = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/inference/eqsat/egraph.zig"),
         .target = target,
@@ -979,6 +1005,10 @@ pub fn build(b: *std.Build) void {
     test_he_imports.append(b.allocator, .{ .name = "math", .module = math_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "mlcpd", .module = mlcpd_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "mlcpd_equiv", .module = mlcpd_equiv_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "simplify_engine", .module = simplify_engine_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "commands", .module = commands_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "proof_core", .module = proof_core_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "agent", .module = agent_mod }) catch unreachable;
 
     if (target.query.cpu_arch != .wasm32) {
         test_he_imports.append(b.allocator, .{ .name = "matrix_bridge", .module = matrix_bridge_mod }) catch unreachable;
@@ -1244,6 +1274,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_kanren_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_typeo).step);
+    test_step.dependOn(&b.addRunArtifact(test_typeo_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_term_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_egraph).step);
     test_step.dependOn(&b.addRunArtifact(test_codegen_c).step);
