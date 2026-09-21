@@ -67,8 +67,8 @@ streams, c'est magique :
 
 Mais avec `>>>`, on écrit :
 
-    heaven> traitement = take 2 >>> map inc
-    heaven> traitement stream
+    heaven> pipeline = take 2 >>> map inc
+    heaven> pipeline stream
     (Cons 2 (Cons 3 End))
 
 `traitement` est une fonction. Elle prend un stream, en garde 2, puis

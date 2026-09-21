@@ -87,7 +87,7 @@ Le mot « dépendant » signifie qu'un type peut dépendre d'une
 `Vecteur 3` est le type des vecteurs de longueur exactement 3. On peut
 écrire :
 
-    tete : (n : Nat) -> Vecteur (succ n) -> a
+    head : (n : Nat) -> Vecteur (succ n) -> a
 
 Cette signature dit : « `tete` prend un entier `n` et un vecteur de
 longueur `n + 1`, et rend un élément ». Impossible d'appeler `tete` sur

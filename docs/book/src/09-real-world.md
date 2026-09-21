@@ -13,12 +13,12 @@ montre comment Heaven interagit avec le monde extérieur.
 Heaven expose quelques primitives pour les entrées-sorties. Par
 exemple, pour lire un fichier :
 
-    let contenu = readFile "data.txt" in ...
+    let content = readFile "data.txt" in ...
 
 `readFile` rend le contenu sous forme de chaîne. Si le fichier
 n'existe pas, Heaven retourne une erreur. On la capture avec `handle` :
 
-    let resultat = handle (readFile "data.txt") errorHandler in ...
+    let result = handle (readFile "data.txt") errorHandler in ...
 
 Cette séparation entre lecture (pure) et gestion d'erreur
 (interceptée) est au cœur du modèle.

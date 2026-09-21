@@ -117,9 +117,9 @@ La syntaxe équationnelle gère plusieurs clauses :
 
 ## Gardes
 
-    signe x | x > 0 = "positif"
-    signe 0 = "nul"
-    signe x = "négatif"
+    sign x | x > 0 = "positif"
+    sign 0 = "nul"
+    sign x = "négatif"
 
 Une clause peut avoir plusieurs gardes :
 
@@ -132,18 +132,18 @@ Une clause peut avoir plusieurs gardes :
     assert_eq expr == expr
     assert_err expr
 
-    test "nom": lhs == rhs
-    test "nom": assert_err expr
+    test "name": lhs == rhs
+    test "name": assert_err expr
 
 `assert_eq` et `assert_err` sont évalués au moment où ils sont lus.
 `test` est un bloc nommé.
 
 ## Théorèmes
 
-    theorem nom : énoncé
-    prove nom by tactique
+    theorem name : énoncé
+    prove name by tactique
 
-    axiom nom : énoncé
+    axiom name : énoncé
 
 ## Effets
 
@@ -154,7 +154,7 @@ Une clause peut avoir plusieurs gardes :
 
 ## Acteurs
 
-    fn nom(state, msg) = nouvel_état
+    fn name(state, msg) = nouvel_état
     let Nom = état_initial with handler
     send(Nom, message)
     state(Nom)

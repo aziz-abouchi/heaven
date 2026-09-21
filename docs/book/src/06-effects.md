@@ -16,8 +16,8 @@ concilier pureté et action ? La réponse de Heaven s'appelle les
 Imaginez une fonction qui doit logger chaque étape d'un calcul. En
 Python :
 
-    def traite(x):
-        print(f"traitement de {x}")
+    def process(x):
+        print(f"pipeline de {x}")
         return x * 2
 
 Cette fonction est *impure* : elle écrit sur la sortie standard. On ne
@@ -27,7 +27,7 @@ sans tout réécrire.
 
 En Heaven, on sépare l'**intention** de l'**exécution** :
 
-    traite x = let _ = perform "Log" x in x * 2
+    process x = let _ = perform "Log" x in x * 2
 
 `perform "Log" x` dit : « je veux logger `x` ». Pas *comment*. C'est
 un signal, pas une action. Le code reste pur tant que personne
@@ -66,12 +66,12 @@ Le code qui émet le signal ne change pas. C'est toute la puissance.
 
 On peut traiter plusieurs signaux dans un seul `handle` :
 
-    heaven> traiteTout = handle (perform "Log" 1) (handle (perform "Log" 2) logHandler)
+    heaven> processAll = handle (perform "Log" 1) (handle (perform "Log" 2) logHandler)
 
 Mais c'est lourd. En pratique on écrit :
 
-    heaven> traite xs = map traitementUnitaire xs
-    heaven> traitementUnitaire x = let _ = perform "Log" x in x
+    heaven> process xs = map processOne xs
+    heaven> processOne x = let _ = perform "Log" x in x
 
 Un seul `handle` au niveau supérieur intercepte tout.
 
@@ -82,7 +82,7 @@ C'est vrai, mais il faut comprendre pourquoi.
 
 Une fonction comme `traite` :
 
-    traite x = let _ = perform "Log" x in x * 2
+    process x = let _ = perform "Log" x in x * 2
 
 est, mathématiquement, une fonction. Elle prend `x`, elle rend `x * 2`.
 Le `perform` est un effet *suspendu* — il ne se produit que si

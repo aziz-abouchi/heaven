@@ -20,8 +20,8 @@ Rappelez-vous le chapitre 2 :
 `inc` est une fonction. Mais c'est aussi une **valeur**. On peut la
 passer à une autre fonction :
 
-    heaven> applique f x = f x
-    heaven> applique inc 5
+    heaven> apply f x = f x
+    heaven> apply inc 5
     6
 
 `applique` prend deux arguments : une fonction `f` et une valeur `x`,
@@ -40,8 +40,8 @@ Prenons une liste :
 
 On veut doubler chaque élément. On pourrait écrire :
 
-    heaven> doubleTout End = End
-    heaven> doubleTout (Cons x reste) = Cons (x * 2) (doubleTout reste)
+    heaven> doubleAll End = End
+    heaven> doubleAll (Cons x reste) = Cons (x * 2) (doubleAll reste)
 
 Ça marche. Mais si on veut tripler, il faut tout réécrire. Et si on
 veut ajouter 10 ? C'est pénible.
@@ -86,13 +86,13 @@ une fonction binaire, une valeur initiale, et une liste :
 
 Avec elle, on peut écrire `somme` en une ligne :
 
-    heaven> somme xs = fold add 0 xs
-    heaven> somme (Cons 1 (Cons 2 (Cons 3 End)))
+    heaven> sum xs = fold add 0 xs
+    heaven> sum (Cons 1 (Cons 2 (Cons 3 End)))
     6
 
 Ou `longueur` :
 
-    heaven> longueur xs = fold (acc x = acc + 1) 0 xs
+    heaven> length xs = fold (acc x = acc + 1) 0 xs
 
 (On reviendra sur cette syntaxe de lambda raccourcie — pour l'instant,
 retenez que `fold` est l'outil universel pour réduire une liste.)
@@ -145,8 +145,8 @@ parcours, c'est l'affaire de `map`, `filter`, `fold`.
 
 Dans le monde réel, on assemble beaucoup de transformations :
 
-    heaven> traitement = filter isBig >>> map inc >>> map dbl
-    heaven> traitement (Cons 1 (Cons 2 (Cons 3 End)))
+    heaven> pipeline = filter isBig >>> map inc >>> map dbl
+    heaven> pipeline (Cons 1 (Cons 2 (Cons 3 End)))
     (Cons 6 (Cons 8 End))
 
 `traitement` est une fonction comme une autre. Elle filtre, puis

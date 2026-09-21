@@ -33,16 +33,16 @@ définit ses propres types de données.
 Le mot-clé est `data`. Prenons le plus simple : un type qui vaut soit
 une chose, soit une autre.
 
-    heaven> data Couleur = Rouge | Vert | Bleu
+    heaven> data Color = Red | Green | Blue
     ✓ data type registered (3 constructors)
 
 `Couleur` est un type. `Rouge`, `Vert`, `Bleu` sont ses trois
 **constructeurs**. On les utilise comme n'importe quelle valeur :
 
-    heaven> Rouge
-    Rouge
-    heaven> type Rouge
-    Couleur
+    heaven> Red
+    Red
+    heaven> type Red
+    Color
 
 Vous voyez ? `Rouge` n'est pas un mot réservé. C'est une valeur
 ordinaire, du type `Couleur`.
@@ -51,27 +51,27 @@ ordinaire, du type `Couleur`.
 
 Écrivons une fonction qui traduit une couleur en français :
 
-    heaven> nom Rouge = "rouge"
-    heaven> nom Vert = "vert"
-    heaven> nom Bleu = "bleu"
+    heaven> name Red = "rouge"
+    heaven> name Green = "vert"
+    heaven> name Blue = "bleu"
 
 Trois clauses. Une par constructeur. Heaven essaie dans l'ordre. On
 peut l'utiliser :
 
-    heaven> nom Vert
+    heaven> name Green
     "vert"
-    heaven> nom Bleu
+    heaven> name Blue
     "bleu"
 
 Que se passe-t-il si on oublie un cas ?
 
-    heaven> nom Inconnu
+    heaven> name Inconnu
     eval error: error.UnknownSymbol
 
 Heaven ne connaît pas `Inconnu`. Mais si on ajoute un quatrième
 constructeur :
 
-    heaven> data Couleur = Rouge | Vert | Bleu | Jaune
+    heaven> data Color = Red | Green | Blue | Yellow
 
 puis qu'on essaie `nom Jaune`, Heaven n'a pas de clause pour `Jaune`.
 Il retourne... rien. La fonction est **partielle**. On y reviendra.
@@ -81,29 +81,29 @@ Il retourne... rien. La fonction est **partielle**. On y reviendra.
 Les constructeurs simples, c'est bien. Mais la vraie puissance vient
 des constructeurs qui prennent des arguments :
 
-    heaven> data Maybe a = Rien | Juste a
+    heaven> data Maybe a = Nothing | Just a
     ✓ data type registered (2 constructors)
 
 `Juste` prend un argument. `Rien` n'en prend aucun. On peut écrire :
 
-    heaven> Juste 42
-    (Juste 42)
-    heaven> type Juste 42
+    heaven> Just 42
+    (Just 42)
+    heaven> type Just 42
     Maybe Int
-    heaven> Rien
-    Rien
+    heaven> Nothing
+    Nothing
 
 Le filtrage par motif peut extraire le contenu :
 
-    heaven> ouBien Rien defaut = defaut
-    heaven> ouBien (Juste x) defaut = x
+    heaven> fromMaybe Nothing default = default
+    heaven> fromMaybe (Just x) default = x
 
 Si on a un `Juste`, on rend le contenu. Sinon, on rend la valeur par
 défaut.
 
-    heaven> ouBien (Juste 42) 0
+    heaven> fromMaybe (Just 42) 0
     42
-    heaven> ouBien Rien 0
+    heaven> fromMaybe Nothing 0
     0
 
 ## Les gardes
@@ -111,19 +111,19 @@ défaut.
 Parfois un motif ne suffit pas. On veut tester une condition sur les
 valeurs. On ajoute une **garde**, séparée par une barre verticale.
 
-    heaven> signe x | x > 0 = "positif"
-    heaven> signe 0 = "nul"
-    heaven> signe x = "négatif"
+    heaven> sign x | x > 0 = "positif"
+    heaven> sign 0 = "nul"
+    heaven> sign x = "négatif"
 
 La première clause a une garde : elle ne s'applique que si `x > 0`.
 La deuxième clause n'a pas de garde. La troisième non plus. Heaven
 les essaie dans l'ordre, avec les gardes.
 
-    heaven> signe 5
+    heaven> sign 5
     "positif"
-    heaven> signe 0
+    heaven> sign 0
     "nul"
-    heaven> signe (-3)
+    heaven> sign (-3)
     "négatif"
 
 Attention à la syntaxe de `(-3)` : le `-` unaire doit être parenthésé.
@@ -145,10 +145,10 @@ contient `x` et pointe vers `reste`. On peut construire :
 
 Et écrire une fonction qui calcule la longueur :
 
-    heaven> longueur Vide = 0
-    heaven> longueur (Cellule x reste) = 1 + longueur reste
+    heaven> length Vide = 0
+    heaven> length (Cellule x reste) = 1 + length reste
 
-    heaven> longueur (Cellule 1 (Cellule 2 (Cellule 3 Vide)))
+    heaven> length (Cellule 1 (Cellule 2 (Cellule 3 Vide)))
     3
 
 C'est ça, le cœur du fonctionnel. Un type qui se contient lui-même,
@@ -159,15 +159,15 @@ une fonction qui se rappelle elle-même.
 Le langage a déjà une notion de liste avec `Nil` et `Cons`. Mais
 définissons-la nous-mêmes pour comprendre :
 
-    heaven> data MaListe a = Fin | Element a (MaListe a)
+    heaven> data MyList a = Empty | Cons a (MyList a)
 
 C'est la même structure que `Liste`, juste avec d'autres noms. Le nom
 n'a pas d'importance, la *forme* en a.
 
-    heaven> somme Fin = 0
-    heaven> somme (Element x reste) = x + somme reste
+    heaven> sum Empty = 0
+    heaven> sum (Cons x reste) = x + sum reste
 
-    heaven> somme (Element 1 (Element 2 (Element 3 Fin)))
+    heaven> sum (Cons 1 (Cons 2 (Cons 3 Empty)))
     6
 
 ## Le pattern matching imbriqué
@@ -175,8 +175,8 @@ n'a pas d'importance, la *forme* en a.
 On peut imbriquer les motifs. Par exemple, écrire `tete` qui rend le
 premier élément d'une liste, ou `Fin` si elle est vide :
 
-    heaven> tete (Element x reste) = x
-    heaven> tete Fin = Fin
+    heaven> head (Cons x reste) = x
+    heaven> head Empty = Empty
 
 Mais ce n'est pas très utile : `tete Fin` rend `Fin`, et `tete` est
 censée rendre un élément. Le problème, c'est qu'on ne peut pas

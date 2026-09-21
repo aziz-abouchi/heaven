@@ -60,9 +60,9 @@ instructions.
 
 La factorielle est un exemple un peu scolaire. Voici du vrai code :
 
-    heaven> somme Fin = 0
-    heaven> somme (Element x reste) = x + somme reste
-    heaven> somme (Element 1 (Element 2 (Element 3 Fin)))
+    heaven> sum Empty = 0
+    heaven> sum (Cons x reste) = x + sum reste
+    heaven> sum (Cons 1 (Cons 2 (Cons 3 Empty)))
     6
 
 Deux clauses. La première dit : « si la liste est vide, la somme est
@@ -82,14 +82,14 @@ mécanique.
 
 La longueur :
 
-    heaven> longueur Fin = 0
-    heaven> longueur (Element x reste) = 1 + longueur reste
+    heaven> length Empty = 0
+    heaven> length (Cons x reste) = 1 + length reste
 
 L'inverse :
 
-    heaven> inverse xs = inverseAux xs Fin
-    heaven> inverseAux Fin acc = acc
-    heaven> inverseAux (Element x reste) acc = inverseAux reste (Element x acc)
+    heaven> reverse xs = reverseAux xs Empty
+    heaven> reverseAux Empty acc = acc
+    heaven> reverseAux (Cons x reste) acc = reverseAux reste (Cons x acc)
 
 Cette version utilise un **accumulateur** : un argument supplémentaire
 qui porte le résultat partiel. On verra pourquoi à la fin de ce
@@ -97,8 +97,8 @@ chapitre.
 
 La concaténation :
 
-    heaven> concat Fin ys = ys
-    heaven> concat (Element x xs) ys = Element x (concat xs ys)
+    heaven> concat Empty ys = ys
+    heaven> concat (Cons x xs) ys = Cons x (concat xs ys)
 
 Trois fonctions, trois fois la même structure. Vous commencez à voir
 le motif ?
@@ -137,14 +137,14 @@ Parfois deux fonctions s'appellent l'une l'autre. Par exemple, une
 fonction qui vérifie si un nombre est pair, et une autre s'il est
 impair :
 
-    heaven> estPair 0 = true
-    heaven> estPair n = estImpair (n - 1)
-    heaven> estImpair 0 = false
-    heaven> estImpair n = estPair (n - 1)
+    heaven> isEven 0 = true
+    heaven> isEven n = isOdd (n - 1)
+    heaven> isOdd 0 = false
+    heaven> isOdd n = isEven (n - 1)
 
-    heaven> estPair 4
+    heaven> isEven 4
     true
-    heaven> estImpair 4
+    heaven> isOdd 4
     false
 
 C'est la **récursion mutuelle**. Heaven n'a aucun problème avec ça :
@@ -155,15 +155,15 @@ appeler l'autre.
 
 Les listes sont linéaires. Les arbres ont deux branches. Prenons :
 
-    heaven> data Arbre a = Feuille | Noeud (Arbre a) a (Arbre a)
+    heaven> data Tree a = Leaf | Node (Tree a) a (Tree a)
 
 Un arbre est soit une feuille, soit un nœud avec un sous-arbre gauche,
 une valeur, et un sous-arbre droit.
 
 Compter les nœuds :
 
-    heaven> taille Feuille = 0
-    heaven> taille (Noeud g x d) = 1 + taille g + taille d
+    heaven> size Leaf = 0
+    heaven> size (Node g x d) = 1 + size g + size d
 
 La fonction a deux clauses, comme le type a deux constructeurs. Le
 cas récursif appelle la fonction sur les deux sous-arbres. C'est
@@ -193,10 +193,10 @@ compilation, mais la discipline compte.
 Souvenez-vous du chapitre 3 : une fonction peut ne pas avoir de clause
 pour tous les cas. Exemple :
 
-    heaven> tete (Element x reste) = x
-    heaven> tete (Element 5 Fin)
+    heaven> head (Cons x reste) = x
+    heaven> head (Cons 5 Empty)
     5
-    heaven> tete Fin
+    heaven> head Empty
     eval error: error.ArityMismatch
 
 Heaven refuse. Ce n'est pas un bug, c'est une **fonction partielle**.
@@ -204,8 +204,8 @@ Vous avez oublié de traiter `Fin`.
 
 En pratique, on évite les fonctions partielles en utilisant `Maybe` :
 
-    heaven> tete Fin = Rien
-    heaven> tete (Element x reste) = Juste x
+    heaven> head Empty = Nothing
+    heaven> head (Cons x reste) = Just x
 
 Cette fois, `tete Fin` rend `Rien`, ce qui est explicite. Le
 programme ne plante pas, il dit « pas de résultat ».
