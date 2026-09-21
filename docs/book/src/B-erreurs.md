@@ -74,7 +74,11 @@ pas reconnu comme fonction.
 
     eval error: error.InvalidExpr
 
-**Cause** : une expression contient un trou (`_`) non résolu.
+**Cause** : une expression contient un trou (`_` ou `?`) non résolu.
+
+Un trou n'est pas une erreur en soi : c'est une **question posée au
+système**. L'erreur vient quand on essaie d'**exécuter** une expression
+qui contient encore un trou.
 
 **Exemple** :
 
@@ -83,7 +87,8 @@ pas reconnu comme fonction.
     heaven> f 3
     eval error: error.InvalidExpr
 
-**Solution** : remplacer le trou par une vraie expression.
+**Solution** : raffiner le trou avant d'exécuter (voir chapitre 8 sur
+le type-driven development).
 
 ## `error.InvalidSyntax`
 

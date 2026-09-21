@@ -175,13 +175,14 @@ déclarer :
 Heaven ne le prouvera pas. Il l'enregistrera comme vérité de base. À
 utiliser avec parcimonie.
 
-**Hole**. Un trou dans ton programme. Tu écris :
+**Hole**. Un trou dans ton programme, qui **demande de l'aide au
+système**. Tu écris :
 
-    f x = _ + 1
+    f x = ? + 1
 
-Le `_` signifie « je ne sais pas encore ce que je veux mettre là ».
-Heaven accepte la définition, mais te signale qu'il manque quelque
-chose. Utile quand tu écris du code en plusieurs passes.
+et le système te dit le type attendu et le contexte. C'est du
+**type-driven development** — voir chapitre 8. Rien à voir avec un
+`undefined` : ce n'est pas un placeholder, c'est une question.
 
 **Signature**. Pour déclarer explicitement un type :
 

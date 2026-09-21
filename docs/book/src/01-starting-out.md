@@ -183,16 +183,24 @@ Ceci :
 est vérifié par un noyau formel. Si Heaven dit que c'est prouvé, c'est
 prouvé — dans les limites de son kernel, qu'on verra au chapitre 8.
 
-### Les holes
+### Les holes — demander de l'aide
 
-Quand tu ne sais pas encore comment remplir une partie d'un programme,
-tu mets un **trou** :
+Un **trou** n'est pas un `TODO` ni un `undefined`. C'est une **demande
+d'assistance au système**. Tu écris :
 
-    heaven> f x = _ + 1
+    f x = ? + 1
 
-Le `_` est un `hole`. Heaven accepte la définition, mais te rappelle
-qu'il reste quelque chose à écrire. Tu peux demander à Heaven ce qu'il
-attend à cet endroit. On verra ça au chapitre 5.
+et le système te répond avec le **but** (ce qu'il attend) et le
+**contexte** (ce qui est en portée). Tu raffines progressivement,
+jusqu'à ce qu'il ne reste plus de `?`.
+
+C'est le **type-driven development**, popularisé par Idris et Agda.
+On en reparle en détail au chapitre 8.
+
+    -- vision : non implémenté
+    heaven> f x = ? + 1
+    ? : Int
+    -- x : Int
 
 ## Où aller ensuite
 

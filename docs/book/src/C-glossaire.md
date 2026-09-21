@@ -62,8 +62,10 @@ est expression (il n'y a pas de distinction expression / instruction).
 **Hash-consing** — Technique d'optimisation où deux expressions
 identiques partagent le même `Id`. Utilisé dans le Store.
 
-**Hole** — Un trou dans une expression, marqué par `_`. À remplir
-plus tard.
+**Hole** — Un trou dans une expression, marqué par `_` ou `?`. N'est
+pas un placeholder passif : c'est une **demande d'assistance au
+système**, qui répond avec le but et le contexte. Voir type-driven
+development, chapitre 8.
 
 ## I
 
@@ -163,7 +165,9 @@ arguments.
 
 **Théorème** — Affirmation mathématique à prouver.
 
-**Trou** — Voir Hole.
+**Trou** — Voir Hole. Dans le contexte du développement, un trou est
+une question posée au vérificateur de types, qui répond avec le but
+attendu.
 
 **Type** — Ensemble de valeurs. `Int`, `String`, `Bool`, etc.
 

@@ -106,20 +106,86 @@ Un axiome est une affirmation qu'on accepte sans justification. Heaven
 l'enregistre et l'utilise dans les preuves suivantes. À utiliser avec
 parcimonie : chaque axiome est une faille dans la forteresse.
 
-## Holes
+## Holes — le type-driven development
 
-Un **trou** est un endroit où on ne sait pas encore quoi écrire :
+Un **trou** dans Heaven n'est pas un `undefined` ni un `TODO`. C'est
+une **demande d'assistance au système**. On écrit :
 
-    f x = _ + 1
+    f x = ? + 1
 
-Le `_` est un trou. Heaven accepte la définition, mais si on essaie de
-l'utiliser, il refuse :
+et le système répond avec le **but** (`goal`) et le **contexte** :
 
-    heaven> f 3
-    eval error: error.InvalidExpr
+    ? : Int
+    -- x : Int
 
-Utile pour le développement progressif. On écrit la structure, on
-remplit les trous plus tard.
+C'est le style **type-driven development**, popularisé par Idris et Agda.
+Le principe :
+
+1. Tu donnes la **structure** de ta fonction.
+2. Le système te dit **ce qu'il attend** à cet endroit (le type).
+3. Tu **raffines** progressivement — remplacer `?` par une expression,
+   qui peut contenir d'autres `?`.
+4. À la fin, tu as du code complet.
+
+### L'état actuel
+
+L'infrastructure est en place :
+
+- `_` produit un nœud `Tag.hole` dans l'AST.
+- Le vérificateur de types traite un trou comme une variable de type
+  fraîche (`typer.zig`) : il **infère** ce que le trou doit être.
+- Une substitution (`kanren_expr.zig`) permet de **lier** un trou à
+  une valeur — c'est le mécanisme de raffinement.
+
+    subst.bind(hole_idx, id)   -- raffine ?h en id
+    subst.lookup(hole_idx)     -- retrouve ce qui a été assigné
+
+### La commande `:hole`
+
+Dans le REPL, `:hole` afficherait le but et le contexte :
+
+    heaven> :hole ? + 3 = 10
+
+Ceci **n'est pas encore implémenté**. La commande existe
+(`cmdHole` dans `commands.zig`) mais affiche seulement l'usage. Une
+vraie implémentation :
+
+1. Résoudrait les équations arithmétiques simples (`? + 3 = 10` → `7`).
+2. Afficherait le but et le contexte pour un trou typé.
+3. Permettrait le raffinement interactif (`?h` → une expression).
+
+    -- vision : non implémenté
+    heaven> :hole ? + 3 = 10
+    ? = 7
+
+    -- vision : non implémenté
+    heaven> f x = ?h
+    ?h : Int
+    -- x : Int
+
+### Pourquoi c'est utile
+
+En programmation classique, écrire du code quand on ne sait pas quoi
+mettre ressemble à ça :
+
+    f x = undefined  -- puis on revient plus tard
+    f x = 0          -- puis on oublie
+    f x = TODO       -- puis on oublie
+
+En type-driven development, le trou **force** une conversation avec le
+système. Tu ne peux pas avancer sans répondre à la question « quel est
+le type de ce trou ? ». C'est contraignant, et ça produit du code plus
+juste.
+
+### Les trous dans le noyau de preuve
+
+Dans une preuve, un trou est un **sous-but non prouvé**. Idris l'accepte
+comme `?hole` et le signale ; Agda l'accepte et le marque `?`. Heaven
+n'a pas encore cette intégration — le noyau voit un `hole` comme un
+nœud qu'il ne sait pas réduire, ce qui l'empêche de conclure.
+
+C'est un chantier pour plus tard : permettre au noyau de **poursuivre**
+une preuve contenant des trous, en accumulant les sous-buts à résoudre.
 
 ## Un exemple complet
 
@@ -170,7 +236,7 @@ mathématiques de base. Pour les preuves très avancées, il faudra
 - Les **types dépendants** permettent d'exprimer des propriétés très
   précises.
 - Les **axiomes** sont des affirmations acceptées sans preuve.
-- Les **trous** sont des endroits à remplir plus tard.
+- Les **trous** sont des questions posées au système (TDD, voir ci-dessus).
 
 Au chapitre suivant, on quitte les mathématiques pour le monde réel :
 fichiers, réseau, acteurs.
