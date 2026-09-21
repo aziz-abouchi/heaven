@@ -107,32 +107,42 @@ pub const Typeo = struct {
 const testing = std.testing;
 
 test "typeo — inférence de type (sens direct)" {
-    var engine = KanrenEngine.init(testing.allocator);
+    // Arène dédiée : les TermPair alloués par Term.list/Term.pair ne sont
+    // pas libérables individuellement — ils doivent vivre dans une arène
+    // libérée en bloc.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const term_alloc = arena.allocator();
+
+    var engine = KanrenEngine.init(std.testing.allocator);
     defer engine.deinit();
 
     var typeo = Typeo.init(&engine);
     try typeo.registerRules();
 
-    const expr_int = Term.primitiveLitInt(42);
+    const expr_int = Term.primitiveLitInt(term_alloc, 42);
     const var_t = Term.freshVar("T");
 
     const result = try typeo.query(expr_int, var_t);
-    try testing.expect(result != null);
-    try testing.expectEqualStrings("Int", result.?.getSymbolName().?);
+    try std.testing.expect(result != null);
+    try std.testing.expectEqualStrings("Int", result.?.getSymbolName().?);
 }
 
 test "typeo — synthèse de programme (sens inverse)" {
-    var engine = KanrenEngine.init(testing.allocator);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    _ = arena.allocator(); // au cas où tu ajoutes des Term ici plus tard
+
+    var engine = KanrenEngine.init(std.testing.allocator);
     defer engine.deinit();
 
     var typeo = Typeo.init(&engine);
-    try typeo.registerRules(); // ← ajouté
+    try typeo.registerRules();
 
     const var_expr = Term.freshVar("0");
     const target_type = Term.sym("Bool");
 
     const synthesized_ast = try typeo.query(var_expr, target_type);
-
-    try testing.expect(synthesized_ast != null);
-    try testing.expect(synthesized_ast.?.isLambda());
+    try std.testing.expect(synthesized_ast != null);
+    try std.testing.expect(synthesized_ast.?.isLambda());
 }
