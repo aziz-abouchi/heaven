@@ -200,7 +200,7 @@ fn rebuildAC(store: *Store, op_sym: Sym, items: []const Id) !Id {
     if (items.len == 0) unreachable;
     if (items.len == 1) return items[0];
 
-    // ✅ INSTRUMENTATION — avant toute écriture :
+    // INSTRUMENTATION — avant toute écriture :
     for (items, 0..) |it, i| {
         if (it >= store.nodes.items.len) {
             platform.debug.print("[CANON BUG] items[{d}]={d} >= len={d}\n", .{ i, it, store.nodes.items.len });
@@ -225,6 +225,9 @@ pub fn canonicalize(store: *Store, allocator: Allocator, id: Id) !Id {
 }
 
 pub fn canonEqStr(store: *const expr.Store, a: expr.Id, b: expr.Id, allocator: std.mem.Allocator) !bool {
-    _ = store; _ = a; _ = b; _ = allocator;
+    _ = store;
+    _ = a;
+    _ = b;
+    _ = allocator;
     return false; // Stub temporaire
 }

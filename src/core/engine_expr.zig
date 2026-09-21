@@ -513,7 +513,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return try store.lambdaNative(&.{"__pipe_x"}, gfx);
     }
 
-    // ✅ ENV-BOUND LAMBDA — EN PREMIER, avant tout autre check
+    // ENV-BOUND LAMBDA — EN PREMIER, avant tout autre check
     // (récursion locale : (let fact (lambda n ...) (fact 5)))
     if (args_snap.len == 1) {
         if (store.interner.lookup(op)) |op_sym| {
@@ -528,7 +528,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                         return evaluate(store, env, engine, lam_span[0], depth + 1);
                     }
                 }
-                // ✅ NOUVEAU : symbole lié à un autre symbole de fonction
+                // NOUVEAU : symbole lié à un autre symbole de fonction
                 if (bound_node.tag == .sym) {
                     const target = store.interner.resolve(bound_node.payload);
                     if (engine.fns.get(target) != null) {
@@ -892,7 +892,7 @@ test "engine rejects non-lowered frontend expressions" {
     var engine = Engine.initTest(allocator, &store, &env);
     defer engine.deinit();
 
-    // ✅ Contrat mis à jour : les SYMBOLES NUS restent du sucre non-lowered.
+    // Contrat mis à jour : les SYMBOLES NUS restent du sucre non-lowered.
     // Les apply (quote x 0) / (perform ...) sont devenus ÉVALUABLES
     // (expandMacro + branches effets dans evalMagic) — c'est ce qui
     // fait marcher macro_double et effect_handle.
@@ -927,7 +927,7 @@ test "engine rejects non-lowered frontend expressions" {
     //        engine.eval(nil_nu),
     //    );
 
-    // ✅ En apply, unquote reste rejeté (hors expansion de macro)
+    // En apply, unquote reste rejeté (hors expansion de macro)
     const x = try engine.store.sym("x");
     const zero = try engine.store.int(0);
     const unquote_apply = try engine.store.binop("unquote", x, zero);
