@@ -65,10 +65,10 @@ peut l'utiliser :
 
 Que se passe-t-il si on oublie un cas ?
 
-    heaven> name Inconnu
+    heaven> name Unknown
     eval error: error.UnknownSymbol
 
-Heaven ne connaît pas `Inconnu`. Mais si on ajoute un quatrième
+Heaven ne connaît pas `Unknown`. Mais si on ajoute un quatrième
 constructeur :
 
     heaven> data Color = Red | Green | Blue | Yellow

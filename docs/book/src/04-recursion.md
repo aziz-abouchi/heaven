@@ -207,7 +207,7 @@ En pratique, on évite les fonctions partielles en utilisant `Maybe` :
     heaven> head Empty = Nothing
     heaven> head (Cons x reste) = Just x
 
-Cette fois, `head Fin` rend `Nothing`, ce qui est explicite. Le
+Cette fois, `head Empty` rend `Nothing`, ce qui est explicite. Le
 programme ne plante pas, il dit « pas de résultat ».
 
 On verra les types dépendants plus tard, qui permettent d'exprimer

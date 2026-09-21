@@ -456,7 +456,7 @@ pub const Heaven = struct {
             return self.evalAssertionNative(trimmed);
         }
 
-        // ✅ ROUTING S-EXPR : (let ...) / (lambda ...) / (+ 1 2) / toute S-expr pure
+        // ROUTING S-EXPR : (let ...) / (lambda ...) / (+ 1 2) / toute S-expr pure
         if (trimmed.len > 0 and trimmed[0] == '(') {
             // let/lambda → interpForAssert (engine ne gère pas bind au top-level)
             if (std.mem.indexOf(u8, trimmed, "let ") != null or
@@ -801,6 +801,24 @@ pub const Heaven = struct {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return error.InvalidInput;
 
+        // ─── Syntaxe courte lambda : `λx.body` ou `\x.body` ───
+        // `λ` en UTF-8 fait 2 bytes (0xCE 0xBB) — comparer avec startsWith,
+        // JAMAIS avec `trimmed[0] == 'λ'` (Zig interprète 'λ' comme codepoint u21,
+        // pas comme byte).
+        const is_unicode_lambda = std.mem.startsWith(u8, trimmed, "λ");
+        const is_ascii_lambda = trimmed.len > 0 and trimmed[0] == '\\';
+        if (is_unicode_lambda or is_ascii_lambda) {
+            const prefix_len: usize = if (is_unicode_lambda) 2 else 1;
+            const dot_pos = std.mem.indexOfScalar(u8, trimmed, '.') orelse
+                return error.InvalidLambda;
+            if (dot_pos <= prefix_len) return error.InvalidLambda;
+            const param = trimmed[prefix_len..dot_pos];
+            const body_str = std.mem.trim(u8, trimmed[dot_pos + 1 ..], " \t");
+            if (param.len == 0 or body_str.len == 0) return error.InvalidLambda;
+            const body_id = try self.parseExpression(body_str);
+            return try self.store.lambdaNative(&.{param}, body_id);
+        }
+
         // Unicode : x² → x^2
         if (expr.containsSuperscript(trimmed)) {
             const normalized = try expr.normalizeUnicodePowers(trimmed, self.allocator);
@@ -1078,6 +1096,23 @@ pub const Heaven = struct {
             return self.store.apply(func_id, args.items);
         }
 
+        // ─── Cas "λx.body" en un seul token (pas d'espace après λ) ───
+        const is_unicode_lambda = std.mem.startsWith(u8, first, "λ");
+        const is_ascii_lambda = first.len > 0 and first[0] == '\\';
+        if ((is_unicode_lambda or is_ascii_lambda) and tokens.items.len == 1) {
+            if (std.mem.indexOfScalar(u8, first, '.')) |dot_pos| {
+                const prefix_len: usize = if (is_unicode_lambda) 2 else 1;
+                if (dot_pos > prefix_len) {
+                    const param = first[prefix_len..dot_pos];
+                    const body_str = first[dot_pos + 1 ..];
+                    if (param.len > 0 and body_str.len > 0) {
+                        const body_id = try self.parseExpression(body_str);
+                        return try self.store.lambdaNative(&.{param}, body_id);
+                    }
+                }
+            }
+        }
+
         // Cas 2 : lambda
         const is_lambda = std.mem.eql(u8, first, "λ") or
             std.mem.eql(u8, first, "\\") or
@@ -1157,10 +1192,9 @@ pub const Heaven = struct {
                 if (!ok) return error.LinearViolation;
 
                 const val_id = try self.parseExpression(qtt_val);
-                const let_sym = try self.store.sym("let");
-                const name_sym = try self.store.sym(qtt_name);
-                var args = [_]expr.Id{ name_sym, val_id, b };
-                return self.store.apply(let_sym, &args);
+                const name_sym = try self.store.interner.intern(qtt_name);
+                // Représentation Core : bind(name, val, body)
+                return try self.store.bindSymWithBody(name_sym, val_id, b);
             }
         }
 
@@ -1393,8 +1427,22 @@ pub const Heaven = struct {
     /// d'assertion, car elles ne sont pas des fonctions évaluables par l'engine.
     fn interpForAssert(self: *Heaven, id: Id) HeavenError!Id {
         const node = self.store.get(id);
+
+        // ─── Cas .bind Core : (bind name [val, body]) ───
+        if (node.tag == .bind) {
+            const args = self.store.spanSliceConst(node.span_a);
+            if (args.len == 0) return id;
+            const val = self.evaluateExpr(args[0]) catch args[0];
+            try self.env.put(node.payload, val);
+            defer self.env.delete(node.payload);
+            if (args.len >= 2) {
+                return self.interpForAssert(args[1]) catch id;
+            }
+            return val;
+        }
+
         if (node.tag != .apply) {
-            return self.evaluateExpr(id) catch id; // ✅ Fix 1 : syms nus évalués
+            return self.evaluateExpr(id) catch id; // Fix 1 : syms nus évalués
         }
 
         const all = self.store.spanSliceConst(node.span_a);
@@ -1405,7 +1453,7 @@ pub const Heaven = struct {
 
         //platform.dbg("[preFix2] func_tag={s} args.len={d}\n", .{ @tagName(fnode.tag), args.len });
 
-        // ✅ Fix 2a : FUNC = LAMBDA NODE (lambdaNative : payload=param, span_a=[body])
+        // Fix 2a : FUNC = LAMBDA NODE (lambdaNative : payload=param, span_a=[body])
         if (fnode.tag == .lambda and args.len == 1) {
             const lam_span = self.store.spanSliceConst(fnode.span_a);
             if (lam_span.len == 1) {
@@ -1417,7 +1465,7 @@ pub const Heaven = struct {
             }
         }
 
-        // ✅ Fix 2b : FUNC = APPLY sym"lambda" (structure alternative du parser)
+        // Fix 2b : FUNC = APPLY sym"lambda" (structure alternative du parser)
         if (fnode.tag == .apply and args.len == 1) {
             const inner_func = self.store.get(fnode.payload);
             if (inner_func.tag == .sym) {
@@ -1437,7 +1485,7 @@ pub const Heaven = struct {
             }
         }
 
-        // ✅ Fix 3 : FONCTION ENV-BOUND (f arg) où f est une lambda dans l'env
+        // Fix 3 : FONCTION ENV-BOUND (f arg) où f est une lambda dans l'env
         // L'engine ne cherche l'env que pour les syms nus — pas les appels.
         {
             //platform.dbg("[fix3-enter] fnode.payload={d} env has: ", .{fnode.payload});
@@ -1446,7 +1494,7 @@ pub const Heaven = struct {
                 // bound = la valeur liée (peut être un nœud .lambda !)
                 const bound_node = self.store.get(bound);
 
-                // ✅ Cas .lambda : appliquer directement (payload=param, span_a=[body])
+                // Cas .lambda : appliquer directement (payload=param, span_a=[body])
                 if (bound_node.tag == .lambda and args.len == 1) {
                     const lam_span = self.store.spanSliceConst(bound_node.span_a);
                     if (lam_span.len == 1) {
@@ -1458,7 +1506,7 @@ pub const Heaven = struct {
                     }
                 }
 
-                // ✅ Cas .apply sym"lambda" (structure alternative)
+                // Cas .apply sym"lambda" (structure alternative)
                 if (bound_node.tag == .apply and args.len == 1) {
                     const inner_func = self.store.get(bound_node.payload);
                     if (inner_func.tag == .sym) {
@@ -1487,7 +1535,7 @@ pub const Heaven = struct {
         }
         const head = self.store.interner.resolve(fnode.payload);
 
-        // ✅ DUMP : la structure complète du nœud
+        // DUMP : la structure complète du nœud
         if (std.mem.eql(u8, head, "lambda") or args.len > 1) {
             const s = try expr.toStringInfix(self.store, id, self.allocator);
             defer self.allocator.free(s);
@@ -1516,14 +1564,12 @@ pub const Heaven = struct {
         }
 
         // ═══ 1. LET-INLINE : (let x val body) ═══
-        if (std.mem.eql(u8, head, "let") and args.len == 3) {
-            const val = self.evaluateExpr(args[1]) catch args[1];
-            const var_node = self.store.get(args[0]);
-            if (var_node.tag == .sym) {
-                try self.env.put(var_node.payload, val);
-                defer self.env.delete(var_node.payload);
-                // ✅ RÉCURSIF : le body peut contenir d'autres let/lambdas
-                return self.interpForAssert(args[2]) catch id;
+        if (node.tag == .bind) {
+            if (args.len == 2) {
+                const val = self.evaluateExpr(args[0]) catch args[0];
+                try self.env.put(node.payload, val);
+                defer self.env.delete(node.payload);
+                return self.interpForAssert(args[1]) catch id;
             }
         }
 
@@ -1999,7 +2045,7 @@ pub const Heaven = struct {
     /// Égalité sémantique : même e-class après saturation, OU intersection
     /// des formes pliées (foldConstants) des deux classes.
     fn egraphSemanticEq(self: *Heaven, a: Id, b: Id) bool {
-        // ✅ Guard : arbre invalide = corruption en amont → échec propre + log
+        // Guard : arbre invalide = corruption en amont → échec propre + log
         if (a >= self.store.len() or b >= self.store.len()) {
             platform.dbg("[egraphSemanticEq] SKIP: id racine invalide a={d} b={d} (len={d})\n", .{ a, b, self.store.len() });
             return false;
@@ -2156,4 +2202,31 @@ fn simplifyHeavenExpr(ctx: *anyopaque, input: []const u8) engine_expr.EvalError!
         else => return error.TypeError,
     };
     return result;
+}
+
+test "parseExpression — lambda courte λx.x" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const id = try heaven.parseExpression("(λx.x)");
+    const node = heaven.store.get(id);
+    try std.testing.expectEqual(expr.Tag.lambda, node.tag);
+    try std.testing.expectEqualStrings("x", heaven.store.interner.resolve(node.payload));
+}
+
+test "parseExpression — application sur lambda courte" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const id = try heaven.parseExpression("((λx.x) 42)");
+    const node = heaven.store.get(id);
+    try std.testing.expectEqual(expr.Tag.apply, node.tag);
 }
