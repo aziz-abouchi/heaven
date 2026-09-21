@@ -84,11 +84,56 @@ pub fn termToId(store: *Store, term: Term) BridgeError!Id {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────────────────────────
+/// Convertit un `Id` Core issu de `store` en un `Term` Kanren.
+pub fn idToTerm(allocator: std.mem.Allocator, store: *const Store, id: Id) BridgeError!Term {
+    const node = store.get(id);
+    return switch (node.tag) {
+        .lit, .int => {
+            const lit_val = store.lits.items[node.aux];
+            return Term{ .Int = lit_val.int };
+        },
+        .sym, .identifier => {
+            const str = store.interner.resolve(node.payload);
+            if (std.mem.eql(u8, str, "Nil")) return .Nil;
+            return Term.sym(str);
+        },
+        .hole => {
+            const name = store.interner.resolve(node.payload);
+            return Term.freshVar(name);
+        },
+        .apply, .call => {
+            const head_node = store.get(node.payload);
 
-const testing = std.testing;
+            // Cas spécial : Cons(h, t) -> Pair(h, t)
+            if (head_node.tag == .sym or head_node.tag == .identifier) {
+                const func_name = store.interner.resolve(head_node.payload);
+                if (std.mem.eql(u8, func_name, "Cons")) {
+                    const args = node.span_a.slice(store.pool.items);
+                    if (args.len == 2) {
+                        const h = try idToTerm(allocator, store, args[0]);
+                        const t = try idToTerm(allocator, store, args[1]);
+                        return Term.pair(allocator, h, t);
+                    }
+                }
+            }
+
+            // Cas général : (head arg1 arg2 ...) -> Term.list
+            const args = node.span_a.slice(store.pool.items);
+            var term_list = std.ArrayListUnmanaged(Term){};
+            defer term_list.deinit(allocator);
+
+            const head_term = try idToTerm(allocator, store, node.payload);
+            try term_list.append(allocator, head_term);
+
+            for (args[1..]) |arg_id| {
+                try term_list.append(allocator, try idToTerm(allocator, store, arg_id));
+            }
+
+            return Term.list(allocator, term_list.items);
+        },
+        else => Term.sym(@tagName(node.tag)),
+    };
+}
 
 fn freeTerm(alloc: std.mem.Allocator, term: Term) void {
     switch (term) {
@@ -99,6 +144,43 @@ fn freeTerm(alloc: std.mem.Allocator, term: Term) void {
         },
         else => {},
     }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────
+
+const testing = std.testing;
+
+test "idToTerm — atome, entier et aller-retour (roundtrip)" {
+    var store = Store.init(testing.allocator);
+    defer store.deinit();
+
+    const alloc = testing.allocator;
+
+    // 1. Entier
+    const int_id = try store.int(42);
+    const int_term = try idToTerm(alloc, &store, int_id);
+    try testing.expectEqual(@as(i64, 42), int_term.Int);
+
+    // 2. Symbole
+    const sym_id = try store.sym("foo");
+    const sym_term = try idToTerm(alloc, &store, sym_id);
+    try testing.expectEqualStrings("foo", sym_term.Atom);
+
+    // 3. Roundtrip S-expression
+    const original = Term.list(alloc, &.{
+        Term.sym("arrow"),
+        Term.sym("Int"),
+        Term.sym("Int"),
+    });
+    defer freeTerm(alloc, original);
+
+    const converted_id = try termToId(&store, original);
+    const roundtrip_term = try idToTerm(alloc, &store, converted_id);
+    defer freeTerm(alloc, roundtrip_term);
+
+    try testing.expect(roundtrip_term == .Pair);
 }
 
 test "termToId — atome et entier" {
