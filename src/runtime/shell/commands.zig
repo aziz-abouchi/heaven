@@ -87,6 +87,7 @@ pub fn cmdRunStar(self: *Shell, query_str: []const u8, max_results: u32) void {
         defer snapshot.deinit();
         self.kanren.loadFromSymbols(snapshot);
     }
+
     const paren_start = std.mem.indexOf(u8, query_str, "(") orelse return;
     const paren_end = std.mem.lastIndexOf(u8, query_str, ")") orelse return;
     const pred = std.mem.trim(u8, query_str[0..paren_start], " ");
