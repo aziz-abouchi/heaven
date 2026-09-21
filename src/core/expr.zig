@@ -519,7 +519,7 @@ pub const Store = struct {
     }
 
     pub fn get(self: *const Store, id: Id) Node {
-        // ✅ GARDE : attraper TOUT accès à un Id invalide AVEC sa stack !
+        // GARDE : attraper TOUT accès à un Id invalide AVEC sa stack !
         if (id >= self.nodes.items.len) {
             platform.debug.print("[GET BUG] id={d} >= len={d} — STACK TRACE MANQUANT\n", .{ id, self.nodes.items.len });
             @panic("invalid Id access"); // crash MAIS avec le message
@@ -1243,19 +1243,34 @@ pub const Store = struct {
         for (args) |a| try all.append(self.allocator, a);
         return self.apply(p, all.items);
     }
-    pub fn bindSym(self: *Store, sym_id: Sym, body: Id) !Id {
-        _ = self;
-        _ = sym_id;
-        _ = body;
-        return 0; // Stub temporaire
+    /// Variante de `bind` prenant un `Sym` déjà interné.
+    /// Produit un nœud `.bind` avec `span_a = [val, unit]`.
+    pub fn bindSym(self: *Store, sym_id: Sym, val: Id) !Id {
+        const span = try self.reserveSpan(2);
+        self.pool.items[span.start] = val;
+        self.pool.items[span.start + 1] = try self.unitLit();
+        return self.addNode(.{
+            .tag = .bind,
+            .payload = sym_id,
+            .aux = 0,
+            .span_a = span,
+            .span_b = Span.EMPTY,
+        });
     }
-    // Ajoutez ce stub pour parse.zig :
+
+    /// Variante de `letIn` prenant un `Sym` déjà interné.
+    /// Produit un nœud `.bind` avec `span_a = [val, body]`.
     pub fn bindSymWithBody(self: *Store, sym_id: Sym, val: Id, body: Id) !Id {
-        _ = self;
-        _ = sym_id;
-        _ = val;
-        _ = body;
-        return 0;
+        const span = try self.reserveSpan(2);
+        self.pool.items[span.start] = val;
+        self.pool.items[span.start + 1] = body;
+        return self.addNode(.{
+            .tag = .bind,
+            .payload = sym_id,
+            .aux = 0,
+            .span_a = span,
+            .span_b = Span.EMPTY,
+        });
     }
     pub fn letIn(self: *Store, name: []const u8, rhs: Id, body: Id) !Id {
         const name_sym = try self.interner.intern(name);
@@ -1640,6 +1655,8 @@ pub fn countSymUses(store: *const Store, id: Id, name: []const u8) usize {
             return total;
         },
         .lambda => {
+            // Un paramètre de lambda masque le nom extérieur — comportement
+            // correct pour le shadowing.
             const bound = store.interner.resolve(node.payload);
             if (std.mem.eql(u8, bound, name)) return 0;
             var total: usize = 0;
@@ -1649,12 +1666,15 @@ pub fn countSymUses(store: *const Store, id: Id, name: []const u8) usize {
             return total;
         },
         .bind => {
-            var total = countSymUses(store, node.aux, name);
+            // Si le nom du binding est celui qu'on cherche, tout ce qui suit
+            // est masqué : aucune occurrence de `name` dans le corps n'est
+            // une occurrence de la variable externe.
             const bound = store.interner.resolve(node.payload);
-            if (!std.mem.eql(u8, bound, name)) {
-                for (store.spanSliceConst(node.span_a)) |child| {
-                    total += countSymUses(store, child, name);
-                }
+            if (std.mem.eql(u8, bound, name)) return 0;
+
+            var total: usize = 0;
+            for (store.spanSliceConst(node.span_a)) |child| {
+                total += countSymUses(store, child, name);
             }
             return total;
         },
@@ -1879,4 +1899,102 @@ test "lowering preserves Core expressions" {
 
     try std.testing.expectEqual(application, lowered);
     try store.assertCoreExpr(lowered);
+}
+
+test "bindSym produces a valid bind node" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const s = try store.interner.intern("x");
+    const val = try store.int(42);
+    const node_id = try store.bindSym(s, val);
+
+    const node = store.get(node_id);
+    try std.testing.expectEqual(Tag.bind, node.tag);
+    try std.testing.expectEqual(s, node.payload);
+
+    const args = node.span_a.slice(store.pool.items);
+    try std.testing.expectEqual(@as(usize, 2), args.len);
+    try std.testing.expectEqual(val, args[0]);
+
+    const body_node = store.get(args[1]);
+    try std.testing.expectEqual(Tag.lit, body_node.tag);
+    try std.testing.expect(store.lits.items[body_node.aux] == .unit);
+}
+
+test "bindSymWithBody stores both val and body" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const s = try store.interner.intern("x");
+    const val = try store.int(1);
+    const body = try store.int(2);
+    const node_id = try store.bindSymWithBody(s, val, body);
+
+    const node = store.get(node_id);
+    try std.testing.expectEqual(Tag.bind, node.tag);
+    try std.testing.expectEqual(s, node.payload);
+
+    const args = node.span_a.slice(store.pool.items);
+    try std.testing.expectEqual(@as(usize, 2), args.len);
+    try std.testing.expectEqual(val, args[0]);
+    try std.testing.expectEqual(body, args[1]);
+}
+
+test "countSymUses — bind masque le nom du binding" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const x = try store.interner.intern("x");
+    const y = try store.interner.intern("y");
+
+    // body = (+ (+ y y) x)
+    const y1 = try store.symId(y);
+    const y2 = try store.symId(y);
+    const inner_x = try store.symId(x);
+    const body = try store.binop("+", try store.binop("+", y1, y2), inner_x);
+
+    const b = try store.bindSymWithBody(x, try store.int(5), body);
+
+    // "x" est masqué par le bind → 0 occurrence visible
+    try std.testing.expectEqual(@as(usize, 0), countSymUses(&store, b, "x"));
+    // "y" n'est pas masqué → 2 occurrences
+    try std.testing.expectEqual(@as(usize, 2), countSymUses(&store, b, "y"));
+}
+
+test "countSymUses — shadowing via bind" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const x = try store.interner.intern("x");
+    const one = try store.int(1);
+    const body_inner = try store.symId(x); // sym("x") référence le x interne
+    const inner = try store.bindSymWithBody(x, try store.int(2), body_inner);
+    const outer = try store.bindSymWithBody(x, one, inner);
+
+    // On cherche "x" à l'extérieur : le nom est masqué par le bind extérieur,
+    // donc 0 occurrence visible.
+    try std.testing.expectEqual(@as(usize, 0), countSymUses(&store, outer, "x"));
+}
+
+test "countSymUses — bind n'affecte pas les autres noms" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const x = try store.interner.intern("x");
+    const y = try store.interner.intern("y");
+
+    // bind("x", [y, (+ y y)]) → deux occurrences de "y"
+    const y1 = try store.symId(y);
+    const y2 = try store.symId(y);
+    const body = try store.binop("+", y1, y2);
+    const b = try store.bindSymWithBody(x, try store.int(0), body);
+
+    try std.testing.expectEqual(@as(usize, 2), countSymUses(&store, b, "y"));
+    try std.testing.expectEqual(@as(usize, 0), countSymUses(&store, b, "x"));
 }
