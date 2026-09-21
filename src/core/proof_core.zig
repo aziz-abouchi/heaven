@@ -122,7 +122,7 @@ pub const ProofCore = struct {
     pub fn verifyBySimplify(self: *ProofCore, name: []const u8, heaven: anytype) !bool {
         const thm = self.theorems.getPtr(name) orelse return false;
 
-        // ✅ Support des deux formats : "a = b" ET "Eq<a, b>"
+        // Support des deux formats : "a = b" ET "Eq<a, b>"
         var lhs_str: []const u8 = undefined;
         var rhs_str: []const u8 = undefined;
         if (std.mem.startsWith(u8, thm.statement, "Eq<") and std.mem.endsWith(u8, thm.statement, ">")) {
@@ -150,7 +150,7 @@ pub const ProofCore = struct {
             rhs_str = thm.statement[eq_pos + 3 ..];
         }
 
-        // ✅ Normaliser les op lowered (add/sub/mul/div → + - * /)
+        // Normaliser les op lowered (add/sub/mul/div → + - * /)
         const lhs_norm = normalizeLoweredOps(lhs_str, heaven.allocator) catch lhs_str;
         defer if (lhs_norm.ptr != lhs_str.ptr) heaven.allocator.free(lhs_norm);
         const rhs_norm = normalizeLoweredOps(rhs_str, heaven.allocator) catch rhs_str;
@@ -158,10 +158,11 @@ pub const ProofCore = struct {
 
         platform.dbg("[prove] statement = '{s}' lhs='{s}' rhs='{s}'\n", .{ thm.statement, lhs_norm, rhs_norm });
 
-        const ls = heaven.simplify(lhs_norm) catch lhs_norm;
+        const ls = try self.simplifyToFixpoint(heaven, lhs_norm);
         defer heaven.allocator.free(ls);
-        const rs = heaven.simplify(rhs_norm) catch rhs_norm;
+        const rs = try self.simplifyToFixpoint(heaven, rhs_norm);
         defer heaven.allocator.free(rs);
+
         platform.dbg("[prove] ls = '{s}' rs = '{s}'\n", .{ ls, rs });
 
         if (std.mem.eql(u8, ls, rs)) {
@@ -203,6 +204,29 @@ pub const ProofCore = struct {
             }
         }
         return false;
+    }
+
+    /// Applique `heaven.simplify` en boucle jusqu'à point fixe, ou jusqu'à
+    /// 10 itérations (garde-fou). Le résultat appartient à l'appelant.
+    fn simplifyToFixpoint(
+        self: *ProofCore,
+        heaven: anytype,
+        expr_str: []const u8,
+    ) ![]u8 {
+        _ = self;
+        var current = try heaven.allocator.dupe(u8, expr_str);
+        var iter: u32 = 0;
+        const MAX: u32 = 10;
+        while (iter < MAX) : (iter += 1) {
+            const next = heaven.simplify(current) catch break;
+            if (std.mem.eql(u8, next, current)) {
+                heaven.allocator.free(next);
+                break;
+            }
+            heaven.allocator.free(current);
+            current = next;
+        }
+        return current;
     }
 
     pub fn verifyBySynthesis(self: *ProofCore, name: []const u8, rewriter: anytype) !bool {

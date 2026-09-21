@@ -1349,12 +1349,20 @@ pub const Commands = struct {
     }
 
     pub fn simplify(self: *Commands, input: []const u8) ![]u8 {
-        const id = try self.parser.parseSExpr(input);
+        // Normalise l'infixe en S-expr avant parse.
+        // Sans ça, "(x + 0) + 0" est mal parsé par parseExpression,
+        // qui ne route vers nativeToSExpr que si la chaîne ne commence
+        // PAS par '('.
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const to_parse = expr.nativeToSExpr(input, arena.allocator()) catch input;
+
+        const id = try self.parseExpression(to_parse);
         const debug_str = try expr.toStringInfix(self.store, id, self.allocator);
         defer self.allocator.free(debug_str);
         platform.dbg("[core.commands.simplify] input: {s}\n", .{debug_str});
 
-        // ✅ Pipeline : réécriture directe (rules.zig) → E-Graph → nettoyage
+        // Pipeline : réécriture directe (rules.zig) → E-Graph → nettoyage
         var current = id;
 
         // 1. Réécriture directe à point fixe via le module rules
@@ -1524,7 +1532,7 @@ pub const Commands = struct {
     }
 
     fn evalGreen(self: *Commands, input: []const u8) ![]u8 {
-        // ✅ Même mécanisme que cmdGreen : wrapper dans (handle expr greenHandler)
+        // Même mécanisme que cmdGreen : wrapper dans (handle expr greenHandler)
         if (self.eval("let greenHandler(v1, v2, cost) = (+ v1 v2)")) |r| {
             self.allocator.free(r);
         } else |_| {}

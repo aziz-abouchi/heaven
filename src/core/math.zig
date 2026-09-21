@@ -345,6 +345,43 @@ pub const Math = struct {
                         return try self.store.apply(mul_sym, &.{ two, new_args[0] });
                     }
 
+                    // Factorisation : (+ (* a b) (* a c)) → (* a (+ b c))
+                    // Les 4 permutations (facteur commun à gauche, à droite,
+                    // en croisé) sont couvertes pour ne pas dépendre de la
+                    // commutativité de `*`, non modélisée dans cette passe.
+                    if (self.asMul(new_args[0])) |m0| {
+                        if (self.asMul(new_args[1])) |m1| {
+                            var common: ?Id = null;
+                            var other0: Id = undefined;
+                            var other1: Id = undefined;
+
+                            if (self.structuralEq(m0.a, m1.a)) {
+                                common = m0.a;
+                                other0 = m0.b;
+                                other1 = m1.b;
+                            } else if (self.structuralEq(m0.a, m1.b)) {
+                                common = m0.a;
+                                other0 = m0.b;
+                                other1 = m1.a;
+                            } else if (self.structuralEq(m0.b, m1.a)) {
+                                common = m0.b;
+                                other0 = m0.a;
+                                other1 = m1.b;
+                            } else if (self.structuralEq(m0.b, m1.b)) {
+                                common = m0.b;
+                                other0 = m0.a;
+                                other1 = m1.a;
+                            }
+
+                            if (common) |c| {
+                                changed.* = true;
+                                const inner = try self.store.binop("+", other0, other1);
+                                const mul_sym = try self.store.sym("*");
+                                return try self.store.apply(mul_sym, &.{ c, inner });
+                            }
+                        }
+                    }
+
                     // Règle : (+ 0 x) → x
                     if (self.isIntLit(new_args[0], 0)) {
                         changed.* = true;
@@ -501,6 +538,23 @@ pub const Math = struct {
         }
 
         return null;
+    }
+
+    /// Si `id` est `(* A B)`, retourne les deux facteurs. Sinon null.
+    ///
+    /// Note : un nœud `apply` a `span_a = [func, arg1, arg2]` — la
+    /// fonction est incluse dans le span. On la saute via `all[1..]`.
+    fn asMul(self: *Math, id: Id) ?struct { a: Id, b: Id } {
+        if (id >= self.store.len()) return null;
+        const node = self.store.get(id);
+        if (node.tag != .apply) return null;
+        const fnode = self.store.get(node.payload);
+        if (fnode.tag != .sym) return null;
+        const op = self.store.interner.resolve(fnode.payload);
+        if (!std.mem.eql(u8, op, "*")) return null;
+        const all = self.store.spanSliceConst(node.span_a);
+        if (all.len != 3) return null; // [func, a, b]
+        return .{ .a = all[1], .b = all[2] };
     }
 
     fn isMulByLit(self: *Math, id: Id, val: i64) bool {

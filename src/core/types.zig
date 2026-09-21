@@ -175,7 +175,7 @@ pub const LinearChecker = struct {
         if (self.usage.getPtr(name)) |v| {
             v.* = switch (v.*) {
                 .zero => .one,
-                .one  => .many,
+                .one => .many,
                 .many => .many,
             };
             return;
@@ -193,7 +193,7 @@ pub const LinearChecker = struct {
             const actual = self.usage.get(name) orelse .zero;
             const ok = switch (expected) {
                 .zero => actual == .zero,
-                .one  => actual == .one,
+                .one => actual == .one,
                 .many => true,
             };
             if (!ok) return error.LinearViolation;
@@ -448,7 +448,8 @@ pub const Infer = struct {
                 }
                 const op_name = self.store.interner.resolve(op_node.payload);
                 if (std.mem.eql(u8, op_name, "->")) {
-                    if (children.len == 2) {
+                    // span_a = [sym("->"), arg, ret] — 3 éléments (la fonction est incluse).
+                    if (children.len == 3) {
                         const arg_str = try self.typeStr(subst, children[0], allocator);
                         defer allocator.free(arg_str);
                         const ret_str = try self.typeStr(subst, children[1], allocator);
