@@ -9,6 +9,7 @@ const platform = @import("platform");
 const engine_expr = @import("engine_expr");
 const universal_translator = @import("universal_translator");
 const profiler_mod = @import("profiler");
+const heaven_expr_mod = @import("heaven_expr");
 
 const QV = struct { name: []const u8, id: u32 };
 
@@ -685,13 +686,33 @@ pub fn cmdDep(self: *Shell, input: []const u8) void {
 }
 
 pub fn cmdHole(self: *Shell, input: []const u8) void {
-    if (input.len == 0) {
-        platform.debug.print(" Usage: :hole <expr with ?> e.g. :hole ? + 3 = 10\n", .{});
+    const trimmed = std.mem.trim(u8, input, " \t");
+
+    // Aucun argument : liste tous les trous connus
+    if (trimmed.len == 0) {
+        const desc = self.heaven.describeAllHoles() catch return;
+        defer self.allocator.free(desc);
+        platform.debug.print("{s}", .{desc});
         return;
     }
-    if (std.mem.indexOfScalar(u8, input, '=')) |eq| {
-        const lhs = std.mem.trim(u8, input[0..eq], " ");
-        const rhs = std.mem.trim(u8, input[eq + 1 ..], " ");
+
+    // Nouvelle syntaxe `_` : parse et affiche les trous
+    if (std.mem.indexOfScalar(u8, trimmed, '_') != null) {
+        const id = self.heaven.parseExpression(trimmed) catch |err| {
+            platform.debug.print("hole: parse error: {}\n", .{err});
+            return;
+        };
+        self.heaven.last_root_expr = id;
+        const desc = self.heaven.describeAllHoles() catch return;
+        defer self.allocator.free(desc);
+        platform.debug.print("{s}", .{desc});
+        return;
+    }
+
+    // Ancienne syntaxe `?` + arithmétique : compat
+    if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq| {
+        const lhs = std.mem.trim(u8, trimmed[0..eq], " ");
+        const rhs = std.mem.trim(u8, trimmed[eq + 1 ..], " ");
         const rhs_val = std.fmt.parseInt(i64, rhs, 10) catch {
             platform.debug.print(" RHS must be an integer\n", .{});
             return;
@@ -709,34 +730,51 @@ pub fn cmdHole(self: *Shell, input: []const u8) void {
                 }
             }
         }
-        var found = false;
-        var i: i64 = 0;
-        while (i <= 20) : (i += 1) {
-            const vals = [_]i64{ i, -i };
-            for (vals) |v| {
-                var buf: [64]u8 = undefined;
-                const val_str = std.fmt.bufPrint(&buf, "{d}", .{v}) catch continue;
-                const substituted = self.heaven.substExpr(lhs, "?", val_str) catch continue;
-                defer self.allocator.free(substituted);
-                const as_sexpr = self.heaven.eval(substituted) catch continue;
-                defer self.allocator.free(as_sexpr);
-                if (as_sexpr.len > 0 and as_sexpr[0] == '(') continue;
-                const eval_val = std.fmt.parseInt(i64, as_sexpr, 10) catch continue;
-                if (eval_val == rhs_val) {
-                    platform.debug.print(" ? = {d}\n", .{v});
-                    found = true;
-                }
-            }
-        }
-        if (!found) platform.debug.print(" (no solution in [-20, 20])\n", .{});
+        platform.debug.print(" (no solution)\n", .{});
         return;
     }
-    const type_result = self.heaven.typeOf(input) catch {
+
+    const type_result = self.heaven.typeOf(trimmed) catch {
         platform.debug.print(" type error\n", .{});
         return;
     };
     defer self.allocator.free(type_result);
     platform.debug.print(" ? : {s} (inferred from context)\n", .{type_result});
+}
+
+pub fn cmdRefine(self: *Shell, input: []const u8) void {
+    const trimmed = std.mem.trim(u8, input, " \t");
+    if (trimmed.len == 0) {
+        platform.debug.print("Usage: :refine <hole-id> <expr>\n", .{});
+        return;
+    }
+
+    var it = std.mem.tokenizeScalar(u8, trimmed, ' ');
+    const id_str = it.next() orelse {
+        platform.debug.print("Usage: :refine <hole-id> <expr>\n", .{});
+        return;
+    };
+    const trimmed_id = std.mem.trimLeft(u8, id_str, "?");
+    const hole_id = std.fmt.parseInt(u32, trimmed_id, 10) catch {
+        platform.debug.print("refine: invalid hole id '{s}'\n", .{id_str});
+        return;
+    };
+
+    const expr_src = std.mem.trim(u8, it.rest(), " \t");
+    if (expr_src.len == 0) {
+        platform.debug.print("Usage: :refine <hole-id> <expr>\n", .{});
+        return;
+    }
+
+    self.heaven.refineHole(hole_id, expr_src) catch |err| {
+        platform.debug.print("refine: {}\n", .{err});
+        return;
+    };
+
+    platform.debug.print("✓ ?{d} refined\n", .{hole_id});
+    const desc = self.heaven.describeHole(hole_id) catch return;
+    defer self.allocator.free(desc);
+    platform.debug.print("{s}", .{desc});
 }
 
 pub fn cmdMeta(self: *Shell, input: []const u8) void {

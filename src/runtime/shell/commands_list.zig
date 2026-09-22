@@ -88,6 +88,7 @@ pub const commands = [_]Command{
     .{ .name = "qtt", .tag = .qtt, .description = "Vérification Quantitative Type Theory", .method = "cmdQTT" },
     .{ .name = "dep", .tag = .dep, .shortcut = "dependent", .description = "Types dépendants", .method = "cmdDep" },
     .{ .name = "hole", .tag = .hole, .shortcut = "?", .description = "Résolution de trou de type", .method = "cmdHole" },
+    .{ .name = "refine", .tag = .hole, .description = "Raffiner un trou : :refine <id> <expr>", .method = "cmdRefine" },
 
     // Théorèmes & Preuves
     .{ .name = "prove", .tag = .prove, .description = "Prouver une égalité", .method = "cmdProve" },
