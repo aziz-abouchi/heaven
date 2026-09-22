@@ -126,10 +126,14 @@ mock qui accumule dans une liste.
 - Routage `prove t by { ... }` dans `heaven_expr.zig::evalProve`.
 - 3 tests : `t_tactics_simplify`, `t_tactics_seq`, `t_tactics_try`.
 
-### v1.5 — *en cours*
+### v1.5 ✅ *fait*
 
-- Tactique `rewrite H` (utilise hypothèses + `canonEqStr`).
-- Tactique `apply H`.
+- `rewrite H`, `apply H`.
+- `isEqNode` / `rewriteIn` : garde-fous sur les bornes du Store.
+- `tacticsEqCb` via `expr.structuralEql` (hash-consing insuffisant).
+
+### v2 — REPL interactif et unification
+
 - REPL interactif : `prove t by {` ouvre un mode `Goal 1/1` / `>` / `✓`.
 - Backtracking sur `seq` quand un sous-but échoue.
 

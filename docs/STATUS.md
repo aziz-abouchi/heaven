@@ -106,11 +106,11 @@ Légende :
 | `prove by simplify` | ✅ | `verifyBySimplify` (fixpoint) | — |
 | `prove by induction x` | ⚠️ | `verifyByInduction` | **pas testé** en suite standard |
 | `prove by rewrite` | ⚠️ | `verifyByRewrite` | dépend de `canonEqStr` (stub) |
-| `prove t by { ... }` (tactics) | ✅ | `runTacticsBlock` | v1 : simplify/refl/exact/induction/seq/try/repeat |
+| `prove t by { ... }` (tactics) | ✅ | `runTacticsBlock` | simplify/refl/exact/induction/rewrite/apply/seq/try/repeat |
 | Kernel CIC | ⚠️ | `kernel.zig` (~780 L) | structural OK, type-check limité |
 | Types quotients | ❌ | — | — |
 | Proof irrelevance | ❌ | — | — |
-| Tactiques composables | ⚠️ | `tactics.zig` + `proof_state.zig` | v1.5 : rewrite/apply/REPL interactif |
+| Tactiques composables | ⚠️ | `tactics.zig` + `proof_state.zig` | v1.5 ✅, REPL interactif manquant |
 
 ## Holes
 
@@ -167,6 +167,7 @@ Légende :
 |---|---|---|
 | `zig build test` | ✅ | 117 tests |
 | `zig build test-regression` | ✅ | 75 tests Heaven |
+| `heaven --run-tests <dir>` | ✅ | multi-fichiers + parens/braces |
 | Sync `test_suite.hvn` natif ↔ WASM | ⚠️ | manuelle via `cp` |
 | `heaven --run-test <file>` | ✅ | runner multi-lignes (parens + braces) |
 | `heaven --run-tests <dir>` | ✅ | itère sur les `*.hvn` d'un dossier |
