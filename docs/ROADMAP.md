@@ -115,9 +115,30 @@ mock qui accumule dans une liste.
 
 ---
 
-## #tactics — Tactiques composables à la Rocq/Lean  ← *en cours*
+## #tactics — Tactiques composables à la Rocq/Lean
 
-### État actuel
+### v1 ✅ *fait*
+
+- `core/proof_state.zig` : `Goal`, `Hypothesis`, `ProofState` + `pp`.
+- `core/tactics.zig` : `Tactic` union, `applyTactic`, `parseTacticsBlock`.
+- Tactiques v1 : `simplify`, `reflexivity`, `exact`, `induction`,
+  `seq`, `try`, `repeat`.
+- Routage `prove t by { ... }` dans `heaven_expr.zig::evalProve`.
+- 3 tests : `t_tactics_simplify`, `t_tactics_seq`, `t_tactics_try`.
+
+### v1.5 — *en cours*
+
+- Tactique `rewrite H` (utilise hypothèses + `canonEqStr`).
+- Tactique `apply H`.
+- REPL interactif : `prove t by {` ouvre un mode `Goal 1/1` / `>` / `✓`.
+- Backtracking sur `seq` quand un sous-but échoue.
+
+### v2 — *roadmap*
+
+- Unification vraie (au lieu de l'heuristique par parent direct).
+- `cases`, `auto`, `assumption`.
+
+### État v0 (avant #tactics)
 
 `verifyBySimplify`, `verifyByInduction`, `verifyByRewrite` sont
 **monolithiques**. Pas de composition. Pas d'état intermédiaire exposé.

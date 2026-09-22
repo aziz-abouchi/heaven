@@ -106,10 +106,11 @@ Légende :
 | `prove by simplify` | ✅ | `verifyBySimplify` (fixpoint) | — |
 | `prove by induction x` | ⚠️ | `verifyByInduction` | **pas testé** en suite standard |
 | `prove by rewrite` | ⚠️ | `verifyByRewrite` | dépend de `canonEqStr` (stub) |
+| `prove t by { ... }` (tactics) | ✅ | `runTacticsBlock` | v1 : simplify/refl/exact/induction/seq/try/repeat |
 | Kernel CIC | ⚠️ | `kernel.zig` (~780 L) | structural OK, type-check limité |
 | Types quotients | ❌ | — | — |
 | Proof irrelevance | ❌ | — | — |
-| Tactiques composables | 🚧 | — | voir `ROADMAP.md#tactics` |
+| Tactiques composables | ⚠️ | `tactics.zig` + `proof_state.zig` | v1.5 : rewrite/apply/REPL interactif |
 
 ## Holes
 
@@ -165,7 +166,7 @@ Légende :
 | Élément | Statut | Note |
 |---|---|---|
 | `zig build test` | ✅ | 117 tests |
-| `zig build test-regression` | ✅ | 69 tests Heaven |
+| `zig build test-regression` | ✅ | 75 tests Heaven |
 | Sync `test_suite.hvn` natif ↔ WASM | ⚠️ | manuelle via `cp` |
 | `heaven --run-test <file>` | ✅ | runner multi-lignes (parens + braces) |
 | `heaven --run-tests <dir>` | ✅ | itère sur les `*.hvn` d'un dossier |
@@ -176,7 +177,7 @@ Légende :
 
 ## Top priorités
 
-1. **Tactiques composables** — `ROADMAP.md#tactics`  ← *chantier en cours*
+1. **Tactics v1.5** — `rewrite`, `apply`, REPL interactif — `ROADMAP.md#tactics`
 2. **Types dépendants** (`Vector n`) — `ROADMAP.md#type-dep`
 3. `module` effectif — `ROADMAP.md#module`
 4. Remplir les `std/*.hvn` (corps manquants)
