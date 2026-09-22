@@ -106,7 +106,7 @@ défaut.
     heaven> fromMaybe Nothing 0
     0
 
-## Les gardes
+## Les gardes (roadmap)
 
 Parfois un motif ne suffit pas. On veut tester une condition sur les
 valeurs. On ajoute une **garde**, séparée par une barre verticale.
@@ -188,7 +188,7 @@ l'instant, acceptons l'imperfection.
 
 Parfois un type est long à écrire. On peut lui donner un nom court :
 
-    heaven> type Nom = String
+    heaven> type Nom = String	(roadmap)
     ✓ Nom défini
 
 Mais ce n'est pas un nouveau type : c'est un synonyme. `Nom` et

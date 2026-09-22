@@ -75,7 +75,7 @@ plus lisible dans votre contexte.
 ## Lambda
 
     \x -> x + 1
-    λx -> x + 1
+    λx.x + 1
     lambda x -> x + 1
 
 Les trois formes sont acceptées. Le `\` est l'ASCII-friendly.
@@ -88,9 +88,8 @@ Liaison locale. Le nom est visible dans la partie après `in`.
 
 ## if
 
-    if cond then a else b          -- forme native (à venir)
+    if cond then a else b          -- forme native (roadmap)
     (if cond a b)                  -- forme préfixe (actuelle)
-    if (cond) (a) (b)              -- variante
 
 La forme préfixe est la seule garantie aujourd'hui.
 

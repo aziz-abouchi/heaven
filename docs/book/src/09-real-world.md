@@ -1,5 +1,10 @@
 # Chapitre 9 — Real World
 
+> **État** : ce chapitre décrit la vision cible du chapitre IO.
+> Actuellement, seuls les acteurs et le REPL web fonctionnent.
+> Le sous-système IO (lecture/écriture fichiers, ABI C) est la
+> priorité 1 de la roadmap — voir `docs/STATUS.md`.
+
 > *« La théorie, c'est quand on sait tout et que rien ne fonctionne.
 > La pratique, c'est quand tout fonctionne et que personne ne sait
 > pourquoi. »*

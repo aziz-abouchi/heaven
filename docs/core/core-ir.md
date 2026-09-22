@@ -174,6 +174,11 @@ comme malformée.
 
 `bind` représente actuellement une liaison nommée.
 
+> **Note** : `Store.bind()` initialise `span_a[1]` à `unit` (corps
+> par défaut). `Store.bindSymWithBody()` place explicitement le corps
+> à `span_a[1]`. Les deux constructions produisent un nœud `.bind`
+> valide ; la seule différence est la valeur du corps.
+
 Dans la représentation actuellement utilisée par `Store.bind()` :
 
     bind.payload -> symbole du nom

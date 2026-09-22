@@ -49,6 +49,9 @@ L'évaluateur dispatche sur l'opérateur d'un `apply`.
 **Effet algébrique** — Mécanisme pour signaler une action sans
 l'exécuter. `perform` émet, `handle` intercepte. Voir le chapitre 6.
 
+**Effet suspendu** — Un `perform` non encore intercepté par un
+`handle`. Se comporte comme une valeur.
+
 **Environnement** — Ensemble des liaisons de symboles à valeurs. Voir
 `Env` dans le code.
 
@@ -62,10 +65,7 @@ est expression (il n'y a pas de distinction expression / instruction).
 **Hash-consing** — Technique d'optimisation où deux expressions
 identiques partagent le même `Id`. Utilisé dans le Store.
 
-**Hole** — Un trou dans une expression, marqué par `_` ou `?`. N'est
-pas un placeholder passif : c'est une **demande d'assistance au
-système**, qui répond avec le but et le contexte. Voir type-driven
-development, chapitre 8.
+**Hole** — Voir Trou.
 
 ## I
 
@@ -82,8 +82,8 @@ fois en mémoire.
 
 ## K
 
-**Kernel** — Noyau de preuve. Programme minimal qui vérifie les
-théorèmes. Voir le chapitre 10.
+**Kernel** — Le noyau de preuve CIC dans `kernel.zig`. Décision finale
+de validité d'un théorème.
 
 ## L
 
@@ -131,6 +131,11 @@ pour les `apply`.
 `bind`, `lambda`, `relation`.
 
 **Prouver** — Vérifier qu'un théorème est vrai. Voir le chapitre 8.
+
+## Q
+
+**QTT** — Quantitative Type Theory. Système de multiplicité des
+variables (`linear`, `erased`, `many`). Voir chapitre 8.
 
 ## R
 

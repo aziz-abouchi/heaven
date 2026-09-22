@@ -92,12 +92,13 @@ Modules principaux :
 
 | module          | LOC  |
 | --------------- | ---- |
-| expr.zig        | 792  |
-| egraph.zig      | 392  |
-| transform.zig   | 518  |
-| proof.zig       | 415  |
-| elab.zig        | 624  |
-| heaven_expr.zig | 3473 |
+| expr.zig        | 2020 |
+| egraph.zig      | 938  |
+| transform.zig   | 536  |
+| proof.zig       | 181  |
+| proof_core.zig  | 590  |
+| elab.zig        | 1480 |
+| heaven_expr.zig | 2232 |
 
 ## expr
 
