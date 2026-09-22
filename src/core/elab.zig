@@ -781,6 +781,9 @@ pub const TypeChecker = struct {
         if (id >= self.store.len()) return error.InvalidId;
         const node = self.store.get(id);
 
+        // Un trou n'a pas de type : on renvoie "?" jusqu'à raffinement.
+        if (node.tag == .hole) return try self.getTypeUnknown();
+
         if (!node.tag.isPrimitive()) {
             return error.NotImplemented;
         }

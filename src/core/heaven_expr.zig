@@ -1,6 +1,7 @@
 //! Frontend Heaven - intégration du moteur de simplification EGraph
 const std = @import("std");
 const expr = @import("expr");
+const hole_mod = @import("hole.zig");
 const engine_expr = @import("engine_expr");
 const types = @import("types");
 const canon = @import("canon");
@@ -76,11 +77,19 @@ pub const HeavenError = error{
     UnsupportedPowerVarExp,
     UnsupportedPowerType,
     LinearViolation,
+    UnboundHole,
+    UnknownHole,
 } || std.mem.Allocator.Error || platform.fs.File.OpenError || platform.fs.File.ReadError || mir.MirError || engine_expr.EvalError;
 
 const MacroDef = struct {
     params: []const []const u8,
     body: Id,
+};
+
+pub const HoleInfo = struct {
+    id: u32,
+    /// Dernière expression racine où ce trou a été observé (pour l'affichage).
+    seen_in: ?Id = null,
 };
 
 pub const Heaven = struct {
@@ -107,6 +116,8 @@ pub const Heaven = struct {
     pending_proof_request: ?[]const u8 = null,
     in_interp: bool = false,
     green_handler_defined: bool = false,
+    hole_state: hole_mod.HoleState,
+    last_root_expr: ?Id = null,
 
     pub fn init(allocator: std.mem.Allocator) !*Heaven {
         const self = try allocator.create(Heaven);
@@ -136,6 +147,7 @@ pub const Heaven = struct {
             .bridge = bridge,
             .parser = parser,
             .math = undefined,
+            .hole_state = hole_mod.HoleState.init(allocator),
         };
 
         // Définir la vtable
@@ -306,6 +318,8 @@ pub const Heaven = struct {
             a.deinit();
             self.allocator.destroy(a);
         }
+
+        self.hole_state.deinit();
     }
 
     pub fn ensureInit(self: *Heaven) void {
@@ -405,6 +419,8 @@ pub const Heaven = struct {
                     try buf.writer(self.allocator).print("({s} {s} {s} {s})", .{ head, name, val, body });
 
                     if (self.parseExpression(buf.items)) |id| {
+                        // (à faire pour chaque parse réussi)
+                        self.last_root_expr = id;
                         const result = self.interpForAssert(id) catch id;
                         return try expr.toStringInfix(self.store, result, self.allocator);
                     } else |err| switch (err) {
@@ -801,6 +817,13 @@ pub const Heaven = struct {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return error.InvalidInput;
 
+        // ─── Trou : `_` seul ───
+        if (std.mem.eql(u8, trimmed, "_")) {
+            const hole_node = try self.freshHole();
+            self.last_root_expr = hole_node;
+            return hole_node;
+        }
+
         // ─── Syntaxe courte lambda : `λx.body` ou `\x.body` ───
         // `λ` en UTF-8 fait 2 bytes (0xCE 0xBB) — comparer avec startsWith,
         // JAMAIS avec `trimmed[0] == 'λ'` (Zig interprète 'λ' comme codepoint u21,
@@ -1067,6 +1090,12 @@ pub const Heaven = struct {
         const first = tokens.items[0];
         //platform.dbg("[parseSExpr] first token: '{s}' (len={d})\n", .{ first, first.len });
 
+        // Un trou en position de tête : pas une application.
+        if (std.mem.eql(u8, first, "_")) {
+            if (tokens.items.len == 1) return self.freshHole();
+            return error.InvalidSyntax;
+        }
+
         // DÉTECTION INFIXE : un opérateur au milieu → syntaxe infixe
         // (x + 3) → apply(x, [+, 3]) serait faux → déléguer au parser natif
         if (tokens.items.len > 1) {
@@ -1090,8 +1119,11 @@ pub const Heaven = struct {
             var args = std.ArrayListUnmanaged(Id){};
             defer args.deinit(self.allocator);
             for (tokens.items[1..]) |arg_tok| {
-                const arg_id = try self.parseExpression(arg_tok);
-                try args.append(self.allocator, arg_id);
+                if (std.mem.eql(u8, arg_tok, "_")) {
+                    try args.append(self.allocator, try self.freshHole());
+                } else {
+                    try args.append(self.allocator, try self.parseExpression(arg_tok));
+                }
             }
             return self.store.apply(func_id, args.items);
         }
@@ -1203,8 +1235,11 @@ pub const Heaven = struct {
         var args = std.ArrayListUnmanaged(Id){};
         defer args.deinit(self.allocator);
         for (tokens.items[1..]) |arg_tok| {
-            const arg_id = try self.parseExpression(arg_tok);
-            try args.append(self.allocator, arg_id);
+            if (std.mem.eql(u8, arg_tok, "_")) {
+                try args.append(self.allocator, try self.freshHole());
+            } else {
+                try args.append(self.allocator, try self.parseExpression(arg_tok));
+            }
         }
         return self.store.apply(func_id, args.items);
     }
@@ -1427,6 +1462,14 @@ pub const Heaven = struct {
     /// d'assertion, car elles ne sont pas des fonctions évaluables par l'engine.
     fn interpForAssert(self: *Heaven, id: Id) HeavenError!Id {
         const node = self.store.get(id);
+
+        // ─── Trou : résolu ou erreur ───
+        if (node.tag == .hole) {
+            if (self.hole_state.resolve(node.payload)) |resolved| {
+                return resolved;
+            }
+            return error.UnboundHole;
+        }
 
         // ─── Cas .bind Core : (bind name [val, body]) ───
         if (node.tag == .bind) {
@@ -1961,9 +2004,9 @@ pub const Heaven = struct {
         }
 
         // Forme composée sans parenthèses : "handle (perform ...) logHandler"
-        // parseExpression la voit comme un atome. On l'enveloppe en S-expr
-        // pour que parseSExpr construise le bon apply.
-        if (s.len > 0 and s[0] != '(' and std.mem.indexOfScalar(u8, s, ' ') != null) {
+        // On ne wrappe PAS si c'est déjà un littéral string (commence par ")
+        // — sinon les strings avec espaces sont découpées.
+        if (s.len > 0 and s[0] != '(' and s[0] != '"' and std.mem.indexOfScalar(u8, s, ' ') != null) {
             const wrapped = try std.fmt.allocPrint(self.allocator, "({s})", .{s});
             defer self.allocator.free(wrapped);
             return self.parseExpression(wrapped);
@@ -2169,6 +2212,133 @@ pub const Heaven = struct {
         }
         return true;
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Holes — création, affichage, raffinement
+    // ═══════════════════════════════════════════════════════════════
+
+    pub fn freshHole(self: *Heaven) !Id {
+        const id = try self.hole_state.fresh(self.store);
+        self.hole_state.last_root_expr = self.last_root_expr;
+        return id;
+    }
+
+    pub fn refineHole(self: *Heaven, hole_id: u32, expr_src: []const u8) !void {
+        const expression = try self.parseExpression(expr_src);
+        try self.hole_state.refine(hole_id, expression);
+    }
+
+    pub fn hasUnresolvedHoles(self: *Heaven, id: Id) bool {
+        return self.hole_state.hasUnresolved(self.store, id);
+    }
+
+    fn findHoleParent(self: *Heaven, root: Id, hole_id: u32) ?Id {
+        if (root >= self.store.len()) return null;
+        const node = self.store.get(root);
+        if (node.tag == .hole and node.payload == hole_id) return root;
+        for (self.store.spanSliceConst(node.span_a)) |c| {
+            if (self.findHoleParent(c, hole_id)) |p| return p;
+        }
+        for (self.store.spanSliceConst(node.span_b)) |c| {
+            if (self.findHoleParent(c, hole_id)) |p| return p;
+        }
+        return null;
+    }
+
+    fn findParentOf(self: *Heaven, root: Id, target: Id) ?Id {
+        if (root >= self.store.len()) return null;
+        const node = self.store.get(root);
+        const ca = self.store.spanSliceConst(node.span_a);
+        const cb = self.store.spanSliceConst(node.span_b);
+        for (ca) |c| if (c == target) return root;
+        for (cb) |c| if (c == target) return root;
+        for (ca) |c| if (self.findParentOf(c, target)) |p| return p;
+        for (cb) |c| if (self.findParentOf(c, target)) |p| return p;
+        return null;
+    }
+
+    fn inferHoleType(self: *Heaven, hole_id: u32) !?Id {
+        const root = self.hole_state.last_root_expr orelse return null;
+        const hole_node = self.findHoleParent(root, hole_id) orelse return null;
+        const parent = self.findParentOf(root, hole_node) orelse return null;
+        const pnode = self.store.get(parent);
+
+        if (pnode.tag == .apply) {
+            const fnode = self.store.get(pnode.payload);
+            if (fnode.tag == .sym) {
+                const op = self.store.interner.resolve(fnode.payload);
+                if (std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "-") or
+                    std.mem.eql(u8, op, "*") or std.mem.eql(u8, op, "/") or
+                    std.mem.eql(u8, op, "%") or std.mem.eql(u8, op, "^"))
+                {
+                    return try self.store.sym("Int");
+                }
+                if (std.mem.eql(u8, op, "==") or std.mem.eql(u8, op, "!=") or
+                    std.mem.eql(u8, op, "<") or std.mem.eql(u8, op, ">") or
+                    std.mem.eql(u8, op, "<=") or std.mem.eql(u8, op, ">="))
+                {
+                    return try self.store.sym("Bool");
+                }
+            }
+        }
+        return null;
+    }
+
+    fn typeStrForId(self: *Heaven, ty: Id) ![]u8 {
+        var inf = types.Infer.init(self.store, self.allocator);
+        defer inf.deinit();
+        return inf.typeStr(&inf.subst, ty, self.allocator);
+    }
+
+    pub fn describeHole(self: *Heaven, hole_id: u32) ![]u8 {
+        var buf = std.ArrayListUnmanaged(u8){};
+        errdefer buf.deinit(self.allocator);
+        const w = buf.writer(self.allocator);
+
+        if (!self.hole_state.holes.contains(hole_id)) {
+            try w.print("?{d} (unknown hole)\n", .{hole_id});
+            return buf.toOwnedSlice(self.allocator);
+        }
+
+        if (try self.inferHoleType(hole_id)) |ty| {
+            const ty_str = self.typeStrForId(ty) catch "?";
+            defer if (ty_str.ptr != "?".ptr) self.allocator.free(ty_str);
+            try w.print("?{d} : {s}\n", .{ hole_id, ty_str });
+        } else {
+            try w.print("?{d} : ?\n", .{hole_id});
+        }
+
+        if (self.hole_state.resolve(hole_id)) |resolved| {
+            const r_str = expr.toStringInfix(self.store, resolved, self.allocator) catch "<expr>";
+            defer if (r_str.ptr != "<expr>".ptr) self.allocator.free(r_str);
+            try w.print("  refined to: {s}\n", .{r_str});
+        } else {
+            try w.writeAll("  not refined\n");
+        }
+
+        return buf.toOwnedSlice(self.allocator);
+    }
+
+    pub fn describeAllHoles(self: *Heaven) ![]u8 {
+        var buf = std.ArrayListUnmanaged(u8){};
+        errdefer buf.deinit(self.allocator);
+        const w = buf.writer(self.allocator);
+
+        if (self.hole_state.holes.count() == 0) {
+            try w.writeAll("(no holes)\n");
+            return buf.toOwnedSlice(self.allocator);
+        }
+
+        const ids = try self.hole_state.listIds(self.allocator);
+        defer self.allocator.free(ids);
+
+        for (ids) |id| {
+            const desc = try self.describeHole(id);
+            defer self.allocator.free(desc);
+            try w.writeAll(desc);
+        }
+        return buf.toOwnedSlice(self.allocator);
+    }
 };
 
 fn isInfixOp(tok: []const u8) bool {
@@ -2229,4 +2399,73 @@ test "parseExpression — application sur lambda courte" {
     const id = try heaven.parseExpression("((λx.x) 42)");
     const node = heaven.store.get(id);
     try std.testing.expectEqual(expr.Tag.apply, node.tag);
+}
+
+test "hole — fresh hole has unique id" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const h0 = try heaven.freshHole();
+    const h1 = try heaven.freshHole();
+
+    try std.testing.expect(h0 != h1);
+    try std.testing.expectEqual(@as(u32, 2), heaven.hole_state.next_id);
+}
+
+test "hole — _ parses to a hole node" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const id = try heaven.parseExpression("_");
+    const node = heaven.store.get(id);
+    try std.testing.expectEqual(expr.Tag.hole, node.tag);
+}
+
+test "hole — refine and describe" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const hole_node_id = try heaven.freshHole();
+    const hole_id = heaven.store.get(hole_node_id).payload;
+
+    try heaven.refineHole(hole_id, "42");
+
+    const desc = try heaven.describeHole(hole_id);
+    defer allocator.free(desc);
+
+    try std.testing.expect(std.mem.indexOf(u8, desc, "refined to: 42") != null);
+}
+
+test "hole — hasUnresolvedHoles" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const h = try heaven.freshHole();
+    const h_id = heaven.store.get(h).payload;
+    const one = try heaven.store.int(1);
+
+    // (+ _ 1) contient un trou non raffiné
+    const op = try heaven.store.sym("+");
+    const expr_with_hole = try heaven.store.apply(op, &.{ h, one });
+    try std.testing.expect(heaven.hasUnresolvedHoles(expr_with_hole));
+
+    // Après raffinement, plus de trou non raffiné
+    try heaven.refineHole(h_id, "42");
+    try std.testing.expect(!heaven.hasUnresolvedHoles(expr_with_hole));
 }

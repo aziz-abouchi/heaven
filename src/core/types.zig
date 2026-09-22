@@ -370,6 +370,9 @@ pub const Infer = struct {
         if (id >= self.store.len()) return self.unknown();
         const node = self.store.get(id);
 
+        // Un trou se comporte comme une variable de type inconnue.
+        if (node.tag == .hole) return self.unknown();
+
         // Si ce n'est pas une primitive, c'est une erreur
         const prim = node.tag.asPrimitive() orelse {
             return error.ExtensionNotLowered;
@@ -450,9 +453,9 @@ pub const Infer = struct {
                 if (std.mem.eql(u8, op_name, "->")) {
                     // span_a = [sym("->"), arg, ret] — 3 éléments (la fonction est incluse).
                     if (children.len == 3) {
-                        const arg_str = try self.typeStr(subst, children[0], allocator);
+                        const arg_str = try self.typeStr(subst, children[1], allocator);
                         defer allocator.free(arg_str);
-                        const ret_str = try self.typeStr(subst, children[1], allocator);
+                        const ret_str = try self.typeStr(subst, children[2], allocator);
                         defer allocator.free(ret_str);
                         return try std.fmt.allocPrint(allocator, "{s} -> {s}", .{ arg_str, ret_str });
                     }
