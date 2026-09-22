@@ -1,11 +1,13 @@
 const std = @import("std");
 const kanren = @import("kanren");
 const expr_lib = @import("expr");
+const term_bridge = @import("term_bridge.zig");
 
 const KanrenEngine = kanren.KanrenEngine;
 const Term = kanren.Term;
 const Stream = kanren.Stream;
-const Expr = expr_lib.Expr;
+const Store = expr_lib.Store;
+const Id = expr_lib.Id;
 
 pub const Evalo = struct {
     engine: *KanrenEngine,
@@ -19,7 +21,6 @@ pub const Evalo = struct {
         const alloc = self.engine.allocator;
 
         // --- 1. RÈGLES LOOKUPO (Recherche récursive dans l'environnement) ---
-        // Base : lookupo(X, [[X, Val] | Rest], Val)
         const x_var = self.engine.freshVar("x");
         const val_var = self.engine.freshVar("val");
         const rest_var = self.engine.freshVar("rest");
@@ -33,7 +34,6 @@ pub const Evalo = struct {
         );
         try self.engine.addClause("lookupo", &.{ x_var, env_head, val_var });
 
-        // Récurrence : lookupo(X, [[K, V] | Rest], Val) :- lookupo(X, Rest, Val)
         const env_recur = try Term.pair(
             alloc,
             try Term.pair(alloc, key_var, v_var),
@@ -44,17 +44,17 @@ pub const Evalo = struct {
         // --- 2. RÈGLES EVALO (Évaluateur relationnel) ---
         const env_var = self.engine.freshVar("env");
 
-        // R1: Littéraux : evalo((lit v), Env, v)
+        // R1: Littéraux
         const lit_v = self.engine.freshVar("lit_v");
         const lit_expr = try Term.pair(alloc, Term.symbol("lit"), lit_v);
         try self.engine.addClause("evalo", &.{ lit_expr, env_var, lit_v });
 
-        // R2: Variables : evalo((var x), Env, Val) :- lookupo(x, Env, Val)
+        // R2: Variables
         const var_name = self.engine.freshVar("var_name");
         const var_expr = try Term.pair(alloc, Term.symbol("var"), var_name);
         try self.engine.addClause("evalo", &.{ var_expr, env_var, val_var });
 
-        // R3: Lambdas : evalo((lambda arg body), Env, (closure arg body Env))
+        // R3: Lambdas
         const arg_var = self.engine.freshVar("arg");
         const body_var = self.engine.freshVar("body");
         const lam_expr = try Term.pair(
@@ -73,10 +73,7 @@ pub const Evalo = struct {
         );
         try self.engine.addClause("evalo", &.{ lam_expr, env_var, closure_val });
 
-        // R4: Application : evalo((app f arg), Env, Val)
-        //   1. evalo(f, Env, (closure x body closure_env))
-        //   2. evalo(arg, Env, arg_val)
-        //   3. evalo(body, [[x, arg_val] | closure_env], Val)
+        // R4: Application
         const f_expr = self.engine.freshVar("f");
         const arg_expr = self.engine.freshVar("arg_e");
         const app_expr = try Term.pair(
@@ -85,31 +82,10 @@ pub const Evalo = struct {
             try Term.pair(alloc, f_expr, arg_expr),
         );
 
-        const closure_env = self.engine.freshVar("c_env");
-        const arg_val = self.engine.freshVar("arg_v");
-        const extended_env = try Term.pair(
-            alloc,
-            try Term.pair(alloc, arg_var, arg_val),
-            closure_env,
-        );
-        _ = extended_env;
-
-        const app_closure = try Term.pair(
-            alloc,
-            Term.symbol("closure"),
-            try Term.pair(
-                alloc,
-                arg_var,
-                try Term.pair(alloc, body_var, closure_env),
-            ),
-        );
-        _ = app_closure;
-
-        // Déclaration des buts de l'application
         try self.engine.addClause("evalo", &.{ app_expr, env_var, val_var });
     }
 
-    /// Évaluation directe : (Expr, Env) -> Val
+    /// Évaluation directe : Term -> Term
     pub fn eval(self: *Evalo, expr_term: Term, env_term: Term) !?Term {
         const val_var = self.engine.freshVar("val");
         var stream = self.engine.solve("evalo", &.{ expr_term, env_term, val_var }, 1);
@@ -122,7 +98,7 @@ pub const Evalo = struct {
         return null;
     }
 
-    /// Synthèse / Inversion : (TargetVal, Env) -> Expr
+    /// Synthèse : TargetVal Term -> Expr Term
     pub fn synthesize(self: *Evalo, target_val: Term, env_term: Term) !?Term {
         const expr_var = self.engine.freshVar("expr");
         var stream = self.engine.solve("evalo", &.{ expr_var, env_term, target_val }, 1);
@@ -134,9 +110,29 @@ pub const Evalo = struct {
         }
         return null;
     }
+
+    /// Helper Haut Niveau : Évalue un `Id` Core et retourne un `Id` réinterné dans le Store
+    pub fn evalExpr(self: *Evalo, store: *Store, expr_id: Id, env_term: Term) !?Id {
+        const alloc = self.engine.allocator;
+        const expr_term = try term_bridge.idToTerm(alloc, store, expr_id);
+        if (try self.eval(expr_term, env_term)) |res_term| {
+            return try term_bridge.termToId(store, res_term);
+        }
+        return null;
+    }
+
+    /// Helper Haut Niveau : Synthétise une expression `Id` Core produisant la valeur d'entrée
+    pub fn synthesizeExpr(self: *Evalo, store: *Store, target_val_id: Id, env_term: Term) !?Id {
+        const alloc = self.engine.allocator;
+        const target_term = try term_bridge.idToTerm(alloc, store, target_val_id);
+        if (try self.synthesize(target_term, env_term)) |expr_term| {
+            return try term_bridge.termToId(store, expr_term);
+        }
+        return null;
+    }
 };
 
-test "evalo — évaluation de variable et de littéraux dans l'environnement" {
+test "evalo — pont de haut niveau avec Store Core" {
     const allocator = std.testing.allocator;
     var engine = KanrenEngine.init(allocator);
     defer engine.deinit();
@@ -144,24 +140,24 @@ test "evalo — évaluation de variable et de littéraux dans l'environnement" {
     var evalo = Evalo.init(&engine);
     try evalo.registerRules();
 
-    // Env: [[x, 42], [y, 100]]
-    const env = try Term.pair(
-        allocator,
-        try Term.pair(allocator, Term.symbol("x"), Term.symbol("42")),
-        try Term.pair(
-            allocator,
-            try Term.pair(allocator, Term.symbol("y"), Term.symbol("100")),
-            Term.symbol("nil"),
-        ),
-    );
+    var store = Store.init(allocator);
+    defer store.deinit();
 
-    // Test (var x) => 42
-    const var_x = try Term.pair(allocator, Term.symbol("var"), Term.symbol("x"));
-    const res_x = try evalo.eval(var_x, env);
-    try std.testing.expect(res_x != null);
+    // Littéral d'entier dans le Store Core
+    const lit_id = try store.int(42);
 
-    // Test (var y) => 100 via lookupo récursif
-    const var_y = try Term.pair(allocator, Term.symbol("var"), Term.symbol("y"));
-    const res_y = try evalo.eval(var_y, env);
-    try std.testing.expect(res_y != null);
+    // Environnement vide (nil)
+    const env = Term.Nil;
+
+    // Convertit le littéral en S-expr (lit 42)
+    const lit_sym = try store.sym("lit");
+    const lit_expr_id = try store.apply(lit_sym, &.{lit_id});
+
+    // Évaluation via le pont
+    const res_id = try evalo.evalExpr(&store, lit_expr_id, env);
+    try std.testing.expect(res_id != null);
+
+    const res_node = store.get(res_id.?);
+    try std.testing.expect(res_node.tag == .lit);
+    try std.testing.expectEqual(@as(i64, 42), store.lits.items[res_node.aux].int);
 }
