@@ -30,12 +30,12 @@ pub fn lowerAST(allocator: std.mem.Allocator, store: *Store, ast: ASTNode) Lower
         },
         .Call => |call| {
             const func_id = store.sym(call.func) catch return LoweringError.OutOfMemory;
-            var arg_ids = std.ArrayList(Id).init(allocator);
-            defer arg_ids.deinit();
+            var arg_ids: std.ArrayList(Id) = .empty;
+            defer arg_ids.deinit(allocator);
 
             for (call.args) |arg| {
                 const arg_id = try lowerAST(allocator, store, arg);
-                try arg_ids.append(arg_id);
+                try arg_ids.append(allocator, arg_id);
             }
 
             return store.apply(func_id, arg_ids.items) catch LoweringError.OutOfMemory;
