@@ -509,6 +509,25 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const proof_state_mod = b.addModule("proof_state", .{
+        .root_source_file = b.path("src/core/proof_state.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+        },
+    });
+
+    const tactics_mod = b.addModule("tactics", .{
+        .root_source_file = b.path("src/core/tactics.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "proof_state", .module = proof_state_mod },
+        },
+    });
+
     const mlcpd_equiv_mod = b.addModule("mlcpd_equiv", .{
         .root_source_file = b.path("src/translator/mlcpd_equiv.zig"),
         .target = target,
@@ -678,6 +697,8 @@ pub fn build(b: *std.Build) void {
             .{ .name = "parzig", .module = parzig_mod },
             .{ .name = "shell_parser", .module = shell_parser_mod },
             .{ .name = "proof_core", .module = proof_core_mod },
+            .{ .name = "proof_state", .module = proof_state_mod },
+            .{ .name = "tactics", .module = tactics_mod },
             .{ .name = "agent", .module = agent_mod },
             .{ .name = "commands", .module = commands_mod },
             .{ .name = "profiler", .module = profiler_mod },
@@ -1008,6 +1029,8 @@ pub fn build(b: *std.Build) void {
     test_he_imports.append(b.allocator, .{ .name = "simplify_engine", .module = simplify_engine_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "commands", .module = commands_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "proof_core", .module = proof_core_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "proof_state", .module = proof_state_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "tactics", .module = tactics_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "agent", .module = agent_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "profiler", .module = profiler_mod }) catch unreachable;
 

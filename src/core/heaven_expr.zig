@@ -22,6 +22,8 @@ const egraph_rewriter_mod = @import("egraph_rewriter");
 const commands_mod = @import("commands");
 const skill_lib = @import("skill");
 const proof_core_mod = @import("proof_core");
+const proof_state_mod = @import("proof_state");
+const tactics_mod = @import("tactics");
 const agent_mod = @import("agent");
 
 const elab_mod = @import("elab");
@@ -1383,7 +1385,124 @@ pub const Heaven = struct {
     pub fn evalSkill(self: *Heaven, src: []const u8) HeavenError![]u8 {
         return self.allocator.dupe(u8, src);
     }
+    // ═══ Tactics v1 ═══
+
+    /// Construit un Goal à partir du statement textuel du théorème, parse
+    /// un bloc de tactiques `t1; t2; ...`, l'applique, et retourne un
+    /// rapport. Si tous les buts sont résolus, marque le théorème comme
+    /// vérifié dans ProofCore.
+    pub fn runTacticsBlock(
+        self: *Heaven,
+        theorem_name: []const u8,
+        block_src: []const u8,
+    ) HeavenError![]u8 {
+        _ = self.ensureCommands();
+        const pc = self.proof_core_inst orelse
+            return error.Unexpected;
+        const thm = pc.theorems.getPtr(theorem_name) orelse
+            return error.UnknownVariable;
+
+        // 1. Découper "lhs = rhs"
+        const stmt = thm.statement;
+        const eq_pos = std.mem.indexOf(u8, stmt, " = ") orelse
+            return error.InvalidSyntax;
+        const lhs_str = std.mem.trim(u8, stmt[0..eq_pos], " \t");
+        const rhs_str = std.mem.trim(u8, stmt[eq_pos + 3 ..], " \t");
+
+        const lhs_id = try self.parseExpression(lhs_str);
+        const rhs_id = try self.parseExpression(rhs_str);
+        const eq_sym = try self.store.sym("=");
+        const target = try self.store.apply(eq_sym, &.{ lhs_id, rhs_id });
+
+        // 2. ProofState + aréna
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+
+        var state = proof_state_mod.ProofState.init(
+            self.allocator, &arena, self.store, theorem_name,
+        );
+        defer state.deinit();
+
+        try state.appendGoal(.{
+            .hyps = try state.dupHyps(&.{}, ),
+            .target = target,
+            .label = try state.dupLabel("main"),
+        });
+
+        // 3. Parse + apply
+        const tactic = tactics_mod.parseTacticsBlock(arena.allocator(), block_src) catch |err| {
+            return std.fmt.allocPrint(self.allocator, "✗ tactic parse error: {}\n", .{err});
+        };
+
+        var ctx = tactics_mod.TacticCtx{
+            .allocator = self.allocator,
+            .store = self.store,
+            .heaven = @ptrCast(self),
+            .simplifyFn = tacticsSimplifyCb,
+            .eqFn = tacticsEqCb,
+            .peanoFn = tacticsPeanoCb,
+            .substFn = tacticsSubstCb,
+        };
+
+        tactics_mod.applyTactic(&state, tactic, &ctx) catch |err| {
+            const pp = try state.pp(self.allocator);
+            defer self.allocator.free(pp);
+            return std.fmt.allocPrint(self.allocator, "✗ tactic failed: {} — {d} goal(s) remaining:\n{s}", .{ err, state.goals.items.len, pp });
+        };
+
+        // 4. Vérifier
+        if (state.solved()) {
+            thm.verified = true;
+            return std.fmt.allocPrint(self.allocator, "✓ [{s}] proved (tactics)\n", .{theorem_name});
+        }
+        const pp = try state.pp(self.allocator);
+        defer self.allocator.free(pp);
+        return std.fmt.allocPrint(self.allocator, "✗ {d} goal(s) remaining:\n{s}", .{ state.goals.items.len, pp });
+    }
+
+    // ─── Callbacks pour TacticCtx ───
+
+    fn tacticsSimplifyCb(ctx: *tactics_mod.TacticCtx, input: []const u8) anyerror![]u8 {
+        const self: *Heaven = @ptrCast(@alignCast(ctx.heaven));
+        return self.simplify(input);
+    }
+
+    fn tacticsEqCb(ctx: *tactics_mod.TacticCtx, a: Id, b: Id) anyerror!bool {
+        const self: *Heaven = @ptrCast(@alignCast(ctx.heaven));
+        return self.math.structuralEq(a, b);
+    }
+
+    fn tacticsPeanoCb(ctx: *tactics_mod.TacticCtx, k: i64) anyerror!Id {
+        const self: *Heaven = @ptrCast(@alignCast(ctx.heaven));
+        if (k <= 0) return self.store.sym("zero");
+        const inner = try tacticsPeanoCb(ctx, k - 1);
+        return self.store.call("succ", &.{inner});
+    }
+
+    fn tacticsSubstCb(
+        ctx: *tactics_mod.TacticCtx,
+        e: Id,
+        name: []const u8,
+        repl: Id,
+    ) anyerror!Id {
+        const self: *Heaven = @ptrCast(@alignCast(ctx.heaven));
+        return substSymByName(self.store, self.allocator, e, name, repl);
+    }
+
     pub fn evalProve(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        // ─── Tactics v1 : `prove <name> by { t1; t2; ... }` ───
+        // Intercepté AVANT le chemin classique pour ne pas casser
+        // `by simplify` / `by eval` / `by induction x` (compat).
+        if (std.mem.indexOf(u8, src, " by {")) |pos| {
+            const name = std.mem.trim(u8, src[0..pos], " \t");
+            if (name.len == 0) return error.InvalidSyntax;
+            const rest = src[pos + " by {".len ..];
+            const close = std.mem.lastIndexOfScalar(u8, rest, '}') orelse
+                return error.InvalidSyntax;
+            const body = rest[0..close];
+            return self.runTacticsBlock(name, body);
+        }
+
         if (self.ensureCommands()) |cmds| {
             return cmds.evalProve(src) catch |err| {
                 return switch (err) {
@@ -2460,6 +2579,40 @@ pub const Heaven = struct {
         return buf.toOwnedSlice(self.allocator);
     }
 };
+
+fn substSymByName(
+    store: *Store,
+    allocator: std.mem.Allocator,
+    e: expr.Id,
+    name: []const u8,
+    repl: expr.Id,
+) !expr.Id {
+    if (e >= store.len()) return e;
+    const node = store.get(e);
+    const pool = store.pool.items;
+    switch (node.tag) {
+        .sym => {
+            const s = store.interner.resolve(node.payload);
+            if (std.mem.eql(u8, s, name)) return repl;
+            return e;
+        },
+        .apply => {
+            const new_func = try substSymByName(store, allocator, node.payload, name, repl);
+            const args = node.span_a.slice(pool);
+            var new_args: std.ArrayListUnmanaged(expr.Id) = .{};
+            defer new_args.deinit(allocator);
+            var changed = (new_func != node.payload);
+            for (args) |a| {
+                const na = try substSymByName(store, allocator, a, name, repl);
+                try new_args.append(allocator, na);
+                if (na != a) changed = true;
+            }
+            if (!changed) return e;
+            return store.apply(new_func, new_args.items);
+        },
+        else => return e,
+    }
+}
 
 fn isInfixOp(tok: []const u8) bool {
     const ops = [_][]const u8{ "+", "-", "*", "/", "^", "%", "==", "!=", "<", ">", "<=", ">=", ">>>" };
