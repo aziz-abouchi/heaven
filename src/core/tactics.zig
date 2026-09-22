@@ -11,6 +11,7 @@ const Id = expr.Id;
 const Store = expr.Store;
 const ps = @import("proof_state");
 const ProofState = ps.ProofState;
+const Goal = ps.Goal;
 const Hypothesis = ps.Hypothesis;
 
 pub const TacticError = error{
@@ -25,6 +26,8 @@ pub const Tactic = union(enum) {
     reflexivity,
     exact: []const u8,
     induction: []const u8,
+    rewrite: []const u8,
+    apply: []const u8,
     seq: struct { first: *const Tactic, then: *const Tactic },
     try_: *const Tactic,
     repeat: *const Tactic,
@@ -48,6 +51,8 @@ pub fn applyTactic(state: *ProofState, t: Tactic, ctx: *TacticCtx) TacticError!v
         .reflexivity => return applyReflexivity(state, ctx),
         .exact => |n| return applyExact(state, n, ctx),
         .induction => |v| return applyInduction(state, v, ctx),
+        .rewrite => |n| return applyRewrite(state, n, ctx),
+        .apply => |n| return applyApplyHyp(state, n, ctx),
         .seq => |s| return applySeq(state, s.first, s.then, ctx),
         .try_ => |inner| return applyTry(state, inner, ctx),
         .repeat => |inner| return applyRepeat(state, inner, ctx),
@@ -60,14 +65,15 @@ fn isEqNode(ctx: *TacticCtx, id: Id) ?struct { lhs: Id, rhs: Id } {
     if (id >= ctx.store.len()) return null;
     const node = ctx.store.get(id);
     if (node.tag != .apply) return null;
-    // Store.apply(f, args) stocke span_a = [f] ++ args.
-    // On saute donc la tête avant de valider l'arité binaire.
+    if (node.payload >= ctx.store.len()) return null;
     const all = ctx.store.spanSliceConst(node.span_a);
     if (all.len < 1) return null;
     const args = all[1..];
     if (args.len != 2) return null;
+    for (args) |a| if (a >= ctx.store.len()) return null;
     const fnode = ctx.store.get(node.payload);
     if (fnode.tag != .sym) return null;
+    if (fnode.payload >= ctx.store.interner.list.items.len) return null;
     const name = ctx.store.interner.resolve(fnode.payload);
     if (!std.mem.eql(u8, name, "=") and !std.mem.eql(u8, name, "Eq")) return null;
     return .{ .lhs = args[0], .rhs = args[1] };
@@ -116,6 +122,114 @@ fn applyExact(state: *ProofState, name: []const u8, ctx: *TacticCtx) TacticError
         return TacticError.TacticFailed;
     }
     return TacticError.TacticFailed;
+}
+
+fn findHyp(goal: *const Goal, name: []const u8) ?Hypothesis {
+    for (goal.hyps) |h| {
+        if (std.mem.eql(u8, h.name, name)) return h;
+    }
+    return null;
+}
+
+fn isArrowNode(ctx: *TacticCtx, id: Id) ?struct { dom: Id, cod: Id } {
+    if (id >= ctx.store.len()) return null;
+    const node = ctx.store.get(id);
+    if (node.tag != .apply) return null;
+    const all = ctx.store.spanSliceConst(node.span_a);
+    if (all.len < 1) return null;
+    const args = all[1..];
+    if (args.len != 2) return null;
+    const fnode = ctx.store.get(node.payload);
+    if (fnode.tag != .sym) return null;
+    const name = ctx.store.interner.resolve(fnode.payload);
+    if (!std.mem.eql(u8, name, "->") and
+        !std.mem.eql(u8, name, "=>") and
+        !std.mem.eql(u8, name, "Π"))
+    {
+        return null;
+    }
+    return .{ .dom = args[0], .cod = args[1] };
+}
+
+fn rewriteIn(ctx: *TacticCtx, e: Id, from: Id, to: Id) TacticError!Id {
+    const same = ctx.eqFn(ctx, e, from) catch false;
+    if (same) return to;
+    if (e >= ctx.store.len()) return e;
+    const node = ctx.store.get(e);
+    switch (node.tag) {
+        .apply => {
+            const new_func = try rewriteIn(ctx, node.payload, from, to);
+            // Convention Store : span_a = [head] ++ args (cf. isEqNode,
+            // evalSpecialExpr). On skip donc le head, sinon le nœud
+            // reconstruit gonfle d'un cran à chaque réécriture.
+            const all = ctx.store.spanSliceConst(node.span_a);
+            if (all.len < 1) return e;
+            const args_copy = try ctx.allocator.dupe(Id, all[1..]);
+            defer ctx.allocator.free(args_copy);
+            var new_args: std.ArrayListUnmanaged(Id) = .{};
+            defer new_args.deinit(ctx.allocator);
+            var changed = (new_func != node.payload);
+            for (args_copy) |a| {
+                const na = try rewriteIn(ctx, a, from, to);
+                try new_args.append(ctx.allocator, na);
+                if (na != a) changed = true;
+            }
+            if (!changed) return e;
+            return ctx.store.apply(new_func, new_args.items) catch return TacticError.OutOfMemory;
+        },
+        else => return e,
+    }
+}
+
+fn applyRewrite(state: *ProofState, h_name: []const u8, ctx: *TacticCtx) TacticError!void {
+    const goal = state.currentGoal() orelse return TacticError.NoGoal;
+    const h = findHyp(goal, h_name) orelse return TacticError.TacticFailed;
+    const eq = isEqNode(ctx, h.ty) orelse return TacticError.TacticFailed;
+
+    const new1 = try rewriteIn(ctx, goal.target, eq.lhs, eq.rhs);
+
+    if (new1 != goal.target) {
+        goal.target = new1;
+        return;
+    }
+    const new2 = try rewriteIn(ctx, goal.target, eq.rhs, eq.lhs);
+    if (new2 != goal.target) {
+        goal.target = new2;
+        return;
+    }
+    return TacticError.TacticFailed;
+}
+
+fn applyApplyHyp(state: *ProofState, h_name: []const u8, ctx: *TacticCtx) TacticError!void {
+    const goal = state.currentGoal() orelse return TacticError.NoGoal;
+    const h = findHyp(goal, h_name) orelse return TacticError.TacticFailed;
+
+    var current = h.ty;
+    var prems: std.ArrayListUnmanaged(Id) = .{};
+    defer prems.deinit(ctx.allocator);
+    while (isArrowNode(ctx, current)) |arrow| {
+        try prems.append(ctx.allocator, arrow.dom);
+        current = arrow.cod;
+    }
+
+    const same = ctx.eqFn(ctx, current, goal.target) catch return TacticError.TacticFailed;
+    if (!same) return TacticError.TacticFailed;
+
+    // Snapshot : la réallocation de state.goals invalide le pointeur goal.
+    const hyps_snapshot = goal.hyps;
+    _ = state.popGoal();
+
+    // Empiler les prémisses dans l'ordre (prems[0] en tête).
+    var i: usize = prems.items.len;
+    while (i > 0) {
+        i -= 1;
+        const label = state.dupLabel("apply") catch return TacticError.OutOfMemory;
+        state.appendGoal(.{
+            .hyps = hyps_snapshot,
+            .target = prems.items[i],
+            .label = label,
+        }) catch return TacticError.OutOfMemory;
+    }
 }
 
 fn applyInduction(state: *ProofState, var_name: []const u8, ctx: *TacticCtx) TacticError!void {
@@ -210,6 +324,16 @@ pub fn parseTactic(arena: Allocator, s: []const u8) TacticError!Tactic {
         const v = std.mem.trim(u8, t["induction ".len..], " \t");
         if (v.len == 0) return TacticError.InvalidTactic;
         return .{ .induction = arena.dupe(u8, v) catch return TacticError.OutOfMemory };
+    }
+    if (std.mem.startsWith(u8, t, "rewrite ")) {
+        const n = std.mem.trim(u8, t["rewrite ".len..], " \t");
+        if (n.len == 0) return TacticError.InvalidTactic;
+        return .{ .rewrite = arena.dupe(u8, n) catch return TacticError.OutOfMemory };
+    }
+    if (std.mem.startsWith(u8, t, "apply ")) {
+        const n = std.mem.trim(u8, t["apply ".len..], " \t");
+        if (n.len == 0) return TacticError.InvalidTactic;
+        return .{ .apply = arena.dupe(u8, n) catch return TacticError.OutOfMemory };
     }
     if (std.mem.startsWith(u8, t, "try ")) {
         const inner = arena.create(Tactic) catch return TacticError.OutOfMemory;

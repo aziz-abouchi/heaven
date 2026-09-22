@@ -1468,8 +1468,9 @@ pub const Heaven = struct {
     }
 
     fn tacticsEqCb(ctx: *tactics_mod.TacticCtx, a: Id, b: Id) anyerror!bool {
+        if (a == b) return true;
         const self: *Heaven = @ptrCast(@alignCast(ctx.heaven));
-        return self.math.structuralEq(a, b);
+        return expr.structuralEql(self.store, a, b);
     }
 
     fn tacticsPeanoCb(ctx: *tactics_mod.TacticCtx, k: i64) anyerror!Id {
@@ -2589,7 +2590,6 @@ fn substSymByName(
 ) !expr.Id {
     if (e >= store.len()) return e;
     const node = store.get(e);
-    const pool = store.pool.items;
     switch (node.tag) {
         .sym => {
             const s = store.interner.resolve(node.payload);
@@ -2598,11 +2598,14 @@ fn substSymByName(
         },
         .apply => {
             const new_func = try substSymByName(store, allocator, node.payload, name, repl);
-            const args = node.span_a.slice(pool);
+            const all = store.spanSliceConst(node.span_a);
+            if (all.len < 1) return e;
+            const args_copy = try allocator.dupe(expr.Id, all[1..]);
+            defer allocator.free(args_copy);
             var new_args: std.ArrayListUnmanaged(expr.Id) = .{};
             defer new_args.deinit(allocator);
             var changed = (new_func != node.payload);
-            for (args) |a| {
+            for (args_copy) |a| {
                 const na = try substSymByName(store, allocator, a, name, repl);
                 try new_args.append(allocator, na);
                 if (na != a) changed = true;
@@ -2672,6 +2675,108 @@ test "parseExpression — application sur lambda courte" {
     const id = try heaven.parseExpression("((λx.x) 42)");
     const node = heaven.store.get(id);
     try std.testing.expectEqual(expr.Tag.apply, node.tag);
+}
+
+test "tactics v1.5 — rewrite a=b dans la cible" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    var state = proof_state_mod.ProofState.init(
+        allocator, &arena, heaven.store, "rewrite_test",
+    );
+    defer state.deinit();
+
+    // H : a = b
+    const a = try heaven.store.sym("a");
+    const b = try heaven.store.sym("b");
+    const eq_sym = try heaven.store.sym("=");
+    const h_ty = try heaven.store.apply(eq_sym, &.{ a, b });
+
+    // Cible : Eq(f a, f b)
+    const f = try heaven.store.sym("f");
+    const fa = try heaven.store.apply(f, &.{a});
+    const fb = try heaven.store.apply(f, &.{b});
+    const target = try heaven.store.apply(eq_sym, &.{ fa, fb });
+
+    const h_name = try arena.allocator().dupe(u8, "H");
+    const hyps = try arena.allocator().alloc(proof_state_mod.Hypothesis, 1);
+    hyps[0] = .{ .name = h_name, .ty = h_ty };
+
+    try state.appendGoal(.{
+        .hyps = hyps,
+        .target = target,
+        .label = try state.dupLabel("main"),
+    });
+
+    var ctx = tactics_mod.TacticCtx{
+        .allocator = allocator,
+        .store = heaven.store,
+        .heaven = @ptrCast(heaven),
+        .simplifyFn = Heaven.tacticsSimplifyCb,
+        .eqFn = Heaven.tacticsEqCb,
+        .peanoFn = Heaven.tacticsPeanoCb,
+        .substFn = Heaven.tacticsSubstCb,
+    };
+
+    try tactics_mod.applyTactic(&state, tactics_mod.Tactic{ .rewrite = h_name }, &ctx);
+    try tactics_mod.applyTactic(&state, .reflexivity, &ctx);
+
+    try std.testing.expect(state.solved());
+}
+
+test "tactics v1.5 — apply P->Q crée un sous-but P" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    var state = proof_state_mod.ProofState.init(
+        allocator, &arena, heaven.store, "apply_test",
+    );
+    defer state.deinit();
+
+    // H : P -> Q
+    const P = try heaven.store.sym("P");
+    const Q = try heaven.store.sym("Q");
+    const arrow = try heaven.store.sym("->");
+    const h_ty = try heaven.store.apply(arrow, &.{ P, Q });
+
+    const h_name = try arena.allocator().dupe(u8, "H");
+    const hyps = try arena.allocator().alloc(proof_state_mod.Hypothesis, 1);
+    hyps[0] = .{ .name = h_name, .ty = h_ty };
+
+    try state.appendGoal(.{
+        .hyps = hyps,
+        .target = Q,
+        .label = try state.dupLabel("main"),
+    });
+
+    var ctx = tactics_mod.TacticCtx{
+        .allocator = allocator,
+        .store = heaven.store,
+        .heaven = @ptrCast(heaven),
+        .simplifyFn = Heaven.tacticsSimplifyCb,
+        .eqFn = Heaven.tacticsEqCb,
+        .peanoFn = Heaven.tacticsPeanoCb,
+        .substFn = Heaven.tacticsSubstCb,
+    };
+
+    try tactics_mod.applyTactic(&state, tactics_mod.Tactic{ .apply = h_name }, &ctx);
+
+    try std.testing.expectEqual(@as(usize, 1), state.goals.items.len);
+    try std.testing.expect(state.goals.items[0].target == P);
 }
 
 test "hole — fresh hole has unique id" {
