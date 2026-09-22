@@ -88,6 +88,15 @@ Légende :
 | Handler IO par défaut | 🚧 | — | voir `ROADMAP.md#io` |
 | `readFile`, `writeFile` | ❌ | — | **documentés ch9, absents** |
 
+## IO
+
+| Élément | Statut | Preuve | Limitation |
+|---|---|---|---|
+| `print` (REPL) | ✅ | démo manuelle | — |
+| `readFile` / `writeFile` / `readLine` | ✅ | démo manuelle | — |
+| `:io on/off/status` | ✅ | REPL | — |
+| Test automatisé IO | ✅ | `test "io_print"` | — |
+
 ## Preuves
 
 | Élément | Statut | Preuve | Limitation |

@@ -92,6 +92,79 @@ pub const HoleInfo = struct {
     seen_in: ?Id = null,
 };
 
+/// Handler IO par défaut (natif) : exécute réellement les effets.
+/// Retourne `null` si le label n'est pas reconnu, ce qui laisse
+/// `perform` retomber sur son comportement one-shot.
+pub fn defaultIOHandler(
+    store: *Store,
+    label: []const u8,
+    arg: ?expr.Id,
+) engine_expr.EvalError!?expr.Id {
+    if (std.mem.eql(u8, label, "Print")) {
+        if (arg) |a| {
+            const s = expr.toStringInfix(store, a, store.allocator) catch return null;
+            defer store.allocator.free(s);
+            platform.debug.print("{s}\n", .{s});
+        }
+        return try store.unitLit();
+    }
+
+    if (std.mem.eql(u8, label, "ReadFile")) {
+        const path_id = arg orelse return null;
+        const path = extractString(store, path_id) orelse return null;
+        const content = platform.fs.cwd().readFileAlloc(
+            store.allocator,
+            path,
+            1024 * 1024,
+        ) catch return null;
+        defer store.allocator.free(content);
+        const sym = try store.interner.intern(content);
+        return try store.lit(.{ .str = sym });
+    }
+
+    if (std.mem.eql(u8, label, "WriteFile")) {
+        const pair_id = arg orelse return null;
+        const pair_node = store.get(pair_id);
+        if (pair_node.tag != .apply) return null;
+        const children = store.spanSliceConst(pair_node.span_a);
+        var path_id: ?expr.Id = null;
+        var content_id: ?expr.Id = null;
+        if (children.len == 2) {
+            path_id = children[0];
+            content_id = children[1];
+        } else if (children.len == 3) {
+            path_id = children[1];
+            content_id = children[2];
+        } else return null;
+
+        const path = extractString(store, path_id.?) orelse return null;
+        const content = extractString(store, content_id.?) orelse return null;
+
+        const file = platform.fs.cwd().createFile(path, .{}) catch return null;
+        defer file.close();
+        file.writeAll(content) catch return null;
+        return try store.unitLit();
+    }
+
+    if (std.mem.eql(u8, label, "ReadLine")) {
+        const line = platform.readLine(store.allocator) catch return null;
+        defer store.allocator.free(line);
+        const sym = try store.interner.intern(line);
+        return try store.lit(.{ .str = sym });
+    }
+
+    return null;
+}
+
+fn extractString(store: *Store, id: expr.Id) ?[]const u8 {
+    if (id >= store.len()) return null;
+    const node = store.get(id);
+    if (node.tag != .lit) return null;
+    const lit = store.lits.items[node.aux];
+    if (lit != .str) return null;
+    return store.interner.resolve(lit.str);
+}
+
 pub const Heaven = struct {
     allocator: std.mem.Allocator,
     store: *Store,
@@ -159,6 +232,7 @@ pub const Heaven = struct {
 
         // Initialiser l'engine DANS self.engine (champ stable du heap)
         self.engine = engine_expr.Engine.init(allocator, store, &self.env, @ptrCast(self), &heaven_vtable);
+        self.engine.io_handler = defaultIOHandler;
 
         // Tous les composants qui ont besoin de l'engine pointent sur self.engine,
         // pas sur une variable locale (sinon dangling pointer dès qu'init retourne).
@@ -180,6 +254,10 @@ pub const Heaven = struct {
 
         // Charger le noyau logique (bootstrap.hvn) dans le FunctionRegistry
         self.loadBootstrap();
+
+        // Charger les wrappers IO (print, readFile, writeFile, readLine)
+        // dans le FunctionRegistry de l'engine.
+        self.loadStdIO();
 
         const ctors = [_]struct { name: []const u8, arity: u8 }{
             .{ .name = "zero", .arity = 0 },  .{ .name = "Zero", .arity = 0 },
@@ -278,6 +356,36 @@ pub const Heaven = struct {
                     ) catch {};
                 }
             }
+        }
+    }
+
+    /// Charge `core/io.hvn` dans le FunctionRegistry de l'engine,
+    /// en évaluant chaque ligne via `evalEquation`. La fonction
+    /// `print`, `readFile`, etc. deviennent ainsi accessibles au REPL.
+    fn loadStdIO(self: *Heaven) void {
+        const source = platform.fs.cwd().readFileAlloc(
+            self.allocator,
+            "core/io.hvn",
+            64 * 1024,
+        ) catch |err| {
+            platform.dbg("[loadStdIO] readFileAlloc failed: {}\n", .{err});
+            return;
+        };
+        defer self.allocator.free(source);
+
+        var lines = std.mem.splitScalar(u8, source, '\n');
+        while (lines.next()) |line| {
+            const trimmed = std.mem.trim(u8, line, " \t\r");
+            if (trimmed.len == 0) continue;
+            if (trimmed[0] == '#') continue;
+            if (std.mem.startsWith(u8, trimmed, "--")) continue;
+            if (std.mem.startsWith(u8, trimmed, ";;")) continue;
+
+            const result = self.eval(trimmed) catch |err| {
+                platform.dbg("[loadStdIO] '{s}' failed: {}\n", .{ trimmed, err });
+                continue;
+            };
+            self.allocator.free(result);
         }
     }
 
@@ -1049,8 +1157,20 @@ pub const Heaven = struct {
         var depth: usize = 0;
         var start: usize = 0;
         var in_token = false;
+        var in_str = false;
         for (inner, 0..) |ch, idx| {
+            if (in_str) {
+                if (ch == '"') in_str = false;
+                continue;
+            }
             switch (ch) {
+                '"' => {
+                    if (depth == 0 and !in_token) {
+                        start = idx;
+                        in_token = true;
+                    }
+                    in_str = true;
+                },
                 '(' => {
                     if (depth == 0 and !in_token) {
                         start = idx;

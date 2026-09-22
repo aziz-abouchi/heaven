@@ -60,6 +60,16 @@ mock qui accumule dans une liste.
 
 ---
 
+
+### v2 — à faire
+
+- **Handler WASM** : sur la cible WASM, `defaultIOHandler` retourne
+  actuellement `null` (stub). À brancher sur les APIs JS via `jsImports`.
+- **`readLine` interactif** : fonctionne en natif, mais pas testé.
+  Vérifier le comportement en REPL avec une entrée pipée.
+- **Composition** : plusieurs IO séquentiels dans le même `handle`
+  (aujourd'hui, le premier `perform` capté épuise le handle one-shot).
+
 ## #holes — v2 : affichage interactif
 
 ### État v1 (déjà implémenté)
