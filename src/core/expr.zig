@@ -633,12 +633,32 @@ pub const Store = struct {
             },
 
             .bind => {
+                // Core invariant:
+                //   payload = binding name (Sym)
+                //   aux     = 0
+                //   span_a  = [value, body]
+                //   span_b  = EMPTY
+
                 if (node.payload >= self.interner.list.items.len) {
                     return error.InvalidExpr;
                 }
 
-                try self.assertCoreSpan(node.span_a);
-                try self.assertCoreSpan(node.span_b);
+                if (node.aux != 0) {
+                    return error.InvalidExpr;
+                }
+
+                if (node.span_a.len != 2) {
+                    return error.InvalidExpr;
+                }
+
+                if (node.span_b.len != 0) {
+                    return error.InvalidExpr;
+                }
+
+                const children = node.span_a.slice(self.pool.items);
+
+                try self.assertCoreExpr(children[0]); // value
+                try self.assertCoreExpr(children[1]); // body
             },
 
             .lambda => {

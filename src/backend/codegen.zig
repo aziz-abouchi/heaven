@@ -22,17 +22,20 @@ pub const CodeGenerator = struct {
         switch (node.tag) {
             .lit, .int => {
                 const lit_val = self.store.lits.items[node.aux];
-                writer.print("{d}", .{lit_val.int}) catch return CodegenError.WriteFailed;
+                var buf: [32]u8 = undefined;
+                const str = std.fmt.bufPrint(&buf, "{d}", .{lit_val.int}) catch return CodegenError.WriteFailed;
+                writer.writeAll(str) catch return CodegenError.WriteFailed;
             },
             .sym, .identifier => {
                 const name = self.store.interner.resolve(node.payload);
-                writer.print("{s}", .{name}) catch return CodegenError.WriteFailed;
+                writer.writeAll(name) catch return CodegenError.WriteFailed;
             },
             .apply, .call => {
                 const func_node = self.store.get(node.payload);
                 if (func_node.tag == .sym or func_node.tag == .identifier) {
                     const func_name = self.store.interner.resolve(func_node.payload);
-                    writer.print("{s}(", .{func_name}) catch return CodegenError.WriteFailed;
+                    writer.writeAll(func_name) catch return CodegenError.WriteFailed;
+                    writer.writeAll("(") catch return CodegenError.WriteFailed;
 
                     const args = node.span_a.slice(self.store.pool.items);
                     for (args, 0..) |arg_id, i| {
@@ -47,10 +50,8 @@ pub const CodeGenerator = struct {
     }
 };
 
-const testing = std.testing;
-
 test "codegen — émission C depuis un Id Core" {
-    const alloc = testing.allocator;
+    const alloc = std.testing.allocator;
     var store = Store.init(alloc);
     defer store.deinit();
 
@@ -63,7 +64,7 @@ test "codegen — émission C depuis un Id Core" {
     defer buf.deinit();
 
     var emitter = CodeGenerator.init(&store);
-    try emitter.emitC(buf.writer(), app_id);
+    try emitter.emitC(&buf, app_id);
 
-    try testing.expectEqualStrings("add(10, 32)", buf.items);
+    try std.testing.expectEqualStrings("add(10, 32)", buf.items);
 }
