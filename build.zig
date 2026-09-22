@@ -1009,6 +1009,7 @@ pub fn build(b: *std.Build) void {
     test_he_imports.append(b.allocator, .{ .name = "commands", .module = commands_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "proof_core", .module = proof_core_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "agent", .module = agent_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "profiler", .module = profiler_mod }) catch unreachable;
 
     if (target.query.cpu_arch != .wasm32) {
         test_he_imports.append(b.allocator, .{ .name = "matrix_bridge", .module = matrix_bridge_mod }) catch unreachable;
@@ -1302,6 +1303,12 @@ pub fn build(b: *std.Build) void {
     run_tests_cmd.addArgs(&.{ "--run-test", "core/test_suite.hvn" });
     const test_regress_step = b.step("test-regression", "Run Heaven internal regression tests");
     test_regress_step.dependOn(&run_tests_cmd.step);
+
+    const tests_step = b.step("test-files", "Run tests/*.hvn");
+    const run_tests = b.addRunArtifact(exe);
+    run_tests.addArg("--run-tests");
+    run_tests.addArg("tests");
+    tests_step.dependOn(&run_tests.step);
 
     const doc_step = b.step("doc", "Generate documentation");
     doc_step.dependOn(&b.addInstallDirectory(.{

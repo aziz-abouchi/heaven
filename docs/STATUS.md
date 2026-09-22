@@ -31,7 +31,7 @@ Légende :
 | Élément | Statut | Preuve | Limitation |
 |---|---|---|---|
 | Infixe (`+ - * / % ^ == != < > <= >=`) | ✅ | `nativeToSExpr` + tests | — |
-| S-expression `(f a b)` | ✅ | `parseSExpr` | — |
+| S-expression `(f a b)` | ✅ | `parseSExpr` (quote-aware) | — |
 | `λx.body`, `\x.body`, `(λx.body)` | ✅ | 2 tests Zig | **le `.`**, pas `λx -> body` |
 | `λx -> body` (flèche) | ❌ | — | notation non supportée |
 | `module X` | ⚠️ | `commands.zig:186` + tree-sitter | **reconnu, no-op** |
@@ -85,8 +85,8 @@ Légende :
 | `handle e h` | ✅ | test `effect_handle` | one-shot |
 | `green` profiler | ✅ | 2 tests | — |
 | Multi-shot continuations | 🚧 | — | — |
-| Handler IO par défaut | 🚧 | — | voir `ROADMAP.md#io` |
-| `readFile`, `writeFile` | ❌ | — | **documentés ch9, absents** |
+| Handler IO par défaut | ✅ | `defaultIOHandler` (heaven_expr.zig) | — |
+| `readFile`, `writeFile`, `readLine` | ✅ | `core/io.hvn` + handler | — |
 
 ## IO
 
@@ -122,8 +122,8 @@ Légende :
 | Test `hole resolves type hole` | ✅ | `commands_full_test.zig:300` | résolution arithmétique simple |
 | Hole filler (Matrix) | ✅ | `inference/neural/synthesis.zig` | couche Matrix, pas Core |
 | But + contexte affichés | ❌ | — | — |
-| `:refine` | ❌ | — | — |
-| **Syntaxe unifiée** | ❌ | 3 syntaxes (`_`, `?`, `_n`) | — |
+| `:refine` | ✅ | `commands.zig::cmdRefine` | — |
+| **Syntaxe unifiée** | ⚠️ | `_` (expressions), `?` (cmdHole) | 2 syntaxes coexistent (compat) |
 
 ## Acteurs
 
@@ -164,9 +164,11 @@ Légende :
 
 | Élément | Statut | Note |
 |---|---|---|
-| `zig build test` | ✅ | 111 tests |
-| `zig build test-regression` | ✅ | 67 tests Heaven |
+| `zig build test` | ✅ | 117 tests |
+| `zig build test-regression` | ✅ | 69 tests Heaven |
 | Sync `test_suite.hvn` natif ↔ WASM | ⚠️ | manuelle via `cp` |
+| `heaven --run-test <file>` | ✅ | runner multi-lignes (parens + braces) |
+| `heaven --run-tests <dir>` | ✅ | itère sur les `*.hvn` d'un dossier |
 | Kernel CIC tests | ✅ | 7 tests dans `kernel.zig` |
 | EGraph tests | ✅ | 8 tests |
 
@@ -174,10 +176,10 @@ Légende :
 
 ## Top priorités
 
-1. **IO par effets** (`readFile`, `writeFile`, `print`) — `ROADMAP.md#io`
-2. **Holes interactifs unifiés** — `ROADMAP.md#holes`
-3. **Tactiques composables** — `ROADMAP.md#tactics`
-4. Fix `typeStr` arrow (`-> -> _t0`)
+1. **Tactiques composables** — `ROADMAP.md#tactics`  ← *chantier en cours*
+2. **Types dépendants** (`Vector n`) — `ROADMAP.md#type-dep`
+3. `module` effectif — `ROADMAP.md#module`
+4. Remplir les `std/*.hvn` (corps manquants)
 5. **Documenter QTT** dans le book
-6. Remplir les `std/*.hvn` (corps manquants)
+6. Trier `tests/` (3 bugs réels : bind_shadow, recursion, kernel)
 7. Sync auto `test_suite.hvn`

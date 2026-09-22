@@ -11,7 +11,7 @@ Ordre recommandé :
 
 ---
 
-## #io — Entrées/Sorties par effets algébriques
+## #io — Entrées/Sorties par effets algébriques  ✅ *fait*
 
 ### Objectif
 
@@ -70,7 +70,7 @@ mock qui accumule dans une liste.
 - **Composition** : plusieurs IO séquentiels dans le même `handle`
   (aujourd'hui, le premier `perform` capté épuise le handle one-shot).
 
-## #holes — v2 : affichage interactif
+## #holes — v2 : affichage interactif  *(v1 ✅, v2 ouverte)*
 
 ### État v1 (déjà implémenté)
 
@@ -93,7 +93,29 @@ mock qui accumule dans une liste.
 
 ---
 
-## #tactics — Tactiques composables à la Rocq/Lean
+## #runner — Tests multi-lignes & par fichier  ✅ *fait*
+
+### État v1
+
+- `runTestFile` découpe par `\n` à profondeur 0, hors chaîne.
+  Parenthèses **et** accolades comptées, donc :
+  - `theorem` / `prove` (2 commandes) fonctionnent
+  - tout futur `prove t by { ... }` (roadmap #tactics) sera un seul statement
+- `runTestDir` itère sur les `*.hvn` d'un dossier, agrège le statut.
+- CLI : `--run-test <file>` (exit code) et `--run-tests <dir>`.
+- `build.zig` : step `test-files` (`zig build test-files`).
+
+### v2 — à faire
+
+- Mode `--expect-fail` ou marqueur `#[xfail]` dans les blocs.
+- Traitement des dossiers imbriqués (récursif).
+- Sortie JSON pour CI.
+
+**Effort v2** : 1 jour.
+
+---
+
+## #tactics — Tactiques composables à la Rocq/Lean  ← *en cours*
 
 ### État actuel
 

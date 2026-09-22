@@ -217,9 +217,19 @@ pub fn main() !void {
         return;
     }
     // Évaluateur de script pour les tests de non-régression
-    if (std.mem.eql(u8, args[1], "--run-test") and args.len >= 3) {
+    //if (std.mem.eql(u8, args[1], "--run-test") and args.len >= 3) {
+    //    const test_runner = @import("runtime/test_runner.zig");
+    //    try test_runner.runTestFile(allocator, args[2]);
+    //    return;
+    //}
+    if (std.mem.eql(u8, args[1], "--run-test")) {
         const test_runner = @import("runtime/test_runner.zig");
-        try test_runner.runTestFile(allocator, args[2]);
+        if (try test_runner.runTestFile(allocator, args[2])) std.process.exit(1);
+        return;
+    }
+    if (std.mem.eql(u8, args[1], "--run-tests")) {
+        const test_runner = @import("runtime/test_runner.zig");
+        if (try test_runner.runTestDir(allocator, args[2])) std.process.exit(1);
         return;
     }
     if (std.mem.eql(u8, args[1], "test") and args.len >= 3) {
@@ -284,7 +294,7 @@ pub fn main() !void {
     };
 
     // --- Chargement du Noyau et de la Logique ---
-    const files_to_load = &[_][]const u8{ "core/kernel.hvn", "core/logic.hvn", "core/prelude.hvn" };
+    const files_to_load = &[_][]const u8{ "core/kernel.hvn", "core/logic.hvn", "core/prelude.hvn", "core/io.hvn" };
 
     for (files_to_load) |filename| {
         const source = platform.fs.cwd().readFileAlloc(allocator, filename, 1024 * 1024) catch |err| {

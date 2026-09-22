@@ -146,3 +146,4 @@ prove t_distrib by simplify
 
 test "type_lambda_identity": type (λx.x) == "_t0 -> _t0"
 test "type_lambda_applied": type ((λx.x) 42) == "Int"
+
