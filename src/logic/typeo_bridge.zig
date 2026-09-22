@@ -80,6 +80,81 @@ pub fn synthesizeAndAddToEGraph(
     return .{ .id = id, .class = class };
 }
 
+/// Infère le type d'un `Id` Core présent dans `store`.
+pub fn inferExprType(
+    store: *Store,
+    typeo: *typeo_mod.Typeo,
+    expr_id: Id,
+) BridgeError!Term {
+    var arena = std.heap.ArenaAllocator.init(typeo.engine.allocator);
+    defer arena.deinit();
+    const temp_alloc = arena.allocator();
+
+    // Sans 'try' devant, car 'catch' gère directement l'erreur
+    const expr_term = term_bridge.idToTerm(temp_alloc, store, expr_id) catch
+        return BridgeError.BridgeFailed;
+
+    const var_type = Term.freshVar("__type");
+
+    const inferred = (typeo.query(expr_term, var_type) catch
+        return BridgeError.InferenceFailed) orelse
+        return BridgeError.InferenceFailed;
+
+    if (hasFreeVar(inferred)) return BridgeError.UnresolvedTerm;
+
+    return inferred;
+}
+
+/// Vérifie qu'une expression `Id` Core possède bien le type `expected_type`.
+pub fn checkExprType(
+    store: *Store,
+    typeo: *typeo_mod.Typeo,
+    expr_id: Id,
+    expected_type: Term,
+) BridgeError!bool {
+    var arena = std.heap.ArenaAllocator.init(typeo.engine.allocator);
+    defer arena.deinit();
+    const temp_alloc = arena.allocator();
+
+    const expr_term = term_bridge.idToTerm(temp_alloc, store, expr_id) catch
+        return BridgeError.BridgeFailed;
+
+    const res = typeo.query(expr_term, expected_type) catch
+        return BridgeError.InferenceFailed;
+
+    return res != null;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Tests additionnels
+// ─────────────────────────────────────────────────────────────────
+
+test "typeo_bridge — inférence de type depuis un Id Core" {
+    const allocator = testing.allocator;
+
+    var engine = kanren.KanrenEngine.init(allocator);
+    defer engine.deinit();
+
+    var typeo = typeo_mod.Typeo.init(&engine);
+    try typeo.registerRules();
+
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    // Expression littérale d'entier (lit 10) dans le Store Core
+    const int_id = try store.int(10);
+    const lit_sym = try store.sym("lit");
+    const lit_expr_id = try store.apply(lit_sym, &.{int_id});
+
+    // Inférence : lit 10 doit être de type Int
+    const inferred_type = try inferExprType(&store, &typeo, lit_expr_id);
+    try testing.expectEqualStrings("Int", inferred_type.Atom);
+
+    // Vérification directe
+    const is_valid = try checkExprType(&store, &typeo, lit_expr_id, Term.sym("Int"));
+    try testing.expect(is_valid);
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────
