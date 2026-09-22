@@ -144,5 +144,5 @@ prove t_double_zero by simplify
 theorem t_distrib : (2 * x) + (2 * y) = 2 * (x + y)
 prove t_distrib by simplify
 
-test "type_lambda_identity": type (λx.x) == (a -> a)
-test "type_lambda_applied": type ((λx.x) 42) == Int
+test "type_lambda_identity": type (λx.x) == "_t0 -> _t0"
+test "type_lambda_applied": type ((λx.x) 42) == "Int"
