@@ -1,0 +1,3 @@
+-- Parent : importe child, puis définit sa propre fonction
+import "tests/trans_child.hvn" as Child
+p_val x = x + 10

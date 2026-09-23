@@ -1,0 +1,2 @@
+-- Enfant : importé par trans_parent
+c_val x = x * 3

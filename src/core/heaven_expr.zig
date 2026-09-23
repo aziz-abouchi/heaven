@@ -199,6 +199,8 @@ pub const Heaven = struct {
     current_module: ?[]const u8 = null,
     /// Registre des types de données (v0 #type-dep).
     type_registry: type_registry_mod.TypeRegistry,
+    /// Pile de modules en cours de chargement — détection de cycles.
+    loading_modules: std.ArrayListUnmanaged([]const u8) = .{},
 
     pub fn init(allocator: std.mem.Allocator) !*Heaven {
         const self = try allocator.create(Heaven);
@@ -230,6 +232,7 @@ pub const Heaven = struct {
             .math = undefined,
             .hole_state = hole_mod.HoleState.init(allocator),
             .type_registry = type_registry_mod.TypeRegistry.init(allocator),
+            .loading_modules = .{},
         };
 
         // Définir la vtable
@@ -437,6 +440,8 @@ pub const Heaven = struct {
         }
 
         if (self.current_module) |m| self.allocator.free(m);
+        for (self.loading_modules.items) |m| self.allocator.free(m);
+        self.loading_modules.deinit(self.allocator);
         self.type_registry.deinit();
         self.hole_state.deinit();
     }
@@ -845,16 +850,47 @@ pub const Heaven = struct {
                 return self.allocator.dupe(u8, "syntax: nom de module indéterminable");
         }
 
+        // ─── Détection de cycle : mod_name déjà en cours de chargement ? ───
+        for (self.loading_modules.items) |m| {
+            if (std.mem.eql(u8, m, mod_name)) {
+                return std.fmt.allocPrint(
+                    self.allocator,
+                    "✗ import {s} : cycle détecté (module {s} déjà en cours de chargement)",
+                    .{ path, mod_name },
+                );
+            }
+        }
+
+        // ─── Résolution du chemin via cwd + HEAVEN_PATH ───
+        const resolved = self.resolveImportPath(path) catch {
+            return std.fmt.allocPrint(
+                self.allocator,
+                "✗ import {s} : fichier introuvable (essayé cwd + HEAVEN_PATH)",
+                .{path},
+            );
+        };
+        defer self.allocator.free(resolved);
+
         const source = platform.fs.cwd().readFileAlloc(
-            self.allocator, path, 1024 * 1024,
+            self.allocator, resolved, 1024 * 1024,
         ) catch {
             return std.fmt.allocPrint(
-                self.allocator, "✗ import {s} : fichier introuvable", .{path},
+                self.allocator,
+                "✗ import {s} (résolu → {s}) : lecture impossible",
+                .{ path, resolved },
             );
         };
         defer self.allocator.free(source);
 
-        // Sauvegarde / restaure current_module (nullable).
+        // ─── Push mod_name sur la pile de chargement ───
+        const owned_mod = try self.allocator.dupe(u8, mod_name);
+        try self.loading_modules.append(self.allocator, owned_mod);
+        defer {
+            const popped = self.loading_modules.pop();
+            if (popped) |p| self.allocator.free(p);
+        }
+
+        // ─── Sauvegarde / restaure current_module ───
         const old_module = self.current_module;
         self.current_module = try self.allocator.dupe(u8, mod_name);
         defer {
@@ -879,15 +915,59 @@ pub const Heaven = struct {
                     .{ path, t, err },
                 );
             };
-            self.allocator.free(r);
+            defer self.allocator.free(r);
+
+            // Propagation des erreurs retournées comme strings (✗ ...).
+            // Sans ce check, un cycle détecté dans un sous-import serait
+            // silencieusement avalé.
+            if (std.mem.startsWith(u8, r, "✗")) {
+                return std.fmt.allocPrint(
+                    self.allocator,
+                    "✗ import {s} : {s}",
+                    .{ path, r },
+                );
+            }
             count += 1;
         }
 
         return std.fmt.allocPrint(
             self.allocator,
             "✓ import {s} as {s} ({d} line(s))",
-            .{ path, mod_name, count },
+            .{ resolved, mod_name, count },
         );
+    }
+
+    /// Résout un chemin d'import :
+    ///   1. absolu → tel quel (si existe)
+    ///   2. cwd + path
+    ///   3. chaque dossier de HEAVEN_PATH (séparé par ':')
+    fn resolveImportPath(self: *Heaven, path: []const u8) ![]u8 {
+        if (std.fs.path.isAbsolute(path)) {
+            const f = std.fs.cwd().openFile(path, .{}) catch return error.NotFound;
+            f.close();
+            return self.allocator.dupe(u8, path);
+        }
+
+        // 1. cwd
+        if (std.fs.cwd().openFile(path, .{})) |f| {
+            f.close();
+            return self.allocator.dupe(u8, path);
+        } else |_| {}
+
+        // 2. HEAVEN_PATH
+        const env_val = platform.getenv("HEAVEN_PATH") orelse return error.NotFound;
+        var it = std.mem.splitScalar(u8, env_val, ':');
+        while (it.next()) |dir| {
+            if (dir.len == 0) continue;
+            const candidate = try std.fs.path.join(self.allocator, &.{ dir, path });
+            if (std.fs.cwd().openFile(candidate, .{})) |f| {
+                f.close();
+                return candidate;
+            } else |_| {
+                self.allocator.free(candidate);
+            }
+        }
+        return error.NotFound;
     }
 
     fn evalDataDecl(self: *Heaven, src: []const u8) HeavenError![]u8 {
@@ -3690,6 +3770,70 @@ test "import v0.5 — nom déduit sans 'as'" {
     // Basename sans extension : "import_test"
     try std.testing.expect(std.mem.indexOf(u8, r, "import_test") != null);
     try std.testing.expect(heaven.engine.fns.get("import_test.inc") != null);
+}
+
+test "module v1 — import transitif (parent → child)" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r = try heaven.eval("import \"tests/trans_parent.hvn\" as P");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "import") != null);
+
+    // p_val aliasé sous P.p_val
+    try std.testing.expect(heaven.engine.fns.get("P.p_val") != null);
+    // c_val aliasé sous Child.c_val (pas P.Child.c_val — flat namespace v1)
+    try std.testing.expect(heaven.engine.fns.get("Child.c_val") != null);
+    // Les originaux restent accessibles (comportement Q2-C)
+    try std.testing.expect(heaven.engine.fns.get("p_val") != null);
+    try std.testing.expect(heaven.engine.fns.get("c_val") != null);
+
+    // Appels
+    const r2 = try heaven.eval("P.p_val 5");
+    defer allocator.free(r2);
+    try std.testing.expect(std.mem.indexOf(u8, r2, "15") != null);
+
+    const r3 = try heaven.eval("Child.c_val 7");
+    defer allocator.free(r3);
+    try std.testing.expect(std.mem.indexOf(u8, r3, "21") != null);
+}
+
+test "module v1 — détection de cycle" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r = try heaven.eval("import \"tests/cyc_a.hvn\" as A");
+    defer allocator.free(r);
+    // Cycle détecté : la string d'erreur doit le mentionner
+    try std.testing.expect(std.mem.indexOf(u8, r, "cycle") != null);
+
+    // La pile doit être propre après l'erreur
+    try std.testing.expectEqual(@as(usize, 0), heaven.loading_modules.items.len);
+    // current_module doit être restauré (null)
+    try std.testing.expect(heaven.current_module == null);
+}
+
+test "module v1 — fichier introuvable donne un message clair" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r = try heaven.eval("import \"tests/nonexistent_xyz.hvn\" as X");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "introuvable") != null);
+    try std.testing.expect(heaven.current_module == null);
+    try std.testing.expectEqual(@as(usize, 0), heaven.loading_modules.items.len);
 }
 
 test "hole — fresh hole has unique id" {

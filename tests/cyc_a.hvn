@@ -1,0 +1,3 @@
+-- Cycle test : A importe B, B importe A
+import "tests/cyc_b.hvn" as B
+a_val = 1
