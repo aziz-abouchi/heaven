@@ -226,6 +226,12 @@ pub const Heaven = struct {
     type_registry: type_registry_mod.TypeRegistry,
     /// Pile de modules en cours de chargement — détection de cycles.
     loading_modules: std.ArrayListUnmanaged([]const u8) = .{},
+    /// v3a : mode strict opt-in. Quand actif, les définitions faites
+    /// pendant un `module M` ne sont enregistrées que sous `M.x`,
+    /// et `eval` refuse de résoudre `x` nu en top-level.
+    strict_modules: bool = false,
+    /// Noms cachés par le mode strict (accessible seulement via `M.x`).
+    hidden_names: std.StringHashMapUnmanaged(void) = .{},
     /// État d'import en cours (v2a : `export`). null hors import.
     import_state: ?*ImportState = null,
     /// Cache d'idempotence (v2b) : chemin résolu → nom du module.
@@ -496,6 +502,11 @@ pub const Heaven = struct {
         if (self.current_module) |m| self.allocator.free(m);
         for (self.loading_modules.items) |m| self.allocator.free(m);
         self.loading_modules.deinit(self.allocator);
+        {
+            var it = self.hidden_names.keyIterator();
+            while (it.next()) |k| self.allocator.free(k.*);
+        }
+        self.hidden_names.deinit(self.allocator);
         var imp_it = self.imported_files.iterator();
         while (imp_it.next()) |e| {
             self.allocator.free(e.key_ptr.*);
@@ -524,6 +535,22 @@ pub const Heaven = struct {
     pub fn eval(self: *Heaven, src: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, src, " \t\n\r");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "");
+
+        // ─── v3a : mode strict — refus des noms cachés ───
+        if (self.hidden_names.count() > 0) {
+            var i: usize = 0;
+            while (i < trimmed.len and
+                (std.ascii.isAlphanumeric(trimmed[i]) or trimmed[i] == '_')) : (i += 1)
+            {}
+            const first_word = trimmed[0..i];
+            if (first_word.len > 0 and self.hidden_names.contains(first_word)) {
+                return std.fmt.allocPrint(
+                    self.allocator,
+                    "✗ '{s}' inaccessible (défini dans un module en mode strict ; utilisez <module>.{s})",
+                    .{ first_word, first_word },
+                );
+            }
+        }
 
         // ─── Formes spéciales du langage : type / green ───
         // Doivent être routées AVANT l'évaluation générique, sinon elles
@@ -576,6 +603,21 @@ pub const Heaven = struct {
         // ─── import "path" [as Name] : charge un fichier dans un namespace ───
         if (std.mem.startsWith(u8, trimmed, "import ")) {
             return self.evalImport(trimmed["import ".len..]);
+        }
+
+        // ─── strict on|off : toggle du mode strict ───
+        // En mode strict, les définitions faites pendant un `module M`
+        // sont enregistrées seulement sous `M.x` (pas `x` nu).
+        if (std.mem.startsWith(u8, trimmed, "strict ")) {
+            const arg = std.mem.trim(u8, trimmed["strict ".len..], " \t");
+            if (std.mem.eql(u8, arg, "on")) {
+                self.strict_modules = true;
+                return self.allocator.dupe(u8, "✓ strict mode on");
+            } else if (std.mem.eql(u8, arg, "off")) {
+                self.strict_modules = false;
+                return self.allocator.dupe(u8, "✓ strict mode off");
+            }
+            return self.allocator.dupe(u8, "usage: strict on|off");
         }
 
         // Théorèmes / preuves / axiomes → chemin dédié (elab.zig + ProofCore)
@@ -924,7 +966,7 @@ pub const Heaven = struct {
                 if (mod_name.len == 0)
                     return self.allocator.dupe(u8, "syntax: nom de module vide après 'as'");
             } else {
-                const base = std.fs.path.basename(path);
+                const base = platform.fs.path.basename(path);
                 if (std.mem.lastIndexOfScalar(u8, base, '.')) |dot| {
                     mod_name = base[0..dot];
                 } else {
@@ -952,12 +994,12 @@ pub const Heaven = struct {
             const p2 = try std.fmt.allocPrint(self.allocator, "core/{s}.hvn", .{lower});
             defer self.allocator.free(p2);
 
-            if (std.fs.cwd().openFile(p1, .{})) |f| {
+            if (platform.fs.cwd().openFile(p1, .{})) |f| {
                 f.close();
                 path = try self.allocator.dupe(u8, p1);
                 resolved_buf = @constCast(path);
             } else |_| {
-                if (std.fs.cwd().openFile(p2, .{})) |f2| {
+                if (platform.fs.cwd().openFile(p2, .{})) |f2| {
                     f2.close();
                     path = try self.allocator.dupe(u8, p2);
                     resolved_buf = @constCast(path);
@@ -1120,14 +1162,14 @@ pub const Heaven = struct {
     ///   2. cwd + path
     ///   3. chaque dossier de HEAVEN_PATH (séparé par ':')
     fn resolveImportPath(self: *Heaven, path: []const u8) ![]u8 {
-        if (std.fs.path.isAbsolute(path)) {
-            const f = std.fs.cwd().openFile(path, .{}) catch return error.NotFound;
+        if (platform.fs.path.isAbsolute(path)) {
+            const f = platform.fs.cwd().openFile(path, .{}) catch return error.NotFound;
             f.close();
             return self.allocator.dupe(u8, path);
         }
 
         // 1. cwd
-        if (std.fs.cwd().openFile(path, .{})) |f| {
+        if (platform.fs.cwd().openFile(path, .{})) |f| {
             f.close();
             return self.allocator.dupe(u8, path);
         } else |_| {}
@@ -1137,8 +1179,8 @@ pub const Heaven = struct {
         var it = std.mem.splitScalar(u8, env_val, ':');
         while (it.next()) |dir| {
             if (dir.len == 0) continue;
-            const candidate = try std.fs.path.join(self.allocator, &.{ dir, path });
-            if (std.fs.cwd().openFile(candidate, .{})) |f| {
+            const candidate = try platform.fs.path.join(self.allocator, &.{ dir, path });
+            if (platform.fs.cwd().openFile(candidate, .{})) |f| {
                 f.close();
                 return candidate;
             } else |_| {
@@ -1194,8 +1236,7 @@ pub const Heaven = struct {
                 cursor += 1;
                 var depth: usize = 1;
                 while (cursor < head.len and depth > 0) : (cursor += 1) {
-                    if (head[cursor] == '(') depth += 1
-                    else if (head[cursor] == ')') depth -= 1;
+                    if (head[cursor] == '(') depth += 1 else if (head[cursor] == ')') depth -= 1;
                 }
                 if (depth != 0)
                     return self.allocator.dupe(u8, "syntax error: '(' non fermée dans params");
@@ -1299,16 +1340,41 @@ pub const Heaven = struct {
                 .arg_types = try arg_types.toOwnedSlice(self.allocator),
             });
 
-            // Enregistre AUSSI dans engine.fns (comportement historique :
-            // `Cons 1 Nil` etc. continuent de fonctionner).
-            const owned = try self.allocator.dupe(u8, ctor_name);
-            const gop = try self.engine.fns.getOrPut(self.allocator, owned);
-            if (gop.found_existing) {
-                self.allocator.free(owned);
+            // v3a : en mode strict pendant un module, on enregistre
+            // le ctor sous `M.Ctor` au lieu de `Ctor`. Sinon comportement
+            // historique.
+            const in_strict_module = self.strict_modules and self.current_module != null;
+
+            if (in_strict_module) {
+                const qualified = try std.fmt.allocPrint(
+                    self.allocator, "{s}.{s}", .{ self.current_module.?, ctor_name },
+                );
+                const owned = qualified;
+                const gop = try self.engine.fns.getOrPut(self.allocator, owned);
+                if (gop.found_existing) {
+                    self.allocator.free(owned);
+                } else {
+                    gop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
+                }
+                gop.value_ptr.ctor_arity = arity;
+
+                // Cacher le nom nu
+                const hidden_key = try self.allocator.dupe(u8, ctor_name);
+                const hgop = self.hidden_names.getOrPut(self.allocator, hidden_key) catch {
+                    self.allocator.free(hidden_key);
+                    return error.OutOfMemory;
+                };
+                if (hgop.found_existing) self.allocator.free(hidden_key);
             } else {
-                gop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
+                const owned = try self.allocator.dupe(u8, ctor_name);
+                const gop = try self.engine.fns.getOrPut(self.allocator, owned);
+                if (gop.found_existing) {
+                    self.allocator.free(owned);
+                } else {
+                    gop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
+                }
+                gop.value_ptr.ctor_arity = arity;
             }
-            gop.value_ptr.ctor_arity = arity;
         }
 
         // 3. Enregistre dans le TypeRegistry.
@@ -1373,7 +1439,21 @@ pub const Heaven = struct {
         }
 
         const body = try self.parseExpression(rhs);
-        try self.registerClause(name, patterns.items, body);
+
+        // v3a : en mode strict ET pendant un module, on n'enregistre
+        // PAS le nom nu. On enregistre seulement l'alias `M.name` plus bas,
+        // et on trace le nom nu dans hidden_names pour le bloquer au REPL.
+        const in_strict_module = self.strict_modules and self.current_module != null;
+        if (!in_strict_module) {
+            try self.registerClause(name, patterns.items, body);
+        } else {
+            const owned = try self.allocator.dupe(u8, name);
+            const gop = self.hidden_names.getOrPut(self.allocator, owned) catch {
+                self.allocator.free(owned);
+                return error.OutOfMemory;
+            };
+            if (gop.found_existing) self.allocator.free(owned);
+        }
 
         // Si un module est ouvert (import en cours), aliaser sous `M.name`,
         // sauf si le fichier importé déclare des exports et que ce nom n'en
