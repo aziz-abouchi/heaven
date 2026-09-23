@@ -3148,6 +3148,55 @@ test "tactics v3.5 — reflexivity échoue sur a = b" {
     try std.testing.expect(!state.solved());
 }
 
+test "tactics v3.5 — apply H : P -> Q -> P" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    var state = proof_state_mod.ProofState.init(allocator, &arena, heaven.store, "apply_prems");
+    defer state.deinit();
+
+    // H : P -> Q -> P
+    const P = try heaven.store.sym("P");
+    const Q = try heaven.store.sym("Q");
+    const arrow = try heaven.store.sym("->");
+    const q_to_p = try heaven.store.apply(arrow, &.{ Q, P });
+    const h_ty = try heaven.store.apply(arrow, &.{ P, q_to_p });
+
+    const h_name = try arena.allocator().dupe(u8, "H");
+    const hyps = try arena.allocator().alloc(proof_state_mod.Hypothesis, 1);
+    hyps[0] = .{ .name = h_name, .ty = h_ty };
+
+    // cible : P
+    try state.appendGoal(.{
+        .hyps = hyps,
+        .target = P,
+        .label = try state.dupLabel("main"),
+    });
+
+    var ctx = tactics_mod.TacticCtx{
+        .allocator = allocator,
+        .store = heaven.store,
+        .heaven = @ptrCast(heaven),
+        .simplifyFn = Heaven.tacticsSimplifyCb,
+        .eqFn = Heaven.tacticsEqCb,
+        .peanoFn = Heaven.tacticsPeanoCb,
+        .substFn = Heaven.tacticsSubstCb,
+    };
+
+    // apply H → 2 sous-buts : P, Q (dans cet ordre, P en tête).
+    try tactics_mod.applyTactic(&state, tactics_mod.Tactic{ .apply = h_name }, &ctx);
+    try std.testing.expectEqual(@as(usize, 2), state.goals.items.len);
+    // Le premier but empilé est P (prems[0]).
+    try std.testing.expect(state.goals.items[0].target == P);
+    try std.testing.expect(state.goals.items[1].target == Q);
+}
+
 test "hole — fresh hole has unique id" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
