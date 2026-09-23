@@ -25,6 +25,8 @@ pub const Tactic = union(enum) {
     simplify,
     reflexivity,
     assumption,
+    auto,
+    cases: []const u8,
     exact: []const u8,
     induction: []const u8,
     rewrite: []const u8,
@@ -51,6 +53,8 @@ pub fn applyTactic(state: *ProofState, t: Tactic, ctx: *TacticCtx) TacticError!v
         .simplify => return applySimplify(state, ctx),
         .reflexivity => return applyReflexivity(state, ctx),
         .assumption => return applyAssumption(state, ctx),
+        .auto => return applyAuto(state, ctx),
+        .cases => |v| return applyCases(state, v, ctx),
         .exact => |n| return applyExact(state, n, ctx),
         .induction => |v| return applyInduction(state, v, ctx),
         .rewrite => |n| return applyRewrite(state, n, ctx),
@@ -245,9 +249,9 @@ fn isFreeVarSym(ctx: *TacticCtx, id: Id) bool {
     if (name[0] >= 'A' and name[0] <= 'Z') return false;
     // Whitelist d'opérateurs / constantes.
     const whitelist = [_][]const u8{
-        "=", "Eq", "->", "=>", "+", "-", "*", "/", "%", "^",
-        "==", "!=", "<", ">", "<=", ">=", "succ", "zero",
-        "nil", "true", "false", "unit", "add", "mul", "sub", "div", "mod",
+        "=",     "Eq",   "->",  "=>",  "+",   "-",   "*",    "/",    "%",   "^",
+        "==",    "!=",   "<",   ">",   "<=",  ">=",  "succ", "zero", "nil", "true",
+        "false", "unit", "add", "mul", "sub", "div", "mod",
     };
     for (whitelist) |w| {
         if (std.mem.eql(u8, name, w)) return false;
@@ -437,6 +441,47 @@ fn applyApplyHyp(state: *ProofState, h_name: []const u8, ctx: *TacticCtx) Tactic
     }
 }
 
+fn applyAuto(state: *ProofState, ctx: *TacticCtx) TacticError!void {
+    if (state.goals.items.len == 0) return TacticError.NoGoal;
+    if (applyAssumption(state, ctx)) |_| return else |_| {}
+    if (applyReflexivity(state, ctx)) |_| return else |_| {}
+    if (applySimplify(state, ctx)) |_| return else |_| {}
+    return TacticError.TacticFailed;
+}
+
+fn applyCases(state: *ProofState, var_name: []const u8, ctx: *TacticCtx) TacticError!void {
+    const goal = state.currentGoal() orelse return TacticError.NoGoal;
+
+    // Refuse si la variable n'apparaît pas dans la cible.
+    const uses = expr.countSymUses(ctx.store, goal.target, var_name);
+    if (uses == 0) return TacticError.TacticFailed;
+
+    // Nat uniquement (v4) : base = zero, step = succ(k).
+    const zero = ctx.peanoFn(ctx, 0) catch return TacticError.TacticFailed;
+    const t_base = ctx.substFn(ctx, goal.target, var_name, zero) catch return TacticError.TacticFailed;
+
+    const k_sym = ctx.store.sym("k") catch return TacticError.TacticFailed;
+    const succ_k = ctx.store.call("succ", &.{k_sym}) catch return TacticError.TacticFailed;
+    const t_step = ctx.substFn(ctx, goal.target, var_name, succ_k) catch return TacticError.TacticFailed;
+
+    const hyps_snapshot = goal.hyps;
+    _ = state.popGoal();
+
+    const label_base = state.dupLabel("base") catch return TacticError.OutOfMemory;
+    state.appendGoal(.{
+        .hyps = hyps_snapshot,
+        .target = t_base,
+        .label = label_base,
+    }) catch return TacticError.OutOfMemory;
+
+    const label_step = state.dupLabel("step") catch return TacticError.OutOfMemory;
+    state.appendGoal(.{
+        .hyps = hyps_snapshot,
+        .target = t_step,
+        .label = label_step,
+    }) catch return TacticError.OutOfMemory;
+}
+
 fn applyInduction(state: *ProofState, var_name: []const u8, ctx: *TacticCtx) TacticError!void {
     const goal = state.currentGoal() orelse return TacticError.NoGoal;
 
@@ -550,6 +595,12 @@ pub fn parseTactic(arena: Allocator, s: []const u8) TacticError!Tactic {
     if (std.mem.eql(u8, t, "simplify")) return .simplify;
     if (std.mem.eql(u8, t, "reflexivity") or std.mem.eql(u8, t, "refl")) return .reflexivity;
     if (std.mem.eql(u8, t, "assumption") or std.mem.eql(u8, t, "auto_assum")) return .assumption;
+    if (std.mem.eql(u8, t, "auto")) return .auto;
+    if (std.mem.startsWith(u8, t, "cases ")) {
+        const v = std.mem.trim(u8, t["cases ".len..], " \t");
+        if (v.len == 0) return TacticError.InvalidTactic;
+        return .{ .cases = arena.dupe(u8, v) catch return TacticError.OutOfMemory };
+    }
 
     if (std.mem.startsWith(u8, t, "exact ")) {
         const n = std.mem.trim(u8, t["exact ".len..], " \t");
@@ -604,7 +655,9 @@ pub fn parseTacticsBlock(arena: Allocator, body: []const u8) TacticError!Tactic 
         switch (c) {
             '"' => in_str = true,
             '{', '(' => depth += 1,
-            '}', ')' => if (depth > 0) { depth -= 1; },
+            '}', ')' => if (depth > 0) {
+                depth -= 1;
+            },
             ';' => if (depth == 0) {
                 const piece = std.mem.trim(u8, body[start..i], " \t\r\n");
                 if (piece.len > 0) parts.append(arena, piece) catch return TacticError.OutOfMemory;

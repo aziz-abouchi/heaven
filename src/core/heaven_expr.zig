@@ -3197,6 +3197,91 @@ test "tactics v3.5 — apply H : P -> Q -> P" {
     try std.testing.expect(state.goals.items[1].target == Q);
 }
 
+test "tactics v4 — cases sur Nat génère base + step" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    var state = proof_state_mod.ProofState.init(allocator, &arena, heaven.store, "cases_test");
+    defer state.deinit();
+
+    // cible : x + 0 = x
+    const x = try heaven.store.sym("x");
+    const zero = try heaven.store.int(0);
+    const plus = try heaven.store.sym("+");
+    const xp0 = try heaven.store.apply(plus, &.{ x, zero });
+    const eq_sym = try heaven.store.sym("=");
+    const target = try heaven.store.apply(eq_sym, &.{ xp0, x });
+
+    try state.appendGoal(.{
+        .hyps = try state.dupHyps(&.{}),
+        .target = target,
+        .label = try state.dupLabel("main"),
+    });
+
+    var ctx = tactics_mod.TacticCtx{
+        .allocator = allocator,
+        .store = heaven.store,
+        .heaven = @ptrCast(heaven),
+        .simplifyFn = Heaven.tacticsSimplifyCb,
+        .eqFn = Heaven.tacticsEqCb,
+        .peanoFn = Heaven.tacticsPeanoCb,
+        .substFn = Heaven.tacticsSubstCb,
+    };
+
+    try tactics_mod.applyTactic(&state, tactics_mod.Tactic{ .cases = "x" }, &ctx);
+    try std.testing.expectEqual(@as(usize, 2), state.goals.items.len);
+    // Les labels doivent être "base" puis "step".
+    try std.testing.expectEqualStrings("base", state.goals.items[0].label);
+    try std.testing.expectEqualStrings("step", state.goals.items[1].label);
+}
+
+test "tactics v4 — auto résout x * 1 = x par simplify" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    var state = proof_state_mod.ProofState.init(allocator, &arena, heaven.store, "auto_test");
+    defer state.deinit();
+
+    // cible : x * 1 = x
+    const x = try heaven.store.sym("x");
+    const one = try heaven.store.int(1);
+    const mul = try heaven.store.sym("*");
+    const xm1 = try heaven.store.apply(mul, &.{ x, one });
+    const eq_sym = try heaven.store.sym("=");
+    const target = try heaven.store.apply(eq_sym, &.{ xm1, x });
+
+    try state.appendGoal(.{
+        .hyps = try state.dupHyps(&.{}),
+        .target = target,
+        .label = try state.dupLabel("main"),
+    });
+
+    var ctx = tactics_mod.TacticCtx{
+        .allocator = allocator,
+        .store = heaven.store,
+        .heaven = @ptrCast(heaven),
+        .simplifyFn = Heaven.tacticsSimplifyCb,
+        .eqFn = Heaven.tacticsEqCb,
+        .peanoFn = Heaven.tacticsPeanoCb,
+        .substFn = Heaven.tacticsSubstCb,
+    };
+
+    try tactics_mod.applyTactic(&state, .auto, &ctx);
+    try std.testing.expect(state.solved());
+}
+
 test "hole — fresh hole has unique id" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
