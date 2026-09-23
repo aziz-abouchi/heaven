@@ -497,9 +497,9 @@ pub const Heaven = struct {
             return std.fmt.allocPrint(self.allocator, "✓ module {s} ouvert", .{name});
         }
 
-        // ─── import "path" : stub v0 ───
+        // ─── import "path" [as Name] : charge un fichier dans un namespace ───
         if (std.mem.startsWith(u8, trimmed, "import ")) {
-            return self.allocator.dupe(u8, "✗ import : v1 à venir (utilise :load pour l'instant)");
+            return self.evalImport(trimmed["import ".len..]);
         }
 
         // Théorèmes / preuves / axiomes → chemin dédié (elab.zig + ProofCore)
@@ -813,6 +813,83 @@ pub const Heaven = struct {
         return self.allocator.dupe(u8, trimmed);
     }
 
+    /// import "path" [as Name] :
+    ///   - lit le fichier ligne par ligne,
+    ///   - évalue chaque ligne avec current_module = Name,
+    ///   - les fn/let/theorem sont aliasés sous `Name.x` dans
+    ///     engine.fns (fn/let) ou proof_core.theorems (theorem).
+    /// Le nom de module est déduit du basename (sans extension) si
+    /// `as Name` est absent.
+    fn evalImport(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        const trimmed = std.mem.trim(u8, src, " \t");
+        if (trimmed.len < 3 or trimmed[0] != '"')
+            return self.allocator.dupe(u8, "syntax: import \"path\" [as Name]");
+        const close = std.mem.indexOfScalarPos(u8, trimmed, 1, '"') orelse
+            return self.allocator.dupe(u8, "syntax: import \"path\" [as Name]");
+        const path = trimmed[1..close];
+
+        var rest = std.mem.trimLeft(u8, trimmed[close + 1 ..], " \t");
+        var mod_name: []const u8 = "";
+        if (std.mem.startsWith(u8, rest, "as ")) {
+            mod_name = std.mem.trim(u8, rest[3..], " \t");
+            if (mod_name.len == 0)
+                return self.allocator.dupe(u8, "syntax: nom de module vide après 'as'");
+        } else {
+            const base = std.fs.path.basename(path);
+            if (std.mem.lastIndexOfScalar(u8, base, '.')) |dot| {
+                mod_name = base[0..dot];
+            } else {
+                mod_name = base;
+            }
+            if (mod_name.len == 0)
+                return self.allocator.dupe(u8, "syntax: nom de module indéterminable");
+        }
+
+        const source = platform.fs.cwd().readFileAlloc(
+            self.allocator, path, 1024 * 1024,
+        ) catch {
+            return std.fmt.allocPrint(
+                self.allocator, "✗ import {s} : fichier introuvable", .{path},
+            );
+        };
+        defer self.allocator.free(source);
+
+        // Sauvegarde / restaure current_module (nullable).
+        const old_module = self.current_module;
+        self.current_module = try self.allocator.dupe(u8, mod_name);
+        defer {
+            if (self.current_module) |m| self.allocator.free(m);
+            self.current_module = old_module;
+        }
+
+        var lines = std.mem.splitScalar(u8, source, '\n');
+        var count: usize = 0;
+        while (lines.next()) |line| {
+            const t = std.mem.trim(u8, line, " \t\r");
+            if (t.len == 0) continue;
+            if (t[0] == '#') continue;
+            if (std.mem.startsWith(u8, t, "--")) continue;
+            if (std.mem.startsWith(u8, t, "//")) continue;
+            if (std.mem.startsWith(u8, t, ";;")) continue;
+
+            const r = self.eval(t) catch |err| {
+                return std.fmt.allocPrint(
+                    self.allocator,
+                    "✗ import {s} : ligne '{s}' → {}",
+                    .{ path, t, err },
+                );
+            };
+            self.allocator.free(r);
+            count += 1;
+        }
+
+        return std.fmt.allocPrint(
+            self.allocator,
+            "✓ import {s} as {s} ({d} line(s))",
+            .{ path, mod_name, count },
+        );
+    }
+
     fn evalDataDecl(self: *Heaven, src: []const u8) HeavenError![]u8 {
         // Syntaxe supportée (v0) :
         //   data Name = C1 | C2 args | ...
@@ -1022,6 +1099,15 @@ pub const Heaven = struct {
 
         const body = try self.parseExpression(rhs);
         try self.registerClause(name, patterns.items, body);
+
+        // Si un module est ouvert (import en cours), aliaser sous `M.name`.
+        if (self.current_module) |m| {
+            const qualified = try std.fmt.allocPrint(
+                self.allocator, "{s}.{s}", .{ m, name },
+            );
+            defer self.allocator.free(qualified);
+            self.registerClause(qualified, patterns.items, body) catch {};
+        }
 
         return std.fmt.allocPrint(self.allocator, "✓ clause enregistrée pour '{s}'", .{name});
     }
@@ -3564,6 +3650,46 @@ test "type-dep v0 — le registre reste compatible avec l'existant" {
     defer allocator.free(res);
     try std.testing.expect(heaven.engine.fns.get("Nil") != null);
     try std.testing.expect(heaven.engine.fns.get("Cons") != null);
+}
+
+test "import v0.5 — fn aliasé sous M.name + appel M.inc" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r = try heaven.eval("import \"tests/import_test.hvn\" as M");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "import") != null);
+    try std.testing.expect(std.mem.indexOf(u8, r, "as M") != null);
+
+    // L'alias M.inc doit exister dans engine.fns.
+    try std.testing.expect(heaven.engine.fns.get("M.inc") != null);
+    try std.testing.expect(heaven.engine.fns.get("M.double") != null);
+    // L'original inc reste accessible top-level (comportement Q2-C : tout exporté).
+    try std.testing.expect(heaven.engine.fns.get("inc") != null);
+
+    // Appel `M.inc 5` → 6
+    const r2 = try heaven.eval("M.inc 5");
+    defer allocator.free(r2);
+    try std.testing.expect(std.mem.indexOf(u8, r2, "6") != null);
+}
+
+test "import v0.5 — nom déduit sans 'as'" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r = try heaven.eval("import \"tests/import_test.hvn\"");
+    defer allocator.free(r);
+    // Basename sans extension : "import_test"
+    try std.testing.expect(std.mem.indexOf(u8, r, "import_test") != null);
+    try std.testing.expect(heaven.engine.fns.get("import_test.inc") != null);
 }
 
 test "hole — fresh hole has unique id" {

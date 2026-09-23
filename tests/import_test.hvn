@@ -1,0 +1,5 @@
+-- Fichier de test pour import v0.5
+-- Importé via `import "tests/import_test.hvn" as M`
+
+inc x = x + 1
+double x = x * 2
