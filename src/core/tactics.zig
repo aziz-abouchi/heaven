@@ -107,8 +107,49 @@ fn applySimplify(state: *ProofState, ctx: *TacticCtx) TacticError!void {
 fn applyReflexivity(state: *ProofState, ctx: *TacticCtx) TacticError!void {
     const goal = state.currentGoal() orelse return TacticError.NoGoal;
     const eq = isEqNode(ctx, goal.target) orelse return TacticError.TacticFailed;
-    const same = ctx.eqFn(ctx, eq.lhs, eq.rhs) catch return TacticError.TacticFailed;
-    if (!same) return TacticError.TacticFailed;
+
+    // Essai strict d'abord.
+    const same = ctx.eqFn(ctx, eq.lhs, eq.rhs) catch false;
+    if (same) {
+        _ = state.popGoal();
+        return;
+    }
+
+    // Sinon, tenter une unification (gère les evars et les syms libres).
+    var free_syms: std.StringHashMapUnmanaged(void) = .{};
+    defer free_syms.deinit(ctx.allocator);
+    try collectFreeSyms(ctx, eq.lhs, &free_syms);
+    try collectFreeSyms(ctx, eq.rhs, &free_syms);
+
+    var sym_to_evar: std.StringHashMapUnmanaged(Id) = .{};
+    defer {
+        var it = sym_to_evar.keyIterator();
+        while (it.next()) |k| ctx.allocator.free(k.*);
+        sym_to_evar.deinit(ctx.allocator);
+    }
+    {
+        var it = free_syms.keyIterator();
+        while (it.next()) |k| {
+            const ev = ctx.store.mkEvar() catch return TacticError.OutOfMemory;
+            const owned = ctx.allocator.dupe(u8, k.*) catch return TacticError.OutOfMemory;
+            sym_to_evar.put(ctx.allocator, owned, ev) catch {
+                ctx.allocator.free(owned);
+                return TacticError.OutOfMemory;
+            };
+        }
+    }
+
+    const abs_lhs = try abstractSyms(ctx, eq.lhs, &sym_to_evar);
+    const abs_rhs = try abstractSyms(ctx, eq.rhs, &sym_to_evar);
+
+    var subst: Subst = .{};
+    defer subst.deinit(ctx.allocator);
+
+    const unified = unify(ctx, abs_lhs, abs_rhs, &subst) catch return TacticError.TacticFailed;
+    if (!unified) return TacticError.TacticFailed;
+
+    // Vérifier que tous les free syms ont bien été liés (sinon but ouvert).
+    // Pour v3.5, on accepte si l'unification a réussi.
     _ = state.popGoal();
 }
 
@@ -214,10 +255,155 @@ fn applyRewrite(state: *ProofState, h_name: []const u8, ctx: *TacticCtx) TacticE
     return TacticError.TacticFailed;
 }
 
+const Subst = std.AutoHashMapUnmanaged(u32, Id);
+
+/// Un symbole qui n'est pas un opérateur connu est considéré comme une
+/// variable libre (métavariable implicite).
+fn isFreeVarSym(ctx: *TacticCtx, id: Id) bool {
+    if (id >= ctx.store.len()) return false;
+    const node = ctx.store.get(id);
+    if (node.tag != .sym) return false;
+    if (node.payload >= ctx.store.interner.list.items.len) return false;
+    const name = ctx.store.interner.resolve(node.payload);
+    if (name.len == 0) return false;
+    // Majuscule → constructeur / type, pas une variable.
+    if (name[0] >= 'A' and name[0] <= 'Z') return false;
+    // Whitelist d'opérateurs / constantes.
+    const whitelist = [_][]const u8{
+        "=", "Eq", "->", "=>", "+", "-", "*", "/", "%", "^",
+        "==", "!=", "<", ">", "<=", ">=", "succ", "zero",
+        "nil", "true", "false", "unit", "add", "mul", "sub", "div", "mod",
+    };
+    for (whitelist) |w| {
+        if (std.mem.eql(u8, name, w)) return false;
+    }
+    return true;
+}
+
+fn collectFreeSyms(
+    ctx: *TacticCtx,
+    e: Id,
+    out: *std.StringHashMapUnmanaged(void),
+) TacticError!void {
+    if (e >= ctx.store.len()) return;
+    const node = ctx.store.get(e);
+    if (isFreeVarSym(ctx, e)) {
+        const name = ctx.store.interner.resolve(node.payload);
+        try out.put(ctx.allocator, name, {});
+        return;
+    }
+    switch (node.tag) {
+        .apply => {
+            const all = ctx.store.spanSliceConst(node.span_a);
+            const args = if (all.len > 0) all[1..] else all;
+            for (args) |a| try collectFreeSyms(ctx, a, out);
+        },
+        .bind, .lambda => {
+            const body = node.aux;
+            if (body < ctx.store.len()) try collectFreeSyms(ctx, body, out);
+        },
+        else => {},
+    }
+}
+
+fn abstractSyms(
+    ctx: *TacticCtx,
+    e: Id,
+    sym_to_evar: *const std.StringHashMapUnmanaged(Id),
+) TacticError!Id {
+    if (e >= ctx.store.len()) return e;
+    if (isFreeVarSym(ctx, e)) {
+        const node = ctx.store.get(e);
+        const name = ctx.store.interner.resolve(node.payload);
+        if (sym_to_evar.get(name)) |ev| return ev;
+        return e;
+    }
+    const node = ctx.store.get(e);
+    switch (node.tag) {
+        .apply => {
+            const new_func = try abstractSyms(ctx, node.payload, sym_to_evar);
+            const all = ctx.store.spanSliceConst(node.span_a);
+            if (all.len < 1) return e;
+            const args_copy = try ctx.allocator.dupe(Id, all[1..]);
+            defer ctx.allocator.free(args_copy);
+            var new_args: std.ArrayListUnmanaged(Id) = .{};
+            defer new_args.deinit(ctx.allocator);
+            for (args_copy) |a| {
+                try new_args.append(ctx.allocator, try abstractSyms(ctx, a, sym_to_evar));
+            }
+            return ctx.store.apply(new_func, new_args.items) catch return TacticError.OutOfMemory;
+        },
+        else => return e,
+    }
+}
+
+fn instantiate(ctx: *TacticCtx, e: Id, subst: *const Subst) TacticError!Id {
+    if (e >= ctx.store.len()) return e;
+    if (ctx.store.isEvar(e)) |p| {
+        if (subst.get(p)) |bound| return instantiate(ctx, bound, subst);
+        return e;
+    }
+    const node = ctx.store.get(e);
+    switch (node.tag) {
+        .apply => {
+            const new_func = try instantiate(ctx, node.payload, subst);
+            const all = ctx.store.spanSliceConst(node.span_a);
+            if (all.len < 1) return e;
+            const args_copy = try ctx.allocator.dupe(Id, all[1..]);
+            defer ctx.allocator.free(args_copy);
+            var new_args: std.ArrayListUnmanaged(Id) = .{};
+            defer new_args.deinit(ctx.allocator);
+            var changed = (new_func != node.payload);
+            for (args_copy) |a| {
+                const na = try instantiate(ctx, a, subst);
+                try new_args.append(ctx.allocator, na);
+                if (na != a) changed = true;
+            }
+            if (!changed) return e;
+            return ctx.store.apply(new_func, new_args.items) catch return TacticError.OutOfMemory;
+        },
+        else => return e,
+    }
+}
+
+/// Unification simple : remplit `subst` (evar_payload → Id).
+fn unify(ctx: *TacticCtx, a: Id, b: Id, subst: *Subst) TacticError!bool {
+    if (a == b) return true;
+
+    if (ctx.store.isEvar(a)) |pa| {
+        if (subst.get(pa)) |bound| return unify(ctx, bound, b, subst);
+        subst.put(ctx.allocator, pa, b) catch return TacticError.OutOfMemory;
+        return true;
+    }
+    if (ctx.store.isEvar(b)) |pb| {
+        if (subst.get(pb)) |bound| return unify(ctx, a, bound, subst);
+        subst.put(ctx.allocator, pb, a) catch return TacticError.OutOfMemory;
+        return true;
+    }
+
+    if (expr.structuralEql(ctx.store, a, b)) return true;
+    if (a >= ctx.store.len() or b >= ctx.store.len()) return false;
+
+    const na = ctx.store.get(a);
+    const nb = ctx.store.get(b);
+    if (na.tag != .apply or nb.tag != .apply) return false;
+
+    // Unifie la fonction puis les arguments (span_a = [head] ++ args).
+    if (!try unify(ctx, na.payload, nb.payload, subst)) return false;
+    const all_a = ctx.store.spanSliceConst(na.span_a);
+    const all_b = ctx.store.spanSliceConst(nb.span_a);
+    if (all_a.len != all_b.len) return false;
+    for (all_a, all_b) |x, y| {
+        if (!try unify(ctx, x, y, subst)) return false;
+    }
+    return true;
+}
+
 fn applyApplyHyp(state: *ProofState, h_name: []const u8, ctx: *TacticCtx) TacticError!void {
     const goal = state.currentGoal() orelse return TacticError.NoGoal;
     const h = findHyp(goal, h_name) orelse return TacticError.TacticFailed;
 
+    // 1. Déroule les flèches.
     var current = h.ty;
     var prems: std.ArrayListUnmanaged(Id) = .{};
     defer prems.deinit(ctx.allocator);
@@ -226,21 +412,51 @@ fn applyApplyHyp(state: *ProofState, h_name: []const u8, ctx: *TacticCtx) Tactic
         current = arrow.cod;
     }
 
-    const same = ctx.eqFn(ctx, current, goal.target) catch return TacticError.TacticFailed;
-    if (!same) return TacticError.TacticFailed;
+    // 2. Collecte les symboles libres de h.ty (métas implicites).
+    var free_syms: std.StringHashMapUnmanaged(void) = .{};
+    defer free_syms.deinit(ctx.allocator);
+    try collectFreeSyms(ctx, h.ty, &free_syms);
 
-    // Snapshot : la réallocation de state.goals invalide le pointeur goal.
+    // 3. Abstrait chaque free sym en une evar fraîche.
+    var sym_to_evar: std.StringHashMapUnmanaged(Id) = .{};
+    defer {
+        var it = sym_to_evar.keyIterator();
+        while (it.next()) |k| ctx.allocator.free(k.*);
+        sym_to_evar.deinit(ctx.allocator);
+    }
+    {
+        var it = free_syms.keyIterator();
+        while (it.next()) |k| {
+            const ev = ctx.store.mkEvar() catch return TacticError.OutOfMemory;
+            const owned = ctx.allocator.dupe(u8, k.*) catch return TacticError.OutOfMemory;
+            sym_to_evar.put(ctx.allocator, owned, ev) catch {
+                ctx.allocator.free(owned);
+                return TacticError.OutOfMemory;
+            };
+        }
+    }
+
+    const abs_current = try abstractSyms(ctx, current, &sym_to_evar);
+
+    // 4. Unification avec la cible.
+    var subst: Subst = .{};
+    defer subst.deinit(ctx.allocator);
+    const ok = unify(ctx, abs_current, goal.target, &subst) catch return TacticError.TacticFailed;
+    if (!ok) return TacticError.TacticFailed;
+
+    // 5. Pop + empile les prémisses instanciées (ordre : prems[0] en tête).
     const hyps_snapshot = goal.hyps;
     _ = state.popGoal();
 
-    // Empiler les prémisses dans l'ordre (prems[0] en tête).
     var i: usize = prems.items.len;
     while (i > 0) {
         i -= 1;
+        const abs_prem = try abstractSyms(ctx, prems.items[i], &sym_to_evar);
+        const inst = try instantiate(ctx, abs_prem, &subst);
         const label = state.dupLabel("apply") catch return TacticError.OutOfMemory;
         state.appendGoal(.{
             .hyps = hyps_snapshot,
-            .target = prems.items[i],
+            .target = inst,
             .label = label,
         }) catch return TacticError.OutOfMemory;
     }

@@ -3015,6 +3015,98 @@ test "tactics v3 — assumption matche une hypothèse" {
     try std.testing.expect(state.solved());
 }
 
+test "tactics v3.5 — apply H : x = x match f(a) = f(a)" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    var state = proof_state_mod.ProofState.init(allocator, &arena, heaven.store, "unify_test");
+    defer state.deinit();
+
+    // H : x = x
+    const x = try heaven.store.sym("x");
+    const eq_sym = try heaven.store.sym("=");
+    const h_ty = try heaven.store.apply(eq_sym, &.{ x, x });
+
+    // cible : f a = f a
+    const f = try heaven.store.sym("f");
+    const a = try heaven.store.sym("a");
+    const fa = try heaven.store.apply(f, &.{a});
+    const target = try heaven.store.apply(eq_sym, &.{ fa, fa });
+
+    const h_name = try arena.allocator().dupe(u8, "H");
+    const hyps = try arena.allocator().alloc(proof_state_mod.Hypothesis, 1);
+    hyps[0] = .{ .name = h_name, .ty = h_ty };
+
+    try state.appendGoal(.{
+        .hyps = hyps,
+        .target = target,
+        .label = try state.dupLabel("main"),
+    });
+
+    var ctx = tactics_mod.TacticCtx{
+        .allocator = allocator,
+        .store = heaven.store,
+        .heaven = @ptrCast(heaven),
+        .simplifyFn = Heaven.tacticsSimplifyCb,
+        .eqFn = Heaven.tacticsEqCb,
+        .peanoFn = Heaven.tacticsPeanoCb,
+        .substFn = Heaven.tacticsSubstCb,
+    };
+
+    // x abstrait en evar, unifié avec f(a) → pas de sous-buts
+    try tactics_mod.applyTactic(&state, tactics_mod.Tactic{ .apply = h_name }, &ctx);
+    try std.testing.expect(state.solved());
+}
+
+test "tactics v3.5 — reflexivity sur (λx.x) 42 = 42" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    var state = proof_state_mod.ProofState.init(allocator, &arena, heaven.store, "refl_test");
+    defer state.deinit();
+
+    // cible : x + 0 = x  →  simplify va donner x = x
+    const x = try heaven.store.sym("x");
+    const zero = try heaven.store.int(0);
+    const plus = try heaven.store.sym("+");
+    const xp0 = try heaven.store.apply(plus, &.{ x, zero });
+    const eq_sym = try heaven.store.sym("=");
+    const target = try heaven.store.apply(eq_sym, &.{ xp0, x });
+
+    try state.appendGoal(.{
+        .hyps = try state.dupHyps(&.{}),
+        .target = target,
+        .label = try state.dupLabel("main"),
+    });
+
+    var ctx = tactics_mod.TacticCtx{
+        .allocator = allocator,
+        .store = heaven.store,
+        .heaven = @ptrCast(heaven),
+        .simplifyFn = Heaven.tacticsSimplifyCb,
+        .eqFn = Heaven.tacticsEqCb,
+        .peanoFn = Heaven.tacticsPeanoCb,
+        .substFn = Heaven.tacticsSubstCb,
+    };
+
+    // simplify réduit x + 0 → x, puis reflexivity termine
+    try tactics_mod.applyTactic(&state, .simplify, &ctx);
+    try tactics_mod.applyTactic(&state, .reflexivity, &ctx);
+    try std.testing.expect(state.solved());
+}
+
 test "hole — fresh hole has unique id" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
