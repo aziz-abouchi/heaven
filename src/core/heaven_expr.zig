@@ -232,6 +232,10 @@ pub const Heaven = struct {
     strict_modules: bool = false,
     /// Noms cachés par le mode strict (accessible seulement via `M.x`).
     hidden_names: std.StringHashMapUnmanaged(void) = .{},
+    /// v2a : arité des constructeurs (nom → nombre d'args).
+    ctor_arities: std.StringHashMapUnmanaged(u8) = .{},
+    /// v2a : arité des fonctions déclarées via `sig name : ...`.
+    fn_arities: std.StringHashMapUnmanaged(u8) = .{},
     /// État d'import en cours (v2a : `export`). null hors import.
     import_state: ?*ImportState = null,
     /// Cache d'idempotence (v2b) : chemin résolu → nom du module.
@@ -507,6 +511,16 @@ pub const Heaven = struct {
             while (it.next()) |k| self.allocator.free(k.*);
         }
         self.hidden_names.deinit(self.allocator);
+        {
+            var it = self.ctor_arities.keyIterator();
+            while (it.next()) |k| self.allocator.free(k.*);
+        }
+        self.ctor_arities.deinit(self.allocator);
+        {
+            var it = self.fn_arities.keyIterator();
+            while (it.next()) |k| self.allocator.free(k.*);
+        }
+        self.fn_arities.deinit(self.allocator);
         var imp_it = self.imported_files.iterator();
         while (imp_it.next()) |e| {
             self.allocator.free(e.key_ptr.*);
@@ -603,6 +617,37 @@ pub const Heaven = struct {
         // ─── import "path" [as Name] : charge un fichier dans un namespace ───
         if (std.mem.startsWith(u8, trimmed, "import ")) {
             return self.evalImport(trimmed["import ".len..]);
+        }
+
+        // ─── sig name : type ───
+        if (std.mem.startsWith(u8, trimmed, "sig ")) {
+            const rest = std.mem.trim(u8, trimmed["sig ".len..], " \t");
+            const colon = std.mem.indexOfScalar(u8, rest, ':') orelse
+                return self.allocator.dupe(u8, "usage: sig <name> : <type>");
+            const sname = std.mem.trim(u8, rest[0..colon], " \t");
+            const sty_str = std.mem.trim(u8, rest[colon + 1 ..], " \t");
+            if (sname.len == 0 or sty_str.len == 0)
+                return self.allocator.dupe(u8, "usage: sig <name> : <type>");
+
+            var arity: u8 = 0;
+            var depth: usize = 0;
+            var i: usize = 0;
+            while (i + 1 < sty_str.len) : (i += 1) {
+                switch (sty_str[i]) {
+                    '(' => depth += 1,
+                    ')' => if (depth > 0) { depth -= 1; },
+                    '-' => if (sty_str[i + 1] == '>' and depth == 0) {
+                        arity += 1;
+                    },
+                    else => {},
+                }
+            }
+
+            const owned = try self.allocator.dupe(u8, sname);
+            const gop = try self.fn_arities.getOrPut(self.allocator, owned);
+            if (gop.found_existing) self.allocator.free(owned);
+            gop.value_ptr.* = arity;
+            return std.fmt.allocPrint(self.allocator, "✓ sig {s} : {d} arg(s)", .{ sname, arity });
         }
 
         // ─── strict on|off : toggle du mode strict ───
@@ -1375,6 +1420,15 @@ pub const Heaven = struct {
                 }
                 gop.value_ptr.ctor_arity = arity;
             }
+
+            // v2a : peupler ctor_arities (nom → arité) — inconditionnel.
+            // Utilisé par evalEquation pour vérifier la forme des patterns.
+            {
+                const k = try self.allocator.dupe(u8, ctor_name);
+                const g = try self.ctor_arities.getOrPut(self.allocator, k);
+                if (g.found_existing) self.allocator.free(k);
+                g.value_ptr.* = arity;
+            }
         }
 
         // 3. Enregistre dans le TypeRegistry.
@@ -1439,6 +1493,39 @@ pub const Heaven = struct {
         }
 
         const body = try self.parseExpression(rhs);
+
+        // ─── v2a : vérification d'arité / forme des patterns ───
+        // Si une signature a été déclarée via `sig name : ...`, vérifier :
+        //  1. le nombre de patterns = arité attendue
+        //  2. chaque pattern `(Ctor args)` a le bon nombre d'args
+        if (self.fn_arities.get(name)) |expected| {
+            if (patterns.items.len != expected) {
+                return std.fmt.allocPrint(
+                    self.allocator,
+                    "✗ arity mismatch : {s} attend {d} pattern(s), reçu {d}",
+                    .{ name, expected, patterns.items.len },
+                );
+            }
+        }
+        for (patterns.items) |p| {
+            const pn = self.store.get(p);
+            if (pn.tag != .apply) continue;
+            const p_all = self.store.spanSliceConst(pn.span_a);
+            if (p_all.len < 1) continue;
+            const head_node = self.store.get(pn.payload);
+            if (head_node.tag != .sym) continue;
+            const head_name = self.store.interner.resolve(head_node.payload);
+            if (self.ctor_arities.get(head_name)) |ctor_arity| {
+                const n_args = p_all.len - 1;
+                if (n_args != ctor_arity) {
+                    return std.fmt.allocPrint(
+                        self.allocator,
+                        "✗ ctor {s} attend {d} arg(s), reçu {d}",
+                        .{ head_name, ctor_arity, n_args },
+                    );
+                }
+            }
+        }
 
         // v3a : en mode strict ET pendant un module, on n'enregistre
         // PAS le nom nu. On enregistre seulement l'alias `M.name` plus bas,
