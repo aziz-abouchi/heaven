@@ -136,6 +136,7 @@ pub const Tag = enum(u8) {
 
     // === Frontend / extensions (doivent être lowered) ===
     hole,
+    evar, // Métavariable interne (unification, tactics v3.5)
     true,
     false,
     int,
@@ -378,6 +379,13 @@ pub fn structuralEql(store: *const Store, a: Id, b: Id) bool {
 
             return structuralSpanEql(store, na.span_a, nb.span_a) and
                 structuralSpanEql(store, na.span_b, nb.span_b);
+        },
+
+        .evar => {
+            // Les evars sont comparés par identité : deux evars de payload
+            // différent ne sont JAMAIS structurellement égaux, même si
+            // leurs contextes de création se ressemblent.
+            return na.payload == nb.payload;
         },
 
         .lambda => {
@@ -716,6 +724,30 @@ pub const Store = struct {
         return self.lit(.unit);
     }
 
+    /// Compteur global pour les evars (métavariables internes).
+    var evar_counter: u32 = 0;
+
+    /// Crée une nouvelle métavariable, avec un payload unique.
+    /// À terme, la substitution associera chaque payload à un Id.
+    pub fn mkEvar(self: *Store) !Id {
+        evar_counter += 1;
+        return self.addNode(.{
+            .tag = .evar,
+            .payload = evar_counter,
+            .aux = 0,
+            .span_a = Span.EMPTY,
+            .span_b = Span.EMPTY,
+        });
+    }
+
+    /// Retourne le payload de l'evar, ou null si `id` n'est pas un evar.
+    pub fn isEvar(self: *Store, id: Id) ?u32 {
+        if (id >= self.len()) return null;
+        const node = self.get(id);
+        if (node.tag != .evar) return null;
+        return @intCast(node.payload);
+    }
+
     pub fn hole(self: *Store, idx: u32) !Id {
         return self.addNode(.{ .tag = .hole, .payload = idx, .aux = 0, .span_a = Span.EMPTY, .span_b = Span.EMPTY });
     }
@@ -972,6 +1004,7 @@ pub const Store = struct {
             },
             .var_tag => self.makeNode(.sym, node.payload, 0, Span.EMPTY, Span.EMPTY),
             .hole => id,
+            .evar => id, // idempotent : déjà primitif interne
             // --- LOWERING VECTORIEL / LISTES ---
 
             // 1. Vecteur n-aire : [x1, x2, ...] -> apply(sym("vector"), x1, x2, ...)
@@ -2017,4 +2050,48 @@ test "countSymUses — bind n'affecte pas les autres noms" {
 
     try std.testing.expectEqual(@as(usize, 2), countSymUses(&store, b, "y"));
     try std.testing.expectEqual(@as(usize, 0), countSymUses(&store, b, "x"));
+}
+
+test "evar — mkEvar crée des payloads uniques" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const e0 = try store.mkEvar();
+    const e1 = try store.mkEvar();
+    try std.testing.expect(e0 != e1);
+    try std.testing.expect(store.isEvar(e0) != null);
+    try std.testing.expect(store.isEvar(e1) != null);
+    try std.testing.expectEqual(store.isEvar(e0).?, store.isEvar(e0).?);
+    try std.testing.expect(store.isEvar(e0).? != store.isEvar(e1).?);
+}
+
+test "evar — structuralEql par identité" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const e0 = try store.mkEvar();
+    const e1 = try store.mkEvar();
+
+    // e0 == e0
+    try std.testing.expect(structuralEql(&store, e0, e0));
+    // e0 != e1 (identité, pas structure)
+    try std.testing.expect(!structuralEql(&store, e0, e1));
+
+    // evar != un symbole
+    const s = try store.sym("x");
+    try std.testing.expect(!structuralEql(&store, e0, s));
+}
+
+test "evar — isEvar rejette les non-evar" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const s = try store.sym("x");
+    try std.testing.expect(store.isEvar(s) == null);
+
+    const i = try store.int(42);
+    try std.testing.expect(store.isEvar(i) == null);
 }

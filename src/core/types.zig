@@ -372,6 +372,8 @@ pub const Infer = struct {
 
         // Un trou se comporte comme une variable de type inconnue.
         if (node.tag == .hole) return self.unknown();
+        // Une evar (métavariable interne) de même : type inconnu à inférer.
+        if (node.tag == .evar) return self.unknown();
 
         // Si ce n'est pas une primitive, c'est une erreur
         const prim = node.tag.asPrimitive() orelse {
@@ -382,12 +384,12 @@ pub const Infer = struct {
             .lit => self.litType(id),
             .sym => {
                 const name = self.store.interner.resolve(node.payload);
-                // std.debug.print("sym: looking for '{s}'\n", .{name});
+                // platform.debug.print("sym: looking for '{s}'\n", .{name});
                 if (self.env.get(name)) |t| {
-                    // std.debug.print("sym: found type {d}\n", .{t});
+                    // platform.debug.print("sym: found type {d}\n", .{t});
                     return t;
                 }
-                // std.debug.print("sym: not found\n", .{});
+                // platform.debug.print("sym: not found\n", .{});
                 return self.unknown();
             },
             .lambda => {
@@ -429,7 +431,7 @@ pub const Infer = struct {
     pub fn typeStr(self: *Infer, subst: *const TypeSubst, t: Id, allocator: std.mem.Allocator) ![]u8 {
         if (t >= self.store.len()) return try allocator.dupe(u8, "?");
         const node = self.store.get(t);
-        // std.debug.print("typeStr: t={d}, tag={s}\n", .{ t, @tagName(node.tag) });
+        // platform.debug.print("typeStr: t={d}, tag={s}\n", .{ t, @tagName(node.tag) });
         switch (node.tag) {
             .sym => {
                 if (node.payload >= self.store.interner.list.items.len) {
@@ -493,7 +495,7 @@ pub const Infer = struct {
         const node = self.store.get(id);
         if (node.tag != .lit) return error.ExtensionNotLowered;
         if (node.aux >= self.store.lits.items.len) {
-            // std.debug.print("litType: invalid aux={d}, lits.len={d}\n", .{ node.aux, self.store.lits.items.len });
+            // platform.debug.print("litType: invalid aux={d}, lits.len={d}\n", .{ node.aux, self.store.lits.items.len });
             return self.unknown();
         }
         const lit = self.store.lits.items[node.aux];

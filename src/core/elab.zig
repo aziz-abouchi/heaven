@@ -783,6 +783,7 @@ pub const TypeChecker = struct {
 
         // Un trou n'a pas de type : on renvoie "?" jusqu'à raffinement.
         if (node.tag == .hole) return try self.getTypeUnknown();
+        if (node.tag == .evar) return try self.getTypeUnknown();
 
         if (!node.tag.isPrimitive()) {
             return error.NotImplemented;
