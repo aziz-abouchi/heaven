@@ -872,7 +872,9 @@ pub const Heaven = struct {
         defer self.allocator.free(resolved);
 
         const source = platform.fs.cwd().readFileAlloc(
-            self.allocator, resolved, 1024 * 1024,
+            self.allocator,
+            resolved,
+            1024 * 1024,
         ) catch {
             return std.fmt.allocPrint(
                 self.allocator,
@@ -1060,8 +1062,9 @@ pub const Heaven = struct {
             // Nom = premier token.
             var name_end: usize = 0;
             while (name_end < ctor_str.len and
-                   ctor_str[name_end] != ' ' and
-                   ctor_str[name_end] != '\t') : (name_end += 1) {}
+                ctor_str[name_end] != ' ' and
+                ctor_str[name_end] != '\t') : (name_end += 1)
+            {}
             const ctor_name = ctor_str[0..name_end];
 
             // Args (v0 : tokens séparés par espaces, en respectant les parens).
@@ -1071,7 +1074,8 @@ pub const Heaven = struct {
             var i = name_end;
             while (i < ctor_str.len) {
                 while (i < ctor_str.len and
-                       (ctor_str[i] == ' ' or ctor_str[i] == '\t')) : (i += 1) {}
+                    (ctor_str[i] == ' ' or ctor_str[i] == '\t')) : (i += 1)
+                {}
                 if (i >= ctor_str.len) break;
 
                 if (ctor_str[i] == '(') {
@@ -1079,8 +1083,7 @@ pub const Heaven = struct {
                     const arg_start = i;
                     i += 1;
                     while (i < ctor_str.len and depth > 0) : (i += 1) {
-                        if (ctor_str[i] == '(') depth += 1
-                        else if (ctor_str[i] == ')') depth -= 1;
+                        if (ctor_str[i] == '(') depth += 1 else if (ctor_str[i] == ')') depth -= 1;
                     }
                     const arg_str = ctor_str[arg_start..i];
                     const arg_id = self.parseExpression(arg_str) catch
@@ -1089,8 +1092,9 @@ pub const Heaven = struct {
                 } else {
                     const arg_start = i;
                     while (i < ctor_str.len and
-                           ctor_str[i] != ' ' and
-                           ctor_str[i] != '\t') : (i += 1) {}
+                        ctor_str[i] != ' ' and
+                        ctor_str[i] != '\t') : (i += 1)
+                    {}
                     const arg_str = ctor_str[arg_start..i];
                     const arg_id = self.parseExpression(arg_str) catch
                         try self.store.sym(arg_str);
@@ -1098,9 +1102,13 @@ pub const Heaven = struct {
                 }
             }
 
+            // Capture l'arité AVANT toOwnedSlice : la méthode vide la
+            // liste, donc une lecture ultérieure donnerait 0.
+            const arity: u8 = @intCast(arg_types.items.len);
+
             try ctors.append(self.allocator, .{
                 .name = try self.allocator.dupe(u8, ctor_name),
-                .arity = @intCast(arg_types.items.len),
+                .arity = arity,
                 .arg_types = try arg_types.toOwnedSlice(self.allocator),
             });
 
@@ -1113,7 +1121,7 @@ pub const Heaven = struct {
             } else {
                 gop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
             }
-            gop.value_ptr.ctor_arity = @intCast(arg_types.items.len);
+            gop.value_ptr.ctor_arity = arity;
         }
 
         // 3. Enregistre dans le TypeRegistry.
@@ -1183,7 +1191,9 @@ pub const Heaven = struct {
         // Si un module est ouvert (import en cours), aliaser sous `M.name`.
         if (self.current_module) |m| {
             const qualified = try std.fmt.allocPrint(
-                self.allocator, "{s}.{s}", .{ m, name },
+                self.allocator,
+                "{s}.{s}",
+                .{ m, name },
             );
             defer self.allocator.free(qualified);
             self.registerClause(qualified, patterns.items, body) catch {};
@@ -1786,12 +1796,17 @@ pub const Heaven = struct {
         defer arena.deinit();
 
         var state = proof_state_mod.ProofState.init(
-            self.allocator, &arena, self.store, theorem_name,
+            self.allocator,
+            &arena,
+            self.store,
+            theorem_name,
         );
         defer state.deinit();
 
         try state.appendGoal(.{
-            .hyps = try state.dupHyps(&.{}, ),
+            .hyps = try state.dupHyps(
+                &.{},
+            ),
             .target = target,
             .label = try state.dupLabel("main"),
         });
@@ -1937,7 +1952,10 @@ pub const Heaven = struct {
             .allocator = self.allocator,
             .arena = arena,
             .state = proof_state_mod.ProofState.init(
-                self.allocator, arena, self.store, theorem_name,
+                self.allocator,
+                arena,
+                self.store,
+                theorem_name,
             ),
             .ctx = undefined,
             .theorem_name = try self.allocator.dupe(u8, theorem_name),
@@ -2077,7 +2095,9 @@ pub const Heaven = struct {
                         if (self.proof_core_inst) |pc| {
                             if (pc.theorems.getPtr(thm_name)) |thm| {
                                 const qualified = std.fmt.allocPrint(
-                                    self.allocator, "{s}.{s}", .{ m, thm_name },
+                                    self.allocator,
+                                    "{s}.{s}",
+                                    .{ m, thm_name },
                                 ) catch return result;
 
                                 const owned_stmt = self.allocator.dupe(u8, thm.statement) catch {
@@ -2095,7 +2115,7 @@ pub const Heaven = struct {
                                     self.allocator.free(owned_stmt);
                                 } else {
                                     gop.value_ptr.* = .{
-                                        .name = qualified,       // = clé
+                                        .name = qualified, // = clé
                                         .statement = owned_stmt, // dupe indépendante
                                         .lhs = thm.lhs,
                                         .rhs = thm.rhs,
@@ -3207,7 +3227,10 @@ test "tactics v1.5 — rewrite a=b dans la cible" {
     defer arena.deinit();
 
     var state = proof_state_mod.ProofState.init(
-        allocator, &arena, heaven.store, "rewrite_test",
+        allocator,
+        &arena,
+        heaven.store,
+        "rewrite_test",
     );
     defer state.deinit();
 
@@ -3261,7 +3284,10 @@ test "tactics v1.5 — apply P->Q crée un sous-but P" {
     defer arena.deinit();
 
     var state = proof_state_mod.ProofState.init(
-        allocator, &arena, heaven.store, "apply_test",
+        allocator,
+        &arena,
+        heaven.store,
+        "apply_test",
     );
     defer state.deinit();
 
@@ -3810,10 +3836,11 @@ test "module v1 — détection de cycle" {
         allocator.destroy(heaven);
     }
 
-    const r = try heaven.eval("import \"tests/cyc_a.hvn\" as A");
+    const r = try heaven.eval("import \"tests/experimental/cyc_a.hvn\" as A");
     defer allocator.free(r);
     // Cycle détecté : la string d'erreur doit le mentionner
-    try std.testing.expect(std.mem.indexOf(u8, r, "cycle") != null);
+    try std.testing.expect(std.mem.indexOf(u8, r, "cycle") != null or
+        std.mem.indexOf(u8, r, "Cycle") != null);
 
     // La pile doit être propre après l'erreur
     try std.testing.expectEqual(@as(usize, 0), heaven.loading_modules.items.len);
@@ -3834,6 +3861,32 @@ test "module v1 — fichier introuvable donne un message clair" {
     try std.testing.expect(std.mem.indexOf(u8, r, "introuvable") != null);
     try std.testing.expect(heaven.current_module == null);
     try std.testing.expectEqual(@as(usize, 0), heaven.loading_modules.items.len);
+}
+
+test "type-dep v0 — ctor_arity propagée dans engine.fns" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const res = try heaven.eval("data Stream a = Cons a (Stream a) | End");
+    defer allocator.free(res);
+
+    // Le registre interne
+    const info = heaven.type_registry.get("Stream").?;
+    try std.testing.expectEqual(@as(u8, 2), info.ctors[0].arity);
+    try std.testing.expectEqual(@as(u8, 0), info.ctors[1].arity);
+
+    // La table engine.fns (utilisée par le pattern matcher)
+    const cons_def = heaven.engine.fns.get("Cons") orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expectEqual(@as(u8, 2), cons_def.ctor_arity);
+
+    const end_def = heaven.engine.fns.get("End") orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expectEqual(@as(u8, 0), end_def.ctor_arity);
 }
 
 test "hole — fresh hole has unique id" {

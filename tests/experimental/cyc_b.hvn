@@ -1,3 +1,3 @@
 -- Cycle test : ce fichier importe A, créant un cycle
-import "tests/cyc_a.hvn" as A
+import "tests/experimental/cyc_a.hvn" as A
 b_val = 2
