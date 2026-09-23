@@ -1266,10 +1266,16 @@ pub const Store = struct {
     }
 
     pub fn pi(self: *Store, param_name: []const u8, domain: Id, codomain: Id) !Id {
-        const param_sym = try self.sym(param_name);
+        // ATTENTION : self.sym() retourne un *Id de nœud* `.sym`, pas un Sym.
+        // Le `payload` d'un `.bind` doit être un Sym (index dans l'interner),
+        // comme le fait déjà le parser tree-sitter (elab.zig) et les autres
+        // chemins. Historiquement cette fonction mettait l'Id dans payload,
+        // bug latent qui ne s'est révélé qu'avec l'inférence de Π (v1b).
+        const param_id = try self.sym(param_name);
+        const param_node = self.get(param_id);
         return self.addNode(.{
             .tag = .bind,
-            .payload = param_sym,
+            .payload = param_node.payload,
             .aux = codomain,
             .span_a = try self.pushSpan(&.{domain}),
             .span_b = .{ .start = 0, .len = 0 },

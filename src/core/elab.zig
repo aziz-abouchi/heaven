@@ -747,6 +747,88 @@ pub const TypeChecker = struct {
         return t;
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // TYPE-DEP v1b — univers + Π sort inference
+    // ═══════════════════════════════════════════════════════════
+
+    fn getUniverse(self: *TypeChecker, level: u32) !Id {
+        if (level == 0) return self.store.sym("Type");
+        const ty_sym = try self.store.sym("Type");
+        const n_lit = try self.store.int(@intCast(level));
+        return self.store.apply(ty_sym, &.{n_lit});
+    }
+
+    fn universeLevel(self: *TypeChecker, id: Id) ?u32 {
+        if (id >= self.store.len()) return null;
+        const node = self.store.get(id);
+        if (node.tag == .sym) {
+            const name = self.store.interner.resolve(node.payload);
+            if (std.mem.eql(u8, name, "Type") or std.mem.eql(u8, name, "Prop")) return 0;
+            return null;
+        }
+        if (node.tag == .apply) {
+            const fnode = self.store.get(node.payload);
+            if (fnode.tag != .sym) return null;
+            const fname = self.store.interner.resolve(fnode.payload);
+            if (!std.mem.eql(u8, fname, "Type")) return null;
+            const args = self.store.spanSliceConst(node.span_a);
+            if (args.len != 1) return null;
+            const arg_node = self.store.get(args[0]);
+            if (arg_node.tag != .lit) return null;
+            const lit = self.store.lits.items[arg_node.aux];
+            if (lit != .int or lit.int < 0) return null;
+            return @intCast(lit.int);
+        }
+        return null;
+    }
+
+    fn inferSortOrNull(self: *TypeChecker, ctx: *const TypingContext, id: Id) anyerror!?u32 {
+        if (id >= self.store.len()) return null;
+        const node = self.store.get(id);
+        if (node.tag == .sym) {
+            const name = self.store.interner.resolve(node.payload);
+            if (std.mem.eql(u8, name, "Type")) return 0;
+            if (std.mem.eql(u8, name, "Prop")) return 0;
+            if (ctx.lookup(name)) |ty_id| {
+                if (self.universeLevel(ty_id)) |lvl| return lvl;
+                return try self.inferSortOrNull(ctx, ty_id);
+            }
+            return null;
+        }
+        if (self.universeLevel(id)) |lvl| return lvl;
+        if (node.tag == .bind) {
+            return try self.inferPiSortOrNull(ctx, id);
+        }
+        if (node.tag == .apply) {
+            const fnode = self.store.get(node.payload);
+            if (fnode.tag == .sym) {
+                const fname = self.store.interner.resolve(fnode.payload);
+                if (ctx.lookup(fname)) |fty| {
+                    if (self.universeLevel(fty)) |lvl| return lvl;
+                }
+            }
+            return null;
+        }
+        return null;
+    }
+
+    fn inferPiSortOrNull(self: *TypeChecker, ctx: *const TypingContext, bind_id: Id) anyerror!?u32 {
+        const node = self.store.get(bind_id);
+        if (node.tag != .bind) return null;
+        const dom_span = self.store.spanSliceConst(node.span_a);
+        if (dom_span.len == 0) return null;
+        const domain = dom_span[0];
+        const codomain = node.aux;
+        const i = (try self.inferSortOrNull(ctx, domain)) orelse return null;
+        const param_name = self.store.interner.resolve(node.payload);
+        var new_ctx = TypingContext.init(self.allocator);
+        defer new_ctx.deinit();
+        for (ctx.bindings.items) |b| try new_ctx.extend(b.name, b.type_id);
+        try new_ctx.extend(param_name, domain);
+        const j = (try self.inferSortOrNull(&new_ctx, codomain)) orelse return null;
+        return @max(i, j);
+    }
+
     /// Infer the type of an application: f a ⇒ B[a/x] if f : Π(x:A).B
     pub fn inferApply(self: *TypeChecker, ctx: *const TypingContext, apply_id: Id) !Id {
         const apply_node = self.store.get(apply_id);
@@ -755,6 +837,13 @@ pub const TypeChecker = struct {
         if (apply_node.tag != .apply) return TypeError.NotAFunction;
 
         const func_type = try self.inferType(ctx, apply_node.payload);
+
+        // Type-dép v1b : si la fonction est un univers (type-constructeur),
+        // l'application reste dans le même univers.
+        if (self.universeLevel(func_type)) |lvl| {
+            return try self.getUniverse(lvl);
+        }
+
         const func_type_node = self.store.get(func_type);
         if (func_type_node.tag != .bind) return TypeError.NotAFunction;
 
@@ -803,19 +892,24 @@ pub const TypeChecker = struct {
             },
             .sym => {
                 const name = self.store.interner.resolve(node.payload);
-                // platform.debug.print("inferType: looking up '{s}'\n", .{name});
+                if (std.mem.eql(u8, name, "Type")) return try self.getUniverse(1);
+                if (std.mem.eql(u8, name, "Prop")) return try self.getUniverse(0);
                 if (ctx.lookup(name)) |ty| {
-                    // platform.debug.print("  found: {}\n", .{ty});
                     return ty;
                 } else {
-                    // platform.debug.print("  not found\n", .{});
                     return error.UnboundVariable;
                 }
             },
             .apply => {
                 return try self.inferApply(ctx, id);
             },
-            .bind, .lambda, .relation => {
+            .bind => {
+                if (try self.inferPiSortOrNull(ctx, id)) |lvl| {
+                    return try self.getUniverse(lvl);
+                }
+                return try self.getTypeUnknown();
+            },
+            .lambda, .relation => {
                 return try self.getTypeUnknown();
             },
             else => return error.NotImplemented,
@@ -988,22 +1082,30 @@ pub const TypeChecker = struct {
             },
             .bind => {
                 const bound_name = self.store.interner.resolve(node.payload);
-                if (std.mem.eql(u8, bound_name, var_name)) return e;
-                const new_body = try self.substituteVariable(node.aux, var_name, replacement);
+                if (std.mem.eql(u8, bound_name, var_name)) return e; // ombrage
+
                 const p = self.store.pool.items;
                 const children = node.span_a.slice(p);
+                if (children.len != 2) return error.ExtensionNotLowered;
+
                 var new_children = std.ArrayListUnmanaged(Id){};
                 defer new_children.deinit(self.allocator);
+
                 for (children) |child| {
-                    try new_children.append(self.allocator, try self.substituteVariable(child, var_name, replacement));
+                    try new_children.append(
+                        self.allocator,
+                        try self.substituteVariable(child, var_name, replacement),
+                    );
                 }
+
                 const sa = try self.store.pushSpan(new_children.items);
+
                 return self.store.addNode(.{
                     .tag = .bind,
                     .payload = node.payload,
-                    .aux = new_body,
+                    .aux = 0,
                     .span_a = sa,
-                    .span_b = node.span_b,
+                    .span_b = expr.Span.EMPTY,
                 });
             },
             .apply => {
@@ -1088,18 +1190,34 @@ pub const TypeChecker = struct {
             },
 
             .bind => {
-                // bind(x, value): substitute in value, but check for shadowing
+                // bind(x, value, body): substitute in both children,
+                // while respecting shadowing.
                 const bound_name = self.store.interner.resolve(node.payload);
                 if (std.mem.eql(u8, bound_name, var_name)) {
-                    // Variable is shadowed, no substitution in body
+                    // Variable is shadowed.
                     return expr_id;
                 }
-                const new_val = try self.substVar(node.aux, var_name, replacement);
+
+                const children = node.span_a.slice(p);
+                if (children.len != 2) return error.ExtensionNotLowered;
+
+                var new_children: std.ArrayListUnmanaged(Id) = .{};
+                defer new_children.deinit(self.allocator);
+
+                for (children) |child| {
+                    try new_children.append(
+                        self.allocator,
+                        try self.substVar(child, var_name, replacement),
+                    );
+                }
+
+                const sa = try self.store.pushSpan(new_children.items);
+
                 return self.store.addNode(.{
                     .tag = .bind,
                     .payload = node.payload,
-                    .aux = new_val,
-                    .span_a = expr.Span.EMPTY,
+                    .aux = 0,
+                    .span_a = sa,
                     .span_b = expr.Span.EMPTY,
                 });
             },
@@ -1482,3 +1600,79 @@ test "TypeChecker et MPST - Validation de dualité de protocole synchrone" {
 
     try std.testing.expect(alice_sess.isDual("Alice", bob_sess, "Bob", &store));
 }
+
+// ─── Tests type-dep v1b ───
+
+test "type-dep v1b — Π(n:Nat).Vec(succ n) est un Type" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    var ctx = TypingContext.init(allocator);
+    defer ctx.deinit();
+
+    // Γ ⊢ Nat : Type, Vec : Type, succ : Nat -> Nat, n : Nat
+    const type_sym = try store.sym("Type");
+    const nat = try store.sym("Nat");
+    try ctx.extend("Nat", type_sym);
+    try ctx.extend("Vec", type_sym);
+
+    // succ : Nat -> Nat  (via la convention -> sur des types)
+    const nat_arrow = try store.call("->", &.{ nat, nat });
+    const succ_sym = try store.sym("succ");
+    try ctx.extend("succ", nat_arrow);
+
+    // Π(n:Nat). Vec (succ n)
+    const var_n = try store.sym("n");
+    const succ_n = try store.apply(succ_sym, &.{var_n});
+    const vec_sym = try store.sym("Vec");
+    const vec_succ_n = try store.apply(vec_sym, &.{succ_n});
+    const pi = try store.pi("n", nat, vec_succ_n);
+
+    var checker = TypeChecker.init(allocator, &store);
+    const ty = try checker.inferType(&ctx, pi);
+
+    const ty_node = store.get(ty);
+    try std.testing.expectEqual(expr.Tag.sym, ty_node.tag);
+    try std.testing.expectEqualStrings("Type", store.interner.resolve(ty_node.payload));
+}
+
+test "type-dep v1b — (n : Nat) -> Nat est un Type" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    var ctx = TypingContext.init(allocator);
+    defer ctx.deinit();
+
+    const type_sym = try store.sym("Type");
+    const nat = try store.sym("Nat");
+    try ctx.extend("Nat", type_sym);
+
+    const pi = try store.pi("x", nat, nat);
+
+    var checker = TypeChecker.init(allocator, &store);
+    const ty = try checker.inferType(&ctx, pi);
+
+    const ty_node = store.get(ty);
+    try std.testing.expectEqual(expr.Tag.sym, ty_node.tag);
+    try std.testing.expectEqualStrings("Type", store.interner.resolve(ty_node.payload));
+}
+
+test "type-dep v1b — Type : Type(1)" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    var ctx = TypingContext.init(allocator);
+    defer ctx.deinit();
+
+    var checker = TypeChecker.init(allocator, &store);
+    const type_sym = try store.sym("Type");
+    const ty = try checker.inferType(&ctx, type_sym);
+
+    // Type(1) = apply(Type, 1)
+    const ty_node = store.get(ty);
+    try std.testing.expectEqual(expr.Tag.apply, ty_node.tag);
+}
+
