@@ -195,9 +195,16 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !b
     // Commandes natives
     var found = false;
     inline for (cmd_list.commands) |cmd_def| {
-        if (std.mem.eql(u8, cmd, cmd_def.name) or
-            (cmd_def.shortcut != null and std.mem.eql(u8, cmd, cmd_def.shortcut.?)))
-        {
+        // Le nom complet matche avec ou sans `:`.
+        // Le raccourci ne matche QUE préfixé par `:` — sinon `f x = x + 1`
+        // serait intercepté par le raccourci `f` de `:fact`, et `s x = ...`
+        // par `:s` (stats). C'est la source du bug où l'équation perdait
+        // son nom (le shell routait vers la commande au lieu d'evalEquation).
+        const matches_name = std.mem.eql(u8, cmd, cmd_def.name);
+        const matches_shortcut = had_colon and
+            cmd_def.shortcut != null and
+            std.mem.eql(u8, cmd, cmd_def.shortcut.?);
+        if (matches_name or matches_shortcut) {
             found = true;
             if (comptime std.mem.eql(u8, cmd_def.name, "exit")) {
                 platform.debug.print("[HEAVEN] Arrêt du noyau.\n", .{});
