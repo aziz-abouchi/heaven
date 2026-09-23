@@ -485,6 +485,9 @@ pub const Heaven = struct {
         if (std.mem.startsWith(u8, trimmed, "prove ")) {
             return self.evalProve(trimmed["prove ".len..]);
         }
+        if (std.mem.startsWith(u8, trimmed, "skill ")) {
+            return self.evalSkill(trimmed["skill ".len..]);
+        }
 
         // ─── let <qtt?> <name> = <val> in <body> (natif, top-level) ───
         // Converti en S-expr puis routé vers interpForAssert (même chemin
@@ -1383,7 +1386,68 @@ pub const Heaven = struct {
         return self.allocator.dupe(u8, src);
     }
     pub fn evalSkill(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        return self.allocator.dupe(u8, src);
+        var trimmed = std.mem.trim(u8, src, " \t");
+        if (std.mem.startsWith(u8, trimmed, "skill ")) {
+            trimmed = std.mem.trim(u8, trimmed["skill ".len..], " \t");
+        }
+        if (trimmed.len == 0)
+            return self.allocator.dupe(u8, "usage: skill <name> [on <var>]");
+
+        var name: []const u8 = trimmed;
+        var var_name: []const u8 = "n";
+        if (std.mem.indexOf(u8, name, " on ")) |pos| {
+            var_name = std.mem.trim(u8, name[pos + 4 ..], " \t");
+            name = std.mem.trim(u8, name[0..pos], " \t");
+        }
+        if (name.len == 0)
+            return self.allocator.dupe(u8, "usage: skill <name> [on <var>]");
+
+        const thm_name = self.active_theorem orelse
+            return self.allocator.dupe(u8, "✗ no active theorem (tapez `theorem ...` d'abord)");
+
+        _ = self.ensureCommands();
+        const sk = self.skills orelse
+            return self.allocator.dupe(u8, "✗ skills unavailable");
+        const skill = sk.get(name) orelse
+            return std.fmt.allocPrint(self.allocator, "✗ unknown skill: {s}", .{name});
+        const body = skill.body orelse
+            return std.fmt.allocPrint(self.allocator, "✗ skill {s} has no body (legacy tactics only)", .{name});
+
+        // Substitution {var}
+        var buf = std.ArrayListUnmanaged(u8){};
+        defer buf.deinit(self.allocator);
+        var i: usize = 0;
+        while (i < body.len) {
+            if (std.mem.startsWith(u8, body[i..], "{var}")) {
+                try buf.appendSlice(self.allocator, var_name);
+                i += 5;
+            } else {
+                try buf.append(self.allocator, body[i]);
+                i += 1;
+            }
+        }
+
+        const session = try self.startProof(thm_name);
+        defer session.deinit();
+
+        const report = session.applyLine(buf.items) catch |err| {
+            return std.fmt.allocPrint(self.allocator, "✗ skill error: {}", .{err});
+        };
+        defer self.allocator.free(report);
+
+        const proved = try session.finish();
+        if (proved) {
+            return std.fmt.allocPrint(
+                self.allocator,
+                "✓ [{s}] '{s}' proved via skill\n{s}",
+                .{ name, thm_name, report },
+            );
+        }
+        return std.fmt.allocPrint(
+            self.allocator,
+            "✗ [{s}] '{s}' unproved\n{s}",
+            .{ name, thm_name, report },
+        );
     }
     // ═══ Tactics v1 ═══
 

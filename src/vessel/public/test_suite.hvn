@@ -165,3 +165,7 @@ prove t_tactics_try by {
   try simplify;
   simplify
 }
+
+# --- Skills v1 : exécution via ProofSession ---
+theorem t_skill_algebra : x + 0 = x
+skill algebra

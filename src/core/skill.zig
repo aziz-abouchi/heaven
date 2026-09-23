@@ -14,13 +14,32 @@ pub const Tactic = enum {
 
 pub const Skill = struct {
     name: []const u8,
-    tactics: []const Tactic,
+    /// Nouveau : corps au format \`tactics.Tactic\` ("simplify; reflexivity").
+    /// Si null, on retombe sur \`tactics\` (legacy, enum monolithique).
+    body: ?[]const u8 = null,
+    /// Legacy — enum \`skill.Tactic\` (recouvre partiellement tactics.Tactic).
+    tactics: []const Tactic = &.{},
 };
 
 const BUILTIN_SKILLS = [_]Skill{
-    .{ .name = "algebra", .tactics = &.{ .normalize, .simplify, .exact } },
-    .{ .name = "induction", .tactics = &.{ .intro, .normalize, .induction } },
-    .{ .name = "trivial", .tactics = &.{.exact} },
+    // body = voie moderne (parsée par tactics.parseTacticsBlock).
+    // tactics = voie legacy (verifyByX monolithiques), conservée
+    //           pour les tests et les appelants historiques.
+    .{
+        .name = "algebra",
+        .body = "simplify; reflexivity",
+        .tactics = &.{ .normalize, .simplify, .exact },
+    },
+    .{
+        .name = "induction",
+        .body = "induction {var}; simplify; reflexivity",
+        .tactics = &.{ .intro, .normalize, .induction },
+    },
+    .{
+        .name = "trivial",
+        .body = "reflexivity",
+        .tactics = &.{.exact},
+    },
 };
 
 pub const ApplyResult = struct {
