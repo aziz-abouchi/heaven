@@ -193,6 +193,9 @@ pub const Heaven = struct {
     green_handler_defined: bool = false,
     hole_state: hole_mod.HoleState,
     last_root_expr: ?Id = null,
+    /// Namespace courant (`module M` → "M"). Utilisé pour aliasser les
+    /// théorèmes sous `M.name` dans proof_core.
+    current_module: ?[]const u8 = null,
 
     pub fn init(allocator: std.mem.Allocator) !*Heaven {
         const self = try allocator.create(Heaven);
@@ -429,6 +432,7 @@ pub const Heaven = struct {
             self.allocator.destroy(a);
         }
 
+        if (self.current_module) |m| self.allocator.free(m);
         self.hole_state.deinit();
     }
 
@@ -476,6 +480,21 @@ pub const Heaven = struct {
         if (is_command) {
             // Le shell va traiter ces commandes ; on ne les évalue pas ici.
             return self.allocator.dupe(u8, trimmed);
+        }
+
+        // ─── module M : ouvre un namespace ───
+        if (std.mem.startsWith(u8, trimmed, "module ")) {
+            const name = std.mem.trim(u8, trimmed["module ".len..], " \t");
+            if (name.len == 0)
+                return self.allocator.dupe(u8, "usage: module <nom>");
+            if (self.current_module) |old| self.allocator.free(old);
+            self.current_module = try self.allocator.dupe(u8, name);
+            return std.fmt.allocPrint(self.allocator, "✓ module {s} ouvert", .{name});
+        }
+
+        // ─── import "path" : stub v0 ───
+        if (std.mem.startsWith(u8, trimmed, "import ")) {
+            return self.allocator.dupe(u8, "✗ import : v1 à venir (utilise :load pour l'instant)");
         }
 
         // Théorèmes / preuves / axiomes → chemin dédié (elab.zig + ProofCore)
@@ -1755,12 +1774,56 @@ pub const Heaven = struct {
     }
     pub fn evalTheorem(self: *Heaven, src: []const u8) HeavenError![]u8 {
         if (self.ensureCommands()) |cmds| {
-            return cmds.evalTheorem(src) catch |err| {
+            const result = cmds.evalTheorem(src) catch |err| {
                 return switch (err) {
                     error.OutOfMemory => HeavenError.OutOfMemory,
                     else => HeavenError.EvaluationFailed,
                 };
             };
+
+            // Si un module est ouvert, aliaser le théorème sous `M.name`.
+            // IMPORTANT : dupliquer `statement` pour que proof_core.deinit
+            // puisse libérer chaque entrée indépendamment. `name` = clé,
+            // libérée via entry.key_ptr.* (pas de partage).
+            if (self.current_module) |m| {
+                if (std.mem.indexOfScalar(u8, src, ':')) |colon| {
+                    const thm_name = std.mem.trim(u8, src[0..colon], " \t");
+                    if (thm_name.len > 0) {
+                        if (self.proof_core_inst) |pc| {
+                            if (pc.theorems.getPtr(thm_name)) |thm| {
+                                const qualified = std.fmt.allocPrint(
+                                    self.allocator, "{s}.{s}", .{ m, thm_name },
+                                ) catch return result;
+
+                                const owned_stmt = self.allocator.dupe(u8, thm.statement) catch {
+                                    self.allocator.free(qualified);
+                                    return result;
+                                };
+
+                                const gop = pc.theorems.getOrPut(self.allocator, qualified) catch {
+                                    self.allocator.free(qualified);
+                                    self.allocator.free(owned_stmt);
+                                    return result;
+                                };
+                                if (gop.found_existing) {
+                                    self.allocator.free(qualified);
+                                    self.allocator.free(owned_stmt);
+                                } else {
+                                    gop.value_ptr.* = .{
+                                        .name = qualified,       // = clé
+                                        .statement = owned_stmt, // dupe indépendante
+                                        .lhs = thm.lhs,
+                                        .rhs = thm.rhs,
+                                        .proof = thm.proof,
+                                        .verified = thm.verified,
+                                    };
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return result;
         }
         return self.allocator.dupe(u8, "✗ commands unavailable");
     }
@@ -3280,6 +3343,47 @@ test "tactics v4 — auto résout x * 1 = x par simplify" {
 
     try tactics_mod.applyTactic(&state, .auto, &ctx);
     try std.testing.expect(state.solved());
+}
+
+test "module v0 — theorem aliasé sous M.name" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const m = try heaven.eval("module M");
+    defer allocator.free(m);
+    try std.testing.expect(std.mem.indexOf(u8, m, "M") != null);
+
+    const thm = try heaven.eval("theorem t_mod : x + 0 = x");
+    defer allocator.free(thm);
+
+    try std.testing.expect(heaven.proof_core_inst != null);
+    const pc = heaven.proof_core_inst.?;
+    try std.testing.expect(pc.theorems.get("M.t_mod") != null);
+    try std.testing.expect(pc.theorems.get("t_mod") != null);
+
+    const proof_res = try heaven.eval("prove M.t_mod by { simplify }");
+    defer allocator.free(proof_res);
+    try std.testing.expect(std.mem.indexOf(u8, proof_res, "proved") != null);
+}
+
+test "module v0 — sans module, pas d'alias" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const thm = try heaven.eval("theorem t_no_mod : x + 0 = x");
+    defer allocator.free(thm);
+
+    const pc = heaven.proof_core_inst.?;
+    try std.testing.expect(pc.theorems.get("t_no_mod") != null);
+    try std.testing.expect(pc.theorems.get("M.t_no_mod") == null);
 }
 
 test "hole — fresh hole has unique id" {
