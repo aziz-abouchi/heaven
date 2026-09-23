@@ -4,10 +4,11 @@ Ce document contient les specs des fonctionnalités **non implémentées**
 mais conçues. Chaque section est autonome et prête à être implémentée.
 
 Ordre recommandé :
-1. `#io` — débloque l'utilisabilité
-2. `#holes` — v1 implémentée (voir STATUS.md), v2 = affichage interactif
-3. `#tactics` — débloque la puissance de preuve
-4. `#type-dep` — débloque les mathématiques avancées
+1. `#type-dep` — types dépendants (v0 ✅, v1 en cours)
+2. `#module` — namespaces et imports (v0/v0.5/v1 ✅, v2 à venir)
+3. `#stdlib` — compléter les corps de `core/std/*.hvn`
+4. `#skills-v2` — fait (voir section)
+5. `#io` / `#holes` / `#runner` / `#tactics` — faits (voir STATUS.md)
 
 ---
 
@@ -316,6 +317,33 @@ Effort : 30 min.
 `src/vessel/public/test_suite.hvn` automatiquement à chaque build WASM.
 
 Effort : 30 min.
+
+---
+
+## #skills-v2 — Réunification avec tactics
+
+### v1 ✅ *fait* (refactor léger)
+
+- `Skill.body: ?[]const u8` en **complément** de `tactics: []const Tactic` (legacy).
+- `BUILTIN_SKILLS` = `body` **et** `tactics` (compat tests).
+- `evalSkill` branché sur `ProofSession`.
+
+### v2 ✅ *fait* (refactor complet)
+
+- Enum `skill.Tactic` **supprimée** (recouvrait `tactics.Tactic`).
+- `Skill` = `{ name, body: []const u8 }`.
+- `register(name, body)` au lieu de `register(name, []Tactic)`.
+- `apply()` passe par `ProofSession` (startProof + applyLine + finish).
+- `heaven_md.zig`, `commands.zig`, tests migrés.
+- Substitution `{var}` conservée.
+
+### v3 — *roadmap*
+
+- Skills paramétrées : `skill induction on {var}`.
+- Skills récursives (`repeat try (simplify; reflexivity)`).
+- Skills déclarées en `.hvn` (`skill mon_algo = ...`).
+
+**Effort v3** : 1 session.
 
 ---
 

@@ -23,7 +23,8 @@ Légende :
 | `Node` (`payload/aux/span_a/span_b`) | ✅ | `expr.zig::Node` | — |
 | `nodeHash` | ✅ | `expr.zig` + 3 tests | — |
 | `structuralEql` | ✅ | `expr.zig` + 8 tests | — |
-| `lowerRec` idempotent | ✅ | `expr.zig` test `lowering is idempotent` | `hole` non-primitif → refusé par `assertCoreExpr` |
+| `lowerRec` idempotent | ✅ | `expr.zig` test `lowering is idempotent` | `hole`/`evar` non-primitifs → refusés par `assertCoreExpr` |
+| `Tag.evar` (métavariables internes) | ✅ | `expr.zig::mkEvar`, `isEvar` + 3 tests | utilisé par tactics v3.5 |
 | Hash-consing EGraph | ✅ | `egraph.add` + tests | collision pas testée à grande échelle |
 
 ## Parsing
@@ -53,6 +54,7 @@ Légende :
 |---|---|---|---|
 | `data Name = C1 \| C2 args` | ✅ | `evalDataDecl` | — |
 | `data Name a = ...` | ⚠️ | enregistré | `a` ignoré |
+| `data Name (n : Nat) = ...` | ⚠️ | `type_registry.zig` + 3 tests | 1 param typé max (v0) |
 | Pattern matching multi-clause | ✅ | `evalEquation` | ordre linéaire d'essai |
 | Wildcard `_` en pattern | ✅ | test `let_many` | — |
 | Guards `\| x > 0` | ❌ | — | jamais implémenté |
@@ -110,7 +112,7 @@ Légende :
 | Kernel CIC | ⚠️ | `kernel.zig` (~780 L) | structural OK, type-check limité |
 | Types quotients | ❌ | — | — |
 | Proof irrelevance | ❌ | — | — |
-| Tactiques composables | ⚠️ | `tactics.zig` + `proof_state.zig` | v1.5 ✅, REPL interactif manquant |
+| Skills (`:skill`) | ✅ | `skill.zig` + `ProofSession` | refactor v2 : `body: []const u8` unifié |
 
 ## Holes
 
@@ -141,6 +143,7 @@ Légende :
 | Élément | Statut | Preuve | Limitation |
 |---|---|---|---|
 | REPL natif | ✅ | `main.zig` | — |
+| Commandes vs équations | ✅ | `run.zig::hasTopLevelEqual`, `isCallToKnownFn` | les noms courts (`c`, `f`, `io`) restent utilisables |
 | REPL web WASM | ✅ | `vessel/public/` | — |
 | Serveur HTTP Vessel | ⚠️ | `vessel/` | `/api/*` non implémenté |
 | WebRTC | ⚠️ | `webrtc.zig` + stub | stub en prod |
@@ -165,12 +168,12 @@ Légende :
 
 | Élément | Statut | Note |
 |---|---|---|
-| `zig build test` | ✅ | 117 tests |
-| `zig build test-regression` | ✅ | 75 tests Heaven |
-| `heaven --run-tests <dir>` | ✅ | multi-fichiers + parens/braces |
-| Sync `test_suite.hvn` natif ↔ WASM | ⚠️ | manuelle via `cp` |
+| `zig build test` | ✅ | 144 tests |
+| `zig build test-regression` | ✅ | 77 tests Heaven |
+| `zig build test-files` | ✅ | `heaven --run-tests tests/` |
 | `heaven --run-test <file>` | ✅ | runner multi-lignes (parens + braces) |
 | `heaven --run-tests <dir>` | ✅ | itère sur les `*.hvn` d'un dossier |
+| Sync `test_suite.hvn` natif ↔ WASM | ⚠️ | manuelle via `cp` |
 | Kernel CIC tests | ✅ | 7 tests dans `kernel.zig` |
 | EGraph tests | ✅ | 8 tests |
 
@@ -178,10 +181,9 @@ Légende :
 
 ## Top priorités
 
-1. **Tactics v1.5** — `rewrite`, `apply`, REPL interactif — `ROADMAP.md#tactics`
-2. **Types dépendants** (`Vector n`) — `ROADMAP.md#type-dep`
-3. `module` effectif — `ROADMAP.md#module`
-4. Remplir les `std/*.hvn` (corps manquants)
-5. **Documenter QTT** dans le book
-6. Trier `tests/` (3 bugs réels : bind_shadow, recursion, kernel)
-7. Sync auto `test_suite.hvn`
+1. **Type-dep v1** — multi-params typés + vérification (`Vector (succ n) -> a`)
+2. **Module v2** — export contrôlé, namespace hiérarchique
+3. Remplir les `std/*.hvn` (corps manquants)
+4. **Documenter QTT** dans le book
+5. Sync auto `test_suite.hvn` (natif ↔ WASM)
+6. Nettoyer les 24 `platform.dbg` dans `heaven_expr.zig` (gated debug, non bloquant)
