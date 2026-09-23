@@ -1,9 +1,6 @@
 module Option
 
-data Option
-
-none : Option
-some : a -> Option
+data Option a = none | some a
 
 is_some (some _) = true
 is_some none = false
@@ -11,8 +8,5 @@ is_some none = false
 is_none none = true
 is_none (some _) = false
 
-map_option f none =
-    none
-
-map_option f (some x) =
-    some (f x)
+map_option _ none = none
+map_option f (some x) = some (f x)

@@ -229,6 +229,11 @@ pub const Engine = struct {
                 const arg_val = try evaluate(store, caller_env, self, args_snap[i], 0);
                 const p_node = store.get(p);
 
+                if (p_node.tag == .hole or p_node.tag == .evar) {
+                    // Wildcard `_` en pattern : matche toujours, aucune
+                    // variable liée (le body ne peut pas y référer).
+                    continue;
+                }
                 if (p_node.tag == .sym) {
                     const p_name = store.interner.resolve(p_node.payload);
                     if (self.fns.get(p_name)) |pfn| {
@@ -274,6 +279,10 @@ pub const Engine = struct {
                             continue;
                         }
                         const pp_node = store.get(pp);
+                        if (pp_node.tag == .hole or pp_node.tag == .evar) {
+                            // Wildcard dans un pattern composé : (cons x _)
+                            continue;
+                        }
                         if (pp_node.tag == .sym) {
                             const pp_name = store.interner.resolve(pp_node.payload);
                             if (self.fns.get(pp_name)) |sub_def| {

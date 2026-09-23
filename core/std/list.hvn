@@ -1,23 +1,13 @@
 module List
 
-data List
+data List a = nil | cons a (List a)
 
-nil : List
+head (cons x _) = x
 
-cons : a -> List -> List
+tail (cons _ xs) = xs
 
-head (cons x xs) = x
+length nil = zero
+length (cons _ xs) = succ (length xs)
 
-tail (cons x xs) = xs
-
-length nil =
-    zero
-
-length (cons _ xs) =
-    succ (length xs)
-
-append nil ys =
-    ys
-
-append (cons x xs) ys =
-    cons x (append xs ys)
+append nil ys = ys
+append (cons x xs) ys = cons x (append xs ys)

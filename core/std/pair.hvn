@@ -1,9 +1,6 @@
 module Pair
 
-data Pair
+data Pair a b = pair a b
 
-pair : a -> b -> Pair
-
-fst (pair x y) = x
-
-snd (pair x y) = y
+fst (pair x _) = x
+snd (pair _ y) = y

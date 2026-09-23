@@ -403,16 +403,40 @@ pub const Heaven = struct {
     /// Charge `core/io.hvn` dans le FunctionRegistry de l'engine,
     /// en évaluant chaque ligne via `evalEquation`. La fonction
     /// `print`, `readFile`, etc. deviennent ainsi accessibles au REPL.
+    /// Charge io.hvn + les std/*.hvn ligne par ligne via Heaven.eval.
+    /// Ce chemin passe par evalDataDecl (qui enregistre correctement
+    /// les ctor_arity) contrairement à ingest/elab.
     fn loadStdIO(self: *Heaven) void {
+        const files = [_][]const u8{
+            "core/io.hvn",
+            "core/std/bool.hvn",
+            "core/std/list.hvn",
+            "core/std/option.hvn",
+            "core/std/pair.hvn",
+            "core/std/result.hvn",
+        };
+        for (files) |path| self.loadOneStdFile(path);
+    }
+
+    fn loadOneStdFile(self: *Heaven, path: []const u8) void {
         const source = platform.fs.cwd().readFileAlloc(
             self.allocator,
-            "core/io.hvn",
+            path,
             64 * 1024,
         ) catch |err| {
-            platform.dbg("[loadStdIO] readFileAlloc failed: {}\n", .{err});
+            platform.dbg("[loadStdIO] readFileAlloc {s} failed: {}\n", .{ path, err });
             return;
         };
         defer self.allocator.free(source);
+
+        // Sauve/restaure current_module : un fichier std contient
+        // `module Foo` qui positionne current_module. Sans ce save/restore,
+        // l'état fuit après init et casse les tests module v1.
+        const old_module = self.current_module;
+        defer {
+            if (self.current_module) |m| self.allocator.free(m);
+            self.current_module = old_module;
+        }
 
         var lines = std.mem.splitScalar(u8, source, '\n');
         while (lines.next()) |line| {
@@ -420,10 +444,11 @@ pub const Heaven = struct {
             if (trimmed.len == 0) continue;
             if (trimmed[0] == '#') continue;
             if (std.mem.startsWith(u8, trimmed, "--")) continue;
+            if (std.mem.startsWith(u8, trimmed, "//")) continue;
             if (std.mem.startsWith(u8, trimmed, ";;")) continue;
 
             const result = self.eval(trimmed) catch |err| {
-                platform.dbg("[loadStdIO] '{s}' failed: {}\n", .{ trimmed, err });
+                platform.dbg("[loadStdIO] {s} '{s}' failed: {}\n", .{ path, trimmed, err });
                 continue;
             };
             self.allocator.free(result);
@@ -873,27 +898,77 @@ pub const Heaven = struct {
     /// `as Name` est absent.
     fn evalImport(self: *Heaven, src: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, src, " \t");
-        if (trimmed.len < 3 or trimmed[0] != '"')
-            return self.allocator.dupe(u8, "syntax: import \"path\" [as Name]");
-        const close = std.mem.indexOfScalarPos(u8, trimmed, 1, '"') orelse
-            return self.allocator.dupe(u8, "syntax: import \"path\" [as Name]");
-        const path = trimmed[1..close];
+        if (trimmed.len < 1)
+            return self.allocator.dupe(u8, "syntax: import \"path\" [as Name] | import Name");
 
-        var rest = std.mem.trimLeft(u8, trimmed[close + 1 ..], " \t");
+        // Deux formes :
+        //   import "chemin" [as Name]   → lecture explicite d'un fichier
+        //   import Name                  → cherche core/std/<nom-min>.hvn,
+        //                                  puis core/<nom-min>.hvn
+        var path: []const u8 = undefined;
+        var resolved_buf: ?[]u8 = null;
+        defer if (resolved_buf) |b| self.allocator.free(b);
+
+        var rest: []const u8 = "";
         var mod_name: []const u8 = "";
-        if (std.mem.startsWith(u8, rest, "as ")) {
-            mod_name = std.mem.trim(u8, rest[3..], " \t");
-            if (mod_name.len == 0)
-                return self.allocator.dupe(u8, "syntax: nom de module vide après 'as'");
-        } else {
-            const base = std.fs.path.basename(path);
-            if (std.mem.lastIndexOfScalar(u8, base, '.')) |dot| {
-                mod_name = base[0..dot];
+
+        if (trimmed[0] == '"') {
+            // Forme 1 : chemin entre guillemets
+            const close = std.mem.indexOfScalarPos(u8, trimmed, 1, '"') orelse
+                return self.allocator.dupe(u8, "syntax: import \"path\" [as Name]");
+            path = trimmed[1..close];
+            rest = std.mem.trimLeft(u8, trimmed[close + 1 ..], " \t");
+
+            if (std.mem.startsWith(u8, rest, "as ")) {
+                mod_name = std.mem.trim(u8, rest[3..], " \t");
+                if (mod_name.len == 0)
+                    return self.allocator.dupe(u8, "syntax: nom de module vide après 'as'");
             } else {
-                mod_name = base;
+                const base = std.fs.path.basename(path);
+                if (std.mem.lastIndexOfScalar(u8, base, '.')) |dot| {
+                    mod_name = base[0..dot];
+                } else {
+                    mod_name = base;
+                }
+                if (mod_name.len == 0)
+                    return self.allocator.dupe(u8, "syntax: nom de module indéterminable");
             }
-            if (mod_name.len == 0)
-                return self.allocator.dupe(u8, "syntax: nom de module indéterminable");
+        } else {
+            // Forme 2 : identifiant simple → résout dans core/std/
+            var it = std.mem.tokenizeAny(u8, trimmed, " \t");
+            const name = it.next() orelse
+                return self.allocator.dupe(u8, "syntax: import Name");
+            mod_name = name;
+            rest = it.rest();
+
+            // Cherche core/std/<name-min>.hvn puis core/<name-min>.hvn
+            const lower = try self.allocator.alloc(u8, name.len);
+            defer self.allocator.free(lower);
+            for (name, 0..) |ch, i| {
+                lower[i] = std.ascii.toLower(ch);
+            }
+            const p1 = try std.fmt.allocPrint(self.allocator, "core/std/{s}.hvn", .{lower});
+            defer self.allocator.free(p1);
+            const p2 = try std.fmt.allocPrint(self.allocator, "core/{s}.hvn", .{lower});
+            defer self.allocator.free(p2);
+
+            if (std.fs.cwd().openFile(p1, .{})) |f| {
+                f.close();
+                path = try self.allocator.dupe(u8, p1);
+                resolved_buf = @constCast(path);
+            } else |_| {
+                if (std.fs.cwd().openFile(p2, .{})) |f2| {
+                    f2.close();
+                    path = try self.allocator.dupe(u8, p2);
+                    resolved_buf = @constCast(path);
+                } else |_| {
+                    return std.fmt.allocPrint(
+                        self.allocator,
+                        "✗ import {s} : ni core/std/{s}.hvn ni core/{s}.hvn",
+                        .{ name, lower, lower },
+                    );
+                }
+            }
         }
 
         // ─── Détection de cycle : mod_name déjà en cours de chargement ? ───
@@ -4162,11 +4237,14 @@ test "hole — fresh hole has unique id" {
         allocator.destroy(heaven);
     }
 
+    // Capture l'état initial : Heaven.init() charge les std, dont les
+    // patterns `_` créent des holes internes.
+    const n0 = heaven.hole_state.next_id;
     const h0 = try heaven.freshHole();
     const h1 = try heaven.freshHole();
 
     try std.testing.expect(h0 != h1);
-    try std.testing.expectEqual(@as(u32, 2), heaven.hole_state.next_id);
+    try std.testing.expectEqual(n0 + 2, heaven.hole_state.next_id);
 }
 
 test "hole — _ parses to a hole node" {

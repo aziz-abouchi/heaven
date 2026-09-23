@@ -1,9 +1,6 @@
 module Result
 
-data Result
-
-ok : a -> Result
-err : e -> Result
+data Result a e = ok a | err e
 
 is_ok (ok _) = true
 is_ok (err _) = false
@@ -11,8 +8,5 @@ is_ok (err _) = false
 is_err (err _) = true
 is_err (ok _) = false
 
-map_result f (ok x) =
-    ok (f x)
-
-map_result f (err e) =
-    err e
+map_result _ (err e) = err e
+map_result f (ok x) = ok (f x)

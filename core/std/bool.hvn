@@ -1,9 +1,6 @@
 module Bool
 
-data Bool
-
-true : Bool
-false : Bool
+data Bool = true | false
 
 not true = false
 not false = true
