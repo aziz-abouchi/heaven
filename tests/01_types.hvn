@@ -1,0 +1,5 @@
+# Vérification des univers
+Type(0)
+
+-- Égalité propositionnelle
+refl Type

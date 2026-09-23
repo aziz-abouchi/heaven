@@ -105,7 +105,7 @@ pub const Reader = struct {
 
         // Pipe, redirection, CI headless : pas de TTY → pas de mode raw,
         // pas d'erreur non plus. On bascule en mode ligne (readUntilDelimiter).
-        if (!std.posix.isatty(fd)) {
+        if (!platform.posix.isatty(fd)) {
             self.raw_mode = false;
             return;
         }

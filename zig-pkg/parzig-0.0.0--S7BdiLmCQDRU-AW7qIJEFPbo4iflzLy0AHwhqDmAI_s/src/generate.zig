@@ -16,7 +16,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
 
     const input = "./parquet.thrift";
     const output = "./src/generated/parquet.zig";
-    std.debug.print("Generating {s} from {s}\n", .{ output, input });
+    platform.debug.print("Generating {s} from {s}\n", .{ output, input });
 
     var input_file = try Io.Dir.cwd().openFile(io, input, .{ .mode = .read_only });
     defer input_file.close(io);
@@ -50,7 +50,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
     try root.render(allocator, &writer.interface, .{});
     try writer.interface.flush();
 
-    std.debug.print("Done\n", .{});
+    platform.debug.print("Done\n", .{});
 
     return std.process.cleanExit(io);
 }

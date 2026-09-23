@@ -80,6 +80,10 @@ pub const posix = struct {
     pub fn fork() !i32 {
         return error.NotSupported;
     }
+    /// Test whether a file descriptor refers to a terminal.
+    pub fn isatty(handle: i32) bool {
+        return std.posix.isatty(handle);
+    }
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -142,6 +146,12 @@ pub const fs = struct {
             return error.NotSupported;
         }
         pub fn close(_: File) void {}
+        pub fn writeAll(self: File, bytes: []const u8) anyerror!void {
+            _ = self;
+            _ = bytes;
+            // Stub pour WASM freestanding : à adapter si tu rediriges vers
+            // un buffer mémoire, la console JS ou un hôte WASI.
+        }
     };
 
     ///
@@ -212,10 +222,15 @@ pub const io = struct {
         js_console_log(str.ptr, str.len);
     }
 
-    pub fn readLine(_: std.mem.Allocator) ![]u8 {
-        return error.NotImplemented;
+    pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
+        if (!repl_has_data) return error.WouldBlock;
+        repl_has_data = false;
+        return alloc.dupe(u8, repl_buffer[0..repl_len]);
     }
 };
+pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
+    return io.readLine(alloc);
+}
 
 // ═══════════════════════════════════════════════════════════
 // DEBUG ABSTRACTION (WASM Web - console.error)
@@ -370,7 +385,7 @@ pub const time = struct {
     // En WASM, on utilise performance.now() via JS
     extern fn js_performance_now() f64;
 
-    pub const ns_per_s:  u64 = 1_000_000_000;
+    pub const ns_per_s: u64 = 1_000_000_000;
     pub const ns_per_ms: u64 = 1_000_000;
     pub const ns_per_us: u64 = 1_000;
 
@@ -465,3 +480,19 @@ pub const MultiParser = struct {
         _ = self;
     }
 };
+
+// Storage statique pour les entrées REPL
+var repl_buffer: [4096]u8 = undefined;
+var repl_len: usize = 0;
+var repl_has_data: bool = false;
+
+/// Reçoit les entrées clavier transmises depuis la page REPL
+export fn wasm_inject_repl_input(ptr: [*]const u8, len: usize) void {
+    const copy_len = @min(len, repl_buffer.len);
+    @memcpy(repl_buffer[0..copy_len], ptr[0..copy_len]);
+    repl_len = copy_len;
+    repl_has_data = true;
+}
+
+// Bindings déclarés côté JS pour le Dashboard
+extern fn js_emit_metrics(egraph_classes: u32, store_nodes: u32, msg_count: u64) void;

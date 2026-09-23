@@ -27,13 +27,11 @@ pub fn getenv(key: []const u8) ?[]const u8 {
     }
 }
 
-
 // --- STDIN / STDOUT / STDERR ---
 
 pub fn writeStdout(buf: []const u8) !usize {
     if (target.is_windows) {
-        const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_OUTPUT_HANDLE) 
-            orelse return error.BadFileDescriptor;
+        const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_OUTPUT_HANDLE) orelse return error.BadFileDescriptor;
         if (handle == std.os.windows.INVALID_HANDLE_VALUE) return error.BadFileDescriptor;
         return std.posix.write(handle, buf);
     } else {
@@ -43,8 +41,7 @@ pub fn writeStdout(buf: []const u8) !usize {
 
 pub fn readStdin(buf: []u8) !usize {
     if (target.is_windows) {
-        const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_INPUT_HANDLE) 
-            orelse return error.BadFileDescriptor;
+        const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_INPUT_HANDLE) orelse return error.BadFileDescriptor;
         if (handle == std.os.windows.INVALID_HANDLE_VALUE) return error.BadFileDescriptor;
         return std.posix.read(handle, buf);
     } else {
@@ -80,7 +77,7 @@ pub const ProcessResult = struct {
 pub fn spawnProcess(alloc: std.mem.Allocator, argv: []const []const u8) !ProcessResult {
     var child = std.process.Child.init(argv, alloc);
     const term = try child.spawnAndWait();
-    
+
     return switch (term) {
         .Exited => |code| ProcessResult{ .exit_code = @truncate(code) },
         else => ProcessResult{ .exit_code = 1 },

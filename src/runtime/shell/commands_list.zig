@@ -89,6 +89,7 @@ pub const commands = [_]Command{
     .{ .name = "dep", .tag = .dep, .shortcut = "dependent", .description = "Types dépendants", .method = "cmdDep" },
     .{ .name = "hole", .tag = .hole, .shortcut = "?", .description = "Résolution de trou de type", .method = "cmdHole" },
     .{ .name = "refine", .tag = .hole, .description = "Raffiner un trou : :refine <id> <expr>", .method = "cmdRefine" },
+    .{ .name = "io", .tag = .hole, .description = "Gestion des IO : :io [on|off|status]", .method = "cmdIo" },
 
     // Théorèmes & Preuves
     .{ .name = "prove", .tag = .prove, .description = "Prouver une égalité", .method = "cmdProve" },

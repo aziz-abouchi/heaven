@@ -156,22 +156,37 @@ pub const TermPool = struct {
 // CONTEXT (typing environment)
 // ═══════════════════════════════════════════════════════════
 
-/// Typing context: stack of (name_hash, type_term_index)
+pub const KernelError = error{
+    NotAType,
+    NotAFunction,
+    TypeMismatch,
+    UnboundVariable,
+    InvalidAxiom,
+    OutOfMemory,
+};
+
+// ═══════════════════════════════════════════════════════════
+// CONTEXT (typing environment)
+// ═══════════════════════════════════════════════════════════
+
 pub const CtxEntry = struct {
     name_hash: u64,
     type_idx: u32,
 };
 
 pub const Context = struct {
-    entries: std.ArrayListUnmanaged(CtxEntry),
+    entries: std.ArrayList(CtxEntry),
     allocator: Allocator,
 
     pub fn init(allocator: Allocator) Context {
-        return .{ .entries = .{}, .allocator = allocator };
+        return .{
+            .entries = .empty,
+            .allocator = allocator,
+        };
     }
 
     pub fn deinit(self: *Context) void {
-        self.entries.deinit(self.allocator);
+        self.entries.deinit(self.allocator); // Nécessite de passer self.allocator
     }
 
     pub fn push(self: *Context, name_hash: u64, type_idx: u32) !void {
@@ -184,7 +199,6 @@ pub const Context = struct {
 
     pub fn lookup(self: *const Context, db_index: u32) ?CtxEntry {
         if (db_index >= self.entries.items.len) return null;
-        // De Bruijn 0 = most recent binding
         return self.entries.items[self.entries.items.len - 1 - db_index];
     }
 
@@ -399,154 +413,155 @@ fn structuralEq(pool: *TermPool, a: u32, b: u32) bool {
 }
 
 // ═══════════════════════════════════════════════════════════
-// TYPE CHECKING (the trusted core)
+// TYPE INFERENCE & CHECKING
 // ═══════════════════════════════════════════════════════════
 
-pub const KernelError = error{
-    TypeError,
-    UnboundVariable,
-    NotAFunction,
-    DomainMismatch,
-    NotAType,
-    NotImplemented,
-    OutOfMemory,
-};
-
-/// Infer the type of a term in the given context.
-/// Returns the index of the inferred type in the pool.
-pub fn infer(pool: *TermPool, ctx: *const Context, term_idx: u32) KernelError!u32 {
+pub fn infer(pool: *TermPool, ctx: *Context, term_idx: u32) KernelError!u32 {
     const t = pool.get(term_idx);
+
     switch (t.tag) {
-        .var_ => {
-            const db = @as(u32, @intCast(t.payload));
-            const entry = ctx.lookup(db) orelse return KernelError.UnboundVariable;
-            // Shift the type to account for variables between binding site and use site
-            return shift(pool, entry.type_idx, 0, @as(i32, @intCast(db + 1))) catch return KernelError.OutOfMemory;
-        },
-
         .type_ => {
-            // Type(i) : Type(i+1)
-            const level = @as(u32, @intCast(t.payload));
-            return pool.mkType(level + 1) catch return KernelError.OutOfMemory;
+            const u = @as(u32, @intCast(t.payload));
+            return pool.mkType(u + 1) catch return KernelError.OutOfMemory;
         },
 
-        .pi => {
-            // Γ ⊢ A : Type(i)    Γ,x:A ⊢ B : Type(j)
-            // ─────────────────────────────────────────
-            // Γ ⊢ Πx:A.B : Type(max(i,j))
-            const dom_ty = @as(u32, @intCast(t.payload));
-            const body_ty = @as(u32, @intCast(t.payload2));
-            _ = try checkIsType(pool, ctx, dom_ty);
-
-            var ext_ctx = Context.init(ctx.allocator);
-            defer ext_ctx.deinit();
-            // Copy parent context
-            for (ctx.entries.items) |e| {
-                try ext_ctx.push(e.name_hash, e.type_idx);
+        .var_ => {
+            const db_idx = @as(u32, @intCast(t.payload));
+            if (ctx.lookup(db_idx)) |entry| {
+                return entry.type_idx;
             }
-            try ext_ctx.push(0, dom_ty); // Push bound variable
-            _ = try checkIsType(pool, &ext_ctx, body_ty);
-
-            const dom_node = pool.terms.items[dom_ty];
-            const body_node = pool.terms.items[body_ty];
-            const i: u32 = if (dom_node.tag == .type_) @intCast(dom_node.payload) else return KernelError.NotAType;
-            const j: u32 = if (body_node.tag == .type_) @intCast(body_node.payload) else return KernelError.NotAType;
-            return pool.mkType(@max(i, j) + 1) catch return KernelError.OutOfMemory;
-        },
-
-        .lam => {
-            // Γ ⊢ A : Type(i)    Γ,x:A ⊢ t : B
-            // ───────────────────────────────────
-            // Γ ⊢ λx:A.t : Πx:A.B
-            const ann_ty = @as(u32, @intCast(t.payload));
-            const body = @as(u32, @intCast(t.payload2));
-            try checkIsType(pool, ctx, ann_ty);
-
-            var ext_ctx = Context.init(ctx.allocator);
-            defer ext_ctx.deinit();
-            for (ctx.entries.items) |e| {
-                try ext_ctx.push(e.name_hash, e.type_idx);
-            }
-            try ext_ctx.push(0, ann_ty);
-
-            const body_type = infer(pool, &ext_ctx, body) catch |err| {
-                // platform.dbg("[KERNEL-DIAG] lam: infer(body) failed: {}\n", .{err});
-                // platform.debug.print("\n[KERNEL-DIAG] lam: ctx depth={d}\n", .{ext_ctx.depth()});
-                return err;
-            };
-            return pool.mkPi(ann_ty, body_type) catch return KernelError.OutOfMemory;
-        },
-
-        .app => {
-            // Γ ⊢ f : Πx:A.B    Γ ⊢ a : A'    A ≡ A'
-            // ──────────────────────────────────────────
-            // Γ ⊢ f a : B[x := a]
-            const func_idx = @as(u32, @intCast(t.payload));
-            const arg_idx = @as(u32, @intCast(t.payload2));
-
-            const func_type = try infer(pool, ctx, func_idx);
-            const func_type_nf = try eval(pool, func_type);
-            const ft = pool.get(func_type_nf);
-
-            if (ft.tag != .pi) return KernelError.NotAFunction;
-
-            const dom = @as(u32, @intCast(ft.payload));
-            const codom = @as(u32, @intCast(ft.payload2));
-
-            try check(pool, ctx, arg_idx, dom);
-
-            return subst(pool, codom, 0, arg_idx) catch return KernelError.OutOfMemory;
-        },
-
-        .nat_zero => {
-            // zero : Nat (we encode Nat as a ref)
-            return pool.mkRef(std.hash.Wyhash.hash(0, "Nat")) catch return KernelError.OutOfMemory;
-        },
-
-        .nat_succ => {
-            // succ n : Nat  if  n : Nat
-            const inner = @as(u32, @intCast(t.payload));
-            const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
-            try check(pool, ctx, inner, nat_ref);
-            return nat_ref;
-        },
-
-        .eq => {
-            // Eq(a, b) : Type(0)  if  a : T  and  b : T
-            const lhs = @as(u32, @intCast(t.payload));
-            const rhs = @as(u32, @intCast(t.payload2));
-            const lhs_ty = try infer(pool, ctx, lhs);
-            try check(pool, ctx, rhs, lhs_ty);
-            return pool.mkType(0) catch return KernelError.OutOfMemory;
-        },
-
-        .refl => {
-            // refl : Eq(a, a)  if  a : T
-            const val = @as(u32, @intCast(t.payload));
-            _ = try infer(pool, ctx, val);
-            return pool.mkEq(val, val) catch return KernelError.OutOfMemory;
+            return KernelError.UnboundVariable;
         },
 
         .ref => {
-            // Lookup in axiom registry
             const name_hash = t.payload;
             if (pool.lookupAxiom(name_hash)) |type_idx| {
                 return type_idx;
             }
-            return KernelError.UnboundVariable;
+            return KernelError.InvalidAxiom;
+        },
+
+        .pi => {
+            const dom_ty = @as(u32, @intCast(t.payload));
+            const body_ty = @as(u32, @intCast(t.payload2));
+
+            // 1. Validation du domaine A : Type(i)
+            const dom_type_idx = try infer(pool, ctx, dom_ty);
+            const dom_type_whnf = eval(pool, dom_type_idx) catch return KernelError.NotAType;
+            const dom_type_node = pool.get(dom_type_whnf);
+            if (dom_type_node.tag != .type_) return KernelError.NotAType;
+            const i = @as(u32, @intCast(dom_type_node.payload));
+
+            // 2. Extension du contexte par empilement
+            ctx.push(0, dom_ty) catch return KernelError.OutOfMemory;
+            defer ctx.pop();
+
+            // 3. Validation du corps B : Type(j)
+            const body_type_idx = try infer(pool, ctx, body_ty);
+            const body_type_whnf = eval(pool, body_type_idx) catch return KernelError.NotAType;
+            const body_type_node = pool.get(body_type_whnf);
+            if (body_type_node.tag != .type_) return KernelError.NotAType;
+            const j = @as(u32, @intCast(body_type_node.payload));
+
+            // 4. (Π x:A. B) : Type(max(i, j))
+            return pool.mkType(@max(i, j)) catch return KernelError.OutOfMemory;
+        },
+
+        .lam => {
+            const dom_ty = @as(u32, @intCast(t.payload));
+            const body = @as(u32, @intCast(t.payload2));
+
+            // Vérification que le type de domaine est valide
+            const dom_type_idx = try infer(pool, ctx, dom_ty);
+            const dom_type_whnf = eval(pool, dom_type_idx) catch return KernelError.NotAType;
+            if (pool.get(dom_type_whnf).tag != .type_) return KernelError.NotAType;
+
+            // Inférence du corps sous le contexte étendu
+            ctx.push(0, dom_ty) catch return KernelError.OutOfMemory;
+            defer ctx.pop();
+
+            const body_type = try infer(pool, ctx, body);
+
+            // Type de λ x:A. b → Π x:A. B
+            return pool.mkPi(dom_ty, body_type) catch return KernelError.OutOfMemory;
+        },
+
+        .app => {
+            const func = @as(u32, @intCast(t.payload));
+            const arg = @as(u32, @intCast(t.payload2));
+
+            const fn_type_idx = try infer(pool, ctx, func);
+            const fn_type_whnf = eval(pool, fn_type_idx) catch return KernelError.NotAFunction;
+            const fn_node = pool.get(fn_type_whnf);
+
+            if (fn_node.tag != .pi) return KernelError.NotAFunction;
+            const pi_dom = @as(u32, @intCast(fn_node.payload));
+            const pi_body = @as(u32, @intCast(fn_node.payload2));
+
+            const arg_type_idx = try infer(pool, ctx, arg);
+
+            if (!try convertible(pool, arg_type_idx, pi_dom)) {
+                return KernelError.TypeMismatch;
+            }
+
+            // Substitution B[x := arg]
+            return subst(pool, pi_body, 0, arg) catch return KernelError.OutOfMemory;
+        },
+
+        .nat_zero => {
+            const nat_hash = std.hash.Wyhash.hash(0, "Nat");
+            if (pool.lookupAxiom(nat_hash)) |type_idx| {
+                return type_idx;
+            }
+            return pool.mkRef(nat_hash) catch return KernelError.OutOfMemory;
+        },
+
+        .nat_succ => {
+            const inner = @as(u32, @intCast(t.payload));
+            const inner_type = try infer(pool, ctx, inner);
+            const nat_hash = std.hash.Wyhash.hash(0, "Nat");
+            const expected_nat = pool.lookupAxiom(nat_hash) orelse (pool.mkRef(nat_hash) catch return KernelError.OutOfMemory);
+
+            if (!try convertible(pool, inner_type, expected_nat)) {
+                return KernelError.TypeMismatch;
+            }
+            return expected_nat;
+        },
+
+        .eq => {
+            const lhs = @as(u32, @intCast(t.payload));
+            const rhs = @as(u32, @intCast(t.payload2));
+
+            const lhs_type = try infer(pool, ctx, lhs);
+            const rhs_type = try infer(pool, ctx, rhs);
+
+            if (!try convertible(pool, lhs_type, rhs_type)) {
+                return KernelError.TypeMismatch;
+            }
+            return pool.mkType(0) catch return KernelError.OutOfMemory;
+        },
+
+        .refl => {
+            const val = @as(u32, @intCast(t.payload));
+            _ = try infer(pool, ctx, val);
+            return pool.mkEq(val, val) catch return KernelError.OutOfMemory;
         },
     }
 }
 
+// ═══════════════════════════════════════════════════════════
+// TYPE INFERENCE & CHECKING (helpers)
+// ═══════════════════════════════════════════════════════════
+
 /// Check that term has the expected type (up to conversion).
-pub fn check(pool: *TermPool, ctx: *const Context, term_idx: u32, expected_type: u32) KernelError!void {
+pub fn check(pool: *TermPool, ctx: *Context, term_idx: u32, expected_type: u32) KernelError!void {
     const inferred = try infer(pool, ctx, term_idx);
     const ok = try convertible(pool, inferred, expected_type);
-    if (!ok) return KernelError.TypeError;
+    if (!ok) return KernelError.TypeMismatch;
 }
 
 /// Verify that a term is a type (i.e., its type is some Type(i)).
-fn checkIsType(pool: *TermPool, ctx: *const Context, term_idx: u32) KernelError!void {
+fn checkIsType(pool: *TermPool, ctx: *Context, term_idx: u32) KernelError!void {
     const ty = try infer(pool, ctx, term_idx);
     const ty_nf = try eval(pool, ty);
     const t = pool.get(ty_nf);
@@ -744,7 +759,7 @@ test "type mismatch: refl(Type(0)) rejected against Eq(Type(0), Type(1))" {
     const eq_t0_t1 = try pool.mkEq(t0, t1);
 
     try std.testing.expectError(
-        KernelError.TypeError,
+        KernelError.TypeMismatch,
         check(&pool, &ctx, refl_t0, eq_t0_t1),
     );
     try std.testing.expect(!try verify(&pool, refl_t0, eq_t0_t1));
@@ -790,4 +805,49 @@ test "Eq : Type(0)" {
     const node = pool.terms.items[inferred];
     try std.testing.expectEqual(TermTag.type_, node.tag);
     try std.testing.expectEqual(@as(u64, 0), node.payload);
+}
+
+test "Kernel - Allocation et conversion élémentaire" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+
+    // Type(0)
+    const type0 = try pool.mkType(0);
+
+    // Vérification de la conversion Type(0) == Type(0)
+    const is_conv = try convertible(&pool, type0, type0);
+    try std.testing.expect(is_conv);
+}
+
+test "Kernel - Inférence du type d'un Univers" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+
+    // Type(0) a pour type Type(1)
+    const type0 = try pool.mkType(0);
+    const inferred_ty = try infer(&pool, &ctx, type0);
+
+    const ty_obj = pool.get(inferred_ty);
+    try std.testing.expectEqual(TermTag.type_, ty_obj.tag);
+    try std.testing.expectEqual(@as(u64, 1), ty_obj.payload);
+}
+
+test "Kernel - Échec de typage (TypeMismatch)" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+
+    const type0 = try pool.mkType(0);
+
+    // On s'attend à TypeMismatch si on vérifie Type(0) contre Type(0) alors qu'il vaut Type(1)
+    const result = check(&pool, &ctx, type0, type0);
+    try std.testing.expectError(KernelError.TypeMismatch, result);
 }

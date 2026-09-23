@@ -49,7 +49,7 @@ pub fn readColumn(file: *File, column: *parquet_schema.ColumnChunk) !Values {
                     return @unionInit(Values, std.fmt.comptimePrint("fixed_len_byte_array_{d}", .{len}), try readColumnComptime(?[len]u8, file, column));
                 },
                 else => {
-                    std.debug.print("Unsupported type length for `FIXED_LEN_BYTE_ARRAY`: {d}\n", .{type_length});
+                    platform.debug.print("Unsupported type length for `FIXED_LEN_BYTE_ARRAY`: {d}\n", .{type_length});
                     return error.UnsupportedFixedLength;
                 },
             };

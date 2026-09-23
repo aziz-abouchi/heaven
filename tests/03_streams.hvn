@@ -1,0 +1,2 @@
+# Evaluation d'un flux paresseux
+let fibs = \a => \b => Stream.cons a (thunk (fibs b (a + b))) in Stream.take 5 (fibs 0 1)

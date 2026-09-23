@@ -44,7 +44,7 @@ pub const WebRTC = struct {
 export fn onMessageCallback(peer_id_ptr: [*c]const u8, msg_ptr: [*c]const u8, len: usize) void {
     const peer_id = std.mem.span(peer_id_ptr);
     const data = msg_ptr[0..len];
-    
+
     std.debug.print("Message reçu de {s}: {s}\n", .{ peer_id, data });
 
     // TODO: router vers handlers (comportement original inchangé —

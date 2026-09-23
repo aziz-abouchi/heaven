@@ -345,21 +345,29 @@ pub const Infer = struct {
                 return try @constCast(self.store).apply(new_func, new_args.items);
             },
             .bind => {
-                const new_body = try self.substInType(node.aux, var_name, replacement);
                 const p = self.store.pool.items;
                 const children = node.span_a.slice(p);
+
+                if (children.len != 2) return error.ExtensionNotLowered;
+
                 var new_children = std.ArrayListUnmanaged(Id){};
                 defer new_children.deinit(self.env.allocator);
+
                 for (children) |child| {
-                    try new_children.append(self.env.allocator, try self.substInType(child, var_name, replacement));
+                    try new_children.append(
+                        self.env.allocator,
+                        try self.substInType(child, var_name, replacement),
+                    );
                 }
+
                 const sa = try @constCast(self.store).pushSpan(new_children.items);
+
                 return @constCast(self.store).addNode(.{
                     .tag = .bind,
                     .payload = node.payload,
-                    .aux = new_body,
+                    .aux = 0,
                     .span_a = sa,
-                    .span_b = node.span_b,
+                    .span_b = expr.Span.EMPTY,
                 });
             },
             else => return t,
@@ -419,7 +427,12 @@ pub const Infer = struct {
                 return try self.inferApply(id);
             },
             .bind => {
-                const val_t = try self.typeOf(node.aux);
+                const p = self.store.pool.items;
+                const children = node.span_a.slice(p);
+
+                if (children.len != 2) return error.ExtensionNotLowered;
+
+                const val_t = try self.typeOf(children[0]);
                 const name = self.store.interner.resolve(node.payload);
                 try self.env.put(name, val_t);
                 return val_t;

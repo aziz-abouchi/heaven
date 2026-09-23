@@ -1,0 +1,2 @@
+;; Test d'expression de récursion terminale évaluable en REPL
+let rec sum = \n => \acc => if n == 0 then acc else sum (n - 1) (acc + n) in sum 1000000 0

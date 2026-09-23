@@ -106,7 +106,7 @@ Règles d'or :
   - JAMAIS de "if (builtin.cpu_arch == .wasm32)" dans src/core/
   - Toute logique spécifique plateforme dans src/platform/
   - Utiliser platform.debug.print / platform.fs / platform.io
-  - En WASM, std.debug.print est INTERDIT (casse le build freestanding)
+  - En WASM, platform.debug.print est INTERDIT (casse le build freestanding)
 
 SUPPORT MULTI-LANGAGE
 =====================

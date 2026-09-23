@@ -9,7 +9,7 @@ pub fn main(init: std.process.Init) !void {
     var args = std.process.Args.Iterator.init(init.minimal.args);
     _ = args.skip(); // program name
     const path = args.next() orelse return error.MissingArgument;
-    std.debug.print("Parsing {s}\n", .{path});
+    platform.debug.print("Parsing {s}\n", .{path});
 
     var threaded: Io.Threaded = .init(allocator, .{ .environ = init.minimal.environ });
     defer threaded.deinit();
@@ -21,16 +21,16 @@ pub fn main(init: std.process.Init) !void {
     var parquet_file = try parzig.parquet.File.read(allocator, &file_reader);
     defer parquet_file.deinit();
 
-    std.debug.print("File Metadata:\n", .{});
-    std.debug.print("\tFormat version: {d}\n", .{parquet_file.metadata.version});
+    platform.debug.print("File Metadata:\n", .{});
+    platform.debug.print("\tFormat version: {d}\n", .{parquet_file.metadata.version});
     if (parquet_file.metadata.created_by) |created_by| {
-        std.debug.print("\tCreated by: {s}\n", .{created_by});
+        platform.debug.print("\tCreated by: {s}\n", .{created_by});
     }
-    std.debug.print("\tNumber of rows: {d}\n", .{parquet_file.metadata.num_rows});
+    platform.debug.print("\tNumber of rows: {d}\n", .{parquet_file.metadata.num_rows});
     // There is always `root` in the schema, don't count it.
     const num_columns = parquet_file.metadata.schema.len - 1;
-    std.debug.print("\tNumber of columns: {d}\n", .{num_columns});
-    std.debug.print("\tNumber of row groups: {d}\n", .{parquet_file.metadata.row_groups.len});
+    platform.debug.print("\tNumber of columns: {d}\n", .{num_columns});
+    platform.debug.print("\tNumber of row groups: {d}\n", .{parquet_file.metadata.row_groups.len});
 
     const total_byte_size = blk: {
         var total: i64 = 0;
@@ -39,9 +39,9 @@ pub fn main(init: std.process.Init) !void {
         }
         break :blk total;
     };
-    std.debug.print("\tTotal byte size of data: {d}\n", .{total_byte_size});
+    platform.debug.print("\tTotal byte size of data: {d}\n", .{total_byte_size});
 
-    std.debug.print("-------\n", .{});
+    platform.debug.print("-------\n", .{});
 
     for (parquet_file.metadata.row_groups, 0..) |rg_metadata, rg_idx| {
         var rg = parquet_file.rowGroup(rg_idx);
@@ -50,7 +50,7 @@ pub fn main(init: std.process.Init) !void {
             const ty = column.meta_data.?.type;
             const column_path = try std.mem.join(allocator, ".", column.meta_data.?.path_in_schema);
             defer allocator.free(column_path);
-            std.debug.print("{s} - {any}, values:\n", .{ column_path, ty });
+            platform.debug.print("{s} - {any}, values:\n", .{ column_path, ty });
             switch (try rg.readColumnDynamic(i)) {
                 .boolean => |data| printValues(bool, data),
                 .int32 => |data| printValues(i32, data),
@@ -87,20 +87,20 @@ fn printValues(comptime T: type, data: []?T) void {
         if (data.len > 10) {
             for (data[0..10], 0..) |item, i| {
                 if (i == 9) {
-                    std.debug.print("{?s}\n", .{item});
+                    platform.debug.print("{?s}\n", .{item});
                 } else {
-                    std.debug.print("{?s}, ", .{item});
+                    platform.debug.print("{?s}, ", .{item});
                 }
             }
 
-            std.debug.print("..\n", .{});
-            std.debug.print("{d} more\n\n", .{data.len - 10});
+            platform.debug.print("..\n", .{});
+            platform.debug.print("{d} more\n\n", .{data.len - 10});
         } else {
             for (data, 0..) |item, i| {
                 if (i == data.len - 1) {
-                    std.debug.print("{?s}\n\n", .{item});
+                    platform.debug.print("{?s}\n\n", .{item});
                 } else {
-                    std.debug.print("{?s}, ", .{item});
+                    platform.debug.print("{?s}, ", .{item});
                 }
             }
         }
@@ -109,10 +109,10 @@ fn printValues(comptime T: type, data: []?T) void {
     }
 
     if (data.len > 10) {
-        std.debug.print("{any}\n", .{data[0..10]});
-        std.debug.print("..\n", .{});
-        std.debug.print("{d} more\n\n", .{data.len - 10});
+        platform.debug.print("{any}\n", .{data[0..10]});
+        platform.debug.print("..\n", .{});
+        platform.debug.print("{d} more\n\n", .{data.len - 10});
     } else {
-        std.debug.print("{any}\n\n", .{data});
+        platform.debug.print("{any}\n\n", .{data});
     }
 }

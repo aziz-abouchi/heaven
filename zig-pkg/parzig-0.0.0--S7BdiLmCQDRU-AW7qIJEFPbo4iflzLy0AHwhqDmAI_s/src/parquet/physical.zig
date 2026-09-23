@@ -197,16 +197,16 @@ pub fn deltaStrings(comptime T: type, arena: Allocator, reader: *Reader, buf: []
     switch (@typeInfo(T)) {
         .pointer => |ptr| {
             if (ptr.child != u8) {
-                std.debug.print("Slice child type must be u8, not: {any}\n", .{@typeName(ptr.child)});
+                platform.debug.print("Slice child type must be u8, not: {any}\n", .{@typeName(ptr.child)});
                 return error.UnsupportedType;
             }
             if (ptr.size != .slice) {
-                std.debug.print("Pointer must be a slice, not: {any}\n", .{@typeName(ptr)});
+                platform.debug.print("Pointer must be a slice, not: {any}\n", .{@typeName(ptr)});
                 return error.UnsupportedType;
             }
         },
         else => {
-            std.debug.print("Unsupported type: {any}\n", .{@typeName(T)});
+            platform.debug.print("Unsupported type: {any}\n", .{@typeName(T)});
             return error.UnsupportedType;
         },
     }

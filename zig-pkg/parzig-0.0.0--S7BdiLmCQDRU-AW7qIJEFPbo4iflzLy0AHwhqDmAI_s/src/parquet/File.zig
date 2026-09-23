@@ -174,7 +174,7 @@ pub fn readLevelDataV1(_: *File, reader: *Reader, encoding: parquet_schema.Encod
             try physical.runLengthBitPackedHybridLengthPrepended(u16, reader, bit_width, dest);
         },
         else => {
-            std.debug.print("Unsupported repetition/definition level encoding: {any}\n", .{encoding});
+            platform.debug.print("Unsupported repetition/definition level encoding: {any}\n", .{encoding});
             return error.UnsupportedDefinitionLevelEncoding;
         },
     }

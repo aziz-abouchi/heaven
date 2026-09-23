@@ -505,8 +505,8 @@
         wasm = instance.exports;
         memory = wasm.memory;
         wasm.init();
-        if (wasm.exports && wasm.exports.set_debug_logging) {
-    wasm.exports.set_debug_logging(false);
+        if (wasm.set_debug_logging) {
+    wasm.set_debug_logging(false);
 }
 
         await initIndexedDB();

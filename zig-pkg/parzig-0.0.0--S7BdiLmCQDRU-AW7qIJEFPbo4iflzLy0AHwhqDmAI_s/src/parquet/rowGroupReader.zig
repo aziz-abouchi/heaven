@@ -125,7 +125,7 @@ fn readPhysicalColumnWithLevels(comptime T: type, file: *File, column: *parquet_
         const page_end = file.file_reader.logicalPos() + @as(u64, @intCast(page_header.compressed_page_size));
         defer {
             file.file_reader.seekTo(page_end) catch |err| {
-                std.debug.print("Failed to seek to end of the page: {any}\n", .{err});
+                platform.debug.print("Failed to seek to end of the page: {any}\n", .{err});
             };
         }
 
@@ -182,7 +182,7 @@ fn readPhysicalColumnWithLevels(comptime T: type, file: *File, column: *parquet_
                         break :blk buf;
                     },
                     else => {
-                        std.debug.print("Unsupported encoding: {any}\n", .{data_page.encoding});
+                        platform.debug.print("Unsupported encoding: {any}\n", .{data_page.encoding});
                         return error.UnsupportedEncoding;
                     },
                 };
@@ -260,7 +260,7 @@ fn readPhysicalColumnWithLevels(comptime T: type, file: *File, column: *parquet_
                         try physical.deltaStrings(Inner, arena, decoder, buf);
                     },
                     else => {
-                        std.debug.print("Unsupported encoding: {any}\n", .{data_page.encoding});
+                        platform.debug.print("Unsupported encoding: {any}\n", .{data_page.encoding});
                         return error.UnsupportedEncoding;
                     },
                 }
@@ -276,7 +276,7 @@ fn readPhysicalColumnWithLevels(comptime T: type, file: *File, column: *parquet_
                 read_levels_pos += num_values;
             },
             else => {
-                std.debug.print("{any} is not supported\n", .{page_header.type});
+                platform.debug.print("{any} is not supported\n", .{page_header.type});
                 return error.PageTypeNotSupported;
             },
         }
@@ -363,7 +363,7 @@ fn decoderForPage(arena: std.mem.Allocator, inner_reader: *Reader, codec: parque
         },
         .UNCOMPRESSED => inner_reader,
         else => {
-            std.debug.print("Unsupported codec: {any}\n", .{codec});
+            platform.debug.print("Unsupported codec: {any}\n", .{codec});
             return error.UnsupportedCodec;
         },
     };
@@ -372,7 +372,7 @@ fn decoderForPage(arena: std.mem.Allocator, inner_reader: *Reader, codec: parque
 fn readDictionaryPage(comptime T: type, arena: std.mem.Allocator, page_header: parquet_schema.PageHeader, reader: *Reader, codec: parquet_schema.CompressionCodec) ![]T {
     const header = page_header.dictionary_page_header orelse return error.MissingDictionaryPageHeader;
     if (header.encoding != .PLAIN and header.encoding != .PLAIN_DICTIONARY) {
-        std.debug.print("Unsupported encoding in dictionary page: {any}\n", .{header.encoding});
+        platform.debug.print("Unsupported encoding in dictionary page: {any}\n", .{header.encoding});
         return error.UnexpectedEncodingInDictionaryPage;
     }
 

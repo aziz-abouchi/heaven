@@ -12,7 +12,7 @@ pub fn span(ptr: [*c]const u8) []const u8 {
 
 pub fn runCompile(allocator: std.mem.Allocator, file_path: []const u8) !void {
     _ = platform; // Module platform disponible pour l'intégration I/O système
-    std.debug.print("[COMPILER] Compilation de {s}...\n", .{file_path});
+    platform.debug.print("[COMPILER] Compilation de {s}...\n", .{file_path});
 
     var store = expr.Store.init(allocator);
     defer store.deinit();
@@ -38,7 +38,7 @@ pub fn runCompile(allocator: std.mem.Allocator, file_path: []const u8) !void {
     try emitter.emitC(out_file, core_id);
     try out_file.writeAll(";\n");
 
-    std.debug.print("[COMPILER] Succès : output.c généré.\n", .{});
+    platform.debug.print("[COMPILER] Succès : output.c généré.\n", .{});
 }
 
 pub fn emitFnDecl(
