@@ -340,6 +340,55 @@ mais pas l'**index**.
 
 ---
 
+
+## #units — Analyse dimensionnelle et incertitude
+
+### Idée (héritée d'astra-core `lens/`, 2026-02)
+
+Un type `Quantity(unit)` qui porte :
+
+- **Dimensions** `(M, L, T, I)` sous forme d'entiers signés.
+  Ex. : vitesse `M0 L1 T-1`, énergie `M1 L2 T-2`.
+- **Incertitude** `σ : f64` propagée par les opérations :
+  - `a + b → √(σa² + σb²)`
+  - `a × b → |res| · √((σa/a)² + (σb/b)²)`
+
+### Intérêt
+
+- Vérifier des formules physiques **au niveau type** : `v = d / t`
+  ne compile que si `unit(v) = unit(d) / unit(t)`.
+- Budgets énergétiques vérifiables statiquement (aligné avec la
+  vision « sonde Von Neumann »).
+- Rendu des incertitudes : toute valeur mesurée traîne sa barre
+  d'erreur.
+
+### Design pressenti
+
+- Wrapper les littéraux `f64` dans le Store avec une **dimension**
+  optionnelle (`Tag.lit` + un `dim` associé).
+- Étendre l'unification d'`egraph.zig` pour **unifier les dimensions**
+  (comme il unifie les formes).
+- Ou : type `Quantity(u)` avec un paramètre d'unité polymorphe, pour
+  rester dans le système HM existant.
+
+Décision à prendre quand le premier cas d'usage arrive (simulation
+physique ou énergétique).
+
+### Code source d'inspiration (non portable tel quel)
+
+- `astra-core/src/saturation/egraph.zig` (393 l.) — modèle de nœud
+  avec `unit`, `uncertainty`, `Scalar`.
+- `astra-core/src/saturation/uncertainty.zig` — formules de
+  propagation.
+- `astra-core/src/lens/math.zig` (174 l.) — parser ; **à ne pas
+  réutiliser** (fixed-size arrays, hacks « pour ton test »).
+
+### Effort
+
+2–3 sessions, une fois le cas d'usage clarifié.
+
+---
+
 ## #stdlib — Compléter `core/std/`
 
 Les fichiers `std/*.hvn` ont des signatures sans corps :
