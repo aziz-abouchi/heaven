@@ -1,0 +1,27 @@
+{
+  "metadata": {
+    "lines": 1,
+    "avg_line_length": 2,
+    "nodes": 1,
+    "errors": 0,
+    "source_hash": "e33873fead5942480d27e3924d51769a87bee091d1932add3f69722ef7d923ba",
+    "language": "python"
+  },
+  "nodes": [
+    {
+      "id": 0,
+      "type": "integer_literal",
+      "parent": -1,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "42",
+      "semantic_role": "literal_expr"
+    }
+  ],
+  "declarations": [],
+  "statements": [],
+  "expressions": [
+    0
+  ]
+}

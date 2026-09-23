@@ -1,0 +1,177 @@
+{
+  "metadata": {
+    "lines": 7,
+    "avg_line_length": 15.5,
+    "nodes": 13,
+    "errors": 0,
+    "source_hash": "003ea13a30e2bf17603dc89461cd499d6a1ae13b341a9f9cc19bb4417529fc73",
+    "language": "python"
+  },
+  "nodes": [
+    {
+      "id": 0,
+      "type": "function_definition",
+      "parent": -1,
+      "children": [
+        1,
+        2,
+        4
+      ],
+      "children_start": 0,
+      "children_count": 3,
+      "snippet": "",
+      "semantic_role": "function_decl"
+    },
+    {
+      "id": 1,
+      "type": "identifier",
+      "parent": 0,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "is_adult",
+      "semantic_role": "function_decl"
+    },
+    {
+      "id": 2,
+      "type": "parameters",
+      "parent": 0,
+      "children": [
+        3
+      ],
+      "children_start": 0,
+      "children_count": 1,
+      "snippet": "",
+      "semantic_role": "parameter_decl"
+    },
+    {
+      "id": 3,
+      "type": "identifier",
+      "parent": 2,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "age",
+      "semantic_role": "parameter_decl"
+    },
+    {
+      "id": 4,
+      "type": "block",
+      "parent": 0,
+      "children": [
+        5,
+        9,
+        11
+      ],
+      "children_start": 0,
+      "children_count": 3,
+      "snippet": "",
+      "semantic_role": "block_stmt"
+    },
+    {
+      "id": 5,
+      "type": "if_statement",
+      "parent": 4,
+      "children": [
+        6,
+        9
+      ],
+      "children_start": 0,
+      "children_count": 2,
+      "snippet": "",
+      "semantic_role": "if_stmt"
+    },
+    {
+      "id": 6,
+      "type": "binary_expression",
+      "parent": 5,
+      "children": [
+        7,
+        8
+      ],
+      "children_start": 0,
+      "children_count": 2,
+      "snippet": ">=",
+      "semantic_role": "expression"
+    },
+    {
+      "id": 7,
+      "type": "identifier",
+      "parent": 6,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "age",
+      "semantic_role": "identifier_expr"
+    },
+    {
+      "id": 8,
+      "type": "integer_literal",
+      "parent": 6,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "18",
+      "semantic_role": "literal_expr"
+    },
+    {
+      "id": 9,
+      "type": "return_statement",
+      "parent": 5,
+      "children": [
+        10
+      ],
+      "children_start": 0,
+      "children_count": 1,
+      "snippet": "return",
+      "semantic_role": "return_stmt"
+    },
+    {
+      "id": 10,
+      "type": "boolean_literal",
+      "parent": 9,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "true",
+      "semantic_role": "literal_expr"
+    },
+    {
+      "id": 11,
+      "type": "return_statement",
+      "parent": 4,
+      "children": [
+        12
+      ],
+      "children_start": 0,
+      "children_count": 1,
+      "snippet": "return",
+      "semantic_role": "return_stmt"
+    },
+    {
+      "id": 12,
+      "type": "boolean_literal",
+      "parent": 11,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "false",
+      "semantic_role": "literal_expr"
+    }
+  ],
+  "declarations": [
+    0
+  ],
+  "statements": [
+    5,
+    9,
+    11
+  ],
+  "expressions": [
+    6,
+    7,
+    8,
+    10,
+    12
+  ]
+}

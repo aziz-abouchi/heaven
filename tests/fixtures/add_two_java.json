@@ -1,0 +1,16 @@
+{
+  "metadata": {"lines": 3, "avg_line_length": 14, "nodes": 9, "errors": 0, "source_hash": "y", "language": "java"},
+  "nodes": [
+    {"id":0,"type":"method_declaration","parent":-1,"children":[1,2,3,4],"children_start":0,"children_count":4,"snippet":"","semantic_role":"function_decl"},
+    {"id":1,"type":"identifier","parent":0,"children":[],"children_start":0,"children_count":0,"snippet":"add","semantic_role":"function_decl"},
+    {"id":2,"type":"formal_parameters","parent":0,"children":[5,6,7,8],"children_start":0,"children_count":4,"snippet":"","semantic_role":"parameter_decl"},
+    {"id":3,"type":"type_identifier","parent":0,"children":[],"children_start":0,"children_count":0,"snippet":"int","semantic_role":"function_decl"},
+    {"id":4,"type":"block","parent":0,"children":[9],"children_start":0,"children_count":1,"snippet":"","semantic_role":"block_stmt"},
+    {"id":5,"type":"identifier","parent":2,"children":[],"children_start":0,"children_count":0,"snippet":"a","semantic_role":"parameter_decl"},
+    {"id":6,"type":"type_identifier","parent":2,"children":[],"children_start":0,"children_count":0,"snippet":"int","semantic_role":"parameter_decl"},
+    {"id":7,"type":"identifier","parent":2,"children":[],"children_start":0,"children_count":0,"snippet":"b","semantic_role":"parameter_decl"},
+    {"id":8,"type":"type_identifier","parent":2,"children":[],"children_start":0,"children_count":0,"snippet":"int","semantic_role":"parameter_decl"},
+    {"id":9,"type":"return_statement","parent":4,"children":[10],"children_start":0,"children_count":1,"snippet":"","semantic_role":"return_stmt"},
+    {"id":10,"type":"binary_expression","parent":9,"children":[],"children_start":0,"children_count":0,"snippet":"+","semantic_role":"binary_expr"}
+  ]
+}

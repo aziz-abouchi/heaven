@@ -1,0 +1,199 @@
+{
+  "metadata": {
+    "lines": 7,
+    "avg_line_length": 18.0,
+    "nodes": 15,
+    "errors": 0,
+    "source_hash": "8b9cbc243c8f06648677718b3f673e5cbc9e1f95bcfbdd0a5efe4aaf51864ea1",
+    "language": "java"
+  },
+  "nodes": [
+    {
+      "id": 0,
+      "type": "function_declaration",
+      "parent": -1,
+      "children": [
+        1,
+        2,
+        5,
+        6
+      ],
+      "children_start": 0,
+      "children_count": 4,
+      "snippet": "",
+      "semantic_role": "function_decl"
+    },
+    {
+      "id": 1,
+      "type": "identifier",
+      "parent": 0,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "isAdult",
+      "semantic_role": "function_decl"
+    },
+    {
+      "id": 2,
+      "type": "formal_parameters",
+      "parent": 0,
+      "children": [
+        3,
+        4
+      ],
+      "children_start": 0,
+      "children_count": 2,
+      "snippet": "",
+      "semantic_role": "parameter_decl"
+    },
+    {
+      "id": 3,
+      "type": "identifier",
+      "parent": 2,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "age",
+      "semantic_role": "parameter_decl"
+    },
+    {
+      "id": 4,
+      "type": "type_identifier",
+      "parent": 2,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "int",
+      "semantic_role": "parameter_decl"
+    },
+    {
+      "id": 5,
+      "type": "type_identifier",
+      "parent": 0,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "boolean",
+      "semantic_role": "function_decl"
+    },
+    {
+      "id": 6,
+      "type": "statement_block",
+      "parent": 0,
+      "children": [
+        7,
+        11,
+        13
+      ],
+      "children_start": 0,
+      "children_count": 3,
+      "snippet": "",
+      "semantic_role": "block_stmt"
+    },
+    {
+      "id": 7,
+      "type": "if_statement",
+      "parent": 6,
+      "children": [
+        8,
+        11
+      ],
+      "children_start": 0,
+      "children_count": 2,
+      "snippet": "",
+      "semantic_role": "if_stmt"
+    },
+    {
+      "id": 8,
+      "type": "binary_expression",
+      "parent": 7,
+      "children": [
+        9,
+        10
+      ],
+      "children_start": 0,
+      "children_count": 2,
+      "snippet": ">=",
+      "semantic_role": "expression"
+    },
+    {
+      "id": 9,
+      "type": "identifier",
+      "parent": 8,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "age",
+      "semantic_role": "identifier_expr"
+    },
+    {
+      "id": 10,
+      "type": "integer_literal",
+      "parent": 8,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "18",
+      "semantic_role": "literal_expr"
+    },
+    {
+      "id": 11,
+      "type": "return_statement",
+      "parent": 7,
+      "children": [
+        12
+      ],
+      "children_start": 0,
+      "children_count": 1,
+      "snippet": "return",
+      "semantic_role": "return_stmt"
+    },
+    {
+      "id": 12,
+      "type": "boolean_literal",
+      "parent": 11,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "true",
+      "semantic_role": "literal_expr"
+    },
+    {
+      "id": 13,
+      "type": "return_statement",
+      "parent": 6,
+      "children": [
+        14
+      ],
+      "children_start": 0,
+      "children_count": 1,
+      "snippet": "return",
+      "semantic_role": "return_stmt"
+    },
+    {
+      "id": 14,
+      "type": "boolean_literal",
+      "parent": 13,
+      "children": [],
+      "children_start": 0,
+      "children_count": 0,
+      "snippet": "false",
+      "semantic_role": "literal_expr"
+    }
+  ],
+  "declarations": [
+    0
+  ],
+  "statements": [
+    7,
+    11,
+    13
+  ],
+  "expressions": [
+    8,
+    9,
+    10,
+    12,
+    14
+  ]
+}

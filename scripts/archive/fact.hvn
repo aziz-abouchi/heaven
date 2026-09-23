@@ -1,4 +1,0 @@
-module Fact {
-    factorielle(n) = n * 1
-    main = factorielle(5)
-}

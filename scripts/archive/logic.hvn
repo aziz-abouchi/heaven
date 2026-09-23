@@ -1,3 +1,0 @@
-id : (A: Type) -> A
-id -> { arg }
-main -> ?solution
