@@ -220,6 +220,28 @@ le type-check incrémental.
 
 ## #type-dep — Types dépendants
 
+### v2a ✅ *fait* — vérification d'arité / forme des patterns
+
+- `sig name : type` : déclare une signature (compte les `->` top-level
+  pour l'arité).
+- `Heaven.ctor_arities` / `fn_arities` peuplés par `evalDataDecl` et
+  la route `sig`.
+- `evalEquation` vérifie :
+  1. nombre de patterns = arité attendue (si `sig` déclarée).
+  2. chaque pattern `(Ctor args)` a le bon nombre d'args.
+
+Attrape : `head Nil = 42`, `head (Cons x) _ = x` (Cons à 2 args
+mais reçu 1).
+
+### v2b — *roadmap*
+
+- Vérifier le **type** de chaque pattern face au domaine correspondant
+  de la signature.
+- Unification d'indexes dépendants (`Vec (succ n)` vs `Vec (succ zero)`).
+- Propagation des liaisons d'index dans le contexte.
+
+**Effort v2b** : 2-3 sessions.
+
 ### v0 ✅ *fait*
 
 - `data Vec (n : Nat) = Nil | Cons a (Vec n)` parse et s'enregistre.
