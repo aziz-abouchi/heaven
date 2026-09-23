@@ -219,26 +219,38 @@ le type-check incrémental.
 
 ## #type-dep — Types dépendants
 
-### État actuel
+### v0 ✅ *fait*
 
-- `kernel.zig` implémente déjà le CIC (Π, univers, Eq, refl)
-- `elab.zig::TypeChecker` fait du bidirectionnel
-- Il manque : le **lien** entre les deux, et la **surface syntaxique**
+- `data Vec (n : Nat) = Nil | Cons a (Vec n)` parse et s'enregistre.
+- Nouveau module `src/core/type_registry.zig` : `TypeRegistry`,
+  `TypeInfo { name, params, ctors }`, `ParamInfo { name, ty? }`,
+  `CtorInfo { name, arity, arg_types }`.
+- `Heaven.type_registry` initialisé/deinit proprement.
+- `evalDataDecl` étendu : parse `(n : Nat)`, `a`, et les ctor args
+  (parenthésés ou non). Compat : les ctors restent enregistrés dans
+  `engine.fns` (comportement historique préservé).
+- 3 tests Zig : `data Vec (n : Nat)`, `data Color = ...`, compat engine.
 
-### Design
+**Limitation v0** : un seul param typé `(x : T)` supporté par data
+(par manque de parsing multi-parenthèses). `data Pair a b = ...` et
+`data Foo (x : T) (y : U) = ...` seront v1.
 
-**Syntaxe surface** :
+### v1 — à faire
 
-    data Vector (n : Nat) : Type where
-      Nil  : Vector zero
-      Cons : a -> Vector n -> Vector (succ n)
+- Multi-params typés : `(x : T) (y : U)`.
+- Vérification type-dep : `head : Vec (succ n) -> a` — nécessite le
+  branchement `elab.zig` → `kernel.zig` (TermPool CIC).
+- Unification modulo β-réduction.
+- Inférence de params implicites.
 
-**Elaboration** :
+**Effort v1** : plusieurs sessions.
 
-- `data` paramétré par des valeurs → `Node` avec `bind` sur le paramètre
-- `TypeChecker.checkType` compare modulo β-réduction + CIC
+### v0 historique (pour mémoire)
 
-**Effort** : 10 jours. **Prérequis** : `#tactics`.
+- `kernel.zig` implémente déjà le CIC (Π, univers, Eq, refl).
+- `elab.zig::TypeChecker` fait du bidirectionnel.
+- Il manquait : le lien entre les deux, et la surface syntaxique.
+- **v0 résout la surface syntaxique + le registre**, sans toucher au noyau.
 
 ---
 

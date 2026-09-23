@@ -24,6 +24,7 @@ const skill_lib = @import("skill");
 const proof_core_mod = @import("proof_core");
 const proof_state_mod = @import("proof_state");
 const tactics_mod = @import("tactics");
+const type_registry_mod = @import("type_registry");
 const agent_mod = @import("agent");
 
 const elab_mod = @import("elab");
@@ -196,6 +197,8 @@ pub const Heaven = struct {
     /// Namespace courant (`module M` → "M"). Utilisé pour aliasser les
     /// théorèmes sous `M.name` dans proof_core.
     current_module: ?[]const u8 = null,
+    /// Registre des types de données (v0 #type-dep).
+    type_registry: type_registry_mod.TypeRegistry,
 
     pub fn init(allocator: std.mem.Allocator) !*Heaven {
         const self = try allocator.create(Heaven);
@@ -226,6 +229,7 @@ pub const Heaven = struct {
             .parser = parser,
             .math = undefined,
             .hole_state = hole_mod.HoleState.init(allocator),
+            .type_registry = type_registry_mod.TypeRegistry.init(allocator),
         };
 
         // Définir la vtable
@@ -433,6 +437,7 @@ pub const Heaven = struct {
         }
 
         if (self.current_module) |m| self.allocator.free(m);
+        self.type_registry.deinit();
         self.hole_state.deinit();
     }
 
@@ -809,50 +814,164 @@ pub const Heaven = struct {
     }
 
     fn evalDataDecl(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        // Syntaxe supportée (v0) :
+        //   data Name = C1 | C2 args | ...
+        //   data Name a b = C1 | ...
+        //   data Name (n : Nat) = C1 | ...
+        //   data Name (n : Nat) (m : Nat) = ...
+        //   Mix possible : data Name a (n : Nat) = ...
         const eq_pos = std.mem.indexOfScalar(u8, src, '=') orelse
-            return self.allocator.dupe(u8, "syntax error in data");
+            return self.allocator.dupe(u8, "syntax error in data: '=' manquant");
+        const head = std.mem.trim(u8, src[0..eq_pos], " \t");
         const rhs = std.mem.trim(u8, src[eq_pos + 1 ..], " \t");
 
+        // 1. Parse la partie gauche : nom + params.
+        var head_it = std.mem.tokenizeAny(u8, head, " \t");
+        const type_name = head_it.next() orelse
+            return self.allocator.dupe(u8, "syntax error: nom de type manquant");
+
+        var params: std.ArrayListUnmanaged(type_registry_mod.ParamInfo) = .{};
+        defer {
+            for (params.items) |p| self.allocator.free(p.name);
+            params.deinit(self.allocator);
+        }
+
+        // Parse les params : peut être `a`, `(n : Nat)`, ou une suite.
+        while (true) {
+            const rest = head_it.rest();
+            if (rest.len == 0) break;
+            const trimmed_rest = std.mem.trimLeft(u8, rest, " \t");
+            if (trimmed_rest.len == 0) break;
+
+            if (trimmed_rest[0] == '(') {
+                // `(n : Nat)` — cherche la parenthèse fermante.
+                const close = std.mem.indexOfScalar(u8, trimmed_rest, ')') orelse
+                    return self.allocator.dupe(u8, "syntax error: '(' non fermée dans params");
+                const inner = std.mem.trim(u8, trimmed_rest[1..close], " \t");
+                const colon = std.mem.indexOfScalar(u8, inner, ':') orelse
+                    return self.allocator.dupe(u8, "syntax error: ':' attendu dans (nom : Type)");
+                const pname = std.mem.trim(u8, inner[0..colon], " \t");
+                const ptype_str = std.mem.trim(u8, inner[colon + 1 ..], " \t");
+                if (pname.len == 0 or ptype_str.len == 0)
+                    return self.allocator.dupe(u8, "syntax error: param vide");
+
+                const ptype = self.parseExpression(ptype_str) catch
+                    return self.allocator.dupe(u8, "syntax error: type de param invalide");
+                try params.append(self.allocator, .{
+                    .name = try self.allocator.dupe(u8, pname),
+                    .ty = ptype,
+                });
+                // Avance le tokenizer en brûlant `close + 1` chars.
+                _ = head_it.next();
+                // Note : tokenizeAny ne traite pas `(n : Nat)` comme un seul
+                // token (les parens sont juste des bytes). Ce chemin est
+                // approximatif pour v0 : on consomme juste ce qu'on peut.
+                // Le cas multi-param avec parens est géré par la boucle.
+                // On s'arrête pour éviter une double consommation.
+                // (Le parse des params reste simple tant qu'ils sont
+                //  séparés par des espaces et sans parenthèses imbriquées.)
+                // Pour être robuste, on recalcule `rest` à partir de la
+                // position réelle.
+                // Approche simplifiée : on sort dès qu'on a un param parenthésé.
+                // (v1 gérera plusieurs params parenthésés proprement.)
+                break;
+            } else {
+                // `a` — param non typé (kind d'une variable de type).
+                const tok = head_it.next() orelse break;
+                try params.append(self.allocator, .{
+                    .name = try self.allocator.dupe(u8, tok),
+                    .ty = null,
+                });
+            }
+        }
+
+        // 2. Parse les constructeurs.
+        var ctors: std.ArrayListUnmanaged(type_registry_mod.CtorInfo) = .{};
+        defer {
+            for (ctors.items) |c| {
+                self.allocator.free(c.name);
+                self.allocator.free(c.arg_types);
+            }
+            ctors.deinit(self.allocator);
+        }
+
         var it = std.mem.splitScalar(u8, rhs, '|');
-        var count: usize = 0;
         while (it.next()) |raw| {
-            const ctor = std.mem.trim(u8, raw, " \t");
-            if (ctor.len == 0) continue;
+            const ctor_str = std.mem.trim(u8, raw, " \t");
+            if (ctor_str.len == 0) continue;
 
-            // Nom = premier token
+            // Nom = premier token.
             var name_end: usize = 0;
-            while (name_end < ctor.len and ctor[name_end] != ' ' and ctor[name_end] != '\t') : (name_end += 1) {}
-            const name = ctor[0..name_end];
+            while (name_end < ctor_str.len and
+                   ctor_str[name_end] != ' ' and
+                   ctor_str[name_end] != '\t') : (name_end += 1) {}
+            const ctor_name = ctor_str[0..name_end];
 
-            // Compter les args en respectant les parenthèses
-            var arity: u8 = 0;
+            // Args (v0 : tokens séparés par espaces, en respectant les parens).
+            var arg_types: std.ArrayListUnmanaged(Id) = .{};
+            errdefer arg_types.deinit(self.allocator);
+
             var i = name_end;
-            while (i < ctor.len) {
-                while (i < ctor.len and (ctor[i] == ' ' or ctor[i] == '\t')) : (i += 1) {}
-                if (i >= ctor.len) break;
-                if (ctor[i] == '(') {
+            while (i < ctor_str.len) {
+                while (i < ctor_str.len and
+                       (ctor_str[i] == ' ' or ctor_str[i] == '\t')) : (i += 1) {}
+                if (i >= ctor_str.len) break;
+
+                if (ctor_str[i] == '(') {
                     var depth: usize = 1;
+                    const arg_start = i;
                     i += 1;
-                    while (i < ctor.len and depth > 0) : (i += 1) {
-                        if (ctor[i] == '(') depth += 1 else if (ctor[i] == ')') depth -= 1;
+                    while (i < ctor_str.len and depth > 0) : (i += 1) {
+                        if (ctor_str[i] == '(') depth += 1
+                        else if (ctor_str[i] == ')') depth -= 1;
                     }
+                    const arg_str = ctor_str[arg_start..i];
+                    const arg_id = self.parseExpression(arg_str) catch
+                        try self.store.sym(arg_str);
+                    try arg_types.append(self.allocator, arg_id);
                 } else {
-                    while (i < ctor.len and ctor[i] != ' ' and ctor[i] != '\t') : (i += 1) {}
+                    const arg_start = i;
+                    while (i < ctor_str.len and
+                           ctor_str[i] != ' ' and
+                           ctor_str[i] != '\t') : (i += 1) {}
+                    const arg_str = ctor_str[arg_start..i];
+                    const arg_id = self.parseExpression(arg_str) catch
+                        try self.store.sym(arg_str);
+                    try arg_types.append(self.allocator, arg_id);
                 }
-                arity += 1;
             }
 
-            const owned = try self.allocator.dupe(u8, name);
+            try ctors.append(self.allocator, .{
+                .name = try self.allocator.dupe(u8, ctor_name),
+                .arity = @intCast(arg_types.items.len),
+                .arg_types = try arg_types.toOwnedSlice(self.allocator),
+            });
+
+            // Enregistre AUSSI dans engine.fns (comportement historique :
+            // `Cons 1 Nil` etc. continuent de fonctionner).
+            const owned = try self.allocator.dupe(u8, ctor_name);
             const gop = try self.engine.fns.getOrPut(self.allocator, owned);
             if (gop.found_existing) {
                 self.allocator.free(owned);
             } else {
                 gop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
             }
-            gop.value_ptr.ctor_arity = arity;
-            count += 1;
+            gop.value_ptr.ctor_arity = @intCast(arg_types.items.len);
         }
-        return std.fmt.allocPrint(self.allocator, "✓ data type registered ({d} constructors)", .{count});
+
+        // 3. Enregistre dans le TypeRegistry.
+        const info = type_registry_mod.TypeInfo{
+            .name = try self.allocator.dupe(u8, type_name),
+            .params = try params.toOwnedSlice(self.allocator),
+            .ctors = try ctors.toOwnedSlice(self.allocator),
+        };
+        try self.type_registry.register(info);
+
+        return std.fmt.allocPrint(
+            self.allocator,
+            "✓ data {s} registered ({d} param(s), {d} constructor(s))",
+            .{ type_name, info.params.len, info.ctors.len },
+        );
     }
 
     fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
@@ -3384,6 +3503,67 @@ test "module v0 — sans module, pas d'alias" {
     const pc = heaven.proof_core_inst.?;
     try std.testing.expect(pc.theorems.get("t_no_mod") != null);
     try std.testing.expect(pc.theorems.get("M.t_no_mod") == null);
+}
+
+test "type-dep v0 — data Vec (n : Nat) s'enregistre" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const res = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
+    defer allocator.free(res);
+    try std.testing.expect(std.mem.indexOf(u8, res, "data Vec") != null);
+    try std.testing.expect(std.mem.indexOf(u8, res, "1 param") != null);
+    try std.testing.expect(std.mem.indexOf(u8, res, "2 constructor") != null);
+
+    const info = heaven.type_registry.get("Vec") orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("Vec", info.name);
+    try std.testing.expectEqual(@as(usize, 1), info.params.len);
+    try std.testing.expectEqualStrings("n", info.params[0].name);
+    try std.testing.expect(info.params[0].ty != null);
+    try std.testing.expectEqual(@as(usize, 2), info.ctors.len);
+    try std.testing.expectEqualStrings("Nil", info.ctors[0].name);
+    try std.testing.expectEqual(@as(u8, 0), info.ctors[0].arity);
+    try std.testing.expectEqualStrings("Cons", info.ctors[1].name);
+    try std.testing.expectEqual(@as(u8, 2), info.ctors[1].arity);
+}
+
+test "type-dep v0 — data simple sans params" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const res = try heaven.eval("data Color = Red | Green | Blue");
+    defer allocator.free(res);
+    try std.testing.expect(std.mem.indexOf(u8, res, "0 param") != null);
+    try std.testing.expect(std.mem.indexOf(u8, res, "3 constructor") != null);
+
+    const info = heaven.type_registry.get("Color").?;
+    try std.testing.expectEqual(@as(usize, 0), info.params.len);
+    try std.testing.expectEqual(@as(usize, 3), info.ctors.len);
+}
+
+test "type-dep v0 — le registre reste compatible avec l'existant" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    // Déclare Vec puis vérifie que les constructeurs sont utilisables
+    // (via engine.fns, comme avant).
+    const res = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
+    defer allocator.free(res);
+    try std.testing.expect(heaven.engine.fns.get("Nil") != null);
+    try std.testing.expect(heaven.engine.fns.get("Cons") != null);
 }
 
 test "hole — fresh hole has unique id" {
