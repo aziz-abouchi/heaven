@@ -108,48 +108,23 @@ fn applyReflexivity(state: *ProofState, ctx: *TacticCtx) TacticError!void {
     const goal = state.currentGoal() orelse return TacticError.NoGoal;
     const eq = isEqNode(ctx, goal.target) orelse return TacticError.TacticFailed;
 
-    // Essai strict d'abord.
+    // 1. Essai strict (hash-consing / structuralEql).
     const same = ctx.eqFn(ctx, eq.lhs, eq.rhs) catch false;
     if (same) {
         _ = state.popGoal();
         return;
     }
 
-    // Sinon, tenter une unification (gère les evars et les syms libres).
-    var free_syms: std.StringHashMapUnmanaged(void) = .{};
-    defer free_syms.deinit(ctx.allocator);
-    try collectFreeSyms(ctx, eq.lhs, &free_syms);
-    try collectFreeSyms(ctx, eq.rhs, &free_syms);
-
-    var sym_to_evar: std.StringHashMapUnmanaged(Id) = .{};
-    defer {
-        var it = sym_to_evar.keyIterator();
-        while (it.next()) |k| ctx.allocator.free(k.*);
-        sym_to_evar.deinit(ctx.allocator);
-    }
-    {
-        var it = free_syms.keyIterator();
-        while (it.next()) |k| {
-            const ev = ctx.store.mkEvar() catch return TacticError.OutOfMemory;
-            const owned = ctx.allocator.dupe(u8, k.*) catch return TacticError.OutOfMemory;
-            sym_to_evar.put(ctx.allocator, owned, ev) catch {
-                ctx.allocator.free(owned);
-                return TacticError.OutOfMemory;
-            };
-        }
-    }
-
-    const abs_lhs = try abstractSyms(ctx, eq.lhs, &sym_to_evar);
-    const abs_rhs = try abstractSyms(ctx, eq.rhs, &sym_to_evar);
-
+    // 2. Unification DIRECTE — pas d'abstraction de free syms : ce sont
+    //    des variables de la cible, les abstraire reviendrait à prouver
+    //    n'importe quoi (Eq(a,b) passerait). L'unification ne doit lier
+    //    que les evars déjà présentes dans la cible.
     var subst: Subst = .{};
     defer subst.deinit(ctx.allocator);
 
-    const unified = unify(ctx, abs_lhs, abs_rhs, &subst) catch return TacticError.TacticFailed;
+    const unified = unify(ctx, eq.lhs, eq.rhs, &subst) catch return TacticError.TacticFailed;
     if (!unified) return TacticError.TacticFailed;
 
-    // Vérifier que tous les free syms ont bien été liés (sinon but ouvert).
-    // Pour v3.5, on accepte si l'unification a réussi.
     _ = state.popGoal();
 }
 

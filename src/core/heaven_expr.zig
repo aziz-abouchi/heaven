@@ -3064,7 +3064,7 @@ test "tactics v3.5 — apply H : x = x match f(a) = f(a)" {
     try std.testing.expect(state.solved());
 }
 
-test "tactics v3.5 — reflexivity sur (λx.x) 42 = 42" {
+test "tactics v3.5 — reflexivity unifie via evar explicite" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
     defer {
@@ -3074,16 +3074,17 @@ test "tactics v3.5 — reflexivity sur (λx.x) 42 = 42" {
 
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
-    var state = proof_state_mod.ProofState.init(allocator, &arena, heaven.store, "refl_test");
+    var state = proof_state_mod.ProofState.init(allocator, &arena, heaven.store, "refl_unify");
     defer state.deinit();
 
-    // cible : x + 0 = x  →  simplify va donner x = x
-    const x = try heaven.store.sym("x");
-    const zero = try heaven.store.int(0);
-    const plus = try heaven.store.sym("+");
-    const xp0 = try heaven.store.apply(plus, &.{ x, zero });
+    // cible : Eq(f(?e0), f(a))
+    const f = try heaven.store.sym("f");
+    const a = try heaven.store.sym("a");
+    const e0 = try heaven.store.mkEvar();
+    const fa_ev = try heaven.store.apply(f, &.{e0});
+    const fa = try heaven.store.apply(f, &.{a});
     const eq_sym = try heaven.store.sym("=");
-    const target = try heaven.store.apply(eq_sym, &.{ xp0, x });
+    const target = try heaven.store.apply(eq_sym, &.{ fa_ev, fa });
 
     try state.appendGoal(.{
         .hyps = try state.dupHyps(&.{}),
@@ -3101,10 +3102,50 @@ test "tactics v3.5 — reflexivity sur (λx.x) 42 = 42" {
         .substFn = Heaven.tacticsSubstCb,
     };
 
-    // simplify réduit x + 0 → x, puis reflexivity termine
-    try tactics_mod.applyTactic(&state, .simplify, &ctx);
+    // strict échoue (evar ≠ a), unify lie ?e0 := a → pop.
     try tactics_mod.applyTactic(&state, .reflexivity, &ctx);
     try std.testing.expect(state.solved());
+}
+
+test "tactics v3.5 — reflexivity échoue sur a = b" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    var state = proof_state_mod.ProofState.init(allocator, &arena, heaven.store, "refl_fail");
+    defer state.deinit();
+
+    // cible : Eq(a, b), deux syms libres distincts.
+    const a = try heaven.store.sym("a");
+    const b = try heaven.store.sym("b");
+    const eq_sym = try heaven.store.sym("=");
+    const target = try heaven.store.apply(eq_sym, &.{ a, b });
+
+    try state.appendGoal(.{
+        .hyps = try state.dupHyps(&.{}),
+        .target = target,
+        .label = try state.dupLabel("main"),
+    });
+
+    var ctx = tactics_mod.TacticCtx{
+        .allocator = allocator,
+        .store = heaven.store,
+        .heaven = @ptrCast(heaven),
+        .simplifyFn = Heaven.tacticsSimplifyCb,
+        .eqFn = Heaven.tacticsEqCb,
+        .peanoFn = Heaven.tacticsPeanoCb,
+        .substFn = Heaven.tacticsSubstCb,
+    };
+
+    // reflexivity doit ÉCHOUER, pas paniquer ni prouver.
+    const result = tactics_mod.applyTactic(&state, .reflexivity, &ctx);
+    try std.testing.expectError(tactics_mod.TacticError.TacticFailed, result);
+    try std.testing.expect(!state.solved());
 }
 
 test "hole — fresh hole has unique id" {
