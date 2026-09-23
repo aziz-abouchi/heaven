@@ -1086,8 +1086,17 @@ pub const Heaven = struct {
         const rhs = std.mem.trim(u8, src[eq_pos + 1 ..], " \t");
 
         // 1. Parse la partie gauche : nom + params.
-        var head_it = std.mem.tokenizeAny(u8, head, " \t");
-        const type_name = head_it.next() orelse
+        //    Parcours caractère par caractère pour gérer proprement
+        //    les params parenthésés équilibrés (parenthèses imbriquées
+        //    incluses : (n : Vec a), (f : a -> b), etc.).
+        var cursor: usize = 0;
+
+        // 1a. Nom du type : suite jusqu'au 1er espace ou '('.
+        while (cursor < head.len and
+            head[cursor] != ' ' and head[cursor] != '\t') : (cursor += 1)
+        {}
+        const type_name = head[0..cursor];
+        if (type_name.len == 0)
             return self.allocator.dupe(u8, "syntax error: nom de type manquant");
 
         var params: std.ArrayListUnmanaged(type_registry_mod.ParamInfo) = .{};
@@ -1096,18 +1105,27 @@ pub const Heaven = struct {
             params.deinit(self.allocator);
         }
 
-        // Parse les params : peut être `a`, `(n : Nat)`, ou une suite.
-        while (true) {
-            const rest = head_it.rest();
-            if (rest.len == 0) break;
-            const trimmed_rest = std.mem.trimLeft(u8, rest, " \t");
-            if (trimmed_rest.len == 0) break;
+        // 1b. Params : boucle jusqu'à la fin de `head`.
+        while (cursor < head.len) {
+            // Skip les espaces.
+            while (cursor < head.len and
+                (head[cursor] == ' ' or head[cursor] == '\t')) : (cursor += 1)
+            {}
+            if (cursor >= head.len) break;
 
-            if (trimmed_rest[0] == '(') {
-                // `(n : Nat)` — cherche la parenthèse fermante.
-                const close = std.mem.indexOfScalar(u8, trimmed_rest, ')') orelse
+            if (head[cursor] == '(') {
+                // Param typé : extraire le bloc parenthésé équilibré.
+                const open = cursor;
+                cursor += 1;
+                var depth: usize = 1;
+                while (cursor < head.len and depth > 0) : (cursor += 1) {
+                    if (head[cursor] == '(') depth += 1
+                    else if (head[cursor] == ')') depth -= 1;
+                }
+                if (depth != 0)
                     return self.allocator.dupe(u8, "syntax error: '(' non fermée dans params");
-                const inner = std.mem.trim(u8, trimmed_rest[1..close], " \t");
+                // Bloc = head[open..cursor] (inclus les deux parenthèses).
+                const inner = std.mem.trim(u8, head[open + 1 .. cursor - 1], " \t");
                 const colon = std.mem.indexOfScalar(u8, inner, ':') orelse
                     return self.allocator.dupe(u8, "syntax error: ':' attendu dans (nom : Type)");
                 const pname = std.mem.trim(u8, inner[0..colon], " \t");
@@ -1121,25 +1139,18 @@ pub const Heaven = struct {
                     .name = try self.allocator.dupe(u8, pname),
                     .ty = ptype,
                 });
-                // Avance le tokenizer en brûlant `close + 1` chars.
-                _ = head_it.next();
-                // Note : tokenizeAny ne traite pas `(n : Nat)` comme un seul
-                // token (les parens sont juste des bytes). Ce chemin est
-                // approximatif pour v0 : on consomme juste ce qu'on peut.
-                // Le cas multi-param avec parens est géré par la boucle.
-                // On s'arrête pour éviter une double consommation.
-                // (Le parse des params reste simple tant qu'ils sont
-                //  séparés par des espaces et sans parenthèses imbriquées.)
-                // Pour être robuste, on recalcule `rest` à partir de la
-                // position réelle.
-                // Approche simplifiée : on sort dès qu'on a un param parenthésé.
-                // (v1 gérera plusieurs params parenthésés proprement.)
-                break;
             } else {
-                // `a` — param non typé (kind d'une variable de type).
-                const tok = head_it.next() orelse break;
+                // Param non typé : identifiant jusqu'au prochain espace ou '('.
+                const start = cursor;
+                while (cursor < head.len and
+                    head[cursor] != ' ' and
+                    head[cursor] != '\t' and
+                    head[cursor] != '(') : (cursor += 1)
+                {}
+                if (cursor == start) break; // sécurité
+                const pname = head[start..cursor];
                 try params.append(self.allocator, .{
-                    .name = try self.allocator.dupe(u8, tok),
+                    .name = try self.allocator.dupe(u8, pname),
                     .ty = null,
                 });
             }
@@ -4059,6 +4070,88 @@ test "module v2b — import idempotent" {
     const r2 = try heaven.eval("import \"tests/exp_noexport.hvn\" as N");
     defer allocator.free(r2);
     try std.testing.expect(std.mem.indexOf(u8, r2, "déjà importé") != null);
+}
+
+test "type-dep v1a — data Pair a b = Pair a b" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r = try heaven.eval("data Pair a b = Pair a b");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "2 param") != null);
+
+    const info = heaven.type_registry.get("Pair").?;
+    try std.testing.expectEqual(@as(usize, 2), info.params.len);
+    try std.testing.expectEqualStrings("a", info.params[0].name);
+    try std.testing.expect(info.params[0].ty == null);
+    try std.testing.expectEqualStrings("b", info.params[1].name);
+    try std.testing.expect(info.params[1].ty == null);
+    try std.testing.expectEqual(@as(usize, 1), info.ctors.len);
+    try std.testing.expectEqual(@as(u8, 2), info.ctors[0].arity);
+}
+
+test "type-dep v1a — data Foo (n : Nat) (m : Nat)" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r = try heaven.eval("data Foo (n : Nat) (m : Nat) = MkFoo n m");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "2 param") != null);
+
+    const info = heaven.type_registry.get("Foo").?;
+    try std.testing.expectEqual(@as(usize, 2), info.params.len);
+    try std.testing.expectEqualStrings("n", info.params[0].name);
+    try std.testing.expect(info.params[0].ty != null);
+    try std.testing.expectEqualStrings("m", info.params[1].name);
+    try std.testing.expect(info.params[1].ty != null);
+}
+
+test "type-dep v1a — mix param typé + non typé" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r = try heaven.eval("data Vec2 a (n : Nat) = VNil | VCons a (Vec2 a n)");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "2 param") != null);
+    try std.testing.expect(std.mem.indexOf(u8, r, "2 constructor") != null);
+
+    const info = heaven.type_registry.get("Vec2").?;
+    try std.testing.expectEqual(@as(usize, 2), info.params.len);
+    try std.testing.expectEqualStrings("a", info.params[0].name);
+    try std.testing.expect(info.params[0].ty == null);
+    try std.testing.expectEqualStrings("n", info.params[1].name);
+    try std.testing.expect(info.params[1].ty != null);
+}
+
+test "type-dep v1a — param imbriqué (n : Vec a)" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    // Le type du param contient des parenthèses imbriquées.
+    const r = try heaven.eval("data Wrap (v : Vector a) = WrapIt v");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "1 param") != null);
+
+    const info = heaven.type_registry.get("Wrap").?;
+    try std.testing.expectEqual(@as(usize, 1), info.params.len);
+    try std.testing.expectEqualStrings("v", info.params[0].name);
+    try std.testing.expect(info.params[0].ty != null);
 }
 
 test "hole — fresh hole has unique id" {
