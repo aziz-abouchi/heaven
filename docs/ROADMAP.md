@@ -275,15 +275,30 @@ le type-check incrémental.
 - `module.zig` (ModuleRegistry dormant) : non utilisé — son API ne
   stocke que des noms, pas d'Ids. On garde le champ string.
 
-### v1 — à faire
+### v1 ✅ *fait*
 
-- Multi-params typés : `data Pair a b = ...` (parseur `evalDataDecl`).
-- Chargement transitif + détection de cycles.
-- Export contrôlé (`export foo`) — v0.5 exporte tout.
-- Résolution lazy au runtime (`namespace_table: Map(module, Map(name, Id))`).
-- Chemins de recherche configurables (`HEAVEN_PATH`).
+- Import transitif (A → B → C).
+- Détection de cycles via `Heaven.loading_modules`.
+- `HEAVEN_PATH` : recherche dans une liste de dossiers (séparés par `:`).
+- Propagation d'erreur : un sous-import qui échoue n'est pas avalé.
 
-Effort v1 : 1-2 sessions.
+### v2 ✅ *fait*
+
+- `export name1 name2` : contrôle des alias sous `M.x`.
+- Pre-scan du fichier importé → ordre des `export` indifférent.
+- Enforcement **faible** : les noms non-exportés restent accessibles
+  sans qualification. Seul `M.secret` est refusé.
+- Import idempotent : `Heaven.imported_files` (chemin → module).
+
+### v3 — *roadmap*
+
+- Enforcement **fort** : ne pas enregistrer les noms non-exportés
+  du tout (nécessite de déférer l'enregistrement en fin d'import).
+- Namespace hiérarchique (`A.B.foo` au lieu de flat `B.foo`).
+- Rechargement dynamique (re-import avec `--reload`).
+- Sélection de symboles (`import "x.hvn" as M { foo, bar }`).
+
+**Effort v3** : 1-2 sessions.
 
 ---
 
