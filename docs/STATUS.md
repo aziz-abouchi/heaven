@@ -168,7 +168,7 @@ Légende :
 
 | Élément | Statut | Note |
 |---|---|---|
-| `zig build test` | ✅ | 144 tests |
+| `zig build test` | ✅ | 162 tests |
 | `zig build test-regression` | ✅ | 77 tests Heaven |
 | `zig build test-files` | ✅ | `heaven --run-tests tests/` |
 | `heaven --run-test <file>` | ✅ | runner multi-lignes (parens + braces) |

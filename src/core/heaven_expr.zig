@@ -241,6 +241,9 @@ pub const Heaven = struct {
     /// v2b : heads des domaines d'une signature (`sig f : A -> B -> C`
     /// stocke `"A B"`).
     fn_domains: std.StringHashMapUnmanaged([]const u8) = .{},
+    /// v2c : domaines complets d'une signature, séparés par `\x1f`.
+    /// Ex. : `"Nat\x1fVec (succ n)\x1fa"` pour `A -> B -> C`.
+    fn_domains_full: std.StringHashMapUnmanaged([]const u8) = .{},
     /// État d'import en cours (v2a : `export`). null hors import.
     import_state: ?*ImportState = null,
     /// Cache d'idempotence (v2b) : chemin résolu → nom du module.
@@ -570,6 +573,14 @@ pub const Heaven = struct {
             }
         }
         self.fn_domains.deinit(self.allocator);
+        {
+            var it = self.fn_domains_full.iterator();
+            while (it.next()) |e| {
+                self.allocator.free(e.key_ptr.*);
+                self.allocator.free(@constCast(e.value_ptr.*));
+            }
+        }
+        self.fn_domains_full.deinit(self.allocator);
         var imp_it = self.imported_files.iterator();
         while (imp_it.next()) |e| {
             self.allocator.free(e.key_ptr.*);
@@ -680,6 +691,8 @@ pub const Heaven = struct {
 
             var heads_buf = std.ArrayListUnmanaged(u8){};
             defer heads_buf.deinit(self.allocator);
+            var full_buf = std.ArrayListUnmanaged(u8){};
+            defer full_buf.deinit(self.allocator);
 
             var arity: u8 = 0;
             var depth: usize = 0;
@@ -697,6 +710,14 @@ pub const Heaven = struct {
                     if (heads_buf.items.len > 0)
                         try heads_buf.append(self.allocator, ' ');
                     try heads_buf.appendSlice(self.allocator, head);
+
+                    // v2c : domaine complet (extrait le type d'un binder
+                    // `(n : T)` → `T`).
+                    const full_dom = extractBinderType(domain_str);
+                    if (full_buf.items.len > 0)
+                        try full_buf.append(self.allocator, 0x1f);
+                    try full_buf.appendSlice(self.allocator, full_dom);
+
                     arity += 1;
                     i += 2;
                     start = i;
@@ -717,6 +738,19 @@ pub const Heaven = struct {
                 const k = try self.allocator.dupe(u8, sname);
                 const v = try self.allocator.dupe(u8, heads_buf.items);
                 const gop = try self.fn_domains.getOrPut(self.allocator, k);
+                if (gop.found_existing) {
+                    self.allocator.free(k);
+                    self.allocator.free(@constCast(gop.value_ptr.*));
+                    gop.value_ptr.* = v;
+                } else {
+                    gop.value_ptr.* = v;
+                }
+            }
+            // fn_domains_full (domaines complets, \x1f-separated)
+            {
+                const k = try self.allocator.dupe(u8, sname);
+                const v = try self.allocator.dupe(u8, full_buf.items);
+                const gop = try self.fn_domains_full.getOrPut(self.allocator, k);
                 if (gop.found_existing) {
                     self.allocator.free(k);
                     self.allocator.free(@constCast(gop.value_ptr.*));
@@ -1538,6 +1572,73 @@ pub const Heaven = struct {
         );
     }
 
+    const CtorKind = enum { base, step, unparam };
+    const DomainKind = enum { base, step, any, unparam };
+
+    /// v2c : classifie un ctor d'un type paramétré.
+    /// - arity 0 → base (`Nil : Vec zero`)
+    /// - arity > 0 → step (`Cons : Vec (succ _)`)
+    /// - type non paramétré → unparam (pas de convention)
+    fn ctorKind(self: *Heaven, ctor: []const u8) CtorKind {
+        const arity = self.ctor_arities.get(ctor) orelse return .unparam;
+        const parent = self.ctor_parents.get(ctor) orelse return .unparam;
+        const info = self.type_registry.get(parent) orelse return .unparam;
+        if (info.params.len == 0) return .unparam;
+        return if (arity == 0) .base else .step;
+    }
+
+    /// v2c : classifie un domaine `Vec zero` (base) vs `Vec (succ _)` (step).
+    fn domainKind(self: *Heaven, domain: Id, parent_name: []const u8) DomainKind {
+        if (domain >= self.store.len()) return .any;
+        const node = self.store.get(domain);
+        if (node.tag == .sym) {
+            const nm = self.store.interner.resolve(node.payload);
+            if (std.mem.eql(u8, nm, parent_name)) return .unparam;
+            return .any;
+        }
+        if (node.tag != .apply) return .any;
+        const head = self.store.get(node.payload);
+        if (head.tag != .sym) return .any;
+        const head_name = self.store.interner.resolve(head.payload);
+        if (!std.mem.eql(u8, head_name, parent_name)) return .any;
+        const args = self.store.spanSliceConst(node.span_a);
+        // args[0] = head (sym Parent), args[1] = index
+        if (args.len < 2) return .any;
+        const idx = args[1];
+        if (idx >= self.store.len()) return .any;
+        const idx_node = self.store.get(idx);
+        if (idx_node.tag == .sym) {
+            const nm = self.store.interner.resolve(idx_node.payload);
+            if (std.mem.eql(u8, nm, "zero")) return .base;
+            return .any;
+        }
+        if (idx_node.tag == .apply) {
+            const fnode = self.store.get(idx_node.payload);
+            if (fnode.tag == .sym) {
+                const nm = self.store.interner.resolve(fnode.payload);
+                if (std.mem.eql(u8, nm, "succ")) return .step;
+            }
+            return .any;
+        }
+        return .any;
+    }
+
+    /// v2c : vérifie que `ctor` peut matcher un domaine décrit par `domain_str`.
+    /// Retourne true si compatible (ou si on ne peut pas trancher).
+    fn checkCtorDomainKind(self: *Heaven, ctor: []const u8, domain_str: []const u8) bool {
+        const ck = self.ctorKind(ctor);
+        if (ck == .unparam) return true;
+        const parent = self.ctor_parents.get(ctor) orelse return true;
+        const d_id = self.parseExpression(domain_str) catch return true;
+        const dk = self.domainKind(d_id, parent);
+        if (dk == .any or dk == .unparam) return true;
+        return switch (ck) {
+            .base => dk == .base,
+            .step => dk == .step,
+            .unparam => true,
+        };
+    }
+
     fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
         // Tokeniser le LHS avec gestion des parenthèses
         var tokens = std.ArrayListUnmanaged([]const u8){};
@@ -1645,6 +1746,37 @@ pub const Heaven = struct {
                             self.allocator,
                             "✗ pattern {d} : ctor {s} appartient à {s}, attendu {s}",
                             .{ idx + 1, cn, parent, expected_head },
+                        );
+                    }
+                }
+            }
+        }
+
+        // ─── v2c : vérifier la compatibilité base/step avec le domaine ───
+        if (self.fn_domains_full.get(name)) |domains_str| {
+            var hit = std.mem.tokenizeScalar(u8, domains_str, 0x1f);
+            var idx: usize = 0;
+            while (hit.next()) |domain_str| : (idx += 1) {
+                if (idx >= patterns.items.len) break;
+                const p_id = patterns.items[idx];
+                const pn3 = self.store.get(p_id);
+                var p_ctor_name: ?[]const u8 = null;
+                if (pn3.tag == .sym) {
+                    const nm = self.store.interner.resolve(pn3.payload);
+                    if (self.ctor_parents.contains(nm)) p_ctor_name = nm;
+                } else if (pn3.tag == .apply) {
+                    const fn3 = self.store.get(pn3.payload);
+                    if (fn3.tag == .sym) {
+                        const nm = self.store.interner.resolve(fn3.payload);
+                        if (self.ctor_parents.contains(nm)) p_ctor_name = nm;
+                    }
+                }
+                if (p_ctor_name) |cn| {
+                    if (!self.checkCtorDomainKind(cn, domain_str)) {
+                        return std.fmt.allocPrint(
+                            self.allocator,
+                            "✗ pattern {d} : {s} incompatible avec le domaine '{s}'",
+                            .{ idx + 1, cn, domain_str },
                         );
                     }
                 }
@@ -3646,6 +3778,23 @@ fn substSymByName(
 }
 
 
+fn extractBinderType(s: []const u8) []const u8 {
+    const t = std.mem.trim(u8, s, " \t");
+    if (t.len == 0 or t[0] != '(') return t;
+    var depth: usize = 1;
+    var i: usize = 1;
+    while (i < t.len and depth > 0) : (i += 1) {
+        if (t[i] == '(') depth += 1
+        else if (t[i] == ')') depth -= 1;
+    }
+    if (i < 2) return t;
+    const inner = t[1 .. i - 1];
+    if (std.mem.indexOfScalar(u8, inner, ':')) |colon| {
+        return std.mem.trim(u8, inner[colon + 1 ..], " \t");
+    }
+    return t;
+}
+
 fn extractHeadName(s: []const u8) []const u8 {
     var i: usize = 0;
     while (i < s.len and (s[i] == ' ' or s[i] == '\t')) : (i += 1) {}
@@ -4546,6 +4695,35 @@ test "type-dep v1a — param imbriqué (n : Vec a)" {
     try std.testing.expectEqual(@as(usize, 1), info.params.len);
     try std.testing.expectEqualStrings("v", info.params[0].name);
     try std.testing.expect(info.params[0].ty != null);
+}
+
+test "type-dep v2c — base/step incompatible (Nil vs Vec (succ n))" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r1 = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
+    defer allocator.free(r1);
+    const r2 = try heaven.eval("sig head : (n : Nat) -> Vec (succ n) -> a");
+    defer allocator.free(r2);
+
+    // Le domaine 2 est `Vec (succ n)` (step), le pattern `Nil` est base → rejet.
+    const r3 = try heaven.eval("head _ Nil = 42");
+    defer allocator.free(r3);
+    try std.testing.expect(std.mem.indexOf(u8, r3, "incompatible") != null);
+
+    // Le pattern `Cons` est step → compatible avec step.
+    const r4 = try heaven.eval("head _ (Cons x _) = x");
+    defer allocator.free(r4);
+    try std.testing.expect(std.mem.startsWith(u8, r4, "✓"));
+
+    // Pattern ctor face à un domaine non-ctor (v2b).
+    const r5 = try heaven.eval("head (Cons x _) _ = x");
+    defer allocator.free(r5);
+    try std.testing.expect(std.mem.indexOf(u8, r5, "appartient à") != null);
 }
 
 test "hole — fresh hole has unique id" {

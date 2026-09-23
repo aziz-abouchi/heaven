@@ -245,16 +245,33 @@ mais reçu 1).
 Attrape : `nameOf apple` contre `Color -> String`,
 `head (Cons x _) _` contre `(n : Nat) -> ...`.
 
-### v2c — *roadmap*
+### v2c ✅ *fait* — convention base/step
 
-- **Unification d'indexes dépendants** : `Vec (succ n)` vs `Vec (succ zero)`
-  doit matcher avec `n := zero`. Nécessite unification + context propagation.
-- Rejet de `head _ Nil` (Nil : Vec zero, pas Vec (succ n)).
-- Signature avec type params implicites (`(a : Type) -> ...`).
+Plutôt qu'une unification d'indexes complète (HMF), on utilise une
+**convention** :
+- Ctor arité 0 dans un type paramétré → **base** (`Nil : Vec zero`).
+- Ctor arité > 0 → **step** (`Cons : Vec (succ _)`).
+- Domaine `Vec zero` → base ; `Vec (succ n)` → step.
 
-**Effort v2c** : 2-3 sessions. Le bloc "vérification des définitions"
-est fonctionnel, v2c affine sur les cas où le **ctor passe le kind**
-mais pas l'**index**.
+Rejet si **base ≠ step** (ex : `head _ Nil` où Nil base, domaine step).
+
+- `Heaven.fn_domains_full` : domaines complets d'une `sig`, séparateur
+  `\x1f`. Ex : `"Nat\x1fVec (succ n)\x1fa"`.
+- `Heaven.ctorKind`, `domainKind`, `checkCtorDomainKind` : classification.
+- `evalEquation` : pour chaque pattern ctor, rejeter si la
+  classification du ctor est incompatible avec le domaine.
+- Test Zig : `head _ Nil` rejeté, `head _ (Cons x _)` accepté.
+
+### v2d — *roadmap* (unification vraie)
+
+La convention attrape les cas simples mais rate :
+- `Vector (n + m)` — index non-symbolique.
+- `head _ (Cons x _) = x` devrait lier `n := k` (aujourd'hui on
+  accepte par compatibilité step/step, sans lier).
+
+Vraie unification de premier ordre nécessaire pour ces cas.
+
+**Effort v2d** : 2-3 sessions.
 
 ### v0 ✅ *fait*
 
