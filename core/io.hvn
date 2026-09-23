@@ -1,0 +1,4 @@
+readFile path = perform "ReadFile" path
+writeFile path content = perform "WriteFile" (Pair path content)
+print x = perform "Print" x
+readLine unit = perform "ReadLine" unit
