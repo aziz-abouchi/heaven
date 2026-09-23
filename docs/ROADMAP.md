@@ -389,6 +389,72 @@ physique ou énergétique).
 
 ---
 
+
+## #codegen-targets — Multi-cibles de transpilation
+
+### Idée (astra-core, 2026-02)
+
+astra-core avait 25+ exporters (`src/forge/`) :
+C, WAT, JS, Python, Rust, Zig, LaTeX, Forth, Fortran, Nim,
+PHP, Racket, Lean, Idris, Koka, Odin, Carp, Julia, Lys, QBE,
+Pony, LLVM-IR, R, QASM, Robotic-C.
+
+### État
+
+Heaven a aujourd'hui :
+- `codegen_expr_c.zig` (C)
+- `codegen_expr_js.zig` (JS)
+- `codegen_expr_latex.zig` (LaTeX)
+- `mir.zig` + `x86_64.zig` (MIR/ASM)
+
+**Pas** de Rust, Python, Zig, WAT, LLVM-IR.
+
+### Ce qu'on garde de l'idée
+
+La **liste des cibles** et l'idée d'un dispatch `emitForTarget(target, expr)`.
+
+Ce qu'on ne garde pas : le code astra (`src/forge/*.zig`) — il
+émet depuis un EGraph à 5 nœuds, pas depuis le Store à 6 primitives.
+Les emitters Heaven partent de zéro en réutilisant le pattern
+`codegen_expr_c.zig`.
+
+### Ordre de portage suggéré
+
+1. `Rust` — triviale depuis C (types différents, même structure).
+2. `Python` — triviale.
+3. `WAT` — utile pour WASM natif (déjà target).
+4. `LLVM-IR` — plus lourd, mérite sa session.
+
+**Effort** : ½ session par cible.
+
+---
+
+## #egraph-viz — Visualisation D3.js du Store
+
+### Idée (astra-core `forge/web_server.zig`)
+
+Serveur HTTP qui rend le graphe d'e-graph en D3.js — visualisation
+des e-classes, des nœuds, des relations.
+
+### État Heaven
+
+Heaven a `vessel/public/` (REPL web WASM) sans visualisation. Le
+REPL natif affiche du texte.
+
+### Intérêt
+
+- Démo graphique de la saturation EGraph (déjà utilisée dans
+  `simplify` et `assert_eq`).
+- Voir le `Store` « respirer » : nœuds qui apparaissent, e-classes
+  qui fusionnent.
+- Pédagogie : montrer les tactiques en action sur une preuve.
+
+### Effort
+
+1 session (endpoint HTTP + page HTML avec fetch + D3).
+
+---
+
 ## #stdlib — Compléter `core/std/`
 
 Les fichiers `std/*.hvn` ont des signatures sans corps :
