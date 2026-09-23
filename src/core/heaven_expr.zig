@@ -168,6 +168,31 @@ fn extractString(store: *Store, id: expr.Id) ?[]const u8 {
     return store.interner.resolve(lit.str);
 }
 
+/// État d'un import en cours (v2a : filtrage `export`).
+/// v0.5 = tout est exporté ; v2a = si le fichier contient au moins un
+/// `export`, seuls les noms listés sont aliasés sous `M.x`.
+/// (Les noms non-exportés restent accessibles sans qualification —
+/// « enforcement faible », cohérent avec le REPL en namespace plat.)
+const ImportState = struct {
+    exports: std.StringHashMapUnmanaged(void) = .{},
+    saw_export: bool = false,
+    allocator: std.mem.Allocator,
+
+    fn init(allocator: std.mem.Allocator) ImportState {
+        return .{ .allocator = allocator };
+    }
+
+    fn deinit(self: *ImportState) void {
+        var it = self.exports.iterator();
+        while (it.next()) |e| self.allocator.free(e.key_ptr.*);
+        self.exports.deinit(self.allocator);
+    }
+
+    fn isExported(self: *const ImportState, name: []const u8) bool {
+        return !self.saw_export or self.exports.contains(name);
+    }
+};
+
 pub const Heaven = struct {
     allocator: std.mem.Allocator,
     store: *Store,
@@ -201,6 +226,10 @@ pub const Heaven = struct {
     type_registry: type_registry_mod.TypeRegistry,
     /// Pile de modules en cours de chargement — détection de cycles.
     loading_modules: std.ArrayListUnmanaged([]const u8) = .{},
+    /// État d'import en cours (v2a : `export`). null hors import.
+    import_state: ?*ImportState = null,
+    /// Cache d'idempotence (v2b) : chemin résolu → nom du module.
+    imported_files: std.StringHashMapUnmanaged([]const u8) = .{},
 
     pub fn init(allocator: std.mem.Allocator) !*Heaven {
         const self = try allocator.create(Heaven);
@@ -442,6 +471,12 @@ pub const Heaven = struct {
         if (self.current_module) |m| self.allocator.free(m);
         for (self.loading_modules.items) |m| self.allocator.free(m);
         self.loading_modules.deinit(self.allocator);
+        var imp_it = self.imported_files.iterator();
+        while (imp_it.next()) |e| {
+            self.allocator.free(e.key_ptr.*);
+            self.allocator.free(e.value_ptr.*);
+        }
+        self.imported_files.deinit(self.allocator);
         self.type_registry.deinit();
         self.hole_state.deinit();
     }
@@ -490,6 +525,17 @@ pub const Heaven = struct {
         if (is_command) {
             // Le shell va traiter ces commandes ; on ne les évalue pas ici.
             return self.allocator.dupe(u8, trimmed);
+        }
+
+        // ─── export name1 [name2 ...] : marque des noms exportés ───
+        // Hors import : no-op silencieux (utile pour taper `export x` au REPL).
+        // Pendant un import : les noms sont déjà collectés par le pre-scan
+        // de evalImport, donc ici on retourne juste un accusé.
+        if (std.mem.startsWith(u8, trimmed, "export ")) {
+            if (self.import_state) |_| {
+                return self.allocator.dupe(u8, "✓ export (déjà pris en compte)");
+            }
+            return self.allocator.dupe(u8, "✗ export hors import (no-op)");
         }
 
         // ─── module M : ouvre un namespace ───
@@ -871,6 +917,15 @@ pub const Heaven = struct {
         };
         defer self.allocator.free(resolved);
 
+        // ─── v2b : idempotence ───
+        if (self.imported_files.get(resolved)) |existing_mod| {
+            return std.fmt.allocPrint(
+                self.allocator,
+                "· import {s} : déjà importé (as {s}) — skip",
+                .{ resolved, existing_mod },
+            );
+        }
+
         const source = platform.fs.cwd().readFileAlloc(
             self.allocator,
             resolved,
@@ -883,6 +938,31 @@ pub const Heaven = struct {
             );
         };
         defer self.allocator.free(source);
+
+        // ─── v2a : pré-scan des `export` du fichier ───
+        var import_state = ImportState.init(self.allocator);
+        defer import_state.deinit();
+        self.import_state = &import_state;
+        defer self.import_state = null;
+
+        {
+            var prescan = std.mem.splitScalar(u8, source, '\n');
+            while (prescan.next()) |line| {
+                const t = std.mem.trim(u8, line, " \t\r");
+                if (!std.mem.startsWith(u8, t, "export ")) continue;
+                const names = std.mem.trim(u8, t["export ".len..], " \t");
+                var nit = std.mem.tokenizeAny(u8, names, " \t,");
+                while (nit.next()) |n| {
+                    const owned = self.allocator.dupe(u8, n) catch continue;
+                    const gop = import_state.exports.getOrPut(self.allocator, owned) catch {
+                        self.allocator.free(owned);
+                        continue;
+                    };
+                    if (gop.found_existing) self.allocator.free(owned);
+                }
+                import_state.saw_export = true;
+            }
+        }
 
         // ─── Push mod_name sur la pile de chargement ───
         const owned_mod = try self.allocator.dupe(u8, mod_name);
@@ -930,6 +1010,27 @@ pub const Heaven = struct {
                 );
             }
             count += 1;
+        }
+
+        // ─── v2b : enregistrer dans le cache ───
+        {
+            const cache_path = try self.allocator.dupe(u8, resolved);
+            const cache_mod = try self.allocator.dupe(u8, mod_name);
+            const gop = self.imported_files.getOrPut(self.allocator, cache_path) catch {
+                self.allocator.free(cache_path);
+                self.allocator.free(cache_mod);
+                return std.fmt.allocPrint(
+                    self.allocator,
+                    "✓ import {s} as {s} ({d} line(s))",
+                    .{ resolved, mod_name, count },
+                );
+            };
+            if (gop.found_existing) {
+                self.allocator.free(cache_path);
+                self.allocator.free(cache_mod);
+            } else {
+                gop.value_ptr.* = cache_mod;
+            }
         }
 
         return std.fmt.allocPrint(
@@ -1188,15 +1289,23 @@ pub const Heaven = struct {
         const body = try self.parseExpression(rhs);
         try self.registerClause(name, patterns.items, body);
 
-        // Si un module est ouvert (import en cours), aliaser sous `M.name`.
+        // Si un module est ouvert (import en cours), aliaser sous `M.name`,
+        // sauf si le fichier importé déclare des exports et que ce nom n'en
+        // fait pas partie (v2a).
         if (self.current_module) |m| {
-            const qualified = try std.fmt.allocPrint(
-                self.allocator,
-                "{s}.{s}",
-                .{ m, name },
-            );
-            defer self.allocator.free(qualified);
-            self.registerClause(qualified, patterns.items, body) catch {};
+            const should_alias = if (self.import_state) |ist|
+                ist.isExported(name)
+            else
+                true;
+            if (should_alias) {
+                const qualified = try std.fmt.allocPrint(
+                    self.allocator,
+                    "{s}.{s}",
+                    .{ m, name },
+                );
+                defer self.allocator.free(qualified);
+                self.registerClause(qualified, patterns.items, body) catch {};
+            }
         }
 
         return std.fmt.allocPrint(self.allocator, "✓ clause enregistrée pour '{s}'", .{name});
@@ -2091,7 +2200,11 @@ pub const Heaven = struct {
             if (self.current_module) |m| {
                 if (std.mem.indexOfScalar(u8, src, ':')) |colon| {
                     const thm_name = std.mem.trim(u8, src[0..colon], " \t");
-                    if (thm_name.len > 0) {
+                    const should_alias = if (self.import_state) |ist|
+                        ist.isExported(thm_name)
+                    else
+                        true;
+                    if (thm_name.len > 0 and should_alias) {
                         if (self.proof_core_inst) |pc| {
                             if (pc.theorems.getPtr(thm_name)) |thm| {
                                 const qualified = std.fmt.allocPrint(
@@ -3887,6 +4000,65 @@ test "type-dep v0 — ctor_arity propagée dans engine.fns" {
     const end_def = heaven.engine.fns.get("End") orelse
         return error.TestUnexpectedResult;
     try std.testing.expectEqual(@as(u8, 0), end_def.ctor_arity);
+}
+
+test "module v2a — export filtre les alias" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r = try heaven.eval("import \"tests/exp_util.hvn\" as U");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "import") != null);
+
+    // U.public existe (exporté), U.secret n'existe PAS.
+    try std.testing.expect(heaven.engine.fns.get("U.public") != null);
+    try std.testing.expect(heaven.engine.fns.get("U.secret") == null);
+
+    // Enforcement faible : les noms non-exportés restent accessibles
+    // sans qualification (cohérent REPL en namespace plat).
+    try std.testing.expect(heaven.engine.fns.get("public") != null);
+    try std.testing.expect(heaven.engine.fns.get("secret") != null);
+
+    // Appels
+    const r1 = try heaven.eval("U.public 5");
+    defer allocator.free(r1);
+    try std.testing.expect(std.mem.indexOf(u8, r1, "10") != null);
+}
+
+test "module v2a — sans export, tout est aliasé (compat v0.5)" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r = try heaven.eval("import \"tests/exp_noexport.hvn\" as N");
+    defer allocator.free(r);
+
+    try std.testing.expect(heaven.engine.fns.get("N.inc2") != null);
+    try std.testing.expect(heaven.engine.fns.get("N.dbl2") != null);
+}
+
+test "module v2b — import idempotent" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r1 = try heaven.eval("import \"tests/exp_noexport.hvn\" as N");
+    defer allocator.free(r1);
+    try std.testing.expect(std.mem.indexOf(u8, r1, "✓ import") != null);
+
+    const r2 = try heaven.eval("import \"tests/exp_noexport.hvn\" as N");
+    defer allocator.free(r2);
+    try std.testing.expect(std.mem.indexOf(u8, r2, "déjà importé") != null);
 }
 
 test "hole — fresh hole has unique id" {

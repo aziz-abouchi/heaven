@@ -1,0 +1,3 @@
+-- Fixture sans `export` : compat v0.5, tout est aliasé
+inc2 x = x + 1
+dbl2 x = x * 2
