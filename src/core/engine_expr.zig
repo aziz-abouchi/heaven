@@ -123,6 +123,12 @@ fn testSimplify(_: *anyopaque, _: []const u8) EvalError![]const u8 {
     @panic("testSimplify called unexpectedly");
 }
 
+pub const IOHandler = *const fn (
+    store: *Store,
+    label: []const u8,
+    arg: ?expr.Id,
+) EvalError!?expr.Id;
+
 pub const Engine = struct {
     allocator: std.mem.Allocator,
     store: *Store,
@@ -140,6 +146,8 @@ pub const Engine = struct {
     green_call_count: u32 = 0,
     green_mode: bool = false,
     last_performed: ?expr.Id = null,
+    io_handler: ?IOHandler = null,
+    in_handle: bool = false,
     fuel: u64 = 1_000_000,
     max_recursion_depth: usize = 1000,
     recursion_depth: usize = 0,
@@ -462,7 +470,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         //platform.dbg("[ctor-branch] op='{s}' clauses={d} ctor_arity={?d} args_snap.len={d}\n", .{ op, fn_def.num_clauses, fn_def.ctor_arity, args_snap.len });
 
         if (fn_def.ctor_arity) |arity| {
-            if (args_snap.len != arity) return error.ArityMismatch;
+            if (args_snap.len != arity) {
+                platform.debug.print("--> ArityMismatch: attendu {d}, reçu {d}\n", .{ arity, args_snap.len });
+                return error.ArityMismatch;
+            }
             const op_sym = store.interner.lookup(op) orelse return error.UnknownSymbol;
             const op_id = try store.symId(op_sym);
             if (args_snap.len == 0) return try store.apply(op_id, &.{});
@@ -543,7 +554,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     if (store.interner.lookup(op)) |op_sym| {
         if (engine.macros.get(op_sym)) |m| {
             const params = m.params_span.slice(store.pool.items);
-            if (args_snap.len != params.len) return error.ArityMismatch;
+            if (args_snap.len != params.len) {
+                platform.debug.print("--> ArityMismatch: attendu {d}, reçu {d}\n", .{ params.len, args_snap.len });
+                return error.ArityMismatch;
+            }
             const expansion = try expandMacro(store, engine.allocator, m.body, params, args_snap);
             return evaluate(store, env, engine, expansion, depth + 1);
         }
@@ -557,13 +571,19 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "derive")) {
-        if (args_snap.len != 1) return error.ArityMismatch;
+        if (args_snap.len != 1) {
+            platform.debug.print("--> ArityMismatch: attendu {d}, reçu {d}\n", .{ 1, args_snap.len });
+            return error.ArityMismatch;
+        }
         const expr_str = try expr.toString(store, args_snap[0], engine.allocator);
         defer engine.allocator.free(expr_str);
         return try engine.vtable.deriveId(engine.heaven_ctx, expr_str, "x");
     }
     if (std.mem.eql(u8, op, "simplify")) {
-        if (args_snap.len != 1) return error.ArityMismatch;
+        if (args_snap.len != 1) {
+            platform.debug.print("--> ArityMismatch: attendu {d}, reçu {d}\n", .{ 1, args_snap.len });
+            return error.ArityMismatch;
+        }
         const expr_str = try expr.toString(store, args_snap[0], engine.allocator);
         defer engine.allocator.free(expr_str);
         const result_str = try engine.vtable.simplify(engine.heaven_ctx, expr_str);
@@ -679,12 +699,36 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // ═══ 3. EFFETS ALGÉBRIQUES : perform et handle ═══
     if (std.mem.eql(u8, op, "perform")) {
         if (engine.green_mode) engine.green_call_count += 1;
+
+        // 1. Toujours évaluer le dernier argument (exposé à un handle
+        //    éventuel via last_performed, mécanisme one-shot existant).
+        var last_val: ?expr.Id = null;
         if (args_snap.len > 1) {
-            const val = try evaluate(store, env, engine, args_snap[1], depth + 1);
-            engine.last_performed = val;
-            return val;
+            last_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+            engine.last_performed = last_val;
         }
-        return args_snap[0];
+
+        // 2. Si pas dans un handle explicite et qu'un handler IO est
+        //    installé : dispatcher sur le label.
+        if (!engine.in_handle) {
+            if (engine.io_handler) |handler| {
+                if (args_snap.len > 0) {
+                    const label_node = store.get(args_snap[0]);
+                    if (label_node.tag == .lit) {
+                        const lit = store.lits.items[label_node.aux];
+                        if (lit == .str) {
+                            const label = store.interner.resolve(lit.str);
+                            if (try handler(store, label, last_val)) |result| {
+                                return result;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Fallback : comportement historique.
+        return last_val orelse args_snap[0];
     }
 
     if (std.mem.eql(u8, op, "handle")) {
@@ -693,16 +737,20 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         engine.green_call_count = 0;
         const old_performed = engine.last_performed;
         engine.last_performed = null;
+        const old_in_handle = engine.in_handle;
+        engine.in_handle = true;
 
         const result = evaluate(store, env, engine, args_snap[0], depth + 1) catch |err| {
             engine.green_mode = old_mode;
             engine.last_performed = old_performed;
+            engine.in_handle = old_in_handle;
             return err;
         };
 
         const performed = engine.last_performed;
         engine.green_mode = old_mode;
         engine.last_performed = old_performed;
+        engine.in_handle = old_in_handle;
 
         if (performed) |val| {
             if (args_snap.len > 1) {
