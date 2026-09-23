@@ -2976,6 +2976,46 @@ test "ProofSession — interactif pas à pas" {
     try std.testing.expect(try session.finish());
 }
 
+test "tactics v3 — assumption matche une hypothèse" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    var state = proof_state_mod.ProofState.init(allocator, &arena, heaven.store, "assum_test");
+    defer state.deinit();
+
+    // H : P ; cible : P
+    const P = try heaven.store.sym("P");
+    const h_name = try arena.allocator().dupe(u8, "H");
+    const hyps = try arena.allocator().alloc(proof_state_mod.Hypothesis, 1);
+    hyps[0] = .{ .name = h_name, .ty = P };
+
+    try state.appendGoal(.{
+        .hyps = hyps,
+        .target = P,
+        .label = try state.dupLabel("main"),
+    });
+
+    var ctx = tactics_mod.TacticCtx{
+        .allocator = allocator,
+        .store = heaven.store,
+        .heaven = @ptrCast(heaven),
+        .simplifyFn = Heaven.tacticsSimplifyCb,
+        .eqFn = Heaven.tacticsEqCb,
+        .peanoFn = Heaven.tacticsPeanoCb,
+        .substFn = Heaven.tacticsSubstCb,
+    };
+
+    try tactics_mod.applyTactic(&state, .assumption, &ctx);
+    try std.testing.expect(state.solved());
+}
+
 test "hole — fresh hole has unique id" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);

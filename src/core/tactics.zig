@@ -24,6 +24,7 @@ pub const TacticError = error{
 pub const Tactic = union(enum) {
     simplify,
     reflexivity,
+    assumption,
     exact: []const u8,
     induction: []const u8,
     rewrite: []const u8,
@@ -49,6 +50,7 @@ pub fn applyTactic(state: *ProofState, t: Tactic, ctx: *TacticCtx) TacticError!v
     switch (t) {
         .simplify => return applySimplify(state, ctx),
         .reflexivity => return applyReflexivity(state, ctx),
+        .assumption => return applyAssumption(state, ctx),
         .exact => |n| return applyExact(state, n, ctx),
         .induction => |v| return applyInduction(state, v, ctx),
         .rewrite => |n| return applyRewrite(state, n, ctx),
@@ -108,6 +110,18 @@ fn applyReflexivity(state: *ProofState, ctx: *TacticCtx) TacticError!void {
     const same = ctx.eqFn(ctx, eq.lhs, eq.rhs) catch return TacticError.TacticFailed;
     if (!same) return TacticError.TacticFailed;
     _ = state.popGoal();
+}
+
+fn applyAssumption(state: *ProofState, ctx: *TacticCtx) TacticError!void {
+    const goal = state.currentGoal() orelse return TacticError.NoGoal;
+    for (goal.hyps) |h| {
+        const same = ctx.eqFn(ctx, h.ty, goal.target) catch false;
+        if (same) {
+            _ = state.popGoal();
+            return;
+        }
+    }
+    return TacticError.TacticFailed;
 }
 
 fn applyExact(state: *ProofState, name: []const u8, ctx: *TacticCtx) TacticError!void {
@@ -272,19 +286,49 @@ fn applySeq(state: *ProofState, first: *const Tactic, then: *const Tactic, ctx: 
     const n0 = state.goals.items.len;
     if (n0 == 0) return TacticError.NoGoal;
 
-    try applyTactic(state, first.*, ctx);
+    // Snapshot : copie superficielle du tableau (Goal contient des slices
+    // allouées dans l'arène, jamais libérées individuellement).
+    const snapshot = try ctx.allocator.alloc(Goal, n0);
+    defer ctx.allocator.free(snapshot);
+    @memcpy(snapshot, state.goals.items[0..n0]);
+
+    // Applique `first`. En cas d'échec, restaure et propage.
+    applyTactic(state, first.*, ctx) catch |err| {
+        state.goals.clearRetainingCapacity();
+        try state.goals.appendSlice(ctx.allocator, snapshot);
+        return err;
+    };
+
+    // Nombre de sous-buts produits par `first` :
+    //   (nouveau total) + 1 - (total avant)  — car first a pop le but de tête.
     const n1 = state.goals.items.len;
+    const k = if (n1 + 1 >= n0) n1 + 1 - n0 else 0;
+    if (k == 0) return; // first a tout résolu
 
-    // Le but initial a été consommé : subgoals = n1 - n0 + 1
-    if (n1 + 1 < n0) return; // but résolu directement
-    const k = n1 + 1 - n0;
-    if (k == 0) return;
-
-    // v1 : applique `then` à chacun des k premiers buts.
+    // Retire les k sous-buts dans une queue locale pour éviter
+    // que les sous-buts produits par `then` ne se mélangent à ceux
+    // de `first` (sinon on perdrait des buts ou on en traiterait
+    // deux fois).
+    var queue: std.ArrayListUnmanaged(Goal) = .{};
+    defer queue.deinit(ctx.allocator);
     var i: usize = 0;
     while (i < k) : (i += 1) {
-        if (state.goals.items.len == 0) break;
-        try applyTactic(state, then.*, ctx);
+        const g = state.popGoal() orelse break;
+        try queue.append(ctx.allocator, g);
+    }
+
+    // Applique `then` à chaque sous-but de `first`, dans l'ordre.
+    for (queue.items) |g| {
+        state.goals.insert(ctx.allocator, 0, g) catch |err| {
+            state.goals.clearRetainingCapacity();
+            try state.goals.appendSlice(ctx.allocator, snapshot);
+            return err;
+        };
+        applyTactic(state, then.*, ctx) catch |err| {
+            state.goals.clearRetainingCapacity();
+            try state.goals.appendSlice(ctx.allocator, snapshot);
+            return err;
+        };
     }
 }
 
@@ -314,6 +358,7 @@ pub fn parseTactic(arena: Allocator, s: []const u8) TacticError!Tactic {
 
     if (std.mem.eql(u8, t, "simplify")) return .simplify;
     if (std.mem.eql(u8, t, "reflexivity") or std.mem.eql(u8, t, "refl")) return .reflexivity;
+    if (std.mem.eql(u8, t, "assumption") or std.mem.eql(u8, t, "auto_assum")) return .assumption;
 
     if (std.mem.startsWith(u8, t, "exact ")) {
         const n = std.mem.trim(u8, t["exact ".len..], " \t");
