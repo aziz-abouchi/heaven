@@ -263,15 +263,26 @@ le type-check incrémental.
 - `prove M.t by { ... }` fonctionne.
 - `import "path"` : stub v0.
 
+### v0.5 ✅ *fait* (import)
+
+- `import "path" as Name` charge le fichier et l'évalue avec
+  `current_module = Name`.
+- Chaque `fn`/`let`/`theorem` top-level est aliasé sous `Name.x`
+  (`engine.fns` pour fn/let, `proof_core.theorems` pour theorem).
+- Nom déduit du basename si `as` absent.
+- 2 tests Zig + 1 fichier de test (`tests/import_test.hvn`).
+- `module.zig` (ModuleRegistry dormant) : non utilisé — son API ne
+  stocke que des noms, pas d'Ids. On garde le champ string.
+
 ### v1 — à faire
 
-- `fn`/`let` namespacés (evalEquation).
-- `import "path"` réel (chargement + inclusion dans le namespace).
-- Brancher `ModuleRegistry` (module.zig) au lieu du champ string.
-- Résolution `M.x` côté élaboration (`elabMember` produit déjà
-  `sym("M.x")`, il manque le lookup au runtime).
+- Multi-params typés : `data Pair a b = ...` (parseur `evalDataDecl`).
+- Chargement transitif + détection de cycles.
+- Export contrôlé (`export foo`) — v0.5 exporte tout.
+- Résolution lazy au runtime (`namespace_table: Map(module, Map(name, Id))`).
+- Chemins de recherche configurables (`HEAVEN_PATH`).
 
-Effort v1 : 1-2 jours.
+Effort v1 : 1-2 sessions.
 
 ---
 

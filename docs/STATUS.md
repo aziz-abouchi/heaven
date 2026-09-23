@@ -35,7 +35,7 @@ Légende :
 | `λx.body`, `\x.body`, `(λx.body)` | ✅ | 2 tests Zig | **le `.`**, pas `λx -> body` |
 | `λx -> body` (flèche) | ❌ | — | notation non supportée |
 | `module X` | ⚠️ | `heaven_expr.zig::current_module` | v0 : theorem aliasé, fn/let à venir |
-| `import "path"` | ⚠️ | stub v0 | v1 à venir (utiliser :load) |
+| `import "path" as Name` | ✅ | `heaven_expr.zig::evalImport` | fn/let/theorem aliasés sous `Name.x` |
 
 ## Types
 
