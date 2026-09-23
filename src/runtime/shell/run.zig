@@ -167,6 +167,28 @@ fn hasTopLevelEqual(line: []const u8) bool {
     return false;
 }
 
+/// Vrai si la ligne commence par un identifiant qui correspond à une
+/// fonction déjà enregistrée dans `engine.fns` (via équation `f x = ...`)
+/// ou à un nom qualifié `M.foo` importé. Sert à ne PAS router
+/// `c 5` vers la commande `c` si `c` a été défini comme fonction.
+fn isCallToKnownFn(self: *Shell, line: []const u8) bool {
+    var it = std.mem.tokenizeAny(u8, line, " \t");
+    const first = it.next() orelse return false;
+    if (first.len == 0) return false;
+
+    // Cas `M.foo` : la clé exacte est dans engine.fns.
+    if (self.heaven.engine.fns.get(first) != null) return true;
+
+    // Cas `f(...)` collé : on re-découpe à la parenthèse.
+    if (std.mem.indexOfScalar(u8, first, '(')) |pos| {
+        if (pos > 0) {
+            const head = first[0..pos];
+            if (self.heaven.engine.fns.get(head) != null) return true;
+        }
+    }
+    return false;
+}
+
 fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !bool {
     const had_colon = line[0] == ':';
     const rest_line = if (had_colon) std.mem.trim(u8, line[1..], " ") else line;
@@ -229,7 +251,8 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !b
     // interceptés par les commandes courtes (c, io, ask, ...).
     var found = false;
     const is_equation = !had_colon and hasTopLevelEqual(rest_line);
-    if (!is_equation) {
+    const is_fn_call  = !had_colon and !is_equation and isCallToKnownFn(self, rest_line);
+    if (!is_equation and !is_fn_call) {
     inline for (cmd_list.commands) |cmd_def| {
         // Le nom complet matche avec ou sans `:`.
         // Le raccourci ne matche QUE préfixé par `:` — sinon `f x = x + 1`
