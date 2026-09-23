@@ -1410,8 +1410,7 @@ pub const Heaven = struct {
             return self.allocator.dupe(u8, "✗ skills unavailable");
         const skill = sk.get(name) orelse
             return std.fmt.allocPrint(self.allocator, "✗ unknown skill: {s}", .{name});
-        const body = skill.body orelse
-            return std.fmt.allocPrint(self.allocator, "✗ skill {s} has no body (legacy tactics only)", .{name});
+        const body = skill.body;
 
         // Substitution {var}
         var buf = std.ArrayListUnmanaged(u8){};

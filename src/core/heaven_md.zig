@@ -131,7 +131,7 @@ pub fn dispatchDirective(directive: Directive, kernel: *Shell) !void {
         },
         .skill => {
             // :skill algebra → active le skill builtin ou enregistre
-            kernel.skills.register(directive.name, &.{ .normalize, .simplify, .exact }) catch {};
+            kernel.skills.register(directive.name, "simplify; reflexivity") catch {};
             // platform.dbg("[BOOT] Skill activé ➜ {s}\n", .{directive.name});
         },
         .spawn => {

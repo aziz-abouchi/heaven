@@ -4,42 +4,17 @@ const ProofEnv = @import("proof").ProofEnv;
 const expr = @import("expr");
 const platform = @import("platform");
 
-pub const Tactic = enum {
-    intro, // Introduire les variables dans le contexte
-    normalize, // Forme canonique via le CAS
-    simplify, // Saturation E-graph avec les règles de la KB
-    exact, // Clôture de la preuve (lhs == rhs après simplification)
-    induction, // Induction sur Nat
-};
-
+/// Une compétence = un nom + un corps au format `tactics.Tactic`.
+/// Le corps est parsé puis appliqué via `ProofSession`.
 pub const Skill = struct {
     name: []const u8,
-    /// Nouveau : corps au format \`tactics.Tactic\` ("simplify; reflexivity").
-    /// Si null, on retombe sur \`tactics\` (legacy, enum monolithique).
-    body: ?[]const u8 = null,
-    /// Legacy — enum \`skill.Tactic\` (recouvre partiellement tactics.Tactic).
-    tactics: []const Tactic = &.{},
+    body: []const u8,
 };
 
 const BUILTIN_SKILLS = [_]Skill{
-    // body = voie moderne (parsée par tactics.parseTacticsBlock).
-    // tactics = voie legacy (verifyByX monolithiques), conservée
-    //           pour les tests et les appelants historiques.
-    .{
-        .name = "algebra",
-        .body = "simplify; reflexivity",
-        .tactics = &.{ .normalize, .simplify, .exact },
-    },
-    .{
-        .name = "induction",
-        .body = "induction {var}; simplify; reflexivity",
-        .tactics = &.{ .intro, .normalize, .induction },
-    },
-    .{
-        .name = "trivial",
-        .body = "reflexivity",
-        .tactics = &.{.exact},
-    },
+    .{ .name = "trivial", .body = "reflexivity" },
+    .{ .name = "algebra", .body = "simplify; reflexivity" },
+    .{ .name = "induction", .body = "induction {var}; simplify; reflexivity" },
 };
 
 pub const ApplyResult = struct {
@@ -59,83 +34,76 @@ pub const SkillRegistry = struct {
     pub fn deinit(self: *SkillRegistry) void {
         var it = self.custom.iterator();
         while (it.next()) |entry| {
-            self.allocator.free(entry.key_ptr.*); // libère le nom
-            self.allocator.free(entry.value_ptr.*.tactics); // libère les tactiques
-            // value_ptr.*.name == key_ptr.* donc déjà libéré
+            self.allocator.free(entry.key_ptr.*); // libère le nom (clé)
+            self.allocator.free(entry.value_ptr.*.body); // libère le corps
+            // value_ptr.*.name == key_ptr.* → déjà libéré
         }
         self.custom.deinit(self.allocator);
     }
 
-    pub fn register(self: *SkillRegistry, name: []const u8, tactics: []const Tactic) !void {
+    pub fn register(self: *SkillRegistry, name: []const u8, body: []const u8) !void {
         const owned_name = try self.allocator.dupe(u8, name);
-        const owned_tactics = try self.allocator.dupe(Tactic, tactics);
+        errdefer self.allocator.free(owned_name);
+        const owned_body = try self.allocator.dupe(u8, body);
+        errdefer self.allocator.free(owned_body);
         try self.custom.put(self.allocator, owned_name, .{
-            .name = owned_name, // même pointeur que la clé
-            .tactics = owned_tactics,
+            .name = owned_name,
+            .body = owned_body,
         });
     }
+
     pub fn get(self: *const SkillRegistry, name: []const u8) ?Skill {
-        // Cherche dans les customs d'abord
         if (self.custom.get(name)) |s| return s;
-        // Puis dans les builtins
         for (BUILTIN_SKILLS) |s| {
             if (std.mem.eql(u8, s.name, name)) return s;
         }
         return null;
     }
 
-    /// Applique un skill sur un théorème nommé.
-    /// engine et store sont anytype pour éviter les dépendances circulaires.
+    /// Applique un skill sur un théorème nommé via ProofSession.
+    /// `heaven` est `anytype` (dépendance circulaire : heaven_expr → skill).
     pub fn apply(
         self: *const SkillRegistry,
         skill_name: []const u8,
         theorem_name: []const u8,
         induction_var: []const u8,
-        proofs: *ProofEnv,
-        engine: anytype,
+        allocator: Allocator,
         heaven: anytype,
-        store: *expr.Store,
     ) !ApplyResult {
         const skill = self.get(skill_name) orelse {
-            // platform.dbg("[SKILL] Skill inconnu: {s}\n", .{skill_name});
             return ApplyResult{ .proved = false, .tactics_run = 0, .tactic_log = "skill not found" };
         };
 
-        var tactics_run: u32 = 0;
-        var proved = false;
-
-        for (skill.tactics) |tactic| {
-            tactics_run += 1;
-            switch (tactic) {
-                .intro => {
-                    // platform.dbg("[SKILL] [{s}] intro\n", .{skill_name});
-                },
-                .normalize => {
-                    // platform.dbg("[SKILL] [{s}] normalize\n", .{skill_name});
-                },
-                .simplify => {
-                    // platform.dbg("[SKILL] [{s}] simplify\n", .{skill_name});
-                    proved = try proofs.verifyBySimplify(theorem_name, heaven);
-                    if (proved) break;
-                },
-                .exact => {
-                    // platform.dbg("[SKILL] [{s}] exact\n", .{skill_name});
-                    proved = try proofs.verifyByEval(theorem_name, engine, store);
-                    if (proved) break;
-                },
-                .induction => {
-                    // platform.dbg("[SKILL] [{s}] induction\n", .{skill_name});
-                    // Variable d'induction par défaut : "n"
-                    proved = try proofs.verifyByInduction(theorem_name, induction_var, engine, heaven, store);
-                    if (proved) break;
-                },
+        // Substitution {var}
+        var buf = std.ArrayListUnmanaged(u8){};
+        defer buf.deinit(allocator);
+        var i: usize = 0;
+        while (i < skill.body.len) {
+            if (std.mem.startsWith(u8, skill.body[i..], "{var}")) {
+                try buf.appendSlice(allocator, induction_var);
+                i += 5;
+            } else {
+                try buf.append(allocator, skill.body[i]);
+                i += 1;
             }
         }
 
+        const session = try heaven.startProof(theorem_name);
+        defer session.deinit();
+
+        const report = try session.applyLine(buf.items);
+        defer allocator.free(report);
+
+        const proved = try session.finish();
+        // tactics_run : compte les `;` + 1 (approximation)
+        var count: u32 = 1;
+        for (skill.body) |c| if (c == ';') {
+            count += 1;
+        };
         return ApplyResult{
             .proved = proved,
-            .tactics_run = tactics_run,
-            .tactic_log = if (proved) "proved" else "unproved",
+            .tactics_run = count,
+            .tactic_log = report,
         };
     }
 };
@@ -146,7 +114,7 @@ test "SkillRegistry — builtin algebra" {
 
     const skill = registry.get("algebra").?;
     try std.testing.expectEqualStrings("algebra", skill.name);
-    try std.testing.expect(skill.tactics.len == 3);
+    try std.testing.expectEqualStrings("simplify; reflexivity", skill.body);
 }
 
 test "SkillRegistry — custom skill" {
@@ -154,8 +122,8 @@ test "SkillRegistry — custom skill" {
     var registry = SkillRegistry.init(allocator);
     defer registry.deinit();
 
-    try registry.register("my_skill", &.{ .intro, .exact });
+    try registry.register("my_skill", "simplify; reflexivity");
     const skill = registry.get("my_skill").?;
     try std.testing.expectEqualStrings("my_skill", skill.name);
-    try std.testing.expect(skill.tactics[0] == .intro);
+    try std.testing.expectEqualStrings("simplify; reflexivity", skill.body);
 }

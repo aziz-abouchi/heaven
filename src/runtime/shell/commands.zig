@@ -475,29 +475,18 @@ pub fn cmdProof(self: *Shell, input: []const u8) void {
 }
 
 fn cmdSkillWithInduction(self: *Shell, skill_name: []const u8, induction_var: []const u8) void {
-    const target = self.active_theorem orelse {
-        platform.debug.print("  Aucun théorème actif.\n", .{});
-        return;
-    };
-
-    const result = self.skills.apply(
-        skill_name,
-        target,
-        induction_var,
-        self.proofs,
-        &self.heaven.engine,
-        self.heaven,
-        &self.heaven.store,
-    ) catch |err| {
+    _ = induction_var;
+    // Délègue à la route moderne `skill <name>` (Heaven.evalSkill).
+    var buf: [256]u8 = undefined;
+    const src = std.fmt.bufPrint(&buf, "skill {s}", .{skill_name}) catch return;
+    const result = self.heaven.evalSkill(src) catch |err| {
         platform.debug.print("  Erreur skill: {s}\n", .{@errorName(err)});
         return;
     };
-
-    if (result.proved) {
+    defer self.allocator.free(result);
+    platform.debug.print("{s}\n", .{result});
+    if (std.mem.startsWith(u8, result, "✓")) {
         session_lib.save(self.proofs, self.allocator) catch {};
-        platform.debug.print("✓ [{s}] Théorème '{s}' prouvé ({d} tactiques)\n", .{ skill_name, target, result.tactics_run });
-    } else {
-        platform.debug.print("✗ [{s}] Échec sur '{s}' ({d} tactiques)\n", .{ skill_name, target, result.tactics_run });
     }
 }
 
@@ -775,6 +764,27 @@ pub fn cmdRefine(self: *Shell, input: []const u8) void {
     const desc = self.heaven.describeHole(hole_id) catch return;
     defer self.allocator.free(desc);
     platform.debug.print("{s}", .{desc});
+}
+
+pub fn cmdIo(self: *Shell, input: []const u8) void {
+    const trimmed = std.mem.trim(u8, input, " \t");
+
+    if (trimmed.len == 0 or std.mem.eql(u8, trimmed, "status")) {
+        const h = self.heaven.engine.io_handler;
+        platform.debug.print("IO handler: {s}\n", .{if (h != null) "on" else "off"});
+        return;
+    }
+    if (std.mem.eql(u8, trimmed, "on")) {
+        self.heaven.engine.io_handler = heaven_expr_mod.defaultIOHandler;
+        platform.debug.print("IO handler: on\n", .{});
+        return;
+    }
+    if (std.mem.eql(u8, trimmed, "off")) {
+        self.heaven.engine.io_handler = null;
+        platform.debug.print("IO handler: off\n", .{});
+        return;
+    }
+    platform.debug.print("Usage: :io [on|off|status]\n", .{});
 }
 
 pub fn cmdMeta(self: *Shell, input: []const u8) void {
