@@ -136,6 +136,37 @@ fn runProofInteractive(
     }
 }
 
+/// Détecte une équation / définition : un `=` à depth 0 qui n'est pas
+/// un opérateur de comparaison (`==`, `!=`, `<=`, `>=`).
+/// Utilisé pour éviter que `c x = 1` soit intercepté par la commande
+/// courte `c`, ou `io x = ...` par `:io`.
+fn hasTopLevelEqual(line: []const u8) bool {
+    var depth: usize = 0;
+    var in_str = false;
+    for (line, 0..) |ch, i| {
+        if (in_str) {
+            if (ch == '"') in_str = false;
+            continue;
+        }
+        switch (ch) {
+            '"' => in_str = true,
+            '(', '[', '{' => depth += 1,
+            ')', ']', '}' => if (depth > 0) { depth -= 1; },
+            '=' => {
+                if (depth != 0) continue;
+                // Rejette ==, !=, <=, >= (comparaisons).
+                const prev: u8 = if (i > 0) line[i - 1] else 0;
+                const next: u8 = if (i + 1 < line.len) line[i + 1] else 0;
+                if (prev == '=' or prev == '!' or prev == '<' or prev == '>') continue;
+                if (next == '=') continue;
+                return true;
+            },
+            else => {},
+        }
+    }
+    return false;
+}
+
 fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !bool {
     const had_colon = line[0] == ':';
     const rest_line = if (had_colon) std.mem.trim(u8, line[1..], " ") else line;
@@ -192,8 +223,13 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !b
         // help, stats, etc.).
     }
 
-    // Commandes natives
+    // Commandes natives.
+    // On ne cherche une commande QUE si ce n'est pas une équation.
+    // Sinon `c x = 1`, `io x = ...`, `ask y = ...`, etc. seraient
+    // interceptés par les commandes courtes (c, io, ask, ...).
     var found = false;
+    const is_equation = !had_colon and hasTopLevelEqual(rest_line);
+    if (!is_equation) {
     inline for (cmd_list.commands) |cmd_def| {
         // Le nom complet matche avec ou sans `:`.
         // Le raccourci ne matche QUE préfixé par `:` — sinon `f x = x + 1`
@@ -233,6 +269,7 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !b
                 }
             }
         }
+    }
     }
 
     if (!found) {
