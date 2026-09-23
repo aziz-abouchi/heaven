@@ -1490,6 +1490,113 @@ pub const Heaven = struct {
         return substSymByName(self.store, self.allocator, e, name, repl);
     }
 
+    // ═══ REPL interactif de preuve (ProofSession) ═══
+
+    pub const ProofSession = struct {
+        allocator: std.mem.Allocator,
+        arena: *std.heap.ArenaAllocator,
+        state: proof_state_mod.ProofState,
+        ctx: tactics_mod.TacticCtx,
+        theorem_name: []const u8,
+        heaven: *Heaven,
+
+        pub fn deinit(self: *ProofSession) void {
+            self.state.deinit();
+            self.arena.deinit();
+            self.allocator.destroy(self.arena);
+            self.allocator.free(self.theorem_name);
+            self.allocator.destroy(self);
+        }
+
+        /// Parse une ligne (peut contenir plusieurs tactiques séparées par `;`)
+        /// et l'applique. Retourne un rapport formatté pour affichage.
+        pub fn applyLine(self: *ProofSession, line: []const u8) ![]u8 {
+            const tactic = tactics_mod.parseTacticsBlock(self.arena.allocator(), line) catch |err| {
+                return std.fmt.allocPrint(self.allocator, "✗ parse error: {}\n", .{err});
+            };
+            tactics_mod.applyTactic(&self.state, tactic, &self.ctx) catch |err| {
+                const state_pp = try self.state.pp(self.allocator);
+                defer self.allocator.free(state_pp);
+                return std.fmt.allocPrint(self.allocator, "✗ {}\n{s}", .{ err, state_pp });
+            };
+            if (self.state.solved()) {
+                return self.allocator.dupe(u8, "✓ All goals solved. Tapez '}' ou 'qed' pour valider.\n");
+            }
+            const state_pp = try self.state.pp(self.allocator);
+            defer self.allocator.free(state_pp);
+            return std.fmt.allocPrint(self.allocator, "{s}", .{state_pp});
+        }
+
+        /// Vérifie que tous les buts sont résolus et marque le théorème.
+        pub fn finish(self: *ProofSession) !bool {
+            if (!self.state.solved()) return false;
+            _ = self.heaven.ensureCommands();
+            const pc = self.heaven.proof_core_inst orelse return false;
+            const thm = pc.theorems.getPtr(self.theorem_name) orelse return false;
+            thm.verified = true;
+            return true;
+        }
+
+        pub fn pp(self: *ProofSession) ![]u8 {
+            return self.state.pp(self.allocator);
+        }
+    };
+
+    /// Démarre une session de preuve interactive pour un théorème déjà déclaré.
+    /// L'appelant est responsable d'appeler session.deinit().
+    pub fn startProof(self: *Heaven, theorem_name: []const u8) HeavenError!*ProofSession {
+        _ = self.ensureCommands();
+        const pc = self.proof_core_inst orelse return error.Unexpected;
+        const thm = pc.theorems.getPtr(theorem_name) orelse return error.UnknownVariable;
+
+        // Parse "lhs = rhs" (au premier " = ")
+        const stmt = thm.statement;
+        const eq_pos = std.mem.indexOf(u8, stmt, " = ") orelse return error.InvalidSyntax;
+        const lhs_str = std.mem.trim(u8, stmt[0..eq_pos], " \t");
+        const rhs_str = std.mem.trim(u8, stmt[eq_pos + 3 ..], " \t");
+
+        const lhs_id = try self.parseExpression(lhs_str);
+        const rhs_id = try self.parseExpression(rhs_str);
+        const eq_sym = try self.store.sym("=");
+        const target = try self.store.apply(eq_sym, &.{ lhs_id, rhs_id });
+
+        const session = try self.allocator.create(ProofSession);
+        errdefer self.allocator.destroy(session);
+
+        const arena = try self.allocator.create(std.heap.ArenaAllocator);
+        arena.* = std.heap.ArenaAllocator.init(self.allocator);
+
+        session.* = .{
+            .allocator = self.allocator,
+            .arena = arena,
+            .state = proof_state_mod.ProofState.init(
+                self.allocator, arena, self.store, theorem_name,
+            ),
+            .ctx = undefined,
+            .theorem_name = try self.allocator.dupe(u8, theorem_name),
+            .heaven = self,
+        };
+        errdefer self.allocator.free(session.theorem_name);
+
+        try session.state.appendGoal(.{
+            .hyps = try session.state.dupHyps(&.{}),
+            .target = target,
+            .label = try session.state.dupLabel("main"),
+        });
+
+        session.ctx = tactics_mod.TacticCtx{
+            .allocator = self.allocator,
+            .store = self.store,
+            .heaven = @ptrCast(self),
+            .simplifyFn = tacticsSimplifyCb,
+            .eqFn = tacticsEqCb,
+            .peanoFn = tacticsPeanoCb,
+            .substFn = tacticsSubstCb,
+        };
+
+        return session;
+    }
+
     pub fn evalProve(self: *Heaven, src: []const u8) HeavenError![]u8 {
         // ─── Tactics v1 : `prove <name> by { t1; t2; ... }` ───
         // Intercepté AVANT le chemin classique pour ne pas casser
@@ -2777,6 +2884,32 @@ test "tactics v1.5 — apply P->Q crée un sous-but P" {
 
     try std.testing.expectEqual(@as(usize, 1), state.goals.items.len);
     try std.testing.expect(state.goals.items[0].target == P);
+}
+
+test "ProofSession — interactif pas à pas" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    // Déclare un théorème
+    const stmt_res = try heaven.eval("theorem t_repl_test : x + 0 = x");
+    defer allocator.free(stmt_res);
+
+    // Démarre la session
+    var session = try heaven.startProof("t_repl_test");
+    defer session.deinit();
+
+    // Une ligne de tactique
+    const report1 = try session.applyLine("simplify");
+    defer allocator.free(report1);
+    try std.testing.expect(std.mem.indexOf(u8, report1, "solved") != null or
+        std.mem.indexOf(u8, report1, "✓") != null);
+
+    // Fin
+    try std.testing.expect(try session.finish());
 }
 
 test "hole — fresh hole has unique id" {
