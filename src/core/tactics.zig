@@ -423,14 +423,13 @@ fn applyApplyHyp(state: *ProofState, h_name: []const u8, ctx: *TacticCtx) Tactic
     const ok = unify(ctx, abs_current, goal.target, &subst) catch return TacticError.TacticFailed;
     if (!ok) return TacticError.TacticFailed;
 
-    // 5. Pop + empile les prémisses instanciées (ordre : prems[0] en tête).
+    // 5. Pop + empile les prémisses instanciées dans l'ordre naturel
+    //    (prems[0] = première prémisse en tête, comme Rocq/Lean).
     const hyps_snapshot = goal.hyps;
     _ = state.popGoal();
 
-    var i: usize = prems.items.len;
-    while (i > 0) {
-        i -= 1;
-        const abs_prem = try abstractSyms(ctx, prems.items[i], &sym_to_evar);
+    for (prems.items) |prem| {
+        const abs_prem = try abstractSyms(ctx, prem, &sym_to_evar);
         const inst = try instantiate(ctx, abs_prem, &subst);
         const label = state.dupLabel("apply") catch return TacticError.OutOfMemory;
         state.appendGoal(.{
