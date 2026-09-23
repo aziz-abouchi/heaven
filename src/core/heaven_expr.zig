@@ -236,6 +236,11 @@ pub const Heaven = struct {
     ctor_arities: std.StringHashMapUnmanaged(u8) = .{},
     /// v2a : arité des fonctions déclarées via `sig name : ...`.
     fn_arities: std.StringHashMapUnmanaged(u8) = .{},
+    /// v2b : type parent de chaque ctor (`Cons` → `Vec`).
+    ctor_parents: std.StringHashMapUnmanaged([]const u8) = .{},
+    /// v2b : heads des domaines d'une signature (`sig f : A -> B -> C`
+    /// stocke `"A B"`).
+    fn_domains: std.StringHashMapUnmanaged([]const u8) = .{},
     /// État d'import en cours (v2a : `export`). null hors import.
     import_state: ?*ImportState = null,
     /// Cache d'idempotence (v2b) : chemin résolu → nom du module.
@@ -333,6 +338,34 @@ pub const Heaven = struct {
 
             gop.value_ptr.ctor_arity = ctor.arity;
             //platform.dbg("[ctor-reg] {s} arity={d}\n", .{ ctor.name, ctor.arity });
+        }
+
+        // v2b : parents des ctors built-in (utilisés par la vérif de kind).
+        const builtin_parents = [_]struct { ctor: []const u8, parent: []const u8 }{
+            .{ .ctor = "zero",  .parent = "Nat"  },
+            .{ .ctor = "Zero",  .parent = "Nat"  },
+            .{ .ctor = "succ",  .parent = "Nat"  },
+            .{ .ctor = "Succ",  .parent = "Nat"  },
+            .{ .ctor = "nil",   .parent = "List" },
+            .{ .ctor = "Nil",   .parent = "List" },
+            .{ .ctor = "cons",  .parent = "List" },
+            .{ .ctor = "Cons",  .parent = "List" },
+            .{ .ctor = "true",  .parent = "Bool" },
+            .{ .ctor = "True",  .parent = "Bool" },
+            .{ .ctor = "false", .parent = "Bool" },
+            .{ .ctor = "False", .parent = "Bool" },
+        };
+        for (builtin_parents) |bp| {
+            const k = try self.allocator.dupe(u8, bp.ctor);
+            const v = try self.allocator.dupe(u8, bp.parent);
+            const gop = try self.ctor_parents.getOrPut(self.allocator, k);
+            if (gop.found_existing) {
+                self.allocator.free(k);
+                self.allocator.free(@constCast(gop.value_ptr.*));
+                gop.value_ptr.* = v;
+            } else {
+                gop.value_ptr.* = v;
+            }
         }
 
         //if (self.engine.fns.get("succ")) |def| {
@@ -521,6 +554,22 @@ pub const Heaven = struct {
             while (it.next()) |k| self.allocator.free(k.*);
         }
         self.fn_arities.deinit(self.allocator);
+        {
+            var it = self.ctor_parents.iterator();
+            while (it.next()) |e| {
+                self.allocator.free(e.key_ptr.*);
+                self.allocator.free(@constCast(e.value_ptr.*));
+            }
+        }
+        self.ctor_parents.deinit(self.allocator);
+        {
+            var it = self.fn_domains.iterator();
+            while (it.next()) |e| {
+                self.allocator.free(e.key_ptr.*);
+                self.allocator.free(@constCast(e.value_ptr.*));
+            }
+        }
+        self.fn_domains.deinit(self.allocator);
         var imp_it = self.imported_files.iterator();
         while (imp_it.next()) |e| {
             self.allocator.free(e.key_ptr.*);
@@ -629,24 +678,54 @@ pub const Heaven = struct {
             if (sname.len == 0 or sty_str.len == 0)
                 return self.allocator.dupe(u8, "usage: sig <name> : <type>");
 
+            var heads_buf = std.ArrayListUnmanaged(u8){};
+            defer heads_buf.deinit(self.allocator);
+
             var arity: u8 = 0;
             var depth: usize = 0;
+            var start: usize = 0;
             var i: usize = 0;
-            while (i + 1 < sty_str.len) : (i += 1) {
-                switch (sty_str[i]) {
-                    '(' => depth += 1,
-                    ')' => if (depth > 0) { depth -= 1; },
-                    '-' => if (sty_str[i + 1] == '>' and depth == 0) {
-                        arity += 1;
-                    },
-                    else => {},
+            while (i < sty_str.len) {
+                const c = sty_str[i];
+                if (c == '(') { depth += 1; i += 1; continue; }
+                if (c == ')') { if (depth > 0) depth -= 1; i += 1; continue; }
+                if (c == '-' and i + 1 < sty_str.len and
+                    sty_str[i + 1] == '>' and depth == 0)
+                {
+                    const domain_str = std.mem.trim(u8, sty_str[start..i], " \t");
+                    const head = extractHeadName(domain_str);
+                    if (heads_buf.items.len > 0)
+                        try heads_buf.append(self.allocator, ' ');
+                    try heads_buf.appendSlice(self.allocator, head);
+                    arity += 1;
+                    i += 2;
+                    start = i;
+                    continue;
+                }
+                i += 1;
+            }
+
+            // fn_arities
+            {
+                const owned = try self.allocator.dupe(u8, sname);
+                const gop = try self.fn_arities.getOrPut(self.allocator, owned);
+                if (gop.found_existing) self.allocator.free(owned);
+                gop.value_ptr.* = arity;
+            }
+            // fn_domains (heads space-separated)
+            {
+                const k = try self.allocator.dupe(u8, sname);
+                const v = try self.allocator.dupe(u8, heads_buf.items);
+                const gop = try self.fn_domains.getOrPut(self.allocator, k);
+                if (gop.found_existing) {
+                    self.allocator.free(k);
+                    self.allocator.free(@constCast(gop.value_ptr.*));
+                    gop.value_ptr.* = v;
+                } else {
+                    gop.value_ptr.* = v;
                 }
             }
 
-            const owned = try self.allocator.dupe(u8, sname);
-            const gop = try self.fn_arities.getOrPut(self.allocator, owned);
-            if (gop.found_existing) self.allocator.free(owned);
-            gop.value_ptr.* = arity;
             return std.fmt.allocPrint(self.allocator, "✓ sig {s} : {d} arg(s)", .{ sname, arity });
         }
 
@@ -1429,6 +1508,19 @@ pub const Heaven = struct {
                 if (g.found_existing) self.allocator.free(k);
                 g.value_ptr.* = arity;
             }
+            // v2b : parent du ctor (nom du type déclaré).
+            {
+                const k = try self.allocator.dupe(u8, ctor_name);
+                const v = try self.allocator.dupe(u8, type_name);
+                const g = try self.ctor_parents.getOrPut(self.allocator, k);
+                if (g.found_existing) {
+                    self.allocator.free(k);
+                    self.allocator.free(@constCast(g.value_ptr.*));
+                    g.value_ptr.* = v;
+                } else {
+                    g.value_ptr.* = v;
+                }
+            }
         }
 
         // 3. Enregistre dans le TypeRegistry.
@@ -1523,6 +1615,38 @@ pub const Heaven = struct {
                         "✗ ctor {s} attend {d} arg(s), reçu {d}",
                         .{ head_name, ctor_arity, n_args },
                     );
+                }
+            }
+        }
+
+        // ─── v2b : vérifier que chaque ctor pattern appartient au bon type ───
+        if (self.fn_domains.get(name)) |heads_str| {
+            var hit = std.mem.tokenizeScalar(u8, heads_str, ' ');
+            var idx: usize = 0;
+            while (hit.next()) |expected_head| : (idx += 1) {
+                if (idx >= patterns.items.len) break;
+                const p_id = patterns.items[idx];
+                const pn2 = self.store.get(p_id);
+                var p_ctor_name: ?[]const u8 = null;
+                if (pn2.tag == .sym) {
+                    const nm = self.store.interner.resolve(pn2.payload);
+                    if (self.ctor_parents.contains(nm)) p_ctor_name = nm;
+                } else if (pn2.tag == .apply) {
+                    const fn2 = self.store.get(pn2.payload);
+                    if (fn2.tag == .sym) {
+                        const nm = self.store.interner.resolve(fn2.payload);
+                        if (self.ctor_parents.contains(nm)) p_ctor_name = nm;
+                    }
+                }
+                if (p_ctor_name) |cn| {
+                    const parent = self.ctor_parents.get(cn) orelse continue;
+                    if (!std.mem.eql(u8, parent, expected_head)) {
+                        return std.fmt.allocPrint(
+                            self.allocator,
+                            "✗ pattern {d} : ctor {s} appartient à {s}, attendu {s}",
+                            .{ idx + 1, cn, parent, expected_head },
+                        );
+                    }
                 }
             }
         }
@@ -3519,6 +3643,34 @@ fn substSymByName(
         },
         else => return e,
     }
+}
+
+
+fn extractHeadName(s: []const u8) []const u8 {
+    var i: usize = 0;
+    while (i < s.len and (s[i] == ' ' or s[i] == '\t')) : (i += 1) {}
+    if (i < s.len and s[i] == '(') {
+        // Soit un binder `(x : T)` (return T), soit un type appliqué
+        // `(T args)` (récursion sur l'intérieur).
+        const open = i;
+        var depth: usize = 1;
+        i += 1;
+        while (i < s.len and depth > 0) : (i += 1) {
+            if (s[i] == '(') depth += 1
+            else if (s[i] == ')') depth -= 1;
+        }
+        if (i > open + 1 and i - 1 <= s.len) {
+            const inner = s[open + 1 .. i - 1];
+            if (std.mem.indexOfScalar(u8, inner, ':')) |colon| {
+                return extractHeadName(inner[colon + 1 ..]);
+            }
+            return extractHeadName(inner);
+        }
+        return s;
+    }
+    const start = i;
+    while (i < s.len and (std.ascii.isAlphanumeric(s[i]) or s[i] == '_')) : (i += 1) {}
+    return s[start..i];
 }
 
 fn isInfixOp(tok: []const u8) bool {
