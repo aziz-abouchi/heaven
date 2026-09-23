@@ -34,8 +34,8 @@ Légende :
 | S-expression `(f a b)` | ✅ | `parseSExpr` (quote-aware) | — |
 | `λx.body`, `\x.body`, `(λx.body)` | ✅ | 2 tests Zig | **le `.`**, pas `λx -> body` |
 | `λx -> body` (flèche) | ❌ | — | notation non supportée |
-| `module X` | ⚠️ | `commands.zig:186` + tree-sitter | **reconnu, no-op** |
-| `import "path"` | ⚠️ | `elab.zig::elabImportDecl` | parse, ignore la cible |
+| `module X` | ⚠️ | `heaven_expr.zig::current_module` | v0 : theorem aliasé, fn/let à venir |
+| `import "path"` | ⚠️ | stub v0 | v1 à venir (utiliser :load) |
 
 ## Types
 

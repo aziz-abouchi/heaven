@@ -244,12 +244,22 @@ le type-check incrémental.
 
 ## #module — Rendre `module` effectif
 
-Tree-sitter reconnaît `module X`, l'évaluateur no-op. À implémenter :
-- parser `module M` ouvre un namespace
-- `import "M"` résout dans le namespace
-- `M.x` accède au symbole qualifié
+### v0 ✅ *fait*
 
-Effort : 2 jours.
+- `module M` ouvre un namespace (`Heaven.current_module`).
+- `theorem t : ...` aliasé sous `M.t` dans `proof_core.theorems`.
+- `prove M.t by { ... }` fonctionne.
+- `import "path"` : stub v0.
+
+### v1 — à faire
+
+- `fn`/`let` namespacés (evalEquation).
+- `import "path"` réel (chargement + inclusion dans le namespace).
+- Brancher `ModuleRegistry` (module.zig) au lieu du champ string.
+- Résolution `M.x` côté élaboration (`elabMember` produit déjà
+  `sym("M.x")`, il manque le lookup au runtime).
+
+Effort v1 : 1-2 jours.
 
 ---
 
