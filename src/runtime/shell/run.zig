@@ -16,7 +16,7 @@ pub fn run(self: *Shell) !void {
     var history = history_mod.History.init(self.allocator, 100);
     defer history.deinit();
 
-    const history_path = try std.fs.path.join(self.allocator, &[_][]const u8{ "." });
+    const history_path = try std.fs.path.join(self.allocator, &[_][]const u8{"."});
     defer self.allocator.free(history_path);
     const history_file = try std.fs.path.join(self.allocator, &[_][]const u8{ history_path, ".heaven_history" });
     defer self.allocator.free(history_file);
@@ -55,11 +55,85 @@ pub fn run(self: *Shell) !void {
             try history.push(line);
         }
 
+        // ─── Mode preuve interactif : `prove X by {` sans `}` sur la ligne ───
+        {
+            const check: []const u8 = if (line.len > 0 and line[0] == ':') line[1..] else line;
+            const check_t = std.mem.trim(u8, check, " \t");
+            if (std.mem.startsWith(u8, check_t, "prove ") and
+                std.mem.indexOf(u8, check_t, " by {") != null and
+                std.mem.lastIndexOfScalar(u8, check_t, '}') == null)
+            {
+                try runProofInteractive(self, &reader, check_t);
+                continue :outer;
+            }
+        }
+
         // Traiter la ligne
         if (!try processLine(self, line, &history)) break :outer;
     }
 
     history.saveToFile(history_file) catch {};
+}
+
+fn runProofInteractive(
+    self: *Shell,
+    reader: *interactive.Reader,
+    line: []const u8,
+) !void {
+    // Extrait `<name>` de `prove <name> by {`
+    const by_pos = std.mem.indexOf(u8, line, " by {") orelse return;
+    const name = std.mem.trim(u8, line["prove ".len..by_pos], " \t");
+    if (name.len == 0) {
+        platform.debug.print("  Usage : prove <nom> by {{\n", .{});
+        return;
+    }
+
+    const session = self.heaven.startProof(name) catch |err| {
+        platform.debug.print("  impossible de démarrer la preuve : {}\n", .{err});
+        return;
+    };
+    defer session.deinit();
+
+    const initial = session.pp() catch null;
+    if (initial) |pp| {
+        defer self.allocator.free(pp);
+        platform.debug.print("{s}", .{pp});
+    }
+    platform.debug.print("(tactiques : simplify, reflexivity, induction x, rewrite H, ...)\n", .{});
+    platform.debug.print("Tapez '}}' ou 'qed' pour valider, 'abort' pour annuler.\n", .{});
+
+    while (true) {
+        const tactic_line = reader.readLine("> ") catch |err| {
+            if (err == error.EndOfStream) {
+                platform.debug.print("\n✗ EOF, preuve abandonnée.\n", .{});
+                return;
+            }
+            platform.debug.print("  erreur de lecture : {}\n", .{err});
+            return;
+        };
+        const trimmed = std.mem.trim(u8, tactic_line, " \t\r\n");
+        if (trimmed.len == 0) continue;
+
+        if (std.mem.eql(u8, trimmed, "}") or std.mem.eql(u8, trimmed, "qed")) {
+            if (try session.finish()) {
+                platform.debug.print("✓ [{s}] proved (interactive)\n", .{name});
+            } else {
+                platform.debug.print("✗ preuve incomplète.\n", .{});
+            }
+            return;
+        }
+        if (std.mem.eql(u8, trimmed, "abort")) {
+            platform.debug.print("✗ preuve abandonnée.\n", .{});
+            return;
+        }
+
+        const report = session.applyLine(trimmed) catch |err| {
+            platform.debug.print("  erreur : {}\n", .{err});
+            continue;
+        };
+        defer self.allocator.free(report);
+        platform.debug.print("{s}", .{report});
+    }
 }
 
 fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !bool {
@@ -88,7 +162,7 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !b
         }
         if (std.mem.eql(u8, cmd, "history")) {
             for (history.items.items, 0..) |item, i| {
-                platform.debug.print("{d}: {s}\n", .{ i+1, item });
+                platform.debug.print("{d}: {s}\n", .{ i + 1, item });
             }
             return true;
         }
@@ -113,9 +187,9 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !b
             eval.cmdComplete(self, args);
             return true;
         }
-        // Commande inconnue
-        platform.debug.print("   commande inconnue: {s}\n", .{cmd});
-        return true;
+        // Fallthrough : pas un cas spécial à colon, on laisse la
+        // boucle table-driven ci-dessous le traiter (hole, refine, io,
+        // help, stats, etc.).
     }
 
     // Commandes natives
