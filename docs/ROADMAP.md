@@ -233,14 +233,30 @@ le type-check incrémental.
 Attrape : `head Nil = 42`, `head (Cons x) _ = x` (Cons à 2 args
 mais reçu 1).
 
-### v2b — *roadmap*
+### v2b ✅ *fait* — vérification par kind
 
-- Vérifier le **type** de chaque pattern face au domaine correspondant
-  de la signature.
-- Unification d'indexes dépendants (`Vec (succ n)` vs `Vec (succ zero)`).
-- Propagation des liaisons d'index dans le contexte.
+- `Heaven.ctor_parents` : `ctor → type parent` (peuplé par `evalDataDecl`
+  + built-ins `zero → Nat`, `cons → List`, etc.).
+- `Heaven.fn_domains` : heads des domaines d'une `sig` (`"A B"` pour
+  `A -> B -> C`), extraits par `extractHeadName` (strip binders et args).
+- `evalEquation` : pour chaque pattern `pi`, si c'est un ctor `C`,
+  comparer `ctor_parents[C]` avec `fn_domains[name][i]`.
 
-**Effort v2b** : 2-3 sessions.
+Attrape : `nameOf apple` contre `Color -> String`,
+`head (Cons x _) _` contre `(n : Nat) -> ...`.
+
+### v2c — *roadmap*
+
+- **Unification d'indexes dépendants** : `Vec (succ n)` vs `Vec (succ zero)`
+  doit matcher avec `n := zero`. Nécessite unification + context propagation.
+- Rejet de `head _ Nil` (Nil : Vec zero, pas Vec (succ n)).
+- Signature avec type params implicites (`(a : Type) -> ...`).
+
+**Effort v2c** : 2-3 sessions. Le bloc "vérification des définitions"
+est fonctionnel, v2c affine sur les cas où le **ctor passe le kind**
+mais pas l'**index**.
+
+### v0 ✅ *fait*
 
 ### v0 ✅ *fait*
 
