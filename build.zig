@@ -149,6 +149,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const hole_mod = b.addModule("hole", .{
+        .root_source_file = b.path("src/core/hole.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+        },
+    });
+
     const syntax_ast_mod = b.addModule("syntax_ast", .{
         .root_source_file = b.path("src/syntax/ast.zig"),
         .target = target,
@@ -238,6 +247,17 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "engine_expr", .module = engine_expr_mod },
+        },
+    });
+
+    const expr_parser_mod = b.createModule(.{
+        .root_source_file = b.path("src/core/expr_parser.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "platform", .module = platform_mod },
+            .{ .name = "hole", .module = hole_mod },
         },
     });
 
@@ -689,6 +709,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "expr", .module = expr_mod },
+            .{ .name = "hole", .module = hole_mod },
             .{ .name = "bridge_expr", .module = bridge_mod },
             .{ .name = "engine_expr", .module = engine_expr_mod },
             .{ .name = "headers", .module = headers_mod },
@@ -727,6 +748,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "commands", .module = commands_mod },
             .{ .name = "profiler", .module = profiler_mod },
             .{ .name = "io_handler", .module = io_handler_mod },
+            .{ .name = "expr_parser", .module = expr_parser_mod },
         },
     });
     heaven_expr_mod.addOptions("build_options", options);
@@ -1060,6 +1082,8 @@ pub fn build(b: *std.Build) void {
     test_he_imports.append(b.allocator, .{ .name = "agent", .module = agent_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "profiler", .module = profiler_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "io_handler", .module = io_handler_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "expr_parser", .module = expr_parser_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "hole", .module = hole_mod }) catch unreachable;
 
     if (target.query.cpu_arch != .wasm32) {
         test_he_imports.append(b.allocator, .{ .name = "matrix_bridge", .module = matrix_bridge_mod }) catch unreachable;
