@@ -1,6 +1,6 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-09-22
+Dernière mise à jour : 2026-09-24
 
 Ce document est la **source de vérité** sur ce qui marche. Toute
 affirmation du book ou du README doit pointer vers une ligne de ce
@@ -46,7 +46,7 @@ Légende :
 | Arrow `a -> b` interne | ✅ | `Store.apply(sym("->"), …)` | — |
 ||Affichage arrow | ✅ | `typeStr` | — |
 | Types paramétrés (`Maybe a`) | ⚠️ | `evalDataDecl` | paramètre `a` ignoré à l'enregistrement |
-| Types dépendants (`Vector n`) | ❌ | — | — |
+| Types dépendants (`Vec (succ n)`) | ⚠️ | `evalDataDecl` + v2c (`checkCtorDomainKind`) | index au-delà de `succ _`/`zero` non unifiés (v2e) |
 
 ## Data & Pattern matching
 
@@ -54,10 +54,24 @@ Légende :
 |---|---|---|---|
 | `data Name = C1 \| C2 args` | ✅ | `evalDataDecl` | — |
 | `data Name a = ...` | ⚠️ | enregistré | `a` ignoré |
-| `data Name (n : Nat) = ...` | ⚠️ | `type_registry.zig` + 3 tests | 1 param typé max (v0) |
+| `data Name (n : Nat) = ...` | ✅ | `type_registry.zig` + 5 tests v2c/v2d | 1 param typé max (v0) |
 | Pattern matching multi-clause | ✅ | `evalEquation` | ordre linéaire d'essai |
 | Wildcard `_` en pattern | ✅ | test `let_many` | — |
 | Guards `\| x > 0` | ❌ | — | jamais implémenté |
+
+### Type-dep v2 (indexes dépendants)
+
+| Élément | Statut | Preuve | Limitation |
+|---|---|---|---|
+| `data Vec (n : Nat) = Nil \| Cons a (Vec n)` | ✅ | test `type-dep v0` | — |
+| `sig f : (n : Nat) -> Vec (succ n) -> a` | ✅ | test `type-dep v2c` | — |
+| Vérif. structurelle patterns (arité, kind) | ✅ | `evalEquation` v2a/v2b/v2c | — |
+| Convention base/step (`Nil`↔zero, `Cons`↔succ) | ✅ | `ctorKind`/`domainKind` | — |
+| `ctor_results` (ctor → forme résultat) | ✅ | `evalDataDecl` v2d | arity>0 → `(succ _)` uniquement |
+| Unification `ctor_results[ctor]` ~ domaine | ✅ | `evalEquation` v2d (`unify_proof`) | best-effort : échec ≠ rejet |
+| Instanciation RHS sous `subst_v2d` | ✅ | `registerClause(body_used)` | — |
+| Unification effective (`Vec (n + m)`) | 🚧 | — | v2e roadmap |
+
 
 ## Récursion & ordre supérieur
 
@@ -187,7 +201,8 @@ Légende :
 2. **Unifier le pipeline logique** — `kanren_expr` + `logic/*` + `prolog`
    derrière une API `assertFact` / `query` + 2-3 commandes REPL.
 3. **README aligné sur STATUS** (✅ fait).
-4. **Type-dep v2d** — unification d'indexes au-delà de la convention base/step.
+4. ~~**Type-dep v2d** — unification d'indexes au-delà de la convention base/step.~~ ✅ 2026-09-24
+   → suite : **v2e** — unification vraie pour `Vec (n + m)`.
 5. **Documenter QTT** dans le book.
 6. Remplir les `std/*.hvn` restants (`kernel.hvn`, signatures sans corps).
 7. Sync auto `test_suite.hvn` (natif ↔ WASM).
