@@ -29,6 +29,13 @@ const agent_mod = @import("agent");
 
 const elab_mod = @import("elab");
 const profiler_mod = @import("profiler");
+const io_handler_mod = @import("io_handler");
+
+/// Réexport de commodité : les consommateurs historiques (`commands.zig`,
+/// WASM entry) importaient ce symbole depuis `heaven_expr`. La fonction
+/// vit désormais dans `io_handler.zig`, mais reste accessible via cette
+/// façade tant que RFC-0001 n'est pas achevé.
+pub const defaultIOHandler = io_handler_mod.defaultIOHandler;
 
 const Store = expr.Store;
 const Id = expr.Id;
@@ -95,78 +102,6 @@ pub const HoleInfo = struct {
     seen_in: ?Id = null,
 };
 
-/// Handler IO par défaut (natif) : exécute réellement les effets.
-/// Retourne `null` si le label n'est pas reconnu, ce qui laisse
-/// `perform` retomber sur son comportement one-shot.
-pub fn defaultIOHandler(
-    store: *Store,
-    label: []const u8,
-    arg: ?expr.Id,
-) engine_expr.EvalError!?expr.Id {
-    if (std.mem.eql(u8, label, "Print")) {
-        if (arg) |a| {
-            const s = expr.toStringInfix(store, a, store.allocator) catch return null;
-            defer store.allocator.free(s);
-            platform.debug.print("{s}\n", .{s});
-        }
-        return try store.unitLit();
-    }
-
-    if (std.mem.eql(u8, label, "ReadFile")) {
-        const path_id = arg orelse return null;
-        const path = extractString(store, path_id) orelse return null;
-        const content = platform.fs.cwd().readFileAlloc(
-            store.allocator,
-            path,
-            1024 * 1024,
-        ) catch return null;
-        defer store.allocator.free(content);
-        const sym = try store.interner.intern(content);
-        return try store.lit(.{ .str = sym });
-    }
-
-    if (std.mem.eql(u8, label, "WriteFile")) {
-        const pair_id = arg orelse return null;
-        const pair_node = store.get(pair_id);
-        if (pair_node.tag != .apply) return null;
-        const children = store.spanSliceConst(pair_node.span_a);
-        var path_id: ?expr.Id = null;
-        var content_id: ?expr.Id = null;
-        if (children.len == 2) {
-            path_id = children[0];
-            content_id = children[1];
-        } else if (children.len == 3) {
-            path_id = children[1];
-            content_id = children[2];
-        } else return null;
-
-        const path = extractString(store, path_id.?) orelse return null;
-        const content = extractString(store, content_id.?) orelse return null;
-
-        const file = platform.fs.cwd().createFile(path, .{}) catch return null;
-        defer file.close();
-        file.writeAll(content) catch return null;
-        return try store.unitLit();
-    }
-
-    if (std.mem.eql(u8, label, "ReadLine")) {
-        const line = platform.readLine(store.allocator) catch return null;
-        defer store.allocator.free(line);
-        const sym = try store.interner.intern(line);
-        return try store.lit(.{ .str = sym });
-    }
-
-    return null;
-}
-
-fn extractString(store: *Store, id: expr.Id) ?[]const u8 {
-    if (id >= store.len()) return null;
-    const node = store.get(id);
-    if (node.tag != .lit) return null;
-    const lit = store.lits.items[node.aux];
-    if (lit != .str) return null;
-    return store.interner.resolve(lit.str);
-}
 
 /// État d'un import en cours (v2a : filtrage `export`).
 /// v0.5 = tout est exporté ; v2a = si le fichier contient au moins un
@@ -291,7 +226,7 @@ pub const Heaven = struct {
 
         // Initialiser l'engine DANS self.engine (champ stable du heap)
         self.engine = engine_expr.Engine.init(allocator, store, &self.env, @ptrCast(self), &heaven_vtable);
-        self.engine.io_handler = defaultIOHandler;
+        self.engine.io_handler = io_handler_mod.defaultIOHandler;
 
         // Tous les composants qui ont besoin de l'engine pointent sur self.engine,
         // pas sur une variable locale (sinon dangling pointer dès qu'init retourne).

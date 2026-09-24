@@ -25,11 +25,14 @@ pub fn build(b: *std.Build) void {
     options.addOption(i64, "build_timestamp", std.time.timestamp());
 
     // 2. Module platform
-    const platform_mod = b.addModule("platform", .{
-        .root_source_file = b.path(if (target.query.cpu_arch == .wasm32)
-            "src/platform/wasm.zig"
-        else
-            "src/platform/native.zig"),
+    // Formate dynamiquement le chemin : ex. "src/platform/wasm32_wasi.zig" ou "src/platform/aarch64_macos.zig"
+    const platform_file = b.fmt("src/platform/{s}_{s}.zig", .{
+        @tagName(target.result.cpu.arch),
+        @tagName(target.result.os.tag),
+    });
+
+    const platform_mod = b.createModule(.{
+        .root_source_file = b.path(platform_file),
         .target = target,
         .optimize = optimize,
     });
@@ -224,6 +227,17 @@ pub fn build(b: *std.Build) void {
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "pattern", .module = pattern_mod },
             .{ .name = "syntax_lower", .module = syntax_lower_mod },
+        },
+    });
+
+    const io_handler_mod = b.createModule(.{
+        .root_source_file = b.path("src/core/io_handler.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "platform", .module = platform_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
         },
     });
 
@@ -712,6 +726,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "agent", .module = agent_mod },
             .{ .name = "commands", .module = commands_mod },
             .{ .name = "profiler", .module = profiler_mod },
+            .{ .name = "io_handler", .module = io_handler_mod },
         },
     });
     heaven_expr_mod.addOptions("build_options", options);
@@ -1044,6 +1059,7 @@ pub fn build(b: *std.Build) void {
     test_he_imports.append(b.allocator, .{ .name = "type_registry", .module = type_registry_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "agent", .module = agent_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "profiler", .module = profiler_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "io_handler", .module = io_handler_mod }) catch unreachable;
 
     if (target.query.cpu_arch != .wasm32) {
         test_he_imports.append(b.allocator, .{ .name = "matrix_bridge", .module = matrix_bridge_mod }) catch unreachable;
@@ -1343,6 +1359,25 @@ pub fn build(b: *std.Build) void {
     run_tests.addArg("--run-tests");
     run_tests.addArg("tests");
     tests_step.dependOn(&run_tests.step);
+
+    // Module C Tree-sitter (si applicable)
+    //const tree_sitter_dep = b.dependency("tree_sitter", .{
+    //    .target = target,
+    //    .optimize = optimize,
+    //});
+
+    const unit_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/tests.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    // Si Tree-sitter nécessite le linkage C
+    unit_tests.linkLibC();
+    const run_unit_tests = b.addRunArtifact(unit_tests);
+    test_step.dependOn(&run_unit_tests.step);
 
     const doc_step = b.step("doc", "Generate documentation");
     doc_step.dependOn(&b.addInstallDirectory(.{
