@@ -323,6 +323,17 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const hole_runtime_mod = b.createModule(.{
+        .root_source_file = b.path("src/core/hole_runtime.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "hole", .module = hole_mod },
+            .{ .name = "types", .module = types_mod },
+        },
+    });
+
     const egraph_mod = b.createModule(.{
         .root_source_file = b.path("src/inference/eqsat/egraph.zig"),
         .target = target,
@@ -749,6 +760,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "profiler", .module = profiler_mod },
             .{ .name = "io_handler", .module = io_handler_mod },
             .{ .name = "expr_parser", .module = expr_parser_mod },
+            .{ .name = "hole_runtime", .module = hole_runtime_mod },
         },
     });
     heaven_expr_mod.addOptions("build_options", options);
@@ -1083,6 +1095,7 @@ pub fn build(b: *std.Build) void {
     test_he_imports.append(b.allocator, .{ .name = "profiler", .module = profiler_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "io_handler", .module = io_handler_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "expr_parser", .module = expr_parser_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "hole_runtime", .module = hole_runtime_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "hole", .module = hole_mod }) catch unreachable;
 
     if (target.query.cpu_arch != .wasm32) {

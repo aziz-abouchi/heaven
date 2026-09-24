@@ -31,6 +31,7 @@ const elab_mod = @import("elab");
 const profiler_mod = @import("profiler");
 const io_handler_mod = @import("io_handler");
 const expr_parser_mod = @import("expr_parser");
+const hole_runtime_mod = @import("hole_runtime");
 
 /// Réexport de commodité : les consommateurs historiques (`commands.zig`,
 /// WASM entry) importaient ce symbole depuis `heaven_expr`. La fonction
@@ -174,6 +175,8 @@ pub const Heaven = struct {
     fn_arities: std.StringHashMapUnmanaged(u8) = .{},
     /// Parseur d'expressions (extrait RFC-0001).
     expr_parser: expr_parser_mod.ExprParser,
+    /// Runtime des trous (extrait RFC-0001).
+    hole_runtime: hole_runtime_mod.HoleRuntime,
     /// v2b : type parent de chaque ctor (`Cons` → `Vec`).
     ctor_parents: std.StringHashMapUnmanaged([]const u8) = .{},
     /// v2b : heads des domaines d'une signature (`sig f : A -> B -> C`
@@ -217,11 +220,19 @@ pub const Heaven = struct {
             .math = undefined,
             .hole_state = hole_mod.HoleState.init(allocator),
             .expr_parser = undefined,
+            .hole_runtime = undefined,
             .type_registry = type_registry_mod.TypeRegistry.init(allocator),
             .loading_modules = .{},
         };
 
         self.expr_parser = expr_parser_mod.ExprParser.init(
+            store,
+            allocator,
+            &self.hole_state,
+            &self.last_root_expr,
+        );
+
+        self.hole_runtime = hole_runtime_mod.HoleRuntime.init(
             store,
             allocator,
             &self.hole_state,
@@ -3130,133 +3141,30 @@ pub const Heaven = struct {
         return true;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Holes — création, affichage, raffinement
-    // ═══════════════════════════════════════════════════════════════
+    // ─── Holes (wrappers vers hole_runtime) ───
 
     pub fn freshHole(self: *Heaven) !Id {
-        const id = try self.hole_state.fresh(self.store);
-        self.hole_state.last_root_expr = self.last_root_expr;
-        return id;
+        return self.hole_runtime.fresh();
     }
 
     pub fn refineHole(self: *Heaven, hole_id: u32, expr_src: []const u8) !void {
         const expression = try self.parseExpression(expr_src);
-        try self.hole_state.refine(hole_id, expression);
+        try self.hole_runtime.refine(hole_id, expression);
     }
 
     pub fn hasUnresolvedHoles(self: *Heaven, id: Id) bool {
-        return self.hole_state.hasUnresolved(self.store, id);
-    }
-
-    fn findHoleParent(self: *Heaven, root: Id, hole_id: u32) ?Id {
-        if (root >= self.store.len()) return null;
-        const node = self.store.get(root);
-        if (node.tag == .hole and node.payload == hole_id) return root;
-        for (self.store.spanSliceConst(node.span_a)) |c| {
-            if (self.findHoleParent(c, hole_id)) |p| return p;
-        }
-        for (self.store.spanSliceConst(node.span_b)) |c| {
-            if (self.findHoleParent(c, hole_id)) |p| return p;
-        }
-        return null;
-    }
-
-    fn findParentOf(self: *Heaven, root: Id, target: Id) ?Id {
-        if (root >= self.store.len()) return null;
-        const node = self.store.get(root);
-        const ca = self.store.spanSliceConst(node.span_a);
-        const cb = self.store.spanSliceConst(node.span_b);
-        for (ca) |c| if (c == target) return root;
-        for (cb) |c| if (c == target) return root;
-        for (ca) |c| if (self.findParentOf(c, target)) |p| return p;
-        for (cb) |c| if (self.findParentOf(c, target)) |p| return p;
-        return null;
-    }
-
-    fn inferHoleType(self: *Heaven, hole_id: u32) !?Id {
-        const root = self.hole_state.last_root_expr orelse return null;
-        const hole_node = self.findHoleParent(root, hole_id) orelse return null;
-        const parent = self.findParentOf(root, hole_node) orelse return null;
-        const pnode = self.store.get(parent);
-
-        if (pnode.tag == .apply) {
-            const fnode = self.store.get(pnode.payload);
-            if (fnode.tag == .sym) {
-                const op = self.store.interner.resolve(fnode.payload);
-                if (std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "-") or
-                    std.mem.eql(u8, op, "*") or std.mem.eql(u8, op, "/") or
-                    std.mem.eql(u8, op, "%") or std.mem.eql(u8, op, "^"))
-                {
-                    return try self.store.sym("Int");
-                }
-                if (std.mem.eql(u8, op, "==") or std.mem.eql(u8, op, "!=") or
-                    std.mem.eql(u8, op, "<") or std.mem.eql(u8, op, ">") or
-                    std.mem.eql(u8, op, "<=") or std.mem.eql(u8, op, ">="))
-                {
-                    return try self.store.sym("Bool");
-                }
-            }
-        }
-        return null;
-    }
-
-    fn typeStrForId(self: *Heaven, ty: Id) ![]u8 {
-        var inf = types.Infer.init(self.store, self.allocator);
-        defer inf.deinit();
-        return inf.typeStr(&inf.subst, ty, self.allocator);
+        return self.hole_runtime.hasUnresolved(id);
     }
 
     pub fn describeHole(self: *Heaven, hole_id: u32) ![]u8 {
-        var buf = std.ArrayListUnmanaged(u8){};
-        errdefer buf.deinit(self.allocator);
-        const w = buf.writer(self.allocator);
-
-        if (!self.hole_state.holes.contains(hole_id)) {
-            try w.print("?{d} (unknown hole)\n", .{hole_id});
-            return buf.toOwnedSlice(self.allocator);
-        }
-
-        if (try self.inferHoleType(hole_id)) |ty| {
-            const ty_str = self.typeStrForId(ty) catch "?";
-            defer if (ty_str.ptr != "?".ptr) self.allocator.free(ty_str);
-            try w.print("?{d} : {s}\n", .{ hole_id, ty_str });
-        } else {
-            try w.print("?{d} : ?\n", .{hole_id});
-        }
-
-        if (self.hole_state.resolve(hole_id)) |resolved| {
-            const r_str = expr.toStringInfix(self.store, resolved, self.allocator) catch "<expr>";
-            defer if (r_str.ptr != "<expr>".ptr) self.allocator.free(r_str);
-            try w.print("  refined to: {s}\n", .{r_str});
-        } else {
-            try w.writeAll("  not refined\n");
-        }
-
-        return buf.toOwnedSlice(self.allocator);
+        return self.hole_runtime.describeHole(hole_id);
     }
 
     pub fn describeAllHoles(self: *Heaven) ![]u8 {
-        var buf = std.ArrayListUnmanaged(u8){};
-        errdefer buf.deinit(self.allocator);
-        const w = buf.writer(self.allocator);
-
-        if (self.hole_state.holes.count() == 0) {
-            try w.writeAll("(no holes)\n");
-            return buf.toOwnedSlice(self.allocator);
-        }
-
-        const ids = try self.hole_state.listIds(self.allocator);
-        defer self.allocator.free(ids);
-
-        for (ids) |id| {
-            const desc = try self.describeHole(id);
-            defer self.allocator.free(desc);
-            try w.writeAll(desc);
-        }
-        return buf.toOwnedSlice(self.allocator);
+        return self.hole_runtime.describeAllHoles();
     }
 };
+
 
 fn substSymByName(
     store: *Store,
