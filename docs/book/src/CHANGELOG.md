@@ -1,20 +1,19 @@
-# Changelog du langage (récent)
+# Changelog du langage
 
-Ce chapitre liste les fonctionnalités **récentes** (2026-09-23) qui
-ne sont **pas encore** reflétées dans les autres chapitres du book.
-Un chantier `docs(book)` dédié les intégrera quand le merge
-astra-core ↔ heaven sera stabilisé.
+Historique des fonctionnalités du langage. Les entrées sont en ordre
+antéchronologique.
 
-## Types dépendants (chantier #type-dep)
+## 2026-09-23
 
-- `data Vec (n : Nat) = Nil | Cons a (Vec n)` — parsing + registre.
-- `sig head : (n : Nat) -> Vec (succ n) -> a` — vérification qu'une
+### Types dépendants (surface) — chantier #type-dep
+- `data Vec (n : Nat) = Nil | Cons a (Vec n)` : parsing + registre.
+- `sig head : (n : Nat) -> Vec (succ n) -> a` : vérification qu'une
   signature Π est bien formée (règle CIC).
 - Vérification structurelle des patterns : arité ctor, kind, et
   compatibilité base/step (`head _ Nil` rejeté, `head _ (Cons x _)` OK).
+- **Intégré dans** : `03-syntax-in-functions.md`, `A-syntaxe.md`.
 
-## Modules et imports (#module)
-
+### Modules et imports — chantier #module
 - `module M` ouvre un namespace.
 - `import "path.hvn" [as Name]` charge un fichier et l'alias sous `Name.x`.
 - `import Name` cherche `core/std/<nom>.hvn` puis `core/<nom>.hvn`.
@@ -22,33 +21,47 @@ astra-core ↔ heaven sera stabilisé.
 - Détection de cycles, `HEAVEN_PATH`.
 - `strict on/off` : mode opt-in qui n'enregistre les définitions que
   sous `M.x`.
+- **Intégré dans** : `11-modules.md`, `A-syntaxe.md`.
 
-## Tactics et preuves (#tactics v1→v4)
-
-- `prove t by { simplify; induction x; rewrite IH }` — bloc composable.
+### Tactics — chantier #tactics v1 → v4
+- `prove t by { simplify; induction x; rewrite IH }` : bloc composable.
 - Tactiques : `simplify`, `reflexivity`, `assumption`, `auto`,
   `cases x`, `induction x`, `rewrite H`, `apply H`, `exact h`,
   `seq`, `try`, `repeat`.
 - REPL interactif : `prove t by {` ouvre un prompt `>` avec affichage
   `Goal N/N`.
 - Unification simple via `Tag.evar` (métavariables internes).
+- **Intégré dans** : `08-proofs.md`, `A-syntaxe.md`, `C-glossaire.md`.
 
-## Stdlib (#stdlib)
+### Stdlib
+- Chargés au boot (`core/std/*.hvn`) : `Bool`, `List`, `Option`,
+  `Pair`, `Result`.
+- **Intégré dans** : STATUS, `01-starting-out.md` (indirectement,
+  les exemples marchent).
 
-Chargés au boot (`core/std/*.hvn`) :
-- `Bool` : `true`, `false`, `not`, `and`, `or`.
-- `List` : `nil`, `cons`, `head`, `tail`, `length`, `append`.
-- `Option` : `none`, `some`, `is_some`, `is_none`, `map_option`.
-- `Pair` : `pair`, `fst`, `snd`.
-- `Result` : `ok`, `err`, `is_ok`, `is_err`, `map_result`.
-
-## Noyau
-
+### Noyau
 - `Tag.evar` — métavariables internes (distinctes de `Tag.hole`).
 - `Store.pi` — fix d'un bug historique (`payload` = Sym, pas Id).
 - Pattern matching : `_` traité comme wildcard (tag `.hole`).
+- **Intégré dans** : `10-under-the-hood.md` (à enrichir).
 
-## Runner de tests
+### Architecture
+- Découpage RFC-0001 en cours : `io_handler.zig`, `expr_parser.zig`,
+  `hole_runtime.zig` extraits de `heaven_expr.zig` (197 → 166 Ko).
+- **Intégré dans** : `10-under-the-hood.md` (à enrichir).
 
-- `heaven --run-tests <dir>` — multi-fichiers.
-- `heaven --run-test <file>` — multi-lignes (parenthèses et accolades).
+### Documentation
+- `docs/COMMANDS.md` : carte langage vs shell.
+- `docs/capabilities.md` : design capabilities (WASI / Cap'n Proto).
+- `docs/ROADMAP.md` : #units, #codegen-targets, #egraph-viz.
+
+## 2026-09-22 et avant
+
+Voir `git log` pour l'historique détaillé. Les features suivantes
+sont déjà intégrées dans les chapitres :
+
+- Holes v1 (`_`, `:hole`, `:refine`) — `08-proofs.md`.
+- IO par effets (`print`, `readFile`, `writeFile`, `readLine`) —
+  `06-effects.md`, `09-real-world.md`.
+- QTT (`let linear/erased/many x = ... in ...`) — mention dans le
+  book, à enrichir.
