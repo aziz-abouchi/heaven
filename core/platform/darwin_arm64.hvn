@@ -1,0 +1,6 @@
+read fd buf len  = @extern("c", "read", fd, ptr_of buf, len)
+write fd buf len = @extern("c", "write", fd, ptr_of buf, len)
+open path flags  = @extern("c", "open", ptr_of path, flags)
+close fd         = @extern("c", "close", fd)
+alloc size       = @extern("c", "malloc", size)
+free ptr size    = @extern("c", "free", ptr)

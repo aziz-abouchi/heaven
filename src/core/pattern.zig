@@ -261,10 +261,16 @@ pub fn substitutePattern(store: *Store, pattern_id: Id, bindings: anytype, alloc
             return store.apply(new_func, new_args.items);
         },
         .bind => {
-            const new_val = try substitutePattern(store, node.aux, bindings, allocator);
+            const children = node.span_a.slice(store.pool.items);
+            if (children.len != 2) return error.InvalidExpr;
+
+            const new_val = try substitutePattern(store, children[0], bindings, allocator);
+            const new_body = try substitutePattern(store, children[1], bindings, allocator);
+
             const span = try store.reserveSpan(2);
             store.pool.items[span.start] = new_val;
-            store.pool.items[span.start + 1] = try store.unitLit();
+            store.pool.items[span.start + 1] = new_body;
+
             return store.addNode(.{
                 .tag = .bind,
                 .payload = node.payload,

@@ -1,0 +1,6 @@
+read fd buf len  = @syscall(0x2000003, fd, ptr_of buf, len)
+write fd buf len = @syscall(0x2000004, fd, ptr_of buf, len)
+open path flags  = @syscall(0x2000005, ptr_of path, flags, 0)
+close fd         = @syscall(0x2000006, fd)
+alloc size       = @syscall(0x20000C5, 0, size, 3, 0x1002, -1, 0) -- mmap
+free ptr size    = @syscall(0x2000049, ptr, size)                -- munmap

@@ -11,7 +11,7 @@ fn readStdinByte(buf: []u8) !usize {
         );
         return std.os.windows.ReadFile(handle, buf, null);
     } else {
-        return std.posix.read(std.posix.STDIN_FILENO, buf);
+        return platform.posix.read(platform.posix.STDIN_FILENO, buf);
     }
 }
 
@@ -79,7 +79,7 @@ pub const Reader = struct {
 
     // Pour Unix raw mode
     raw_mode: bool = false,
-    termios_orig: ?std.posix.termios = null,
+    termios_orig: ?platform.posix.termios = null,
 
     pub fn init(allocator: std.mem.Allocator, heaven: *Heaven, history: *History) !Reader {
         var self = Reader{
@@ -101,7 +101,7 @@ pub const Reader = struct {
             self.raw_mode = false;
             return;
         }
-        const fd = std.posix.STDIN_FILENO;
+        const fd = platform.posix.STDIN_FILENO;
 
         // Pipe, redirection, CI headless : pas de TTY → pas de mode raw,
         // pas d'erreur non plus. On bascule en mode ligne (readUntilDelimiter).
@@ -110,7 +110,7 @@ pub const Reader = struct {
             return;
         }
 
-        var termios = try std.posix.tcgetattr(fd);
+        var termios = try platform.posix.tcgetattr(fd);
         self.termios_orig = termios;
 
         // Désactiver ECHO et ICANON
@@ -137,7 +137,7 @@ pub const Reader = struct {
             termios.iflag.IXON = false;
         }
 
-        try std.posix.tcsetattr(fd, .NOW, termios);
+        try platform.posix.tcsetattr(fd, .NOW, termios);
         self.raw_mode = true;
     }
 
@@ -145,7 +145,7 @@ pub const Reader = struct {
         if (platform.target.is_windows) return;
         if (self.raw_mode) {
             if (self.termios_orig) |orig| {
-                _ = std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, orig) catch {};
+                _ = platform.posix.tcsetattr(platform.posix.STDIN_FILENO, .NOW, orig) catch {};
             }
             self.raw_mode = false;
         }
@@ -196,14 +196,14 @@ pub const Reader = struct {
     fn readKeyUnix(self: *Reader) !KeyEvent {
         _ = self;
         var buf: [1]u8 = undefined;
-        const n = try std.posix.read(0, &buf);
+        const n = try platform.posix.read(0, &buf);
         if (n == 0) return error.EndOfStream;
         const c = buf[0];
         if (c == 27) {
             var seq: [2]u8 = undefined;
             var count: usize = 0;
             while (count < 2) {
-                const r = try std.posix.read(0, seq[count .. count + 1]);
+                const r = try platform.posix.read(0, seq[count .. count + 1]);
                 if (r == 0) break;
                 count += 1;
             }

@@ -57,18 +57,28 @@ pub extern "env" fn js_log(ptr: [*]const u8, len: usize) void;
 // POSIX STUBS (compatibilité avec le code existant)
 // ═══════════════════════════════════════════════════════════
 
+extern fn js_write_stdout(ptr: [*]const u8, len: usize) void;
+extern fn js_write_stderr(ptr: [*]const u8, len: usize) void;
+
 pub const posix = struct {
-    pub const SEEK = struct {
-        pub const SET = 0;
-    };
-    pub const STDIN_FILENO = std.posix.STDIN_FILENO; // 0
+    pub const STDIN_FILENO = 0;
     pub const STDOUT_FILENO = 1;
     pub const STDERR_FILENO = 2;
 
-    pub fn read(_: i32, _: []u8) !usize {
-        return error.NotSupported;
+    pub fn write(fd: i32, bytes: []const u8) !usize {
+        switch (fd) {
+            STDOUT_FILENO => js_write_stdout(bytes.ptr, bytes.len),
+            STDERR_FILENO => js_write_stderr(bytes.ptr, bytes.len),
+            else => return error.NotSupported,
+        }
+        return bytes.len;
     }
-    pub fn write(_: i32, _: []const u8) !usize {
+
+    pub const SEEK = struct {
+        pub const SET = 0;
+    };
+
+    pub fn read(_: i32, _: []u8) !usize {
         return error.NotSupported;
     }
     pub fn socket(_: u32, _: u32, _: u32) !i32 {
@@ -85,6 +95,14 @@ pub const posix = struct {
         return std.posix.isatty(handle);
     }
 };
+
+// ═══════════════════════════════════════════════════════════
+// ENVIRONMENT STUB (WASM Freestanding)
+// ═══════════════════════════════════════════════════════════
+
+pub fn getenv(_: []const u8) ?[]const u8 {
+    return null;
+}
 
 // ═══════════════════════════════════════════════════════════
 // THREAD ABSTRACTION (WASM Web - synchrone)
@@ -115,7 +133,36 @@ pub const Thread = struct {
 // FILESYSTEM ABSTRACTION (WASM Web - mémoire volatile)
 // ═══════════════════════════════════════════════════════════
 
+extern fn js_vfs_read_file(ptr: [*]const u8, len: usize) usize;
+extern fn js_vfs_copy_buffer(out_ptr: [*]u8, len: usize) void;
+
 pub const fs = struct {
+    pub const path = struct {
+        pub fn basename(p: []const u8) []const u8 {
+            return std.fs.path.basename(p);
+        }
+        pub fn isAbsolute(p: []const u8) bool {
+            return p.len > 0 and p[0] == '/';
+        }
+        pub fn join(alloc: std.mem.Allocator, paths: []const []const u8) ![]u8 {
+            return std.fs.path.join(alloc, paths);
+        }
+    };
+
+    // VFS ou bridge avec le Host JS
+    pub fn readFileAlloc(alloc: std.mem.Allocator, path_str: []const u8, max_size: usize) ![]u8 {
+        _ = max_size;
+        const len = js_vfs_read_file(path_str.ptr, path_str.len);
+        if (len == 0) return error.FileNotFound;
+
+        const buf = try alloc.alloc(u8, len);
+        js_vfs_copy_buffer(buf.ptr, len);
+        return buf;
+    }
+    pub fn join(alloc: std.mem.Allocator, paths: []const []const u8) ![]u8 {
+        return std.fs.path.join(alloc, paths);
+    }
+
     pub const File = struct {
         pub const OpenError = error{
             FileNotFound,
@@ -162,18 +209,18 @@ pub const fs = struct {
         storage = Storage.init(alloc);
     }
 
-    pub fn readFile(alloc: std.mem.Allocator, path: []const u8) ![]u8 {
+    pub fn readFile(alloc: std.mem.Allocator, pathw: []const u8) ![]u8 {
         if (storage) |*s| {
-            if (s.get(path)) |data| {
+            if (s.get(pathw)) |data| {
                 return alloc.dupe(u8, data);
             }
         }
         return error.FileNotFound;
     }
 
-    pub fn writeFile(path: []const u8, data: []const u8) !void {
+    pub fn writeFile(pathw: []const u8, data: []const u8) !void {
         if (storage) |*s| {
-            try s.put(path, data);
+            try s.put(pathw, data);
         }
     }
 
@@ -200,9 +247,6 @@ pub const fs = struct {
         return Dir{};
     }
 
-    pub fn readFileAlloc(_: std.mem.Allocator, _: []const u8, _: usize) ![]u8 {
-        return error.NotSupported;
-    }
     pub fn writeFileAlloc(_: std.mem.Allocator, _: []const u8, _: []const u8) !void {
         return error.NotSupported;
     }
@@ -351,24 +395,24 @@ pub const MessageQueue = struct {
     pub fn init(alloc: std.mem.Allocator, max_capacity: usize) MessageQueue {
         return .{
             .buffer = .{}, // ArrayListUnmanaged s'initialise vide
-            .allocator = alloc,
+            .alloc = alloc,
             .max_capacity = max_capacity,
         };
     }
 
     pub fn deinit(self: *MessageQueue) void {
         for (self.buffer.items) |msg| {
-            self.allocator.free(msg.payload);
+            self.alloc.free(msg.payload);
         }
-        self.buffer.deinit(self.allocator); // ← Passer l'allocator
+        self.buffer.deinit(self.alloc); // ← Passer l'allocator
     }
 
     pub fn push(self: *MessageQueue, msg: Message) !void {
         if (self.buffer.items.len >= self.max_capacity) {
             const oldest = self.buffer.orderedRemove(0);
-            self.allocator.free(oldest.payload);
+            self.alloc.free(oldest.payload);
         }
-        try self.buffer.append(self.allocator, msg); // ← Passer l'allocator
+        try self.buffer.append(self.alloc, msg); // ← Passer l'allocator
     }
 
     pub fn pop(self: *MessageQueue) ?Message {

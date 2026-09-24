@@ -33,10 +33,10 @@ test "Transformation AST - Récursion complète sur Lambda et Quotients" {
         },
     };
 
-    var transformed = try transformer.transformTerm(lam);
-    defer transformer.destroyTerm(&transformed);
+    const transformed = try transformer.transformTerm(lam);
+    defer transformer.destroyTerm(transformed);
 
-    try std.testing.expect(transformed == .lambda);
+    try std.testing.expect(transformed.* == .lambda);
     try std.testing.expect(transformed.lambda.body.* == .class);
     try std.testing.expect(transformed.lambda.body.*.class.quot_type.* == .quot);
 }

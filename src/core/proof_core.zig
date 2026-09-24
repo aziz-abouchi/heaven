@@ -541,7 +541,14 @@ pub const ProofCore = struct {
                     try collectFreeVars(store, arg, induction_var, out, allocator);
                 }
             },
-            .bind => try collectFreeVars(store, node.aux, induction_var, out, allocator),
+            .bind => {
+                const children = node.span_a.slice(pool);
+                if (children.len != 2) return error.ExtensionNotLowered;
+
+                for (children) |child| {
+                    try collectFreeVars(store, child, induction_var, out, allocator);
+                }
+            },
             else => {},
         }
     }

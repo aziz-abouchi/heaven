@@ -694,9 +694,15 @@ pub const Commands = struct {
         switch (node.tag) {
             .apply => {
                 count += self.countNodes(node.payload);
-                for (node.span_a.slice(self.store.pool.items)) |child| count += self.countNodes(child);
+                for (node.span_a.slice(self.store.pool.items)) |child|
+                    count += self.countNodes(child);
             },
-            .bind => count += self.countNodes(node.aux),
+            .bind => {
+                const children = node.span_a.slice(self.store.pool.items);
+                if (children.len != 2) return 0;
+                count += self.countNodes(children[0]);
+                count += self.countNodes(children[1]);
+            },
             else => {},
         }
         return count;

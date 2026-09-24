@@ -1,2 +1,6 @@
-write fd buf len =
-    @syscall(1, fd, ptr_of buf, len)   -- write sur Linux x86_64
+read fd buf len  = @syscall(0, fd, ptr_of buf, len)
+write fd buf len = @syscall(1, fd, ptr_of buf, len)
+open path flags  = @syscall(2, ptr_of path, flags, 0)
+close fd         = @syscall(3, fd)
+alloc size       = @syscall(9, 0, size, 3, 34, -1, 0) -- mmap (PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE)
+free ptr size    = @syscall(11, ptr, size)            -- munmap

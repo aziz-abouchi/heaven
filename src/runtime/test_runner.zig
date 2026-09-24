@@ -52,7 +52,9 @@ fn splitStatements(
         switch (c) {
             '"' => in_str = true,
             '{' => brace_depth += 1,
-            '}' => if (brace_depth > 0) { brace_depth -= 1; },
+            '}' => if (brace_depth > 0) {
+                brace_depth -= 1;
+            },
             '\n' => if (brace_depth == 0) {
                 try out.append(allocator, content[start..i]);
                 start = i + 1;
@@ -77,13 +79,12 @@ pub fn runTestFile(allocator: std.mem.Allocator, path: []const u8) !bool {
     defer allocator.free(file_content);
     _ = try file.readAll(file_content);
 
-    const use_color = if (platform.target.is_windows) false
-        else std.posix.isatty(std.posix.STDOUT_FILENO);
+    const use_color = if (platform.target.is_windows) false else platform.posix.isatty(platform.posix.STDOUT_FILENO);
     const C_GREEN = if (use_color) "\x1b[32m" else "";
-    const C_RED   = if (use_color) "\x1b[31m" else "";
-    const C_DIM   = if (use_color) "\x1b[2m"  else "";
-    const C_BOLD  = if (use_color) "\x1b[1m"  else "";
-    const C_RESET = if (use_color) "\x1b[0m"  else "";
+    const C_RED = if (use_color) "\x1b[31m" else "";
+    const C_DIM = if (use_color) "\x1b[2m" else "";
+    const C_BOLD = if (use_color) "\x1b[1m" else "";
+    const C_RESET = if (use_color) "\x1b[0m" else "";
 
     platform.debug.print("── Running tests from {s} ──\n\n", .{path});
 
@@ -115,10 +116,9 @@ pub fn runTestFile(allocator: std.mem.Allocator, path: []const u8) !bool {
             total_wall_ns += wall_ns;
             total_cpu_ns += cpu_ns;
             platform.debug.print("{s}✗{s} {s} {s}({d:.2}ms, cpu {d:.2}ms){s}\n  {s}error:{s} {}\n", .{
-                C_RED, C_RESET, name, C_DIM,
-                @as(f64, @floatFromInt(wall_ns)) / 1_000_000.0,
-                @as(f64, @floatFromInt(cpu_ns)) / 1_000_000.0,
-                C_RESET, C_RED, C_RESET, err,
+                C_RED,                                          C_RESET,                                       name,    C_DIM,
+                @as(f64, @floatFromInt(wall_ns)) / 1_000_000.0, @as(f64, @floatFromInt(cpu_ns)) / 1_000_000.0, C_RESET, C_RED,
+                C_RESET,                                        err,
             });
             failed += 1;
             continue;
@@ -147,7 +147,7 @@ pub fn runTestFile(allocator: std.mem.Allocator, path: []const u8) !bool {
         const is_fail = std.mem.indexOf(u8, result, "✗") != null;
         const is_pass = !is_fail and
             (std.mem.startsWith(u8, result, "✓") or
-             std.mem.indexOf(u8, result, ": ✓") != null);
+                std.mem.indexOf(u8, result, ": ✓") != null);
 
         if (is_fail) {
             platform.debug.print("{s}✗{s} {s} → {s} {s}\n", .{ C_RED, C_RESET, name, result, timing });
@@ -179,21 +179,23 @@ pub fn runTestFile(allocator: std.mem.Allocator, path: []const u8) !bool {
     const n_meas = passed + failed + neutral;
     const avg_wall_ms: f64 = if (n_meas > 0)
         @as(f64, @floatFromInt(total_wall_ns)) / 1_000_000.0 / @as(f64, @floatFromInt(n_meas))
-    else 0.0;
+    else
+        0.0;
     const avg_cpu_ms: f64 = if (n_meas > 0)
         @as(f64, @floatFromInt(total_cpu_ns)) / 1_000_000.0 / @as(f64, @floatFromInt(n_meas))
-    else 0.0;
+    else
+        0.0;
 
     platform.debug.print("\n{s}  ── Performance ──{s}\n", .{ C_BOLD, C_RESET });
     platform.debug.print("  {s}wall time:{s} {d:>8.2} ms  {s}(avg {d:.2} ms / test){s}\n", .{
-        C_DIM, C_RESET,
-        @as(f64, @floatFromInt(total_wall_ns)) / 1_000_000.0,
-        C_DIM, avg_wall_ms, C_RESET,
+        C_DIM,                                                C_RESET,
+        @as(f64, @floatFromInt(total_wall_ns)) / 1_000_000.0, C_DIM,
+        avg_wall_ms,                                          C_RESET,
     });
     platform.debug.print("  {s}cpu time:{s}  {d:>8.2} ms  {s}(avg {d:.2} ms / test){s}\n", .{
-        C_DIM, C_RESET,
-        @as(f64, @floatFromInt(total_cpu_ns)) / 1_000_000.0,
-        C_DIM, avg_cpu_ms, C_RESET,
+        C_DIM,                                               C_RESET,
+        @as(f64, @floatFromInt(total_cpu_ns)) / 1_000_000.0, C_DIM,
+        avg_cpu_ms,                                          C_RESET,
     });
     platform.debug.print("  {s}peak mem:{s}  {d:>8} KB\n", .{ C_DIM, C_RESET, rss_kb });
 

@@ -241,7 +241,7 @@ fn serveFile(path_in_url: []const u8, stream: std.net.Stream, allocator: std.mem
     var file_path_buf: [1024]u8 = undefined;
     const full_path = try std.fmt.bufPrint(&file_path_buf, "{s}{s}", .{ public_dir, rel });
 
-    const file = std.fs.cwd().openFile(full_path, .{}) catch {
+    const file = platform.fs.cwd().openFile(full_path, .{}) catch {
         try respond(stream, "404 Not Found", "text/plain", "not found");
         return;
     };

@@ -117,7 +117,11 @@ pub fn extractEqArgsFromStore(store: *Store, id: Id) ?struct { lhs: Id, rhs: Id 
         if (children.len == 0) return null;
         return extractEqArgsFromStore(store, children[0]);
     }
-    if (node.tag == .bind) return extractEqArgsFromStore(store, node.aux);
+    if (node.tag == .bind) {
+        const children = node.span_a.slice(pool);
+        if (children.len != 2) return null;
+        return extractEqArgsFromStore(store, children[1]);
+    }
     if (node.tag != .apply) return null;
 
     const func_node = store.get(node.payload);
@@ -146,8 +150,20 @@ pub fn copyIdBetweenStores(src: *Store, dst: *Store, id: Id) !Id {
             return dst.apply(func, args.items);
         },
         .bind => {
-            const val = try copyIdBetweenStores(src, dst, node.aux);
-            return dst.bind(src.interner.resolve(node.payload), val);
+            const children = node.span_a.slice(pool);
+            if (children.len != 2) return error.InvalidExpr;
+
+            const val = try copyIdBetweenStores(src, dst, children[0]);
+            const body = try copyIdBetweenStores(src, dst, children[1]);
+
+            const name = src.interner.resolve(node.payload);
+            const sym_id = try dst.interner.intern(name);
+
+            return dst.bindSymWithBody(
+                sym_id,
+                val,
+                body,
+            );
         },
         else => return dst.sym("<unsupported>"),
     }

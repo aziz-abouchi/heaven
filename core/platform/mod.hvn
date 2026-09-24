@@ -1,7 +1,30 @@
--- core/platform/mod.hvn (signatures)
-read  : Fd -> Buf -> Int
-write : Fd -> Buf -> Int
+-- core/platform/mod.hvn
+
+@if(target_os == "linux" && target_arch == "x86_64") {
+    import linux_x86_64 as sys
+} @else_if(target_os == "linux" && target_arch == "aarch64") {
+    import linux_arm64 as sys
+} @else_if(target_os == "macos" && target_arch == "x86_64") {
+    import darwin_x86_64 as sys
+} @else_if(target_os == "macos" && target_arch == "aarch64") {
+    import darwin_arm64 as sys
+} @else_if(target_os == "windows" && target_arch == "x86_64") {
+    import windows_x86_64 as sys
+} @else_if(target_os == "wasm") {
+    import wasm_stub as sys
+}
+
+-- Exposition des signatures unifiées
+read  : Fd -> Buf -> Int -> Int
+write : Fd -> Buf -> Int -> Int
 open  : Path -> OpenFlags -> Fd
 close : Fd -> Unit
 alloc : Int -> Ptr
-free  : Ptr -> Unit
+free  : Ptr -> Int -> Unit
+
+read  = sys.read
+write = sys.write
+open  = sys.open
+close = sys.close
+alloc = sys.alloc
+free  = sys.free

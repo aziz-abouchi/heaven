@@ -1,0 +1,6 @@
+read handle buf len   = @extern("kernel32", "ReadFile", handle, ptr_of buf, len, 0, 0)
+write handle buf len  = @extern("kernel32", "WriteFile", handle, ptr_of buf, len, 0, 0)
+open path flags       = @extern("kernel32", "CreateFileA", ptr_of path, flags, 0, 0, 3, 128, 0)
+close handle          = @extern("kernel32", "CloseHandle", handle)
+alloc size            = @extern("kernel32", "VirtualAlloc", 0, size, 0x3000, 4) -- MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE
+free ptr size         = @extern("kernel32", "VirtualFree", ptr, 0, 0x8000)      -- MEM_RELEASE

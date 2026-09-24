@@ -61,3 +61,5 @@ output.hvn
 *.heaven_session.json
 core/book_suite.hvn
 src/vessel/public/test_suite.hvn
+docs/book/book/
+docs/book/book/

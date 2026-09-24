@@ -1,0 +1,17 @@
+-- Bibliothèque fondamentale Heaven
+
+data Bool = True | False
+
+data Nat = Zero | Succ Nat
+
+data List a = Nil | Cons a (List a)
+
+-- Égalité propositionnelle (IdType)
+data Eq (A : Type) (x : A) : A -> Type where
+  Refl : Eq A x x
+
+-- Fonctions de base sur les booléens
+def not (b : Bool) : Bool =
+  match b with
+  | True -> False
+  | False -> True
