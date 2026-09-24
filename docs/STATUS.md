@@ -196,8 +196,11 @@ Légende :
 ## Top priorités
 
 1. **Découper `heaven_expr.zig`** (RFC-0001) — extraire IO, imports, data, holes,
-   tactics. Le monolithe (~197 Ko) freine toute évolution (WASM, tests,
-   onboarding, éventuel merge avec astra-core).
+   tactics. Le monolithe freine toute évolution (WASM, tests, onboarding,
+   éventuel merge avec astra-core).
+   → **4/5 extraits** : `io_handler.zig`, `expr_parser.zig`,
+   `hole_runtime.zig`, `unify_proof.zig`, `std_loader.zig`.
+   Reste : `import.zig` (2026-09-24).
 2. **Unifier le pipeline logique** — `kanren_expr` + `logic/*` + `prolog`
    derrière une API `assertFact` / `query` + 2-3 commandes REPL.
 3. **README aligné sur STATUS** (✅ fait).

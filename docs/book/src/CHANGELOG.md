@@ -3,6 +3,32 @@
 Historique des fonctionnalités du langage. Les entrées sont en ordre
 antéchronologique.
 
+## 2026-09-24
+
+### Type-dep v2d — unification d'indexes dépendants
+- `Heaven.ctor_results` : ctor → forme canonique du résultat
+  (`Nil → "Vec zero"`, `Cons → "Vec (succ _)"`), peuplé dans
+  `evalDataDecl`.
+- `evalEquation` : unification best-effort via `unify_proof.unify`
+  entre `ctor_results[ctor]` et le domaine déclaré ; instanciation
+  du RHS sous la substitution avant `registerClause`.
+- Tests : `ctor_results` peuplé, acceptation `Cons`, rejet v2c
+  (`Nil` vs step), no-op types non paramétrés, end-to-end
+  `head (Cons 42 Nil) → 42`.
+- **Note** : infrastructure en place ; aucun test actuel ne prouve
+  que la substitution **change** un résultat (à valider en v2e avec
+  `Vec (n + m)`).
+- **Intégré dans** : `03-syntax-in-functions.md`, STATUS.
+
+### Architecture — RFC-0001 4/5
+- Nouveaux modules extraits de `heaven_expr.zig` :
+  `unify_proof.zig` (API proof/tactics : Ctx, Subst, unify,
+  instantiate, rewriteIn), `std_loader.zig` (chargement boot-time
+  io.hvn + std/*.hvn).
+- Pattern : `heaven: anytype` pour éviter le cycle
+  `heaven_expr ↔ std_loader`.
+- **Intégré dans** : `10-under-the-hood.md` (à enrichir).
+
 ## 2026-09-23
 
 ### Types dépendants (surface) — chantier #type-dep

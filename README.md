@@ -196,15 +196,16 @@ docs/capabilities.md — design des capabilities
 docs/GUIDE_MLCPD_INTEGRATION.md — pont MLCPD
 
 Tests
-zig build test              # 162 tests unitaires (Zig)
+zig build test              # 167 tests unitaires (Zig)
 zig build test-regression   # 77 tests Heaven (core/test_suite.hvn)
 zig build test-files        # tests/*.hvn (multi-fichiers)
 
 Statut global
 Expérimental avancé. Le noyau et les briques récentes (modules, tactics,
-type-dep surface, stdlib) sont utilisables au REPL. Manquent : unification
-d'indexes dépendants (v2d), découpage du monolithe heaven_expr.zig,
-unification du pipeline logique derrière une API unique.
+type-dep surface, stdlib) sont utilisables au REPL. Manquent :
+unification vraie des indexes (v2e, `Vec (n + m)`), finalisation du
+découpage RFC-0001 (`import.zig`), unification du pipeline logique
+derrière une API unique.
 
 Voir docs/ROADMAP.md pour les chantiers en cours.
 

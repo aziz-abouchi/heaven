@@ -262,7 +262,22 @@ Rejet si **base ≠ step** (ex : `head _ Nil` où Nil base, domaine step).
   classification du ctor est incompatible avec le domaine.
 - Test Zig : `head _ Nil` rejeté, `head _ (Cons x _)` accepté.
 
-### v2d — *roadmap* (unification vraie)
+### v2d ✅ *fait* (2026-09-24)
+
+**Livré** : `Heaven.ctor_results` (ctor → forme résultat, convention
+`Nil → "Vec zero"`, `Cons → "Vec (succ _)"`), peuplé par `evalDataDecl`.
+Dans `evalEquation`, chaque pattern ctor dont le parent est paramétré
+est unifié avec le domaine correspondant via `unify_proof.unify`
+(best-effort : échec ≠ rejet). Le RHS est instancié sous la
+substitution avant enregistrement (`body_used`).
+
+**Commits** : `61ba9c3`, `cbd588c`, `a259ca8`.
+
+**Note** : le mécanisme tourne et `body_used` est bien propagé, mais
+aucun test actuel ne prouve que la substitution **change** un résultat
+(les exemples ont `x` indépendant de l'index). À valider en v2e.
+
+### v2e — *roadmap* (unification vraie, index non-symbolique)
 
 La convention attrape les cas simples mais rate :
 - `Vector (n + m)` — index non-symbolique.
@@ -271,7 +286,7 @@ La convention attrape les cas simples mais rate :
 
 Vraie unification de premier ordre nécessaire pour ces cas.
 
-**Effort v2d** : 2-3 sessions.
+**Effort v2e** : 2-3 sessions.
 
 ### v0 ✅ *fait*
 
