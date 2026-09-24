@@ -240,3 +240,93 @@ mathématiques de base. Pour les preuves très avancées, il faudra
 
 Au chapitre suivant, on quitte les mathématiques pour le monde réel :
 fichiers, réseau, acteurs.
+
+
+---
+
+## Tactics composables
+
+Depuis septembre 2026, `prove` accepte un bloc `by { ... }` qui
+enchaîne plusieurs tactiques. La syntaxe est inspirée de Rocq/Lean :
+
+    theorem add_zero : x + 0 = x
+    prove add_zero by { simplify }
+
+Chaque tactique transforme le but courant en 0, 1 ou N sous-buts.
+
+### Catalogue
+
+| Tactique | Effet |
+|---|---|
+| `simplify` | Réduit la cible à sa forme normale |
+| `reflexivity` | Résout `a = a` (unification simple) |
+| `assumption` | Cherche dans les hypothèses une preuve de la cible |
+| `auto` | Cascade `assumption` → `reflexivity` → `simplify` |
+| `exact h` | Utilise l'hypothèse `h` comme preuve |
+| `induction x` | Génère `base` + `step` avec `IH` dans le contexte |
+| `cases x` | Nat : `base` + `step` (sans IH) |
+| `rewrite H` | Substitue `a ↔ b` dans la cible avec `H : a = b` |
+| `apply H` | Si `H : P → Q` et cible `Q`, génère le sous-but `P` |
+| `seq`, `try`, `repeat` | Combinateurs |
+
+L'enchaînement se fait avec `;` :
+
+    theorem t : (x + 0) + 0 = x
+    prove t by {
+      simplify;
+      simplify
+    }
+
+### REPL interactif
+
+`prove t by {` (sans `}`) ouvre un mode interactif :
+
+    heaven> prove add_zero by {
+    Goal 1/1
+      ── Target ──
+        (= (+ x 0) x)
+    > simplify
+    ✓ All goals solved. Tapez '}' ou 'qed' pour valider.
+    > qed
+    ✓ [add_zero] proved (interactive)
+
+Tapez `}` ou `qed` pour valider, `abort` pour annuler.
+
+### Unification simple
+
+`apply` et `reflexivity` instancient des **métavariables** internes
+(`Tag.evar`) pour unifier deux termes. Exemple :
+
+    -- H : forall x, P x
+    -- cible : P a
+    apply H       -- l'unification lie x := a
+
+C'est une unification de premier ordre. L'unification vraie avec
+indexes dépendants (`Vec (n + m)`) reste en roadmap.
+
+### Skills
+
+Un **skill** est une suite de tactiques nommée :
+
+    theorem t : x + 0 = x
+    skill algebra
+    ✓ [algebra] 't' proved via skill
+
+Built-in : `trivial` (= `reflexivity`), `algebra` (= `simplify;
+reflexivity`), `induction` (= `induction {var}; simplify; reflexivity`).
+
+### Holes — mise à jour
+
+Depuis septembre 2026, la syntaxe unifiée est `_` (comme Idris/Agda).
+Le REPL expose `:hole` (liste) et `:refine <id> <expr>` :
+
+    heaven> _
+    _
+    heaven> :hole
+    ?0 : Int
+      not refined
+    heaven> :refine 0 42
+    ✓ hole 0 refined
+    heaven> :hole
+    ?0 : Int
+      refined to: 42
