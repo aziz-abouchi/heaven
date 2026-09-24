@@ -4191,6 +4191,94 @@ test "type-dep v1a — param imbriqué (n : Vec a)" {
     try std.testing.expect(info.params[0].ty != null);
 }
 
+test "type-dep v2d — ctor_results peuplé (Nil→zero, Cons→succ)" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
+    defer allocator.free(r);
+
+    // Convention v2d : arity 0 → "<TypeName> zero", arity > 0 → "<TypeName> (succ _)".
+    const cons = heaven.ctor_results.get("Cons") orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("Vec (succ _)", cons);
+
+    const nil = heaven.ctor_results.get("Nil") orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("Vec zero", nil);
+}
+
+test "type-dep v2d — head _ (Cons x _) = x accepté, v2d actif" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r1 = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
+    defer allocator.free(r1);
+    const r2 = try heaven.eval("sig v2d_head_uniq : (n : Nat) -> Vec (succ n) -> a");
+    defer allocator.free(r2);
+
+    const r3 = try heaven.eval("v2d_head_uniq _ (Cons x _) = x");
+    defer allocator.free(r3);
+    try std.testing.expect(std.mem.startsWith(u8, r3, "✓"));
+
+    // Le mécanisme v2d a bien vu le ctor `Cons` et accumulé un binding
+    // (via unify) : on ne peut pas observer subst_v2d directement (locale),
+    // mais on vérifie que ctor_results contient bien ce qu'il faut.
+    const cons = heaven.ctor_results.get("Cons") orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("Vec (succ _)", cons);
+
+    // Et que la clause a été enregistrée dans engine.fns.
+    try std.testing.expect(heaven.engine.fns.get("v2d_head_uniq") != null);
+}
+
+test "type-dep v2d — non-régression v2c : head _ Nil rejeté" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r1 = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
+    defer allocator.free(r1);
+    const r2 = try heaven.eval("sig v2d_head_uniq : (n : Nat) -> Vec (succ n) -> a");
+    defer allocator.free(r2);
+
+    // v2c rejette avant que v2d n'ait la main : `Nil` (base) vs `Vec (succ n)` (step).
+    const r3 = try heaven.eval("v2d_head_uniq _ Nil = 42");
+    defer allocator.free(r3);
+    try std.testing.expect(std.mem.indexOf(u8, r3, "incompatible") != null);
+    // La clause n'a PAS été enregistrée.
+    try std.testing.expect(heaven.engine.fns.get("v2d_head_uniq") == null);
+}
+
+test "type-dep v2d — type non paramétré : absent de ctor_results" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r = try heaven.eval("data Color = Red | Green | Blue");
+    defer allocator.free(r);
+
+    // Pas de convention v2d pour un type sans paramètre : les ctors
+    // ne sont pas inscrits dans ctor_results.
+    try std.testing.expect(!heaven.ctor_results.contains("Red"));
+    try std.testing.expect(!heaven.ctor_results.contains("Green"));
+    try std.testing.expect(!heaven.ctor_results.contains("Blue"));
+}
+
 test "type-dep v2c — base/step incompatible (Nil vs Vec (succ n))" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
