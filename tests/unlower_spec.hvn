@@ -1,0 +1,11 @@
+-- tests/unlower_spec.hvn
+spec test_unlower_binary_add =
+    let original = (+ 12 30) in
+    let lowered  = store.lower(original) in
+    let lifted   = store.unlower(lowered) in
+    assert(lifted == original)
+
+spec test_unlower_lambda_binding =
+    let expr = (\x -> (+ x 1)) 41 in
+    let mir_insts = mir.compile(expr) in
+    assert(mir.eval(mir_insts) == 42)

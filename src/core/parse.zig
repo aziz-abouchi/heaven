@@ -261,6 +261,24 @@ pub const Parser = struct {
                 }
             }
             
+            // Conversion spéciale : (letrec x = value body) → (letrec x value body)
+            if (std.mem.startsWith(u8, inner, "letrec ")) {
+                const after_letrec = inner[7..];
+                if (std.mem.indexOfScalar(u8, after_letrec, '=')) |eq_pos| {
+                    // Vérifier que ce n'est pas ==
+                    if (eq_pos + 1 >= after_letrec.len or after_letrec[eq_pos + 1] != '=') {
+                        const before_eq = std.mem.trim(u8, after_letrec[0..eq_pos], " ");
+                        const after_eq = std.mem.trim(u8, after_letrec[eq_pos + 1 ..], " ");
+                        const converted = std.fmt.allocPrint(self.allocator, "(letrec {s} {s})", .{ before_eq, after_eq }) catch {
+                            return self.store.sym(trimmed);
+                        };
+                        defer self.allocator.free(converted);
+                        // Re-parser avec la string convertie
+                        return self.parseSExpr(converted);
+                    }
+                }
+            }
+            
             var parts: [16][]const u8 = undefined;
             var num_parts: usize = 0;
             var depth: i32 = 0;
@@ -320,6 +338,70 @@ pub const Parser = struct {
             if (std.mem.eql(u8, op, "eval") and num_parts > 1) {
                 const inner_id = try self.parseSExpr(parts[1]);
                 return engine_expr.evaluate(self.store, self.env, self.engine, inner_id, 0) catch inner_id;
+            }
+            if (std.mem.eql(u8, op, "letrec") and num_parts >= 3) {
+                // letrec x = value body (syntaxe avec =)
+                // ou letrec x value body (syntaxe sans =)
+                var eq_idx: ?usize = null;
+                var i: usize = 1;
+                while (i < num_parts) : (i += 1) {
+                    if (std.mem.eql(u8, parts[i], "=")) {
+                        eq_idx = i;
+                        break;
+                    }
+                }
+                
+                if (eq_idx) |eq| {
+                    // Syntaxe avec = : (letrec x = value body)
+                    if (eq >= 2 and eq + 1 < num_parts) {
+                        const name_sym = try self.store.interner.intern(parts[1]);
+                        const val_id = try self.parseSExpr(parts[eq + 1]);
+                        
+                        if (eq + 2 < num_parts) {
+                            // Reconcatener les parts restantes pour le body
+                            var body_parts = std.ArrayListUnmanaged(u8){};
+                            defer body_parts.deinit(self.allocator);
+                            var j: usize = eq + 2;
+                            while (j < num_parts) : (j += 1) {
+                                if (j > eq + 2) try body_parts.appendSlice(self.allocator, " ");
+                                try body_parts.appendSlice(self.allocator, parts[j]);
+                            }
+                            const body_str = try body_parts.toOwnedSlice(self.allocator);
+                            defer self.allocator.free(body_str);
+                            const body_id = try self.parseSExpr(body_str);
+                            const span = try self.store.reserveSpan(2);
+                            self.store.pool.items[span.start] = val_id;
+                            self.store.pool.items[span.start + 1] = body_id;
+                            return self.store.addNode(.{
+                                .tag = .letrec,
+                                .payload = name_sym,
+                                .aux = 0,
+                                .span_a = span,
+                                .span_b = .{ .start = 0, .len = 0 },
+                            });
+                        } else {
+                            // Pas de body
+                            return self.store.bindSym(name_sym, val_id);
+                        }
+                    }
+                } else {
+                    // Syntaxe sans = : (letrec x value body)
+                    const name_sym = try self.store.interner.intern(parts[1]);
+                    const val_id = try self.parseSExpr(parts[2]);
+                    if (num_parts == 3) return self.store.bindSym(name_sym, val_id);
+                    const body_id = try self.parseSExpr(parts[3]);
+                    const span = try self.store.reserveSpan(2);
+                    self.store.pool.items[span.start] = val_id;
+                    self.store.pool.items[span.start + 1] = body_id;
+                    const node_id = try self.store.addNode(.{
+                        .tag = .letrec,
+                        .payload = name_sym,
+                        .aux = 0,
+                        .span_a = span,
+                        .span_b = .{ .start = 0, .len = 0 },
+                    });
+                    return node_id;
+                }
             }
             if (std.mem.eql(u8, op, "let") and num_parts >= 3) {
                 // Support deux syntaxes :

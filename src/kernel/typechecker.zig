@@ -1,5 +1,6 @@
 const std = @import("std");
 const ast = @import("ast.zig");
+const termsStructurallyEqual = ast.termsStructurallyEqual;
 
 pub const TypeError = error{
     NotAType,
@@ -145,6 +146,60 @@ pub const TypeChecker = struct {
                     },
                 };
             },
+            // Γ ⊢ A : Sort u   Γ ⊢ a : A   Γ ⊢ b : A
+            // ────────────────────────────────────────
+            // Γ ⊢ Eq A a b : Prop
+            .eq => |e| {
+                _ = try self.inferSort(e.type_a.*);
+                const ty_lhs = try self.infer(e.lhs.*); // doit réussir et donner A
+                const ty_rhs = try self.infer(e.rhs.*); // idem
+                // Version minimale : égalité structurelle des types inférés vs A.
+                // Raffinée en étape 2 quand la conversion (β+ι) sera branchée.
+                if (!termsStructurallyEqual(ty_lhs, e.type_a.*) or
+                    !termsStructurallyEqual(ty_rhs, e.type_a.*))
+                    return TypeError.TypeMismatch;
+                return ast.Term{ .sort = .prop };
+            },
+
+            // Γ ⊢ A : Sort u   Γ ⊢ a : A
+            // ────────────────────────────
+            // Γ ⊢ refl A a : Eq A a a
+            .refl => |r| {
+                _ = try self.inferSort(r.type_a.*);
+                const ty = try self.infer(r.element.*);
+                if (!termsStructurallyEqual(ty, r.type_a.*))
+                    return TypeError.TypeMismatch;
+                return ast.Term{ .eq = .{
+                    .type_a = r.type_a,
+                    .lhs = r.element,
+                    .rhs = r.element,
+                } };
+            },
         };
     }
 };
+
+test "kernel - refl typechecks to Eq A a a" {
+    const allocator = std.testing.allocator;
+    var tc = TypeChecker.init(allocator);
+    defer tc.deinit();
+
+    const type_0 = ast.Term{ .sort = .{ .type_sort = .{ .concrete = 0 } } };
+    const elem = ast.Term{ .variable = 0 };
+
+    // Contexte : variable 0 est de type Type_0
+    try tc.context.append(allocator, type_0);
+
+    const refl_term = ast.Term{ .refl = .{ .type_a = &type_0, .element = &elem } };
+    const ty = try tc.infer(refl_term);
+
+    switch (ty) {
+        .eq => |e| {
+            // Eq A a a : lhs et rhs sont tous deux l'élément
+            try std.testing.expect(ast.termsStructurallyEqual(e.lhs.*, elem));
+            try std.testing.expect(ast.termsStructurallyEqual(e.rhs.*, elem));
+            try std.testing.expect(ast.termsStructurallyEqual(e.type_a.*, type_0));
+        },
+        else => return error.TestUnexpectedResult,
+    }
+}

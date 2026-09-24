@@ -65,6 +65,36 @@ pub const Transformer = struct {
                 return res;
             },
 
+            .eq => |e| {
+                const new_type_a = try self.transformTerm(e.type_a.*);
+                const new_lhs = try self.transformTerm(e.lhs.*);
+                const new_rhs = try self.transformTerm(e.rhs.*);
+
+                const res = try self.allocator.create(Term);
+                res.* = .{
+                    .eq = .{
+                        .type_a = new_type_a,
+                        .lhs = new_lhs,
+                        .rhs = new_rhs,
+                    },
+                };
+                return res;
+            },
+
+            .refl => |r| {
+                const new_type_a = try self.transformTerm(r.type_a.*);
+                const new_element = try self.transformTerm(r.element.*);
+
+                const res = try self.allocator.create(Term);
+                res.* = .{
+                    .refl = .{
+                        .type_a = new_type_a,
+                        .element = new_element,
+                    },
+                };
+                return res;
+            },
+
             .sort, .variable => {
                 const res = try self.allocator.create(Term);
                 res.* = term;
@@ -142,6 +172,15 @@ pub const Transformer = struct {
                 self.destroyTerm(l.target_b);
                 self.destroyTerm(l.func_f);
                 self.destroyTerm(l.proof);
+            },
+            .eq => |e| {
+                self.destroyTerm(e.type_a);
+                self.destroyTerm(e.lhs);
+                self.destroyTerm(e.rhs);
+            },
+            .refl => |r| {
+                self.destroyTerm(r.type_a);
+                self.destroyTerm(r.element);
             },
             .sort, .variable => {},
             .pi => |p| {

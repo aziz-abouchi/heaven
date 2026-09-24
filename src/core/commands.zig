@@ -233,6 +233,17 @@ pub const Commands = struct {
             return expr.toStringInfix(self.store, result, self.allocator);
         }
 
+        // Dispatch spécial pour (let ...) et (letrec ...)
+        if (trimmed.len >= 2 and trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
+            const inner = std.mem.trim(u8, trimmed[1 .. trimmed.len - 1], " \t");
+            if (std.mem.startsWith(u8, inner, "let ") or std.mem.startsWith(u8, inner, "letrec ")) {
+                const id = try self.parser.parseSExpr(trimmed);
+                self.engine.fuel = 1_000_000;
+                const result = engine_expr.evaluate(self.store, self.env, self.engine, id, 0) catch id;
+                return expr.toStringInfix(self.store, result, self.allocator);
+            }
+        }
+        
         if (trimmed.len >= 2 and trimmed[0] == '(' and trimmed[trimmed.len - 1] == ')') {
             const id = try self.bridge.importExpr(trimmed);
             self.engine.fuel = 1_000_000;

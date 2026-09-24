@@ -154,6 +154,7 @@ pub const Tag = enum(u8) {
     string,
     var_tag,
     let,
+    letrec,
     fun,
     eq,
     add,
@@ -260,6 +261,16 @@ pub const StringInterner = struct {
     pub fn lookup(self: *const StringInterner, s: []const u8) ?Sym {
         return self.map.get(s);
     }
+};
+
+pub const UnloweredKind = union(enum) {
+    literal: i64,
+    variable: Sym,
+    binary_op: struct { op: Sym, lhs: Id, rhs: Id },
+    binding: struct { name: Sym, val: Id, body: Id },
+    function: struct { param: Sym, body: Id },
+    call: struct { func: Id, args: []const Id },
+    raw_primitive: Tag,
 };
 
 pub const LowerError = error{
@@ -970,6 +981,7 @@ pub const Store = struct {
             .unit_lit => self.makeLit(.unit),
             .fun => self.makeNode(.lambda, node.payload, node.aux, node.span_a, node.span_b),
             .let => self.makeNode(.bind, node.payload, node.aux, node.span_a, node.span_b),
+            // .letrec n'est pas lowered - il garde son tag pour l'évaluateur
             .eq => self.makeNode(.relation, node.payload, node.aux, node.span_a, node.span_b),
             .add, .sub, .mul, .div, .mod, .and_tag, .or_tag, .cons => blk: {
                 const sym_str = switch (node.tag) {
@@ -1189,6 +1201,70 @@ pub const Store = struct {
         });
 
         return self.lower(temp_id);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // UnLowering mécanique : frontend → 6 primitives
+    // ═══════════════════════════════════════════════════════════════
+
+    pub fn unlower(store: *const Store, id: Id) !UnloweredKind {
+        const node = store.get(id);
+
+        switch (node.tag) {
+            .lit => {
+                const l = store.lits.items[node.aux];
+                return switch (l) {
+                    .int => |v| .{ .literal = v },
+                    else => .{ .raw_primitive = .lit },
+                };
+            },
+            .sym => return .{ .variable = node.payload },
+            .bind => {
+                const span = node.span_a.slice(store.pool.items);
+                if (span.len < 1) return error.InvalidBindNode;
+                const val_id = span[0];
+                const body_id = if (span.len > 1) span[1] else 0;
+                return .{ .binding = .{
+                    .name = node.payload,
+                    .val = val_id,
+                    .body = body_id,
+                } };
+            },
+            .lambda => {
+                const span = node.span_a.slice(store.pool.items);
+                if (span.len < 1) return error.InvalidLambdaNode;
+                return .{ .function = .{
+                    .param = node.payload,
+                    .body = span[0],
+                } };
+            },
+            .apply => {
+                const args = node.span_a.slice(store.pool.items);
+                const func_node = store.get(node.payload);
+
+                // Reconnexion des opérateurs arithmétiques binationaux
+                if (func_node.tag == .sym and args.len == 2) {
+                    const op_str = store.interner.resolve(func_node.payload);
+                    if (std.mem.eql(u8, op_str, "+") or
+                        std.mem.eql(u8, op_str, "-") or
+                        std.mem.eql(u8, op_str, "*") or
+                        std.mem.eql(u8, op_str, "/"))
+                    {
+                        return .{ .binary_op = .{
+                            .op = func_node.payload,
+                            .lhs = args[0],
+                            .rhs = args[1],
+                        } };
+                    }
+                }
+
+                return .{ .call = .{
+                    .func = node.payload,
+                    .args = args,
+                } };
+            },
+            .relation => return .{ .raw_primitive = .relation },
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════

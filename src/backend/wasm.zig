@@ -65,7 +65,7 @@ pub const WasmBackend = struct {
         }
 
         switch (term) {
-            .sort, .pi, .quot => return,
+            .sort, .pi, .quot, .eq, .refl => return,
 
             .class => |c_node| {
                 try self.compileTerm(c_node.element.*);

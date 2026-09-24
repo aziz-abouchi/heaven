@@ -426,6 +426,30 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             env.delete(node.payload);
             return result;
         },
+        .letrec => {
+            // letrec : la variable est visible dans sa propre valeur (pour récursion)
+            if (node.span_a.len < 1) return error.ArityMismatch;
+            
+            // Créer un placeholder pour le binding (permet la référence circulaire)
+            const placeholder = try store.sym("__letrec_placeholder__");
+            try env.put(node.payload, placeholder);
+            
+            // Évaluer la valeur avec le binding déjà présent (pour récursion)
+            const val = try evaluate(store, env, engine, store.spanSliceConst(node.span_a)[0], depth + 1);
+            
+            // Mettre à jour le binding avec la vraie valeur
+            env.delete(node.payload);
+            try env.put(node.payload, val);
+            
+            // Évaluer le body
+            const result = if (node.span_a.len >= 2)
+                try evaluate(store, env, engine, store.spanSliceConst(node.span_a)[1], depth + 1)
+            else
+                val;
+            
+            env.delete(node.payload);
+            return result;
+        },
         .lambda => {
             return id;
         },

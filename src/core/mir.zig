@@ -6,7 +6,10 @@ const Sym = expr_mod.Sym;
 const Store = expr_mod.Store;
 pub const Id = expr_mod.Id;
 
-// ValueId remplacé par Id (Expr IR)
+// Représente un registre virtuel MIR (indépendant des Reg de l'AST)
+pub const Reg = u32;
+
+// ValueId remplacé par Reg (Expr IR)
 // pub const ValueId = u32;
 pub const BlockId = u32;
 
@@ -23,31 +26,31 @@ pub const MirError = error{
     BreakOutsideLoop,
 };
 
-const PhiEntry = struct { value: Id, block: BlockId };
+const PhiEntry = struct { value: Reg, block: BlockId };
 
 pub const Instr = union(enum) {
-    const_int: struct { dest: Id, value: i64 },
-    add: struct { dest: Id, lhs: Id, rhs: Id },
-    sub: struct { dest: Id, lhs: Id, rhs: Id },
-    mul: struct { dest: Id, lhs: Id, rhs: Id },
-    div: struct { dest: Id, lhs: Id, rhs: Id },
-    cmp_lt: struct { dest: Id, lhs: Id, rhs: Id },
-    cmp_eq: struct { dest: Id, lhs: Id, rhs: Id },
+    const_int: struct { dest: Reg, value: i64 },
+    add: struct { dest: Reg, lhs: Reg, rhs: Reg },
+    sub: struct { dest: Reg, lhs: Reg, rhs: Reg },
+    mul: struct { dest: Reg, lhs: Reg, rhs: Reg },
+    div: struct { dest: Reg, lhs: Reg, rhs: Reg },
+    cmp_lt: struct { dest: Reg, lhs: Reg, rhs: Reg },
+    cmp_eq: struct { dest: Reg, lhs: Reg, rhs: Reg },
     jump: struct { target: BlockId },
-    branch: struct { cond: Id, then_block: BlockId, else_block: BlockId },
-    ret: struct { value: Id },
-    phi: struct { dest: Id, incoming: []const PhiEntry },
-    load: struct { dest: Id, sym: u32 },
-    store: struct { sym: u32, src: Id },
-    call_user: struct { dest: Id, name: u32, args: []const Id },
+    branch: struct { cond: Reg, then_block: BlockId, else_block: BlockId },
+    ret: struct { value: Reg },
+    phi: struct { dest: Reg, incoming: []const PhiEntry },
+    load: struct { dest: Reg, sym: u32 },
+    store: struct { sym: u32, src: Reg },
+    call_user: struct { dest: Reg, name: u32, args: []const Reg },
 };
 
 pub const BasicBlock = struct {
     instrs: std.ArrayListUnmanaged(Instr),
     terminator: union(enum) {
         jump: BlockId,
-        branch: struct { cond: Id, then_block: BlockId, else_block: BlockId },
-        ret: Id,
+        branch: struct { cond: Reg, then_block: BlockId, else_block: BlockId },
+        ret: Reg,
         fallthrough,
     },
 };
@@ -55,13 +58,13 @@ pub const BasicBlock = struct {
 pub const FnDef = struct {
     fn_mir: MirFunction,
     param_names: []const Sym,
-    param_regs: []const Id,
+    param_regs: []const Reg,
 };
 
 pub const MirFunction = struct {
     allocator: std.mem.Allocator,
     blocks: std.ArrayListUnmanaged(BasicBlock),
-    next_value: Id = 0,
+    next_value: Reg = 0,
     next_block: BlockId = 0,
     loop_exit_block: ?BlockId = null,
     break_values: std.ArrayListUnmanaged(PhiEntry) = .{},
@@ -111,14 +114,10 @@ pub const MirFunction = struct {
     }
 
     /// Alloue un nœud placeholder dans le Store Expr IR pour une valeur MIR
-    pub fn newValue(self: *MirFunction) !Id {
-        const s = self.store orelse {
-            // Fallback: mode legacy sans store (pour tests unitaires)
-            defer self.next_value += 1;
-            return @as(Id, self.next_value);
-        };
-        // Créer un nœud lit(0) comme placeholder - sera remplacé par l'instruction réelle
-        return s.int(0);
+    pub fn newReg(self: *MirFunction) Reg {
+        const reg = self.next_value;
+        self.next_value += 1;
+        return reg;
     }
 
     pub fn newBlock(self: *MirFunction) !BlockId {
@@ -131,7 +130,7 @@ pub const MirFunction = struct {
         return id;
     }
 
-    fn compileLambda(self: *MirFunction, store: *Store, lambda_id: Id) !FnDef {
+    fn compileLambda(self: *MirFunction, store: *Store, lambda_id: Reg) !FnDef {
         // Déplier les lambdas pour récupérer la liste des paramètres et le corps final
         var params = std.ArrayListUnmanaged(u32){};
         defer params.deinit(self.allocator);
@@ -150,10 +149,10 @@ pub const MirFunction = struct {
         // Allouer des registres pour les paramètres
         var param_regs = std.ArrayListUnmanaged(Id){};
         defer param_regs.deinit(self.allocator);
-        var param_map = std.AutoHashMap(Sym, Id).init(self.allocator);
+        var param_map = std.AutoHashMap(Sym, Reg).init(self.allocator);
         defer param_map.deinit();
         for (params.items) |p| {
-            const reg = try fn_mir.newValue();
+            const reg = fn_mir.newReg();
             try param_regs.append(self.allocator, reg);
             try param_map.put(p, reg);
         }
@@ -169,7 +168,7 @@ pub const MirFunction = struct {
         };
     }
 
-    pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: BlockId, locals: std.AutoHashMap(u32, Id)) MirError!Id {
+    pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: BlockId, locals: std.AutoHashMap(u32, Reg)) MirError!Reg {
         const node = store.get(id);
         switch (node.tag) {
             .bind => {
@@ -203,7 +202,7 @@ pub const MirFunction = struct {
                 if (locals.get(sym)) |reg| {
                     return reg;
                 }
-                const dest = try self.newValue();
+                const dest = self.newReg();
                 try self.blocks.items[target_block].instrs.append(self.allocator, .{ .load = .{ .dest = dest, .sym = sym } });
                 return dest;
             },
@@ -211,7 +210,7 @@ pub const MirFunction = struct {
                 const l = store.lits.items[node.aux];
                 switch (l) {
                     .int => |v| {
-                        const dest = try self.newValue();
+                        const dest = self.newReg();
                         try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = v } });
                         return dest;
                     },
@@ -243,7 +242,7 @@ pub const MirFunction = struct {
                             const arg_reg = try self.compileExpr(store, arg, target_block, locals);
                             try arg_regs.append(self.allocator, arg_reg);
                         }
-                        const dest = try self.newValue();
+                        const dest = self.newReg();
                         const name_sym = func_node.payload;
                         const arg_slice = try self.allocator.dupe(Id, arg_regs.items);
                         errdefer self.allocator.free(arg_slice);
@@ -257,7 +256,7 @@ pub const MirFunction = struct {
                 if (args.len == 2) {
                     const lhs = try self.compileExpr(store, args[0], target_block, locals);
                     const rhs = try self.compileExpr(store, args[1], target_block, locals);
-                    const dest = try self.newValue();
+                    const dest = self.newReg();
                     const op: Instr = if (std.mem.eql(u8, op_name, "+"))
                         .{ .add = .{ .dest = dest, .lhs = lhs, .rhs = rhs } }
                     else if (std.mem.eql(u8, op_name, "-"))
@@ -281,7 +280,7 @@ pub const MirFunction = struct {
         }
     }
 
-    fn compileIf(self: *MirFunction, store: *Store, cond_id: Id, then_id: Id, else_id: Id, entry_block: BlockId, locals: std.AutoHashMap(u32, Id)) MirError!Id {
+    fn compileIf(self: *MirFunction, store: *Store, cond_id: Reg, then_id: Reg, else_id: Reg, entry_block: BlockId, locals: std.AutoHashMap(u32, Reg)) MirError!Id {
         const cond_val = try self.compileExpr(store, cond_id, entry_block, locals);
         const then_block = try self.newBlock();
         const else_block = try self.newBlock();
@@ -300,7 +299,7 @@ pub const MirFunction = struct {
             self.blocks.items[else_block].terminator = .{ .jump = merge_block };
         }
 
-        const phi_dest = try self.newValue();
+        const phi_dest = self.newReg();
         // Ne collecter que les blocs qui jumpent vers merge_block
         var incoming = std.ArrayListUnmanaged(PhiEntry){};
         defer incoming.deinit(self.allocator);
@@ -327,7 +326,7 @@ pub const MirFunction = struct {
         return phi_dest;
     }
 
-    fn compileWhile(self: *MirFunction, store: *Store, cond_id: Id, body_id: Id, entry_block: BlockId, locals: std.AutoHashMap(u32, Id)) MirError!Id {
+    fn compileWhile(self: *MirFunction, store: *Store, cond_id: Reg, body_id: Reg, entry_block: BlockId, locals: std.AutoHashMap(u32, Reg)) MirError!Id {
         const cond_block = try self.newBlock();
         const body_block = try self.newBlock();
         const exit_block = try self.newBlock();
@@ -351,7 +350,7 @@ pub const MirFunction = struct {
 
         // Collecter les valeurs de break pour le phi à la sortie
         const break_entries = self.break_values.items[old_break_values_len..];
-        const phi_dest = try self.newValue();
+        const phi_dest = self.newReg();
 
         if (break_entries.len > 0) {
             // On a des break avec valeurs, créer un phi
@@ -372,7 +371,7 @@ pub const MirFunction = struct {
         return phi_dest;
     }
 
-    fn compileBreak(self: *MirFunction, store: *Store, value_expr_id: Id, target_block: BlockId, locals: std.AutoHashMap(u32, Id)) MirError!Id {
+    fn compileBreak(self: *MirFunction, store: *Store, value_expr_id: Reg, target_block: BlockId, locals: std.AutoHashMap(u32, Reg)) MirError!Id {
         const exit_block = self.loop_exit_block orelse return error.BreakOutsideLoop;
         const val_reg = try self.compileExpr(store, value_expr_id, target_block, locals);
 
@@ -388,7 +387,7 @@ pub const MirFunction = struct {
         return self.executeLegacy(global_vars);
     }
 
-    /// Ancienne implémentation execute désactivée pendant la réécriture Id-based
+    /// Ancienne implémentation execute désactivée pendant la réécriture Reg-based
     fn executeLegacy(self: *MirFunction, global_vars: *std.AutoHashMap(u32, i64)) MirError!i64 {
         if (self.blocks.items.len == 0) return 0;
         var current_block: BlockId = 0;
@@ -622,7 +621,7 @@ test "mir — simple arithmetic" {
     defer mir.deinit();
 
     const entry = try mir.newBlock();
-    _ = try mir.compileExpr(&store, expr_id, entry, std.AutoHashMap(u32, Id).init(allocator));
+    _ = try mir.compileExpr(&store, expr_id, entry, std.AutoHashMap(u32, Reg).init(allocator));
     mir.blocks.items[entry].terminator = .{ .ret = 0 };
 
     var globals = std.AutoHashMap(u32, i64).init(allocator);
@@ -642,7 +641,7 @@ test "mir — if/else" {
     defer mir.deinit();
 
     const entry = try mir.newBlock();
-    var locals = std.AutoHashMap(u32, Id).init(allocator);
+    var locals = std.AutoHashMap(u32, Reg).init(allocator);
     defer locals.deinit();
     _ = try mir.compileExpr(&store, expr_id, entry, locals);
 
@@ -670,7 +669,7 @@ test "mir — while loop" {
     defer mir.deinit();
 
     const entry = try mir.newBlock();
-    var locals = std.AutoHashMap(u32, Id).init(allocator);
+    var locals = std.AutoHashMap(u32, Reg).init(allocator);
     defer locals.deinit();
     // let x = 0
     const x_init = try store.bind("x", try store.int(0), while_expr);
@@ -697,7 +696,7 @@ test "mir — break in while" {
     defer mir.deinit();
 
     const entry = try mir.newBlock();
-    var locals = std.AutoHashMap(u32, Id).init(allocator);
+    var locals = std.AutoHashMap(u32, Reg).init(allocator);
     defer locals.deinit();
     _ = try mir.compileExpr(&store, while_expr, entry, locals);
 
@@ -728,7 +727,7 @@ test "mir — if with break in while" {
     defer mir.deinit();
 
     const entry = try mir.newBlock();
-    var locals = std.AutoHashMap(u32, Id).init(allocator);
+    var locals = std.AutoHashMap(u32, Reg).init(allocator);
     defer locals.deinit();
 
     // let x = 0 in while(...)
@@ -764,7 +763,7 @@ test "mir — user function definition and call" {
     defer mir.deinit();
 
     const entry = try mir.newBlock();
-    var locals = std.AutoHashMap(u32, Id).init(allocator);
+    var locals = std.AutoHashMap(u32, Reg).init(allocator);
     defer locals.deinit();
     _ = try mir.compileExpr(&store, let_expr, entry, locals);
     // On doit s'assurer que le dernier bloc a un ret
@@ -775,4 +774,58 @@ test "mir — user function definition and call" {
     defer globals.deinit();
     const result = try mir.execute(&globals);
     try std.testing.expectEqual(8, result);
+}
+
+test "unlowering — reconstruction d'une opération binaire" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    // Construction d'un nœud abaissement: (+ 10 20)
+    const lhs = try store.int(10);
+    const rhs = try store.int(20);
+    const expr_id = try store.binop("+", lhs, rhs);
+
+    // Unlowering
+    const unlowered = try expr_mod.unlower(&store, expr_id);
+    switch (unlowered) {
+        .binary_op => |bin| {
+            const op_name = store.interner.resolve(bin.op);
+            try std.testing.expectEqualStrings("+", op_name);
+
+            const lhs_kind = try expr_mod.unlower(&store, bin.lhs);
+            const rhs_kind = try expr_mod.unlower(&store, bin.rhs);
+            try std.testing.expectEqual(i64(10), lhs_kind.literal);
+            try std.testing.expectEqual(i64(20), rhs_kind.literal);
+        },
+        else => return error.TestUnexpectedResult,
+    }
+}
+
+test "mir — lowering et unlowering d'un lambda avec binding" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    // (bind x 5 (+ x 2))
+    const x_sym = try store.interner.intern("x");
+    const val_id = try store.int(5);
+    const body_id = try store.binop("+", try store.sym(x_sym), try store.int(2));
+    const bind_id = try store.bind(x_sym, val_id, body_id);
+
+    var mir = MirFunction.init(allocator);
+    defer mir.deinit();
+
+    const entry = try mir.newBlock();
+    var locals = std.AutoHashMap(u32, Reg).init(allocator);
+    defer locals.deinit();
+
+    const res_reg = try mir.compileExpr(&store, bind_id, entry, locals);
+    mir.blocks.items[entry].terminator = .{ .ret = res_reg };
+
+    var globals = std.AutoHashMap(u32, i64).init(allocator);
+    defer globals.deinit();
+
+    const result = try mir.execute(&globals);
+    try std.testing.expectEqual(@as(i64, 7), result);
 }
