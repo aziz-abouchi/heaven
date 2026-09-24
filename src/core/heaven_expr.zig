@@ -4212,6 +4212,36 @@ test "type-dep v2d — ctor_results peuplé (Nil→zero, Cons→succ)" {
     try std.testing.expectEqualStrings("Vec zero", nil);
 }
 
+test "type-dep v2d — end-to-end : head (Cons 42 _) évalue 42" {
+    // Note : ce test vérifie la non-régression du pipeline complet
+    // (data → sig → clause → appel). La substitution v2d elle-même
+    // (`n := k`) n'affecte pas le body `x` ici — c'est le pattern
+    // matching standard de l'engine qui lie `x := 42`. v2d prépare
+    // l'instanciation pour les cas où l'index apparaît dans le body
+    // (cf. v2e : `Vec (n + m)`).
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r1 = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
+    defer allocator.free(r1);
+    const r2 = try heaven.eval("sig v2d_e2e : (n : Nat) -> Vec (succ n) -> a");
+    defer allocator.free(r2);
+    const r3 = try heaven.eval("v2d_e2e _ (Cons x _) = x");
+    defer allocator.free(r3);
+    try std.testing.expect(std.mem.startsWith(u8, r3, "✓"));
+
+    const r4 = try heaven.eval("v2d_e2e 0 (Cons 42 Nil)");
+    // Note : on utilise `0` (Nat concret) au site d'appel, pas `_`,
+    // car `_` en position évaluée est parsé comme Tag.hole et
+    // déclenche evalMagic. Le pattern `_` (wildcard) matchera `0`.
+    defer allocator.free(r4);
+    try std.testing.expect(std.mem.indexOf(u8, r4, "42") != null);
+}
+
 test "type-dep v2d — head _ (Cons x _) = x accepté, v2d actif" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
