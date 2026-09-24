@@ -181,9 +181,13 @@ Légende :
 
 ## Top priorités
 
-1. **Type-dep v1** — multi-params typés + vérification (`Vector (succ n) -> a`)
-2. **Module v2** — export contrôlé, namespace hiérarchique
-3. Remplir les `std/*.hvn` (corps manquants)
-4. **Documenter QTT** dans le book
-5. Sync auto `test_suite.hvn` (natif ↔ WASM)
-6. Nettoyer les 24 `platform.dbg` dans `heaven_expr.zig` (gated debug, non bloquant)
+1. **Découper `heaven_expr.zig`** (RFC-0001) — extraire IO, imports, data, holes,
+   tactics. Le monolithe (~197 Ko) freine toute évolution (WASM, tests,
+   onboarding, éventuel merge avec astra-core).
+2. **Unifier le pipeline logique** — `kanren_expr` + `logic/*` + `prolog`
+   derrière une API `assertFact` / `query` + 2-3 commandes REPL.
+3. **README aligné sur STATUS** (✅ fait).
+4. **Type-dep v2d** — unification d'indexes au-delà de la convention base/step.
+5. **Documenter QTT** dans le book.
+6. Remplir les `std/*.hvn` restants (`kernel.hvn`, signatures sans corps).
+7. Sync auto `test_suite.hvn` (natif ↔ WASM).
