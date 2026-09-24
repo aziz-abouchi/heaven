@@ -187,3 +187,52 @@ attendu.
 ## V
 
 **Vessel** — Serveur HTTP embarqué dans Heaven.
+
+
+---
+
+## Termes récents (2026-09)
+
+**Evar** — métavariable interne (`Tag.evar`), utilisée par les
+tactiques pour unifier deux termes. Distincte de `Tag.hole`, qui est
+un trou utilisateur (`_`).
+
+**Hole** — trou utilisateur. Syntaxe : `_`. Créé par `parseExpression`,
+résolu via `:refine`.
+
+**ProofState** — état d'une preuve interactive : liste de buts, chacun
+avec un contexte (hypothèses) et une cible.
+
+**Tactic** — transformation d'un `ProofState`. Union : `simplify`,
+`reflexivity`, `assumption`, `auto`, `exact`, `induction`, `cases`,
+`rewrite`, `apply`, `seq`, `try`, `repeat`.
+
+**ProofSession** — wrapper interactif : un `ProofState` + arène +
+`TacticCtx`. Créé par `startProof`, exécuté par `applyLine`, validé
+par `finish`.
+
+**ctor_arity** — nombre d'arguments d'un constructeur. Utilisé par le
+pattern matcher pour vérifier qu'un pattern `(Cons x _)` a bien 2 args.
+
+**ctor_parent** — type auquel appartient un constructeur
+(`Cons → Vec`). Utilisé pour vérifier le **kind** dans les signatures.
+
+**TypeRegistry** — registre des `data` déclarés : nom, params (typés
+ou non), constructeurs. Alimenté par `evalDataDecl`.
+
+**Base / Step** — classification des constructeurs d'un type paramétré.
+*Base* = arité 0 (`Nil : Vec zero`). *Step* = arité > 0
+(`Cons : Vec (succ k)`). Sert à rejeter `head _ Nil`.
+
+**Strict mode** — mode opt-in (`strict on`) qui n'expose les
+définitions d'un module que sous `M.x`, jamais en nom nu.
+
+**Namespace plat** — les alias de module sont des chaînes
+(`"M.foo"`), pas une hiérarchie. `A.B.foo` fonctionne mais reste
+opaque.
+
+**IO handler** — handler par défaut des effets IO (`print`, `readFile`,
+`writeFile`, `readLine`). Peut être désactivé via `:io off`.
+
+**Skill** — suite de tactiques nommée (`algebra` = `simplify;
+reflexivity`). Appliquée par `skill <name>` sur le théorème actif.

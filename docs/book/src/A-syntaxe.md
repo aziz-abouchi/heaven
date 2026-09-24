@@ -102,6 +102,28 @@ La forme préfixe est la seule garantie aujourd'hui.
 Déclare un type avec ses constructeurs. Le paramètre `a`, `b`, etc.
 représente le type contenu.
 
+Un paramètre peut être **typé** (types dépendants) :
+
+    data Vec (n : Nat) = Nil | Cons a (Vec n)
+    data Fin (n : Nat) = Fz | Fs (Fin n)
+
+Un paramètre peut aussi être **implicite** (non typé) :
+
+    data Maybe a = Nothing | Just a
+
+Les deux formes se combinent :
+
+    data Pair a b = Pair a b
+    data Wrap (n : Nat) a = Wrap a (Vec n)
+
+### Signatures
+
+    sig head : (n : Nat) -> Vec (succ n) -> a
+    sig map  : (a -> b) -> List a -> List b
+
+`sig` déclare le **type** d'une fonction sans son corps. Utilisé pour
+la vérification structurelle des clauses (arité, kind, base/step).
+
 ## Définitions de fonction
 
 Deux syntaxes équivalentes :
@@ -140,9 +162,43 @@ Une clause peut avoir plusieurs gardes :
 ## Théorèmes
 
     theorem name : énoncé
-    prove name by tactique
+    prove name by tactique            -- tactique unique
+    prove name by { t1; t2; t3 }      -- bloc composable
 
     axiom name : énoncé
+
+Tactiques disponibles : `simplify`, `reflexivity`, `assumption`,
+`auto`, `exact h`, `induction x`, `cases x`, `rewrite H`, `apply H`,
+`seq`, `try`, `repeat`.
+
+Bloc interactif (REPL) :
+
+    prove t by {
+      simplify;
+      reflexivity
+    }
+
+### Modules
+
+    module M                            -- ouvre un namespace
+    import "path.hvn" [as Name]         -- charge un fichier
+    import Name                         -- cherche core/std/ puis core/
+    export foo                          -- marque un nom exporté
+    strict on | off                     -- mode strict (opt-in)
+
+### Logique (miniKanren)
+
+    fact name arg1 arg2 ...             -- assert un fait
+    query name arg1 arg2 ...            -- solutions
+    rules                                -- KB (règles) comme valeur
+
+### Logique (Prolog)
+
+    ?- goal                              -- requête Prolog
+
+### Agent IA
+
+    ai "prompt"                          -- envoie un prompt
 
 ## Effets
 
@@ -162,8 +218,26 @@ Une clause peut avoir plusieurs gardes :
 
     :q              -- quitter
     :h              -- aide
+    :stats          -- statistiques du moteur
+    :theorems       -- théorèmes et axiomes
+    :hole [id]      -- trous
+    :refine <id> <expr>   -- raffiner un trou
+    :io on|off|status     -- handler IO
+    :rules          -- KB (règles de réécriture)
+    :skill <name>   -- applique une skill
+
     type expr       -- inférer le type
     simplify expr   -- simplifier
     derive expr     -- dériver
     integrate expr  -- intégrer
     latex expr      -- rendu LaTeX
+
+CAS, forme parenthésée canonique (utilisable dans une expression) :
+
+    (simplify e)
+    (derive e)
+    (integrate e)
+    (solve e)
+    (expand e)
+    (plot e)
+    (latex e)
