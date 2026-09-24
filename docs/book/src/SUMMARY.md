@@ -10,6 +10,7 @@
 - [Streams](07-streams.md)
 - [Proofs and Theorems](08-proofs.md)
 - [Real World](09-real-world.md)
+- [Modules et imports](11-modules.md)
 - [Under the Hood](10-under-the-hood.md)
 
 ---
