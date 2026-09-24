@@ -1,8 +1,36 @@
 # Heaven
 
-Langage de programmation expérimental unifiant raisonnement mathématique, preuves formelles, métaprogrammation et concurrence.
+Langage de programmation expérimental unifiant raisonnement mathématique,
+preuves formelles, métaprogrammation et concurrence.
 
-> **Vision** : Un "OS cognitif" capable de s'auto-optimiser (via E-Graphs) et de prouver formellement ses propriétés — y compris énergétiques. Le langage repose sur un **noyau minimal de 6 primitives fondamentales** (`lit`, `sym`, `apply`, `bind`, `lambda`, `relation`) encodées dans `src/core/expr.zig::Primitive`. Tout le reste — `let_in`, `hole`, `quote`, `perform`, `handle`, types dépendants, listes — est du **sucre syntaxique** qui se traduit mécaniquement en ces 6 primitives via `Store.lower()` avant d'atteindre l'évaluateur.
+> **Vision** : un « OS cognitif » capable de s'auto-optimiser (via E-Graphs)
+> et de prouver formellement ses propriétés — y compris énergétiques.
+> Le langage repose sur un **noyau minimal de 6 primitives fondamentales**
+> (`lit`, `sym`, `apply`, `bind`, `lambda`, `relation`). Tout le reste —
+> modules, types dépendants, tactiques, effets — est du **sucre syntaxique**
+> abaissé via `Store.lower()` avant d'atteindre l'évaluateur.
+
+## Ce qui marche aujourd'hui
+
+Source de vérité : **[docs/STATUS.md](docs/STATUS.md)** (✅ stable, ⚠️ partiel,
+🚧 roadmap). Points forts actuels :
+
+- **Noyau** : 6 primitives strictes, hash-consing, `Tag.evar` (métavariables
+  internes distinctes de `Tag.hole`).
+- **Modules** : `module M`, `import "path.hvn" as Name`, transitif, cycles
+  détectés, `HEAVEN_PATH`, `export`, idempotence, mode `strict on/off`.
+- **Types dépendants (surface)** : `data Vec (n : Nat) = Nil | Cons a (Vec n)`,
+  `sig head : (n : Nat) -> Vec (succ n) -> a`, vérification structurelle des
+  patterns (arité, kind, compatibilité base/step).
+- **Tactiques composables** : blocs `prove t by { ... }`, REPL interactif de
+  buts, `simplify / reflexivity / assumption / auto / cases / induction /
+  rewrite / apply / exact / seq / try / repeat`.
+- **Stdlib** : `Bool`, `List`, `Option`, `Pair`, `Result` chargés au boot.
+- **IO par effets** : `perform / handle`, handler par défaut
+  (`print`, `readFile`, `writeFile`, `readLine`).
+- **QTT** : `let linear / erased / many x = … in …`.
+- **Pipeline logique** : miniKanren (`kanren_expr`), `typeo`/`evalo`,
+  synthèse → E-Graph → extraction.
 
 ## Les 6 primitives
 
@@ -11,211 +39,174 @@ Langage de programmation expérimental unifiant raisonnement mathématique, preu
 | 1 | `lit` | Valeurs immédiates (int, float, str, bool, unit, runtime) | `aux` → index dans `lits` |
 | 2 | `sym` | Variables, symboles, noms de constructeurs | `payload` → index interner |
 | 3 | `apply` | Application *n-aire* | `payload` → fonction, `span_a` → arguments |
-| 4 | `bind` | Définition globale | `payload` → nom, `aux` → valeur |
-| 5 | `lambda` | Abstraction | `payload` → paramètre, `span_a` → corps |
+| 4 | `bind` | Définition globale | `payload` → nom (Sym), `aux` → valeur |
+| 5 | `lambda` | Abstraction | `payload` → paramètre (Sym), `span_a` → corps |
 | 6 | `relation` | Règles de réécriture / théorèmes | `payload` → tête, `span_a` → LHS, `span_b` → RHS |
 
-**Extensions** (sucre syntaxique, lowered avant évaluation) :
+**Extensions** (sucre abaissé avant évaluation) :
+
 - `let x = v in b` → `apply(lambda(x, b), v)`
-- `_n` (hole) → `sym("_")`
-- `'e` (quote) → `apply(quote, e)`
-- `~e` (unquote) → `apply(unquote, e)`
+- `f x = body` (équation) → clause dans `engine.fns`
+- `module M` / `import "path" as Name` → alias `M.x` dans `engine.fns`
+- `data Vec (n : Nat) = ...` → `TypeRegistry` + ctor_arity + ctor_parents
+- `sig f : A -> B -> C` → arité + domaines (heads + full) dans `Heaven`
+- `theorem t : a = b` + `prove t by { ... }` → `ProofState` + `Tactic`
 - `perform(op, args)` → `apply(perform, op, args...)`
 - `handle(body, h)` → `apply(handle, body, h)`
-- `[]` (list_nil) → `sym("Nil")`
-- `h::t` (list_cons) → `apply(Cons, h, t)`
-- `Type_i` (universe) → `sym("Type_i")`
+- `_` (hole) → `Tag.hole`
+- `Type` / `Prop` → `sym("Type")` / `sym("Prop")`
 
-L'évaluateur (`src/core/engine_expr.zig`) ne dispatch que sur ces 6 primitives. Si une extension non-lowered atteint l'évaluateur, elle déclenche `error.ExtensionNotLowered`.
+L'évaluateur (`src/core/engine_expr.zig`) ne dispatch que sur ces 6 primitives.
+Si une extension non-abaissée atteint l'évaluateur, elle déclenche
+`error.ExtensionNotLowered`.
 
 ## Installation
 
 ```bash
-# Natif (Linux)
-zig build
+zig build                 # natif (Linux / macOS)
+zig build wasm            # WebAssembly
 
-# WebAssembly
-zig build wasm
-cp zig-out/bin/heaven.wasm src/vessel/public/
-```
+Quickstart (REPL natif)
 
-## Utilisation
+./zig-out/bin/heaven repl
 
-**REPL natif :**
-```bash
-rlwrap ./zig-out/bin/heaven 8080
-```
+Stdlib au boot
+heaven> not true
+false
 
-**REPL web :**
-Ouvrir `src/vessel/public/index.html` dans un navigateur.
+heaven> length (cons 1 (cons 2 nil))
+(succ (succ zero))
 
-## Commandes disponibles
+heaven> head (cons 1 (cons 2 nil))
+1
 
-| Commande | Description |
-|----------|-------------|
-| `help` | Affiche l'aide |
-| `stats` | Statistiques du moteur |
-| `theorems` | Liste les théorèmes et axiomes |
-| `let` | Définit une variable ou une fonction (syntaxe Lisp pour la récursion) |
-| `simplify` | Simplifie une expression |
-| `derive` | Dérivation symbolique |
-| `integrate` | Intégration symbolique |
-| `solve` | Résolution d'équations |
-| `expand` | Développement d'expressions |
-| `plot` | Tracé de courbes (ASCII) |
-| `latex` | Rendu LaTeX |
-| `explain` | Trace les étapes de simplification |
-| `theorem` | Déclare un théorème |
-| `prove` | Prouve un théorème (`simplify`, `induction`) |
-| `skill` | Applique une tactique de preuve |
-| `mir` | Compile et exécute du code MIR |
-| `transform` | Système de transformation unifié avec certificat |
-| `ask` | Agent IA (suggère des théorèmes et des réécritures) |
-| `js` | Transpile une expression vers JavaScript |
+heaven> is_some (some 42)
+true
 
-## Exemples
+Définitions et récursion
 
-### Définition récursive (syntaxe Lisp)
+heaven> fac n = if (== n 0) 1 (* n (fac (- n 1)))
+✓ clause enregistrée pour 'fac'
 
-```heaven
-heaven> let fac(n) = (if (== n 0) 1 (* n (fac (- n 1))))
-→ fac clause (1 patterns) registered
+heaven> fac 5
+120
 
-heaven> fac(5)
-→ 120
+Modules et imports
 
-heaven> fac(0)
-→ 1
-```
+heaven> module M
+✓ module M ouvert
 
-### Simplification et preuves
+heaven> foo x = x + 1
+✓ clause enregistrée pour 'foo'
 
-```heaven
-heaven> simplify x + 0
-→ x
+heaven> import "core/stream.hvn" as Stream
+✓ import core/stream.hvn as Stream (37 line(s))
 
-heaven> theorem add_zero : a + 0 = a
+heaven> M.foo 5
+6
+
+Types dépendants (surface)
+
+heaven> data Vec (n : Nat) = Nil | Cons a (Vec n)
+✓ data Vec registered (1 param(s), 2 constructor(s))
+
+heaven> sig head : (n : Nat) -> Vec (succ n) -> a
+✓ sig head : 2 arg(s)
+
+heaven> head _ Nil = 42
+✗ pattern 2 : Nil incompatible avec le domaine 'Vec (succ n)'
+
+heaven> head _ (Cons x _) = x
+✓ clause enregistrée pour 'head'
+
+Preuves et tactiques
+
+heaven> theorem add_zero : x + 0 = x
 ✓ theorem add_zero stated
 
-heaven> prove add_zero by simplify
-✓ [add_zero] proved (simplify)
-```
+heaven> prove add_zero by { simplify }
+✓ [add_zero] proved (tactics)
 
-### Système de transformation unifié
+REPL interactif :
 
-```heaven
-heaven> theorem add_zero : a + 0 = a
-✓ theorem add_zero stated
+heaven> prove add_zero by {
+Goal 1/1
+  ── Target ──
+    (= (+ x 0) x)
+> simplify
+✓ All goals solved. Tapez '}' ou 'qed' pour valider.
+> qed
+✓ [add_zero] proved (interactive)
 
-heaven> transform x + 0 = x
-Success:
- Result: Refl
- Certificate: 4 steps
-```
+Effets / IO
 
-### Compilation MIR
+heaven> print "hello, world"
+hello, world
 
-```heaven
-heaven> mir (+ 2 3)
-→ 5
+heaven> readFile "core/bootstrap.hvn"
+...
 
-heaven> mir (if 1 10 20)
-→ 10
+Commandes disponibles
 
-heaven> mir (while (< 5 1) 42)
-→ 0
-```
+Commande	Description
+help	Affiche l'aide
+stats	Statistiques du moteur
+theorems	Liste les théorèmes et axiomes
+:hole / :refine	Trous (_) : liste, détail, raffinement
+:io on/off/status	Activer / désactiver / status du handler IO
+:skill <name>	Applique une tactique de preuve (skills)
+module M / import	Namespaces, imports, strict on/off
+data / sig	Types de données et signatures
+theorem / prove	Déclarer et prouver (par eval, simplify, induction, ou by { ... })
+simplify / derive / integrate / solve / expand	CAS
+plot / latex	Rendu graphique et LaTeX
+transform	Système de transformation unifié avec certificat
+ask	Agent IA (suggestions de théorèmes / réécritures)
+js / mir	Transpilation JS, compilation MIR
 
-### Agent IA
+Architecture (par couches)
 
-```heaven
-heaven> ask Prouve la commutativité de l'addition
-→ Suggestion : theorem comm_test : a + b = b + a
-→ ✓ theorem comm_test stated
+Surface : REPL / shell / vessel WASM / CLI
+──────────────────────────────────────────
+Façade : src/core/heaven_expr.zig (parse, eval, import, tactics…)
+──────────────────────────────────────────
+Core IR        Logic / Rewrite      Proof / Types
+expr, engine   kanren_expr          tactics, kernel
+pattern, canon logic/*, egraph      types, type_registry
+               transform           elab, hole, proof_core
+──────────────────────────────────────────
+Lowering / Front  |  Élévation         |  Runtime
+syntax/lower      |  translator/MLCPD  |  actors, swarm
+parse, elab       |  codegen JS/C/Ltx  |  prolog, green
+                  |  forge             |  scut/network
 
-heaven> ask factorielle
-→ Suggestion : let fac(n) = (if (== n 0) 1 (* n (fac (- n 1))))
-→ fac clause (1 patterns) registered
-```
+Documentation
+docs/STATUS.md — source de vérité (ce qui marche)
 
-### Transpilation JavaScript
+docs/ROADMAP.md — specs actionnables (v0/v1/v2…)
 
-```heaven
-heaven> js 2 + 3 * 4
-→ (2 + (3 * 4))
+docs/book/ — livre (mdBook) : 10 chapitres + annexes + CHANGELOG
 
-heaven> js (if 1 10 20)
-→ (1 ? 10 : 20)
-```
+docs/ARCHITECTURE.txt — architecture technique
 
-## Équivalence Inter-Langages (MLCPD)
+docs/HEAVEN_LANGUAGE.md — syntaxe du langage
 
-> ⚠️ Le terme « certifiée » serait un abus : le ProofTerm est construit
-> par l'algorithme mais jamais revérifié par le noyau. La vérification
-> effective est un type-check + WHNF compare. Voir `src/translator/mlcpd_equiv.zig`.
+docs/capabilities.md — design des capabilities
 
-Ce système prouve formellement l'équivalence sémantique de programmes écrits dans différents langages.
+docs/GUIDE_MLCPD_INTEGRATION.md — pont MLCPD
 
-**Exemple :**
-- **Python** : `def is_adult(age): return age >= 18`
-- **Java** : `boolean isAdult(int age) { return age >= 18; }`
-- **Résultat** : `equivalent: true`
+Tests
+zig build test              # 162 tests unitaires (Zig)
+zig build test-regression   # 77 tests Heaven (core/test_suite.hvn)
+zig build test-files        # tests/*.hvn (multi-fichiers)
 
-Voir [docs/GUIDE_MLCPD_INTEGRATION.md](docs/GUIDE_MLCPD_INTEGRATION.md) pour le guide complet et [examples/EQUIVALENCE_EXAMPLES.md](examples/EQUIVALENCE_EXAMPLES.md) pour plus d'exemples.
+Statut global
+Expérimental avancé. Le noyau et les briques récentes (modules, tactics,
+type-dep surface, stdlib) sont utilisables au REPL. Manquent : unification
+d'indexes dépendants (v2d), découpage du monolithe heaven_expr.zig,
+unification du pipeline logique derrière une API unique.
 
-## Architecture
+Voir docs/ROADMAP.md pour les chantiers en cours.
 
-| Module | Rôle |
-|--------|------|
-| `src/core/expr.zig` | Noyau : 6 primitives + extensions + lowering |
-| `src/core/engine_expr.zig` | Évaluateur (dispatch sur 6 primitives uniquement) |
-| `src/core/canon.zig` | Canonicalisation AC (ordre total sur les 6 primitives) |
-| `src/core/pattern.zig` | Pattern matching structural (sur les 6 primitives) |
-| `src/core/types.zig` | Inférence Hindley-Milner (rejette les extensions) |
-| `src/core/proof.zig` | Système de preuve (normalisation Peano sur primitives) |
-| `src/platform/` | Abstraction Native / WASM |
-| `core/` | Suite de tests et programmes Heaven (`.hvn`) |
-| `src/vessel/` | Interface web (REPL WASM) |
-
-Pour les détails techniques, voir [docs/ARCHITECTURE.txt](docs/ARCHITECTURE.txt).
-
-## Documentation
-
-- [docs/transform.md](docs/transform.md) — Interface de transformation
-- [docs/ARCHITECTURE.txt](docs/ARCHITECTURE.txt) — Architecture technique
-- [docs/TUTORIAL.txt](docs/TUTORIAL.txt) — Tutoriel pas-à-pas
-- [docs/HEAVEN_LANGUAGE.md](docs/HEAVEN_LANGUAGE.md) — Syntaxe du langage
-
-## Tests
-
-```bash
-zig build test
-```
-
-39 tests unitaires passent (sur 39).
-
-Vous pouvez également exécuter la suite fonctionnelle :
-```bash
-zig build run -- --run-test core/test_suite.hvn
-```
-
-## Feuille de route (Maturité 12/12)
-
-| Score | Fonctionnalité | Statut |
-|-------|---------------|--------|
-| 1-3 | Noyau logique, arithmétique de Peano, E-Graphs | |
-| 4-6 | Pipeline MLCPD, macros hygiéniques (`quote`/`unquote`) | |
-| 7-9 | Acteurs typés synchrones (`spawn`, `send`, `state`) | |
-| 10 | Effets algébriques (`perform`, `handle`) | |
-| 11 | Inférence de type Hindley-Milner | |
-| 12 | Green Profiling (énergie via effets algébriques) | |
-
-## Limitations actuelles
-
-- **MIR** : la commande `mir` ne compile que les primitives arithmétiques et les structures de contrôle (`if`, `while`, `break`). Les fonctions utilisateur définies avec `let` ne sont pas encore compilables en MIR. Utilisez l'évaluation directe (`fac(5)`) pour exécuter vos fonctions.
-- **Syntaxe native** : la définition de fonctions avec des virgules (`let fac(n) = if(n == 0, 1, n * fac(n - 1))`) est en cours de stabilisation. La syntaxe Lisp est recommandée pour l'instant.
-
-## Licence
-
-
+Licence
 Apache 2.0
