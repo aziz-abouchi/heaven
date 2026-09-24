@@ -210,3 +210,49 @@ sûreté.
 Au chapitre suivant, on plonge dans la **récursion** : comment écrire
 des fonctions qui se rappellent elles-mêmes sans se perdre, et
 pourquoi c'est le cœur du paradigme fonctionnel.
+
+
+---
+
+## Types dépendants (surface)
+
+Depuis septembre 2026, `data` accepte des **paramètres typés** :
+
+    heaven> data Vec (n : Nat) = Nil | Cons a (Vec n)
+    ✓ data Vec registered (1 param(s), 2 constructor(s))
+
+`Vec` est indexé par une valeur (`n : Nat`), pas seulement par un
+type. C'est la base des types dépendants.
+
+### Signatures
+
+Une fonction sur `Vec` se déclare avec une **signature** :
+
+    heaven> sig head : (n : Nat) -> Vec (succ n) -> a
+    ✓ sig head : 2 arg(s)
+
+`head` prend un `Nat` (paramètre explicite) et une `Vec (succ n)`
+— `succ` garantit qu'elle est non-vide — et retourne un élément `a`.
+
+### Vérification structurelle
+
+Quand tu écris des clauses, Heaven vérifie trois choses :
+
+1. **Arité**. `head` attend 2 patterns. `head Nil = ...` est refusé.
+
+2. **Kind**. `Cons` appartient à `Vec`, pas à `Nat`. Une clause
+   `head (Cons x _) _ = x` est refusée (le 1er arg doit être `Nat`).
+
+3. **Compatibilité base/step**. `Nil` est le constructeur *base*
+   (`Vec zero`), `Cons` est *step* (`Vec (succ k)`). Une clause
+   `head _ Nil` est refusée car `Nil : Vec zero` ne peut pas matcher
+   `Vec (succ n)`.
+
+    heaven> head _ Nil = 42
+    ✗ pattern 2 : Nil incompatible avec le domaine 'Vec (succ n)'
+
+    heaven> head _ (Cons x _) = x
+    ✓ clause enregistrée pour 'head'
+
+C'est la vérification v2c (2026-09-23). L'unification vraie
+d'indexes (`Vec (n + m)`, liaison `n := k`) est en roadmap v2d.
