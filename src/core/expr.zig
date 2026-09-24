@@ -125,6 +125,16 @@ pub const Primitive = enum(u8) {
     relation,
 };
 
+pub const BinaryOp = enum {
+    add,
+    sub,
+    mul,
+    div,
+    lt,
+    eq,
+    // ... autres opérateurs binaires
+};
+
 pub const Tag = enum(u8) {
     // === 6 primitives fondamentales (noyau) ===
     lit,
@@ -881,6 +891,20 @@ pub const Store = struct {
         return self.apply(op_sym, &.{ a, b });
     }
 
+    pub fn getBinaryOp(self: Store, id: Id) ?BinaryOp {
+        const node = self.get(id);
+        // Adaptez la logique ci-dessous selon la structure exacte de vos nœuds binaires/apply :
+        if (node.tag == .apply) {
+            const span = self.getSpanA(node);
+            if (span.len > 0) {
+                const op_node = self.get(span[0]);
+                // Si l'opérateur est un symbole ou une valeur d'enum dans payload :
+                return @enumFromInt(op_node.payload);
+            }
+        }
+        return null;
+    }
+
     pub fn aggregate(self: *Store, op: []const u8, var_name: []const u8, lo: Id, hi: Id, body: Id) !Id {
         const op_sym = try self.sym(op);
         const var_sym = try self.sym(var_name);
@@ -915,6 +939,12 @@ pub const Store = struct {
 
     pub fn getLit(self: *const Store, aux: u32) Lit {
         return self.lits.items[aux];
+    }
+
+    pub fn getInt(self: Store, id: Id) i64 {
+        const node = self.get(id);
+        // Adaptez selon votre représentation interne des nœuds littéraux
+        return @intCast(node.payload);
     }
 
     fn singleSpan(self: *Store, id: Id) !Span {
