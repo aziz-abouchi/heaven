@@ -11,6 +11,7 @@ const Id = expr.Id;
 const Store = expr.Store;
 const ps = @import("proof_state");
 const unify_mod = @import("unify_proof");
+pub const unify_proof = unify_mod;
 const ProofState = ps.ProofState;
 const Goal = ps.Goal;
 const Hypothesis = ps.Hypothesis;

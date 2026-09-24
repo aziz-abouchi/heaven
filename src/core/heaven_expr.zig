@@ -31,6 +31,7 @@ const elab_mod = @import("elab");
 const profiler_mod = @import("profiler");
 const io_handler_mod = @import("io_handler");
 const expr_parser_mod = @import("expr_parser");
+const unify_proof_mod = @import("tactics").unify_proof;
 const hole_runtime_mod = @import("hole_runtime");
 
 /// Réexport de commodité : les consommateurs historiques (`commands.zig`,
@@ -179,6 +180,12 @@ pub const Heaven = struct {
     hole_runtime: hole_runtime_mod.HoleRuntime,
     /// v2b : type parent de chaque ctor (`Cons` → `Vec`).
     ctor_parents: std.StringHashMapUnmanaged([]const u8) = .{},
+    /// v2d : forme du résultat d'un ctor paramétré (ex. `Cons` →
+    /// `"Vec (succ _)"`, `Nil` → `"Vec zero"`). Sert à unifier
+    /// le domaine déclaré (`Vec (succ n)`) avec la forme du ctor
+    /// pour accumuler les bindings d'indexes dépendants avant
+    /// d'instancier le RHS de l'équation.
+    ctor_results: std.StringHashMapUnmanaged([]const u8) = .{},
     /// v2b : heads des domaines d'une signature (`sig f : A -> B -> C`
     /// stocke `"A B"`).
     fn_domains: std.StringHashMapUnmanaged([]const u8) = .{},
@@ -538,6 +545,14 @@ pub const Heaven = struct {
             }
         }
         self.fn_domains_full.deinit(self.allocator);
+        {
+            var it = self.ctor_results.iterator();
+            while (it.next()) |e| {
+                self.allocator.free(e.key_ptr.*);
+                self.allocator.free(@constCast(e.value_ptr.*));
+            }
+        }
+        self.ctor_results.deinit(self.allocator);
         var imp_it = self.imported_files.iterator();
         while (imp_it.next()) |e| {
             self.allocator.free(e.key_ptr.*);
@@ -1505,6 +1520,27 @@ pub const Heaven = struct {
                     g.value_ptr.* = v;
                 }
             }
+
+            // v2d : forme du résultat du ctor pour les types
+            // paramétrés (convention pour types à un seul paramètre
+            // indexé, ex. Vec) :
+            //   arity 0  → "<TypeName> zero"
+            //   arity >0 → "<TypeName> (succ _)"
+            if (params.items.len >= 1) {
+                const result_str = if (arity == 0)
+                    try std.fmt.allocPrint(self.allocator, "{s} zero", .{type_name})
+                else
+                    try std.fmt.allocPrint(self.allocator, "{s} (succ _)", .{type_name});
+                const k = try self.allocator.dupe(u8, ctor_name);
+                const g = try self.ctor_results.getOrPut(self.allocator, k);
+                if (g.found_existing) {
+                    self.allocator.free(k);
+                    self.allocator.free(@constCast(g.value_ptr.*));
+                    g.value_ptr.* = result_str;
+                } else {
+                    g.value_ptr.* = result_str;
+                }
+            }
         }
 
         // 3. Enregistre dans le TypeRegistry.
@@ -1733,12 +1769,59 @@ pub const Heaven = struct {
             }
         }
 
+        // ─── v2d : unification d'indexes dépendants ───
+        // Pour chaque pattern ctor dont le parent est un type paramétré,
+        // on unifie la forme du résultat du ctor (`Vec (succ _)`) avec
+        // le domaine déclaré (`Vec (succ n)`), accumulant les bindings
+        // dans `subst_v2d`. Le body est ensuite instancié sous cette
+        // substitution.
+        //
+        // Best-effort : si l'unification échoue ou n'est pas applicable
+        // (parse error, côté non reconnu), on ne rejette pas — v2c a
+        // déjà validé la compatibilité base/step.
+        var subst_v2d: unify_proof_mod.Subst = .{};
+        defer subst_v2d.deinit(self.allocator);
+        const uctx_v2d = unify_proof_mod.Ctx{
+            .store = self.store,
+            .allocator = self.allocator,
+        };
+        if (self.fn_domains_full.get(name)) |domains_str_v2d| {
+            var hit_v2d = std.mem.tokenizeScalar(u8, domains_str_v2d, 0x1f);
+            var idx_v2d: usize = 0;
+            while (hit_v2d.next()) |domain_str_v2d| : (idx_v2d += 1) {
+                if (idx_v2d >= patterns.items.len) break;
+                const p_id_v2d = patterns.items[idx_v2d];
+                const pn_v2d = self.store.get(p_id_v2d);
+                var ctor_name_v2d: ?[]const u8 = null;
+                if (pn_v2d.tag == .sym) {
+                    const nm = self.store.interner.resolve(pn_v2d.payload);
+                    if (self.ctor_results.contains(nm)) ctor_name_v2d = nm;
+                } else if (pn_v2d.tag == .apply) {
+                    const fn_v2d = self.store.get(pn_v2d.payload);
+                    if (fn_v2d.tag == .sym) {
+                        const nm = self.store.interner.resolve(fn_v2d.payload);
+                        if (self.ctor_results.contains(nm)) ctor_name_v2d = nm;
+                    }
+                }
+                if (ctor_name_v2d) |cn| {
+                    const result_str = self.ctor_results.get(cn) orelse continue;
+                    const result_id = self.parseExpression(result_str) catch continue;
+                    const domain_id = self.parseExpression(domain_str_v2d) catch continue;
+                    _ = unify_proof_mod.unify(&uctx_v2d, result_id, domain_id, &subst_v2d) catch continue;
+                }
+            }
+        }
+        const body_used: Id = if (subst_v2d.count() > 0)
+            (unify_proof_mod.instantiate(&uctx_v2d, body, &subst_v2d) catch body)
+        else
+            body;
+
         // v3a : en mode strict ET pendant un module, on n'enregistre
         // PAS le nom nu. On enregistre seulement l'alias `M.name` plus bas,
         // et on trace le nom nu dans hidden_names pour le bloquer au REPL.
         const in_strict_module = self.strict_modules and self.current_module != null;
         if (!in_strict_module) {
-            try self.registerClause(name, patterns.items, body);
+            try self.registerClause(name, patterns.items, body_used);
         } else {
             const owned = try self.allocator.dupe(u8, name);
             const gop = self.hidden_names.getOrPut(self.allocator, owned) catch {
@@ -1763,7 +1846,7 @@ pub const Heaven = struct {
                     .{ m, name },
                 );
                 defer self.allocator.free(qualified);
-                self.registerClause(qualified, patterns.items, body) catch {};
+                self.registerClause(qualified, patterns.items, body_used) catch {};
             }
         }
 
