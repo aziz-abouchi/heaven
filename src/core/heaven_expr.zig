@@ -31,6 +31,7 @@ const elab_mod = @import("elab");
 const profiler_mod = @import("profiler");
 const io_handler_mod = @import("io_handler");
 const expr_parser_mod = @import("expr_parser");
+const std_loader = @import("std_loader");
 const unify_proof_mod = @import("tactics").unify_proof;
 const hole_runtime_mod = @import("hole_runtime");
 
@@ -417,52 +418,7 @@ pub const Heaven = struct {
     /// Ce chemin passe par evalDataDecl (qui enregistre correctement
     /// les ctor_arity) contrairement à ingest/elab.
     fn loadStdIO(self: *Heaven) void {
-        const files = [_][]const u8{
-            "core/io.hvn",
-            "core/std/bool.hvn",
-            "core/std/list.hvn",
-            "core/std/option.hvn",
-            "core/std/pair.hvn",
-            "core/std/result.hvn",
-        };
-        for (files) |path| self.loadOneStdFile(path);
-    }
-
-    fn loadOneStdFile(self: *Heaven, path: []const u8) void {
-        const source = platform.fs.cwd().readFileAlloc(
-            self.allocator,
-            path,
-            64 * 1024,
-        ) catch |err| {
-            platform.dbg("[loadStdIO] readFileAlloc {s} failed: {}\n", .{ path, err });
-            return;
-        };
-        defer self.allocator.free(source);
-
-        // Sauve/restaure current_module : un fichier std contient
-        // `module Foo` qui positionne current_module. Sans ce save/restore,
-        // l'état fuit après init et casse les tests module v1.
-        const old_module = self.current_module;
-        defer {
-            if (self.current_module) |m| self.allocator.free(m);
-            self.current_module = old_module;
-        }
-
-        var lines = std.mem.splitScalar(u8, source, '\n');
-        while (lines.next()) |line| {
-            const trimmed = std.mem.trim(u8, line, " \t\r");
-            if (trimmed.len == 0) continue;
-            if (trimmed[0] == '#') continue;
-            if (std.mem.startsWith(u8, trimmed, "--")) continue;
-            if (std.mem.startsWith(u8, trimmed, "//")) continue;
-            if (std.mem.startsWith(u8, trimmed, ";;")) continue;
-
-            const result = self.eval(trimmed) catch |err| {
-                platform.dbg("[loadStdIO] {s} '{s}' failed: {}\n", .{ path, trimmed, err });
-                continue;
-            };
-            self.allocator.free(result);
-        }
+        std_loader.loadAll(self);
     }
 
     pub fn deinit(self: *Heaven) void {

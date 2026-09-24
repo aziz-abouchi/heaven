@@ -343,6 +343,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const std_loader_mod = b.createModule(.{
+        .root_source_file = b.path("src/core/std_loader.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "platform", .module = platform_mod },
+        },
+    });
+
     const egraph_mod = b.createModule(.{
         .root_source_file = b.path("src/inference/eqsat/egraph.zig"),
         .target = target,
@@ -771,6 +780,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "io_handler", .module = io_handler_mod },
             .{ .name = "expr_parser", .module = expr_parser_mod },
             .{ .name = "hole_runtime", .module = hole_runtime_mod },
+            .{ .name = "std_loader", .module = std_loader_mod },
         },
     });
     heaven_expr_mod.addOptions("build_options", options);
@@ -1106,6 +1116,7 @@ pub fn build(b: *std.Build) void {
     test_he_imports.append(b.allocator, .{ .name = "io_handler", .module = io_handler_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "expr_parser", .module = expr_parser_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "hole_runtime", .module = hole_runtime_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "std_loader", .module = std_loader_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "unify_proof", .module = unify_proof_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "hole", .module = hole_mod }) catch unreachable;
 
