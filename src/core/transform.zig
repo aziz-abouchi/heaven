@@ -534,3 +534,38 @@ pub const TraceTracer = struct {
     }
 };
 // ═══════════════════════════════════════ Stratégies avancées ═══════════════════════════════════════
+
+pub const Goal = struct {
+    // Définis ici les champs du but (ex: target: *Term)
+};
+
+pub const Planner = struct {
+    allocator: std.mem.Allocator,
+    is_wasm: bool = false,
+
+    pub fn buildPlan(self: *Planner, goal: Goal) !Plan {
+        var plan = Plan.init(self.allocator);
+
+        switch (goal.kind) {
+            .arithmetic => {
+                // 1. Tenter la résolution linéaire directe
+                if (goal.isLinear()) {
+                    try plan.append(.Presburger);
+                    try plan.append(.Proof);
+                    return plan;
+                }
+                // 2. Décidabilité rapide par congruence
+                try plan.append(.Congruence);
+                // 3. Fallback sur le pipeline classique
+                try plan.append(.Induction);
+                if (!self.is_wasm) try plan.append(.EGraph);
+                try plan.append(.CAS);
+                try plan.append(.Proof);
+            },
+            .ontological => {},
+            .relational => {},
+        }
+
+        return plan;
+    }
+};

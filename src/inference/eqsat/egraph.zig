@@ -99,7 +99,12 @@ pub const CostModel = struct {
                     c += total(store, child);
                 }
             },
-            .bind => c += total(store, node.aux),
+            .bind => {
+                const children = node.span_a.slice(store.pool.items);
+                if (children.len != 2) return c;
+                c += total(store, children[0]);
+                c += total(store, children[1]);
+            },
             else => {},
         }
         return c;
