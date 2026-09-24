@@ -10,9 +10,36 @@ const expr = @import("expr");
 const Id = expr.Id;
 const Store = expr.Store;
 const ps = @import("proof_state");
+const unify_mod = @import("unify");
 const ProofState = ps.ProofState;
 const Goal = ps.Goal;
 const Hypothesis = ps.Hypothesis;
+
+// ─── Wrappers vers unify_mod (compat avec l'API locale) ───
+
+fn unify(ctx: *TacticCtx, a: Id, b: Id, subst: *Subst) TacticError!bool {
+    const uctx = unify_mod.Ctx{ .store = ctx.store, .allocator = ctx.allocator };
+    return unify_mod.unify(&uctx, a, b, subst) catch |e| switch (e) {
+        error.OutOfMemory => TacticError.OutOfMemory,
+        error.Mismatch => TacticError.TacticFailed,
+    };
+}
+
+fn instantiate(ctx: *TacticCtx, e: Id, subst: *const Subst) TacticError!Id {
+    const uctx = unify_mod.Ctx{ .store = ctx.store, .allocator = ctx.allocator };
+    return unify_mod.instantiate(&uctx, e, subst) catch |uerr| switch (uerr) {
+        error.OutOfMemory => TacticError.OutOfMemory,
+        error.Mismatch => TacticError.TacticFailed,
+    };
+}
+
+fn rewriteIn(ctx: *TacticCtx, e: Id, from: Id, to: Id) TacticError!Id {
+    const uctx = unify_mod.Ctx{ .store = ctx.store, .allocator = ctx.allocator };
+    return unify_mod.rewriteIn(&uctx, e, from, to) catch |uerr| switch (uerr) {
+        error.OutOfMemory => TacticError.OutOfMemory,
+        error.Mismatch => TacticError.TacticFailed,
+    };
+}
 
 pub const TacticError = error{
     NoGoal,
@@ -185,35 +212,6 @@ fn isArrowNode(ctx: *TacticCtx, id: Id) ?struct { dom: Id, cod: Id } {
     return .{ .dom = args[0], .cod = args[1] };
 }
 
-fn rewriteIn(ctx: *TacticCtx, e: Id, from: Id, to: Id) TacticError!Id {
-    const same = ctx.eqFn(ctx, e, from) catch false;
-    if (same) return to;
-    if (e >= ctx.store.len()) return e;
-    const node = ctx.store.get(e);
-    switch (node.tag) {
-        .apply => {
-            const new_func = try rewriteIn(ctx, node.payload, from, to);
-            // Convention Store : span_a = [head] ++ args (cf. isEqNode,
-            // evalSpecialExpr). On skip donc le head, sinon le nœud
-            // reconstruit gonfle d'un cran à chaque réécriture.
-            const all = ctx.store.spanSliceConst(node.span_a);
-            if (all.len < 1) return e;
-            const args_copy = try ctx.allocator.dupe(Id, all[1..]);
-            defer ctx.allocator.free(args_copy);
-            var new_args: std.ArrayListUnmanaged(Id) = .{};
-            defer new_args.deinit(ctx.allocator);
-            var changed = (new_func != node.payload);
-            for (args_copy) |a| {
-                const na = try rewriteIn(ctx, a, from, to);
-                try new_args.append(ctx.allocator, na);
-                if (na != a) changed = true;
-            }
-            if (!changed) return e;
-            return ctx.store.apply(new_func, new_args.items) catch return TacticError.OutOfMemory;
-        },
-        else => return e,
-    }
-}
 
 fn applyRewrite(state: *ProofState, h_name: []const u8, ctx: *TacticCtx) TacticError!void {
     const goal = state.currentGoal() orelse return TacticError.NoGoal;
@@ -234,7 +232,7 @@ fn applyRewrite(state: *ProofState, h_name: []const u8, ctx: *TacticCtx) TacticE
     return TacticError.TacticFailed;
 }
 
-const Subst = std.AutoHashMapUnmanaged(u32, Id);
+const Subst = unify_mod.Subst;
 
 /// Un symbole qui n'est pas un opérateur connu est considéré comme une
 /// variable libre (métavariable implicite).
@@ -316,67 +314,8 @@ fn abstractSyms(
     }
 }
 
-fn instantiate(ctx: *TacticCtx, e: Id, subst: *const Subst) TacticError!Id {
-    if (e >= ctx.store.len()) return e;
-    if (ctx.store.isEvar(e)) |p| {
-        if (subst.get(p)) |bound| return instantiate(ctx, bound, subst);
-        return e;
-    }
-    const node = ctx.store.get(e);
-    switch (node.tag) {
-        .apply => {
-            const new_func = try instantiate(ctx, node.payload, subst);
-            const all = ctx.store.spanSliceConst(node.span_a);
-            if (all.len < 1) return e;
-            const args_copy = try ctx.allocator.dupe(Id, all[1..]);
-            defer ctx.allocator.free(args_copy);
-            var new_args: std.ArrayListUnmanaged(Id) = .{};
-            defer new_args.deinit(ctx.allocator);
-            var changed = (new_func != node.payload);
-            for (args_copy) |a| {
-                const na = try instantiate(ctx, a, subst);
-                try new_args.append(ctx.allocator, na);
-                if (na != a) changed = true;
-            }
-            if (!changed) return e;
-            return ctx.store.apply(new_func, new_args.items) catch return TacticError.OutOfMemory;
-        },
-        else => return e,
-    }
-}
 
 /// Unification simple : remplit `subst` (evar_payload → Id).
-fn unify(ctx: *TacticCtx, a: Id, b: Id, subst: *Subst) TacticError!bool {
-    if (a == b) return true;
-
-    if (ctx.store.isEvar(a)) |pa| {
-        if (subst.get(pa)) |bound| return unify(ctx, bound, b, subst);
-        subst.put(ctx.allocator, pa, b) catch return TacticError.OutOfMemory;
-        return true;
-    }
-    if (ctx.store.isEvar(b)) |pb| {
-        if (subst.get(pb)) |bound| return unify(ctx, a, bound, subst);
-        subst.put(ctx.allocator, pb, a) catch return TacticError.OutOfMemory;
-        return true;
-    }
-
-    if (expr.structuralEql(ctx.store, a, b)) return true;
-    if (a >= ctx.store.len() or b >= ctx.store.len()) return false;
-
-    const na = ctx.store.get(a);
-    const nb = ctx.store.get(b);
-    if (na.tag != .apply or nb.tag != .apply) return false;
-
-    // Unifie la fonction puis les arguments (span_a = [head] ++ args).
-    if (!try unify(ctx, na.payload, nb.payload, subst)) return false;
-    const all_a = ctx.store.spanSliceConst(na.span_a);
-    const all_b = ctx.store.spanSliceConst(nb.span_a);
-    if (all_a.len != all_b.len) return false;
-    for (all_a, all_b) |x, y| {
-        if (!try unify(ctx, x, y, subst)) return false;
-    }
-    return true;
-}
 
 fn applyApplyHyp(state: *ProofState, h_name: []const u8, ctx: *TacticCtx) TacticError!void {
     const goal = state.currentGoal() orelse return TacticError.NoGoal;
