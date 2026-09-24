@@ -601,13 +601,18 @@ pub const Heaven = struct {
             std.mem.startsWith(u8, trimmed, "help") or
             std.mem.startsWith(u8, trimmed, "stats") or
             std.mem.startsWith(u8, trimmed, "theorems") or
-            std.mem.startsWith(u8, trimmed, "axioms") or
-            std.mem.startsWith(u8, trimmed, "meta") or
             std.mem.startsWith(u8, trimmed, "rules");
 
         if (is_command) {
             // Le shell va traiter ces commandes ; on ne les évalue pas ici.
             return self.allocator.dupe(u8, trimmed);
+        }
+
+        // `meta` a été supprimé (2026-09-24). Alias vers `rules`.
+        if (std.mem.eql(u8, trimmed, "meta") or
+            std.mem.startsWith(u8, trimmed, "meta "))
+        {
+            return self.allocator.dupe(u8, "meta supprimé, utilisez rules");
         }
 
         // ─── export name1 [name2 ...] : marque des noms exportés ───
@@ -899,18 +904,6 @@ pub const Heaven = struct {
         }
         if (std.mem.eql(u8, trimmed, "meta") or std.mem.eql(u8, trimmed, "rules")) {
             return self.listRules();
-        }
-
-        // ─── Formes spéciales : type <expr> ───
-        if (std.mem.startsWith(u8, trimmed, "type ")) {
-            const inner = std.mem.trim(u8, trimmed["type ".len..], " ");
-            return self.evalTypeExpr(inner);
-        }
-
-        // ─── Formes spéciales : green <expr> ───
-        if (std.mem.startsWith(u8, trimmed, "green ")) {
-            const inner = std.mem.trim(u8, trimmed["green ".len..], " ");
-            return self.evalGreenExpr(inner);
         }
 
         // ─── Déclaration de type : data Name params = C1 | C2 args | ... ───
