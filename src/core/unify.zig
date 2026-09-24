@@ -1,118 +1,125 @@
-//! Unification de premier ordre sur `expr.Id` (Core IR).
-//!
-//! Ne dépend que du `Store` et d'un `Allocator`. Utilisé par :
-//! - `tactics.zig` (apply / reflexivity)
-//! - `heaven_expr.zig` (type-dep v2d : unifier un résultat de ctor
-//!   avec un domaine indexé, ex. `Vec (succ k)` vs `Vec (succ n)`).
-//!
-//! Les métavariables sont des nœuds `Tag.evar`. La substitution lie
-//! `payload` (u32) → `Id`.
-
 const std = @import("std");
-const expr = @import("expr");
-const Id = expr.Id;
-const Store = expr.Store;
+const matrix_lib = @import("matrix_lib");
+const BobId = matrix_lib.BobId;
+const BobNode = matrix_lib.BobNode;
 
-pub const Subst = std.AutoHashMapUnmanaged(u32, Id);
-
-pub const Ctx = struct {
-    store: *Store,
+pub const Substitution = struct {
+    bindings: std.AutoHashMap(BobId, BobId),
     allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator) Substitution {
+        return .{
+            .bindings = std.AutoHashMap(BobId, BobId).init(allocator),
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *Substitution) void {
+        self.bindings.deinit();
+    }
+
+    pub fn lookup(self: *const Substitution, id: BobId) BobId {
+        var curr = id;
+        while (self.bindings.get(curr)) |next| {
+            if (next == curr) break;
+            curr = next;
+        }
+        return curr;
+    }
+
+    pub fn bind(self: *Substitution, var_id: BobId, target_id: BobId) !void {
+        try self.bindings.put(var_id, target_id);
+    }
 };
 
-pub const UnifyError = error{
-    Mismatch,
-    OutOfMemory,
-};
+/// Normalise un BobId en alternant Matrix.findCanonical et Substitution.lookup jusqu'au point fixe.
+pub fn resolve(matrix: *matrix_lib.Matrix, subst: *const Substitution, id: BobId) BobId {
+    var curr = id;
+    while (true) {
+        const canonical = matrix.findCanonical(curr);
+        const looked_up = subst.lookup(canonical);
+        if (looked_up == curr) break;
+        curr = looked_up;
+    }
+    return curr;
+}
 
-/// Unification. Retourne `true` si `a` et `b` peuvent être unifiés,
-/// en remplissant `subst` au passage. Retourne `false` sinon (sans
-/// rollback partiel — l'appelant doit jeter la subst en cas d'échec).
-pub fn unify(ctx: *const Ctx, a: Id, b: Id, subst: *Subst) UnifyError!bool {
+/// Vérifie si la variable `var_id` apparaît dans la structure du nœud désigné par `target_id`.
+fn occursCheck(matrix: *matrix_lib.Matrix, subst: *const Substitution, var_id: BobId, target_id: BobId) bool {
+    const norm_target = resolve(matrix, subst, target_id);
+    if (var_id == norm_target) return true;
+
+    const node = matrix.nodes.get(norm_target) orelse return false;
+    return switch (node) {
+        .HCall => |call| {
+            if (occursCheck(matrix, subst, var_id, call.callee)) return true;
+            for (call.args) |arg| {
+                if (occursCheck(matrix, subst, var_id, arg)) return true;
+            }
+            return false;
+        },
+        else => false,
+    };
+}
+
+pub fn unify(matrix: *matrix_lib.Matrix, subst: *Substitution, a_id: BobId, b_id: BobId) !bool {
+    // 1. Normalisation au point fixe
+    const a = resolve(matrix, subst, a_id);
+    const b = resolve(matrix, subst, b_id);
+
     if (a == b) return true;
 
-    if (ctx.store.isEvar(a)) |pa| {
-        if (subst.get(pa)) |bound| return unify(ctx, bound, b, subst);
-        subst.put(ctx.allocator, pa, b) catch return error.OutOfMemory;
+    const node_a = matrix.nodes.get(a) orelse return false;
+    const node_b = matrix.nodes.get(b) orelse return false;
+
+    const var_a = isVariable(node_a);
+    const var_b = isVariable(node_b);
+
+    // 2. Gestion des variables logiques avec Occurs Check
+    if (var_a and var_b) {
+        try subst.bind(a, b);
         return true;
     }
-    if (ctx.store.isEvar(b)) |pb| {
-        if (subst.get(pb)) |bound| return unify(ctx, a, bound, subst);
-        subst.put(ctx.allocator, pb, a) catch return error.OutOfMemory;
+    if (var_a) {
+        if (occursCheck(matrix, subst, a, b)) return false;
+        try subst.bind(a, b);
+        return true;
+    }
+    if (var_b) {
+        if (occursCheck(matrix, subst, b, a)) return false;
+        try subst.bind(b, a);
         return true;
     }
 
-    if (expr.structuralEql(ctx.store, a, b)) return true;
-    if (a >= ctx.store.len() or b >= ctx.store.len()) return false;
+    // 3. E-Unification : comparaison structurelle récursive
+    const structurally_equal = switch (node_a) {
+        .Symbol => |s| node_b == .Symbol and std.mem.eql(u8, s, node_b.Symbol),
+        .HIntLit => |i| node_b == .HIntLit and i == node_b.HIntLit,
+        .HCall => |call_a| blk: {
+            if (node_b != .HCall) break :blk false;
+            const call_b = node_b.HCall;
+            if (!try unify(matrix, subst, call_a.callee, call_b.callee)) break :blk false;
+            if (call_a.args.len != call_b.args.len) break :blk false;
+            for (call_a.args, 0..) |arg_a, i| {
+                if (!try unify(matrix, subst, arg_a, call_b.args[i])) break :blk false;
+            }
+            break :blk true;
+        },
+        else => false,
+    };
 
-    const na = ctx.store.get(a);
-    const nb = ctx.store.get(b);
-    if (na.tag != .apply or nb.tag != .apply) return false;
-
-    // span_a = [head] ++ args.
-    if (!try unify(ctx, na.payload, nb.payload, subst)) return false;
-    const all_a = ctx.store.spanSliceConst(na.span_a);
-    const all_b = ctx.store.spanSliceConst(nb.span_a);
-    if (all_a.len != all_b.len) return false;
-    for (all_a, all_b) |x, y| {
-        if (!try unify(ctx, x, y, subst)) return false;
+    if (structurally_equal) {
+        matrix.fuseNodes(a, b);
+        return true;
     }
-    return true;
+
+    return false;
 }
 
-/// Substitue les evars liées dans `e`.
-pub fn instantiate(ctx: *const Ctx, e: Id, subst: *const Subst) UnifyError!Id {
-    if (e >= ctx.store.len()) return e;
-    if (ctx.store.isEvar(e)) |p| {
-        if (subst.get(p)) |bound| return instantiate(ctx, bound, subst);
-        return e;
-    }
-    const node = ctx.store.get(e);
-    switch (node.tag) {
-        .apply => {
-            const new_func = try instantiate(ctx, node.payload, subst);
-            const all = ctx.store.spanSliceConst(node.span_a);
-            if (all.len < 1) return e;
-            const args_copy = try ctx.allocator.dupe(Id, all[1..]);
-            defer ctx.allocator.free(args_copy);
-            var new_args: std.ArrayListUnmanaged(Id) = .{};
-            defer new_args.deinit(ctx.allocator);
-            var changed = (new_func != node.payload);
-            for (args_copy) |a| {
-                const na = try instantiate(ctx, a, subst);
-                try new_args.append(ctx.allocator, na);
-                if (na != a) changed = true;
-            }
-            if (!changed) return e;
-            return ctx.store.apply(new_func, new_args.items) catch return error.OutOfMemory;
-        },
-        else => return e,
-    }
-}
-
-/// Réécrit `from` par `to` dans `e`, en récursion sur les `.apply`.
-pub fn rewriteIn(ctx: *const Ctx, e: Id, from: Id, to: Id) UnifyError!Id {
-    if (expr.structuralEql(ctx.store, e, from)) return to;
-    if (e >= ctx.store.len()) return e;
-    const node = ctx.store.get(e);
-    switch (node.tag) {
-        .apply => {
-            const new_func = try rewriteIn(ctx, node.payload, from, to);
-            const all = ctx.store.spanSliceConst(node.span_a);
-            if (all.len < 1) return e;
-            const args_copy = try ctx.allocator.dupe(Id, all[1..]);
-            defer ctx.allocator.free(args_copy);
-            var new_args: std.ArrayListUnmanaged(Id) = .{};
-            defer new_args.deinit(ctx.allocator);
-            var changed = (new_func != node.payload);
-            for (args_copy) |a| {
-                const na = try rewriteIn(ctx, a, from, to);
-                try new_args.append(ctx.allocator, na);
-                if (na != a) changed = true;
-            }
-            if (!changed) return e;
-            return ctx.store.apply(new_func, new_args.items) catch return error.OutOfMemory;
-        },
-        else => return e,
-    }
+fn isVariable(node: BobNode) bool {
+    return switch (node) {
+        .Hole => true,
+        .Symbol => |s| s.len > 0 and std.ascii.isUpper(s[0]),
+        else => false,
+    };
 }

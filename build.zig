@@ -149,8 +149,8 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    const unify_mod = b.addModule("unify", .{
-        .root_source_file = b.path("src/core/unify.zig"),
+    const unify_proof_mod = b.addModule("unify_proof", .{
+        .root_source_file = b.path("src/core/unify_proof.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
@@ -588,7 +588,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "proof_state", .module = proof_state_mod },
-            .{ .name = "unify", .module = unify_mod },
+            .{ .name = "unify_proof", .module = unify_proof_mod },
         },
     });
 
@@ -1106,7 +1106,7 @@ pub fn build(b: *std.Build) void {
     test_he_imports.append(b.allocator, .{ .name = "io_handler", .module = io_handler_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "expr_parser", .module = expr_parser_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "hole_runtime", .module = hole_runtime_mod }) catch unreachable;
-    test_he_imports.append(b.allocator, .{ .name = "unify", .module = unify_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "unify_proof", .module = unify_proof_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "hole", .module = hole_mod }) catch unreachable;
 
     if (target.query.cpu_arch != .wasm32) {
