@@ -135,7 +135,6 @@ pub const commands = [_]Command{
     // Ontologie & S-Expr
     .{ .name = "onto", .tag = .onto, .shortcut = "ontology", .description = "Gérer l'ontologie", .method = "cmdOnto" },
     .{ .name = "isa", .tag = .isa, .description = "Vérifier une relation d'héritage", .method = "cmdIsA" },
-    .{ .name = "meta", .tag = .meta, .description = "Réflexion méta-système", .method = "cmdMeta" },
     .{ .name = "subst", .tag = .subst, .description = "Substitution explicite", .method = "cmdSubst" },
     .{ .name = "sexpr", .tag = .sexpr, .description = "Afficher le format S-Expression", .method = "cmdSExpr" },
 
