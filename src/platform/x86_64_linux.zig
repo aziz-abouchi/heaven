@@ -27,6 +27,36 @@ pub fn getenv(key: []const u8) ?[]const u8 {
     }
 }
 
+// --- RAW MODE (clavier caractere par caractere) ---
+
+pub const ConsoleRawMode = struct {
+    original: std.posix.termios,
+};
+
+/// Passe le terminal en mode raw (ICANON off, ECHO off, ISIG off,
+/// ICRNL off, IXON off). Retourne null si stdin n'est pas un TTY
+/// (pipe, redirection, CI headless).
+pub fn enableRawMode() !?ConsoleRawMode {
+    const fd = std.posix.STDIN_FILENO;
+    if (!std.posix.isatty(fd)) return null;
+    var termios = try std.posix.tcgetattr(fd);
+    const original = termios;
+    termios.lflag.ECHO = false;
+    termios.lflag.ICANON = false;
+    termios.lflag.ISIG = false;
+    termios.iflag.ICRNL = false;
+    termios.iflag.IXON = false;
+    termios.iflag.INLCR = false;
+    termios.iflag.IGNCR = false;
+    try std.posix.tcsetattr(fd, .NOW, termios);
+    return .{ .original = original };
+}
+
+/// Restaure les attributs termios originaux.
+pub fn disableRawMode(state: ConsoleRawMode) void {
+    _ = std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, state.original) catch {};
+}
+
 // --- CONSOLE INIT (no-op sur Unix) ---
 pub fn initConsole() void {}
 

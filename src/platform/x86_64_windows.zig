@@ -21,6 +21,48 @@ pub fn getenv(key: []const u8) ?[]const u8 {
     return std.process.getEnvVarOwned(std.heap.page_allocator, key) catch null;
 }
 
+// --- RAW MODE (clavier caractere par caractere) ---
+
+/// Etat a restaurer apres passage en raw mode.
+pub const ConsoleRawMode = struct {
+    original_mode: u32,
+};
+
+/// Passe la console Windows en mode caractere par caractere :
+/// desactive ENABLE_PROCESSED_INPUT (Ctrl-C devient event normal),
+/// ENABLE_LINE_INPUT (pas de buffering ligne), ENABLE_ECHO_INPUT
+/// (on gere l'echo nous-memes). Requis pour que ReadConsoleInputA
+/// voie chaque touche individuellement (Tab, fleches).
+/// Retourne null si stdin n'est pas une console (pipe, redirection).
+pub fn enableRawMode() !?ConsoleRawMode {
+    const windows = std.os.windows;
+    const kernel32 = windows.kernel32;
+    const stdin_opt = kernel32.GetStdHandle(windows.STD_INPUT_HANDLE);
+    if (stdin_opt) |stdin| {
+        if (stdin != windows.INVALID_HANDLE_VALUE) {
+            var mode: u32 = 0;
+            if (kernel32.GetConsoleMode(stdin, &mode) != 0) {
+                const keep = mode & ~@as(u32, 0x0001 | 0x0002 | 0x0004);
+                _ = kernel32.SetConsoleMode(stdin, keep);
+                return .{ .original_mode = mode };
+            }
+        }
+    }
+    return null;
+}
+
+/// Restaure le mode console original.
+pub fn disableRawMode(state: ConsoleRawMode) void {
+    const windows = std.os.windows;
+    const kernel32 = windows.kernel32;
+    const stdin_opt = kernel32.GetStdHandle(windows.STD_INPUT_HANDLE);
+    if (stdin_opt) |stdin| {
+        if (stdin != windows.INVALID_HANDLE_VALUE) {
+            _ = kernel32.SetConsoleMode(stdin, state.original_mode);
+        }
+    }
+}
+
 // --- CONSOLE INIT (UTF-8 + ANSI) ---
 
 /// Force la console Windows en UTF-8 et active les sequences ANSI.

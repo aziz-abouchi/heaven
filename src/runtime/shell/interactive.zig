@@ -77,11 +77,9 @@ pub const Reader = struct {
     cursor: usize = 0,
     prompt: []const u8 = "",
 
-    // Pour Unix raw mode
+    // Raw mode : etat opaque gere par platform (platform-agnostique)
     raw_mode: bool = false,
-    // Pour Windows raw mode : console mode original a restaurer
-    console_mode_orig: u32 = 0,
-    termios_orig: ?platform.posix.termios = null,
+    raw_state: ?platform.ConsoleRawMode = null,
 
     pub fn init(allocator: std.mem.Allocator, heaven: *Heaven, history: *History) !Reader {
         var self = Reader{
@@ -99,96 +97,18 @@ pub const Reader = struct {
     }
 
     fn enableRawMode(self: *Reader) !void {
-        if (platform.target.is_windows) {
-            // Windows : utiliser SetConsoleMode pour passer en mode
-            // "caractere par caractere" (necessaire pour que
-            // ReadConsoleInputA dans readKeyWindows voie chaque touche
-            // individuellement, dont Tab).
-            const windows = std.os.windows;
-            const kernel32 = windows.kernel32;
-            const stdin_opt = kernel32.GetStdHandle(windows.STD_INPUT_HANDLE);
-            if (stdin_opt) |stdin| {
-                if (stdin != windows.INVALID_HANDLE_VALUE) {
-                    var mode: u32 = 0;
-                    if (kernel32.GetConsoleMode(stdin, &mode) != 0) {
-                        self.console_mode_orig = mode;
-                        // Desactiver : ENABLE_PROCESSED_INPUT (0x0001)
-                        //   -> Ctrl-C devient un event normal
-                        // ENABLE_LINE_INPUT (0x0002)
-                        //   -> pas de buffering ligne a ligne
-                        // ENABLE_ECHO_INPUT (0x0004)
-                        //   -> on gere l'echo nous-memes
-                        const keep = mode & ~@as(u32, 0x0001 | 0x0002 | 0x0004);
-                        _ = kernel32.SetConsoleMode(stdin, keep);
-                        self.raw_mode = true;
-                        return;
-                    }
-                }
-            }
-            self.raw_mode = false;
-            return;
-        }
-        const fd = platform.posix.STDIN_FILENO;
-
-        // Pipe, redirection, CI headless : pas de TTY → pas de mode raw,
-        // pas d'erreur non plus. On bascule en mode ligne (readUntilDelimiter).
-        if (!platform.posix.isatty(fd)) {
-            self.raw_mode = false;
-            return;
-        }
-
-        var termios = try platform.posix.tcgetattr(fd);
-        self.termios_orig = termios;
-
-        // Désactiver ECHO et ICANON
-        if (platform.target.is_windows) {}
-        if (platform.target.is_darwin) {
-            termios.lflag.ECHO = false;
-            termios.lflag.ICANON = false;
-            termios.lflag.ISIG = false; // sinon Ctrl-C tue le process
-            termios.iflag.ICRNL = false; // CR (0x0D) ne devient PAS NL (0x0A)
-            termios.iflag.IXON = false; // Ctrl-S/Ctrl-Q ne gèlent pas
-            termios.iflag.INLCR = false;
-            termios.iflag.IGNCR = false;
-        }
-        if (platform.target.is_linux) {
-            //const ECHO: u32 = 0x00000008;
-            //const ICANON: u32 = 0x00000002;
-            //const ISIG: u32 = 0x00000001;
-            //const ICRNL: u32 = 0x00000100;
-            //const IXON: u32 = 0x00000400;
-            termios.lflag.ECHO = false;
-            termios.lflag.ICANON = false;
-            termios.lflag.ISIG = false;
-            termios.iflag.ICRNL = false;
-            termios.iflag.IXON = false;
-        }
-
-        try platform.posix.tcsetattr(fd, .NOW, termios);
-        self.raw_mode = true;
+        // Delegue a platform (specifique Windows/Unix encapsule la-bas).
+        // Retour null = pas un TTY (pipe/redirection) : pas de raw mode.
+        self.raw_state = platform.enableRawMode() catch null;
+        self.raw_mode = self.raw_state != null;
     }
 
     fn disableRawMode(self: *Reader) void {
-        if (platform.target.is_windows) {
-            if (self.raw_mode) {
-                const windows = std.os.windows;
-                const kernel32 = windows.kernel32;
-                const stdin_opt = kernel32.GetStdHandle(windows.STD_INPUT_HANDLE);
-                if (stdin_opt) |stdin| {
-                    if (stdin != windows.INVALID_HANDLE_VALUE) {
-                        _ = kernel32.SetConsoleMode(stdin, self.console_mode_orig);
-                    }
-                }
-                self.raw_mode = false;
-            }
-            return;
+        if (self.raw_state) |state| {
+            platform.disableRawMode(state);
+            self.raw_state = null;
         }
-        if (self.raw_mode) {
-            if (self.termios_orig) |orig| {
-                _ = platform.posix.tcsetattr(platform.posix.STDIN_FILENO, .NOW, orig) catch {};
-            }
-            self.raw_mode = false;
-        }
+        self.raw_mode = false;
     }
 
     pub fn readKey(self: *Reader) !KeyEvent {
