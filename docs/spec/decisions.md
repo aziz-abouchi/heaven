@@ -38,24 +38,44 @@ chose.
 
 ---
 
-## 2. `type` — passthrough vs évaluation
+## 2. `type` — intro, alias, vestige
 
-**Décision** : **Garder `type e` en langage, supprimer la branche
-`is_command`** (lignes 585-591).
+**Constat actualisé** (précision apportée par l'auteur 2026-09-25) :
+`type` a **deux rôles fonctionnels** distincts :
 
-**Justification** : `type e` est utilisé dans `test_suite.hvn`
-(`type (+ 1 x)`) et retourne une valeur exploitable. Le check
-`is_command` liste `type `, `green `, `help`, `stats`, `theorems`,
-`rules` — mais le dispatch les a déjà interceptés plus haut. C'est du
-code mort qui laisse croire qu'il y a une seconde voie.
+1. **Introspection** : `type e` → chaîne du type de `e`
+   (ex : `type (+ 1 x)` → `"Int"`).
+2. **Alias de type** : `type NAME T` → déclare `NAME` comme alias de `T`
+   (ex : `type age Nat` → `age` utilisable là où `Nat` l'est).
+
+Plus une **branche vestige** : `type ` apparaît dans `is_command`
+(l.585-591) — code mort puisque le dispatch l'intercepte plus haut
+(l.575).
+
+**Décision** : **Garder les deux rôles fonctionnels, retirer `is_command`**.
+
+**Justification** : les deux rôles sont utiles et peuvent coexister.
+`type e` (un argument) = introspection, `type NAME T` (deux tokens après
+`type `) = alias. La disambiguïsation se fait sur le **nombre
+d'arguments**.
+
+**Question ouverte** : la séparation par nombre de tokens est-elle
+fiable ? Vérifier `evalTypeExpr` dans `heaven_expr.zig` — s'il utilise
+un autre critère (premier token capitalisé ? lookup dans
+`type_registry` ?), le documenter explicitement.
 
 **Migration** :
 - `heaven_expr.zig` : retirer le bloc `is_command` (l.585-591). Vérifier
   qu'aucune des branches listées n'est atteinte uniquement par lui.
-- Cas particulier : `help`, `stats`, `theorems` — vérifier s'ils sont
-  shell-only ou langage. S'ils sont shell-only, il faut les déplacer.
+- `help`, `stats`, `theorems` : vérifier s'ils sont shell-only ou
+  langage. S'ils sont shell-only, les déplacer.
 
 **Effort** : 30 min (avec vérification des usages).
+
+**Note** : si l'ambiguïté `type` s'avère fragile en pratique, on pourra
+introduire `alias NAME T` (rôle 2 uniquement) en parallèle et
+déprécier `type NAME T` à long terme. **Décision différée** : on
+garde les deux pour l'instant.
 
 ---
 
@@ -197,7 +217,7 @@ Les deux sont naturels.
 | # | Écart | Décision | Effort |
 |---|---|---|---|
 | 1 | `meta` | Supprimer | 10 min |
-| 2 | `type` + `is_command` | Retirer `is_command` | 30 min |
+| 2 | `type` (intro + alias) + `is_command` | Retirer `is_command`, garder 2 rôles | 30 min |
 | 3 | `=` vs `:=` | Garder les deux | 0 |
 | 4 | `assert_eq` double | Garder, doc infixe canonique | 0 |
 | 5 | `let` vs `let actor` | Documenter 2 modes | 0 |

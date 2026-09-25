@@ -116,10 +116,16 @@ Deux syntaxes cohabitent (parens ou non) — **piège à connaître** :
 
 ### F9. Types et introspection
 
+**Attention** : `type` a **deux rôles** distincts (précision 2026-09-25) :
+
 | Forme | Ligne | Notes |
 |---|---|---|
-| `type e` | 575 | string du type de `e` |
+| `type e` | 575 | **introspection** : string du type de `e` |
+| `type NAME T` | 575 | **alias** : déclare `NAME` comme alias de `T` |
 | `(relation f args)` | 856 | construit une relation |
+
+Le parseur distingue intro vs alias sur le **nombre d'arguments**
+(1 token → intro, 2 tokens → alias). À vérifier dans `evalTypeExpr`.
 
 ### F10. Fallback générique (l.953-1052)
 
