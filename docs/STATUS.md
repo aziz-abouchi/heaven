@@ -46,7 +46,7 @@ Légende :
 | Arrow `a -> b` interne | ✅ | `Store.apply(sym("->"), …)` | — |
 ||Affichage arrow | ✅ | `typeStr` | — |
 | Types paramétrés (`Maybe a`) | ⚠️ | `evalDataDecl` | paramètre `a` ignoré à l'enregistrement |
-| Types dépendants (`Vec (succ n)`) | ⚠️ | `evalDataDecl` + v2c (`checkCtorDomainKind`) | index au-delà de `succ _`/`zero` non unifiés (v2e) |
+| Types dépendants (`Vec (succ n)`) | ⚠️ | `evalDataDecl` + v2c (`checkCtorDomainKind`) | index au-delà de `succ _`/`zero` non unifiés (v2f) |
 
 ## Data & Pattern matching
 

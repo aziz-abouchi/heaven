@@ -5,6 +5,25 @@ antéchronologique.
 
 ## 2026-09-25
 
+### Type-dep v2e — fix bug silencieux v2d + `holesToEvars`
+- **Bug découvert** : `_` est parsé en `Tag.hole`, et
+  `unify_proof.unify` ne lie que les `Tag.evar`. Résultat :
+  `subst_v2d` restait **toujours vide** entre v2d et v2e
+  (`body_used == body`, no-op silencieux non détecté par les
+  tests v2d car le pattern matching engine liait les variables
+  de pattern indépendamment).
+- **Fix** : `Heaven.holesToEvars` remplace les holes par des
+  evars frais avant `unify`. Message de succès expose
+  `(subst: N)` quand N > 0.
+- **Portée honnête** : le mécanisme tourne, mais aucun body
+  réaliste n'est affecté aujourd'hui (le body est parsé
+  depuis une string utilisateur, jamais d'evar dedans). v2e est
+  préparatoire à **v2f** (unification vraie `Vec (n + m)`
+  modulo arithmétique).
+- 2 tests : `subst:` présent sur type paramétré, absent sur
+  type non paramétré.
+- **Intégré dans** : `03-syntax-in-functions.md`, STATUS.
+
 ### Architecture — RFC-0001 5/5 (complet)
 - Extraction de `import.zig` : `ImportState`, `resolveImportPath`,
   `evalImport` (~270 lignes retirées de `heaven_expr.zig`).
