@@ -15,9 +15,7 @@ pub const ast = @import("ast.zig");
 pub const typechecker = @import("typechecker.zig");
 pub const conversion = @import("conversion.zig");
 pub const transform = @import("transform.zig");
-// DÉSACTIVÉ — strategy.zig référence tta.zig/kb.zig inexistants (code
-// généré incomplet, jamais compilé avant la façade). À réactiver quand
-// le système de stratégies sera réellement conçu.
+// DÉSACTIVÉ — strategy.zig référençait tta.zig/kb.zig inexistants...
 // pub const strategy = @import("strategy.zig");
 
 // ─── Ré-export du kernel Peano (API historique, consommée par proof_core) ───
