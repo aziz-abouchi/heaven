@@ -519,7 +519,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const kernel_mod = b.addModule("kernel", .{
-        .root_source_file = b.path("src/core/kernel.zig"),
+        .root_source_file = b.path("src/kernel/kernel.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
@@ -1347,7 +1347,7 @@ pub fn build(b: *std.Build) void {
 
     const kernel_tests = b.addTest(.{
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/core/kernel.zig"),
+            .root_source_file = b.path("src/kernel/kernel.zig"),
             .target = target,
             .optimize = optimize,
             .imports = &.{
