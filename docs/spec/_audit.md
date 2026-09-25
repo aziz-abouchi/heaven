@@ -226,3 +226,22 @@ Erreurs de test (F5) :
       section « normatif ».
 - [ ] Test de validation : donner la spec seule à un LLM, lui demander
       de générer 5 programmes Heaven, vérifier qu'ils compilent.
+
+
+## Chantiers identifiés non planifiés
+
+### Test skippé : `syntax HIR — vector literal`
+
+**Fichier** : `src/syntax/lower_test.zig:139`
+**Statut** : skip inconditionnel (`if (true) return error.SkipZigTest;`)
+**Plan déjà écrit dans le code** (4 étapes) :
+1. Ajouter `Expr.range` à `syntax/ast.zig`
+2. `syntax/lower.zig` : nœud Tree-sitter `range` → `Expr.range`
+3. `syntax/core_lower.zig` : `Expr.range` → `apply(sym("range"), lo, hi)`
+4. Tester `let v = 1..3` (pas `[1-3]`, invalide Tree-sitter)
+
+**Note** : concerne le pipeline syntax (Tree-sitter, IDE/shell),
+**pas** le pipeline natif (Heaven REPL). Ne pas confondre avec
+le type dépendant `Vec` (v2d/v2e), qui utilise `nativeToSExpr`.
+
+**Effort** : 1 session dédiée. Non prioritaire.
