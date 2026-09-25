@@ -282,3 +282,10 @@ correct puisqu'ils ne sont pas des expressions utilisateur.
 
 `unlower` est maintenant exhaustif pour toutes les formes
 utilisateur (sauf `relation` qui reste `raw_primitive`).
+
+
+## Voir aussi
+
+- `_tooling.md` — audit complet du tooling (CLI, compilation, package
+  manager). Révèle 2 CLIs concurrents, 5 pipelines de compilation,
+  Guppy stub. Recommandation : Univers A (REPL/Core) canonique.
