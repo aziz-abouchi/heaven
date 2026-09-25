@@ -790,6 +790,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr_parser", .module = expr_parser_mod },
             .{ .name = "hole_runtime", .module = hole_runtime_mod },
             .{ .name = "std_loader", .module = std_loader_mod },
+            .{ .name = "kanren", .module = kanren_expr_mod },
             .{ .name = "import", .module = import_mod },
         },
     });
@@ -1128,6 +1129,7 @@ pub fn build(b: *std.Build) void {
     test_he_imports.append(b.allocator, .{ .name = "hole_runtime", .module = hole_runtime_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "std_loader", .module = std_loader_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "import", .module = import_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "kanren", .module = kanren_expr_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "unify_proof", .module = unify_proof_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "hole", .module = hole_mod }) catch unreachable;
 

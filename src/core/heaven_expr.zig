@@ -34,6 +34,7 @@ const expr_parser_mod = @import("expr_parser");
 const std_loader = @import("std_loader");
 const import_mod = @import("import");
 const ImportState = import_mod.ImportState;
+const kanren_expr_mod = @import("kanren");
 const unify_proof_mod = @import("tactics").unify_proof;
 const hole_runtime_mod = @import("hole_runtime");
 
@@ -167,6 +168,9 @@ pub const Heaven = struct {
     /// pour accumuler les bindings d'indexes dépendants avant
     /// d'instancier le RHS de l'équation.
     ctor_results: std.StringHashMapUnmanaged([]const u8) = .{},
+    /// Etape 1 pipeline logique unifie (kanren_expr) : faits + query
+    /// par pattern matching simple (SLD sans regles pour l'instant).
+    kanren: kanren_expr_mod.Kanren,
     /// v2b : heads des domaines d'une signature (`sig f : A -> B -> C`
     /// stocke `"A B"`).
     fn_domains: std.StringHashMapUnmanaged([]const u8) = .{},
@@ -210,6 +214,7 @@ pub const Heaven = struct {
             .expr_parser = undefined,
             .hole_runtime = undefined,
             .type_registry = type_registry_mod.TypeRegistry.init(allocator),
+            .kanren = undefined,
             .loading_modules = .{},
         };
 
@@ -219,6 +224,7 @@ pub const Heaven = struct {
             &self.hole_state,
             &self.last_root_expr,
         );
+        self.kanren = kanren_expr_mod.Kanren.init(store, allocator);
 
         self.hole_runtime = hole_runtime_mod.HoleRuntime.init(
             store,
@@ -495,6 +501,7 @@ pub const Heaven = struct {
             self.allocator.free(e.value_ptr.*);
         }
         self.imported_files.deinit(self.allocator);
+        self.kanren.deinit();
         self.type_registry.deinit();
         self.hole_state.deinit();
     }
@@ -885,6 +892,14 @@ pub const Heaven = struct {
             return self.listRules();
         }
 
+        // ─── Logic : fact / query (etape 1 pipeline logique unifie) ───
+        if (std.mem.startsWith(u8, trimmed, "fact ")) {
+            return self.evalFact(trimmed["fact ".len..]);
+        }
+        if (std.mem.startsWith(u8, trimmed, "query ")) {
+            return self.evalQuery(trimmed["query ".len..]);
+        }
+
         // ─── Déclaration de type : data Name params = C1 | C2 args | ... ───
         if (std.mem.startsWith(u8, trimmed, "data ")) {
             return self.evalDataDecl(trimmed["data ".len..]);
@@ -1029,6 +1044,93 @@ pub const Heaven = struct {
         return import_mod.evalImport(self, src) catch |err| switch (err) {
             error.OutOfMemory => HeavenError.OutOfMemory,
         };
+    }
+
+    /// Etape 1 pipeline logique unifie : `fact name arg1 arg2 ...`
+    /// enregistre un fait dans le KB kanren. Chaque arg est une
+    /// expression parseable (sym, lit, etc.).
+    fn evalFact(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        const trimmed = std.mem.trim(u8, src, " \t");
+        if (trimmed.len == 0)
+            return self.allocator.dupe(u8, "usage: fact name arg1 arg2 ...");
+
+        var it = std.mem.tokenizeAny(u8, trimmed, " \t");
+        const name = it.next() orelse
+            return self.allocator.dupe(u8, "usage: fact name arg1 arg2 ...");
+
+        var args = std.ArrayListUnmanaged(Id){};
+        defer args.deinit(self.allocator);
+
+        while (it.next()) |tok| {
+            const id = self.parseExpression(tok) catch |err| {
+                return std.fmt.allocPrint(
+                    self.allocator,
+                    "\u{2717} fact {s}: arg '{s}' invalide: {}",
+                    .{ name, tok, err },
+                );
+            };
+            try args.append(self.allocator, id);
+        }
+
+        const rel = self.store.relation(name, args.items, &.{}) catch {
+            return self.allocator.dupe(u8, "\u{2717} fact: construction relation echouee");
+        };
+        self.kanren.assertFact(rel) catch return error.OutOfMemory;
+
+        return std.fmt.allocPrint(
+            self.allocator,
+            "\u{2713} fact {s} ({d} arg(s))",
+            .{ name, args.items.len },
+        );
+    }
+
+    /// Etape 1 pipeline logique unifie : `query name arg1 arg2 ...`
+    /// ou `_` designe une variable de pattern. Retourne le nombre
+    /// de solutions trouvees dans le KB kanren.
+    fn evalQuery(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        const trimmed = std.mem.trim(u8, src, " \t");
+        if (trimmed.len == 0)
+            return self.allocator.dupe(u8, "usage: query name arg1 arg2 ...");
+
+        var it = std.mem.tokenizeAny(u8, trimmed, " \t");
+        const name = it.next() orelse
+            return self.allocator.dupe(u8, "usage: query name arg1 arg2 ...");
+
+        var args = std.ArrayListUnmanaged(Id){};
+        defer args.deinit(self.allocator);
+        var hole_idx: u32 = 0;
+
+        while (it.next()) |tok| {
+            if (std.mem.eql(u8, tok, "_")) {
+                const h = self.store.hole(hole_idx) catch return error.OutOfMemory;
+                try args.append(self.allocator, h);
+                hole_idx += 1;
+            } else {
+                const id = self.parseExpression(tok) catch |err| {
+                    return std.fmt.allocPrint(
+                        self.allocator,
+                        "\u{2717} query {s}: arg '{s}' invalide: {}",
+                        .{ name, tok, err },
+                    );
+                };
+                try args.append(self.allocator, id);
+            }
+        }
+
+        const pat = self.store.relation(name, args.items, &.{}) catch {
+            return self.allocator.dupe(u8, "\u{2717} query: construction pattern echouee");
+        };
+        var stream = self.kanren.queryPattern(pat) catch return error.OutOfMemory;
+        defer stream.deinit();
+
+        if (stream.len() == 0)
+            return std.fmt.allocPrint(self.allocator, "\u{2717} query {s}: aucune solution", .{name});
+
+        return std.fmt.allocPrint(
+            self.allocator,
+            "\u{2713} query {s}: {d} solution(s)",
+            .{ name, stream.len() },
+        );
     }
 
     fn evalDataDecl(self: *Heaven, src: []const u8) HeavenError![]u8 {
@@ -3959,6 +4061,43 @@ test "type-dep v2e -- pas de subst sur type non parametre" {
     // Aucun ctor de Color n'est dans ctor_results : pas de subst.
     try std.testing.expect(std.mem.indexOf(u8, r, "subst:") == null);
     try std.testing.expect(std.mem.startsWith(u8, r, "✓"));
+}
+
+test "logic v1 -- fact puis query trouve les faits" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r1 = try heaven.eval("fact human socrate");
+    defer allocator.free(r1);
+    try std.testing.expect(std.mem.startsWith(u8, r1, "✓"));
+
+    const r2 = try heaven.eval("fact human platon");
+    defer allocator.free(r2);
+    try std.testing.expect(std.mem.startsWith(u8, r2, "✓"));
+
+    const r3 = try heaven.eval("query human _");
+    defer allocator.free(r3);
+    try std.testing.expect(std.mem.indexOf(u8, r3, "2 solution") != null);
+}
+
+test "logic v1 -- query sans solution" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r1 = try heaven.eval("fact human socrate");
+    defer allocator.free(r1);
+
+    const r2 = try heaven.eval("query dog _");
+    defer allocator.free(r2);
+    try std.testing.expect(std.mem.indexOf(u8, r2, "aucune solution") != null);
 }
 
 test "type-dep v2d — ctor_results peuplé (Nil→zero, Cons→succ)" {
