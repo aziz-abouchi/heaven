@@ -245,3 +245,24 @@ Erreurs de test (F5) :
 le type dépendant `Vec` (v2d/v2e), qui utilise `nativeToSExpr`.
 
 **Effort** : 1 session dédiée. Non prioritaire.
+
+
+### `unlower` — infrastructure dormante
+
+**Fichier** : `src/core/expr.zig:1210`
+**Statut** : implémenté pour les **6 primitives** (lit, sym, bind,
+lambda, apply, relation). Consommé uniquement par 2 tests dans
+`mir.zig` — **jamais appelé en production**.
+
+**Couverture** : exhaustif pour le Core. Les tags frontend
+(`.vector_lit`, `.sum`, `.letrec`, `.if` sous forme `apply(sym("if"))`)
+ne sont pas reconnus — `unlower` retourne `.call` générique pour eux.
+
+**Cas manquants identifiés** (si on veut étendre) :
+- `.letrec` (dans Tag mais pas dans le switch)
+- `.hole`, `.evar` (à vérifier dans Tag)
+- Reconnaissance `apply(sym("if"), ...)` comme variant conditionnel
+- Reconnaissance `tuple`, `block`, `seq`
+
+**Chantier futur** : brancher `unlower` dans `mir.compileExpr` (ou un
+backend codegen) — c'est la vraie finalisation. ~1-2 sessions.

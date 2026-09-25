@@ -802,6 +802,77 @@ test "unlowering — reconstruction d'une opération binaire" {
     }
 }
 
+test "unlowering — lambda simple : (lambda x (x))" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    // (lambda x (x))
+    const x_sym = try store.interner.intern("x");
+    const body = try store.sym(x_sym);
+    const lam = try store.lambda(&.{"x"}, body);
+
+    const u = try expr_mod.unlower(&store, lam);
+    switch (u) {
+        .function => |f| {
+            try std.testing.expectEqual(x_sym, f.param);
+            try std.testing.expectEqual(body, f.body);
+        },
+        else => return error.TestUnexpectedResult,
+    }
+}
+
+test "unlowering — variable nue : (sym x)" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const x_sym = try store.interner.intern("x");
+    const x_id = try store.sym(x_sym);
+
+    const u = try expr_mod.unlower(&store, x_id);
+    switch (u) {
+        .variable => |name| try std.testing.expectEqual(x_sym, name),
+        else => return error.TestUnexpectedResult,
+    }
+}
+
+test "unlowering — call générique : (f 1 2)" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const f = try store.sym("f");
+    const a1 = try store.int(1);
+    const a2 = try store.int(2);
+    const call_id = try store.apply(f, &.{ a1, a2 });
+
+    const u = try expr_mod.unlower(&store, call_id);
+    switch (u) {
+        .call => |c| {
+            try std.testing.expectEqual(f, c.func);
+            try std.testing.expectEqual(@as(usize, 2), c.args.len);
+        },
+        else => return error.TestUnexpectedResult,
+    }
+}
+
+test "unlowering — relation passthrough" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const a = try store.int(1);
+    const b = try store.int(2);
+    const rel = try store.relation("Eq", &.{a}, &.{b});
+
+    const u = try expr_mod.unlower(&store, rel);
+    switch (u) {
+        .raw_primitive => |t| try std.testing.expectEqual(.relation, t),
+        else => return error.TestUnexpectedResult,
+    }
+}
+
 test "mir — lowering et unlowering d'un lambda avec binding" {
     const allocator = std.testing.allocator;
     var store = Store.init(allocator);
