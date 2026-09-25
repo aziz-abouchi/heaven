@@ -413,7 +413,7 @@ fn handleClient(args: HandlerArgs) void {
     var read_buf: [32768]u8 = undefined; // Buffer plus large pour les gros fichiers
 
     while (true) {
-        const n = args.conn.stream.read(&read_buf) catch break;
+        const n = platform.streamRead(args.conn.stream, &read_buf) catch break;
         if (n == 0) break;
         const request = read_buf[0..n];
 

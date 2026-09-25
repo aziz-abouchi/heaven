@@ -248,10 +248,16 @@ fn parseHeader(reader: anytype) !?protocol.Header {
 pub fn listen(allocator: std.mem.Allocator) !?IncomingWithAddr {
     const sock = socket orelse return null;
     var buf: [4096]u8 = undefined;
-    var addr_raw: platform.posix.sockaddr = undefined;
-    var len: platform.posix.socklen_t = @sizeOf(platform.posix.sockaddr);
+    var addr: std.net.Address = undefined;
+    var len: platform.posix.socklen_t = @sizeOf(std.net.Address);
 
-    const n = platform.posix.recvfrom(sock, &buf, 0, &addr_raw, &len) catch return null;
+    const n = platform.posix.recvfrom(
+        sock,
+        &buf,
+        0,
+        @ptrCast(&addr),
+        &len,
+    ) catch return null;
 
     // Si le paquet est trop court pour contenir un header, on ignore silencieusement
     if (n < @sizeOf(protocol.Header)) {
@@ -261,14 +267,9 @@ pub fn listen(allocator: std.mem.Allocator) !?IncomingWithAddr {
     }
 
     if (n == 6) {
-        // C'est un paquet de présence, on traite l'émetteur
-        // Pas besoin de parser tout le header
-        // platform.dbg("[HEX DUMP] {d}, {any}\n", .{ n, buf[0..n] });
-        // C'est un Ping, on lit juste le début pour valider le Magic
         const magic = std.mem.readInt(u32, buf[0..4], .big);
         if (magic == protocol.MAGIC) {
-            // platform.dbg("[NET] MAGIC lu comme (Big-Endian): {X:0>8}, buffer:{any}\n", .{ magic, buf[0..n] });
-            updatePeer(allocator, std.net.Address{ .any = addr_raw }) catch {};
+            updatePeer(allocator, addr) catch {};
         }
         return null;
     }
@@ -318,7 +319,7 @@ pub fn listen(allocator: std.mem.Allocator) !?IncomingWithAddr {
             return null;
         }
 
-        updatePeer(allocator, std.net.Address{ .any = addr_raw }) catch {};
+        updatePeer(allocator, addr) catch {};
 
         if (parsePacket(&buf, n)) |pkt| {
             if (pkt.header.from == self_origin) {
@@ -338,7 +339,7 @@ pub fn listen(allocator: std.mem.Allocator) !?IncomingWithAddr {
 
             return IncomingWithAddr{
                 .data = incoming_data,
-                .sender = std.net.Address{ .any = addr_raw },
+                .sender = addr,
                 .len = n,
             };
         }

@@ -137,14 +137,15 @@ pub const io = struct {
     }
 
     pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
-        const stdin = std.io.getStdIn().reader();
+        const stdin = std.fs.File.stdin().reader();
         return stdin.readUntilDelimiterAlloc(alloc, '\n', 4096);
     }
 };
 
 pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
     var buf: [4096]u8 = undefined;
-    const n = try std.posix.read(0, &buf);
+     const n = try std.posix.read(0, &buf);
+
     if (n == 0) return error.EndOfStream;
     const line = buf[0..n];
     // Supprimer le '\n' final
