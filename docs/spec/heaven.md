@@ -1,6 +1,6 @@
 # Heaven - spec formelle du langage
 
-**Version** : 1.0
+**Version** : 1.1 (2026-09-25, post-validation)
 **Date** : 2026-09-25
 **Statut** : descriptif (WYSIWYG). Decrit le langage tel qu'il est
 accepte par Heaven.eval aujourd'hui.
@@ -145,6 +145,15 @@ Lambda :
     \x.body       ASCII
     LAMBDAx.body  LAMBDA = U+03BB (2 octets UTF-8)
 
+**IMPORTANT - Lambda non evaluee au top-level.** `(\x.x) 42` au REPL
+retourne la chaine brute, PAS `42`. Le lambda n'est evalue que s'il
+est parse dans un contexte qui appelle l'engine. Pour tester :
+`f = \x.x` puis `f 42`.
+
+**Application parenthesee non evaluee.** `(1 + 2) * (4 + 2)` retourne
+la forme S-expr `(* (1 + 2) (4 + 2))`, PAS `18`. Contournement :
+sans parentheses `1 + 2 * 4 + 2`, ou passer par une fonction.
+
 Trou : _ (underscore seul) => Tag.hole.
 
 Unicode : x2 avec exposant 2 (superscript) => normalise en x^2.
@@ -168,28 +177,76 @@ Types dependants (v2) :
 
 Convention base/step : arite 0 -> zero, arite > 0 -> succ.
 
-Introspection : type e retourne la string du type. Pas d'alias de
-type (type age Nat echoue). Voir decisions.md section 2.
+Introspection : `type e` retourne la string du type HM via inference.
+
+**Limitation** : `type f` sur une fonction definie par equations
+retourne `f : ?`. L'inference HM ne s'applique pas retroactivement
+aux fonctions top-level. `type (\x.x)` fonctionne, mais
+`type double` apres `double x = x * 2` retourne `?`.
+
+Pas d'alias de type (`type age Nat` echoue). Voir decisions.md §2.
 
 ---
 
-## 6. Patterns
+## 6. Patterns et pattern matching
 
-Wildcard : _ matche n'importe quoi.
+### 6.1 Syntaxe : equations multi-clauses
 
-Constructeurs : (Ctor arg1 arg2 ...). Arite verifiee si le type
-est connu.
+**Heaven n'a PAS de `match ... with ... end`.** Le pattern matching
+se fait par equations multi-clauses :
 
-Base/step (v2c) :
+    len Nil = 0
+    len (Cons _ reste) = 1 + len reste
 
-| Ctor arite | Kind |
-|------------|------|
-| 0          | base |
-| > 0        | step |
+Les clauses sont essayees dans l'ordre d'enregistrement.
 
-Un pattern base sur un domaine step est rejete.
+### 6.2 Wildcard
 
-Ordre d'essai : lineaire.
+`_` matche n'importe quoi en position de motif :
+
+    estVide Nil = true
+    estVide _   = false
+
+### 6.3 Constructeurs
+
+`(Ctor arg1 arg2 ...)` dans le LHS matche l'application. Arite
+verifiee si le type est connu.
+
+### 6.4 Base / step (v2c)
+
+| Arite ctor | Kind  | Exemple                |
+|------------|-------|------------------------|
+| 0          | base  | Nil  -> Vec zero       |
+| > 0        | step  | Cons -> Vec (succ _)   |
+
+Un motif base sur un domaine step est rejete par v2c.
+
+### 6.5 Noms reserves (stdlib)
+
+**NE PAS redefinir ces noms** - charges au boot par loadStdIO :
+
+    List    Nil    Cons
+    Bool    True   False
+    Option  Some   None
+    Pair    fst    snd
+    Result  Ok     Err
+    Nat     zero   succ
+    head    tail   length  append
+    print   readFile   writeFile   readLine
+
+**Bug silencieux** : `data List a = Nil | Cons a (List a)` ecrase la
+List de la stdlib. Utiliser MyList, MyNil, MyCons.
+
+### 6.6 Match sur valeurs
+
+    isZero 0 = true
+    isZero _ = false
+
+### 6.7 Wildcard en position evaluee
+
+`_` en position evaluee est un Tag.hole. L'evaluer declenche
+evalMagic -> erreur. Ecrire une valeur concrete.
+
 
 ---
 
