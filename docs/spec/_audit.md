@@ -266,3 +266,19 @@ ne sont pas reconnus — `unlower` retourne `.call` générique pour eux.
 
 **Chantier futur** : brancher `unlower` dans `mir.compileExpr` (ou un
 backend codegen) — c'est la vraie finalisation. ~1-2 sessions.
+
+
+### `unlower` — Option 2 livree (2026-09-25)
+
+Nouveaux variants reconnus par `unlower` :
+- `conditional` : `apply(sym("if"), [c, t, e])` (arite 3)
+- `tuple_lit` : `apply(sym("tuple"), args)`
+- `block_expr` : `apply(sym("block"), args)`
+- `seq_expr` : `apply(sym("seq"), args)`
+- `letrec` : tag `.letrec` conserve (pas lowered)
+
+Le tag `.hole` et `.evar` tombent dans `else => raw_primitive` —
+correct puisqu'ils ne sont pas des expressions utilisateur.
+
+`unlower` est maintenant exhaustif pour toutes les formes
+utilisateur (sauf `relation` qui reste `raw_primitive`).

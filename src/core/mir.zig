@@ -873,6 +873,82 @@ test "unlowering — relation passthrough" {
     }
 }
 
+test "unlowering — conditional : (if c 1 2)" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const c = try store.sym("c");
+    const t = try store.int(1);
+    const e = try store.int(2);
+    const if_op = try store.sym("if");
+    const apply_id = try store.apply(if_op, &.{ c, t, e });
+
+    const u = try expr_mod.unlower(&store, apply_id);
+    switch (u) {
+        .conditional => |k| {
+            try std.testing.expectEqual(c, k.cond);
+            try std.testing.expectEqual(t, k.then_branch);
+            try std.testing.expectEqual(e, k.else_branch);
+        },
+        else => return error.TestUnexpectedResult,
+    }
+}
+
+test "unlowering — tuple : (tuple 1 2 3)" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const tup = try store.sym("tuple");
+    const a1 = try store.int(1);
+    const a2 = try store.int(2);
+    const a3 = try store.int(3);
+    const id = try store.apply(tup, &.{ a1, a2, a3 });
+
+    const u = try expr_mod.unlower(&store, id);
+    switch (u) {
+        .tuple_lit => |elems| {
+            try std.testing.expectEqual(@as(usize, 3), elems.len);
+        },
+        else => return error.TestUnexpectedResult,
+    }
+}
+
+test "unlowering — block : (block 1 2)" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const blk = try store.sym("block");
+    const a1 = try store.int(1);
+    const a2 = try store.int(2);
+    const id = try store.apply(blk, &.{ a1, a2 });
+
+    const u = try expr_mod.unlower(&store, id);
+    switch (u) {
+        .block_expr => |elems| try std.testing.expectEqual(@as(usize, 2), elems.len),
+        else => return error.TestUnexpectedResult,
+    }
+}
+
+test "unlowering — seq : (seq 1 2)" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    const sq = try store.sym("seq");
+    const a1 = try store.int(1);
+    const a2 = try store.int(2);
+    const id = try store.apply(sq, &.{ a1, a2 });
+
+    const u = try expr_mod.unlower(&store, id);
+    switch (u) {
+        .seq_expr => |elems| try std.testing.expectEqual(@as(usize, 2), elems.len),
+        else => return error.TestUnexpectedResult,
+    }
+}
+
 test "mir — lowering et unlowering d'un lambda avec binding" {
     const allocator = std.testing.allocator;
     var store = Store.init(allocator);

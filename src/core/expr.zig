@@ -271,6 +271,18 @@ pub const UnloweredKind = union(enum) {
     function: struct { param: Sym, body: Id },
     call: struct { func: Id, args: []const Id },
     raw_primitive: Tag,
+
+    // ─── Reconnaissances ajoutees (Option 2, 2026-09-25) ───
+    /// apply(sym("if"), [cond, then_, else_]) - arite 3.
+    conditional: struct { cond: Id, then_branch: Id, else_branch: Id },
+    /// Noeud .letrec conserve tel quel (pas lowered, cf. ligne ~984).
+    letrec: struct { name: Sym, val: Id, body: Id },
+    /// apply(sym("tuple"), args) - n-aire.
+    tuple_lit: []const Id,
+    /// apply(sym("block"), args) - n-aire (evaluation sequentielle).
+    block_expr: []const Id,
+    /// apply(sym("seq"), args) - n-aire (sequence pure).
+    seq_expr: []const Id,
 };
 
 pub const LowerError = error{
@@ -1242,19 +1254,42 @@ pub const Store = struct {
                 const args = node.span_a.slice(store.pool.items);
                 const func_node = store.get(node.payload);
 
-                // Reconnexion des opérateurs arithmétiques binationaux
-                if (func_node.tag == .sym and args.len == 2) {
+                // Reconnexions par operateur symbolique.
+                if (func_node.tag == .sym) {
                     const op_str = store.interner.resolve(func_node.payload);
-                    if (std.mem.eql(u8, op_str, "+") or
-                        std.mem.eql(u8, op_str, "-") or
-                        std.mem.eql(u8, op_str, "*") or
-                        std.mem.eql(u8, op_str, "/"))
+
+                    // Binaires arithmetiques : (+ a b), (- a b), (* a b), (/ a b)
+                    if (args.len == 2 and
+                        (std.mem.eql(u8, op_str, "+") or
+                         std.mem.eql(u8, op_str, "-") or
+                         std.mem.eql(u8, op_str, "*") or
+                         std.mem.eql(u8, op_str, "/")))
                     {
                         return .{ .binary_op = .{
                             .op = func_node.payload,
                             .lhs = args[0],
                             .rhs = args[1],
                         } };
+                    }
+
+                    // Conditionnelle : (if cond then else) - arite 3
+                    if (args.len == 3 and std.mem.eql(u8, op_str, "if")) {
+                        return .{ .conditional = .{
+                            .cond = args[0],
+                            .then_branch = args[1],
+                            .else_branch = args[2],
+                        } };
+                    }
+
+                    // Tuples, blocks, seqs : n-aires.
+                    if (std.mem.eql(u8, op_str, "tuple")) {
+                        return .{ .tuple_lit = args };
+                    }
+                    if (std.mem.eql(u8, op_str, "block")) {
+                        return .{ .block_expr = args };
+                    }
+                    if (std.mem.eql(u8, op_str, "seq")) {
+                        return .{ .seq_expr = args };
                     }
                 }
 
@@ -1263,7 +1298,17 @@ pub const Store = struct {
                     .args = args,
                 } };
             },
+            .letrec => {
+                const span = node.span_a.slice(store.pool.items);
+                if (span.len < 2) return error.InvalidBindNode;
+                return .{ .letrec = .{
+                    .name = node.payload,
+                    .val = span[0],
+                    .body = span[1],
+                } };
+            },
             .relation => return .{ .raw_primitive = .relation },
+            else => return .{ .raw_primitive = node.tag },
         }
     }
 
