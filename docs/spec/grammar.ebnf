@@ -1,0 +1,168 @@
+(* ================================================================
+   Heaven - EBNF de reference
+   Source : expr.zig (Lexer + NativeParser)
+          + expr_parser.zig (parseExpression, parseSExpr)
+          + heaven_expr.zig (dispatch eval)
+   Version 1.0 - descriptif - 2026-09-25
+   ================================================================ *)
+
+program        = { line } ;
+line           = { whitespace } , [ content ] , newline | eof ;
+content        = comment | directive | expression ;
+
+comment        = "--" , { any_but_newline } , newline
+               | "#"  , { any_but_newline } , newline
+               | "//" , { any_but_newline } , newline
+               | ";;" , { any_but_newline } , newline ;
+
+directive      = data_decl | sig_decl | module_decl | import_decl
+               | export_decl | strict_decl | theorem_decl | prove_decl
+               | skill_decl | fact_decl | query_decl | rules_expr
+               | equation | let_bind | fn_decl | actor_decl | macro_decl
+               | test_decl | assert_decl | simplify_expr | cas_expr
+               | green_expr | type_expr_directive | latex_directive ;
+
+module_decl    = "module" , whitespace , ident ;
+import_decl    = "import" , whitespace ,
+                 ( string , [ whitespace , "as" , whitespace , ident ]
+                 | ident ) ;
+export_decl    = "export" , whitespace , ident , { whitespace , ident } ;
+strict_decl    = "strict" , whitespace , ( "on" | "off" ) ;
+
+data_decl      = "data" , whitespace , typename , { whitespace , data_param } ,
+                 whitespace , "=" , whitespace , ctor_decl ,
+                 { whitespace , "|" , whitespace , ctor_decl } ;
+data_param     = ident | "(" , whitespace , ident , whitespace , ":" ,
+                 whitespace , type_expr , whitespace , ")" ;
+ctor_decl      = ctor_name , { whitespace , ctor_arg } ;
+ctor_arg       = primary_type | "(" , type_expr , ")" ;
+
+sig_decl       = "sig" , whitespace , ident , whitespace , ":" ,
+                 whitespace , type_expr ;
+
+theorem_decl   = "theorem" , whitespace , ident , whitespace , ":" ,
+                 whitespace , expr , whitespace , "=" , whitespace , expr ;
+prove_decl     = "prove" , whitespace , ident , whitespace , "by" ,
+                 whitespace , ( tactic_block | tactic_single ) ;
+tactic_block   = "{" , { whitespace , tactic_single , [ ";" ] } ,
+                 whitespace , "}" ;
+tactic_single  = "simplify" | "reflexivity" | "assumption" | "auto"
+               | "cases" , whitespace , ident
+               | "induction" , whitespace , ident
+               | "rewrite" , whitespace , ident
+               | "apply" , whitespace , ident
+               | "exact" , whitespace , ident
+               | "try" , whitespace , tactic_single
+               | "repeat" , whitespace , tactic_single ;
+
+skill_decl     = "skill" , whitespace , ident ,
+                 [ whitespace , "on" , whitespace , ident ] ;
+fact_decl      = "fact" , whitespace , ident , { whitespace , atom } ;
+query_decl     = "query" , whitespace , ident ,
+                 { whitespace , ( atom | "_" ) } ;
+rules_expr     = "rules" ;
+
+equation       = lhs , whitespace , eq_op , whitespace , rhs ;
+lhs            = ident , { whitespace , pattern } ;
+rhs            = expr ;
+eq_op          = "=" | ":=" ;
+pattern        = atom | "(" , ctor_name , { whitespace , pattern } , ")" ;
+
+let_bind       = "let" , whitespace , ident , whitespace , eq_op ,
+                 whitespace , expr , whitespace , "in" , whitespace , expr ;
+fn_decl        = "fn" , whitespace , ident , whitespace , ident ,
+                 { whitespace , ident } , whitespace , eq_op ,
+                 whitespace , expr ;
+actor_decl     = "let" , whitespace , "actor" , whitespace , ident ,
+                 whitespace , "=" , whitespace , expr , whitespace ,
+                 "with" , whitespace , ident ;
+macro_decl     = "let" , whitespace , "macro" , whitespace , ident ,
+                 "(" , ident , ")" , whitespace , "=" , whitespace ,
+                 expr ;
+
+test_decl      = "test" , whitespace , string , whitespace , ":" ,
+                 whitespace , expr , whitespace , "==" , whitespace , expr ;
+assert_decl    = ( "assert_eq" , whitespace , expr , whitespace , expr
+                 | "assert_err" , whitespace , expr ) ;
+
+simplify_expr  = "simplify" , whitespace , expr ;
+cas_expr       = "derive"    , whitespace , expr
+               | "integrate" , whitespace , expr
+               | "solve"     , whitespace , expr
+               | "expand"    , whitespace , expr
+               | "plot"      , whitespace , expr ;
+green_expr     = "green" , whitespace , expr ;
+type_expr_directive = "type" , whitespace , expr ;
+latex_directive= "latex" , whitespace , expr ;
+
+expr           = hole | lambda | native_expr ;
+hole           = "_" ;
+lambda         = ( "LAMBDA" | "\\" ) , ident , "." , expr ;
+native_expr    = unary_expr , { whitespace , binop , whitespace , unary_expr } ;
+unary_expr     = "-" , number
+               | "-" , unary_expr
+               | "!" , unary_expr
+               | "not" , unary_expr
+               | postfix_expr ;
+postfix_expr   = primary , { arg } ;
+arg            = primary
+               | "(" , whitespace ,
+                 [ expr , { whitespace , "," , whitespace , expr } ] ,
+                 whitespace , ")" ;
+primary        = number | string | ident
+               | "(" , whitespace , expr , whitespace , ")" ;
+
+type_expr      = type_atom , { whitespace , "->" , whitespace , type_atom } ;
+type_atom      = typename , { whitespace , type_arg } ;
+type_arg       = primary_type | "(" , whitespace , type_expr , whitespace , ")" ;
+primary_type   = ident | lowercase_ident ;
+
+ident          = ident_start , { ident_continue } ;
+ident_start    = letter | "_" | "?" ;
+ident_continue = letter | digit | "_" | "?" ;
+typename       = upper_letter , { ident_continue } ;
+ctor_name      = upper_letter , { ident_continue } ;
+number         = digit , { digit | "." } ;
+string         = '"' , { any_but_double_quote } , '"' ;
+lowercase_ident= lower_letter , { ident_continue } ;
+
+letter         = "A".."Z" | "a".."z" ;
+lower_letter   = "a".."z" ;
+upper_letter   = "A".."Z" ;
+digit          = "0".."9" ;
+
+whitespace     = " " | "\t" | "\n" | "\r" | "\v" | "\f" ;
+any_but_newline = ? tout octet sauf newline ? ;
+any_but_double_quote = ? tout octet sauf quote ? ;
+
+binop          = ">>>"
+               | "||" | "or"
+               | "&&" | "and"
+               | "==" | "!="
+               | "<"  | ">"  | "<=" | ">="
+               | "+"  | "-"
+               | "*"  | "/"  | "%"
+               | "^"
+               ;
+
+(* NOTES
+
+   Precedence (expr.zig::NativeParser.prec) :
+     >>> : 254 (gauche)
+     || or : 1 (gauche)
+     && and : 2 (gauche)
+     == != : 3 (gauche)
+     < > <= >= : 4 (gauche)
+     + - : 5 (gauche)
+     * / % : 6 (gauche)
+     ^ : 8 (DROITE)
+
+   Application n-aire : f(a, b) c d  =>  (f a b c d)
+
+   Negatif : -5 (un token) ; -x => (- 0 x)
+
+   Lambda : lambda = caractere U+03BB (2 octets UTF-8) ou backslash.
+
+   Unicode : x^2 peut s'ecrire x avec exposant 2 (superscript).
+   Le parser normalise automatiquement.
+*)
