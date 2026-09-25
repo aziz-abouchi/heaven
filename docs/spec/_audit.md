@@ -116,16 +116,19 @@ Deux syntaxes cohabitent (parens ou non) — **piège à connaître** :
 
 ### F9. Types et introspection
 
-**Attention** : `type` a **deux rôles** distincts (précision 2026-09-25) :
+**Constat vérifié** (2026-09-25, lecture de `evalTypeExpr`) :
+
+`type e` → introspection uniquement (inférence HM, retourne la string
+du type). **Aucune logique d'alias** — `type age Nat` échouerait à
+l'inférence (symbole `age` inconnu).
 
 | Forme | Ligne | Notes |
 |---|---|---|
 | `type e` | 575 | **introspection** : string du type de `e` |
-| `type NAME T` | 575 | **alias** : déclare `NAME` comme alias de `T` |
 | `(relation f args)` | 856 | construit une relation |
 
-Le parseur distingue intro vs alias sur le **nombre d'arguments**
-(1 token → intro, 2 tokens → alias). À vérifier dans `evalTypeExpr`.
+**Note** : `type NAME T` (alias) est une feature **souhaitée mais non
+implémentée** — voir `decisions.md` section 2.
 
 ### F10. Fallback générique (l.953-1052)
 

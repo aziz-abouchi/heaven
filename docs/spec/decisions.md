@@ -38,21 +38,32 @@ chose.
 
 ---
 
-## 2. `type` — intro, alias, vestige
+## 2. `type` — introspection + vestige (alias reporté)
 
-**Constat actualisé** (précision apportée par l'auteur 2026-09-25) :
-`type` a **deux rôles fonctionnels** distincts :
+**Constat vérifié** (2026-09-25, lecture de `evalTypeExpr` l.2853) :
 
-1. **Introspection** : `type e` → chaîne du type de `e`
-   (ex : `type (+ 1 x)` → `"Int"`).
-2. **Alias de type** : `type NAME T` → déclare `NAME` comme alias de `T`
-   (ex : `type age Nat` → `age` utilisable là où `Nat` l'est).
+`evalTypeExpr(src)` fait :
+1. `parseExpression(src)` — parse `src` comme une **expression**.
+2. `ensureLowered` — réduit aux 6 primitives.
+3. `types.Infer.typeOf` — inférence HM.
+4. Retourne la **chaîne du type**.
 
-Plus une **branche vestige** : `type ` apparaît dans `is_command`
-(l.585-591) — code mort puisque le dispatch l'intercepte plus haut
-(l.575).
+**Il n'y a aucune logique d'alias.** `type age Nat` serait parsé comme
+`age` appliqué à `Nat`, puis l'inférence HM échouerait (symbole `age`
+inconnu) → `type error: ...`.
 
-**Décision** : **Garder les deux rôles fonctionnels, retirer `is_command`**.
+L'idée « `type NAME T` déclare un alias » **n'existe pas dans le code
+actuel**. C'est soit une confusion, soit une feature souhaitée
+(v2 si retenue).
+
+**Décision** : **`type` reste intro-only dans la spec v1** (WYSIWYG).
+Retirer `is_command` (vestige l.585-591).
+
+**Option future** (reportée) : si les alias sont vraiment souhaités,
+nouvelle feature à part entière (~30 lignes + 2 tests) : soit via
+`type NAME T` (avec disambiguïsation explicite par le nombre de
+tokens), soit via un mot-clé dédié `alias NAME T` (moins ambigu).
+**Non planifié.**
 
 **Justification** : les deux rôles sont utiles et peuvent coexister.
 `type e` (un argument) = introspection, `type NAME T` (deux tokens après
@@ -217,7 +228,7 @@ Les deux sont naturels.
 | # | Écart | Décision | Effort |
 |---|---|---|---|
 | 1 | `meta` | Supprimer | 10 min |
-| 2 | `type` (intro + alias) + `is_command` | Retirer `is_command`, garder 2 rôles | 30 min |
+| 2 | `type` (intro-only) + `is_command` | Retirer `is_command`. Alias = feature future. | 30 min |
 | 3 | `=` vs `:=` | Garder les deux | 0 |
 | 4 | `assert_eq` double | Garder, doc infixe canonique | 0 |
 | 5 | `let` vs `let actor` | Documenter 2 modes | 0 |
