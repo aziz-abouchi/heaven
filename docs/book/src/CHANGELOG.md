@@ -3,6 +3,20 @@
 Historique des fonctionnalités du langage. Les entrées sont en ordre
 antéchronologique.
 
+## 2026-09-25
+
+### Architecture — RFC-0001 5/5 (complet)
+- Extraction de `import.zig` : `ImportState`, `resolveImportPath`,
+  `evalImport` (~270 lignes retirées de `heaven_expr.zig`).
+- Cycle `HeavenError` brisé : `ImportError = error{OutOfMemory}`
+  local, wrapper dans `heaven_expr.zig`.
+- Pattern `heaven: anytype` (déjà utilisé pour `std_loader`).
+- `heaven_expr.zig` : 4367 → 4101 lignes.
+- Découpage RFC-0001 terminé : `io_handler`, `expr_parser`,
+  `hole_runtime`, `unify_proof`, `std_loader`, `import`.
+- **Intégré dans** : `10-under-the-hood.md` (enrichi),
+  STATUS.md.
+
 ## 2026-09-24
 
 ### Type-dep v2d — unification d'indexes dépendants
