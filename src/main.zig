@@ -121,6 +121,10 @@ pub fn syncMatrixWithFile(_: *matrix_lib.Matrix, _: *autofab_lib.AutoFab, _: std
 }
 
 pub fn main() !void {
+    // Windows : forcer la console en UTF-8 avant tout affichage.
+    // No-op sur Unix.
+    platform.initConsole();
+
     platform.debug_enabled = platform.getenv("HEAVEN_DEBUG") != null;
 
     var gpa = std.heap.GeneralPurposeAllocator(.{

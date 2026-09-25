@@ -27,6 +27,9 @@ pub fn getenv(key: []const u8) ?[]const u8 {
     }
 }
 
+// --- CONSOLE INIT (no-op sur Unix) ---
+pub fn initConsole() void {}
+
 // --- STDIN / STDOUT / STDERR ---
 
 pub fn writeStdout(buf: []const u8) !usize {

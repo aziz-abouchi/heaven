@@ -21,6 +21,34 @@ pub fn getenv(key: []const u8) ?[]const u8 {
     return std.process.getEnvVarOwned(std.heap.page_allocator, key) catch null;
 }
 
+// --- CONSOLE INIT (UTF-8 + ANSI) ---
+
+/// Force la console Windows en UTF-8 et active les sequences ANSI.
+/// A appeler une fois au demarrage (main). Sans ceci, les caracteres
+/// accentues sont affiches en CP850 (é -> ├®), et les sequences
+/// ANSI de couleur sont imprimees telles quelles.
+pub fn initConsole() void {
+    const windows = std.os.windows;
+    const kernel32 = windows.kernel32;
+
+    // 1. Console en UTF-8 (sortie). SetConsoleCP (input) n'est pas
+    // declare dans std.os.windows.kernel32 (Zig 0.15.2) — pas grave,
+    // les commandes REPL sont ASCII.
+    _ = kernel32.SetConsoleOutputCP(65001);
+
+    // 2. Activer ANSI escape sur stdout (couleurs, effacement ligne)
+    const stdout_opt = kernel32.GetStdHandle(windows.STD_OUTPUT_HANDLE);
+    if (stdout_opt) |stdout| {
+        if (stdout != windows.INVALID_HANDLE_VALUE) {
+            var mode: u32 = 0;
+            if (kernel32.GetConsoleMode(stdout, &mode) != 0) {
+                // ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+                _ = kernel32.SetConsoleMode(stdout, mode | 0x0004);
+            }
+        }
+    }
+}
+
 // --- STDIN / STDOUT / STDERR ---
 
 pub fn writeStdout(buf: []const u8) !usize {
