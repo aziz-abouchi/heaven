@@ -308,14 +308,28 @@ pub const MultiParser = union(shell_parser_types.Language) {
 // ═══════════════════════════════════════════════════════════
 
 /// Lecture d'un stream réseau.
-/// Sur Windows, ReadFile peut retourner ERROR_INVALID_PARAMETER (87)
-/// quand le client ferme la connexion. On convertit ces erreurs
-/// bénignes en fin de connexion (0 octets) pour éviter le spin loop.
+/// Sur Windows, std.net.Stream.read utilise ReadFile qui ne fonctionne PAS
+/// avec les sockets (qui sont des SOCKET, pas des HANDLE). On utilise
+/// ws2_32.recv() directement à la place.
+/// Toute erreur réseau est convertie en fin de connexion (0 octets) pour
+/// permettre au thread de se terminer proprement quand le client ferme.
 pub fn streamRead(stream: std.net.Stream, buffer: []u8) std.net.Stream.ReadError!usize {
-    return stream.read(buffer) catch |err| {
-        if (err == error.Unexpected or err == error.InputOutput) return @as(usize, 0);
-        return err;
-    };
+    const rc = std.os.windows.ws2_32.recv(
+        stream.handle,
+        buffer.ptr,
+        @intCast(buffer.len),
+        0,
+    );
+    
+    if (rc == std.os.windows.ws2_32.SOCKET_ERROR) {
+        // Erreur réseau = fin de connexion propre
+        // (client fermé, connexion reset, timeout, etc.)
+        _ = std.os.windows.ws2_32.WSAGetLastError();
+        return @as(usize, 0);
+    }
+    
+    // rc == 0 signifie aussi que le client a fermé la connexion
+    return @intCast(rc);
 }
 
 // Windows n'a pas de capteur d'énergie comme Intel RAPL
