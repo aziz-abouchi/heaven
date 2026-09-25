@@ -224,3 +224,25 @@ depuis une string utilisateur, jamais d'evar dedans).
 5. **Documenter QTT** dans le book.
 6. Remplir les `std/*.hvn` restants (`kernel.hvn`, signatures sans corps).
 7. Sync auto `test_suite.hvn` (natif ↔ WASM).
+
+Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
+
+8. **Spec formelle du langage** (pour LLMs) — `docs/spec/heaven.md`.
+   EBNF + sémantique des formes acceptées + erreurs canoniques.
+   Descriptif d'abord (WYSIWYG), section « écarts connus ».
+   5-7 sessions. Format : 1 fichier agrégé + `grammar.ebnf`
+   + `errors.md`. Validation : tester qu'un LLM génère du
+   code qui compile avec la spec seule en contexte.
+9. **Uniformiser `src/platform`** — `native.zig` +
+   `x86_64_linux.zig` + `x86_64_windows.zig` (~90 % identiques).
+   Cible : 1 fichier commun + dispatch OS aux points critiques.
+   1-2 sessions.
+10. **Fusion kernel CIC** — `src/core/kernel.zig` (853 l.,
+    TermPool) vs `src/kernel/*` (1727 l., AST). Cible :
+    `src/kernel/` source de vérité, `core/kernel.zig` thin
+    wrapper puis suppression. 2-3 sessions. Risque élevé
+    (`proof_core`, `wasm.zig`, `cli/repl`, `frontend/parser`).
+11. **`readKey` → `platform`** — sortir `readKeyWindows`,
+    `readKeyUnix`, les `VK_*` et `INPUT_RECORD` de
+    `interactive.zig` vers `platform.readKey()`. Cohérence
+    avec la règle platform. 1 session.

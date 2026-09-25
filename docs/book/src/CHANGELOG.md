@@ -5,6 +5,22 @@ antéchronologique.
 
 ## 2026-09-25
 
+### Windows — console UTF-8 + tab-completion + raw mode
+- `x86_64_windows.zig::initConsole()` : `SetConsoleOutputCP(65001)`
+  + `ENABLE_VIRTUAL_TERMINAL_PROCESSING`. Corrige l'affichage
+  des caractères accentués (`op├®...` → `opérationnel`) et les
+  couleurs ANSI.
+- `enableRawMode` / `disableRawMode` (Windows) : `SetConsoleMode`
+  sans `LINE_INPUT` / `ECHO_INPUT` / `PROCESSED_INPUT`.
+  Tab-completion et flèches historiques fonctionnent.
+- Raw mode **encapsulé dans `src/platform`** : `ConsoleRawMode` +
+  `enableRawMode`/`disableRawMode` dans `x86_64_windows.zig` et
+  `x86_64_linux.zig`. `interactive.zig` n'a plus de `#if OS`
+  pour le raw mode (règle : tout le spécifique OS vit dans
+  `src/platform/`).
+
+
+
 ### Type-dep v2e — fix bug silencieux v2d + `holesToEvars`
 - **Bug découvert** : `_` est parsé en `Tag.hole`, et
   `unify_proof.unify` ne lie que les `Tag.evar`. Résultat :
