@@ -1,6 +1,6 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-09-24
+Dernière mise à jour : 2026-09-25
 
 Ce document est la **source de vérité** sur ce qui marche. Toute
 affirmation du book ou du README doit pointer vers une ligne de ce
@@ -68,9 +68,20 @@ Légende :
 | Vérif. structurelle patterns (arité, kind) | ✅ | `evalEquation` v2a/v2b/v2c | — |
 | Convention base/step (`Nil`↔zero, `Cons`↔succ) | ✅ | `ctorKind`/`domainKind` | — |
 | `ctor_results` (ctor → forme résultat) | ✅ | `evalDataDecl` v2d | arity>0 → `(succ _)` uniquement |
-| Unification `ctor_results[ctor]` ~ domaine | ✅ | `evalEquation` v2d (`unify_proof`) | best-effort : échec ≠ rejet |
-| Instanciation RHS sous `subst_v2d` | ✅ | `registerClause(body_used)` | — |
-| Unification effective (`Vec (n + m)`) | 🚧 | — | v2e roadmap |
+| Unification `ctor_results[ctor]` ~ domaine | ✅ | `evalEquation` v2e (`unify_proof` + `holesToEvars`) | best-effort : échec ≠ rejet |
+| Instanciation RHS sous `subst_v2d` | ✅ | `registerClause(body_used)` (v2e) | no-op avant v2e : `_` = `Tag.hole`, non lié |
+| Unification vraie (`Vec (n + m)` modulo arithmétique) | 🚧 | — | v2f roadmap |
+
+**Note v2e (2026-09-25)** : un bug a été découvert en testant v2e —
+`_` est parsé en `Tag.hole`, et `unify_proof.unify` ne lie que les
+`Tag.evar`. Conséquence : `subst_v2d` restait **toujours vide** entre
+v2d et v2e (`body_used == body`, no-op silencieux non détecté par les
+tests v2d car le pattern matching engine liait les variables de pattern
+indépendamment). Fix v2e : `Heaven.holesToEvars` remplace les holes par
+des evars frais avant `unify`. Le message de succès expose
+désormais `(subst: N)` quand N > 0. **v2e reste préparatoire** :
+aucun body réaliste n'est affecté aujourd'hui (le body est parsé
+depuis une string utilisateur, jamais d'evar dedans).
 
 
 ## Récursion & ordre supérieur
@@ -204,8 +215,9 @@ Légende :
 2. **Unifier le pipeline logique** — `kanren_expr` + `logic/*` + `prolog`
    derrière une API `assertFact` / `query` + 2-3 commandes REPL.
 3. **README aligné sur STATUS** (✅ fait).
-4. ~~**Type-dep v2d** — unification d'indexes au-delà de la convention base/step.~~ ✅ 2026-09-24
-   → suite : **v2e** — unification vraie pour `Vec (n + m)`.
+4. ~~**Type-dep v2d**~~ ✅ 2026-09-24 · ~~**v2e**~~ ✅ 2026-09-25
+   (fix `holesToEvars` + exposition `subst_v2d`).
+   → suite : **v2f** — unification vraie (`Vec (n + m)` modulo arithmétique).
 5. **Documenter QTT** dans le book.
 6. Remplir les `std/*.hvn` restants (`kernel.hvn`, signatures sans corps).
 7. Sync auto `test_suite.hvn` (natif ↔ WASM).
