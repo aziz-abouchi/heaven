@@ -514,6 +514,34 @@ pub const Heaven = struct {
         result.value_ptr.addClause(patterns, body);
     }
 
+    /// v2e : remplace les `Tag.hole` par des `Tag.evar` frais,
+    /// recursivement dans les `.apply`. Permet a `unify_proof.unify`
+    /// de lier les indexes dependants (`_` devient evar). Sans cette
+    /// transformation, `unify` ne voit que des holes et echoue
+    /// silencieusement (aucun binding dans la substitution).
+    fn holesToEvars(self: *Heaven, id: Id) HeavenError!Id {
+        if (id >= self.store.len()) return id;
+        const node = self.store.get(id);
+        switch (node.tag) {
+            .hole => return self.store.mkEvar() catch return error.OutOfMemory,
+            .apply => {
+                const new_fn = try self.holesToEvars(node.payload);
+                const all = self.store.spanSliceConst(node.span_a);
+                if (all.len < 1) return id;
+                var args = try self.allocator.alloc(Id, all.len - 1);
+                defer self.allocator.free(args);
+                var changed = (new_fn != node.payload);
+                for (all[1..], 0..) |a, i| {
+                    args[i] = try self.holesToEvars(a);
+                    if (args[i] != a) changed = true;
+                }
+                if (!changed) return id;
+                return self.store.apply(new_fn, args) catch return error.OutOfMemory;
+            },
+            else => return id,
+        }
+    }
+
     pub fn eval(self: *Heaven, src: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, src, " \t\n\r");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "");
@@ -1495,8 +1523,11 @@ pub const Heaven = struct {
                 }
                 if (ctor_name_v2d) |cn| {
                     const result_str = self.ctor_results.get(cn) orelse continue;
-                    const result_id = self.parseExpression(result_str) catch continue;
-                    const domain_id = self.parseExpression(domain_str_v2d) catch continue;
+                    const result_raw = self.parseExpression(result_str) catch continue;
+                    const domain_raw = self.parseExpression(domain_str_v2d) catch continue;
+                    // v2e : holes -> evars pour que unify puisse lier.
+                    const result_id = self.holesToEvars(result_raw) catch continue;
+                    const domain_id = self.holesToEvars(domain_raw) catch continue;
                     _ = unify_proof_mod.unify(&uctx_v2d, result_id, domain_id, &subst_v2d) catch continue;
                 }
             }
@@ -1540,6 +1571,14 @@ pub const Heaven = struct {
             }
         }
 
+        const subst_n = subst_v2d.count();
+        if (subst_n > 0) {
+            return std.fmt.allocPrint(
+                self.allocator,
+                "✓ clause enregistrée pour '{s}' (subst: {d})",
+                .{ name, subst_n },
+            );
+        }
         return std.fmt.allocPrint(self.allocator, "✓ clause enregistrée pour '{s}'", .{name});
     }
 
@@ -3879,6 +3918,47 @@ test "type-dep v1a — param imbriqué (n : Vec a)" {
     try std.testing.expectEqual(@as(usize, 1), info.params.len);
     try std.testing.expectEqualStrings("v", info.params[0].name);
     try std.testing.expect(info.params[0].ty != null);
+}
+
+test "type-dep v2e -- subst_v2d non vide sur type parametre" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r1 = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
+    defer allocator.free(r1);
+    const r2 = try heaven.eval("sig v2e_subst : (n : Nat) -> Vec (succ n) -> a");
+    defer allocator.free(r2);
+    const r = try heaven.eval("v2e_subst _ (Cons x _) = x");
+    defer allocator.free(r);
+
+    // Le mecanisme v2d/v2e doit avoir lie evar (ex-_ du ctor_result)
+    // avec le sym `n` du domaine : subst count >= 1, expose dans le
+    // message. Sans le fix holesToEvars, ce test echoue (subst: 0).
+    try std.testing.expect(std.mem.indexOf(u8, r, "subst:") != null);
+}
+
+test "type-dep v2e -- pas de subst sur type non parametre" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const r1 = try heaven.eval("data Color = Red | Green | Blue");
+    defer allocator.free(r1);
+    const r2 = try heaven.eval("sig v2e_color : Color -> Color");
+    defer allocator.free(r2);
+    const r = try heaven.eval("v2e_color Red = Red");
+    defer allocator.free(r);
+
+    // Aucun ctor de Color n'est dans ctor_results : pas de subst.
+    try std.testing.expect(std.mem.indexOf(u8, r, "subst:") == null);
+    try std.testing.expect(std.mem.startsWith(u8, r, "✓"));
 }
 
 test "type-dep v2d — ctor_results peuplé (Nil→zero, Cons→succ)" {
