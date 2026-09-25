@@ -65,3 +65,23 @@ formes inventees ou des hypotheses fausses sur le comportement.
 2. Meme prompt au LLM.
 3. Tester ligne a ligne dans le REPL natif.
 4. Critere : >= 4/5 programmes dont toutes les lignes passent.
+
+
+## Limitations confirmées (post-fix 2026-09-25)
+
+Apres les fixes `parseExpression` (bridge.importExpr → parseExpression
+dans routing S-EXPR) et `lambda inline multi-token`, les tests suivants
+passent :
+
+- `(* 3 6)` → 18
+- `(* (+ 1 2) 6)` → 18
+- `((\x.x) 42)` → 42
+- `(\x. x + 1) 5` → 6
+
+**Limitation non résolue** :
+
+- `f = \x.x` puis `f 42` : `f = \x.x` crée une clause à 0 pattern.
+  `f 42` demande 1 arg → `error.ArityMismatch` dans `evalFunction`.
+  **Contournement** : utiliser directement `(\x.x) 42` au top-level,
+  ou `f _ = \x.x` (clause à 1 wildcard). Documenté pour v2 : ajouter
+  la reconnaissance « clause = valeur littérale » dans `evalEquation`.

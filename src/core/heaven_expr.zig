@@ -845,9 +845,15 @@ pub const Heaven = struct {
                 } else |_| {}
             }
             // Autres S-expr : parse + engine.eval direct
-            if (self.bridge.importExpr(trimmed)) |id| {
+            // Fix 2026-09-25 : utiliser parseExpression (pas bridge.importExpr).
+            // Le bridge a son propre parser qui ne gere pas les lambdas
+            // `(\x. ...)` : il produit apply(sym("\x.x"), ...) au lieu de
+            // apply(lambda, ...), d'ou l'ArityMismatch en beta-reduction.
+            if (self.parseExpression(trimmed)) |id| {
                 self.engine.fuel = 1_000_000;
-                const evaluated = self.engine.eval(id) catch id;
+                const evaluated = self.engine.eval(id) catch |err| {
+                    return std.fmt.allocPrint(self.allocator, "[eval error] {}", .{err});
+                };
                 const result_str = try expr.toStringInfix(self.store, evaluated, self.allocator);
                 return result_str;
             } else |_| {}
@@ -947,6 +953,21 @@ pub const Heaven = struct {
         }
 
         // ─── ÉVALUATION GÉNÉRIQUE (infixe + application) ───
+        // 0. Si la chaîne commence par '(', c'est du S-expr explicite.
+        //    Parser via parseExpression puis engine.eval. Nécessaire pour
+        //    les cas comme `((\x.x) 42)` où nativeToSExpr échoue (lexer
+        //    rejette `\`) et où le fallback tokenize ne voit qu'UN token
+        //    (à cause des parens imbriquées) et retourne la chaîne brute.
+        if (trimmed[0] == '(') {
+            const id = self.parseExpression(trimmed) catch {
+                return self.allocator.dupe(u8, trimmed);
+            };
+            const evaluated = self.engine.eval(id) catch |err| {
+                return std.fmt.allocPrint(self.allocator, "[eval error] {}", .{err});
+            };
+            return expr.toStringInfix(self.store, evaluated, self.allocator);
+        }
+
         // 1. Essayer la conversion infixe → S‑expression (opérateurs binaires)
         if (expr.nativeToSExpr(trimmed, self.allocator)) |sexpr| {
             defer self.allocator.free(sexpr);
@@ -4098,6 +4119,52 @@ test "logic v1 -- query sans solution" {
     const r2 = try heaven.eval("query dog _");
     defer allocator.free(r2);
     try std.testing.expect(std.mem.indexOf(u8, r2, "aucune solution") != null);
+}
+
+test "eval — (* 3 6) == 18" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer { heaven.deinit(); allocator.destroy(heaven); }
+    const r = try heaven.eval("(* 3 6)");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "18") != null);
+}
+
+test "eval — (* (+ 1 2) 6) == 18" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer { heaven.deinit(); allocator.destroy(heaven); }
+    const r = try heaven.eval("(* (+ 1 2) 6)");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "18") != null);
+}
+
+test "eval — beta reduce : ((\\x.x) 42) == 42" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer { heaven.deinit(); allocator.destroy(heaven); }
+    const r = try heaven.eval("((\\x.x) 42)");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "42") != null);
+    try std.testing.expect(std.mem.indexOf(u8, r, "\\x") == null);
+}
+
+test "eval — beta reduce : (\\x.x) 42 == 42" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer { heaven.deinit(); allocator.destroy(heaven); }
+    const r = try heaven.eval("(\\x.x) 42");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "42") != null);
+}
+
+test "eval — beta reduce : (\\x. x + 1) 5 == 6" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer { heaven.deinit(); allocator.destroy(heaven); }
+    const r = try heaven.eval("(\\x. x + 1) 5");
+    defer allocator.free(r);
+    try std.testing.expect(std.mem.indexOf(u8, r, "6") != null);
 }
 
 test "type-dep v2d — ctor_results peuplé (Nil→zero, Cons→succ)" {

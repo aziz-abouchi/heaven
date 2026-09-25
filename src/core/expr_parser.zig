@@ -336,6 +336,30 @@ pub const ExprParser = struct {
             return error.InvalidSyntax;
         }
 
+        // Lambda inline multi-token : `\x. body` (body sur 1+ tokens)
+        // Cas `["\x.", "x", "+", "1"]` pour `\x. x + 1`.
+        // Doit être AVANT la détection infixe (sinon `+` court-circuite).
+        if (first.len > 0 and (first[0] == '\\' or std.mem.startsWith(u8, first, "λ"))) {
+            if (std.mem.indexOfScalar(u8, first, '.')) |dot_pos| {
+                const prefix_len: usize = if (std.mem.startsWith(u8, first, "λ")) 2 else 1;
+                if (dot_pos > prefix_len) {
+                    const param = first[prefix_len..dot_pos];
+                    const body_head = first[dot_pos + 1 ..];
+                    var body_buf = std.ArrayListUnmanaged(u8){};
+                    defer body_buf.deinit(self.allocator);
+                    try body_buf.appendSlice(self.allocator, body_head);
+                    for (tokens.items[1..]) |t| {
+                        try body_buf.append(self.allocator, ' ');
+                        try body_buf.appendSlice(self.allocator, t);
+                    }
+                    if (body_buf.items.len > 0) {
+                        const body_id = try self.parseExpression(body_buf.items);
+                        return try self.store.lambdaNative(&.{param}, body_id);
+                    }
+                }
+            }
+        }
+
         // DÉTECTION INFIXE : un opérateur au milieu → syntaxe infixe
         // (x + 3) → apply(x, [+, 3]) serait faux → déléguer au parser natif
         if (tokens.items.len > 1) {

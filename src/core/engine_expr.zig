@@ -384,7 +384,9 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
         .apply => {
             const pool = store.pool.items;
             const all_args = node.span_a.slice(pool);
-            if (all_args.len == 0) return error.ArityMismatch;
+            if (all_args.len == 0) {
+                return error.ArityMismatch;
+            }
 
             const op_id = node.payload;
             const op_node = store.get(op_id);
@@ -395,7 +397,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 
                 // Beta-réduction directe : (\x -> body) arg → body[x := arg]
                 if (evaled_node.tag == .lambda) {
-                    if (all_args.len != 2) return error.ArityMismatch;
+                    if (all_args.len < 2) return error.ArityMismatch;
                     const arg_val = try evaluate(store, env, engine, all_args[1], depth + 1);
                     const lam_span = store.spanSliceConst(evaled_node.span_a);
                     if (lam_span.len != 1) return error.NotALambda;
