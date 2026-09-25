@@ -203,8 +203,8 @@ zig build test-files        # tests/*.hvn (multi-fichiers)
 Statut global
 Expérimental avancé. Le noyau et les briques récentes (modules, tactics,
 type-dep surface, stdlib) sont utilisables au REPL. Manquent :
-unification vraie des indexes (v2e, `Vec (n + m)`), unification du
-pipeline logique derrière une API unique.
+unification vraie des indexes (v2f, `Vec (n + m)`), pipeline logique
+unifié (`fact`/`query` OK, `rule`/`?-` à venir).
 
 Voir docs/ROADMAP.md pour les chantiers en cours.
 

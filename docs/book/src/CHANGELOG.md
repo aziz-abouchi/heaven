@@ -24,6 +24,17 @@ antéchronologique.
   type non paramétré.
 - **Intégré dans** : `03-syntax-in-functions.md`, STATUS.
 
+### Logic — `fact` / `query` en langage (étape 1)
+- `Heaven.kanren` : instance de `kanren_expr.Kanren` (Store-based,
+  pas `logic/kanren.zig` qui est `Term`-based).
+- `fact name arg1 arg2 ...` : assert un fait dans le KB kanren.
+- `query name arg1 ...` : pattern matching simple, `_` = hole,
+  retourne le nombre de solutions.
+- Utilisables dans un `.hvn` (pas seulement au shell).
+- **Limitation** : pas de règles (`rule`), pas de `?-` Prolog.
+  Étapes 2-3 à venir.
+- **Intégré dans** : STATUS.md, ce changelog.
+
 ### Architecture — RFC-0001 5/5 (complet)
 - Extraction de `import.zig` : `ImportState`, `resolveImportPath`,
   `evalImport` (~270 lignes retirées de `heaven_expr.zig`).

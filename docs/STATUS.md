@@ -214,6 +214,9 @@ depuis une string utilisateur, jamais d'evar dedans).
    `std_loader.zig`, `import.zig`. Monolithe 4367 → 4101 lignes.
 2. **Unifier le pipeline logique** — `kanren_expr` + `logic/*` + `prolog`
    derrière une API `assertFact` / `query` + 2-3 commandes REPL.
+   → **Étape 1** ✅ 2026-09-25 : `fact` + `query` en langage
+   (kanren_expr, Store-based). Étapes 2-3 : `rule` (SLD simple),
+   `?-` (Prolog) + raccord shell.
 3. **README aligné sur STATUS** (✅ fait).
 4. ~~**Type-dep v2d**~~ ✅ 2026-09-24 · ~~**v2e**~~ ✅ 2026-09-25
    (fix `holesToEvars` + exposition `subst_v2d`).
