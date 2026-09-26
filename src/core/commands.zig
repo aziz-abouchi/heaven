@@ -2003,14 +2003,23 @@ try self.proof_core.theorem(name, stmt, lhs, rhs);            if (proof_term) |p
         const lhs_str = std.mem.trim(u8, stmt[0..eq_pos], " ");
         const rhs_str = std.mem.trim(u8, stmt[eq_pos + 1 ..], " ");
 
-        // Parser correctement les côtés de l'équation
-        const lhs = self.parseExpression(lhs_str) catch try self.bridge.importExpr(lhs_str);
-        const rhs = self.parseExpression(rhs_str) catch try self.bridge.importExpr(rhs_str);
+        // Parser correctement les côtés de l'équation — voie canonique
+        // UNIQUEMENT. Un statement imparsable est REFUSÉ, pas importé
+        // via le bridge (parser arithmétique parallèle fabricant des
+        // arbres non-foldables — cause de l'échec t_double_zero).
+        const lhs = self.parseExpression(lhs_str) catch {
+            return try self.allocator.dupe(u8, "✗ could not parse theorem statement (lhs)");
+        };
+        const rhs = self.parseExpression(rhs_str) catch {
+            return try self.allocator.dupe(u8, "✗ could not parse theorem statement (rhs)");
+        };
         const lhs_canon = try canon_mod.canonicalize(self.store, self.allocator, lhs);
         const rhs_canon = try canon_mod.canonicalize(self.store, self.allocator, rhs);
         // La preuve simplifie la forme RÉELLE — la canonisation reste
-// pour la règle KB ci-dessous (matching), pas pour le théorème.
-try self.proof_core.theorem(name, stmt, lhs, rhs);        const rule_id = try self.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{});
+        // pour la règle KB ci-dessous (matching), pas pour le théorème.
+        try self.proof_core.theorem(name, stmt, lhs, rhs);
+        const rule_id = try self.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{});
+        
         try self.kb.rules.append(self.allocator, rule_id);
         if (self.active_theorem.*) |old| self.allocator.free(old);
         self.active_theorem.* = try self.allocator.dupe(u8, name);
