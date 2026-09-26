@@ -289,3 +289,23 @@ utilisateur (sauf `relation` qui reste `raw_primitive`).
 - `_tooling.md` — audit complet du tooling (CLI, compilation, package
   manager). Révèle 2 CLIs concurrents, 5 pipelines de compilation,
   Guppy stub. Recommandation : Univers A (REPL/Core) canonique.
+
+
+## Casse `zig build` (2026-09-26, session parallèle)
+
+Au 2026-09-26, `zig build` échoue sur :
+  src/frontend/lowering.zig: FileNotFound
+  src/commands/compile.zig:4 importe `../frontend/lowering.zig`
+
+**Cause** : session parallèle (commits kernel merge `f287294`,
+suppression `strategy.zig` `c5ca569`) a déplacé/supprimé
+`src/frontend/lowering.zig` sans mettre à jour `compile.zig`.
+
+**Impact** : `zig build` (exe `heaven`) ne compile pas. `zig build test`
+fonctionne toujours (il ne compile pas `commands/compile.zig`).
+
+**À corriger** (session parallèle ou dédiée) :
+- Soit restaurer `src/frontend/lowering.zig`
+- Soit adapter `compile.zig` pour importer depuis le nouveau chemin
+
+**Ne pas toucher** depuis cette session (hors scope).
