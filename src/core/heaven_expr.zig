@@ -33,6 +33,7 @@ const io_handler_mod = @import("io_handler");
 const expr_parser_mod = @import("expr_parser");
 const std_loader = @import("std_loader");
 const import_mod = @import("import");
+const diff_mod = @import("diff");
 const ImportState = import_mod.ImportState;
 const kanren_expr_mod = @import("kanren");
 const unify_proof_mod = @import("tactics").unify_proof;
@@ -898,6 +899,11 @@ pub const Heaven = struct {
             return self.listRules();
         }
 
+        // ─── diff lower <expr> : montre la desucration sucre -> 6 primitives ───
+        if (std.mem.startsWith(u8, trimmed, "diff lower ")) {
+            return self.evalDiffLower(trimmed["diff lower ".len..]);
+        }
+
         // ─── Logic : fact / query (etape 1 pipeline logique unifie) ───
         if (std.mem.startsWith(u8, trimmed, "fact ")) {
             return self.evalFact(trimmed["fact ".len..]);
@@ -1065,6 +1071,32 @@ pub const Heaven = struct {
         return import_mod.evalImport(self, src) catch |err| switch (err) {
             error.OutOfMemory => HeavenError.OutOfMemory,
         };
+    }
+
+    /// diff lower <expr> : parse puis lower, affiche le diff structurel
+    /// entre l'AST brut et l'AST reduit aux 6 primitives.
+    fn evalDiffLower(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        const trimmed = std.mem.trim(u8, src, " \t");
+        if (trimmed.len == 0)
+            return self.allocator.dupe(u8, "usage: diff lower <expr>");
+
+        const raw = self.parseExpression(trimmed) catch |err| {
+            return std.fmt.allocPrint(self.allocator, "✗ parse error: {}", .{err});
+        };
+        const lowered = self.store.lowerRec(raw) catch |err| {
+            return std.fmt.allocPrint(self.allocator, "✗ lower error: {}", .{err});
+        };
+
+        var buf: std.ArrayList(u8) = .empty;
+        errdefer buf.deinit(self.allocator);
+
+        var d = diff_mod.AstDiff.init(self.store);
+        d.use_color = false;
+        d.print(buf.writer(self.allocator), raw, lowered) catch |err| {
+            return std.fmt.allocPrint(self.allocator, "✗ diff error: {}", .{err});
+        };
+
+        return buf.toOwnedSlice(self.allocator) catch error.OutOfMemory;
     }
 
     /// Etape 1 pipeline logique unifie : `fact name arg1 arg2 ...`

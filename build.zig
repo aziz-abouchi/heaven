@@ -361,6 +361,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const diff_mod = b.createModule(.{
+        .root_source_file = b.path("src/core/diff.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+        },
+    });
+
     const egraph_mod = b.createModule(.{
         .root_source_file = b.path("src/inference/eqsat/egraph.zig"),
         .target = target,
@@ -792,6 +801,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "std_loader", .module = std_loader_mod },
             .{ .name = "kanren", .module = kanren_expr_mod },
             .{ .name = "import", .module = import_mod },
+            .{ .name = "diff", .module = diff_mod },
         },
     });
     heaven_expr_mod.addOptions("build_options", options);
@@ -1129,6 +1139,7 @@ pub fn build(b: *std.Build) void {
     test_he_imports.append(b.allocator, .{ .name = "hole_runtime", .module = hole_runtime_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "std_loader", .module = std_loader_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "import", .module = import_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "diff", .module = diff_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "kanren", .module = kanren_expr_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "unify_proof", .module = unify_proof_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "hole", .module = hole_mod }) catch unreachable;
