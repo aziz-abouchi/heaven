@@ -373,13 +373,17 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                 return bound;
             }
             platform.dbg("[DEBUG eval] sym '{s}' NON trouvé dans env\n", .{name});
-            //return error.UnboundVariable;
-            // Un symbole non lié qui commence par une majuscule (convention
-            // constructeur : zero, succ, Prop, Nat, Lit...) ou qui matche un
-            // identifiant lowercase connu comme constructeur nullaire (zero,
-            // succ appliqué à 0 arg) s'auto-évalue plutôt que d'échouer.
+            // Constructeurs (convention majuscule : Cons, Nil, Zero, Succ,
+            // Prop, Nat...) : valeurs de données — s'auto-évaluent.
             if (name.len > 0 and name[0] >= 'A' and name[0] <= 'Z') return id;
-            return id;
+            // Allowlist EXPLICITE de constructeurs nullaires minuscules :
+            const known_ctors = [_][]const u8{ "zero", "succ", "quote" };
+            for (known_ctors) |kc| {
+                if (std.mem.eql(u8, name, kc)) return id;
+            }
+            // Variables libres : ERREUR. L'auto-évaluation générale a permis
+            // de prouver « theorem a = b ». Soundness > commodité.
+            return error.UnboundVariable;
         },
         .apply => {
             const pool = store.pool.items;

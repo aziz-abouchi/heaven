@@ -86,8 +86,52 @@ pub const ProofCore = struct {
         });
     }
 
+    /// Une expression est close si elle ne contient aucun symbole libre.
+    /// Conservateur : .sym → false (pas d'analyse de portée des bind).
+    /// Convention span_a : pour .apply, span_a[0] est le func_id —
+    /// les arguments réels sont span_a[1..]. La tête (payload) est un
+    /// opérateur/fonction, pas une variable libre à vérifier.
+    /// NOTE-AUX : bind porte sa valeur dans aux — si aux est un Id
+    /// d'expression, l'ajouter au parcours (à confirmer selon l'encodage).
+    fn exprIsClosed(store: *const Store, id: expr.Id) bool {
+        const node = store.get(id);
+        return switch (node.tag) {
+            .lit, .hole => true,
+            .sym => false,
+            .apply => blk: {
+                const all = node.span_a.slice(store.pool.items);
+                for (all[1..]) |arg| { // [0] = func_id (convention)
+                    if (!exprIsClosed(store, arg)) break :blk false;
+                }
+                break :blk true;
+            },
+            .bind, .lambda, .relation => blk: {
+                for (node.span_a.slice(store.pool.items)) |child| {
+                    if (!exprIsClosed(store, child)) break :blk false;
+                }
+                for (node.span_b.slice(store.pool.items)) |child| {
+                    if (!exprIsClosed(store, child)) break :blk false;
+                }
+                break :blk true;
+            },
+            else => true,
+        };
+    }
+
     pub fn verifyByEval(self: *ProofCore, name: []const u8, engine: *engine_expr.Engine, env: *engine_expr.Env, store: *Store) !bool {
         const thm = self.theorems.getPtr(name) orelse return false;
+
+        // ── GARDE DE SOUNDNESS ──────────────────────────────────────
+        // Preuve par évaluation : expressions closes UNIQUEMENT.
+        // evaluate() sur symbole non lié retourne une valeur par défaut
+        // silencieuse → toute équation entre variables libres devenait
+        // tautologie. Confirmé : « theorem a = b » + prove → ✓.
+        // (Le `catch thm.lhs` en aval confond en outre Id d'expression
+        // et valeur évaluée.)
+        if (!exprIsClosed(store, thm.lhs) or !exprIsClosed(store, thm.rhs)) {
+            return false;
+        }
+
         engine.fuel = 1000000;
         const lhs_val = engine_expr.evaluate(store, env, engine, thm.lhs, 0) catch thm.lhs;
         const rhs_val = engine_expr.evaluate(store, env, engine, thm.rhs, 0) catch thm.rhs;
@@ -122,88 +166,45 @@ pub const ProofCore = struct {
     pub fn verifyBySimplify(self: *ProofCore, name: []const u8, heaven: anytype) !bool {
         const thm = self.theorems.getPtr(name) orelse return false;
 
-        // Support des deux formats : "a = b" ET "Eq<a, b>"
-        var lhs_str: []const u8 = undefined;
-        var rhs_str: []const u8 = undefined;
-        if (std.mem.startsWith(u8, thm.statement, "Eq<") and std.mem.endsWith(u8, thm.statement, ">")) {
-            const inner = thm.statement[3 .. thm.statement.len - 1];
-            var depth: usize = 0;
-            var comma: ?usize = null;
-            for (inner, 0..) |c, i| {
-                switch (c) {
-                    '(' => depth += 1,
-                    ')' => if (depth > 0) {
-                        depth -= 1;
-                    },
-                    ',' => {
-                        if (depth == 0 and comma == null) comma = i;
-                    },
-                    else => {},
-                }
-            }
-            const cp = comma orelse return false;
-            lhs_str = std.mem.trim(u8, inner[0..cp], " ");
-            rhs_str = std.mem.trim(u8, inner[cp + 1 ..], " ");
-        } else {
-            const eq_pos = std.mem.indexOf(u8, thm.statement, " = ") orelse return false;
-            lhs_str = thm.statement[0..eq_pos];
-            rhs_str = thm.statement[eq_pos + 3 ..];
-        }
+        // ── Voie STRUCTURELLE (canonique) ─────────────────────────────
+        // Pipeline Id PUR sur les composants (store, math, simplify_eng) :
+        // lower → basic → EGRAPH → basic — la même séquence que
+        // Heaven.simplifyToId (heaven_expr.zig:2162), sans l'aller-retour
+        // chaîne. L'ancienne voie textuelle (comparaison de chaînes +
+        // commutativité indexOfAny "+-*") confondait a/b avec b/a, a
+        // avec b — « theorem a = b » était PROUVÉ. Supprimée intégralement.
+        // ────────────────────────────────────────────────────────────────
+        const lhs_rw = try rewriteViaPipeline(heaven, thm.lhs);
+        const rhs_rw = try rewriteViaPipeline(heaven, thm.rhs);
 
-        // Normaliser les op lowered (add/sub/mul/div → + - * /)
-        const lhs_norm = normalizeLoweredOps(lhs_str, heaven.allocator) catch lhs_str;
-        defer if (lhs_norm.ptr != lhs_str.ptr) heaven.allocator.free(lhs_norm);
-        const rhs_norm = normalizeLoweredOps(rhs_str, heaven.allocator) catch rhs_str;
-        defer if (rhs_norm.ptr != rhs_str.ptr) heaven.allocator.free(rhs_norm);
-
-        platform.dbg("[prove] statement = '{s}' lhs='{s}' rhs='{s}'\n", .{ thm.statement, lhs_norm, rhs_norm });
-
-        const ls = try self.simplifyToFixpoint(heaven, lhs_norm);
-        defer heaven.allocator.free(ls);
-        const rs = try self.simplifyToFixpoint(heaven, rhs_norm);
-        defer heaven.allocator.free(rs);
-
-        platform.dbg("[prove] ls = '{s}' rs = '{s}'\n", .{ ls, rs });
-
-        if (std.mem.eql(u8, ls, rs)) {
+        if (expr.structuralEql(heaven.store, lhs_rw, rhs_rw)) {
             thm.verified = true;
             return true;
-        }
-        if (std.mem.eql(u8, lhs_norm, rs) or std.mem.eql(u8, rhs_norm, ls)) {
-            thm.verified = true;
-            return true;
-        }
-        // commutativité sur originaux
-        if (lhs_norm.len > 2 and rhs_norm.len > 2) {
-            const op_l = std.mem.indexOfAny(u8, lhs_norm, "+-*");
-            const op_r = std.mem.indexOfAny(u8, rhs_norm, "+-*");
-            if (op_l != null and op_r != null) {
-                const al = std.mem.trim(u8, lhs_norm[0..op_l.?], " ");
-                const ar = std.mem.trim(u8, lhs_norm[op_l.? + 1 ..], " ");
-                const bl = std.mem.trim(u8, rhs_norm[0..op_r.?], " ");
-                const br = std.mem.trim(u8, rhs_norm[op_r.? + 1 ..], " ");
-                if (lhs_norm[op_l.?] == rhs_norm[op_r.?] and std.mem.eql(u8, al, br) and std.mem.eql(u8, ar, bl)) {
-                    thm.verified = true;
-                    return true;
-                }
-            }
-        }
-        // commutativité sur simplifiés
-        if (ls.len > 2 and rs.len > 2) {
-            const op_ls = std.mem.indexOfAny(u8, ls, "+-*");
-            const op_rs = std.mem.indexOfAny(u8, rs, "+-*");
-            if (op_ls != null and op_rs != null) {
-                const als = std.mem.trim(u8, ls[0..op_ls.?], " ");
-                const ars = std.mem.trim(u8, ls[op_ls.? + 1 ..], " ");
-                const bls = std.mem.trim(u8, rs[0..op_rs.?], " ");
-                const brs = std.mem.trim(u8, rs[op_rs.? + 1 ..], " ");
-                if (ls[op_ls.?] == rs[op_rs.?] and std.mem.eql(u8, als, brs) and std.mem.eql(u8, ars, bls)) {
-                    thm.verified = true;
-                    return true;
-                }
-            }
         }
         return false;
+    }
+
+    fn rewriteViaPipeline(heaven: anytype, id: expr.Id) !expr.Id {
+        // ensureLowered (fidèle heaven_expr.zig:1793)
+        var current = id;
+        var it: u32 = 0;
+        while (it < 10) : (it += 1) {
+            const node = heaven.store.get(current);
+            if (node.tag.isPrimitive()) break;
+            current = try heaven.store.lowerRec(current);
+        }
+        // basic → EGRAPH → basic, ITÉRÉ jusqu'à point fixe
+        // (fidèle à l'ancien simplifyToFixpoint : certaines réécritures
+        // multi-niveaux — (+ (+ x 0) 0) — exigent plusieurs tours)
+        var round: u32 = 0;
+        while (round < 10) : (round += 1) {
+            const b1 = heaven.math.simplifyBasic(current) catch current;
+            const eg = heaven.simplify_eng.simplifyWithEGraph(b1, null, null) catch b1;
+            const b2 = heaven.math.simplifyBasic(eg) catch eg;
+            if (b2 == current) break;
+            current = b2;
+        }
+        return current;
     }
 
     /// Applique `heaven.simplify` en boucle jusqu'à point fixe, ou jusqu'à

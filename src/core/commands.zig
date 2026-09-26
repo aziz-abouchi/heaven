@@ -177,6 +177,24 @@ pub const Commands = struct {
         }
     }
 
+    /// Pipeline canonique de simplification : parse → lower →
+    /// basic → EGRAPH → basic. Délègue à Heaven.simplifyToId
+    /// (heaven_expr.zig:2162) — la voie REPL éprouvée.
+    ///
+    /// Contexte soundness : « theorem a = b » était prouvé via
+    /// l'ancienne voie textuelle de verifyBySimplify (comparaison
+    /// de chaînes normalisant l'ordre des opérandes). Ce pipeline
+    /// structurel sur Id remplace toute comparaison de chaînes.
+    pub fn simplifyToId(self: *Commands, input: []const u8) !Id {
+        const trimmed = std.mem.trim(u8, input, " \t");
+        if (trimmed.len == 0) return error.InvalidInput;
+        const raw_id = try self.parseExpression(trimmed);
+        const id = try self.ensureLowered(raw_id);
+        const after_basic = try self.math.simplifyBasic(id);
+        const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
+        return try self.math.simplifyBasic(after_egraph);
+    }
+
     // ─── Eval dispatcher ───
     pub fn eval(self: *Commands, input: []const u8) HeavenError![]u8 {
         const trimmed0 = std.mem.trim(u8, input, " \t\r\n");
@@ -1964,8 +1982,9 @@ pub const Commands = struct {
             const rhs_canon = try canon_mod.canonicalize(self.store, self.allocator, rhs);
             var proof_term: ?*const proof_core.ProofTerm = null;
             if (proof_text) |pt| proof_term = proof_helpers_mod.ProofHelpers.parseProofBlock(self.allocator, pt);
-            try self.proof_core.theorem(name, stmt, lhs_canon, rhs_canon);
-            if (proof_term) |pt| {
+            // La preuve simplifie la forme RÉELLE — la canonisation reste
+// pour la règle KB ci-dessous (matching), pas pour le théorème.
+try self.proof_core.theorem(name, stmt, lhs, rhs);            if (proof_term) |pt| {
                 if (self.proof_core.theorems.getPtr(name)) |thm| {
                     thm.proof = pt;
                     thm.verified = true;
@@ -1989,8 +2008,9 @@ pub const Commands = struct {
         const rhs = self.parseExpression(rhs_str) catch try self.bridge.importExpr(rhs_str);
         const lhs_canon = try canon_mod.canonicalize(self.store, self.allocator, lhs);
         const rhs_canon = try canon_mod.canonicalize(self.store, self.allocator, rhs);
-        try self.proof_core.theorem(name, stmt, lhs_canon, rhs_canon);
-        const rule_id = try self.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{});
+        // La preuve simplifie la forme RÉELLE — la canonisation reste
+// pour la règle KB ci-dessous (matching), pas pour le théorème.
+try self.proof_core.theorem(name, stmt, lhs, rhs);        const rule_id = try self.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{});
         try self.kb.rules.append(self.allocator, rule_id);
         if (self.active_theorem.*) |old| self.allocator.free(old);
         self.active_theorem.* = try self.allocator.dupe(u8, name);

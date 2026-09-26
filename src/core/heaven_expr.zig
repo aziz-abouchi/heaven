@@ -1790,7 +1790,7 @@ pub const Heaven = struct {
         return id;
     }
     // ─── Helpers ───
-    fn ensureLowered(self: *Heaven, id: Id) HeavenError!Id {
+    pub fn ensureLowered(self: *Heaven, id: Id) HeavenError!Id {
         var current = id;
         var iterations: u32 = 0;
         while (iterations < 10) : (iterations += 1) {
