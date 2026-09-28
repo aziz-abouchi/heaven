@@ -35,7 +35,7 @@ const std_loader = @import("std_loader");
 const import_mod = @import("import");
 const diff_mod = @import("diff");
 const ImportState = import_mod.ImportState;
-const kanren_expr_mod = @import("kanren");
+const kanren_expr_mod = @import("kanren_expr");
 const unify_proof_mod = @import("tactics").unify_proof;
 const hole_runtime_mod = @import("hole_runtime");
 

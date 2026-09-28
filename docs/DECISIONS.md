@@ -36,19 +36,25 @@ restent verts. `main.zig` n'importe plus `matrix_lib`,
 `vessel_lib`, `heaven_lib`, `transpiler_lib`, `universal_lib`,
 `autofab_lib`, `react_lib`, `dispatch`, `SRG`, `EQSATPlanner`.
 
-## D2 — Un seul miniKanren
+## D2 — Moteurs logiques (FERMÉE 2026-09-28, doc + rename)
 
-**Constat** : 3 implémentations coexistent :
-- `core/kanren_expr.zig` (188 l., Store-based, utilisé par
-  `fact`/`query`)
-- `logic/kanren.zig` (969 l., Term-based, utilisé par le shell)
-- `runtime/prolog.zig` (308 l.)
+**Constat après audit** : 3 moteurs aux paradigmes **différents** :
+- `core/kanren_expr.zig` (188 l.) : miniKanren Store-based
+- `logic/kanren.zig` (969 l.) : miniKanren Term-based
+- `runtime/prolog.zig` (308 l.) : Prolog SLD
 
-**Recommandation** : garder `core/kanren_expr.zig` (Univers A),
-migrer `logic/kanren.zig` vers Store-based, supprimer
-`prolog.zig`. Clarifier les rôles dans `_tooling.md`.
+**Pas de duplication sémantique.** Ce ne sont pas trois fois la
+même chose, mais trois approches pour trois contextes différents.
 
-**Effort** : 2-3 sessions.
+**Problème réel** : dans `build.zig`, deux modules distincts sont
+exposés sous le même nom `"kanren"` (ambiguïté silencieuse).
+
+**Action** :
+- Documentation : `docs/spec/_logic.md`
+- Rename : `kanren_expr_mod` exposé comme `"kanren_expr"` (au lieu
+  de `"kanren"`), `heaven_expr.zig` mis à jour.
+
+**Effort** : 30 min. Aucun refactor de fusion justifié.
 
 ## D3 — Système de preuve (FERMÉE 2026-09-28, doc seule)
 
