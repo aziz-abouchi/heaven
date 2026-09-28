@@ -5,8 +5,10 @@ const Store = expr.Store;
 const Id = expr.Id;
 const canon = @import("canon");
 const platform = @import("platform");
-const kernel = @import("kernel");
 const engine_expr = @import("engine_expr");
+
+const kernel = @import("kernel");
+const kernel_bridge = @import("kernel_bridge");
 
 pub const ProofTerm = union(enum) {
     refl: u32,
@@ -176,10 +178,34 @@ pub const ProofCore = struct {
         // ────────────────────────────────────────────────────────────────
         const lhs_rw = try rewriteViaPipeline(heaven, thm.lhs);
         const rhs_rw = try rewriteViaPipeline(heaven, thm.rhs);
-
         if (expr.structuralEql(heaven.store, lhs_rw, rhs_rw)) {
-            thm.verified = true;
-            return true;
+            // NOUVEAU : confirmation kernel au lieu du writer direct
+            var pool = kernel.peano.TermPool.init(heaven.allocator);
+            defer pool.deinit();
+            try kernel.peano.initNatAxioms(&pool);
+
+            // TEMPORAIRE — à retirer après diagnostic :
+            const lhs_dbg = try heaven.store.toString(lhs_rw, heaven.allocator);
+            const rhs_dbg = try heaven.store.toString(rhs_rw, heaven.allocator);
+            platform.dbg("[kernel-dbg] lhs_rw='{s}' rhs_rw='{s}'\n", .{ lhs_dbg, rhs_dbg });
+
+            try kernel_bridge.declareFreeSymbols(heaven.store, &pool, lhs_rw);
+            try kernel_bridge.declareFreeSymbols(heaven.store, &pool, rhs_rw);
+
+            const lhs_term = kernel_bridge.exprToTerm(heaven.store, &pool, lhs_rw) catch |e| {
+                platform.dbg("[kernel-dbg] exprToTerm lhs FAILED: {s}\n", .{@errorName(e)});
+                return false;
+            };
+            const rhs_term = kernel_bridge.exprToTerm(heaven.store, &pool, rhs_rw) catch |e| {
+                platform.dbg("[kernel-dbg] exprToTerm rhs FAILED: {s}\n", .{@errorName(e)});
+                return false;
+            };
+            const eq_type = try pool.mkEq(lhs_term, rhs_term);
+            const proof = try pool.mkRefl(lhs_term);
+            const ok = kernel.peano.verify(&pool, proof, eq_type) catch false;
+            platform.dbg("[kernel-dbg] verify → {s} (lhs_term={d} rhs_term={d})\n", .{ if (ok) "OK" else "REJECTED", lhs_term, rhs_term });
+            thm.verified = ok;
+            return ok;
         }
         return false;
     }

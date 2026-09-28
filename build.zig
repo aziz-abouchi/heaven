@@ -545,6 +545,13 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const kernel_bridge_mod = b.addModule("kernel_bridge", .{
+        .root_source_file = b.path("src/core/kernel_bridge.zig"),
+        // deps : expr + kernel — les deux dont bridge a besoin
+    });
+    kernel_bridge_mod.addImport("expr", expr_mod);
+    kernel_bridge_mod.addImport("kernel", kernel_mod);
+
     const parse_mod = b.addModule("parse", .{
         .root_source_file = b.path("src/core/parse.zig"),
         .target = target,
@@ -596,6 +603,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "canon", .module = canon_mod },
             .{ .name = "kernel", .module = kernel_mod },
+            .{ .name = "kernel_bridge", .module = kernel_bridge_mod },
         },
     });
 
