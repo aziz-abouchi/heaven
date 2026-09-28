@@ -110,7 +110,6 @@ pub const HoleInfo = struct {
     seen_in: ?Id = null,
 };
 
-
 // ImportState extrait dans import.zig (RFC-0001 5/5).
 // Alias local ci-dessous : const ImportState = import_mod.ImportState;
 
@@ -297,16 +296,16 @@ pub const Heaven = struct {
 
         // v2b : parents des ctors built-in (utilisés par la vérif de kind).
         const builtin_parents = [_]struct { ctor: []const u8, parent: []const u8 }{
-            .{ .ctor = "zero",  .parent = "Nat"  },
-            .{ .ctor = "Zero",  .parent = "Nat"  },
-            .{ .ctor = "succ",  .parent = "Nat"  },
-            .{ .ctor = "Succ",  .parent = "Nat"  },
-            .{ .ctor = "nil",   .parent = "List" },
-            .{ .ctor = "Nil",   .parent = "List" },
-            .{ .ctor = "cons",  .parent = "List" },
-            .{ .ctor = "Cons",  .parent = "List" },
-            .{ .ctor = "true",  .parent = "Bool" },
-            .{ .ctor = "True",  .parent = "Bool" },
+            .{ .ctor = "zero", .parent = "Nat" },
+            .{ .ctor = "Zero", .parent = "Nat" },
+            .{ .ctor = "succ", .parent = "Nat" },
+            .{ .ctor = "Succ", .parent = "Nat" },
+            .{ .ctor = "nil", .parent = "List" },
+            .{ .ctor = "Nil", .parent = "List" },
+            .{ .ctor = "cons", .parent = "List" },
+            .{ .ctor = "Cons", .parent = "List" },
+            .{ .ctor = "true", .parent = "Bool" },
+            .{ .ctor = "True", .parent = "Bool" },
             .{ .ctor = "false", .parent = "Bool" },
             .{ .ctor = "False", .parent = "Bool" },
         };
@@ -649,8 +648,16 @@ pub const Heaven = struct {
             var i: usize = 0;
             while (i < sty_str.len) {
                 const c = sty_str[i];
-                if (c == '(') { depth += 1; i += 1; continue; }
-                if (c == ')') { if (depth > 0) depth -= 1; i += 1; continue; }
+                if (c == '(') {
+                    depth += 1;
+                    i += 1;
+                    continue;
+                }
+                if (c == ')') {
+                    if (depth > 0) depth -= 1;
+                    i += 1;
+                    continue;
+                }
                 if (c == '-' and i + 1 < sty_str.len and
                     sty_str[i + 1] == '>' and depth == 0)
                 {
@@ -1343,7 +1350,9 @@ pub const Heaven = struct {
 
             if (in_strict_module) {
                 const qualified = try std.fmt.allocPrint(
-                    self.allocator, "{s}.{s}", .{ self.current_module.?, ctor_name },
+                    self.allocator,
+                    "{s}.{s}",
+                    .{ self.current_module.?, ctor_name },
                 );
                 const owned = qualified;
                 const gop = try self.engine.fns.getOrPut(self.allocator, owned);
@@ -1940,7 +1949,8 @@ pub const Heaven = struct {
 
         // 4. Vérifier
         if (state.solved()) {
-            thm.verified = true;
+            // TODO : extraire le ProofTerm de state, le traduire, verify
+            thm.verified = true; // temporaire — en attendant le routage
             return std.fmt.allocPrint(self.allocator, "✓ [{s}] proved (tactics)\n", .{theorem_name});
         }
         const pp = try state.pp(self.allocator);
@@ -3125,7 +3135,6 @@ pub const Heaven = struct {
     }
 };
 
-
 fn substSymByName(
     store: *Store,
     allocator: std.mem.Allocator,
@@ -3162,15 +3171,13 @@ fn substSymByName(
     }
 }
 
-
 fn extractBinderType(s: []const u8) []const u8 {
     const t = std.mem.trim(u8, s, " \t");
     if (t.len == 0 or t[0] != '(') return t;
     var depth: usize = 1;
     var i: usize = 1;
     while (i < t.len and depth > 0) : (i += 1) {
-        if (t[i] == '(') depth += 1
-        else if (t[i] == ')') depth -= 1;
+        if (t[i] == '(') depth += 1 else if (t[i] == ')') depth -= 1;
     }
     if (i < 2) return t;
     const inner = t[1 .. i - 1];
@@ -3190,8 +3197,7 @@ fn extractHeadName(s: []const u8) []const u8 {
         var depth: usize = 1;
         i += 1;
         while (i < s.len and depth > 0) : (i += 1) {
-            if (s[i] == '(') depth += 1
-            else if (s[i] == ')') depth -= 1;
+            if (s[i] == '(') depth += 1 else if (s[i] == ')') depth -= 1;
         }
         if (i > open + 1 and i - 1 <= s.len) {
             const inner = s[open + 1 .. i - 1];
@@ -3206,7 +3212,6 @@ fn extractHeadName(s: []const u8) []const u8 {
     while (i < s.len and (std.ascii.isAlphanumeric(s[i]) or s[i] == '_')) : (i += 1) {}
     return s[start..i];
 }
-
 
 fn parseHeavenExpr(ctx: *anyopaque, input: []const u8) engine_expr.EvalError!expr.Id {
     const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));
@@ -4156,7 +4161,10 @@ test "logic v1 -- query sans solution" {
 test "eval — (* 3 6) == 18" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
-    defer { heaven.deinit(); allocator.destroy(heaven); }
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
     const r = try heaven.eval("(* 3 6)");
     defer allocator.free(r);
     try std.testing.expect(std.mem.indexOf(u8, r, "18") != null);
@@ -4165,7 +4173,10 @@ test "eval — (* 3 6) == 18" {
 test "eval — (* (+ 1 2) 6) == 18" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
-    defer { heaven.deinit(); allocator.destroy(heaven); }
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
     const r = try heaven.eval("(* (+ 1 2) 6)");
     defer allocator.free(r);
     try std.testing.expect(std.mem.indexOf(u8, r, "18") != null);
@@ -4174,7 +4185,10 @@ test "eval — (* (+ 1 2) 6) == 18" {
 test "eval — beta reduce : ((\\x.x) 42) == 42" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
-    defer { heaven.deinit(); allocator.destroy(heaven); }
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
     const r = try heaven.eval("((\\x.x) 42)");
     defer allocator.free(r);
     try std.testing.expect(std.mem.indexOf(u8, r, "42") != null);
@@ -4184,7 +4198,10 @@ test "eval — beta reduce : ((\\x.x) 42) == 42" {
 test "eval — beta reduce : (\\x.x) 42 == 42" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
-    defer { heaven.deinit(); allocator.destroy(heaven); }
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
     const r = try heaven.eval("(\\x.x) 42");
     defer allocator.free(r);
     try std.testing.expect(std.mem.indexOf(u8, r, "42") != null);
@@ -4193,7 +4210,10 @@ test "eval — beta reduce : (\\x.x) 42 == 42" {
 test "eval — beta reduce : (\\x. x + 1) 5 == 6" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
-    defer { heaven.deinit(); allocator.destroy(heaven); }
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
     const r = try heaven.eval("(\\x. x + 1) 5");
     defer allocator.free(r);
     try std.testing.expect(std.mem.indexOf(u8, r, "6") != null);
