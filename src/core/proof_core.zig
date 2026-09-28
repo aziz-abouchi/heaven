@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const expr = @import("expr");
 const Store = expr.Store;
 const Id = expr.Id;
+const Sym = expr.Sym;
 const canon = @import("canon");
 const platform = @import("platform");
 const engine_expr = @import("engine_expr");
@@ -256,6 +257,11 @@ pub const ProofCore = struct {
         return false;
     }
 
+    /// Normalise les noms Nat (Zero/Succ/Add/Mul -> minuscules) ET les
+    /// littéraux entiers (0 -> zero, n -> succ^n(zero)). Les deux formes
+    /// coexistent : les théorèmes parsés depuis .hvn contiennent `lit(0)`,
+    /// tandis que intToPeano produit `sym("zero")`. Sans cette
+    /// normalisation, simplifyRec ne peut pas matcher (lit != sym).
     fn normalizeNatNames(store: *Store, allocator: Allocator, id: Id) !Id {
         if (id >= store.len()) return id;
         const node = store.get(id);
@@ -264,14 +270,35 @@ pub const ProofCore = struct {
         switch (node.tag) {
             .sym => {
                 const name = store.interner.resolve(node.payload);
+                if (std.mem.eql(u8, name, "Zero")) return store.sym("zero");
+                if (std.mem.eql(u8, name, "Succ")) return store.sym("succ");
+                if (std.mem.eql(u8, name, "Add")) return store.sym("add");
+                if (std.mem.eql(u8, name, "Mul")) return store.sym("mul");
                 return store.sym(name);
+            },
+            .lit => {
+                const l = store.lits.items[node.aux];
+                switch (l) {
+                    .int => |n| {
+                        if (n <= 0) return store.sym("zero");
+                        var acc = try store.sym("zero");
+                        var i: i64 = 0;
+                        while (i < n) : (i += 1) {
+                            acc = try store.call("succ", &.{acc});
+                        }
+                        return acc;
+                    },
+                    else => return id,
+                }
             },
             .apply => {
                 const new_func = try normalizeNatNames(store, allocator, node.payload);
-                const args = node.span_a.slice(pool);
+                const all_snap = try allocator.dupe(Id, node.span_a.slice(pool));
+                defer allocator.free(all_snap);
+                const args_only: []const Id = if (all_snap.len > 0 and all_snap[0] == node.payload) all_snap[1..] else all_snap;
                 var new_args: std.ArrayListUnmanaged(Id) = .{};
                 defer new_args.deinit(allocator);
-                for (args) |arg| {
+                for (args_only) |arg| {
                     try new_args.append(allocator, try normalizeNatNames(store, allocator, arg));
                 }
                 return store.apply(new_func, new_args.items);
@@ -281,24 +308,38 @@ pub const ProofCore = struct {
     }
 
     /// Substitution symbolique : remplace toutes les occurrences de `var_id` par `replacement` dans `expr_id`
-    fn substituteVar(store: *Store, allocator: Allocator, expr_id: Id, var_id: Id, replacement: Id) !Id {
+    /// Substitution symbolique : remplace tout `.sym` dont le payload
+    /// égale `var_sym` par `replacement`. Comparaison par **Sym**, pas
+    /// par Id (l'Id est propre à chaque nœud, le Sym est l'identité du
+    /// nom interné — c'est ce qu'on veut matcher).
+    fn substituteVar(store: *Store, allocator: Allocator, expr_id: Id, var_sym: Sym, replacement: Id) !Id {
         if (expr_id >= store.len()) return expr_id;
         const node = store.get(expr_id);
         const pool = store.pool.items;
 
         switch (node.tag) {
             .sym => {
-                if (expr_id == var_id) return replacement;
+                if (node.payload == var_sym) return replacement;
                 return expr_id;
             },
             .apply => {
-                const new_func = try substituteVar(store, allocator, node.payload, var_id, replacement);
-                const args = node.span_a.slice(pool);
+                // SNAPSHOT obligatoire AVANT tout appel récursif :
+                // substituteVar peut appeler store.apply sur un enfant,
+                // ce qui réalloue pool.items. Toute slice prise sur
+                // `pool` deviendrait alors dangling (cf. le pattern
+                // snapshotArgs dans expr.zig).
+                const all_snap = try allocator.dupe(Id, node.span_a.slice(pool));
+                defer allocator.free(all_snap);
+
+                const new_func = try substituteVar(store, allocator, node.payload, var_sym, replacement);
+
+                if (all_snap.len < 1) return expr_id;
+                const args_only: []const Id = if (all_snap[0] == node.payload) all_snap[1..] else all_snap;
                 var new_args: std.ArrayListUnmanaged(Id) = .{};
                 defer new_args.deinit(allocator);
                 var changed = (new_func != node.payload);
-                for (args) |arg| {
-                    const new_arg = try substituteVar(store, allocator, arg, var_id, replacement);
+                for (args_only) |arg| {
+                    const new_arg = try substituteVar(store, allocator, arg, var_sym, replacement);
                     try new_args.append(allocator, new_arg);
                     if (new_arg != arg) changed = true;
                 }
@@ -313,6 +354,13 @@ pub const ProofCore = struct {
         const thm = self.theorems.getPtr(name) orelse return false;
         const var_sym = store.interner.lookup(variable) orelse return error.UnknownVariable;
         const old_binding = heaven.env.get(var_sym);
+
+        // Ne PAS normaliser thm.lhs/rhs : la règle KB `x + 0 = x` a été
+        // enregistrée avec lit(0) ; normaliser le théorème casserait le
+        // match (pattern (+ x lit(0)) vs expr (+ sym("zero") ...)).
+        // On garde lit(0), et intToPeano(0) = sym("zero") :
+        // après substitution, (+ sym("zero") lit(0)) matche (+ x lit(0))
+        // car x lie sym("zero") et lit(0) est identique.
 
         // Collecter les variables libres (autres que la variable d'induction)
         var free_vars = std.StringHashMapUnmanaged(void){};
@@ -329,11 +377,17 @@ pub const ProofCore = struct {
         }
 
         // Base case : variable = zero
-        try heaven.env.put(var_sym, try intToPeano(store, 0));
+        // Substitution SYMBOLIQUE (comme le step, cf. infra) — sinon
+        // `evaluate` échoue sur `zero + 0` (sym + lit), garde `apply(+, [x, 0])`,
+        // puis `simplifyRec` la réécrit via la règle KB `x + 0 = x` en `sym(x)`.
+        // Résultat : base_lhs = x au lieu de zero, base_ok = false.
+        const zero_id = try intToPeano(store, 0);
+        try heaven.env.put(var_sym, zero_id);
+        const base_lhs_subst = try substituteVar(store, self.allocator, thm.lhs, var_sym, zero_id);
+        const base_rhs_subst = try substituteVar(store, self.allocator, thm.rhs, var_sym, zero_id);
         heaven.engine.fuel = 100000;
-        // Évaluer en boucle jusqu'à stabilisation
-        var base_lhs_eval = thm.lhs;
-        var base_rhs_eval = thm.rhs;
+        var base_lhs_eval = base_lhs_subst;
+        var base_rhs_eval = base_rhs_subst;
         var prev_lhs: Id = undefined;
         var prev_rhs: Id = undefined;
         var iterations: u32 = 0;
@@ -344,9 +398,13 @@ pub const ProofCore = struct {
             base_rhs_eval = engine_expr.evaluate(heaven.store, heaven.env, heaven.engine, base_rhs_eval, 0) catch base_rhs_eval;
             if (base_lhs_eval == prev_lhs and base_rhs_eval == prev_rhs) break;
         }
-        // Appliquer simplifyRec pour réduire avec les règles de la KB
-        const base_lhs_raw = heaven.simplifyRec(base_lhs_eval, 0) catch base_lhs_eval;
-        const base_rhs_raw = heaven.simplifyRec(base_rhs_eval, 0) catch base_rhs_eval;
+        // Utiliser rewriteViaPipeline (EGraph + basic) au lieu de
+        // simplifyRec : simplifyRec utilise exprPatternMatch qui ne
+        // reconnaît que `?x` comme variable, tandis que le pipeline
+        // EGraph fait de l'unification réelle (sym comme variable libre).
+        // C'est le pipeline qui fait marcher `rewrite` et `simplify`.
+        const base_lhs_raw = rewriteViaPipeline(heaven, base_lhs_eval) catch base_lhs_eval;
+        const base_rhs_raw = rewriteViaPipeline(heaven, base_rhs_eval) catch base_rhs_eval;
 
         // Normaliser Add/Mul/Zero/Succ → add/mul/zero/succ avant canonicalisation
         const base_lhs_norm = try normalizeNatNames(store, self.allocator, base_lhs_raw);
@@ -355,11 +413,6 @@ pub const ProofCore = struct {
         const base_lhs = try canon.canonicalize(store, self.allocator, base_lhs_norm);
         const base_rhs = try canon.canonicalize(store, self.allocator, base_rhs_norm);
         const base_ok = try canon.canonEqStr(store, base_lhs, base_rhs, self.allocator);
-        {
-            const lhs_str = expr.toString(store, base_lhs, self.allocator) catch "?";
-            const rhs_str = expr.toString(store, base_rhs, self.allocator) catch "?";
-            platform.dbg("[INDUCTION] base_ok={} lhs={s} rhs={s}\n", .{ base_ok, lhs_str, rhs_str });
-        }
         if (!base_ok) {
             if (old_binding) |ob| heaven.env.put(var_sym, ob) catch {};
             return false;
@@ -373,6 +426,7 @@ pub const ProofCore = struct {
         // Substitution symbolique : remplacer var_sym par succ(k) dans lhs et rhs
         const step_lhs_subst = try substituteVar(store, self.allocator, thm.lhs, var_sym, succ_k);
         const step_rhs_subst = try substituteVar(store, self.allocator, thm.rhs, var_sym, succ_k);
+
 
         // Réduire avec les règles de la KB
         heaven.engine.fuel = 100000;
@@ -388,8 +442,8 @@ pub const ProofCore = struct {
             step_rhs_eval = engine_expr.evaluate(heaven.store, heaven.env, heaven.engine, step_rhs_eval, 0) catch step_rhs_eval;
             if (step_lhs_eval == step_prev_lhs and step_rhs_eval == step_prev_rhs) break;
         }
-        const step_lhs_raw = heaven.simplifyRec(step_lhs_eval, 0) catch step_lhs_eval;
-        const step_rhs_raw = heaven.simplifyRec(step_rhs_eval, 0) catch step_rhs_eval;
+        const step_lhs_raw = rewriteViaPipeline(heaven, step_lhs_eval) catch step_lhs_eval;
+        const step_rhs_raw = rewriteViaPipeline(heaven, step_rhs_eval) catch step_rhs_eval;
 
         // Normaliser et canonicaliser
         const step_lhs_norm = try normalizeNatNames(store, self.allocator, step_lhs_raw);
@@ -397,12 +451,6 @@ pub const ProofCore = struct {
         const step_lhs_canon = try canon.canonicalize(store, self.allocator, step_lhs_norm);
         const step_rhs_canon = try canon.canonicalize(store, self.allocator, step_rhs_norm);
         const step_ok = try canon.canonEqStr(store, step_lhs_canon, step_rhs_canon, self.allocator);
-
-        {
-            const lhs_str = expr.toString(store, step_lhs_canon, self.allocator) catch "?";
-            const rhs_str = expr.toString(store, step_rhs_canon, self.allocator) catch "?";
-            platform.dbg("[INDUCTION] symbolic step_ok={} lhs={s} rhs={s}\\n", .{ step_ok, lhs_str, rhs_str });
-        }
 
         // Restaurer l'environnement
         if (old_binding) |ob| heaven.env.put(var_sym, ob) catch {};
@@ -475,13 +523,16 @@ pub const ProofCore = struct {
             const theorem_type = try pool.mkPi(nat_ref, P_body);
 
             const structural_ok = kernel.verifyStructural(&pool, proof_term);
-            const type_ok = kernel.verify(&pool, proof_term, theorem_type) catch false;
+            const type_ok = kernel.verify(&pool, proof_term, theorem_type) catch |e| {
+                platform.dbg("[KERNEL-ERR] verify failed: {s}\n", .{@errorName(e)});
+                return false;
+            };
 
             platform.dbg("[KERNEL] structural={} type_check={} (symbolic_step={})\\n", .{ structural_ok, type_ok, step_ok });
 
             // Preuve acceptée si step symbolique passe ET structure du proof term valide
             // Le type-check complet de nat_ind sera activé quand le typage du prédicat sera corrigé
-            thm.verified = step_ok and structural_ok;
+            thm.verified = step_ok and structural_ok and type_ok; // plus de ✓ tant que type_check=false
         }
         return step_ok;
     }

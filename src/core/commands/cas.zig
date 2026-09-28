@@ -125,7 +125,6 @@ pub fn simplifyWithEGraph(cmds: anytype, id: Id, qtt: ?*egraph_mod.QttCost) !Id 
 }
 
 pub fn simplifyRec(cmds: anytype, id: Id, depth: u32) !Id {
-    platform.dbg("[src/core/commands.zig simplifyRec] called with id={d}, depth={d}\n", .{ id, depth });
     if (depth > 50) return id;
     if (id >= cmds.store.len()) return id;
     const node = cmds.store.get(id);
@@ -134,7 +133,12 @@ pub fn simplifyRec(cmds: anytype, id: Id, depth: u32) !Id {
     if (node.tag == .apply) {
         const func_id = node.payload;
         const args_span = node.span_a;
-        const old_args = args_span.slice(cmds.store.pool.items);
+        // span_a = [func, arg0, arg1, ...] — on saute [0] (= func).
+        const all_args = args_span.slice(cmds.store.pool.items);
+        const old_args = if (all_args.len >= 1 and all_args[0] == node.payload)
+            all_args[1..]
+        else
+            all_args;
         if (old_args.len == 2) {
             const arg0 = old_args[0];
             const arg1 = old_args[1];

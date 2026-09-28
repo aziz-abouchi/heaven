@@ -76,7 +76,7 @@ D3 fermée.
 | `simplify` | ✅ | Pipeline EGraph + canon |
 | `rewrite` | ✅ | Débloqué par fix `canonEqStr` (4cae058) |
 | `eval` | ✅ | Utilise engine_expr |
-| `induction` | ⚠️ | Échoue sur `x + 0 = x` — limitation du step de substitution |
+| `induction` | ✅ symbolique | `t_induction` passe (base + step + structural kernel). `type_check` kernel encore false (WIP) |
 
 ### Limitation : verifyByInduction
 
