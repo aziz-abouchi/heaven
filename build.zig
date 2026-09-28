@@ -722,6 +722,19 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const meta_ops = b.createModule(.{
+        .root_source_file = b.path("src/core/commands/meta.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "types", .module = types_mod },
+            .{ .name = "egraph", .module = egraph_mod },
+            .{ .name = "canon", .module = canon_mod },
+            .{ .name = "platform", .module = platform_mod },
+        },
+    });
+
     const format_ops = b.createModule(.{
         .root_source_file = b.path("src/core/commands/format.zig"),
         .target = target,
@@ -831,6 +844,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "cas_ops", .module = cas_ops },
             .{ .name = "defs_ops", .module = defs_ops },
             .{ .name = "format_ops", .module = format_ops },
+            .{ .name = "meta_ops", .module = meta_ops },
         },
     });
     commands_mod.addOptions("build_options", options);

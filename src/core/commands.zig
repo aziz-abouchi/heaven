@@ -9,6 +9,7 @@ const parse_ops = @import("parse_ops");
 const cas_ops = @import("cas_ops");
 const defs_ops = @import("defs_ops");
 const format_ops = @import("format_ops");
+const meta_ops = @import("meta_ops");
 
 const Allocator = std.mem.Allocator;
 const Store = expr.Store;
@@ -606,38 +607,37 @@ pub const Commands = struct {
     }
 
 
-    fn evalHelp(self: *Commands) ![]u8 {
-        return try self.allocator.dupe(u8, "═══ Heaven ═══\n" ++
-            "  help, stats, theorems\n" ++
-            "  theorem <name> : <prop>\n" ++
-            "  prove by <method>\n" ++
-            "  skill <name>\n" ++
-            "  type <expr>\n" ++
-            "  simplify <expr>\n" ++
-            "  derive <expr>\n" ++
-            "  solve <equation>\n" ++
-            "  expand <expr>\n" ++
-            "  integrate <expr>\n" ++
-            "  plot <function>\n" ++
-            "  latex <expr>\n" ++
-            "  explain <expr>\n" ++
-            "  trace <expr>\n" ++
-            "  let <var> = <expr>\n");
+    pub fn evalHelp(self: *Commands) HeavenError![]u8 {
+        return meta_ops.evalHelp(self) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    fn evalStats(self: *Commands) ![]u8 {
-        return try self.allocator.dupe(u8, "═══ Heaven WASM ═══\n" ++
-            "Engine: active\n" ++
-            "Features: eval, type, simplify, explain, latex, quote, prove");
+
+    pub fn evalStats(self: *Commands) HeavenError![]u8 {
+        return meta_ops.evalStats(self) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    fn evalType(self: *Commands, input: []const u8) ![]u8 {
-        return self.typeOf(input);
+
+    pub fn evalType(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return meta_ops.evalType(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    fn evalExpand(self: *Commands, input: []const u8) ![]u8 {
-        return self.math.expand(input);
+
+    pub fn evalExpand(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return meta_ops.evalExpand(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 
     pub fn evalLatex(self: *Commands, input: []const u8) HeavenError![]u8 {
         return format_ops.evalLatex(self, input) catch |err| switch (err) {
@@ -647,91 +647,45 @@ pub const Commands = struct {
     }
 
 
-    fn evalExplain(self: *Commands, input: []const u8) ![]u8 {
-        return self.explain(input);
+    pub fn evalExplain(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return meta_ops.evalExplain(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    fn evalPlot(self: *Commands, input: []const u8) ![]u8 {
-        const expr_str = std.mem.trim(u8, input, " ");
-        return std.fmt.allocPrint(self.allocator, "plot|{s}", .{expr_str});
+
+    pub fn evalPlot(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return meta_ops.evalPlot(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    fn evalQtt(self: *Commands, input: []const u8) ![]u8 {
-        var result: std.ArrayListUnmanaged(u8) = .{};
-        defer result.deinit(self.allocator);
-        var tokens = std.mem.tokenizeScalar(u8, input, ',');
-        while (tokens.next()) |token| {
-            const trimmed = std.mem.trim(u8, token, " ");
-            if (std.mem.indexOfScalar(u8, trimmed, ':')) |colon| {
-                const name = std.mem.trim(u8, trimmed[0..colon], " ");
-                const qty_str = std.mem.trim(u8, trimmed[colon + 1 ..], " ");
-                const qty = if (std.mem.eql(u8, qty_str, "0") or std.mem.eql(u8, qty_str, "zero")) @as(u2, 0) else if (std.mem.eql(u8, qty_str, "1") or std.mem.eql(u8, qty_str, "one")) @as(u2, 1) else @as(u2, 2);
-                _ = try self.store.interner.intern(name);
-                try self.qtt_env.put(self.allocator, name, qty);
-                try result.writer(self.allocator).print("qtt: {s} -> {d}\n", .{ name, qty });
-            }
-        }
-        return result.toOwnedSlice(self.allocator);
+
+    pub fn evalQtt(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return meta_ops.evalQtt(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    pub fn evalTrace(self: *Commands, input: []const u8) ![]u8 {
-        var buf: std.ArrayListUnmanaged(u8) = .{};
-        defer buf.deinit(self.allocator);
-        const w = buf.writer(self.allocator);
-        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
-        const id = try self.store.lowerRec(raw_id);
-        const initial = try expr.toStringInfix(self.store, id, self.allocator);
-        defer self.allocator.free(initial);
-        try w.print("trace: {s}\n", .{initial});
-        var current = try self.simplify_eng.simplifyRec(id, 0);
-        const after_rec = try expr.toStringInfix(self.store, current, self.allocator);
-        defer self.allocator.free(after_rec);
-        if (!std.mem.eql(u8, initial, after_rec))
-            try w.print("  → [rewrite] {s}\n", .{after_rec});
-        var qtt = egraph_mod.QttCost{};
-        defer qtt.deinit(self.allocator);
-        var it = self.qtt_env.iterator();
-        while (it.next()) |entry| {
-            const sym = try self.store.interner.intern(entry.key_ptr.*);
-            const sym_id = try self.store.symId(sym);
-            try qtt.quantities.put(self.allocator, sym_id, entry.value_ptr.*);
-        }
-        const after_egraph = try self.simplify_eng.simplifyWithEGraph(current, &qtt, null);
-        const after_egraph_str = try expr.toStringInfix(self.store, after_egraph, self.allocator);
-        defer self.allocator.free(after_egraph_str);
-        if (!std.mem.eql(u8, after_rec, after_egraph_str))
-            try w.print("  → [egraph] {s}\n", .{after_egraph_str});
-        current = after_egraph;
-        const canon = try canon_mod.canonicalize(self.store, self.allocator, current);
-        const canon_str = try expr.toStringInfix(self.store, canon, self.allocator);
-        defer self.allocator.free(canon_str);
-        if (!std.mem.eql(u8, after_egraph_str, canon_str))
-            try w.print("  → [canon] {s}\n", .{canon_str});
-        const node_count = self.countNodes(canon);
-        try w.print("  cost: {d} nodes\n", .{node_count});
-        return buf.toOwnedSlice(self.allocator);
+
+    pub fn evalTrace(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return meta_ops.evalTrace(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    fn countNodes(self: *Commands, id: Id) usize {
-        if (id >= self.store.len()) return 0;
-        const node = self.store.get(id);
-        var count: usize = 1;
-        switch (node.tag) {
-            .apply => {
-                count += self.countNodes(node.payload);
-                for (node.span_a.slice(self.store.pool.items)) |child|
-                    count += self.countNodes(child);
-            },
-            .bind => {
-                const children = node.span_a.slice(self.store.pool.items);
-                if (children.len != 2) return 0;
-                count += self.countNodes(children[0]);
-                count += self.countNodes(children[1]);
-            },
-            else => {},
-        }
-        return count;
+
+    pub fn countNodes(self: *Commands, id: Id) HeavenError![]u8 {
+        return meta_ops.countNodes(self, id) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 
     pub fn define(self: *Commands, name: []const u8, value_text: []const u8) HeavenError![]u8 {
         return defs_ops.define(self, name, value_text) catch |err| switch (err) {
@@ -741,7 +695,7 @@ pub const Commands = struct {
     }
 
 
-    fn tryFnCall(self: *Commands, input: []const u8) ?[]u8 {
+    pub fn tryFnCall(self: *Commands, input: []const u8) ?[]u8 {
         return parse_ops.tryFnCall(self, input);
     }
 
@@ -778,12 +732,12 @@ pub const Commands = struct {
     }
 
 
-    fn parseApp(self: *Commands, input: []const u8) !Id {
+    pub fn parseApp(self: *Commands, input: []const u8) !Id {
         return parse_ops.parseApp(self, input);
     }
 
 
-    fn parseApplication(self: *Commands, input: []const u8) !Id {
+    pub fn parseApplication(self: *Commands, input: []const u8) !Id {
         return parse_ops.parseApplication(self, input);
     }
 
@@ -803,38 +757,28 @@ pub const Commands = struct {
     }
 
 
-    fn hasErrorNode(self: *Commands, node: *const bridge_expr.Matrix) bool {
+    pub fn hasErrorNode(self: *Commands, node: *const bridge_expr.Matrix) bool {
         return parse_ops.hasErrorNode(self, node);
     }
 
 
-    fn parseCallExpr(self: *Commands, input: []const u8) !Id {
+    pub fn parseCallExpr(self: *Commands, input: []const u8) !Id {
         return parse_ops.parseCallExpr(self, input);
     }
 
 
-    fn parseLambda(self: *Commands, input: []const u8) !Id {
+    pub fn parseLambda(self: *Commands, input: []const u8) !Id {
         return parse_ops.parseLambda(self, input);
     }
 
 
-    pub fn typeOf(self: *Commands, input: []const u8) ![]u8 {
-        const trimmed = std.mem.trim(u8, input, " \t");
-        const id = blk: {
-            if (std.mem.indexOf(u8, trimmed, "(λ") != null or std.mem.indexOf(u8, trimmed, "(\\") != null) {
-                break :blk try self.parseApp(trimmed);
-            } else if (trimmed.len > 0 and trimmed[0] == '(') {
-                break :blk try self.parser.parseSExpr(trimmed);
-            } else {
-                // Fallback robuste
-                break :blk self.parseExpression(trimmed) catch try self.bridge.importExpr(trimmed);
-            }
+    pub fn typeOf(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return meta_ops.typeOf(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
         };
-        var inf = types_mod.Infer.init(self.store, self.allocator);
-        defer inf.deinit();
-        const t = try inf.typeOf(id);
-        return inf.typeStr(&inf.subst, t, self.allocator);
     }
+
 
     pub fn simplify(self: *Commands, input: []const u8) ![]u8 {
         return cas_ops.simplify(self, input) catch |err| switch (err) {
@@ -982,18 +926,13 @@ pub const Commands = struct {
         return result.toOwnedSlice(self.allocator);
     }
 
-    pub fn listRules(self: *Commands) ![]u8 {
-        var buf = std.ArrayListUnmanaged(u8){};
-        const w = buf.writer(self.allocator);
-        try w.writeAll("  KB rules as data:\n");
-        for (self.kb.rules.items, 0..) |rule_id, idx| {
-            if (rule_id >= self.store.len()) continue;
-            const s = expr.toString(self.store, rule_id, self.allocator) catch continue;
-            defer self.allocator.free(s);
-            try std.fmt.format(w, "  [{d}] {s}\n", .{ idx, s });
-        }
-        return buf.toOwnedSlice(self.allocator);
+    pub fn listRules(self: *Commands) HeavenError![]u8 {
+        return meta_ops.listRules(self) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 
     pub fn dumpAst(self: *Commands, input: []const u8) HeavenError![]u8 {
         return format_ops.dumpAst(self, input) catch |err| switch (err) {
@@ -1004,32 +943,13 @@ pub const Commands = struct {
 
 
 
-    pub fn explain(self: *Commands, input: []const u8) ![]u8 {
-        var current = try self.bridge.importExpr(input);
-        var buf: std.ArrayListUnmanaged(u8) = .{};
-        errdefer buf.deinit(self.allocator);
-        const s0 = try expr.toString(self.store, current, self.allocator);
-        defer self.allocator.free(s0);
-        try buf.appendSlice(self.allocator, "  step 0: ");
-        try buf.appendSlice(self.allocator, s0);
-        try buf.append(self.allocator, '\n');
-        var step: u32 = 1;
-        while (step < 20) {
-            const prev = current;
-            current = try self.simplify_eng.simplifyOnePass(current, &buf, &step);
-            if (current == prev) break;
-        }
-        const final_str = try expr.toString(self.store, current, self.allocator);
-        defer self.allocator.free(final_str);
-        try buf.appendSlice(self.allocator, "  ∴ ");
-        try buf.appendSlice(self.allocator, s0);
-        try buf.appendSlice(self.allocator, " = ");
-        try buf.appendSlice(self.allocator, final_str);
-        var tmp: [32]u8 = undefined;
-        const count_str = std.fmt.bufPrint(&tmp, "  ({d} rewrites)\n", .{step - 1}) catch "?\n";
-        try buf.appendSlice(self.allocator, count_str);
-        return buf.toOwnedSlice(self.allocator);
+    pub fn explain(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return meta_ops.explain(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 
     pub fn simplifyOnePass(self: *Commands, id: Id, buf: *std.ArrayListUnmanaged(u8), step: *u32) !Id {
         return cas_ops.simplifyOnePass(self, id, buf, step) catch |err| switch (err) {
@@ -1039,22 +959,13 @@ pub const Commands = struct {
     }
 
 
-    pub fn describeKB(self: *Commands) ![]u8 {
-        var buf: std.ArrayListUnmanaged(u8) = .{};
-        errdefer buf.deinit(self.allocator);
-        var tmp: [64]u8 = undefined;
-        const n_str = std.fmt.bufPrint(&tmp, " {d} rewrite rules\n", .{self.kb.rules.items.len}) catch "?\n";
-        try buf.appendSlice(self.allocator, n_str);
-        for (self.kb.rules.items) |rule_id| {
-            if (rule_id >= self.store.len()) continue;
-            const s = try expr.toString(self.store, rule_id, self.allocator);
-            defer self.allocator.free(s);
-            try buf.appendSlice(self.allocator, " ");
-            try buf.appendSlice(self.allocator, s);
-            try buf.append(self.allocator, '\n');
-        }
-        return buf.toOwnedSlice(self.allocator);
+    pub fn describeKB(self: *Commands) HeavenError![]u8 {
+        return meta_ops.describeKB(self) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 
     pub fn exprToC(self: *Commands, input: []const u8) HeavenError![]u8 {
         return format_ops.exprToC(self, input) catch |err| switch (err) {
