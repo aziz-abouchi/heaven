@@ -77,17 +77,16 @@ chevauchent.
 
 **Effort** : 2 sessions.
 
-## D5 — Un seul `NodeKind`
+## D5 — Un seul `NodeKind` (RÉSOLU, faux problème)
 
-**Constat** : `NodeKind` est défini 5 fois :
-`platform/shell_parser_types.zig`, `inference/forge/ts_normalize.zig`,
-`parsing/shell_parser.zig`, `core/bridge.zig`, `translator/mlcpd.zig`.
-Aucun n'est `Tag`. Vestiges de l'univers tree-sitter.
+**Constat vérifié 2026-09-28** : `NodeKind` est défini une seule
+fois dans `platform/shell_parser_types.zig:55`. `parsing/shell_parser.zig:9`
+et `core/bridge.zig:8` sont des **ré-exports** (`pub const NodeKind =
+platform.shell_parser_types.NodeKind;`). `inference/forge/ts_normalize.zig:3`
+a sa propre copie, mais c'est **légitime** (opère sur Tree-sitter brut,
+pas sur la `Matrix` abstraite).
 
-**Action** : si tree-sitter est gardé pour `fmt`/`lsp`/`doc`,
-un seul `NodeKind` partagé. Sinon, supprimer avec D1.
-
-**Effort** : 1 session (après D1).
+**Verdict** : rien à fusionner. D5 fermée sans action.
 
 ## D6 — Nettoyer `main.zig`
 

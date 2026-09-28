@@ -6,12 +6,7 @@ const signaling = @import("runtime/signaling_server.zig");
 
 // ─── Nouveau noyau (modules build.zig) ───
 const expr = @import("expr");
-const bridge_expr = @import("bridge_expr");
-const kanren_expr = @import("kanren_expr");
 const egraph_mod = @import("egraph");
-const codegen_expr_c = @import("codegen_expr_c");
-const codegen_expr_latex = @import("codegen_expr_latex");
-const engine_expr = @import("engine_expr");
 
 const codec = @import("codec");
 const network_queue = @import("queue");
@@ -27,23 +22,12 @@ const universal_lib = @import("inference/forge/universal.zig");
 const autofab_lib = @import("runtime/autofab.zig");
 const react_lib = @import("core/react.zig");
 const network = @import("scut/network.zig");
-const protocol = @import("protocol");
-const dispatch = @import("core/dispatch.zig");
-const task_lib = @import("task");
 const SRG = @import("runtime/symbolResolutionGraph.zig").SRG;
 const EQSATPlanner = @import("runtime/eQSATPlanner.zig").EQSATPlanner;
 const shell_lib = @import("runtime/shell/mod.zig");
 const loop = @import("runtime/loop.zig");
 
 //
-const commands_mod = @import("commands");
-const matrix_bridge_mod = @import("matrix_bridge");
-const transform_mod = @import("transform");
-const skill_lib = @import("skill");
-const proof_core = @import("proof_core");
-const agent_mod = @import("agent");
-const parse_mod = @import("parse");
-const math_mod = @import("math");
 //
 
 var bob_identity: []const u8 = "Bob:Unknown";
@@ -65,7 +49,6 @@ fn bobLog(comptime level: []const u8, comptime fmt: []const u8, args: anytype) v
 }
 
 const swarm_runtime = @import("runtime/swarm/runtime.zig");
-const swarm_proto = @import("scut/swarm/protocol_swarm.zig");
 const heaven_expr_mod = @import("heaven_expr");
 
 fn swarmWorkerLoop(allocator: std.mem.Allocator, swarm: *swarm_runtime.SwarmRuntime, ex: *const std.atomic.Value(bool)) void {
