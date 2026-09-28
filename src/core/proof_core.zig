@@ -181,17 +181,6 @@ pub const ProofCore = struct {
         const lhs_rw = try rewriteViaPipeline(heaven, thm.lhs);
         const rhs_rw = try rewriteViaPipeline(heaven, thm.rhs);
 
-        // Debug : toujours afficher lhs/rhs après réécriture
-        {
-            const lhs_str = heaven.store.toString(lhs_rw, heaven.allocator) catch "???";
-            const rhs_str = heaven.store.toString(rhs_rw, heaven.allocator) catch "???";
-            const eq = expr.structuralEql(heaven.store, lhs_rw, rhs_rw);
-            platform.debug.print("[verifyBySimplify] '{s}': lhs_rw='{s}' rhs_rw='{s}' eql={s}\n",
-                .{ name, lhs_str, rhs_str, if (eq) "true" else "false" });
-            heaven.allocator.free(lhs_str);
-            heaven.allocator.free(rhs_str);
-        }
-
         if (expr.structuralEql(heaven.store, lhs_rw, rhs_rw)) {
             // Égalité structurelle après simplification canonique = preuve valide
             // Le kernel Peano est une couche supplémentaire de vérification,
