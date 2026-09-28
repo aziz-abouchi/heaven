@@ -370,6 +370,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const serialize_mod = b.createModule(.{
+        .root_source_file = b.path("src/core/serialize.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+        },
+    });
+
     const egraph_mod = b.createModule(.{
         .root_source_file = b.path("src/inference/eqsat/egraph.zig"),
         .target = target,
@@ -1140,6 +1149,7 @@ pub fn build(b: *std.Build) void {
     test_he_imports.append(b.allocator, .{ .name = "std_loader", .module = std_loader_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "import", .module = import_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "diff", .module = diff_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "serialize", .module = serialize_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "kanren", .module = kanren_expr_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "unify_proof", .module = unify_proof_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "hole", .module = hole_mod }) catch unreachable;
@@ -1355,6 +1365,18 @@ pub fn build(b: *std.Build) void {
     }
 
     const test_step = b.step("test", "Run all tests");
+
+    const test_serialize = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/core/serialize.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "platform", .module = platform_mod },
+        },
+    }) });
+    const run_test_serialize = b.addRunArtifact(test_serialize);
+    test_step.dependOn(&run_test_serialize.step);
 
     const kernel_tests = b.addTest(.{
         .root_module = b.createModule(.{
