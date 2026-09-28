@@ -225,9 +225,10 @@ pub fn canonicalize(store: *Store, allocator: Allocator, id: Id) !Id {
 }
 
 pub fn canonEqStr(store: *const expr.Store, a: expr.Id, b: expr.Id, allocator: std.mem.Allocator) !bool {
-    _ = store;
-    _ = a;
-    _ = b;
     _ = allocator;
-    return false; // Stub temporaire
+    // Comparaison STRUCTURELLE des Id (pas de chaînes). Le nom
+    // canonEqStr est historique — le stub retournait false depuis
+    // son existence, bloquant verifyByRewrite ET le base/step de
+    // verifyByInduction.
+    return expr.structuralEql(store, a, b);
 }
