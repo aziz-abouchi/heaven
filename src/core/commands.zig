@@ -10,6 +10,7 @@ const cas_ops = @import("cas_ops");
 const defs_ops = @import("defs_ops");
 const format_ops = @import("format_ops");
 const meta_ops = @import("meta_ops");
+const runtime_ops = @import("runtime_ops");
 
 const Allocator = std.mem.Allocator;
 const Store = expr.Store;
@@ -841,90 +842,45 @@ pub const Commands = struct {
     }
 
 
-    fn evalGreen(self: *Commands, input: []const u8) ![]u8 {
-        // Même mécanisme que cmdGreen : wrapper dans (handle expr greenHandler)
-        if (self.eval("let greenHandler(v1, v2, cost) = (+ v1 v2)")) |r| {
-            self.allocator.free(r);
-        } else |_| {}
-
-        const expr_id = try self.bridge.importExpr(input);
-        const handle_op = try self.store.sym("handle");
-        const handler_sym = try self.store.sym("greenHandler");
-        const handle_node = try self.store.apply(handle_op, &.{ expr_id, handler_sym });
-
-        self.engine.green_call_count = 0;
-        self.engine.green_mode = true;
-        defer self.engine.green_mode = false;
-        self.engine.fuel = 1_000_000;
-
-        const result = engine_expr.evaluate(self.store, self.env, self.engine, handle_node, 0) catch |err| {
-            return try std.fmt.allocPrint(self.allocator, "green eval error: {}", .{err});
+    pub fn evalGreen(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return runtime_ops.evalGreen(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
         };
-        const res_str = try expr.toStringInfix(self.store, result, self.allocator);
-        defer self.allocator.free(res_str);
-        return try std.fmt.allocPrint(self.allocator, "{s} (green calls: {d})", .{ res_str, self.engine.green_call_count });
     }
 
-    fn evalOptimize(self: *Commands, input: []const u8) ![]u8 {
-        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
-        const id = try self.store.lowerRec(raw_id);
-        var qtt = egraph_mod.QttCost{};
-        defer qtt.deinit(self.allocator);
-        var it = self.qtt_env.iterator();
-        while (it.next()) |entry| {
-            const sym = try self.store.interner.intern(entry.key_ptr.*);
-            const sym_id = try self.store.symId(sym);
-            try qtt.quantities.put(self.allocator, sym_id, entry.value_ptr.*);
-        }
-        const optimized = try self.simplify_eng.simplifyWithEGraph(id, &qtt, null);
-        return expr.toString(self.store, optimized, self.allocator);
+
+    pub fn evalOptimize(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return runtime_ops.evalOptimize(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    fn evalAsm(self: *Commands, input: []const u8) ![]u8 {
-        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
-        const id = try self.store.lowerRec(raw_id);
-        var mir_func = mir.MirFunction.init(self.allocator);
-        defer mir_func.deinit();
-        const entry_block = try mir_func.newBlock();
-        var locals = std.AutoHashMap(u32, mir.Id).init(self.allocator);
-        defer locals.deinit();
-        _ = try mir_func.compileExpr(self.store, id, entry_block, locals);
-        mir_func.blocks.items[entry_block].terminator = .{ .ret = 0 };
-        var buf = std.ArrayListUnmanaged(u8){};
-        defer buf.deinit(self.allocator);
-        try x86_64.emitFromFunction(&mir_func, buf.writer(self.allocator));
-        return buf.toOwnedSlice(self.allocator);
+
+    pub fn evalAsm(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return runtime_ops.evalAsm(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    pub fn evalSExpr(self: *Commands, input: []const u8) ![]u8 {
-        const trimmed = std.mem.trim(u8, input, " \t\n\r");
-        if (trimmed.len == 0) return self.allocator.dupe(u8, "()");
 
-        const expr_id = self.parseExpression(trimmed) catch return error.InvalidSyntax;
-        self.engine.fuel = 1_000_000;
-        const result = engine_expr.evaluate(self.store, self.env, self.engine, expr_id, 0) catch expr_id;
-        return expr.toStringInfix(self.store, result, self.allocator);
+    pub fn evalSExpr(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return runtime_ops.evalSExpr(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    pub fn substExpr(self: *Commands, input: []const u8, varname: []const u8, value: []const u8) ![]u8 {
-        var result = std.ArrayListUnmanaged(u8){};
-        const w = result.writer(self.allocator);
-        var i: usize = 0;
-        while (i < input.len) {
-            if (i + varname.len <= input.len and std.mem.eql(u8, input[i .. i + varname.len], varname)) {
-                const before_ok = i == 0 or !std.ascii.isAlphabetic(input[i - 1]);
-                const after_ok = i + varname.len >= input.len or !std.ascii.isAlphabetic(input[i + varname.len]);
-                if (before_ok and after_ok) {
-                    try w.writeAll(value);
-                    i += varname.len;
-                    continue;
-                }
-            }
-            try w.writeByte(input[i]);
-            i += 1;
-        }
-        return result.toOwnedSlice(self.allocator);
+
+    pub fn substExpr(self: *Commands, input: []const u8, varname: []const u8, value: []const u8) HeavenError![]u8 {
+        return runtime_ops.substExpr(self, input, varname, value) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 
     pub fn listRules(self: *Commands) HeavenError![]u8 {
         return meta_ops.listRules(self) catch |err| switch (err) {
@@ -1012,123 +968,43 @@ pub const Commands = struct {
     }
 
 
-    fn evalMir(self: *Commands, input: []const u8) ![]u8 {
-        var instructions = std.mem.splitScalar(u8, input, ';');
-        var last_expr: []const u8 = "";
-        while (instructions.next()) |instr| {
-            const trimmed = std.mem.trim(u8, instr, " \t");
-            if (trimmed.len == 0) continue;
-            last_expr = trimmed;
-        }
-        const id = self.bridge.importExpr(last_expr) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "parse error: {s}", .{@errorName(err)});
+    pub fn evalMir(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return runtime_ops.evalMir(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
         };
-        var mir_func = mir.MirFunction.init(self.allocator);
-        defer mir_func.deinit();
-        mir_func.engine = self.engine;
-        mir_func.store_ref = self.store;
-        const entry_block = try mir_func.newBlock();
-        var locals = std.AutoHashMap(u32, mir.Id).init(self.allocator);
-        defer locals.deinit();
-        const result_val = try mir_func.compileExpr(self.store, id, entry_block, locals);
-        if (mir_func.blocks.items[entry_block].terminator == .fallthrough) {
-            mir_func.blocks.items[entry_block].terminator = .{ .ret = result_val };
-        }
-        var global_vars = std.AutoHashMap(u32, i64).init(self.allocator);
-        defer global_vars.deinit();
-        const result = mir_func.execute(&global_vars) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "mir exec error: {s}", .{@errorName(err)});
+    }
+
+
+    pub fn evalAsk(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return runtime_ops.evalAsk(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
         };
-        return std.fmt.allocPrint(self.allocator, "{d}", .{result});
     }
 
-    fn evalAsk(self: *Commands, input: []const u8) ![]u8 {
-        const prompt = std.mem.trim(u8, input, " ");
-        if (prompt.len == 0) return try self.allocator.dupe(u8, "Usage: ask <question>");
-        const suggestion = try self.agent.suggest(prompt) orelse
-            return try self.allocator.dupe(u8, "Je ne sais pas répondre à cette question.");
-        var buf: [1024]u8 = undefined;
-        const msg = try std.fmt.bufPrint(&buf, "[INFO] Suggestion : {s}\n", .{suggestion});
-        const result = try self.eval(suggestion);
-        defer self.allocator.free(result);
-        return std.fmt.allocPrint(self.allocator, "{s}→ {s}", .{ msg, result });
-    }
 
-    fn evalJs(self: *Commands, input: []const u8) ![]u8 {
-        const id = self.bridge.importExpr(input) catch |err| {
-            return std.fmt.allocPrint(self.allocator, "js parse error: {s}", .{@errorName(err)});
+    pub fn evalJs(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return runtime_ops.evalJs(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
         };
-        return codegen_js.exprToJs(self.store, id, self.allocator);
     }
 
-    fn evalTransform(self: *Commands, input: []const u8) ![]u8 {
-        const eq_pos = std.mem.indexOf(u8, input, "=") orelse return error.InvalidSyntax;
-        const lhs_str = std.mem.trim(u8, input[0..eq_pos], " ");
-        const rhs_str = std.mem.trim(u8, input[eq_pos + 1 ..], " ");
-        const lhs_id = self.bridge.importExpr(lhs_str) catch return error.InvalidSyntax;
-        const rhs_id = self.bridge.importExpr(rhs_str) catch return error.InvalidSyntax;
-        var tf = transform_mod.Transform.init(self.allocator, self.store, self.kb);
-        const result = tf.transform(lhs_id, rhs_id, self.engine);
-        return transform_mod.format(result, self.store, self.allocator);
+
+    pub fn evalTransform(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return runtime_ops.evalTransform(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    fn mkBinop(self: *Commands, op: []const u8, a: Id, b: Id) !Id {
-        if (a >= self.store.len() or b >= self.store.len()) return self.store.int(0);
-        const na = self.store.get(a);
-        const nb = self.store.get(b);
-        const is_a_zero = na.tag == .lit and self.store.lits.items[na.aux].eql(.{ .int = 0 });
-        const is_b_zero = nb.tag == .lit and self.store.lits.items[nb.aux].eql(.{ .int = 0 });
-        const is_a_one = na.tag == .lit and self.store.lits.items[na.aux].eql(.{ .int = 1 });
-        const is_b_one = nb.tag == .lit and self.store.lits.items[nb.aux].eql(.{ .int = 1 });
-        if (std.mem.eql(u8, op, "+")) {
-            if (is_a_zero) return b;
-            if (is_b_zero) return a;
-            if (na.tag == .lit and nb.tag == .lit) {
-                const la = self.store.lits.items[na.aux];
-                const lb = self.store.lits.items[nb.aux];
-                switch (la) {
-                    .int => |va| switch (lb) {
-                        .int => |vb| return self.store.int(std.math.add(i64, va, vb) catch return error.Overflow),
-                        else => {},
-                    },
-                    else => {},
-                }
-            }
-        } else if (std.mem.eql(u8, op, "-")) {
-            if (is_b_zero) return a;
-            if (na.tag == .lit and nb.tag == .lit) {
-                const la = self.store.lits.items[na.aux];
-                const lb = self.store.lits.items[nb.aux];
-                switch (la) {
-                    .int => |va| switch (lb) {
-                        .int => |vb| return self.store.int(std.math.sub(i64, va, vb) catch return error.Overflow),
-                        else => {},
-                    },
-                    else => {},
-                }
-            }
-        } else if (std.mem.eql(u8, op, "*")) {
-            if (is_a_zero or is_b_zero) return self.store.int(0);
-            if (is_a_one) return b;
-            if (is_b_one) return a;
-            if (na.tag == .lit and nb.tag == .lit) {
-                const la = self.store.lits.items[na.aux];
-                const lb = self.store.lits.items[nb.aux];
-                switch (la) {
-                    .int => |va| switch (lb) {
-                        .int => |vb| return self.store.int(std.math.mul(i64, va, vb) catch return error.Overflow),
-                        else => {},
-                    },
-                    else => {},
-                }
-            }
-        } else if (std.mem.eql(u8, op, "/")) {
-            if (is_a_zero) return self.store.int(0);
-            if (is_b_one) return a;
-        } else if (std.mem.eql(u8, op, "^")) {
-            if (is_b_zero) return self.store.int(1);
-            if (is_b_one) return a;
-        }
-        return self.store.binop(op, a, b);
+
+    pub fn mkBinop(self: *Commands, op: []const u8, a: Id, b: Id) HeavenError!Id {
+        return runtime_ops.mkBinop(self, op, a, b) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 };
