@@ -7,6 +7,7 @@ const ShellParser = @import("shell_parser").ShellParser;
 const proofs_ops = @import("proofs_ops");
 const parse_ops = @import("parse_ops");
 const cas_ops = @import("cas_ops");
+const defs_ops = @import("defs_ops");
 
 const Allocator = std.mem.Allocator;
 const Store = expr.Store;
@@ -731,239 +732,50 @@ pub const Commands = struct {
         return count;
     }
 
-    pub fn define(self: *Commands, name: []const u8, value_text: []const u8) ![]u8 {
-        const val_id = try self.bridge.importExpr(value_text);
-        self.engine.fuel = 10_000;
-        const evaled = engine_expr.evaluate(self.store, self.env, self.engine, val_id, 0) catch val_id;
-        const bind_id = try self.store.bind(name, evaled);
-        try self.env.put(try self.store.interner.intern(name), evaled);
-        return expr.toString(self.store, bind_id, self.allocator);
+    pub fn define(self: *Commands, name: []const u8, value_text: []const u8) HeavenError![]u8 {
+        return defs_ops.define(self, name, value_text) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 
     fn tryFnCall(self: *Commands, input: []const u8) ?[]u8 {
         return parse_ops.tryFnCall(self, input);
     }
 
 
-    fn evalActorDef(self: *Commands, input: []const u8, env: *engine_expr.Env) ![]u8 {
-        const with_pos = std.mem.indexOf(u8, input, " with ") orelse
-            return self.allocator.dupe(u8, "syntax error: missing 'with'");
-
-        const lhs = std.mem.trim(u8, input[0..with_pos], " ");
-        const rhs = std.mem.trim(u8, input[with_pos + 6 ..], " ");
-
-        const eq_pos = std.mem.indexOfScalar(u8, lhs, '=') orelse
-            return self.allocator.dupe(u8, "syntax error: missing '='");
-
-        const name = std.mem.trim(u8, lhs[0..eq_pos], " ");
-        const init_state_str = std.mem.trim(u8, lhs[eq_pos + 1 ..], " ");
-
-        const init_state_id = try self.bridge.importExpr(init_state_str);
-        const lowered_state = try self.store.lowerRec(init_state_id);
-
-        const handler_id = if (std.mem.indexOf(u8, rhs, "=>") != null) blk: {
-            break :blk self.parser.parseLambda(rhs) catch {
-                return self.allocator.dupe(u8, "syntax error in actor handler");
-            };
-        } else blk: {
-            if (self.engine.fns.get(rhs) == null) {
-                return std.fmt.allocPrint(self.allocator, "Error: function '{s}' not found for actor handler", .{rhs});
-            }
-            break :blk try self.store.sym(rhs);
+    pub fn evalActorDef(self: *Commands, input: []const u8, env: *engine_expr.Env) HeavenError![]u8 {
+        return defs_ops.evalActorDef(self, input, env) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
         };
-
-        const new_actor_id = self.engine.next_actor_id;
-        self.engine.next_actor_id += 1;
-        try self.engine.actors.put(self.engine.allocator, new_actor_id, .{
-            .state = lowered_state,
-            .handler = handler_id,
-        });
-        const actor_id = try self.store.int(@intCast(new_actor_id));
-
-        const actor_sym = try self.store.interner.intern(name);
-        try env.put(actor_sym, actor_id);
-
-        return std.fmt.allocPrint(self.allocator, "actor {s} spawned (id: {d})", .{ name, actor_id });
     }
 
-    fn evalMacroDef(self: *Commands, input: []const u8) ![]u8 {
-        const eq_pos = std.mem.indexOfScalar(u8, input, '=') orelse return self.allocator.dupe(u8, "syntax error: missing '='");
-        const lhs = std.mem.trim(u8, input[0..eq_pos], " ");
-        const rhs = std.mem.trim(u8, input[eq_pos + 1 ..], " ");
 
-        const paren_pos = std.mem.indexOfScalar(u8, lhs, '(') orelse return self.allocator.dupe(u8, "syntax error: missing '('");
-        if (lhs[lhs.len - 1] != ')') return self.allocator.dupe(u8, "syntax error: missing ')'");
-
-        const name = std.mem.trim(u8, lhs[0..paren_pos], " ");
-        const params_str = std.mem.trim(u8, lhs[paren_pos + 1 .. lhs.len - 1], " ");
-
-        var param_ids: std.ArrayListUnmanaged(Id) = .{};
-        defer param_ids.deinit(self.allocator);
-        var it = std.mem.tokenizeAny(u8, params_str, " ,");
-        while (it.next()) |p| {
-            try param_ids.append(self.allocator, try self.store.sym(p));
-        }
-        const params_span = try self.store.pushSpan(param_ids.items);
-
-        const body_id = try self.parser.parseSExpr(rhs);
-
-        const name_sym = try self.store.interner.intern(name);
-        try self.engine.macros.put(self.allocator, name_sym, .{ .params_span = params_span, .body = body_id });
-
-        return std.fmt.allocPrint(self.allocator, "macro {s} defined", .{name});
-    }
-
-    fn parseLambdaShortcut(self: *Commands, name: []const u8, expr_str: []const u8) HeavenError![]u8 {
-        const open = std.mem.indexOfScalar(u8, expr_str, '(') orelse return self.allocator.dupe(u8, "syntax error: missing '(' in fn");
-        const close = std.mem.indexOfScalar(u8, expr_str, ')') orelse return self.allocator.dupe(u8, "syntax error: missing ')' in fn");
-
-        const params_str = expr_str[open + 1 .. close];
-        var rest = std.mem.trim(u8, expr_str[close + 1 ..], " \t");
-        if (std.mem.startsWith(u8, rest, "=>")) {
-            rest = std.mem.trim(u8, rest[2..], " \t");
-        }
-
-        const fn_def_str = try std.fmt.allocPrint(self.allocator, "{s} {s} = {s}", .{ name, params_str, rest });
-        defer self.allocator.free(fn_def_str);
-        return self.evalFnDef(fn_def_str);
-    }
-
-    fn evalFnDef(self: *Commands, input: []const u8) ![]u8 {
-        const eq_pos = std.mem.indexOfScalar(u8, input, '=') orelse return self.allocator.dupe(u8, "syntax error: missing '='");
-        if (eq_pos + 1 < input.len and input[eq_pos + 1] == '=') return self.allocator.dupe(u8, "syntax error: use single '='");
-        var lhs = std.mem.trim(u8, input[0..eq_pos], " ");
-        const rhs = std.mem.trim(u8, input[eq_pos + 1 ..], " ");
-
-        if (lhs.len > 0 and lhs[lhs.len - 1] == ':') {
-            lhs = std.mem.trim(u8, lhs[0 .. lhs.len - 1], " ");
-        }
-
-        if (std.mem.startsWith(u8, lhs, "fn ")) lhs = std.mem.trim(u8, lhs[3..], " ");
-        if (std.mem.startsWith(u8, lhs, "let ")) lhs = std.mem.trim(u8, lhs[4..], " ");
-
-        if (std.mem.startsWith(u8, rhs, "fn ") or std.mem.startsWith(u8, rhs, "fn(")) {
-            const name = if (std.mem.indexOfScalar(u8, lhs, ' ')) |space| lhs[0..space] else lhs;
-            return self.parseLambdaShortcut(name, rhs);
-        }
-
-        var owned_lhs: ?[]u8 = null;
-        defer if (owned_lhs) |s| self.allocator.free(s);
-        if (std.mem.indexOfScalar(u8, lhs, '(') != null) {
-            const open = std.mem.indexOfScalar(u8, lhs, '(') orelse return self.allocator.dupe(u8, "syntax error");
-            const close = std.mem.indexOfScalar(u8, lhs, ')') orelse return self.allocator.dupe(u8, "syntax error");
-            if (close != lhs.len - 1) return self.allocator.dupe(u8, "syntax error: unexpected chars after )");
-            const name = std.mem.trim(u8, lhs[0..open], " ");
-            const params_str = lhs[open + 1 .. close];
-
-            var converted = std.ArrayListUnmanaged(u8){};
-            try converted.appendSlice(self.allocator, name);
-            var it = std.mem.tokenizeAny(u8, params_str, " ,");
-            while (it.next()) |p| {
-                try converted.append(self.allocator, ' ');
-                try converted.appendSlice(self.allocator, p);
-            }
-            owned_lhs = try converted.toOwnedSlice(self.allocator);
-            lhs = owned_lhs.?;
-        }
-
-        const wrapped_lhs = try std.fmt.allocPrint(self.allocator, "({s})", .{lhs});
-        defer self.allocator.free(wrapped_lhs);
-
-        const lhs_id = self.parser.parseSExpr(wrapped_lhs) catch {
-            return self.allocator.dupe(u8, "syntax error in lhs");
+    pub fn evalMacroDef(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return defs_ops.evalMacroDef(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
         };
-
-        const lhs_node = self.store.get(lhs_id);
-
-        if (lhs_node.tag == .sym) {
-            const name = self.store.interner.resolve(lhs_node.payload);
-            const body_id = self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
-
-            var def: engine_expr.FunctionDef = .{
-                .clauses = undefined,
-                .num_clauses = 1,
-                .ctor_arity = null, // ← explicite
-            };
-            def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = 0, .body = body_id };
-
-            const owned_name = try self.engine.allocator.dupe(u8, name);
-            platform.dbg("[fns.put] site=1 name='{s}' key_addr={d}\n", .{ name, @intFromPtr(owned_name.ptr) });
-            self.engine.fns.put(self.engine.allocator, owned_name, def) catch |err| {
-                return std.fmt.allocPrint(self.engine.allocator, "registration error: {s}", .{@errorName(err)});
-            };
-
-            const name_sym = try self.store.interner.intern(name);
-            const name_sym_id = try self.store.sym(name);
-            try self.env.put(name_sym, name_sym_id);
-
-            return std.fmt.allocPrint(self.allocator, "{s} defined", .{name});
-        }
-
-        if (lhs_node.tag == .apply) {
-            const func_sym_node = self.store.get(lhs_node.payload);
-            if (func_sym_node.tag != .sym) return self.allocator.dupe(u8, "syntax error: function name must be a symbol");
-            const name = self.store.interner.resolve(func_sym_node.payload);
-
-            const pool = self.store.pool.items;
-            const arg_span = lhs_node.span_a.slice(pool);
-            const num_args = arg_span.len;
-
-            var patterns_start: usize = 0;
-            if (num_args > 0) {
-                const first = arg_span[0];
-                if (first < self.store.len()) {
-                    const first_node = self.store.get(first);
-                    if (first_node.tag == .sym) {
-                        const first_name = self.store.interner.resolve(first_node.payload);
-                        if (std.mem.eql(u8, first_name, name)) {
-                            patterns_start = 1;
-                        }
-                    }
-                }
-            }
-
-            const num_pats = num_args - patterns_start;
-            if (num_pats > 8) return self.allocator.dupe(u8, "too many patterns");
-
-            var pat_ids: [8]u32 = undefined;
-            for (0..num_pats) |i| {
-                pat_ids[i] = arg_span[patterns_start + i];
-            }
-
-            const body_id = self.parseExpression(rhs) catch return self.allocator.dupe(u8, "parse error in body");
-            const lowered_body = try self.store.lowerRec(body_id);
-
-            var def: engine_expr.FunctionDef = .{
-                .clauses = undefined,
-                .num_clauses = 1,
-                .ctor_arity = null, // ← explicite
-            };
-            def.clauses[0] = .{
-                .patterns = .{0} ** 8,
-                .num_patterns = @intCast(num_pats),
-                .body = lowered_body,
-            };
-            if (num_pats > 0) {
-                @memcpy(def.clauses[0].patterns[0..num_pats], pat_ids[0..num_pats]);
-            }
-
-            const owned_name = try self.engine.allocator.dupe(u8, name);
-            platform.dbg("[fns.put] site=2 name='{s}' key_addr={d}\n", .{ name, @intFromPtr(owned_name.ptr) });
-            self.engine.fns.put(self.engine.allocator, owned_name, def) catch |err| {
-                return std.fmt.allocPrint(self.engine.allocator, "registration error: {s}", .{@errorName(err)});
-            };
-
-            const name_sym = try self.store.interner.intern(name);
-            const name_sym_id = try self.store.sym(name);
-            try self.env.put(name_sym, name_sym_id);
-
-            const msg = try std.fmt.allocPrint(self.allocator, "✓ clause enregistrée pour '{s}' ({d} patterns)", .{ name, num_pats });
-            platform.dbg("[evalFnDef] alloc addr={d} name={s}\n", .{ @intFromPtr(msg.ptr), name });
-            return msg;
-        }
-
-        return self.allocator.dupe(u8, "syntax error in function definition");
     }
+
+
+    pub fn parseLambdaShortcut(self: *Commands, name: []const u8, expr_str: []const u8) HeavenError![]u8 {
+        return defs_ops.parseLambdaShortcut(self, name, expr_str) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
+    }
+
+
+    pub fn evalFnDef(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return defs_ops.evalFnDef(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
+    }
+
 
     fn parseApp(self: *Commands, input: []const u8) !Id {
         return parse_ops.parseApp(self, input);
@@ -1347,108 +1159,13 @@ pub const Commands = struct {
     }
 
 
-    fn evalLet(self: *Commands, input: []const u8) ![]u8 {
-        // Défensif : certains call sites passent le "let " préfixé (ligne 254).
-        var rest = std.mem.trim(u8, input, " \t");
-        if (std.mem.startsWith(u8, rest, "let ")) {
-            rest = std.mem.trim(u8, rest["let ".len..], " \t");
-        }
-
-        // QTT : préfixe de multiplicité (native)
-        var qty_kw: ?[]const u8 = null;
-
-        const kws = [_][]const u8{ "linear", "erased", "many" };
-        for (kws) |kw| {
-            if (std.mem.startsWith(u8, rest, kw) and rest.len > kw.len and (rest[kw.len] == ' ' or rest[kw.len] == '\t')) {
-                const after = std.mem.trimLeft(u8, rest[kw.len..], " \t");
-                // Ne pas confondre avec `let linear = 5` (variable nommée "linear")
-                if (after.len > 0 and after[0] != '=') {
-                    qty_kw = kw;
-                    rest = after;
-                    break;
-                }
-            }
-        }
-
-        // Si un préfixe QTT est présent, on extrait le binding/body pour
-        // pouvoir compter les usages après évaluation de l'AST.
-        if (qty_kw != null) {
-            const in_pos = std.mem.indexOf(u8, rest, " in ") orelse
-                return self.allocator.dupe(u8, "syntax error in qtt let");
-            const binding_str = std.mem.trim(u8, rest[0..in_pos], " \t");
-            const body_str = std.mem.trim(u8, rest[in_pos + 4 ..], " \t");
-
-            // binding_str = "x = 5" ou "x := 5"
-            const eq = std.mem.indexOfScalar(u8, binding_str, '=') orelse
-                return self.allocator.dupe(u8, "syntax error in qtt binding");
-            var name = std.mem.trim(u8, binding_str[0..eq], " \t:");
-            _ = &name;
-            // (on tolère "x :=" en trimmant aussi le ':')
-            const body_id = self.parseExpression(body_str) catch
-                return self.allocator.dupe(u8, "syntax error in qtt body");
-
-            const uses = expr.countSymUses(self.store, body_id, name);
-            const ok = if (std.mem.eql(u8, qty_kw.?, "linear"))
-                uses == 1
-            else if (std.mem.eql(u8, qty_kw.?, "erased"))
-                uses == 0
-            else
-                true; // many : aucune contrainte
-
-            if (!ok) {
-                return std.fmt.allocPrint(self.allocator, "linear violation: '{s}' declared {s}, used {d} time(s)", .{ name, qty_kw.?, uses });
-            }
-            // Sinon, on continue : le reste du evalLet se charge de l'exécution normale.
-        }
-
-        if (std.mem.indexOf(u8, rest, " in ")) |_| {
-            const ast = self.parser.parseLetExpr(rest) catch return try self.allocator.dupe(u8, "syntax error in let expression");
-            self.engine.fuel = 10_000;
-            const result = engine_expr.evaluate(self.store, self.env, self.engine, ast, 0) catch ast;
-            return expr.toStringInfix(self.store, result, self.allocator);
-        }
-
-        const op_len: usize = if (std.mem.startsWith(u8, rest, ":=")) 2 else 1;
-        var eq_pos: ?usize = null;
-        var i: usize = rest.len;
-        while (i > 1) : (i -= 1) {
-            if (rest[i - 1] == '=') {
-                const prev_c = if (i >= 2) rest[i - 2] else ' ';
-                if (prev_c != '!' and prev_c != '<' and prev_c != '>') {
-                    if (op_len == 1 or prev_c == ':') {
-                        eq_pos = i - 1;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (eq_pos) |eq| {
-            var name = std.mem.trim(u8, rest[0..eq], " \t:");
-            // Support "name:Type" → garder seulement "name"
-            if (std.mem.indexOfScalar(u8, name, ':')) |colon| {
-                name = std.mem.trim(u8, name[0..colon], " \t");
-            }
-            const expr_str = std.mem.trim(u8, rest[eq + 1 ..], " \t");
-
-            if (std.mem.startsWith(u8, expr_str, "fn ") or std.mem.startsWith(u8, expr_str, "fn(")) {
-                const fn_def_str = try std.fmt.allocPrint(self.allocator, "{s} = {s}", .{ name, expr_str });
-                defer self.allocator.free(fn_def_str);
-                return self.evalFnDef(fn_def_str);
-            }
-
-            const has_params = std.mem.indexOfScalar(u8, name, '(') != null and
-                std.mem.endsWith(u8, name, ")");
-            if (has_params or std.mem.indexOfScalar(u8, name, ' ') != null) {
-                const fn_def_str = try std.fmt.allocPrint(self.allocator, "{s} = {s}", .{ name, expr_str });
-                defer self.allocator.free(fn_def_str);
-                return self.evalFnDef(fn_def_str);
-            }
-            return self.define(name, expr_str);
-        }
-
-        return try self.allocator.dupe(u8, "syntax error: missing =");
+    pub fn evalLet(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return defs_ops.evalLet(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 
     fn evalMir(self: *Commands, input: []const u8) ![]u8 {
         var instructions = std.mem.splitScalar(u8, input, ';');

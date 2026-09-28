@@ -722,6 +722,22 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const defs_ops = b.createModule(.{
+        .root_source_file = b.path("src/core/commands/defs.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
+            .{ .name = "canon", .module = canon_mod },
+            .{ .name = "egraph", .module = egraph_mod },
+            .{ .name = "pattern", .module = pattern_mod },
+            .{ .name = "math", .module = math_mod },
+            .{ .name = "transform", .module = transform_mod },
+            .{ .name = "platform", .module = platform_mod },
+        },
+    });
+
     const cas_ops = b.createModule(.{
         .root_source_file = b.path("src/core/commands/cas.zig"),
         .target = target,
@@ -802,6 +818,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "proofs_ops", .module = proofs_ops },
             .{ .name = "parse_ops", .module = parse_ops },
             .{ .name = "cas_ops", .module = cas_ops },
+            .{ .name = "defs_ops", .module = defs_ops },
         },
     });
     commands_mod.addOptions("build_options", options);
