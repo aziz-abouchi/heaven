@@ -186,7 +186,9 @@ pub const ProofCore = struct {
 
             // TEMPORAIRE — à retirer après diagnostic :
             const lhs_dbg = try heaven.store.toString(lhs_rw, heaven.allocator);
+            defer heaven.allocator.free(lhs_dbg);
             const rhs_dbg = try heaven.store.toString(rhs_rw, heaven.allocator);
+            defer heaven.allocator.free(rhs_dbg);
             platform.dbg("[kernel-dbg] lhs_rw='{s}' rhs_rw='{s}'\n", .{ lhs_dbg, rhs_dbg });
 
             try kernel_bridge.declareFreeSymbols(heaven.store, &pool, lhs_rw);
