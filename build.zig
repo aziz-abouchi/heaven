@@ -730,6 +730,18 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const dispatch_ops = b.createModule(.{
+        .root_source_file = b.path("src/core/commands/dispatch.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
+            .{ .name = "canon", .module = canon_mod },
+            .{ .name = "platform", .module = platform_mod },
+        },
+    });
+
     const runtime_ops = b.createModule(.{
         .root_source_file = b.path("src/core/commands/runtime.zig"),
         .target = target,
@@ -870,6 +882,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "format_ops", .module = format_ops },
             .{ .name = "meta_ops", .module = meta_ops },
             .{ .name = "runtime_ops", .module = runtime_ops },
+            .{ .name = "dispatch_ops", .module = dispatch_ops },
         },
     });
     commands_mod.addOptions("build_options", options);
