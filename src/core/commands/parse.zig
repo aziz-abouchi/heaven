@@ -361,6 +361,27 @@ pub fn parseExpression(cmds: anytype, input: []const u8) anyerror!Id {
         return cmds.store.sym(sexpr);
     }
 
+    // ─── Infix parenthésé : nativeToSExpr AVANT tree-sitter ──────
+    // Le REPL (heaven_expr.zig:978) convertit (x + 0) + 0 en S-expr
+    // foldable via nativeToSExpr avant tout autre parsing. Ici,
+    // l'infix parenthésé tombait directement sur tree-sitter, dont
+    // translateOne produit un arbre non-foldable — cause de l'échec
+    // t_double_zero (S-expr ✓, infix nu ✓, infix parenthésé ✗).
+    // Si nativeToSExpr échoue (ex: ((\x.x) 42) — lexer, cf. REPL)
+    // ou ne change rien (déjà une S-expr), on tombe sur tree-sitter
+    // — comportement inchangé pour ces cas.
+    {
+        var arena2 = std.heap.ArenaAllocator.init(cmds.allocator);
+        defer arena2.deinit();
+        if (expr.nativeToSExpr(trimmed, arena2.allocator())) |sexpr| {
+            if (sexpr.len > 0 and sexpr[0] == '(' and !std.mem.eql(u8, sexpr, trimmed)) {
+                const owned = try cmds.allocator.dupe(u8, sexpr);
+                defer cmds.allocator.free(owned);
+                return parseExpression(cmds, owned); // re-parse en S-expr
+            }
+        } else |_| {}
+    }
+
     if (cmds.shell_parser.parse(input)) |matrix| {
         defer cmds.shell_parser.reset();
 
@@ -407,4 +428,3 @@ pub fn parseExpression(cmds: anytype, input: []const u8) anyerror!Id {
     } else |_| {}
     return cmds.store.sym(trimmed);
 }
-
