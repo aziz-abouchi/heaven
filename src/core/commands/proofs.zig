@@ -35,7 +35,7 @@ fn proveWith(cmds: anytype, target: []const u8, skill_name: []const u8, inductio
 
 fn proofResult(cmds: anytype, target: []const u8, ok: bool, method: []const u8) anyerror![]u8 {
     if (ok) {
-        if (cmds.proof_core.theorems.getPtr(target)) |thm| thm.verified = true;
+        //if (cmds.proof_core.theorems.getPtr(target)) |thm| thm.verified = true;
         var buf: [128]u8 = undefined;
         const msg = try std.fmt.bufPrint(&buf, "✓ [{s}] proved ({s})", .{ target, method });
         return try cmds.allocator.dupe(u8, msg);
@@ -141,11 +141,13 @@ pub fn evalTheorem(cmds: anytype, input: []const u8) anyerror![]u8 {
         var proof_term: ?*const proof_core.ProofTerm = null;
         if (proof_text) |pt| proof_term = proof_helpers_mod.ProofHelpers.parseProofBlock(cmds.allocator, pt);
         // La preuve simplifie la forme RÉELLE — la canonisation reste
-// pour la règle KB ci-dessous (matching), pas pour le théorème.
-try cmds.proof_core.theorem(name, stmt, lhs, rhs);            if (proof_term) |pt| {
+        // pour la règle KB ci-dessous (matching), pas pour le théorème.
+        try cmds.proof_core.theorem(name, stmt, lhs, rhs);
+        if (proof_term) |pt| {
             if (cmds.proof_core.theorems.getPtr(name)) |thm| {
                 thm.proof = pt;
-                thm.verified = true;
+                // verified reste false — la preuve devra passer par une
+                // tactique (prove by ...) qui la vérifiera
             }
         }
         const rule_id = try cmds.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{});
@@ -177,7 +179,7 @@ try cmds.proof_core.theorem(name, stmt, lhs, rhs);            if (proof_term) |p
     // pour la règle KB ci-dessous (matching), pas pour le théorème.
     try cmds.proof_core.theorem(name, stmt, lhs, rhs);
     const rule_id = try cmds.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{});
-    
+
     try cmds.kb.rules.append(cmds.allocator, rule_id);
     if (cmds.active_theorem.*) |old| cmds.allocator.free(old);
     cmds.active_theorem.* = try cmds.allocator.dupe(u8, name);
@@ -228,12 +230,12 @@ pub fn evalSkill(cmds: anytype, input: []const u8) anyerror![]u8 {
     const skill_name = std.mem.trim(u8, input, " ");
     const target = cmds.active_theorem.* orelse return try cmds.allocator.dupe(u8, "No active theorem.");
     const thm = cmds.proof_core.theorems.getPtr(target) orelse return try cmds.allocator.dupe(u8, "Theorem not found");
+    _ = thm;
     const ok = if (std.mem.eql(u8, skill_name, "simplify")) try cmds.proof_core.verifyBySimplify(target, cmds) else if (std.mem.eql(u8, skill_name, "eval")) try cmds.proof_core.verifyByEval(target, cmds.engine, cmds.env, cmds.store) else if (std.mem.eql(u8, skill_name, "induction")) try cmds.proof_core.verifyByInduction(target, "n", cmds, cmds.store) else if (std.mem.eql(u8, skill_name, "algebra")) try cmds.proof_core.verifyBySimplify(target, cmds) else return try cmds.allocator.dupe(u8, "skill: unknown tactic");
     if (ok) {
-        thm.verified = true;
+        //thm.verified = true;
         var buf: [128]u8 = undefined;
         const msg = try std.fmt.bufPrint(&buf, "✓ [{s}] proved ({s})", .{ target, skill_name });
         return try cmds.allocator.dupe(u8, msg);
     } else return try cmds.allocator.dupe(u8, "✗ proof failed");
 }
-
