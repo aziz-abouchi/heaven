@@ -208,6 +208,7 @@ pub fn evalTheorem(cmds: anytype, input: []const u8) anyerror![]u8 {
     const rhs_canon = try canon_mod.canonicalize(cmds.store, cmds.allocator, rhs);
     // La preuve simplifie la forme RÉELLE — la canonisation reste
     // pour la règle KB ci-dessous (matching), pas pour le théorème.
+
     try cmds.proof_core.theorem(name, stmt, lhs, rhs);
     const rule_id = try cmds.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{});
 

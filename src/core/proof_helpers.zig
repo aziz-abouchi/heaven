@@ -146,7 +146,15 @@ pub fn copyIdBetweenStores(src: *Store, dst: *Store, id: Id) !Id {
             const func = try copyIdBetweenStores(src, dst, node.payload);
             var args: std.ArrayListUnmanaged(Id) = .{};
             defer args.deinit(dst.allocator);
-            for (node.span_a.slice(pool)) |arg| try args.append(dst.allocator, try copyIdBetweenStores(src, dst, arg));
+            // CONVENTION span_a : [0] = func_id (déjà recopié dans payload).
+            // Recopier span_a entier doublerait le func → (add add m n),
+            // bug du chemin Eq<> de déclaration (add_comm dégénéré).
+            const src_args = node.span_a.slice(pool);
+            const args_only: []const Id = if (src_args.len > 0 and src_args[0] == node.payload)
+                src_args[1..]
+            else
+                src_args;
+            for (args_only) |arg| try args.append(dst.allocator, try copyIdBetweenStores(src, dst, arg));
             return dst.apply(func, args.items);
         },
         .bind => {

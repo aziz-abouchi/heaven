@@ -123,7 +123,7 @@ test "exprToTerm — x + 0 → add(x, zero), verify refl" {
     const x = try store.sym("x");
     const zero = try store.int(0);
     const plus = try store.sym("+");
-    const applied = try store.apply(plus, &.{ plus, x, zero }); // [0]=func
+    const applied = try store.apply(plus, &.{ x, zero }); // apply écrit [func, x, zero] lui-même
 
     var pool = TermPool.init(allocator);
     defer pool.deinit();
