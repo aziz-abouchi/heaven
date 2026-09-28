@@ -67,3 +67,25 @@ et éviter que de futurs contributeurs tentent de « fusionner elab
 et kernel » (ce qui n'aurait pas de sens).
 
 D3 fermée.
+
+
+## État des vérificateurs (2026-09-28)
+
+| Méthode | État | Notes |
+|---|---|---|
+| `simplify` | ✅ | Pipeline EGraph + canon |
+| `rewrite` | ✅ | Débloqué par fix `canonEqStr` (4cae058) |
+| `eval` | ✅ | Utilise engine_expr |
+| `induction` | ⚠️ | Échoue sur `x + 0 = x` — limitation du step de substitution |
+
+### Limitation : verifyByInduction
+
+Le fix `canonEqStr` débloque la base et le step au niveau de la
+comparaison structurelle. Mais `verifyByInduction` échoue encore sur
+des cas simples comme `x + 0 = x`. Le problème est probablement dans
+la substitution `P(k) → P(k+1)` : la forme canonique de `(k+1) + 0`
+n'est pas reconnue comme équivalente à `k+1` au niveau où
+l'induction opère.
+
+Non prioritaire : `simplify` et `rewrite` couvrent la majorité des
+cas d'usage.

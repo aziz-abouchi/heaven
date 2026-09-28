@@ -149,6 +149,8 @@ test "type_lambda_applied": type ((λx.x) 42) == "Int"
 
 
 # --- Tactics v1 : bloc `by { ... }` ---
+theorem t_rewrite : x + 0 = x
+prove t_rewrite by rewrite
 theorem t_tactics_simplify : x + 0 = x
 prove t_tactics_simplify by {
   simplify
