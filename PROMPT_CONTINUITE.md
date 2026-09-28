@@ -67,3 +67,24 @@ Soundness : « theorem a = b » REFUSÉ. La trajectoire complète :
 zig build && zig-out/bin/heaven --run-test core/test_suite.hvn
 zig build test --summary all
 zig-out/bin/heaven repl   # port 0 ; HTTP = port+2919
+
+## Session 2026-09-28 (suite) — kernel-authority avancée
+- Commits : a7c9cf9 (1er théorème kernel), f7c862a (verifyByEval),
+  eadba19 (3 writers supprimés), e33f462 (proof irrelevance CIC
+  neutralisée + base de confiance documentée)
+- TRUSTED CORE AUDITÉ EN ENTIER : infer vérifie les arguments,
+  nat_ind correct, conversion beta+delta réelle
+- Pont : src/core/kernel_bridge.zig (exprToTerm + declareFreeSymbols)
+- Suite : 76/77 (t_distrib : issue egraph)
+- Soundness : a=b refusé (inchangé)
+
+### Prochaine session — file balisée
+1. AUDIT diff +617 : sur le MAC, ~/Desktop/Dev/heaven-conversion-audit.diff
+   — implémente beta/iota CIC manquant. Checklist : subst sans capture,
+   correction proof-irrelevance, whnf beta->iota dans areEqual.
+2. add_comm via nat_ind : activer type_ok dans verifyByInduction —
+   la vraie mesure du kernel (prouver sans qu'on le lui ait dit)
+3. Writers restants : tactics x2 (ProofTerm à accumuler dans ProofState),
+   axiom -> declareAxiom, proof.zig ProofEnv (migrer shell vers ProofCore)
+4. Nettoyage : prints [kernel-dbg], [SimplifyEngine], EGraph saturation
+5. Perf t_distrib : détection point fixe par nodeHash (pas comparaison Id)
