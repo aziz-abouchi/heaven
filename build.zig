@@ -722,6 +722,20 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const proofs_ops = b.createModule(.{
+        .root_source_file = b.path("src/core/commands/proofs.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "canon", .module = canon_mod },
+            .{ .name = "elab", .module = elab_mod },
+            .{ .name = "platform", .module = platform_mod },
+            .{ .name = "proof_core", .module = proof_core_mod },
+            .{ .name = "proof_helpers", .module = proof_helpers_mod },
+        },
+    });
+
     const commands_mod = b.addModule("commands", .{
         .root_source_file = b.path("src/core/commands.zig"),
         .target = target,
@@ -756,6 +770,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "mlcpd_equiv", .module = mlcpd_equiv_mod },
             .{ .name = "universal_translator", .module = universal_translator_mod },
             .{ .name = "rules", .module = rules_mod },
+            .{ .name = "proofs_ops", .module = proofs_ops },
         },
     });
     commands_mod.addOptions("build_options", options);
