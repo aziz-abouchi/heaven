@@ -20,11 +20,11 @@ pub const Conversion = struct {
 
     /// Vérifie l'égalité définitionnelle t1 == t2
     pub fn areEqual(self: *Conversion, t1: ast.Term, t2: ast.Term) ConversionError!bool {
-        // 1. Proof Irrelevance : si le type de t1 appartient à Prop,
-        // deux preuves de la même proposition sont toujours égales.
-        if (self.isProof(t1)) return true;
-
-        // 2. Égalité structurelle (Alpha-Beta conversion)
+        // Proof irrelevance SUSPENDUE : l'ancienne forme retournait true
+        // dès que t1 était une preuve — sans vérifier t2 ni que les deux
+        // prouvent la MÊME proposition. Toute preuve ≡ n'importe quoi.
+        // Réactivation = version correcte (isProof(t1) AND isProof(t2)
+        // AND propositions convertibles) après l'audit du diff β/ι.
         return self.alphaBetaEqual(t1, t2);
     }
 

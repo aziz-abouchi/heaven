@@ -572,8 +572,21 @@ fn checkIsType(pool: *TermPool, ctx: *Context, term_idx: u32) KernelError!void {
 // PUBLIC API
 // ═══════════════════════════════════════════════════════════
 
-/// Initialise les axiomes standard pour l'arithmétique Peano.
-/// À appeler après init() et avant verify().
+/// ═══ BASE DE CONFIANCE — inventaire des affirmations non prouvées ═══
+/// Ce que le kernel accepte SANS preuve (chaque entrée = une décision) :
+///
+/// - Nat, zero, succ, add, mul : primitifs du fragment arithmétique.
+/// - δ-règles add : add(zero,n)→n et add(succ k,n)→succ(add k,n)
+///   sont DÉFINITIONNELS (c'est la sémantique de add) — sains.
+/// - add(n,zero)→n : FIAT. C'est le théorème add_zero érigé en règle
+///   de calcul. « x+0=x » passe le kernel parce qu'on le lui a dit.
+///   La vraie mesure du kernel : add_comm via nat_ind.
+/// - nat_ind : éliminateur de Nat, typage vérifié (indices De Bruijn
+///   audités 2026-09-28). Confiance standard (approche no-Inductive).
+/// - add_zero_right, add_succ_right : LEMMES ASSERTÉS (axiomes Eq).
+///   Prouvables par induction — à déclassifier quand nat_ind sera
+///   pleinement actif dans verifyByInduction.
+/// ═════════════════════════════════════════════════════════════════════
 pub fn initNatAxioms(pool: *TermPool) !void {
     const nat_hash = std.hash.Wyhash.hash(0, "Nat");
     const type0 = try pool.mkType(0);
