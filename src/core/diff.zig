@@ -122,7 +122,14 @@ pub const AstDiff = struct {
 
         const pool = self.store.pool.items;
         switch (node.tag) {
-            .apply, .lambda, .bind => {
+            .apply => {
+                // span_a = [func, args...] : skip [0] (func) sinon affiché 2x
+                const all = node.span_a.slice(pool);
+                const args = if (all.len > 0 and all[0] == node.payload) all[1..] else all;
+                for (args) |c| try self.printTree(writer, c, depth + 1, prefix);
+            },
+            .lambda, .bind => {
+                // span_a = [body] ou [val, body] : pas de func en tête
                 for (node.span_a.slice(pool)) |c| try self.printTree(writer, c, depth + 1, prefix);
             },
             .relation => {

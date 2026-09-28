@@ -238,7 +238,9 @@ pub const LaTeX = struct {
             try self.emit("}{\\mathrm{");
             try self.emit(head);
             try self.emit("}(");
-            for (node.span_a.slice(pool), 0..) |arg, i| {
+            const all_latex = node.span_a.slice(pool);
+            const args_latex = if (all_latex.len > 0 and all_latex[0] == node.payload) all_latex[1..] else all_latex;
+            for (args_latex, 0..) |arg, i| {
                 if (i > 0) try self.emit(", ");
                 try self.emitExpr(arg);
             }
@@ -247,7 +249,9 @@ pub const LaTeX = struct {
             try self.emit("\\mathrm{");
             try self.emit(head);
             try self.emit("}(");
-            for (node.span_a.slice(pool), 0..) |arg, i| {
+            const all_latex = node.span_a.slice(pool);
+            const args_latex = if (all_latex.len > 0 and all_latex[0] == node.payload) all_latex[1..] else all_latex;
+            for (args_latex, 0..) |arg, i| {
                 if (i > 0) try self.emit(", ");
                 try self.emitExpr(arg);
             }

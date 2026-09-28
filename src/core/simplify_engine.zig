@@ -320,7 +320,10 @@ fn nodeCountCost(store: *const expr.Store, id: expr.Id, ctx: ?*anyopaque) u32 {
         .sym, .lit => {},
         .apply => {
             count += @as(i32, @intCast(nodeCountCost(store, node.payload, null)));
-            for (node.span_a.slice(store.pool.items)) |child| {
+            // span_a = [func, args...] : payload déjà compté, skip [0]
+            const all = node.span_a.slice(store.pool.items);
+            const args = if (all.len > 0 and all[0] == node.payload) all[1..] else all;
+            for (args) |child| {
                 count += @as(i32, @intCast(nodeCountCost(store, child, null)));
             }
         },
