@@ -722,6 +722,17 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const parse_ops = b.createModule(.{
+        .root_source_file = b.path("src/core/commands/parse.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
+            .{ .name = "bridge_expr", .module = bridge_mod },
+        },
+    });
+
     const proofs_ops = b.createModule(.{
         .root_source_file = b.path("src/core/commands/proofs.zig"),
         .target = target,
@@ -771,6 +782,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "universal_translator", .module = universal_translator_mod },
             .{ .name = "rules", .module = rules_mod },
             .{ .name = "proofs_ops", .module = proofs_ops },
+            .{ .name = "parse_ops", .module = parse_ops },
         },
     });
     commands_mod.addOptions("build_options", options);
