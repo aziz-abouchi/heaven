@@ -46,6 +46,35 @@ fn proofResult(cmds: anytype, target: []const u8, ok: bool, method: []const u8) 
     }
 }
 
+/// Vérifie si une règle de réécriture existe déjà dans la KB.
+/// Évite les doublons qui corrompent l'EGraph (règles identiques créent
+/// des conflits dans simplifyWithEGraph et font échouer les preuves).
+/// Compare d'abord par Id (hash-consing du Store), puis par structure.
+fn ruleAlreadyExists(cmds: anytype, new_rule: expr.Id) bool {
+    if (new_rule >= cmds.store.len()) return false;
+    const new_node = cmds.store.get(new_rule);
+    if (new_node.tag != .relation) return false;
+    const new_span = new_node.span_a.slice(cmds.store.pool.items);
+    if (new_span.len != 2) return false;
+    const new_lhs = new_span[0];
+    const new_rhs = new_span[1];
+
+    for (cmds.kb.rules.items) |existing_rule| {
+        if (existing_rule == new_rule) return true; // hash-consing hit
+        if (existing_rule >= cmds.store.len()) continue;
+        const ex_node = cmds.store.get(existing_rule);
+        if (ex_node.tag != .relation) continue;
+        const ex_span = ex_node.span_a.slice(cmds.store.pool.items);
+        if (ex_span.len != 2) continue;
+        if (expr.structuralEql(cmds.store, new_lhs, ex_span[0]) and
+            expr.structuralEql(cmds.store, new_rhs, ex_span[1]))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 pub fn evalTheorem(cmds: anytype, input: []const u8) anyerror![]u8 {
     const colon_pos = std.mem.indexOfScalar(u8, input, ':') orelse
         return try cmds.allocator.dupe(u8, "Usage: theorem <name> : <stmt>");
@@ -151,7 +180,9 @@ pub fn evalTheorem(cmds: anytype, input: []const u8) anyerror![]u8 {
             }
         }
         const rule_id = try cmds.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{});
-        try cmds.kb.rules.append(cmds.allocator, rule_id);
+        if (!ruleAlreadyExists(cmds, rule_id)) {
+            try cmds.kb.rules.append(cmds.allocator, rule_id);
+        }
         if (cmds.active_theorem.*) |old| cmds.allocator.free(old);
         cmds.active_theorem.* = try cmds.allocator.dupe(u8, name);
         var buf: [256]u8 = undefined;
@@ -180,7 +211,9 @@ pub fn evalTheorem(cmds: anytype, input: []const u8) anyerror![]u8 {
     try cmds.proof_core.theorem(name, stmt, lhs, rhs);
     const rule_id = try cmds.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{});
 
-    try cmds.kb.rules.append(cmds.allocator, rule_id);
+    if (!ruleAlreadyExists(cmds, rule_id)) {
+        try cmds.kb.rules.append(cmds.allocator, rule_id);
+    }
     if (cmds.active_theorem.*) |old| cmds.allocator.free(old);
     cmds.active_theorem.* = try cmds.allocator.dupe(u8, name);
     var buf: [256]u8 = undefined;
