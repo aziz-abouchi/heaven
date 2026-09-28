@@ -135,8 +135,10 @@ pub const ProofCore = struct {
         }
 
         engine.fuel = 1000000;
-        const lhs_val = engine_expr.evaluate(store, env, engine, thm.lhs, 0) catch thm.lhs;
-        const rhs_val = engine_expr.evaluate(store, env, engine, thm.rhs, 0) catch thm.rhs;
+
+        const lhs_val = engine_expr.evaluate(store, env, engine, thm.lhs, 0) catch return false;
+        const rhs_val = engine_expr.evaluate(store, env, engine, thm.rhs, 0) catch return false;
+
         const lhs_node = store.get(lhs_val);
         const rhs_node = store.get(rhs_val);
         if (lhs_node.tag == .lit and rhs_node.tag == .lit) {

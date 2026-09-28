@@ -730,6 +730,22 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const runtime_ops = b.createModule(.{
+        .root_source_file = b.path("src/core/commands/runtime.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
+            .{ .name = "egraph", .module = egraph_mod },
+            .{ .name = "mir", .module = mir_mod },
+            .{ .name = "x86_64", .module = x86_64_mod },
+            .{ .name = "platform", .module = platform_mod },
+            .{ .name = "codegen_expr_js", .module = codegen_expr_js_mod },
+            .{ .name = "transform", .module = transform_mod },
+        },
+    });
+
     const meta_ops = b.createModule(.{
         .root_source_file = b.path("src/core/commands/meta.zig"),
         .target = target,
@@ -853,6 +869,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "defs_ops", .module = defs_ops },
             .{ .name = "format_ops", .module = format_ops },
             .{ .name = "meta_ops", .module = meta_ops },
+            .{ .name = "runtime_ops", .module = runtime_ops },
         },
     });
     commands_mod.addOptions("build_options", options);
