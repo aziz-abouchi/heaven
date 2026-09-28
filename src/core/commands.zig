@@ -6,6 +6,7 @@ const expr = @import("expr");
 const ShellParser = @import("shell_parser").ShellParser;
 const proofs_ops = @import("proofs_ops");
 const parse_ops = @import("parse_ops");
+const cas_ops = @import("cas_ops");
 
 const Allocator = std.mem.Allocator;
 const Store = expr.Store;
@@ -189,16 +190,12 @@ pub const Commands = struct {
     /// de chaînes normalisant l'ordre des opérandes). Ce pipeline
     /// structurel sur Id remplace toute comparaison de chaînes.
     pub fn simplifyToId(self: *Commands, input: []const u8) !Id {
-        const trimmed = std.mem.trim(u8, input, " \t");
-        if (trimmed.len == 0) return error.InvalidInput;
-        const raw_id = try self.parseExpression(trimmed);
-        const id = try self.ensureLowered(raw_id);
-        const after_basic = try self.math.simplifyBasic(id);
-        const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
-        return try self.math.simplifyBasic(after_egraph);
+        return cas_ops.simplifyToId(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    // ─── Eval dispatcher ───
     pub fn eval(self: *Commands, input: []const u8) HeavenError![]u8 {
         const trimmed0 = std.mem.trim(u8, input, " \t\r\n");
         const actual = if (trimmed0.len > 0 and trimmed0[0] == ':') trimmed0[1..] else trimmed0;
@@ -600,18 +597,12 @@ pub const Commands = struct {
 
     // ─── evalSimplify : pipeline simplifyBasic → E-Graph → simplifyBasic ───
     pub fn evalSimplify(self: *Commands, input: []const u8) HeavenError![]u8 {
-        const trimmed = std.mem.trim(u8, input, " \t");
-        if (trimmed.len == 0) return self.allocator.dupe(u8, "usage: simplify <expr>");
-
-        const raw_id = self.parseExpression(trimmed) catch try self.bridge.importExpr(trimmed);
-        const id = try self.store.lowerRec(raw_id);
-
-        // Aligné sur Heaven.simplify : TOUJOURS passer par l'EGraph
-        const after_basic = try self.math.simplifyBasic(id);
-        const after_egraph = try self.simplify_eng.simplifyWithEGraph(after_basic, null, null);
-        const final = try self.math.simplifyBasic(after_egraph);
-        return expr.toStringInfix(self.store, final, self.allocator);
+        return cas_ops.evalSimplify(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 
     fn evalHelp(self: *Commands) ![]u8 {
         return try self.allocator.dupe(u8, "═══ Heaven ═══\n" ++
@@ -1033,165 +1024,33 @@ pub const Commands = struct {
     }
 
     pub fn simplify(self: *Commands, input: []const u8) ![]u8 {
-        // Normalise l'infixe en S-expr avant parse.
-        // Sans ça, "(x + 0) + 0" est mal parsé par parseExpression,
-        // qui ne route vers nativeToSExpr que si la chaîne ne commence
-        // PAS par '('.
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const to_parse = expr.nativeToSExpr(input, arena.allocator()) catch input;
-
-        const id = try self.parseExpression(to_parse);
-        const debug_str = try expr.toStringInfix(self.store, id, self.allocator);
-        defer self.allocator.free(debug_str);
-        platform.dbg("[core.commands.simplify] input: {s}\n", .{debug_str});
-
-        // Pipeline : réécriture directe (rules.zig) → E-Graph → nettoyage
-        var current = id;
-
-        // 1. Réécriture directe à point fixe via le module rules
-        var changed = true;
-        var iterations: u32 = 0;
-        while (changed and iterations < 50) : (iterations += 1) {
-            changed = false;
-            if (try rules_mod.applyFirstRule(self.store, self.kb.rules.items, current, self.allocator)) |match| {
-                current = match.new_id;
-                changed = true;
-            }
-        }
-
-        // 2. E-Graph pour les cas complexes (distributivité/factorisation croisées)
-        const after_egraph = try self.simplify_eng.simplifyWithEGraph(current, null, null);
-
-        // 3. Nettoyage final (identités 0/1, constant folding)
-        const simplified = try self.math.simplifyBasic(after_egraph);
-
-        return expr.toStringInfix(self.store, simplified, self.allocator);
-    }
-
-    fn simplifyWithEGraph(self: *Commands, id: Id, qtt: ?*egraph_mod.QttCost) !Id {
-        if (self.kb.rules.items.len == 0) return id;
-        var egraph = egraph_mod.EGraph.init(self.store, self.allocator);
-        defer egraph.deinit();
-        const root_class = try egraph.addExpr(id);
-        var changed = true;
-        var iters: u32 = 0;
-        while (changed and iters < 8) : (iters += 1) {
-            changed = false;
-            for (self.kb.rules.items) |rule_id| {
-                if (rule_id >= self.store.len()) continue;
-                const rule_node = self.store.get(rule_id);
-                if (rule_node.tag != .relation) continue;
-                const lhs_rhs = rule_node.span_a.slice(self.store.pool.items);
-                if (lhs_rhs.len != 2) continue;
-                const lhs_id = lhs_rhs[0];
-                const rhs_id = lhs_rhs[1];
-                var i: u32 = 0;
-                while (i < egraph.classes.items.len) : (i += 1) {
-                    const eclass = &egraph.classes.items[i];
-                    for (eclass.nodes.items) |node_id| {
-                        var bindings: std.AutoHashMapUnmanaged(u32, Id) = .{};
-                        defer bindings.deinit(self.allocator);
-                        if (pattern_mod.exprPatternMatch(self.store, lhs_id, node_id, &bindings, self.allocator)) {
-                            const new_id = pattern_mod.substitutePattern(self.store, rhs_id, &bindings, self.allocator) catch continue;
-                            const new_class = try egraph.addExpr(new_id);
-                            const merged = try egraph.merge(i, new_class);
-                            if (merged != i) changed = true;
-                        }
-                    }
-                }
-            }
-        }
-        return egraph.extract(root_class, qtt) orelse id;
-    }
-
-    pub fn simplifyRec(self: *Commands, id: Id, depth: u32) !Id {
-        platform.dbg("[src/core/commands.zig simplifyRec] called with id={d}, depth={d}\n", .{ id, depth });
-        if (depth > 50) return id;
-        if (id >= self.store.len()) return id;
-        const node = self.store.get(id);
-        var current = id;
-
-        if (node.tag == .apply) {
-            const func_id = node.payload;
-            const args_span = node.span_a;
-            const old_args = args_span.slice(self.store.pool.items);
-            if (old_args.len == 2) {
-                const arg0 = old_args[0];
-                const arg1 = old_args[1];
-
-                const new_func = try self.simplifyRec(func_id, depth + 1);
-                const new_l = try self.simplifyRec(arg0, depth + 1);
-                const new_r = try self.simplifyRec(arg1, depth + 1);
-
-                if (new_func < self.store.len()) {
-                    const func_node = self.store.get(new_func);
-                    if (func_node.tag == .sym) {
-                        const op_name = self.store.interner.resolve(func_node.payload);
-                        current = try self.store.binop(op_name, new_l, new_r);
-                    }
-                }
-            }
-        }
-
-        var changed = true;
-        var iterations: u32 = 0;
-        while (changed and iterations < 10) : (iterations += 1) {
-            changed = false;
-            if (current >= self.store.len()) break;
-
-            const canon_current = try canon_mod.canonicalize(self.store, self.allocator, current);
-
-            for (self.kb.rules.items) |rule_id| {
-                if (rule_id >= self.store.len()) continue;
-                const rule_node = self.store.get(rule_id);
-                if (rule_node.tag != .relation) continue;
-                const lhs_rhs = rule_node.span_a.slice(self.store.pool.items);
-                if (lhs_rhs.len != 2) continue;
-                const lhs_id = lhs_rhs[0];
-                const rhs_id = lhs_rhs[1];
-
-                var bindings: std.AutoHashMapUnmanaged(u32, Id) = .{};
-                defer bindings.deinit(self.allocator);
-
-                if (pattern_mod.exprPatternMatch(self.store, lhs_id, canon_current, &bindings, self.allocator)) {
-                    const new_id = try pattern_mod.substitutePattern(self.store, rhs_id, &bindings, self.allocator);
-                    if (new_id < self.store.len()) {
-                        current = new_id;
-                        changed = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (current < self.store.len()) {
-            self.engine.fuel = 100;
-            const folded = engine_expr.evaluate(self.store, self.env, self.engine, current, 0) catch current;
-            if (folded != current and folded < self.store.len()) {
-                const folded_node = self.store.get(folded);
-                if (folded_node.tag == .lit and self.simplify_eng.isFullyNumeric(current)) return folded;
-            }
-        }
-        return current;
-    }
-
-    fn isFullyNumeric(self: *Commands, id: Id) bool {
-        if (id >= self.store.len()) return false;
-        const node = self.store.get(id);
-        return switch (node.tag) {
-            .lit => true,
-            .sym => false,
-            .apply => {
-                const args = node.span_a.slice(self.store.pool.items);
-                for (args) |a| {
-                    if (!self.simplify_eng.isFullyNumeric(a)) return false;
-                }
-                return true;
-            },
-            else => false,
+        return cas_ops.simplify(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
         };
     }
+
+
+    pub fn simplifyWithEGraph(self: *Commands, id: Id, qtt: ?*egraph_mod.QttCost) !Id {
+        return cas_ops.simplifyWithEGraph(self, id, qtt) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
+    }
+
+
+    pub fn simplifyRec(self: *Commands, id: Id, depth: u32) !Id {
+        return cas_ops.simplifyRec(self, id, depth) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
+    }
+
+
+    pub fn isFullyNumeric(self: *Commands, id: Id) bool {
+        return cas_ops.isFullyNumeric(self, id);
+    }
+
 
     pub fn toC(self: *Commands, ids: []const Id) ![]u8 {
         var cg = codegen_c.Codegen.init(self.store, self.allocator);
@@ -1424,88 +1283,13 @@ pub const Commands = struct {
         return buf.toOwnedSlice(self.allocator);
     }
 
-    fn simplifyOnePass(self: *Commands, id: Id, buf: *std.ArrayListUnmanaged(u8), step: *u32) !Id {
-        if (id >= self.store.len()) return id;
-        const node = self.store.get(id);
-        var current = id;
-        if (node.tag == .apply) {
-            const func_id = node.payload;
-            const args_span = node.span_a;
-            const old_args = args_span.slice(self.store.pool.items);
-            if (old_args.len == 2) {
-                const arg0 = old_args[0];
-                const arg1 = old_args[1];
-                const new_l = try self.simplify_eng.simplifyOnePass(arg0, buf, step);
-                const new_r = try self.simplify_eng.simplifyOnePass(arg1, buf, step);
-                if (new_l != arg0 or new_r != arg1) {
-                    if (func_id < self.store.len()) {
-                        const func_node = self.store.get(func_id);
-                        if (func_node.tag == .sym) {
-                            const op_name = self.store.interner.resolve(func_node.payload);
-                            current = try self.store.binop(op_name, new_l, new_r);
-                        }
-                    }
-                }
-            }
-        }
-        if (current >= self.store.len()) return current;
-        for (self.kb.rules.items) |rule_id| {
-            if (rule_id >= self.store.len()) continue;
-            const rule_node = self.store.get(rule_id);
-            if (rule_node.tag != .relation) continue;
-            const lhs_rhs = rule_node.span_a.slice(self.store.pool.items);
-            if (lhs_rhs.len != 2) continue;
-            const lhs_id = lhs_rhs[0];
-            const rhs_id = lhs_rhs[1];
-            var bindings: std.AutoHashMapUnmanaged(u32, Id) = .{};
-            defer bindings.deinit(self.allocator);
-            if (pattern_mod.exprPatternMatch(self.store, lhs_id, current, &bindings, self.allocator)) {
-                const new_id = pattern_mod.substitutePattern(self.store, rhs_id, &bindings, self.allocator) catch continue;
-                if (new_id < self.store.len() and new_id != current) {
-                    const lhs_str = expr.toString(self.store, lhs_id, self.allocator) catch continue;
-                    defer self.allocator.free(lhs_str);
-                    const rhs_str = expr.toString(self.store, rhs_id, self.allocator) catch continue;
-                    defer self.allocator.free(rhs_str);
-                    const new_str = expr.toString(self.store, new_id, self.allocator) catch continue;
-                    defer self.allocator.free(new_str);
-                    var tmp: [16]u8 = undefined;
-                    const sn = std.fmt.bufPrint(&tmp, "  step {d}: ", .{step.*}) catch "  step ?: ";
-                    buf.appendSlice(self.allocator, sn) catch continue;
-                    buf.appendSlice(self.allocator, new_str) catch continue;
-                    buf.appendSlice(self.allocator, "  [") catch continue;
-                    buf.appendSlice(self.allocator, lhs_str) catch continue;
-                    buf.appendSlice(self.allocator, " → ") catch continue;
-                    buf.appendSlice(self.allocator, rhs_str) catch continue;
-                    buf.appendSlice(self.allocator, "]\n") catch continue;
-                    step.* += 1;
-                    return new_id;
-                }
-            }
-        }
-        if (current < self.store.len()) {
-            self.engine.fuel = 100;
-            const folded = engine_expr.evaluate(self.store, self.env, self.engine, current, 0) catch current;
-            if (folded != current and folded < self.store.len()) {
-                const folded_node = self.store.get(folded);
-                if (folded_node.tag == .lit) {
-                    const old_str = expr.toString(self.store, current, self.allocator) catch return current;
-                    defer self.allocator.free(old_str);
-                    const new_str = expr.toString(self.store, folded, self.allocator) catch return current;
-                    defer self.allocator.free(new_str);
-                    var tmp: [16]u8 = undefined;
-                    const sn = std.fmt.bufPrint(&tmp, " step {d}: ", .{step.*}) catch " step ?: ";
-                    buf.appendSlice(self.allocator, sn) catch {};
-                    buf.appendSlice(self.allocator, new_str) catch {};
-                    buf.appendSlice(self.allocator, " [eval ") catch {};
-                    buf.appendSlice(self.allocator, old_str) catch {};
-                    buf.appendSlice(self.allocator, "]\n") catch {};
-                    step.* += 1;
-                    return folded;
-                }
-            }
-        }
-        return current;
+    pub fn simplifyOnePass(self: *Commands, id: Id, buf: *std.ArrayListUnmanaged(u8), step: *u32) !Id {
+        return cas_ops.simplifyOnePass(self, id, buf, step) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 
     pub fn describeKB(self: *Commands) ![]u8 {
         var buf: std.ArrayListUnmanaged(u8) = .{};

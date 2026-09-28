@@ -722,6 +722,24 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const cas_ops = b.createModule(.{
+        .root_source_file = b.path("src/core/commands/cas.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
+            .{ .name = "canon", .module = canon_mod },
+            .{ .name = "egraph", .module = egraph_mod },
+            .{ .name = "transform", .module = transform_mod },
+            .{ .name = "pattern", .module = pattern_mod },
+            .{ .name = "math", .module = math_mod },
+            .{ .name = "rules", .module = rules_mod },
+            .{ .name = "simplify_engine", .module = simplify_engine_mod },
+            .{ .name = "platform", .module = platform_mod },
+        },
+    });
+
     const parse_ops = b.createModule(.{
         .root_source_file = b.path("src/core/commands/parse.zig"),
         .target = target,
@@ -783,6 +801,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "rules", .module = rules_mod },
             .{ .name = "proofs_ops", .module = proofs_ops },
             .{ .name = "parse_ops", .module = parse_ops },
+            .{ .name = "cas_ops", .module = cas_ops },
         },
     });
     commands_mod.addOptions("build_options", options);
