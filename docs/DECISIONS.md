@@ -50,17 +50,21 @@ migrer `logic/kanren.zig` vers Store-based, supprimer
 
 **Effort** : 2-3 sessions.
 
-## D3 — Un seul CIC
+## D3 — Système de preuve (FERMÉE 2026-09-28, doc seule)
 
-**Constat** : après le merge `core/kernel.zig` → `kernel/peano.zig`,
-il reste `elab.zig` (1678 l.), `proof.zig`, `proof_core.zig` (598 l.),
-`proof_helpers.zig`, `proof_state.zig`. Responsabilités qui se
-chevauchent.
+**Constat après audit** : il n'y a **pas de double CIC**. Trois
+couches distinctes coexistent :
 
-**Action** : clarifier qui fait quoi. Documenter dans
-`docs/spec/_kernel.md`. Fusion ou façade claire.
+- **Frontend** (`elab.zig`, 1678 l.) : élabore `.hvn` → Core Store.
+  N'utilise pas le kernel.
+- **Store** (`proof.zig`, `proof_core.zig`, `proof_helpers.zig`,
+  `proof_state.zig`) : orchestration des preuves au niveau Core.
+- **Kernel** (`kernel/peano.zig`, 853 l.) : CIC minimaliste.
+- **Pont** (`kernel_bridge.zig`, 143 l.) : traduit `Id` ↔ `u32`.
 
-**Effort** : 1 session d'audit + 1 session de refactor.
+**Action** : documentation seule. Voir `docs/spec/_proof.md`.
+
+**Effort** : 30 min. Aucun refactor justifié.
 
 ## D4 — Découper le shell
 
