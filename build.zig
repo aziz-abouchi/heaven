@@ -722,6 +722,17 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const format_ops = b.createModule(.{
+        .root_source_file = b.path("src/core/commands/format.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "codegen_expr_c", .module = codegen_expr_c_mod },
+            .{ .name = "codegen_expr_latex", .module = codegen_expr_latex_mod },
+        },
+    });
+
     const defs_ops = b.createModule(.{
         .root_source_file = b.path("src/core/commands/defs.zig"),
         .target = target,
@@ -819,6 +830,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "parse_ops", .module = parse_ops },
             .{ .name = "cas_ops", .module = cas_ops },
             .{ .name = "defs_ops", .module = defs_ops },
+            .{ .name = "format_ops", .module = format_ops },
         },
     });
     commands_mod.addOptions("build_options", options);

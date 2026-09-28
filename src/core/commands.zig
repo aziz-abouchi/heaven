@@ -8,6 +8,7 @@ const proofs_ops = @import("proofs_ops");
 const parse_ops = @import("parse_ops");
 const cas_ops = @import("cas_ops");
 const defs_ops = @import("defs_ops");
+const format_ops = @import("format_ops");
 
 const Allocator = std.mem.Allocator;
 const Store = expr.Store;
@@ -638,13 +639,13 @@ pub const Commands = struct {
         return self.math.expand(input);
     }
 
-    pub fn evalLatex(self: *Commands, input: []const u8) ![]u8 {
-        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
-        const id = try self.store.lowerRec(raw_id);
-        const latex = try self.toLaTeXInline(id);
-        defer self.allocator.free(latex); // ← ajouter
-        return std.fmt.allocPrint(self.allocator, "latex|{s}", .{latex});
+    pub fn evalLatex(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return format_ops.evalLatex(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 
     fn evalExplain(self: *Commands, input: []const u8) ![]u8 {
         return self.explain(input);
@@ -864,27 +865,37 @@ pub const Commands = struct {
     }
 
 
-    pub fn toC(self: *Commands, ids: []const Id) ![]u8 {
-        var cg = codegen_c.Codegen.init(self.store, self.allocator);
-        defer cg.deinit();
-        return cg.generate(ids);
+    pub fn toC(self: *Commands, ids: []const Id) HeavenError![]u8 {
+        return format_ops.toC(self, ids) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    pub fn toLaTeX(self: *Commands, ids: []const Id) ![]u8 {
-        var gen = codegen_latex.LaTeX.init(self.store, self.allocator);
-        defer gen.deinit();
-        return gen.generate(ids);
+
+    pub fn toLaTeX(self: *Commands, ids: []const Id) HeavenError![]u8 {
+        return format_ops.toLaTeX(self, ids) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    pub fn toLaTeXInline(self: *Commands, id: Id) ![]u8 {
-        var gen = codegen_latex.LaTeX.init(self.store, self.allocator);
-        defer gen.deinit();
-        return gen.renderInline(id);
+
+    pub fn toLaTeXInline(self: *Commands, id: Id) HeavenError![]u8 {
+        return format_ops.toLaTeXInline(self, id) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    pub fn format(self: *Commands, id: Id) ![]u8 {
-        return expr.toString(self.store, id, self.allocator);
+
+    pub fn format(self: *Commands, id: Id) HeavenError![]u8 {
+        return format_ops.format(self, id) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
+
 
     fn evalGreen(self: *Commands, input: []const u8) ![]u8 {
         // Même mécanisme que cmdGreen : wrapper dans (handle expr greenHandler)
@@ -984,89 +995,14 @@ pub const Commands = struct {
         return buf.toOwnedSlice(self.allocator);
     }
 
-    pub fn dumpAst(self: *Commands, input: []const u8) ![]u8 {
-        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
-        const id = try self.store.lowerRec(raw_id);
-        var buf: std.ArrayListUnmanaged(u8) = .{};
-        errdefer buf.deinit(self.allocator);
-        try self.writeAst(id, 0, &buf);
-        return buf.toOwnedSlice(self.allocator);
+    pub fn dumpAst(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return format_ops.dumpAst(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    fn writeAst(self: *Commands, id: Id, depth: u32, buf: *std.ArrayListUnmanaged(u8)) !void {
-        if (id >= self.store.len()) return;
-        const node = self.store.get(id);
-        var i: u32 = 0;
-        while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, " ");
-        switch (node.tag) {
-            .sym => {
-                const name = self.store.interner.resolve(node.payload);
-                try buf.appendSlice(self.allocator, "(sym \"");
-                try buf.appendSlice(self.allocator, name);
-                try buf.appendSlice(self.allocator, "\")\n");
-            },
-            .lit => {
-                const l = self.store.lits.items[node.aux];
-                switch (l) {
-                    .int => |v| {
-                        var tmp: [32]u8 = undefined;
-                        const s = std.fmt.bufPrint(&tmp, "(lit {d})\n", .{v}) catch return;
-                        try buf.appendSlice(self.allocator, s);
-                    },
-                    else => try buf.appendSlice(self.allocator, "(lit ?)\n"),
-                }
-            },
-            .apply => {
-                try buf.appendSlice(self.allocator, "(apply\n");
-                try self.writeAst(node.payload, depth + 1, buf);
-                for (node.span_a.slice(self.store.pool.items)) |child| try self.writeAst(child, depth + 1, buf);
-                i = 0;
-                while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, " ");
-                try buf.appendSlice(self.allocator, ")\n");
-            },
-            .bind => {
-                try buf.appendSlice(self.allocator, "(bind ");
-                try buf.appendSlice(self.allocator, self.store.interner.resolve(node.payload));
-                try buf.appendSlice(self.allocator, "\n");
-                for (node.span_a.slice(self.store.pool.items)) |child| try self.writeAst(child, depth + 1, buf);
-                i = 0;
-                while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, " ");
-                try buf.appendSlice(self.allocator, ")\n");
-            },
-            .lambda => {
-                try buf.appendSlice(self.allocator, "(lambda ");
-                try buf.appendSlice(self.allocator, self.store.interner.resolve(node.payload));
-                try buf.appendSlice(self.allocator, "\n");
-                for (node.span_a.slice(self.store.pool.items)) |child| try self.writeAst(child, depth + 1, buf);
-                i = 0;
-                while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, " ");
-                try buf.appendSlice(self.allocator, ")\n");
-            },
-            .relation => {
-                try buf.appendSlice(self.allocator, "(relation ");
-                try buf.appendSlice(self.allocator, self.store.interner.resolve(node.payload));
-                try buf.appendSlice(self.allocator, "\n");
-                for (node.span_a.slice(self.store.pool.items)) |child| try self.writeAst(child, depth + 1, buf);
-                i = 0;
-                while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, " ");
-                try buf.appendSlice(self.allocator, ")\n");
-            },
-            .source_file, .block, .block_legacy => {
-                try buf.appendSlice(self.allocator, "(");
-                try buf.appendSlice(self.allocator, @tagName(node.tag));
-                try buf.appendSlice(self.allocator, "\n");
-                for (node.span_a.slice(self.store.pool.items)) |child| try self.writeAst(child, depth + 1, buf);
-                i = 0;
-                while (i < depth) : (i += 1) try buf.appendSlice(self.allocator, " ");
-                try buf.appendSlice(self.allocator, ")\n");
-            },
-            else => {
-                try buf.appendSlice(self.allocator, "(");
-                try buf.appendSlice(self.allocator, @tagName(node.tag));
-                try buf.appendSlice(self.allocator, ")\n");
-            },
-        }
-    }
+
 
     pub fn explain(self: *Commands, input: []const u8) ![]u8 {
         var current = try self.bridge.importExpr(input);
@@ -1120,15 +1056,13 @@ pub const Commands = struct {
         return buf.toOwnedSlice(self.allocator);
     }
 
-    pub fn exprToC(self: *Commands, input: []const u8) ![]u8 {
-        const raw_id = self.parseExpression(input) catch try self.bridge.importExpr(input);
-        const id = try self.store.lowerRec(raw_id);
-        var cg = codegen_c.Codegen.init(self.store, self.allocator);
-        defer cg.deinit();
-        return cg.generateExpr(id);
+    pub fn exprToC(self: *Commands, input: []const u8) HeavenError![]u8 {
+        return format_ops.exprToC(self, input) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
-    // ─── Preuve ───
     fn evalTheorems(self: *Commands) ![]u8 {
         return self.proof_core.formatAll(self.allocator);
     }
