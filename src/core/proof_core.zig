@@ -192,7 +192,7 @@ pub const ProofCore = struct {
     }
 
     fn rewriteViaPipeline(heaven: anytype, id: expr.Id) !expr.Id {
-        // ensureLowered (fidèle heaven_expr.zig:1793)
+        // ensureLowered
         var current = id;
         var it: u32 = 0;
         while (it < 10) : (it += 1) {
@@ -201,14 +201,22 @@ pub const ProofCore = struct {
             current = try heaven.store.lowerRec(current);
         }
         // basic → EGRAPH → basic, ITÉRÉ jusqu'à point fixe
-        // (fidèle à l'ancien simplifyToFixpoint : certaines réécritures
-        // multi-niveaux — (+ (+ x 0) 0) — exigent plusieurs tours)
+        // OPTIMISATION : early exit si aucun changement dans un round complet
         var round: u32 = 0;
         while (round < 10) : (round += 1) {
             const b1 = heaven.math.simplifyBasic(current) catch current;
+            if (b1 == current) break; // simplifyBasic n'a rien changé
             const eg = heaven.simplify_eng.simplifyWithEGraph(b1, null, null) catch b1;
+            if (eg == b1) {
+                current = b1;
+                break; // EGraph n'a rien changé
+            }
             const b2 = heaven.math.simplifyBasic(eg) catch eg;
-            if (b2 == current) break;
+            if (b2 == eg) {
+                current = eg;
+                break; // deuxième simplifyBasic n'a rien changé
+            }
+            if (b2 == current) break; // retour à la forme précédente (cycle)
             current = b2;
         }
         return current;
