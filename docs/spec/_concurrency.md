@@ -228,37 +228,105 @@ Option A (envoyer tout) reste viable tant que :
 
 Au-delà, Option D devient nécessaire. À évaluer à Prototype 4.
 
-### C3 — Préemption native
+### C3 — Préemption native (TRANCHÉE : reduction budget + safepoints)
 
-- Reduction budget (en interprété : ✅ déjà là)
-- Safepoints (en natif : coûteux mais faisable)
-- Coopératif seulement (simple, bloque sur CPU-bound)
+**Contexte C1** : sémantique garantie coopérative. La préemption
+native est un **confort**, pas un contrat. Mais elle est nécessaire
+pour ne pas bloquer un worker sur un process CPU-bound.
 
-**Recommandation** : reduction budget en interprété (existant),
-safepoints en natif (session dédiée), ne pas tenter signaux.
+**Options** :
+- Safepoints instrumentés par le compilateur (~5 % surcoût)
+- Signaux + timer (fragile, plateforme-spécifique)
+- Reduction budget uniquement (équivalent à coopératif enrichi)
 
-### C4 — Modèle de faute
+**Décision** : **reduction budget + safepoints**.
 
-| Modèle              | Exemple       | Discipline             |
-|---------------------|---------------|------------------------|
-| BEAM (supervisors)  | Erlang        | Let-it-crash           |
-| Structured          | Trio, Kotlin  | Scopes, pas de dangling|
+**Mécanisme** :
+1. **Reduction budget** : `engine.fuel` décrémenté **dans `evaluate`**
+   (pas seulement à l'entrée `eval`, comme aujourd'hui). Chaque
+   appel récursif consomme du budget.
+2. **Safepoints natifs** : tous les N blocs de base (MIR), insertion
+   d'un check `if (fuel == 0) suspend()`.
+3. **WASM** : réduction budget seule (coopératif strict), pas de
+   safepoints (pas de stack indépendante pour suspendre).
 
-**Recommandation** : structured concurrency. Cohérent avec QTT et
-le zéro GC.
+**Budget par défaut** : à calibrer. Proposition : 10⁶ unités
+(≈ 100 μs sur hardware récent). Suspendu → requeue en fin de queue.
 
-### C5 — Relation/search vs tasks
+**Coût** : ~5 % en natif. Zéro en WASM (le programmeur `yield`
+explicitement).
 
-Le miniKanren fait déjà de l'`interleave` — c'est un scheduler.
+**Différé à Prototype 3** : implémenter la décroissance par
+`evaluate` (facile), les safepoints MIR (chantier dans le backend
+x86_64).
 
-| Option                    | Conséquence                    |
-|---------------------------|--------------------------------|
-| Unifier avec scheduler    | Problème de recherche (dur)    |
-| Sous-scheduler dédié      | Exception au principe "1 seul" |
-| Paralléliser branches top | Limité mais faisable           |
+### C4 — Modèle de faute (TRANCHÉE : structured concurrency)
 
-**Recommandation** : sous-scheduler dédié pour la logique. C'est
-l'exception assumée au principe.
+**Options** :
+- BEAM (supervisors, let-it-crash, liens/monitors)
+- Structured concurrency (Trio, Kotlin : scopes, pas de dangling)
+
+**Décision** : **structured concurrency**.
+
+**Raisons** :
+1. Cohérent avec QTT (une tâche dans un scope `linear` ne peut pas
+   survivre au scope).
+2. Cohérent avec zéro GC (lifetime explicite, pas de supervision
+   à la BEAM qui exige un runtime lourd).
+3. Évite les processus orphelins (pas de « task leak »).
+4. Compatible avec `spawn` (un `spawn` hors scope est une erreur de
+   compilation).
+
+**Sémantique** :
+- `scope { t1; t2; t3 }` — tous les enfants doivent terminer avant
+  que le scope retourne.
+- Si un enfant crash : le scope crash (propagation par défaut).
+- `try` / `catch` autour d'un scope pour rattraper.
+- Annulation : un `yield` sur un scope annulé lève `Cancelled`.
+
+**Pas de supervisor pattern** : pas de redémarrage automatique.
+Un crash est une erreur propagée, pas un événement à surveiller.
+
+**Différé à Prototype 3** : `scope` comme magic symbol ; la
+propagation par défaut est déjà ce que fait un arbre d'exécution
+synchrone.
+
+### C5 — Relation/search vs tasks (TRANCHÉE : sous-scheduler dédié)
+
+**Problème** : `miniKanren` fait déjà de l'`interleave` (alternance
+de streams). C'est un scheduler pour la recherche. Unifier avec le
+scheduler de tasks est un problème de recherche — coûteux.
+
+**Options** :
+- Unifier (scheduler unique)
+- Sous-scheduler dédié
+- Paralléliser branches racines
+
+**Décision** : **sous-scheduler dédié**.
+
+**Raisons** :
+1. La recherche a un état propre (substitution, backtracking) qui
+   n'a rien à voir avec les tasks.
+2. L'interleave kanren est un choix algorithmique (fairness,
+   complétude) ; ne pas le mélanger avec les priorités scheduler.
+3. Le sous-scheduler **partage le même pool de workers** — c'est
+   une politique, pas un runtime séparé.
+
+**C'est l'exception assumée** au principe « un seul scheduler ».
+
+**Concrètement** :
+- `engine.logic_search` : listes de branches actives, prochain
+  pas à exécuter par `interleave`.
+- Intégration : `engine.scheduler.tick()` peut exécuter un pas
+  logique si aucune task n'est prête.
+- Politique par défaut : fifo interleave (comportement actuel).
+
+**Parallélisation** : optionnelle. Deux branches indépendantes
+peuvent être exécutées sur deux workers si `engine.logic_parallel`.
+
+**Différé** : pas nécessaire avant Prototype 3 (le scheduler
+mono-node peut laisser la logique séquentielle).
+
 
 ## Scheduler
 
