@@ -208,6 +208,55 @@ Ces derniers relèvent du **cost model runtime**, pas du type system.
 - Implémenter le scheduler qui va avec
 - Objectif : premier benchmark million-process
 
+## Découvertes — Prototype 1 (2026-09-29)
+
+### Découverte 1 — QTT `linear` trop strict pour un handle concurrent
+
+Un `ProcessId` est utilisé **deux fois** dans un cycle typique :
+une fois pour `tell`, une fois pour `recv`. `let linear p = ...`
+refuse (violation). Contournement actuel : `let many p = ...` dans
+les tests.
+
+**Conséquence pour Prototype 2+** : il faudra trancher une
+multiplicité adaptée :
+- `many` par défaut pour les ProcessId (simple, mais perd la
+  discipline)
+- nouvelle multiplicité (`linear-write`, `shared-read`...) — cohérent
+  avec Rust (`self` vs `&mut self`)
+- `tell` consomme, `recv` renvoie un nouveau handle (`linear` strict)
+
+**À trancher avant le scheduler.**
+
+### Découverte 2 — `spawn` ignore ses arguments
+
+Signature actuelle : `spawn(handler, init_state)`. Les deux arguments
+sont évalués puis **jetés**. Le process créé est une mailbox nue.
+
+**Trois options pour Prototype 2** :
+- **A** : `spawn(fn, init)` réveille le handler à chaque message
+  (sémantique BEAM)
+- **B** : `spawn()` 0 args, mailbox pure (état actuel)
+- **C** : les deux, avec `spawn` vs `spawn_actor`
+
+**Recommandation** : garder B pour Prototype 2 (le scheduler n'a pas
+besoin de sémantique acteur), puis A pour Prototype 3.
+
+## Prototype 2 — Scheduler + Yield (plan)
+
+**Objectif** : valider que plusieurs processes peuvent se coordonner
+sans bloquer le thread principal.
+
+**Cible** :
+- `yield()` : suspend le process courant, cède la main
+- Scheduler à réduction budget : quand `engine.fuel` atteint 0,
+  le process est suspendu et un autre prend la main
+- Test : 3 processes qui s'envoient des messages en boucle
+
+**Hors-scope** :
+- Pas de préemption native
+- Pas de threads OS
+- Pas de distribution
+
 ## Ce qui existe déjà dans le code
 
 - `runtime/actor/` — acteurs locaux (mailbox, lifecycle, registry)
