@@ -616,6 +616,7 @@ pub fn initNatAxioms(pool: *TermPool) !void {
     const nat_hash = std.hash.Wyhash.hash(0, "Nat");
     const type0 = try pool.mkType(0);
     const nat_ref = try pool.mkRef(nat_hash);
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
 
     // Nat : Type(0)
     _ = try pool.declareAxiom("Nat", type0);
@@ -708,6 +709,36 @@ pub fn initNatAxioms(pool: *TermPool) !void {
                         try pool.mkEq(try pool.mkVar(2), try pool.mkVar(1)),
                         try pool.mkEq(try pool.mkVar(4), try pool.mkVar(2)))))));
     _ = try pool.declareAxiom("trans", trans_type);
+
+    // cong_add_l : Pi b c. Eq(b,c) -> Pi a. Eq(add a b, add a c)
+    // Sous Pi b : var(0)=b
+    // Sous Pi c : var(0)=c, var(1)=b
+    // Sous Pi h : var(0)=h, var(1)=c, var(2)=b
+    // Sous Pi a : var(0)=a, var(1)=h, var(2)=c, var(3)=b
+    const cong_add_l_type = try pool.mkPi(nat_ref,
+        try pool.mkPi(nat_ref,
+            try pool.mkPi(
+                try pool.mkEq(try pool.mkVar(1), try pool.mkVar(0)),
+                try pool.mkPi(nat_ref,
+                    try pool.mkEq(
+                        try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(3)),
+                        try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(2)))))));
+    _ = try pool.declareAxiom("cong_add_l", cong_add_l_type);
+
+    // cong_add_r : Pi a b. Eq(a,b) -> Pi c. Eq(add a c, add b c)
+    // Sous Pi a : var(0)=a
+    // Sous Pi b : var(0)=b, var(1)=a
+    // Sous Pi h : var(0)=h, var(1)=b, var(2)=a
+    // Sous Pi c : var(0)=c, var(1)=h, var(2)=b, var(3)=a
+    const cong_add_r_type = try pool.mkPi(nat_ref,
+        try pool.mkPi(nat_ref,
+            try pool.mkPi(
+                try pool.mkEq(try pool.mkVar(1), try pool.mkVar(0)),
+                try pool.mkPi(nat_ref,
+                    try pool.mkEq(
+                        try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(3)), try pool.mkVar(0)),
+                        try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0)))))));
+    _ = try pool.declareAxiom("cong_add_r", cong_add_r_type);
 }
 
 /// Construit un proof term pour add_succ_right :
@@ -1355,4 +1386,42 @@ test "add_assoc derivable via nat_ind" {
     const ok = try verify(&pool, proof, expected);
     std.debug.print("[SANITY] add_assoc: type_check={}\n", .{ok});
     try std.testing.expect(ok);
+}
+
+
+test "cong_add_l/r sanity" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const cong_add_l_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_add_l"));
+    const cong_add_r_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_add_r"));
+    const zero = try pool.mkZero();
+    const rfl = try pool.mkRefl(zero);
+
+    // cong_add_l(zero, zero, refl zero, zero) : Eq(add zero zero, add zero zero)
+    const l_proof = try pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(
+                try pool.mkApp(cong_add_l_ref, zero), zero),
+            rfl),
+        zero);
+    const l_expected = try pool.mkEq(
+        try pool.mkApp(try pool.mkApp(add_ref, zero), zero),
+        try pool.mkApp(try pool.mkApp(add_ref, zero), zero));
+    const ok_l = try verify(&pool, l_proof, l_expected);
+    std.debug.print("[SANITY] cong_add_l: type_check={}\n", .{ok_l});
+    try std.testing.expect(ok_l);
+
+    // cong_add_r(zero, zero, refl zero, zero)
+    const r_proof = try pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(
+                try pool.mkApp(cong_add_r_ref, zero), zero),
+            rfl),
+        zero);
+    const ok_r = try verify(&pool, r_proof, l_expected);
+    std.debug.print("[SANITY] cong_add_r: type_check={}\n", .{ok_r});
+    try std.testing.expect(ok_r);
 }
