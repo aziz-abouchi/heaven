@@ -80,9 +80,10 @@ débloque handle-rec + scheduler préemptif (C3).
 - Scheduler préemptif avant captureCont stable
 - Distribution (C2) avant Prototype 3 complet
 
-## Décision à valider
+## Décision
 
-Option B acceptable ?
+**Option B retenue** le 2026-09-29. Voir D8 dans `docs/DECISIONS.md`.
 
-Si oui : Prototype 3 = 3 sous-sessions (3a-1, 3a-2, 3a-3).
-Si non : préciser A ou C.
+Prototype 3 = 3 sous-sessions (3a-1, 3a-2, 3a-3).
+Contrainte d'ordre : ne pas démarrer 3a-2 avant 3a-1 vert.
+Ne pas démarrer C3 (scheduler préemptif) avant 3a-2 stable.

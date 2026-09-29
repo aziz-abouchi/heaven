@@ -4,7 +4,7 @@ Document de référence pour les choix structurants.
 Chaque décision est ancrée sur un constat de code (chiffres,
 chemins, lignes). Une décision non appliquée reste **proposée**.
 
-Dernière mise à jour : 2026-09-28.
+Dernière mise à jour : 2026-09-29.
 
 ## Contexte chiffré
 
@@ -124,6 +124,34 @@ format d'échange binaire pour le Core. Absent.
 
 **Débloque** : cache disque, communication entre process,
 tests reproductibles, IPFS (si un jour).
+
+## D8 — Continuations délimitées (Option B retenue, 2026-09-29)
+
+**Constat** : `engine_expr.zig::evaluate` est un tree-walker récursif
+direct. Chaque appel crée une frame native Zig. Impossible de
+suspendre au milieu d'une expression. Bloque `handle-rec` et le
+scheduler préemptif (C3 de `_concurrency.md`).
+
+**Décision** : Option B — continuations délimitées style OCaml 5.
+Primitives `pushPrompt`/`popPrompt`/`captureCont`/`throwCont`.
+Tree-walker direct sauf aux frontières.
+
+**Alternatives écartées** :
+- A — CPS-transform intégral : 500-800 l., +10-20% perf, tous les
+  call sites touchés. Trop intrusif.
+- C — Coopératif strict : ne débloque rien au-delà du yield basique.
+
+**Raisons** : effort/portée optimal (~200-300 l.), compatible avec
+les magic symbols existants, approche mature (Dolan/Madhavapeddy),
+débloque C3.
+
+**Plan** : Prototype 3a en 3 sous-sessions — 3a-1 prompts (1 sess.),
+3a-2 captureCont (1 sess.), 3a-3 branchement handle-rec + scheduler
+(1 sess.). Détail dans `docs/spec/_continuations.md`.
+
+**Effort** : 3 sessions.
+
+**Débloque** : handle-rec, scheduler préemptif C3, puis C2 distribution.
 
 ## Roadmap courte (7 sessions)
 
