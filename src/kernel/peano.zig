@@ -510,9 +510,6 @@ pub fn infer(pool: *TermPool, ctx: *Context, term_idx: u32) KernelError!u32 {
 
         .nat_zero => {
             const nat_hash = std.hash.Wyhash.hash(0, "Nat");
-            if (pool.lookupAxiom(nat_hash)) |type_idx| {
-                return type_idx;
-            }
             return pool.mkRef(nat_hash) catch return KernelError.OutOfMemory;
         },
 
@@ -520,12 +517,12 @@ pub fn infer(pool: *TermPool, ctx: *Context, term_idx: u32) KernelError!u32 {
             const inner = @as(u32, @intCast(t.payload));
             const inner_type = try infer(pool, ctx, inner);
             const nat_hash = std.hash.Wyhash.hash(0, "Nat");
-            const expected_nat = pool.lookupAxiom(nat_hash) orelse (pool.mkRef(nat_hash) catch return KernelError.OutOfMemory);
+            const nat_ref = pool.mkRef(nat_hash) catch return KernelError.OutOfMemory;
 
-            if (!try convertible(pool, inner_type, expected_nat)) {
+            if (!try convertible(pool, inner_type, nat_ref)) {
                 return KernelError.TypeMismatch;
             }
-            return expected_nat;
+            return nat_ref;
         },
 
         .eq => {
@@ -629,16 +626,18 @@ pub fn initNatAxioms(pool: *TermPool) !void {
     const p_zero = try pool.mkApp(try pool.mkVar(0), try pool.mkZero());
 
     // Πk:Nat. P(k) → P(succ k)
-    // Sous le Πk : var(0)=k, var(1)=P
-    const p_k = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0)); // P(k)
-    const p_succ_k = try pool.mkApp(try pool.mkVar(1), try pool.mkSucc(try pool.mkVar(0))); // P(succ k)
-    const step_body = try pool.mkPi(p_k, p_succ_k); // P(k) → P(succ k)
-    const step_type = try pool.mkPi(nat_ref, step_body); // Πk:Nat. P(k)→P(succ k)
+    // Sous le Πk       : var(0)=k, var(1)=base, var(2)=P
+    // Sous le Π(_:P k) : var(0)=h, var(1)=k, var(2)=base, var(3)=P
+    const p_k = try pool.mkApp(try pool.mkVar(2), try pool.mkVar(0)); // P(k)
+    const p_succ_k = try pool.mkApp(try pool.mkVar(3), try pool.mkSucc(try pool.mkVar(1))); // P(succ k)
+    const step_body = try pool.mkPi(p_k, p_succ_k);
+    const step_type = try pool.mkPi(nat_ref, step_body);
 
     // Πn:Nat. P(n)
-    // Sous le Πn : var(0)=n, var(1)=P
-    const p_n = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0)); // P(n)
-    const result_type = try pool.mkPi(nat_ref, p_n); // Πn:Nat. P(n)
+    // Contexte à l'entrée du codomaine : [P, base, step]
+    // Sous le Πn : var(0)=n, var(1)=step, var(2)=base, var(3)=P
+    const p_n = try pool.mkApp(try pool.mkVar(3), try pool.mkVar(0)); // P(n)
+    const result_type = try pool.mkPi(nat_ref, p_n);
 
     // Assemblage complet :
     // nat_ind : Π(P:Nat→Type). P(zero) → step_type → result_type
@@ -864,3 +863,42 @@ test "Kernel - Échec de typage (TypeMismatch)" {
     const result = check(&pool, &ctx, type0, type0);
     try std.testing.expectError(KernelError.TypeMismatch, result);
 }
+
+
+// BEGIN SANITY TEST nat_ind
+test "nat_ind sanity: proves Eq(n,n)" {
+    const allocator = std.testing.allocator;
+    var pool = TermPool.init(allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
+
+    // P = λn. Eq(n, n)
+    const P = try pool.mkLam(nat_ref,
+        try pool.mkEq(try pool.mkVar(0), try pool.mkVar(0)));
+
+    // base = refl(zero) : Eq(zero, zero)
+    const base = try pool.mkRefl(try pool.mkZero());
+
+    // step = λk. λih:(P k). refl(succ k)
+    // Sous λk : var(0)=k, P(k) = app(P, var(0))
+    // Sous λih : var(0)=ih, var(1)=k, refl(succ k) = refl(succ(var(1)))
+    const step = try pool.mkLam(nat_ref,
+        try pool.mkLam(try pool.mkApp(P, try pool.mkVar(0)),
+            try pool.mkRefl(try pool.mkSucc(try pool.mkVar(1)))));
+
+    const proof_term = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base),
+        step);
+
+    // Theorem : Πn:Nat. Eq(n, n)
+    const theorem_type = try pool.mkPi(nat_ref,
+        try pool.mkEq(try pool.mkVar(0), try pool.mkVar(0)));
+
+    const ok = try verify(&pool, proof_term, theorem_type);
+    std.debug.print("[SANITY] nat_ind on Eq(n,n): type_check={}\n", .{ok});
+    try std.testing.expect(ok);
+}
+// END SANITY TEST nat_ind
