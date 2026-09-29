@@ -43,6 +43,8 @@ pub const EvalError = error{
     RecursionLimitExceeded,
     ActorIdNotLiteral,
     ActorNotFound,
+    ProcessNotFound,
+    MailboxEmpty,
     HandlerFailed,
     EffectPerformed,
     AssertionFailed,
@@ -129,6 +131,18 @@ pub const IOHandler = *const fn (
     arg: ?expr.Id,
 ) EvalError!?expr.Id;
 
+pub const Process = struct {
+    /// File de messages en attente (FIFO). Chaque message est un Id
+    /// (expression Core). Pas de handler associé pour Prototype 1 :
+    /// la sémantique "acteur" (handler + state) reste le modèle
+    /// existant `actors`. Ici on valide la communication pure.
+    mailbox: std.ArrayListUnmanaged(expr.Id) = .{},
+
+    pub fn deinit(self: *Process, allocator: std.mem.Allocator) void {
+        self.mailbox.deinit(allocator);
+    }
+};
+
 pub const Engine = struct {
     allocator: std.mem.Allocator,
     store: *Store,
@@ -143,6 +157,12 @@ pub const Engine = struct {
         handler: expr.Id,
     }) = .{},
     next_actor_id: u32 = 0,
+    /// Prototype 1 concurrence (docs/spec/_concurrency.md) :
+    /// processes légers = id -> mailbox FIFO. Pas de scheduler,
+    /// pas de préemption, pas de distribution. Juste la
+    /// communication pure spawn/tell/recv.
+    processes: std.AutoHashMapUnmanaged(u32, Process) = .{},
+    next_process_id: u32 = 0,
     green_call_count: u32 = 0,
     green_mode: bool = false,
     last_performed: ?expr.Id = null,
@@ -182,6 +202,11 @@ pub const Engine = struct {
         self.fns.deinit(self.allocator);
         self.macros.deinit(self.allocator);
         self.actors.deinit(self.allocator);
+        {
+            var proc_it = self.processes.iterator();
+            while (proc_it.next()) |entry| entry.value_ptr.deinit(self.allocator);
+        }
+        self.processes.deinit(self.allocator);
     }
 
     // Contexte factice pour les tests (ne sera jamais utilisé)
@@ -718,6 +743,60 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         }
         return error.HandlerFailed;
     }
+    // ═══ PROTOTYPE 1 CONCURRENCE : spawn / tell / recv ═══
+    // Voir docs/spec/_concurrency.md. Modèle minimal : un process
+    // est une mailbox FIFO. Pas de handler, pas de scheduler, pas
+    // de distribution. Sert à valider que les 3 primitives
+    // composables fonctionnent ensemble.
+
+    if (std.mem.eql(u8, op, "spawn")) {
+        // spawn(init_handler, init_state) → pid
+        // Prototype 1 : on ignore handler/state (réservés pour
+        // Prototype 2 quand la sémantique process sera complète).
+        // On garde l'arité 2 pour compatibilité future.
+        if (args_snap.len != 2) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        _ = try evaluate(store, env, engine, args_snap[1], depth + 1);
+
+        const pid = engine.next_process_id;
+        engine.next_process_id += 1;
+        try engine.processes.put(engine.allocator, pid, .{});
+        return try store.int(@intCast(pid));
+    }
+
+    if (std.mem.eql(u8, op, "tell")) {
+        // tell(pid, msg) → msg (dépose dans la mailbox du process)
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const pid_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const msg_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+
+        const pid_node = store.get(pid_val);
+        if (pid_node.tag != .lit) return error.ActorIdNotLiteral;
+        const pid_lit = store.lits.items[pid_node.aux];
+        if (pid_lit != .int) return error.ActorIdNotLiteral;
+
+        const proc = engine.processes.getPtr(@intCast(pid_lit.int)) orelse
+            return error.ProcessNotFound;
+        try proc.mailbox.append(engine.allocator, msg_val);
+        return msg_val;
+    }
+
+    if (std.mem.eql(u8, op, "recv")) {
+        // recv(pid) → msg (pop la prochaine valeur de la mailbox)
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const pid_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+
+        const pid_node = store.get(pid_val);
+        if (pid_node.tag != .lit) return error.ActorIdNotLiteral;
+        const pid_lit = store.lits.items[pid_node.aux];
+        if (pid_lit != .int) return error.ActorIdNotLiteral;
+
+        const proc = engine.processes.getPtr(@intCast(pid_lit.int)) orelse
+            return error.ProcessNotFound;
+        if (proc.mailbox.items.len == 0) return error.MailboxEmpty;
+        return proc.mailbox.orderedRemove(0);
+    }
+
     if (std.mem.eql(u8, op, "state")) {
         if (args_snap.len != 1) return error.ArityMismatch;
         const actor_id_val = try evaluate(store, env, engine, args_snap[0], depth + 1);

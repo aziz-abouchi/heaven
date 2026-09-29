@@ -22,6 +22,12 @@ fn counterHandler(state, msg) = (+ state msg)
 let actor Counter = 0 with counterHandler
 send(Counter, 10)
 send(Counter, 5)
+# --- Prototype 1 concurrence (spawn/tell/recv) ---
+# let many : aucune contrainte QTT (p est utilisé 2x, _m 0x)
+test "proto1_spawn_tell_recv": (let many p = (spawn (lambda x x) 0) in (let many _m = (tell p 42) in (recv p))) == 42
+test "proto1_fifo_order": (let many p = (spawn (lambda x x) 0) in (let many _a = (tell p 1) in (let many _b = (tell p 2) in (let many _c = (tell p 3) in (recv p))))) == 1
+test "proto1_two_procs": (let many p1 = (spawn (lambda x x) 0) in (let many p2 = (spawn (lambda x x) 0) in (let many _a = (tell p1 10) in (let many _b = (tell p2 20) in (recv p1))))) == 10
+
 test "actor_state": state(Counter) == 15
 
 
