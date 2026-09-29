@@ -33,6 +33,13 @@ test "proto1_two_procs": (let many p1 = (spawn (lambda x x) 0) in (let many p2 =
 test "proto2_run_drains": (let many p = (spawn counterHandler 0) in (let many _a = (tell p 5) in (let many _b = (tell p 3) in (run p)))) == 8
 test "proto2_two_procs_run": (let many p1 = (spawn counterHandler 0) in (let many p2 = (spawn counterHandler 100) in (let many _a = (tell p1 5) in (let many _b = (tell p2 10) in (+ (run p1) (run p2)))))) == 115
 
+# --- Scoped effects (docs/spec/_effects.md) ---
+test "scoped_bracket_returns_body": (bracket 0 42 99) == 42
+test "scoped_catch_default": (catch (/ 1 0) 42) == 42
+test "scoped_catch_success": (catch (+ 1 2) 0) == 3
+test "scoped_local_bind_and_restore": (let many x = 5 in (let many _ = (local "x" 10 0) in x)) == 5
+test "scoped_local_visible_inside": (let many x = 5 in (local "x" 10 x)) == 10
+
 test "actor_state": state(Counter) == 15
 
 

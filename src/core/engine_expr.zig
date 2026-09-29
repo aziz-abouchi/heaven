@@ -45,6 +45,7 @@ pub const EvalError = error{
     ActorNotFound,
     ProcessNotFound,
     MailboxEmpty,
+    InvalidInput,
     HandlerFailed,
     EffectPerformed,
     AssertionFailed,
@@ -852,6 +853,70 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
         proc.state = current_state;
         return current_state;
+    }
+
+    // ═══ SCOPED EFFECTS (docs/spec/_effects.md) ═══
+    // Synchrone, pas de continuation. `bracket`/`local`/`catch`
+    // fournissent les primitives de portée (setup/teardown,
+    // shadow local, rattrapage d'erreur) sans toucher au noyau.
+
+    if (std.mem.eql(u8, op, "bracket")) {
+        // bracket(setup, body, teardown) → résultat de body
+        // Évalue setup, body, teardown dans l'ordre. Retourne le
+        // résultat de body. Si teardown échoue, l'erreur remonte
+        // (le résultat de body est perdu).
+        if (args_snap.len != 3) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const body_result = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        _ = try evaluate(store, env, engine, args_snap[2], depth + 1);
+        return body_result;
+    }
+
+    if (std.mem.eql(u8, op, "local")) {
+        // local(name, val, body) → bind name := val, évalue body,
+        // restaure le binding précédent (ou retire si absent).
+        // `name` est un string lit ("x") ou un sym nu.
+        if (args_snap.len != 3) return error.ArityMismatch;
+        const name_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const bound_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+
+        const name_node = store.get(name_val);
+        var sym: ?expr.Sym = null;
+        if (name_node.tag == .sym) {
+            sym = name_node.payload;
+        } else if (name_node.tag == .lit) {
+            const lit = store.lits.items[name_node.aux];
+            if (lit == .str) {
+                sym = store.interner.lookup(store.interner.resolve(lit.str));
+            }
+        }
+        if (sym == null) return error.InvalidInput;
+
+        const sym_id = sym.?;
+        const old_binding = env.get(sym_id);
+
+        try env.put(sym_id, bound_val);
+        defer {
+            if (old_binding) |old| {
+                env.put(sym_id, old) catch {};
+            } else {
+                env.delete(sym_id);
+            }
+        }
+
+        return try evaluate(store, env, engine, args_snap[2], depth + 1);
+    }
+
+    if (std.mem.eql(u8, op, "catch")) {
+        // catch(body, default) → résultat de body, ou résultat de
+        // default si body lève une erreur.
+        // Catch-all : y compris OutOfMemory, RecursionLimitExceeded,
+        // etc. (comme un try/catch runtime).
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const body_result = evaluate(store, env, engine, args_snap[0], depth + 1) catch {
+            return try evaluate(store, env, engine, args_snap[1], depth + 1);
+        };
+        return body_result;
     }
 
     if (std.mem.eql(u8, op, "state")) {
