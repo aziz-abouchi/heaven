@@ -1166,6 +1166,12 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "expr", .module = expr_mod }},
     }) });
 
+    const test_continuation = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/core/continuation.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+
     const test_typeo = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/logic/typeo.zig"),
         .target = target,
@@ -1562,6 +1568,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_kanren_expr).step);
+    test_step.dependOn(&b.addRunArtifact(test_continuation).step);
     test_step.dependOn(&b.addRunArtifact(test_typeo).step);
     test_step.dependOn(&b.addRunArtifact(test_typeo_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_term_bridge).step);
