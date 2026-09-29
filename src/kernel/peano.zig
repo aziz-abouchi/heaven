@@ -862,6 +862,45 @@ pub fn mkAddAssocProof(pool: *TermPool, a: u32, b: u32, c: u32) !u32 {
 
 
 
+
+/// Derive cong_add_r via eq_rect_nat :
+///   mkCongAddRProof(a, b, h) : Pi c. Eq(add a c, add b c)
+/// Construit Lc. eq_rect_nat(Lx. Eq(add x c, add b c), a, b, h,
+///                            refl(add a c)).
+pub fn mkCongAddRProof(pool: *TermPool, a: u32, b: u32, h: u32) !u32 {
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const eq_rect_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "eq_rect_nat"));
+
+    // Sous [c] : var(0)=c. a, b, h shiftes +1.
+    const a_sh = try shift(pool, a, 0, 1);
+    const b_sh = try shift(pool, b, 0, 1);
+    const h_sh = try shift(pool, h, 0, 1);
+
+    // P = Lx. Eq(add x c, add b c)
+    // Sous [c, x] : var(0)=x, var(1)=c. b shift +2, c = var(1).
+    const b_sh2 = try shift(pool, b, 0, 2);
+    const c_here = try pool.mkVar(1);
+    const add_x_c = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), c_here);
+    const add_b_c = try pool.mkApp(try pool.mkApp(add_ref, b_sh2), c_here);
+    const P = try pool.mkLam(nat_ref, try pool.mkEq(add_x_c, add_b_c));
+
+    // refl(add a c) sous [c] : Eq(add a_sh c, add a_sh c), c = var(0)
+    const add_a_c_here = try pool.mkApp(try pool.mkApp(add_ref, a_sh), try pool.mkVar(0));
+    const rfl = try pool.mkRefl(add_a_c_here);
+
+    // eq_rect_nat(P, a_sh, b_sh, h_sh, rfl) : P(b_sh) = Eq(add a c, add b c)
+    const body = try pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(
+                try pool.mkApp(try pool.mkApp(eq_rect_ref, P), a_sh),
+                b_sh),
+            h_sh),
+        rfl);
+
+    return pool.mkLam(nat_ref, body);
+}
+
 /// Derive cong_add_l via eq_rect_nat :
 ///   mkCongAddLProof(b, c, h) : Pi a. Eq(add a b, add a c)
 /// Construit La. eq_rect_nat(Lx. Eq(add a b, add a x), b, c, h,
@@ -2126,4 +2165,39 @@ test "cong_add_l derivable via eq_rect_nat" {
         try pool.mkApp(try pool.mkApp(add_ref, v0), v0));
     try check(&pool, &ctx, applied2, expected2);
     std.debug.print("[CAL-DER2] cong_add_l non-close: OK\n", .{});
+}
+
+test "cong_add_r derivable via eq_rect_nat" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const zero = try pool.mkZero();
+    const rfl = try pool.mkRefl(zero);
+
+    // Clos
+    const proof = try mkCongAddRProof(&pool, zero, zero, rfl);
+    const applied = try pool.mkApp(proof, zero);
+    const expected = try pool.mkEq(
+        try pool.mkApp(try pool.mkApp(add_ref, zero), zero),
+        try pool.mkApp(try pool.mkApp(add_ref, zero), zero));
+    const ok = try verify(&pool, applied, expected);
+    std.debug.print("[CAR-DER] clos: {}\n", .{ok});
+    try std.testing.expect(ok);
+
+    // Non-clos
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+    try ctx.push(0, nat_ref);
+    const v0 = try pool.mkVar(0);
+    const rfl_v0 = try pool.mkRefl(v0);
+    const proof2 = try mkCongAddRProof(&pool, v0, v0, rfl_v0);
+    const applied2 = try pool.mkApp(proof2, v0);
+    const expected2 = try pool.mkEq(
+        try pool.mkApp(try pool.mkApp(add_ref, v0), v0),
+        try pool.mkApp(try pool.mkApp(add_ref, v0), v0));
+    try check(&pool, &ctx, applied2, expected2);
+    std.debug.print("[CAR-DER2] non-clos: OK\n", .{});
 }
