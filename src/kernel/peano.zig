@@ -292,6 +292,8 @@ pub fn eval(pool: *TermPool, term_idx: u32) !u32 {
             }
 
             // Not a lambda → stuck application
+            // Short-circuit : si func_whnf == original func, rien n'a bougé
+            if (func_whnf == t.payload) return term_idx;
             return pool.mkApp(func_whnf, arg_idx);
         },
     }
