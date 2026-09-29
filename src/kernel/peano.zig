@@ -56,6 +56,7 @@ pub const AxiomEntry = struct {
 
 pub const DeltaScheme = enum {
     peano_add, // add(zero, n) → n ; add(succ(k), n) → succ(add(k, n))
+    peano_mul, // mul(zero, n) → zero ; mul(succ(k), n) → add(n, mul(k, n))
     // d'autres viendront : mul, sub, div...
 };
 
@@ -277,6 +278,21 @@ pub fn eval(pool: *TermPool, term_idx: u32) !u32 {
                                     const reduced = try eval(pool, add_k_n);
                                     return pool.mkSucc(reduced);
                                 }
+                            },
+                            .peano_mul => {
+                                const x_nf = try eval(pool, first_arg);
+                                const xa = pool.get(x_nf);
+                                if (xa.tag == .nat_zero) return pool.mkZero();
+                                if (xa.tag == .nat_succ) {
+                                    const k = @as(u32, @intCast(xa.payload));
+                                    const mul_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "mul"));
+                                    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+                                    const mul_k_n = try pool.mkApp(try pool.mkApp(mul_ref, k), arg_idx);
+                                    const add_n_mul_kn = try pool.mkApp(try pool.mkApp(add_ref, arg_idx), mul_k_n);
+                                    return eval(pool, add_n_mul_kn);
+                                }
+                                const second_nf = try eval(pool, arg_idx);
+                                if (pool.get(second_nf).tag == .nat_zero) return pool.mkZero();
                             },
                             // autres schémas à venir
                         }
@@ -615,6 +631,7 @@ pub fn initNatAxioms(pool: *TermPool) !void {
     const nat_to_nat_to_nat = try pool.mkPi(nat_ref, try pool.mkPi(nat_ref, nat_ref));
     _ = try pool.declareAxiom("add", nat_to_nat_to_nat);
     try pool.registerDelta("add", .peano_add);
+    try pool.registerDelta("mul", .peano_mul);
 
     // mul : Nat → Nat → Nat
     _ = try pool.declareAxiom("mul", nat_to_nat_to_nat);
@@ -1202,5 +1219,65 @@ test "add_succ_right derivable via nat_ind" {
 
     const ok = try verify(&pool, proof_term, theorem_type);
     std.debug.print("[SANITY] add_succ_right: type_check={}\n", .{ok});
+    try std.testing.expect(ok);
+}
+
+
+test "mul_zero_right derivable via nat_ind" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const mul_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "mul"));
+    const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
+    const zero = try pool.mkZero();
+
+    // P = Lm n. Eq(mul n zero, zero)
+    const P_body = try pool.mkEq(
+        try pool.mkApp(try pool.mkApp(mul_ref, try pool.mkVar(0)), zero),
+        zero);
+    const P = try pool.mkLam(nat_ref, P_body);
+
+    // base = refl(zero)
+    const base = try pool.mkRefl(zero);
+
+    // step = Lk. Lih:P(k). ih
+    // Sous Lk,Lih : var(0)=ih, var(1)=k
+    const step = try pool.mkLam(nat_ref,
+        try pool.mkLam(try pool.mkApp(P, try pool.mkVar(0)),
+            try pool.mkVar(0)));
+
+    const proof_term = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base), step);
+
+    const theorem_type = try pool.mkPi(nat_ref,
+        try pool.mkEq(
+            try pool.mkApp(try pool.mkApp(mul_ref, try pool.mkVar(0)), zero),
+            zero));
+
+    const ok = try verify(&pool, proof_term, theorem_type);
+    std.debug.print("[SANITY] mul_zero_right: type_check={}\n", .{ok});
+    try std.testing.expect(ok);
+}
+
+
+test "mul delta-reduction: 2*3 = 6" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const mul_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "mul"));
+    const zero = try pool.mkZero();
+    const one = try pool.mkSucc(zero);
+    const two = try pool.mkSucc(one);
+    const three = try pool.mkSucc(two);
+    // 6 = succ^3(three)
+    const six = try pool.mkSucc(try pool.mkSucc(try pool.mkSucc(three)));
+
+    const expr = try pool.mkApp(try pool.mkApp(mul_ref, two), three);
+    const result = try eval(&pool, expr);
+    const expected = try eval(&pool, six);
+    const ok = try convertible(&pool, result, expected);
     try std.testing.expect(ok);
 }
