@@ -28,6 +28,11 @@ test "proto1_spawn_tell_recv": (let many p = (spawn (lambda x x) 0) in (let many
 test "proto1_fifo_order": (let many p = (spawn (lambda x x) 0) in (let many _a = (tell p 1) in (let many _b = (tell p 2) in (let many _c = (tell p 3) in (recv p))))) == 1
 test "proto1_two_procs": (let many p1 = (spawn (lambda x x) 0) in (let many p2 = (spawn (lambda x x) 0) in (let many _a = (tell p1 10) in (let many _b = (tell p2 20) in (recv p1))))) == 10
 
+# --- Prototype 2-lite : run(pid) draine handler+state ---
+# counterHandler déjà défini plus haut : fn counterHandler(state, msg) = (+ state msg)
+test "proto2_run_drains": (let many p = (spawn counterHandler 0) in (let many _a = (tell p 5) in (let many _b = (tell p 3) in (run p)))) == 8
+test "proto2_two_procs_run": (let many p1 = (spawn counterHandler 0) in (let many p2 = (spawn counterHandler 100) in (let many _a = (tell p1 5) in (let many _b = (tell p2 10) in (+ (run p1) (run p2)))))) == 115
+
 test "actor_state": state(Counter) == 15
 
 

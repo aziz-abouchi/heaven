@@ -133,10 +133,13 @@ pub const IOHandler = *const fn (
 
 pub const Process = struct {
     /// File de messages en attente (FIFO). Chaque message est un Id
-    /// (expression Core). Pas de handler associé pour Prototype 1 :
-    /// la sémantique "acteur" (handler + state) reste le modèle
-    /// existant `actors`. Ici on valide la communication pure.
+    /// (expression Core).
     mailbox: std.ArrayListUnmanaged(expr.Id) = .{},
+    /// Prototype 2-lite : handler + state attachés au process.
+    /// `spawn(fn, init)` les renseigne. `run(pid)` les consomme.
+    /// `null` si le process a été créé sans handler.
+    handler: ?expr.Id = null,
+    state: ?expr.Id = null,
 
     pub fn deinit(self: *Process, allocator: std.mem.Allocator) void {
         self.mailbox.deinit(allocator);
@@ -750,17 +753,19 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // composables fonctionnent ensemble.
 
     if (std.mem.eql(u8, op, "spawn")) {
-        // spawn(init_handler, init_state) → pid
-        // Prototype 1 : on ignore handler/state (réservés pour
-        // Prototype 2 quand la sémantique process sera complète).
-        // On garde l'arité 2 pour compatibilité future.
+        // spawn(handler_fn, init_state) → pid
+        // Prototype 2-lite : on stocke handler + state. run(pid)
+        // les consomme pour traiter la mailbox.
         if (args_snap.len != 2) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        _ = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const handler_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const init_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
 
         const pid = engine.next_process_id;
         engine.next_process_id += 1;
-        try engine.processes.put(engine.allocator, pid, .{});
+        try engine.processes.put(engine.allocator, pid, .{
+            .handler = handler_val,
+            .state = init_val,
+        });
         return try store.int(@intCast(pid));
     }
 
@@ -795,6 +800,58 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             return error.ProcessNotFound;
         if (proc.mailbox.items.len == 0) return error.MailboxEmpty;
         return proc.mailbox.orderedRemove(0);
+    }
+
+    if (std.mem.eql(u8, op, "run")) {
+        // run(pid) → state final. Draine la mailbox en appelant le
+        // handler (fn symbol) avec (state, msg) pour chaque message.
+        // NON-PRÉEMPTIF : caller-driven, synchrone. Pour la
+        // préemption, voir Prototype 3 (nécessite continuations).
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const pid_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+
+        const pid_node = store.get(pid_val);
+        if (pid_node.tag != .lit) return error.ActorIdNotLiteral;
+        const pid_lit = store.lits.items[pid_node.aux];
+        if (pid_lit != .int) return error.ActorIdNotLiteral;
+
+        const proc = engine.processes.getPtr(@intCast(pid_lit.int)) orelse
+            return error.ProcessNotFound;
+
+        const handler_val = proc.handler orelse return error.HandlerFailed;
+        const handler_node = store.get(handler_val);
+        if (handler_node.tag != .sym) return error.HandlerFailed;
+        const handler_name = store.interner.resolve(handler_node.payload);
+        const fn_def = engine.fns.get(handler_name) orelse return error.HandlerFailed;
+        if (fn_def.num_clauses == 0) return error.HandlerFailed;
+        const clause = fn_def.clauses[0];
+
+        var current_state: expr.Id = proc.state orelse 0;
+
+        while (proc.mailbox.items.len > 0) {
+            const msg_val = proc.mailbox.orderedRemove(0);
+
+            var new_env = Env.init(engine.allocator);
+            defer new_env.deinit();
+            var it_env = env.bindings.iterator();
+            while (it_env.next()) |entry| {
+                try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
+            }
+
+            if (clause.num_patterns >= 1) {
+                const p1 = store.get(clause.patterns[0]);
+                if (p1.tag == .sym) try new_env.put(p1.payload, current_state);
+            }
+            if (clause.num_patterns >= 2) {
+                const p2 = store.get(clause.patterns[1]);
+                if (p2.tag == .sym) try new_env.put(p2.payload, msg_val);
+            }
+
+            current_state = try evaluate(store, &new_env, engine, clause.body, depth + 1);
+        }
+
+        proc.state = current_state;
+        return current_state;
     }
 
     if (std.mem.eql(u8, op, "state")) {
