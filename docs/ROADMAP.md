@@ -518,6 +518,75 @@ Effort : 30 min.
 
 Effort : 30 min.
 
+## Sucre syntaxique — compréhensions
+
+**Statut** : 🚧 roadmap (non implémenté).
+**Effort** : 1 session.
+**Dépend de** : stabilité de `Stream<T>` (voir `_concurrency.md`).
+
+### Cible
+
+Deux formes équivalentes :
+
+    [e | x <- xs, p]                  -- style Haskell
+    (for (x <- xs) (when p) e)        -- style S-expr
+
+Désucration vers le pipeline standard :
+
+    xs
+      │
+      ├── yield x
+      ├── filter p
+      └── map e
+           │
+           ▼
+        Stream<T>
+
+Matérialisation explicite si nécessaire :
+
+    Stream<T> --toList--> List<T>
+    Stream<T> --toSet-->  Set<T>
+
+### Séparation conceptuelle
+
+| Concept     | Type          | Nature                    |
+|-------------|---------------|---------------------------|
+| Producteur  | `Generator<T>`| Mécanisme (sucre sur Yield)|
+| Séquence    | `Stream<T>`   | Abstrait, pull, linear    |
+| Collection  | `List<T>`     | Matérialisé, ordonné      |
+| Collection  | `Set<T>`      | Matérialisé, dédupliqué   |
+
+### Principe architectural
+
+- `Generator<T>` **n'est pas un type distinct** de `Stream<T>` au
+  niveau sémantique — c'est une manière de le construire.
+- `yield` est un **effet algébrique** (`perform Yield v`), cohérent
+  avec `perform`/`handle` existants.
+- Une compréhension produit un `Stream<T>`, **pas** une `List<T>`
+  immédiate.
+- La matérialisation est explicite (`toList`, `toSet`, `collect`).
+
+### Bénéfice
+
+- Cohérence avec la philosophie "zéro GC" + QTT (Stream linear par
+  défaut).
+- Compatible avec le scheduler (un Stream peut être exécuté en
+  parallèle sans changer la sémantique).
+- Renommage nécessaire : les `Stream` kanren existants deviennent
+  `SubstStream` ou `KanrenStream` pour libérer le nom.
+
+### Décisions à trancher
+
+1. Syntaxe : `[e | x <- xs, p]` ou S-expr ?
+2. Séquentiel vs parallèle par défaut ?
+3. `Stream<T>` : `linear` par défaut (Rust Iterator) ou `many`
+   (Haskell lazy list) ?
+4. Renommage des Stream kanren : `SubstStream` ou autre ?
+5. `Set<T>` : basé sur `HashSet` ou `Ord` + tri ?
+
+**À intégrer avec `_concurrency.md`** : les compréhensions doivent
+produire des `Stream<T>` compatibles avec le noyau 5-primitives.
+
 ---
 
 ## #skills-v2 — Réunification avec tactics
