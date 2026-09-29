@@ -428,7 +428,11 @@ pub fn infer(pool: *TermPool, ctx: *Context, term_idx: u32) KernelError!u32 {
         .var_ => {
             const db_idx = @as(u32, @intCast(t.payload));
             if (ctx.lookup(db_idx)) |entry| {
-                return entry.type_idx;
+                // entry.type_idx est valide dans le prefixe du ctx (invariant 1).
+                // Dans le ctx courant, il faut shifter de (db_idx + 1) pour que
+                // les variables libres pointent toujours sur les memes binders.
+                const shift_amt: i32 = @intCast(db_idx + 1);
+                return shift(pool, entry.type_idx, 0, shift_amt) catch return KernelError.OutOfMemory;
             }
             return KernelError.UnboundVariable;
         },
@@ -1006,4 +1010,74 @@ test "sym + trans sanity" {
     const ok_trans = try verify(&pool, trans_proof, eq_zz);
     std.debug.print("[SANITY] trans: type_check={}\n", .{ok_trans});
     try std.testing.expect(ok_trans);
+}
+
+test "add_comm via nat_ind" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
+    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
+    const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
+    const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
+    const asr_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add_succ_right"));
+
+    // P = Lm n. Pi m:Nat. Eq(add n m, add m n)
+    const P_body = try pool.mkPi(nat_ref,
+        try pool.mkEq(
+            try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0)),
+            try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(1))));
+    const P = try pool.mkLam(nat_ref, P_body);
+
+    // base = Lm. refl(m)  : Eq(m,m) convertible via delta a P(zero)
+    const base = try pool.mkLam(nat_ref, try pool.mkRefl(try pool.mkVar(0)));
+
+    // step = Lk. Lih:P(k). Lm.
+    //   trans(succ(add k m), succ(add m k), add(m, succ k),
+    //         cong_succ(add k m, add m k, ih m),
+    //         sym(add(m, succ k), succ(add m k), add_succ_right(m, k)))
+    // Sous Lk,Lih,Lm : var(0)=m, var(1)=ih, var(2)=k
+    const add_k_m = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0));
+    const add_m_k = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(2));
+    const succ_add_k_m = try pool.mkSucc(add_k_m);
+    const succ_add_m_k = try pool.mkSucc(add_m_k);
+    const add_m_succ_k = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkSucc(try pool.mkVar(2)));
+
+    const ih_m = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0));
+    const p1 = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(cong_succ_ref, add_k_m), add_m_k), ih_m);
+    // p2 = sym(add_m_succ_k, succ_add_m_k, add_succ_right(m, k))
+    const asr_mk = try pool.mkApp(try pool.mkApp(asr_ref, try pool.mkVar(0)), try pool.mkVar(2));
+    const p2 = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(sym_ref, add_m_succ_k), succ_add_m_k), asr_mk);
+    // final = trans(succ_add_k_m, succ_add_m_k, add_m_succ_k, p1, p2)
+    const step_inner = try pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(
+                try pool.mkApp(try pool.mkApp(trans_ref, succ_add_k_m), succ_add_m_k),
+                add_m_succ_k),
+            p1),
+        p2);
+
+    const ih_type = try pool.mkApp(P, try pool.mkVar(0));
+    const step = try pool.mkLam(nat_ref,
+        try pool.mkLam(ih_type,
+            try pool.mkLam(nat_ref, step_inner)));
+
+    const proof_term = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base), step);
+
+    // theorem_type = Pi n. Pi m. Eq(add n m, add m n)
+    const theorem_type = try pool.mkPi(nat_ref,
+        try pool.mkPi(nat_ref,
+            try pool.mkEq(
+                try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0)),
+                try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(1)))));
+
+    const ok = try verify(&pool, proof_term, theorem_type);
+    std.debug.print("[SANITY] add_comm: type_check={}\n", .{ok});
+    try std.testing.expect(ok);
 }
