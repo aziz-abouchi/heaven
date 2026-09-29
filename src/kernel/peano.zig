@@ -590,9 +590,10 @@ fn checkIsType(pool: *TermPool, ctx: *Context, term_idx: u32) KernelError!void {
 ///   La vraie mesure du kernel : add_comm via nat_ind.
 /// - nat_ind : éliminateur de Nat, typage vérifié (indices De Bruijn
 ///   audités 2026-09-28). Confiance standard (approche no-Inductive).
-/// - add_zero_right, add_succ_right : LEMMES ASSERTÉS (axiomes Eq).
-///   Prouvables par induction — à déclassifier quand nat_ind sera
-///   pleinement actif dans verifyByInduction.
+/// - add_succ_right : LEMME ASSERTÉ (axiome Eq). Prouvable par
+///   induction — à déclassifier dans une session ultérieure.
+/// - add_zero_right : RETIRÉ (2026-09-29). Redondant avec la
+///   delta-rule add(n, zero) -> n de eval, prouvable par nat_ind.
 /// ═════════════════════════════════════════════════════════════════════
 pub fn initNatAxioms(pool: *TermPool) !void {
     const nat_hash = std.hash.Wyhash.hash(0, "Nat");
@@ -657,13 +658,10 @@ pub fn initNatAxioms(pool: *TermPool) !void {
 
     _ = try pool.declareAxiom("nat_ind", nat_ind_type);
 
-    // Lemmes de réduction pour add (utilisés par le type-checker)
-    // add_zero_right : Πn:Nat. Eq(add(n, zero), n)
-    // Encodé comme axiome pour permettre la conversion dans les preuves
-    const add_n_zero_eq_n = try pool.mkPi(nat_ref, try pool.mkEq(try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(0)), try pool.mkZero()), try pool.mkVar(0)));
-    _ = try pool.declareAxiom("add_zero_right", add_n_zero_eq_n);
-
+    // Lemme de réduction pour add (utilisé par la preuve CIC de add_comm)
     // add_succ_right : Πn:Nat. Πm:Nat. Eq(add(n, succ(m)), succ(add(n, m)))
+    // Note : add_zero_right n'est PAS déclaré - redondant avec la delta-rule
+    // add(n, zero) -> n de eval. Prouvable par nat_ind (test ci-dessous).
     const add_n_sm_eq_s_anm = try pool.mkPi(nat_ref, try pool.mkPi(nat_ref, try pool.mkEq(try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(1)), try pool.mkSucc(try pool.mkVar(0))), try pool.mkSucc(try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(1)), try pool.mkVar(0))))));
     _ = try pool.declareAxiom("add_succ_right", add_n_sm_eq_s_anm);
 
@@ -1085,5 +1083,46 @@ test "add_comm via nat_ind" {
 
     const ok = try verify(&pool, proof_term, theorem_type);
     std.debug.print("[SANITY] add_comm: type_check={}\n", .{ok});
+    try std.testing.expect(ok);
+}
+
+
+test "add_zero_right derivable (delta + nat_ind)" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
+    const zero = try pool.mkZero();
+
+    // P = Lm n. Eq(add n zero, n)
+    const P_body = try pool.mkEq(
+        try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), zero),
+        try pool.mkVar(0));
+    const P = try pool.mkLam(nat_ref, P_body);
+
+    // base = refl(zero) : Eq(zero,zero) convertible a Eq(add zero zero, zero)
+    const base = try pool.mkRefl(zero);
+
+    // step = Lk. Lih:P(k). refl(succ k)
+    // Sous Lk,Lih : var(0)=ih, var(1)=k
+    // P(succ k) = Eq(add(succ k) zero, succ k) -delta-> Eq(succ k, succ k)
+    const step = try pool.mkLam(nat_ref,
+        try pool.mkLam(try pool.mkApp(P, try pool.mkVar(0)),
+            try pool.mkRefl(try pool.mkSucc(try pool.mkVar(1)))));
+
+    const proof_term = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base), step);
+
+    // theorem_type = Pi n. Eq(add n zero, n)
+    const theorem_type = try pool.mkPi(nat_ref,
+        try pool.mkEq(
+            try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), zero),
+            try pool.mkVar(0)));
+
+    const ok = try verify(&pool, proof_term, theorem_type);
+    std.debug.print("[SANITY] add_zero_right: type_check={}\n", .{ok});
     try std.testing.expect(ok);
 }
