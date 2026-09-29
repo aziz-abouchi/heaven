@@ -15,6 +15,30 @@ const Span = expr.Span;
 /// est détecté. Remonte naturellement via return jusqu'à evalFunction.
 const TCO_BOUNCE: Id = std.math.maxInt(Id);
 
+/// Spine de queue d'un corps de clause : un self-call n'est un tail-call
+/// QUE s'il EST le corps, ou s'il est dans une branche de if. Opérandes
+/// d'opérateurs, arguments de constructeurs : positions NON-queue.
+fn collectTailSpine(store: *const Store, node_id: Id, fn_name: []const u8, out: *[64]Id, out_len: *u8) void {
+    if (out_len.* >= 64) return;
+    const node = store.get(node_id);
+    if (node.tag != .apply) return;
+    const op_node = store.get(node.payload);
+    if (op_node.tag != .sym) return;
+    const op_name = store.interner.resolve(op_node.payload);
+    if (std.mem.eql(u8, op_name, fn_name)) {
+        out[out_len.*] = node_id;
+        out_len.* += 1;
+        return;
+    }
+    if (std.mem.eql(u8, op_name, "if")) {
+        const args = store.applyArgs(node);
+        if (args.len == 3) {
+            collectTailSpine(store, args[1], fn_name, out, out_len);
+            collectTailSpine(store, args[2], fn_name, out, out_len);
+        }
+    }
+}
+
 const log = std.log.scoped(.engine);
 
 pub const Env = struct {
@@ -183,6 +207,8 @@ pub const Engine = struct {
     tco_args_buf: [8]Id = undefined,
     /// TCO : nombre d'args valides dans le buffer
     tco_args_len: u8 = 0,
+    tco_spine_buf: [64]Id = undefined,
+    tco_spine_len: u8 = 0,
     max_recursion_depth: usize = 1000,
     recursion_depth: usize = 0,
     heaven_ctx: *anyopaque,
@@ -259,12 +285,17 @@ pub const Engine = struct {
         const old_tco_name = self.tco_name;
         const old_tco_buf = self.tco_args_buf;
         const old_tco_len = self.tco_args_len;
+        const old_tco_spine_buf = self.tco_spine_buf;
+        const old_tco_spine_len = self.tco_spine_len;
         self.tco_name = name;
         self.tco_args_len = 0;
+        self.tco_spine_len = 0;
         defer {
             self.tco_name = old_tco_name;
             self.tco_args_buf = old_tco_buf;
             self.tco_args_len = old_tco_len;
+            self.tco_spine_buf = old_tco_spine_buf;
+            self.tco_spine_len = old_tco_spine_len;
         }
 
         var new_env = Env.init(self.allocator);
@@ -373,6 +404,10 @@ pub const Engine = struct {
                 }
 
                 if (matched) {
+                    // TCO : spine de queue = seules positions légitimes de bounce
+                    self.tco_spine_len = 0;
+                    collectTailSpine(store, clause.body, name, &self.tco_spine_buf, &self.tco_spine_len);
+
                     const result = try evaluate(store, &new_env, self, clause.body, 0);
 
                     // ─── TCO : self-tail-call détecté → boucler ───
@@ -492,6 +527,30 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             if (isFrontendExtensionApply(op_name)) return error.ExtensionNotLowered;
 
             const args = if (all_args.len > 1 and all_args[0] == op_id) all_args[1..] else all_args;
+
+            // ─── TCO : bounce UNIQUEMENT depuis une position de queue ───
+            if (engine.tco_name) |tco_name| {
+                if (std.mem.eql(u8, op_name, tco_name) and args.len > 0 and args.len <= 8) {
+                    var in_spine = false;
+                    for (engine.tco_spine_buf[0..engine.tco_spine_len]) |sid| {
+                        if (sid == id) {
+                            in_spine = true;
+                            break;
+                        }
+                    }
+                    if (in_spine) {
+                        if (engine.fns.get(op_name)) |fd| {
+                            if (fd.num_clauses > 0 and fd.ctor_arity == null) {
+                                for (args, 0..) |a_, i_| {
+                                    engine.tco_args_buf[i_] = try evaluate(store, env, engine, a_, depth + 1);
+                                }
+                                engine.tco_args_len = @intCast(args.len);
+                                return TCO_BOUNCE;
+                            }
+                        }
+                    }
+                }
+            }
             return try evalMagic(store, env, engine, op_name, args, depth);
         },
         .bind => {
@@ -613,16 +672,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             if (bound_node.tag == .sym) {
                 const target = store.interner.resolve(bound_node.payload);
                 if (engine.fns.get(target) != null) {
-                    // TCO : self-tail-call via alias → buffer fixe et bounce
-                    if (engine.tco_name) |tco_name| {
-                        if (std.mem.eql(u8, target, tco_name) and args_snap.len <= 8) {
-                            for (args_snap, 0..) |a_, i_| {
-                                engine.tco_args_buf[i_] = try evaluate(store, env, engine, a_, depth + 1);
-                            }
-                            engine.tco_args_len = @intCast(args_snap.len);
-                            return TCO_BOUNCE;
-                        }
-                    }
+                    // TCO alias : décidé dans evaluate(.apply) via la spine
                     return engine.evalFunction(env, target, args_snap);
                 }
             }
@@ -668,16 +718,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 if (bound_node.tag == .sym) {
                     const target = store.interner.resolve(bound_node.payload);
                     if (engine.fns.get(target) != null) {
-                        // TCO : self-tail-call via alias (args_snap.len==1)
-                        if (engine.tco_name) |tco_name| {
-                            if (std.mem.eql(u8, target, tco_name) and args_snap.len <= 8) {
-                                for (args_snap, 0..) |a_, i_| {
-                                    engine.tco_args_buf[i_] = try evaluate(store, env, engine, a_, depth + 1);
-                                }
-                                engine.tco_args_len = @intCast(args_snap.len);
-                                return TCO_BOUNCE;
-                            }
-                        }
+                        // TCO alias : décidé dans evaluate(.apply) via la spine
                         return engine.evalFunction(env, target, args_snap);
                     }
                 }
@@ -701,16 +742,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // ═══ 1. FONCTIONS UTILISATEUR — délégué à evalFunction ═══
     if (engine.fns.get(op)) |fn_def| {
         if (fn_def.num_clauses > 0 and fn_def.ctor_arity == null) {
-            // TCO : self-tail-call → buffer fixe et bounce
-            if (engine.tco_name) |tco_name| {
-                if (std.mem.eql(u8, op, tco_name) and args_snap.len <= 8) {
-                    for (args_snap, 0..) |a_, i_| {
-                        engine.tco_args_buf[i_] = try evaluate(store, env, engine, a_, depth + 1);
-                    }
-                    engine.tco_args_len = @intCast(args_snap.len);
-                    return TCO_BOUNCE;
-                }
-            }
+            // TCO : décidé dans evaluate(.apply) via la spine de queue
             return engine.evalFunction(env, op, args_snap);
         }
     }
