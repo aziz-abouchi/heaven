@@ -86,3 +86,45 @@ branche feat/physical-telemetry + WIP externe ci-dessus.
 Petits pas verifies > gros refactor. Un commit = un theme.
 rm -rf .zig-cache/* zig-out avant chaque validation.
 zig test src/kernel/peano.zig (rapide) pour iterer kernel.
+
+# Addendum — session « TCO & bugs moteur » 2026-09-29 (parallèle)
+
+## Commits poussés
+- d9d35ba fix(core): TCO — bounce limité à la spine de queue
+- c620281 fix(parser): fact/query + f(x) ne corrompent plus les defs
+- 35b99d8 fix(eval): ctors minuscules = valeurs (racine stdlib List)
+- 629110b docs: BACKENDS.md (MIR contrat commun, Green/Fast, M0-M5)
+
+## Bugs fermés
+- #9A/#9B : TCO_BOUNCE (0xFFFFFFFF) fuyait dans l'évaluateur
+  (panic get() sur size/fact/verify_book) + résultat jeté au rebond.
+  Fix : collectTailSpine — bounce seulement depuis le corps ou une
+  branche de if. count_down garde son TCO, fact/size redeviennent
+  récursion ordinaire correcte.
+- C1 : `fact n = ...` dévoré par la commande kanren (garde " = ").
+- C2a : `f(x) = ...` enregistrait une fonction nommée "f(x)".
+- C3 : evaluate(.sym) rejetait les ctors minuscules (nil/cons/ok).
+
+## Bugs ouverts (diagnostiqués)
+- C2b : corps mono-token true/false → symbole non lié.
+  Repro : fn bar x = true ; bar 1 → UnboundVariable.
+  (fn foo x = x OK ; multi-tokens OK). parse.zig, côté parser.
+- C2c : `fn f x = if (= x 1) 1 9` échoue ; `f(x) = <même corps>`
+  marche (chemins de parse distincts).
+- Fuite mémoire : runs test_suite WIP sans "Memory clean" en fin.
+- Dettes : whitelist {zero,succ,quote} + heuristique majuscule
+  redondantes avec le check fns ; shadowing silencieux fn→ctor
+  dans evalDataDecl ; tco_deep ~40µs/iter ; t_distrib ~2s ;
+  README périmé (39 tests, MIR 40%, zig build wasm inexistant).
+
+## Conventions de session (cumulées aux 8 existantes)
+- #9 : git add ciblé — jamais -A en multi-session.
+- #10 : git status vide de MODIFICATIONS avant tout reset --hard.
+- #11 : heredoc ≤ 40 lignes ; intégrité par comptages structurels.
+- #12 : une probe de discrimination isole UNE variable
+  (casse≠paramétrage m'a coûté 3 tours — cf C3).
+
+## État fin de session
+main = 35b99d8. Suite base 94/94 (tco_deep ✓), verify_book 40/43
+(3 échecs pré-existants), section 11 WIP 100/100 sur binaire
+avec nos fixes. Deux sessions actives, pile linéaire, zéro conflit.
