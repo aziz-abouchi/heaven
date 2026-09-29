@@ -104,16 +104,63 @@ elle n'existe pas.
 
 ## Décisions à trancher (C1-C5)
 
-### C1 — Stackful vs stackless
+### C1 — Stackful vs stackless (TRANCHÉE : hybride sémantique-unifiée)
 
-| Option             | Mémoire/process | Préemption  | WASM    |
-|--------------------|-----------------|-------------|---------|
-| Stackful (BEAM, Go)| 2-8 KB          | Triviale    | ❌      |
-| Stackless (Rust, JS)| ~100 B         | Impossible  | ✅      |
-| Hybride            | Variable        | Double code | Partiel |
+**Décision** : un seul modèle sémantique, deux implémentations
+runtime selon la cible.
 
-**Recommandation** : stackless partout. Accepte la complexité async
-coloring, gagne la portabilité WASM et le million de processes.
+**Modèle sémantique commun** :
+- `spawn` / `tell` / `recv` / `yield` sont des effets algébriques.
+- Le comportement observable est identique partout pour du code qui
+  `yield` à intervalles raisonnables.
+- L'utilisateur ne distingue pas les deux modes au niveau source.
+
+**Sémantique garantie : coopérative**. Un process s'exécute jusqu'à
+ce qu'il atteigne un point de suspension (`yield`, `recv` bloquant,
+allocation majeure). **Pas de préemption garantie** — la préemption
+native est un confort, pas un contrat.
+
+**Implémentation native** :
+- Stackful : chaque process a sa pile (~2-8 KB).
+- Préemption **best-effort** via reduction budget + safepoints.
+- Confort : un process CPU-bound ne bloque pas son worker.
+- Nombre pratique : ~100k processes sur 32 GB.
+
+**Implémentation WASM** :
+- Stackless : continuation heap-allocated (~100-200 B).
+- Transformation CPS au comptime (ou Asyncify, à évaluer).
+- Strictement coopératif : un process qui ne `yield` jamais bloque
+  son worker.
+- Nombre pratique : ~1M processes sur 4 GB wasm memory.
+
+**Ce qui reste unifié** :
+- Le compilateur produit deux backends depuis une même source.
+- Le frontend, MIR, elab, tactics : identiques.
+- L'installation du handler par défaut est cible-spécifique.
+- Les invariants sémantiques (FIFO, isolation, pas de shared mutable
+  state) sont identiques.
+
+**Ce qui diverge** :
+- Le scheduler (préemptif vs coopératif).
+- Le layout mémoire (stack vs continuation).
+- Le coût du `spawn` (plus cher en stackful).
+
+**Sous-décisions ouvertes** :
+- Faut-il permettre à l'utilisateur de forcer un mode ? (Défaut :
+  auto par cible, override possible pour tests.)
+- Comment tester l'équivalence entre backends ? (Suggestion :
+  `test_suite.hvn` partagé, exécuté sur les deux, contrainte : les
+  tests doivent être coopératifs.)
+- Comment gérer le CPU-bound en WASM ? (Suggestion : injection de
+  safepoints par le compilateur à intervalles réguliers, coût ~5 %.)
+
+**Justification du choix hybride plutôt que stackless partout** :
+- Le natif préemptif est plus simple pour l'utilisateur (pas de
+  « yield coloring »).
+- Le stackful natif est éprouvé (BEAM, Go).
+- Le stackless WASM est obligatoire (pas d'autre choix en WASM).
+- Le coût de double maintenance est **concentré sur les schedulers**,
+  pas sur la sémantique.
 
 ### C2 — Migration : gestion des Id
 
