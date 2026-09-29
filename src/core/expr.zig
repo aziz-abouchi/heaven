@@ -881,6 +881,14 @@ pub const Store = struct {
                 @panic("apply received corrupted arg");
             }
         }
+        // ── DÉTECTION : convention span_a[0] = func ──
+        // Un appelant qui passe `[func, arg0, ...]` produit
+        // span_a = [func, func, arg0, ...] (doublon). Voir
+        // docs/spec/_store_invariants.md. Ce check est informatif :
+        // il n'interrompt pas, mais révèle les sites à corriger.
+        if (platform.target.is_debug and args.len > 0 and args[0] == func) {
+            platform.debug.print("[apply DUP] func={d} == args[0] ({d} args total)\n", .{ func, args.len });
+        }
         // Snapshot args AVANT reserveSpan
         var args_snap = std.ArrayListUnmanaged(Id){};
         defer args_snap.deinit(self.allocator);
