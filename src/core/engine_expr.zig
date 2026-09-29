@@ -11,6 +11,10 @@ const platform = @import("platform");
 
 const Span = expr.Span;
 
+/// Sentinelle TCO : retournée par evalMagic quand un self-tail-call
+/// est détecté. Remonte naturellement via return jusqu'à evalFunction.
+const TCO_BOUNCE: Id = std.math.maxInt(Id);
+
 const log = std.log.scoped(.engine);
 
 pub const Env = struct {
@@ -173,6 +177,12 @@ pub const Engine = struct {
     io_handler: ?IOHandler = null,
     in_handle: bool = false,
     fuel: u64 = 1_000_000,
+    /// TCO : nom de la fonction courante (self-tail-call detection)
+    tco_name: ?[]const u8 = null,
+    /// TCO : buffer fixe pour args du self-tail-call (max 8)
+    tco_args_buf: [8]Id = undefined,
+    /// TCO : nombre d'args valides dans le buffer
+    tco_args_len: u8 = 0,
     max_recursion_depth: usize = 1000,
     recursion_depth: usize = 0,
     heaven_ctx: *anyopaque,
@@ -231,155 +241,194 @@ pub const Engine = struct {
 
     pub fn evalFunction(self: *Engine, caller_env: *Env, name: []const u8, args: []const Id) EvalError!Id {
         const store = self.store;
-
         const fn_def = self.fns.get(name) orelse return error.UnknownSymbol;
         if (fn_def.num_clauses == 0) return error.UnknownSymbol;
 
         // Snapshot args AVANT toute évaluation récursive.
-        // args est une slice sur store.pool.items ; les évaluations
-        // récursives (ex : `>>>` qui construit un lambda) peuvent
-        // réallouer pool.items, rendant la slice dangling.
         const args_snap = try self.store.snapshotArgs(self.allocator, args);
         defer self.allocator.free(args_snap);
 
-        for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
-            //platform.dbg("[clause] name='{s}' num_patterns={d} args_snap.len={d}\n", .{ name, clause.num_patterns, args_snap.len });
-            if (args_snap.len != clause.num_patterns) continue;
+        // Buffer fixe pour current_args (max 8)
+        var current_args_buf: [8]Id = undefined;
+        const current_args_len = @min(args_snap.len, 8);
+        for (args_snap[0..current_args_len], 0..) |a_, i_| {
+            current_args_buf[i_] = try evaluate(store, caller_env, self, a_, 0);
+        }
 
-            var new_env = Env.init(self.allocator);
-            defer new_env.deinit();
+        // ─── TCO : sauvegarder / restaurer le contexte ───
+        const old_tco_name = self.tco_name;
+        const old_tco_buf = self.tco_args_buf;
+        const old_tco_len = self.tco_args_len;
+        self.tco_name = name;
+        self.tco_args_len = 0;
+        defer {
+            self.tco_name = old_tco_name;
+            self.tco_args_buf = old_tco_buf;
+            self.tco_args_len = old_tco_len;
+        }
+
+        var new_env = Env.init(self.allocator);
+        defer new_env.deinit();
+
+        // Copier caller_env UNE SEULE FOIS avant la boucle TCO
+        {
             var it = caller_env.bindings.iterator();
             while (it.next()) |entry| {
                 try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
             }
+        }
 
-            var matched = true;
-            for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
-                const arg_val = try evaluate(store, caller_env, self, args_snap[i], 0);
-                const p_node = store.get(p);
+        tco_loop: while (true) {
+            self.tco_args_len = 0;
 
-                if (p_node.tag == .hole or p_node.tag == .evar) {
-                    // Wildcard `_` en pattern : matche toujours, aucune
-                    // variable liée (le body ne peut pas y référer).
-                    continue;
-                }
-                if (p_node.tag == .sym) {
-                    const p_name = store.interner.resolve(p_node.payload);
-                    if (self.fns.get(p_name)) |pfn| {
-                        if (pfn.ctor_arity) |arity| {
-                            const a_node = store.get(arg_val);
-                            if (arity == 0) {
-                                if (a_node.tag != .sym or a_node.payload != p_node.payload) {
-                                    matched = false;
-                                    break;
-                                }
-                            } else {
-                                matched = false;
-                                break;
-                            }
-                            continue;
-                        }
+            for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
+                if (current_args_len != clause.num_patterns) continue;
+
+                // Tracker les bindings ajoutés par le pattern (pour nettoyage TCO)
+                var bound_syms: [8]Sym = undefined;
+                var bound_count: u8 = 0;
+
+                var matched = true;
+                for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
+                    const arg_val = current_args_buf[i]; // déjà évalué
+                    const p_node = store.get(p);
+
+                    if (p_node.tag == .hole or p_node.tag == .evar) {
+                        continue;
                     }
-                    try new_env.put(p_node.payload, arg_val);
-                } else if (p_node.tag == .lit) {
-                    const arg_node = store.get(arg_val);
-                    if (arg_node.tag != .lit or !store.lits.items[p_node.aux].eql(store.lits.items[arg_node.aux])) {
-                        matched = false;
-                        break;
-                    }
-                } else if (p_node.tag == .apply) {
-                    const p_args = store.spanSliceConst(p_node.span_a);
-                    const a_node = store.get(arg_val);
-                    if (a_node.tag != .apply) {
-                        matched = false;
-                        break;
-                    }
-                    const a_args = store.spanSliceConst(a_node.span_a);
-                    if (p_args.len != a_args.len) {
-                        matched = false;
-                        break;
-                    }
-                    for (p_args, a_args, 0..) |pp, aa, arg_idx| {
-                        if (arg_idx == 0) {
-                            if (!pattern_mod.exprStructuralEq(store, pp, aa)) {
-                                matched = false;
-                                break;
-                            }
-                            continue;
-                        }
-                        const pp_node = store.get(pp);
-                        if (pp_node.tag == .hole or pp_node.tag == .evar) {
-                            // Wildcard dans un pattern composé : (cons x _)
-                            continue;
-                        }
-                        if (pp_node.tag == .sym) {
-                            const pp_name = store.interner.resolve(pp_node.payload);
-                            if (self.fns.get(pp_name)) |sub_def| {
-                                if (sub_def.ctor_arity != null) {
-                                    if (!pattern_mod.exprStructuralEq(store, pp, aa)) {
+                    if (p_node.tag == .sym) {
+                        const p_name = store.interner.resolve(p_node.payload);
+                        if (self.fns.get(p_name)) |pfn| {
+                            if (pfn.ctor_arity) |arity| {
+                                const a_node = store.get(arg_val);
+                                if (arity == 0) {
+                                    if (a_node.tag != .sym or a_node.payload != p_node.payload) {
                                         matched = false;
                                         break;
                                     }
-                                    continue;
+                                } else {
+                                    matched = false;
+                                    break;
                                 }
+                                continue;
                             }
-                            try new_env.put(pp_node.payload, aa);
-                        } else if (!pattern_mod.exprStructuralEq(store, pp, aa)) {
+                        }
+                        try new_env.put(p_node.payload, arg_val);
+                if (bound_count < 8) {
+                    bound_syms[bound_count] = p_node.payload;
+                    bound_count += 1;
+                }
+                    } else if (p_node.tag == .lit) {
+                        const arg_node = store.get(arg_val);
+                        if (arg_node.tag != .lit or !store.lits.items[p_node.aux].eql(store.lits.items[arg_node.aux])) {
                             matched = false;
                             break;
                         }
+                    } else if (p_node.tag == .apply) {
+                        const p_args = store.spanSliceConst(p_node.span_a);
+                        const a_node = store.get(arg_val);
+                        if (a_node.tag != .apply) {
+                            matched = false;
+                            break;
+                        }
+                        const a_args = store.spanSliceConst(a_node.span_a);
+                        if (p_args.len != a_args.len) {
+                            matched = false;
+                            break;
+                        }
+                        for (p_args, a_args, 0..) |pp, aa, arg_idx| {
+                            if (arg_idx == 0) {
+                                if (!pattern_mod.exprStructuralEq(store, pp, aa)) {
+                                    matched = false;
+                                    break;
+                                }
+                                continue;
+                            }
+                            const pp_node = store.get(pp);
+                            if (pp_node.tag == .hole or pp_node.tag == .evar) {
+                                continue;
+                            }
+                            if (pp_node.tag == .sym) {
+                                const pp_name = store.interner.resolve(pp_node.payload);
+                                if (self.fns.get(pp_name)) |sub_def| {
+                                    if (sub_def.ctor_arity != null) {
+                                        if (!pattern_mod.exprStructuralEq(store, pp, aa)) {
+                                            matched = false;
+                                            break;
+                                        }
+                                        continue;
+                                    }
+                                }
+                                try new_env.put(pp_node.payload, aa);
+                        if (bound_count < 8) {
+                            bound_syms[bound_count] = pp_node.payload;
+                            bound_count += 1;
+                        }
+                            } else if (!pattern_mod.exprStructuralEq(store, pp, aa)) {
+                                matched = false;
+                                break;
+                            }
+                        }
                     }
+                }
+
+                if (matched) {
+                    const result = try evaluate(store, &new_env, self, clause.body, 0);
+
+                    // ─── TCO : self-tail-call détecté → boucler ───
+                    if (self.tco_args_len > 0) {
+                        // Nettoyer les bindings de cette clause avant de reboucler
+                        for (bound_syms[0..bound_count]) |sym| {
+                            new_env.delete(sym);
+                        }
+                        @memcpy(current_args_buf[0..self.tco_args_len], self.tco_args_buf[0..self.tco_args_len]);
+                        continue :tco_loop;
+                    }
+
+                    return result;
+                }
+                // Clause non matchée : nettoyer les bindings ajoutés pendant le matching
+                for (bound_syms[0..bound_count]) |sym| {
+                    new_env.delete(sym);
                 }
             }
 
-            if (matched) {
-                return evaluate(store, &new_env, self, clause.body, 0);
+            // ─── Currying partiel ───
+            var min_patterns: usize = 32;
+            for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
+                if (clause.num_patterns < min_patterns) {
+                    min_patterns = clause.num_patterns;
+                }
             }
+            platform.dbg(
+                "[call] name='{s}' args={d} clauses={d} min_patterns={d}\n",
+                .{ name, current_args_len, fn_def.num_clauses, min_patterns },
+            );
+            if (current_args_len < min_patterns and min_patterns != 32) {
+                const missing = min_patterns - current_args_len;
+                const new_params = try self.allocator.alloc([]const u8, missing);
+                defer {
+                    for (new_params) |p| self.allocator.free(p);
+                    self.allocator.free(new_params);
+                }
+                for (0..missing) |i| {
+                    new_params[i] = try std.fmt.allocPrint(self.allocator, "__curry_{d}", .{i});
+                }
+                const call_args = try self.allocator.alloc(Id, min_patterns);
+                defer self.allocator.free(call_args);
+                @memcpy(call_args[0..current_args_len], current_args_buf[0..current_args_len]);
+                for (0..missing) |i| {
+                    call_args[current_args_len + i] = try store.sym(new_params[i]);
+                }
+                const name_sym = try store.sym(name);
+                const body = try store.apply(name_sym, call_args);
+                return try store.lambda(new_params, body);
+            }
+
+            return error.ArityMismatch;
         }
-        // ─── Currying partiel : args.len < min_patterns ───
-        // take (succ zero)  →  \__curry_0 -> take (succ zero) __curry_0
-        var min_patterns: usize = 32;
-        for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
-            if (clause.num_patterns < min_patterns) {
-                min_patterns = clause.num_patterns;
-            }
-        }
-
-        platform.dbg(
-            "[call] name='{s}' args={d} clauses={d} min_patterns={d}\n",
-            .{
-                name,
-                args_snap.len,
-                fn_def.num_clauses,
-                min_patterns,
-            },
-        );
-        if (args_snap.len < min_patterns and min_patterns != 32) {
-            const missing = min_patterns - args_snap.len;
-
-            const new_params = try self.allocator.alloc([]const u8, missing);
-            defer {
-                for (new_params) |p| self.allocator.free(p);
-                self.allocator.free(new_params);
-            }
-            for (0..missing) |i| {
-                new_params[i] = try std.fmt.allocPrint(self.allocator, "__curry_{d}", .{i});
-            }
-
-            const call_args = try self.allocator.alloc(Id, min_patterns);
-            defer self.allocator.free(call_args);
-            @memcpy(call_args[0..args_snap.len], args_snap);
-            for (0..missing) |i| {
-                call_args[args_snap.len + i] = try store.sym(new_params[i]);
-            }
-
-            const name_sym = try store.sym(name);
-            const body = try store.apply(name_sym, call_args);
-            return try store.lambda(new_params, body);
-        }
-
-        return error.ArityMismatch;
     }
+
 };
 
 /// Évaluateur à 6 branches (primitives fondamentales uniquement).
@@ -523,10 +572,13 @@ fn isFrontendExtensionApply(name: []const u8) bool {
 }
 
 fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
-    // Snapshot : les appels récursifs à evaluate() peuvent realloc pool.items,
-    // rendant la slice `args` dangling. On copie une fois pour toutes.
-    const args_snap = try store.snapshotArgs(engine.allocator, args);
-    defer engine.allocator.free(args_snap);
+    // Buffer stack-local : zéro allocation pour args ≤ 8 (limite patterns).
+    // Les appels récursifs à evaluate() peuvent realloc pool.items,
+    // rendant la slice `args` dangling. On copie sur la stack.
+    var args_buf: [8]Id = undefined;
+    if (args.len > 8) return error.ArityMismatch;
+    @memcpy(args_buf[0..args.len], args);
+    const args_snap: []const Id = args_buf[0..args.len];
 
     // ═══ 0. CONSTRUCTEURS ═══
     if (engine.fns.get(op)) |fn_def| {
@@ -561,6 +613,16 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             if (bound_node.tag == .sym) {
                 const target = store.interner.resolve(bound_node.payload);
                 if (engine.fns.get(target) != null) {
+                    // TCO : self-tail-call via alias → buffer fixe et bounce
+                    if (engine.tco_name) |tco_name| {
+                        if (std.mem.eql(u8, target, tco_name) and args_snap.len <= 8) {
+                            for (args_snap, 0..) |a_, i_| {
+                                engine.tco_args_buf[i_] = try evaluate(store, env, engine, a_, depth + 1);
+                            }
+                            engine.tco_args_len = @intCast(args_snap.len);
+                            return TCO_BOUNCE;
+                        }
+                    }
                     return engine.evalFunction(env, target, args_snap);
                 }
             }
@@ -606,6 +668,16 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 if (bound_node.tag == .sym) {
                     const target = store.interner.resolve(bound_node.payload);
                     if (engine.fns.get(target) != null) {
+                        // TCO : self-tail-call via alias (args_snap.len==1)
+                        if (engine.tco_name) |tco_name| {
+                            if (std.mem.eql(u8, target, tco_name) and args_snap.len <= 8) {
+                                for (args_snap, 0..) |a_, i_| {
+                                    engine.tco_args_buf[i_] = try evaluate(store, env, engine, a_, depth + 1);
+                                }
+                                engine.tco_args_len = @intCast(args_snap.len);
+                                return TCO_BOUNCE;
+                            }
+                        }
                         return engine.evalFunction(env, target, args_snap);
                     }
                 }
@@ -629,6 +701,16 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // ═══ 1. FONCTIONS UTILISATEUR — délégué à evalFunction ═══
     if (engine.fns.get(op)) |fn_def| {
         if (fn_def.num_clauses > 0 and fn_def.ctor_arity == null) {
+            // TCO : self-tail-call → buffer fixe et bounce
+            if (engine.tco_name) |tco_name| {
+                if (std.mem.eql(u8, op, tco_name) and args_snap.len <= 8) {
+                    for (args_snap, 0..) |a_, i_| {
+                        engine.tco_args_buf[i_] = try evaluate(store, env, engine, a_, depth + 1);
+                    }
+                    engine.tco_args_len = @intCast(args_snap.len);
+                    return TCO_BOUNCE;
+                }
+            }
             return engine.evalFunction(env, op, args_snap);
         }
     }

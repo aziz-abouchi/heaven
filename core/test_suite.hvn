@@ -191,3 +191,8 @@ prove t_tactics_try by {
 # --- Skills v1 : exécution via ProofSession ---
 theorem t_skill_algebra : x + 0 = x
 skill algebra
+
+# ── TCO (Tail Call Optimization) — Section 10 ──
+fn count_down(n, acc) = (if (= n 0) acc (count_down (- n 1) (+ acc 1)))
+test "tco_small": (count_down 100 0) == 100
+test "tco_deep": (count_down 100000 0) == 100000
