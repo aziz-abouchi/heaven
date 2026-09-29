@@ -96,6 +96,9 @@ pub const TermPool = struct {
     }
 
     pub fn alloc(self: *TermPool, tag: TermTag, payload: u64, payload2: u64) !u32 {
+        if (self.terms.items.len > 100_000) {
+            @panic("TermPool size cap exceeded (100k terms) - allocation runaway");
+        }
         const idx = @as(u32, @intCast(self.terms.items.len));
         try self.terms.append(self.allocator, .{ .tag = tag, .payload = payload, .payload2 = payload2 });
         return idx;
@@ -220,12 +223,14 @@ pub fn eval(pool: *TermPool, term_idx: u32) !u32 {
 
         .nat_succ => {
             const inner = try eval(pool, @as(u32, @intCast(t.payload)));
+            if (inner == t.payload) return term_idx;
             return pool.mkSucc(inner);
         },
 
         .eq => {
             const lhs = try eval(pool, @as(u32, @intCast(t.payload)));
             const rhs = try eval(pool, @as(u32, @intCast(t.payload2)));
+            if (lhs == t.payload and rhs == t.payload2) return term_idx;
             return pool.mkEq(lhs, rhs);
         },
 
@@ -234,6 +239,7 @@ pub fn eval(pool: *TermPool, term_idx: u32) !u32 {
         .pi => {
             const ty = try eval(pool, @as(u32, @intCast(t.payload)));
             const body = try eval(pool, @as(u32, @intCast(t.payload2)));
+            if (ty == t.payload and body == t.payload2) return term_idx;
             return pool.mkPi(ty, body);
         },
 
