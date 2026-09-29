@@ -826,6 +826,180 @@ pub fn mkAddAssocProof(pool: *TermPool, a: u32, b: u32, c: u32) !u32 {
 }
 
 
+
+/// Construit un proof term pour add_comm :
+///   Pi n m. Eq(add n m, add m n)
+pub fn mkAddCommProof(pool: *TermPool, n: u32, m_arg: u32) !u32 {
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
+    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
+    const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
+    const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
+
+    // P = Ln. Pi m. Eq(add n m, add m n)
+    const P_body = try pool.mkPi(nat_ref,
+        try pool.mkEq(
+            try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0)),
+            try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(1))));
+    const P = try pool.mkLam(nat_ref, P_body);
+
+    // base = Lm. refl(m)
+    const base = try pool.mkLam(nat_ref, try pool.mkRefl(try pool.mkVar(0)));
+
+    // step = Lk. Lih:P(k). Lm. trans(...)
+    // Sous Lk,Lih,Lm : var(0)=m, var(1)=ih, var(2)=k
+    const add_k_m = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0));
+    const add_m_k = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(2));
+    const succ_add_k_m = try pool.mkSucc(add_k_m);
+    const succ_add_m_k = try pool.mkSucc(add_m_k);
+    const add_m_succ_k = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkSucc(try pool.mkVar(2)));
+
+    const ih_m = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0));
+    const p1 = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(cong_succ_ref, add_k_m), add_m_k), ih_m);
+    const asr = try mkAddSuccRightProof(pool, try pool.mkVar(0), try pool.mkVar(2));
+    const p2 = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(sym_ref, add_m_succ_k), succ_add_m_k), asr);
+    const step_inner = try pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(
+                try pool.mkApp(try pool.mkApp(trans_ref, succ_add_k_m), succ_add_m_k),
+                add_m_succ_k),
+            p1),
+        p2);
+
+    const ih_type = try pool.mkApp(P, try pool.mkVar(0));
+    const step = try pool.mkLam(nat_ref,
+        try pool.mkLam(ih_type,
+            try pool.mkLam(nat_ref, step_inner)));
+
+    const proof_term = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base), step);
+
+    return pool.mkApp(try pool.mkApp(proof_term, n), m_arg);
+}
+
+
+/// Construit un proof term pour mul_zero_right :
+///   Pi n. Eq(mul n zero, zero)
+pub fn mkMulZeroRightProof(pool: *TermPool, n: u32) !u32 {
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const mul_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "mul"));
+    const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
+    const zero = try pool.mkZero();
+
+    // P = Ln. Eq(mul n zero, zero)
+    const P_body = try pool.mkEq(
+        try pool.mkApp(try pool.mkApp(mul_ref, try pool.mkVar(0)), zero),
+        zero);
+    const P = try pool.mkLam(nat_ref, P_body);
+
+    // base = refl(zero)
+    const base = try pool.mkRefl(zero);
+
+    // step = Lk. Lih:P(k). ih
+    const ih_type = try pool.mkApp(P, try pool.mkVar(0));
+    const step = try pool.mkLam(nat_ref,
+        try pool.mkLam(ih_type, try pool.mkVar(0)));
+
+    const proof_term = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base), step);
+
+    return pool.mkApp(proof_term, n);
+}
+
+
+/// Construit un proof term pour mul_comm :
+///   Pi n m. Eq(mul n m, mul m n)
+pub fn mkMulCommProof(pool: *TermPool, n: u32, m_arg: u32) !u32 {
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const mul_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "mul"));
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
+    const cong_add_l_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_add_l"));
+    const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
+    const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
+
+    // P = Ln. Pi m. Eq(mul n m, mul m n)
+    const P_body = try pool.mkPi(nat_ref,
+        try pool.mkEq(
+            try pool.mkApp(try pool.mkApp(mul_ref, try pool.mkVar(1)), try pool.mkVar(0)),
+            try pool.mkApp(try pool.mkApp(mul_ref, try pool.mkVar(0)), try pool.mkVar(1))));
+    const P = try pool.mkLam(nat_ref, P_body);
+
+    // base = Lm. sym(mkMulZeroRightProof(m))
+    //   : Eq(zero, mul m zero)
+    //   ≡ Eq(mul zero m, mul m zero) par delta sur LHS
+    const m_var = try pool.mkVar(0);
+    const zero_proof = try mkMulZeroRightProof(pool, m_var);
+    const mul_m_zero = try pool.mkApp(try pool.mkApp(mul_ref, m_var), try pool.mkZero());
+    const zero_term = try pool.mkZero();
+    const base_body = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(sym_ref, mul_m_zero), zero_term),
+        zero_proof);
+    const base = try pool.mkLam(nat_ref, base_body);
+
+    // step = Lk. Lih:P(k). Lm. trans(...)
+    // Sous Lk,Lih,Lm : var(0)=m, var(1)=ih, var(2)=k
+    const k = try pool.mkVar(2);
+    const m = try pool.mkVar(0);
+    const mul_k_m = try pool.mkApp(try pool.mkApp(mul_ref, k), m);
+    const mul_m_k = try pool.mkApp(try pool.mkApp(mul_ref, m), k);
+    const add_m_mul_k_m = try pool.mkApp(try pool.mkApp(add_ref, m), mul_k_m);
+    const add_m_mul_m_k = try pool.mkApp(try pool.mkApp(add_ref, m), mul_m_k);
+    const add_mul_m_k_m = try pool.mkApp(try pool.mkApp(add_ref, mul_m_k), m);
+    const mul_m_succ_k = try pool.mkApp(try pool.mkApp(mul_ref, m), try pool.mkSucc(k));
+
+    // h1 = cong_add_l(mul k m, mul m k, ih m, m)
+    const ih_m = try pool.mkApp(try pool.mkVar(1), m);
+    const h1 = try pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(try pool.mkApp(cong_add_l_ref, mul_k_m), mul_m_k),
+            ih_m),
+        m);
+
+    // hcomm = mkAddCommProof(m, mul m k) : Eq(add m (mul m k), add (mul m k) m)
+    const hcomm = try mkAddCommProof(pool, m, mul_m_k);
+
+    // pre = trans(add_m_mul_k_m, add_m_mul_m_k, add_mul_m_k_m, h1, hcomm)
+    const pre = try pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(
+                try pool.mkApp(try pool.mkApp(trans_ref, add_m_mul_k_m), add_m_mul_m_k),
+                add_mul_m_k_m),
+            h1),
+        hcomm);
+
+    // asr = mkMulSuccRightProof(m, k) : Eq(mul m (succ k), add (mul m k) m)
+    const asr = try mkMulSuccRightProof(pool, m, k);
+    const asr_sym = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(sym_ref, mul_m_succ_k), add_mul_m_k_m),
+        asr);
+
+    // step_inner = trans(add_m_mul_k_m, add_mul_m_k_m, mul_m_succ_k, pre, asr_sym)
+    //   : Eq(add m (mul k m), mul m (succ k))
+    //   ≡ Eq(mul (succ k) m, mul m (succ k)) par delta
+    const step_inner = try pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(
+                try pool.mkApp(try pool.mkApp(trans_ref, add_m_mul_k_m), add_mul_m_k_m),
+                mul_m_succ_k),
+            pre),
+        asr_sym);
+
+    // ih_type : sous [k] seul, k = var(0)
+    const ih_type = try pool.mkApp(P, try pool.mkVar(0));
+    const step = try pool.mkLam(nat_ref,
+        try pool.mkLam(ih_type,
+            try pool.mkLam(nat_ref, step_inner)));
+
+    const proof_term = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base), step);
+
+    return pool.mkApp(try pool.mkApp(proof_term, n), m_arg);
+}
+
 /// Construit un proof term pour mul_succ_right :
 ///   Pi n m. Eq(mul n (succ m), add (mul n m) n)
 pub fn mkMulSuccRightProof(pool: *TermPool, n: u32, m_arg: u32) !u32 {
@@ -1243,70 +1417,17 @@ test "add_comm via nat_ind" {
     defer pool.deinit();
     try initNatAxioms(&pool);
 
-    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
     const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
-    const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
-    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
-    const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
-    const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
+    const zero = try pool.mkZero();
 
-    // P = Lm n. Pi m:Nat. Eq(add n m, add m n)
-    const P_body = try pool.mkPi(nat_ref,
-        try pool.mkEq(
-            try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0)),
-            try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(1))));
-    const P = try pool.mkLam(nat_ref, P_body);
-
-    // base = Lm. refl(m)  : Eq(m,m) convertible via delta a P(zero)
-    const base = try pool.mkLam(nat_ref, try pool.mkRefl(try pool.mkVar(0)));
-
-    // step = Lk. Lih:P(k). Lm.
-    //   trans(succ(add k m), succ(add m k), add(m, succ k),
-    //         cong_succ(add k m, add m k, ih m),
-    //         sym(add(m, succ k), succ(add m k), mkAddSuccRightProof(m, k)))
-    // Sous Lk,Lih,Lm : var(0)=m, var(1)=ih, var(2)=k
-    const add_k_m = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0));
-    const add_m_k = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(2));
-    const succ_add_k_m = try pool.mkSucc(add_k_m);
-    const succ_add_m_k = try pool.mkSucc(add_m_k);
-    const add_m_succ_k = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkSucc(try pool.mkVar(2)));
-
-    const ih_m = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0));
-    const p1 = try pool.mkApp(
-        try pool.mkApp(try pool.mkApp(cong_succ_ref, add_k_m), add_m_k), ih_m);
-    // p2 = sym(add_m_succ_k, succ_add_m_k, mkAddSuccRightProof(m, k))
-    const asr_mk = try mkAddSuccRightProof(&pool, try pool.mkVar(0), try pool.mkVar(2));
-    const p2 = try pool.mkApp(
-        try pool.mkApp(try pool.mkApp(sym_ref, add_m_succ_k), succ_add_m_k), asr_mk);
-    // final = trans(succ_add_k_m, succ_add_m_k, add_m_succ_k, p1, p2)
-    const step_inner = try pool.mkApp(
-        try pool.mkApp(
-            try pool.mkApp(
-                try pool.mkApp(try pool.mkApp(trans_ref, succ_add_k_m), succ_add_m_k),
-                add_m_succ_k),
-            p1),
-        p2);
-
-    const ih_type = try pool.mkApp(P, try pool.mkVar(0));
-    const step = try pool.mkLam(nat_ref,
-        try pool.mkLam(ih_type,
-            try pool.mkLam(nat_ref, step_inner)));
-
-    const proof_term = try pool.mkApp(
-        try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base), step);
-
-    // theorem_type = Pi n. Pi m. Eq(add n m, add m n)
-    const theorem_type = try pool.mkPi(nat_ref,
-        try pool.mkPi(nat_ref,
-            try pool.mkEq(
-                try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0)),
-                try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(1)))));
-
-    const ok = try verify(&pool, proof_term, theorem_type);
+    const proof = try mkAddCommProof(&pool, zero, zero);
+    const expected = try pool.mkEq(
+        try pool.mkApp(try pool.mkApp(add_ref, zero), zero),
+        try pool.mkApp(try pool.mkApp(add_ref, zero), zero));
+    const ok = try verify(&pool, proof, expected);
     std.debug.print("[SANITY] add_comm: type_check={}\n", .{ok});
     try std.testing.expect(ok);
 }
-
 
 test "add_zero_right derivable (delta + nat_ind)" {
     var pool = TermPool.init(std.testing.allocator);
@@ -1540,5 +1661,23 @@ test "mul_succ_right derivable via nat_ind" {
 
     const ok = try verify(&pool, proof, expected);
     std.debug.print("[SANITY] mul_succ_right: type_check={}\n", .{ok});
+    try std.testing.expect(ok);
+}
+
+
+test "mul_comm derivable via nat_ind" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const mul_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "mul"));
+    const zero = try pool.mkZero();
+
+    const proof = try mkMulCommProof(&pool, zero, zero);
+    const expected = try pool.mkEq(
+        try pool.mkApp(try pool.mkApp(mul_ref, zero), zero),
+        try pool.mkApp(try pool.mkApp(mul_ref, zero), zero));
+    const ok = try verify(&pool, proof, expected);
+    std.debug.print("[SANITY] mul_comm: type_check={}\n", .{ok});
     try std.testing.expect(ok);
 }
