@@ -603,6 +603,18 @@ pub const Store = struct {
         return self.pool.items[span.start..][0..span.len];
     }
 
+    /// Retourne les **arguments** d'un nœud `.apply`. Convention :
+    /// `span_a = [func, arg0, arg1, ...]` avec `span_a[0] == node.payload`.
+    /// Le helper skip `[0]` dans ce cas, sinon retourne la slice entière
+    /// (nœuds non-apply, formes legacy).
+    ///
+    /// INVARIANT documenté dans docs/spec/_store_invariants.md.
+    pub fn applyArgs(self: *const Store, node: Node) []const Id {
+        const all = self.spanSliceConst(node.span_a);
+        if (all.len > 0 and all[0] == node.payload) return all[1..];
+        return all;
+    }
+
     pub fn len(self: *const Store) usize {
         return self.nodes.items.len;
     }
@@ -1896,6 +1908,34 @@ pub fn countSymUses(store: *const Store, id: Id, name: []const u8) usize {
         },
         else => return 0,
     }
+}
+
+test "applyArgs — skip func dans span_a[0]" {
+    var store = Store.init(std.testing.allocator);
+    defer store.deinit();
+
+    const plus = try store.sym("+");
+    const a = try store.int(1);
+    const b = try store.int(2);
+    const applied = try store.apply(plus, &.{ a, b });
+
+    const args = store.applyArgs(store.get(applied));
+    try std.testing.expectEqual(@as(usize, 2), args.len);
+    try std.testing.expectEqual(a, args[0]);
+    try std.testing.expectEqual(b, args[1]);
+}
+
+test "applyArgs — noeud non-apply : retourne span_a entier" {
+    var store = Store.init(std.testing.allocator);
+    defer store.deinit();
+
+    const body = try store.sym("y");
+    const lam = try store.lambda(&.{"x"}, body);
+
+    const args = store.applyArgs(store.get(lam));
+    // lambda : span_a = [body], pas de func en tête
+    try std.testing.expectEqual(@as(usize, 1), args.len);
+    try std.testing.expectEqual(body, args[0]);
 }
 
 test "core invariant — lowered expression contains only six primitives" {
