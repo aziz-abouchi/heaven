@@ -656,6 +656,19 @@ pub fn initNatAxioms(pool: *TermPool) !void {
     // add_succ_right : Πn:Nat. Πm:Nat. Eq(add(n, succ(m)), succ(add(n, m)))
     const add_n_sm_eq_s_anm = try pool.mkPi(nat_ref, try pool.mkPi(nat_ref, try pool.mkEq(try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(1)), try pool.mkSucc(try pool.mkVar(0))), try pool.mkSucc(try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(1)), try pool.mkVar(0))))));
     _ = try pool.declareAxiom("add_succ_right", add_n_sm_eq_s_anm);
+
+    // cong_succ : Πa:Nat. Πb:Nat. Eq(a, b) → Eq(succ a, succ b)
+    // Sous le Πa : var(0)=a
+    // Sous le Πb : var(0)=b, var(1)=a — Eq(a,b) = Eq(var(1),var(0))
+    // Sous le Πh : var(0)=h, var(1)=b, var(2)=a — codomaine Eq(succ a, succ b)
+    const eq_a_b = try pool.mkEq(try pool.mkVar(1), try pool.mkVar(0));
+    const cong_succ_type = try pool.mkPi(nat_ref,
+        try pool.mkPi(nat_ref,
+            try pool.mkPi(eq_a_b,
+                try pool.mkEq(
+                    try pool.mkSucc(try pool.mkVar(2)),
+                    try pool.mkSucc(try pool.mkVar(1))))));
+    _ = try pool.declareAxiom("cong_succ", cong_succ_type);
 }
 
 /// Vérification structurelle : valide qu'un terme de preuve par induction
@@ -923,4 +936,26 @@ test "subst shifts replacement under binder" {
     const inner = pool.get(@as(u32, @intCast(r_node.payload2)));
     try std.testing.expectEqual(TermTag.var_, inner.tag);
     try std.testing.expectEqual(@as(u64, 1), inner.payload);
+}
+
+
+test "cong_succ sanity: Eq(zero,zero) -> Eq(succ zero, succ zero)" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
+    const zero = try pool.mkZero();
+    const rfl = try pool.mkRefl(zero);
+
+    // proof = cong_succ(zero, zero, refl(zero))
+    const proof = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(cong_succ_ref, zero), zero), rfl);
+
+    // expected = Eq(succ zero, succ zero)
+    const expected = try pool.mkEq(try pool.mkSucc(zero), try pool.mkSucc(zero));
+
+    const ok = try verify(&pool, proof, expected);
+    std.debug.print("[SANITY] cong_succ: type_check={}\n", .{ok});
+    try std.testing.expect(ok);
 }
