@@ -624,7 +624,6 @@ pub fn initNatAxioms(pool: *TermPool) !void {
     const nat_hash = std.hash.Wyhash.hash(0, "Nat");
     const type0 = try pool.mkType(0);
     const nat_ref = try pool.mkRef(nat_hash);
-    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
 
     // Nat : Type(0)
     _ = try pool.declareAxiom("Nat", type0);
@@ -686,19 +685,6 @@ pub fn initNatAxioms(pool: *TermPool) !void {
     _ = try pool.declareAxiom("nat_ind", nat_ind_type);
 
 
-    // cong_succ : Πa:Nat. Πb:Nat. Eq(a, b) → Eq(succ a, succ b)
-    // Sous le Πa : var(0)=a
-    // Sous le Πb : var(0)=b, var(1)=a — Eq(a,b) = Eq(var(1),var(0))
-    // Sous le Πh : var(0)=h, var(1)=b, var(2)=a — codomaine Eq(succ a, succ b)
-    const eq_a_b = try pool.mkEq(try pool.mkVar(1), try pool.mkVar(0));
-    const cong_succ_type = try pool.mkPi(nat_ref,
-        try pool.mkPi(nat_ref,
-            try pool.mkPi(eq_a_b,
-                try pool.mkEq(
-                    try pool.mkSucc(try pool.mkVar(2)),
-                    try pool.mkSucc(try pool.mkVar(1))))));
-    _ = try pool.declareAxiom("cong_succ", cong_succ_type);
-
     // sym : Pi a b:Nat. Eq(a,b) -> Eq(b,a)
     const sym_type = try pool.mkPi(nat_ref,
         try pool.mkPi(nat_ref,
@@ -717,36 +703,6 @@ pub fn initNatAxioms(pool: *TermPool) !void {
                         try pool.mkEq(try pool.mkVar(2), try pool.mkVar(1)),
                         try pool.mkEq(try pool.mkVar(4), try pool.mkVar(2)))))));
     _ = try pool.declareAxiom("trans", trans_type);
-
-    // cong_add_l : Pi b c. Eq(b,c) -> Pi a. Eq(add a b, add a c)
-    // Sous Pi b : var(0)=b
-    // Sous Pi c : var(0)=c, var(1)=b
-    // Sous Pi h : var(0)=h, var(1)=c, var(2)=b
-    // Sous Pi a : var(0)=a, var(1)=h, var(2)=c, var(3)=b
-    const cong_add_l_type = try pool.mkPi(nat_ref,
-        try pool.mkPi(nat_ref,
-            try pool.mkPi(
-                try pool.mkEq(try pool.mkVar(1), try pool.mkVar(0)),
-                try pool.mkPi(nat_ref,
-                    try pool.mkEq(
-                        try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(3)),
-                        try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(2)))))));
-    _ = try pool.declareAxiom("cong_add_l", cong_add_l_type);
-
-    // cong_add_r : Pi a b. Eq(a,b) -> Pi c. Eq(add a c, add b c)
-    // Sous Pi a : var(0)=a
-    // Sous Pi b : var(0)=b, var(1)=a
-    // Sous Pi h : var(0)=h, var(1)=b, var(2)=a
-    // Sous Pi c : var(0)=c, var(1)=h, var(2)=b, var(3)=a
-    const cong_add_r_type = try pool.mkPi(nat_ref,
-        try pool.mkPi(nat_ref,
-            try pool.mkPi(
-                try pool.mkEq(try pool.mkVar(1), try pool.mkVar(0)),
-                try pool.mkPi(nat_ref,
-                    try pool.mkEq(
-                        try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(3)), try pool.mkVar(0)),
-                        try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0)))))));
-    _ = try pool.declareAxiom("cong_add_r", cong_add_r_type);
 
     // eq_rect_nat : Pi P:Nat->Type. Pi a b:Nat. Eq(a,b) -> P(a) -> P(b)
     // J-eliminator restreint a Nat. Primitif (remplace a terme les
@@ -781,7 +737,6 @@ pub fn mkAddSuccRightProof(pool: *TermPool, n: u32, m: u32) !u32 {
     const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
     const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
     const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
-    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
 
     const P_body = try pool.mkPi(nat_ref,
         try pool.mkEq(
@@ -794,8 +749,7 @@ pub fn mkAddSuccRightProof(pool: *TermPool, n: u32, m: u32) !u32 {
     const add_k_succ_m = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkSucc(try pool.mkVar(0)));
     const succ_add_k_m = try pool.mkSucc(try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0)));
     const ih_m = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0));
-    const step_inner = try pool.mkApp(
-        try pool.mkApp(try pool.mkApp(cong_succ_ref, add_k_succ_m), succ_add_k_m), ih_m);
+    const step_inner = try mkCongSuccProof(pool, add_k_succ_m, succ_add_k_m, ih_m);
     const ih_type = try pool.mkApp(P, try pool.mkVar(0));
     const step = try pool.mkLam(nat_ref,
         try pool.mkLam(ih_type,
@@ -816,7 +770,6 @@ pub fn mkAddAssocProof(pool: *TermPool, a: u32, b: u32, c: u32) !u32 {
     const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
     const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
     const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
-    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
 
     // P = La. Pi b c. Eq(add (add a b) c, add a (add b c))
     const P_body = try pool.mkPi(nat_ref,
@@ -841,8 +794,7 @@ pub fn mkAddAssocProof(pool: *TermPool, a: u32, b: u32, c: u32) !u32 {
     const add_k_add_b_c = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(3)),
         try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0)));
     const ih_b_c = try pool.mkApp(try pool.mkApp(try pool.mkVar(2), try pool.mkVar(1)), try pool.mkVar(0));
-    const step_inner = try pool.mkApp(
-        try pool.mkApp(try pool.mkApp(cong_succ_ref, add_add_k_b_c), add_k_add_b_c), ih_b_c);
+    const step_inner = try mkCongSuccProof(pool, add_add_k_b_c, add_k_add_b_c, ih_b_c);
     const ih_type = try pool.mkApp(P, try pool.mkVar(0));
     const step = try pool.mkLam(nat_ref,
         try pool.mkLam(ih_type,
@@ -877,13 +829,13 @@ pub fn mkCongAddRProof(pool: *TermPool, a: u32, b: u32, h: u32) !u32 {
     const b_sh = try shift(pool, b, 0, 1);
     const h_sh = try shift(pool, h, 0, 1);
 
-    // P = Lx. Eq(add x c, add b c)
-    // Sous [c, x] : var(0)=x, var(1)=c. b shift +2, c = var(1).
-    const b_sh2 = try shift(pool, b, 0, 2);
+    // P = Lx. Eq(add a c, add x c)
+    // Sous [c, x] : var(0)=x, var(1)=c. a shift +2, c = var(1).
+    const a_sh2 = try shift(pool, a, 0, 2);
     const c_here = try pool.mkVar(1);
+    const add_a_c = try pool.mkApp(try pool.mkApp(add_ref, a_sh2), c_here);
     const add_x_c = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), c_here);
-    const add_b_c = try pool.mkApp(try pool.mkApp(add_ref, b_sh2), c_here);
-    const P = try pool.mkLam(nat_ref, try pool.mkEq(add_x_c, add_b_c));
+    const P = try pool.mkLam(nat_ref, try pool.mkEq(add_a_c, add_x_c));
 
     // refl(add a c) sous [c] : Eq(add a_sh c, add a_sh c), c = var(0)
     const add_a_c_here = try pool.mkApp(try pool.mkApp(add_ref, a_sh), try pool.mkVar(0));
@@ -972,7 +924,6 @@ pub fn mkAddCommProof(pool: *TermPool, n: u32, m_arg: u32) !u32 {
     const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
     const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
     const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
-    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
     const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
     const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
 
@@ -995,8 +946,7 @@ pub fn mkAddCommProof(pool: *TermPool, n: u32, m_arg: u32) !u32 {
     const add_m_succ_k = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkSucc(try pool.mkVar(2)));
 
     const ih_m = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0));
-    const p1 = try pool.mkApp(
-        try pool.mkApp(try pool.mkApp(cong_succ_ref, add_k_m), add_m_k), ih_m);
+    const p1 = try mkCongSuccProof(pool, add_k_m, add_m_k, ih_m);
     const asr = try mkAddSuccRightProof(pool, try pool.mkVar(0), try pool.mkVar(2));
     const p2 = try pool.mkApp(
         try pool.mkApp(try pool.mkApp(sym_ref, add_m_succ_k), succ_add_m_k), asr);
@@ -1058,8 +1008,6 @@ pub fn mkDistribProof(pool: *TermPool, a_arg: u32, b_arg: u32, c_arg: u32) !u32 
     const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
     const mul_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "mul"));
     const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
-    const cong_add_l_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_add_l"));
-    const cong_add_r_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_add_r"));
     const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
     const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
 
@@ -1113,9 +1061,7 @@ pub fn mkDistribProof(pool: *TermPool, a_arg: u32, b_arg: u32, c_arg: u32) !u32 
     // ih a c = app(app(var(2), a), c)
     const ih_ac = try pool.mkApp(try pool.mkApp(try pool.mkVar(2), a), c);
     const h_ih = try pool.mkApp(
-        try pool.mkApp(
-            try pool.mkApp(try pool.mkApp(cong_add_r_ref, mul_a_add_b_c), add_X_Y),
-            ih_ac),
+        try mkCongAddRProof(pool, mul_a_add_b_c, add_X_Y, ih_ac),
         a);
 
     // 3. h_lhs' = trans(mul_a_succ_add_b_c, add_mul_a_add_b_c_a, add_add_X_Y_a, h_lhs, h_ih)
@@ -1137,9 +1083,7 @@ pub fn mkDistribProof(pool: *TermPool, a_arg: u32, b_arg: u32, c_arg: u32) !u32 
     const h_assoc1 = try mkAddAssocProof(pool, X, Y, a);
     const h_comm = try mkAddCommProof(pool, Y, a);
     const h_cong_c = try pool.mkApp(
-        try pool.mkApp(
-            try pool.mkApp(try pool.mkApp(cong_add_l_ref, add_Y_a), add_a_Y),
-            h_comm),
+        try mkCongAddLProof(pool, add_Y_a, add_a_Y, h_comm),
         X);
     const h_assoc2_raw = try mkAddAssocProof(pool, X, a, Y);
     const h_assoc2 = try pool.mkApp(
@@ -1182,9 +1126,7 @@ pub fn mkDistribProof(pool: *TermPool, a_arg: u32, b_arg: u32, c_arg: u32) !u32 
         try pool.mkApp(try pool.mkApp(sym_ref, mul_a_succ_b), add_X_a),
         h_msr);
     const h_cong2 = try pool.mkApp(
-        try pool.mkApp(
-            try pool.mkApp(try pool.mkApp(cong_add_r_ref, add_X_a), mul_a_succ_b),
-            h_msr_sym),
+        try mkCongAddRProof(pool, add_X_a, mul_a_succ_b, h_msr_sym),
         Y);
 
     // h_final = trans(mul_a_succ_add_b_c, add_add_X_a_Y, add_mul_a_succ_b_Y, h_lhs_pp, h_cong2)
@@ -1220,7 +1162,6 @@ pub fn mkMulCommProof(pool: *TermPool, n: u32, m_arg: u32) !u32 {
     const mul_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "mul"));
     const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
     const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
-    const cong_add_l_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_add_l"));
     const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
     const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
 
@@ -1257,9 +1198,7 @@ pub fn mkMulCommProof(pool: *TermPool, n: u32, m_arg: u32) !u32 {
     // h1 = cong_add_l(mul k m, mul m k, ih m, m)
     const ih_m = try pool.mkApp(try pool.mkVar(1), m);
     const h1 = try pool.mkApp(
-        try pool.mkApp(
-            try pool.mkApp(try pool.mkApp(cong_add_l_ref, mul_k_m), mul_m_k),
-            ih_m),
+        try mkCongAddLProof(pool, mul_k_m, mul_m_k, ih_m),
         m);
 
     // hcomm = mkAddCommProof(m, mul m k) : Eq(add m (mul m k), add (mul m k) m)
@@ -1310,8 +1249,6 @@ pub fn mkMulSuccRightProof(pool: *TermPool, n: u32, m_arg: u32) !u32 {
     const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
     const mul_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "mul"));
     const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
-    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
-    const cong_add_l_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_add_l"));
     const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
     const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
 
@@ -1345,21 +1282,15 @@ pub fn mkMulSuccRightProof(pool: *TermPool, n: u32, m_arg: u32) !u32 {
 
     const ih_m = try pool.mkApp(try pool.mkVar(1), m);
     const h1 = try pool.mkApp(
-        try pool.mkApp(
-            try pool.mkApp(try pool.mkApp(cong_add_l_ref, mul_k_succ_m), add_X_k),
-            ih_m),
+        try mkCongAddLProof(pool, mul_k_succ_m, add_X_k, ih_m),
         m);
-    const h1_prime = try pool.mkApp(
-        try pool.mkApp(try pool.mkApp(cong_succ_ref, add_m_mul_k_succ_m), add_m_add_X_k),
-        h1);
+    const h1_prime = try mkCongSuccProof(pool, add_m_mul_k_succ_m, add_m_add_X_k, h1);
 
     const assoc_m = try mkAddAssocProof(pool, m, X, k);
     const sym_assoc = try pool.mkApp(
         try pool.mkApp(try pool.mkApp(sym_ref, add_add_m_X_k), add_m_add_X_k),
         assoc_m);
-    const h2 = try pool.mkApp(
-        try pool.mkApp(try pool.mkApp(cong_succ_ref, add_m_add_X_k), add_add_m_X_k),
-        sym_assoc);
+    const h2 = try mkCongSuccProof(pool, add_m_add_X_k, add_add_m_X_k, sym_assoc);
 
     const step_inner_23 = try pool.mkApp(
         try pool.mkApp(
@@ -1664,29 +1595,6 @@ test "subst shifts replacement under binder" {
     try std.testing.expectEqual(@as(u64, 1), inner.payload);
 }
 
-
-test "cong_succ sanity: Eq(zero,zero) -> Eq(succ zero, succ zero)" {
-    var pool = TermPool.init(std.testing.allocator);
-    defer pool.deinit();
-    try initNatAxioms(&pool);
-
-    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
-    const zero = try pool.mkZero();
-    const rfl = try pool.mkRefl(zero);
-
-    // proof = cong_succ(zero, zero, refl(zero))
-    const proof = try pool.mkApp(
-        try pool.mkApp(try pool.mkApp(cong_succ_ref, zero), zero), rfl);
-
-    // expected = Eq(succ zero, succ zero)
-    const expected = try pool.mkEq(try pool.mkSucc(zero), try pool.mkSucc(zero));
-
-    const ok = try verify(&pool, proof, expected);
-    std.debug.print("[SANITY] cong_succ: type_check={}\n", .{ok});
-    try std.testing.expect(ok);
-}
-
-
 test "sym + trans sanity" {
     var pool = TermPool.init(std.testing.allocator);
     defer pool.deinit();
@@ -1771,57 +1679,22 @@ test "add_zero_right derivable (delta + nat_ind)" {
     std.debug.print("[SANITY] add_zero_right: type_check={}\n", .{ok});
     try std.testing.expect(ok);
 }
-
-
 test "add_succ_right derivable via nat_ind" {
     var pool = TermPool.init(std.testing.allocator);
     defer pool.deinit();
     try initNatAxioms(&pool);
 
-    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
     const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
-    const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
-    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
+    const zero = try pool.mkZero();
 
-    // P = Lm n. Pi m:Nat. Eq(add n (succ m), succ(add n m))
-    // Sous Lm n    : var(0)=n
-    // Sous Pi m    : var(0)=m, var(1)=n
-    const P_body = try pool.mkPi(nat_ref,
-        try pool.mkEq(
-            try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkSucc(try pool.mkVar(0))),
-            try pool.mkSucc(try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0)))));
-    const P = try pool.mkLam(nat_ref, P_body);
-
-    // base = Lm. refl(succ m)  : Eq(succ m, succ m) convertible a P(zero) par delta
-    const base = try pool.mkLam(nat_ref, try pool.mkRefl(try pool.mkSucc(try pool.mkVar(0))));
-
-    // step = Lk. Lih:P(k). Lm. cong_succ(add k (succ m), succ(add k m), ih m)
-    // Sous Lk,Lih,Lm : var(0)=m, var(1)=ih, var(2)=k
-    const add_k_succ_m = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkSucc(try pool.mkVar(0)));
-    const succ_add_k_m = try pool.mkSucc(try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0)));
-    const ih_m = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0));
-    const step_inner = try pool.mkApp(
-        try pool.mkApp(try pool.mkApp(cong_succ_ref, add_k_succ_m), succ_add_k_m), ih_m);
-    const ih_type = try pool.mkApp(P, try pool.mkVar(0));
-    const step = try pool.mkLam(nat_ref,
-        try pool.mkLam(ih_type,
-            try pool.mkLam(nat_ref, step_inner)));
-
-    const proof_term = try pool.mkApp(
-        try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base), step);
-
-    // theorem_type = Pi n. Pi m. Eq(add n (succ m), succ(add n m))
-    const theorem_type = try pool.mkPi(nat_ref,
-        try pool.mkPi(nat_ref,
-            try pool.mkEq(
-                try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkSucc(try pool.mkVar(0))),
-                try pool.mkSucc(try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0))))));
-
-    const ok = try verify(&pool, proof_term, theorem_type);
+    const proof = try mkAddSuccRightProof(&pool, zero, zero);
+    const expected = try pool.mkEq(
+        try pool.mkApp(try pool.mkApp(add_ref, zero), try pool.mkSucc(zero)),
+        try pool.mkSucc(try pool.mkApp(try pool.mkApp(add_ref, zero), zero)));
+    const ok = try verify(&pool, proof, expected);
     std.debug.print("[SANITY] add_succ_right: type_check={}\n", .{ok});
     try std.testing.expect(ok);
 }
-
 
 test "mul_zero_right derivable via nat_ind" {
     var pool = TermPool.init(std.testing.allocator);
@@ -1906,45 +1779,6 @@ test "add_assoc derivable via nat_ind" {
     std.debug.print("[SANITY] add_assoc: type_check={}\n", .{ok});
     try std.testing.expect(ok);
 }
-
-
-test "cong_add_l/r sanity" {
-    var pool = TermPool.init(std.testing.allocator);
-    defer pool.deinit();
-    try initNatAxioms(&pool);
-
-    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
-    const cong_add_l_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_add_l"));
-    const cong_add_r_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_add_r"));
-    const zero = try pool.mkZero();
-    const rfl = try pool.mkRefl(zero);
-
-    // cong_add_l(zero, zero, refl zero, zero) : Eq(add zero zero, add zero zero)
-    const l_proof = try pool.mkApp(
-        try pool.mkApp(
-            try pool.mkApp(
-                try pool.mkApp(cong_add_l_ref, zero), zero),
-            rfl),
-        zero);
-    const l_expected = try pool.mkEq(
-        try pool.mkApp(try pool.mkApp(add_ref, zero), zero),
-        try pool.mkApp(try pool.mkApp(add_ref, zero), zero));
-    const ok_l = try verify(&pool, l_proof, l_expected);
-    std.debug.print("[SANITY] cong_add_l: type_check={}\n", .{ok_l});
-    try std.testing.expect(ok_l);
-
-    // cong_add_r(zero, zero, refl zero, zero)
-    const r_proof = try pool.mkApp(
-        try pool.mkApp(
-            try pool.mkApp(
-                try pool.mkApp(cong_add_r_ref, zero), zero),
-            rfl),
-        zero);
-    const ok_r = try verify(&pool, r_proof, l_expected);
-    std.debug.print("[SANITY] cong_add_r: type_check={}\n", .{ok_r});
-    try std.testing.expect(ok_r);
-}
-
 
 test "mul_succ_right derivable via nat_ind" {
     var pool = TermPool.init(std.testing.allocator);

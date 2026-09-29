@@ -497,7 +497,6 @@ pub const ProofCore = struct {
             //         cong_succ(add k m, add m k, ih m),
             //         sym(add(m, succ k), succ(add m k), add_succ_right(m, k)))
             // Sous λk.λih.λm : var(0)=m, var(1)=ih, var(2)=k
-            const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
             const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
             const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
 
@@ -508,8 +507,7 @@ pub const ProofCore = struct {
             const add_m_succ_k = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkSucc(try pool.mkVar(2)));
 
             const ih_m = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0));
-            const p1 = try pool.mkApp(
-                try pool.mkApp(try pool.mkApp(cong_succ_ref, add_k_m), add_m_k), ih_m);
+            const p1 = try kernel.peano.mkCongSuccProof(&pool, add_k_m, add_m_k, ih_m);
             const asr_mk = try kernel.peano.mkAddSuccRightProof(&pool, try pool.mkVar(0), try pool.mkVar(2));
             const p2 = try pool.mkApp(
                 try pool.mkApp(try pool.mkApp(sym_ref, add_m_succ_k), succ_add_m_k), asr_mk);
