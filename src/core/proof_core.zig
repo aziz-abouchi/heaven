@@ -500,7 +500,6 @@ pub const ProofCore = struct {
             const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
             const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
             const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
-            const asr_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add_succ_right"));
 
             const add_k_m = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0));
             const add_m_k = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(2));
@@ -511,7 +510,7 @@ pub const ProofCore = struct {
             const ih_m = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0));
             const p1 = try pool.mkApp(
                 try pool.mkApp(try pool.mkApp(cong_succ_ref, add_k_m), add_m_k), ih_m);
-            const asr_mk = try pool.mkApp(try pool.mkApp(asr_ref, try pool.mkVar(0)), try pool.mkVar(2));
+            const asr_mk = try kernel.peano.mkAddSuccRightProof(&pool, try pool.mkVar(0), try pool.mkVar(2));
             const p2 = try pool.mkApp(
                 try pool.mkApp(try pool.mkApp(sym_ref, add_m_succ_k), succ_add_m_k), asr_mk);
             const step_inner = try pool.mkApp(

@@ -590,10 +590,9 @@ fn checkIsType(pool: *TermPool, ctx: *Context, term_idx: u32) KernelError!void {
 ///   La vraie mesure du kernel : add_comm via nat_ind.
 /// - nat_ind : éliminateur de Nat, typage vérifié (indices De Bruijn
 ///   audités 2026-09-28). Confiance standard (approche no-Inductive).
-/// - add_succ_right : LEMME ASSERTÉ (axiome Eq). Prouvable par
-///   induction — à déclassifier dans une session ultérieure.
-/// - add_zero_right : RETIRÉ (2026-09-29). Redondant avec la
-///   delta-rule add(n, zero) -> n de eval, prouvable par nat_ind.
+/// - add_zero_right : RETIRÉ (2026-09-29). Dérivable (delta + nat_ind).
+/// - add_succ_right : RETIRÉ (2026-09-29). Dérivable via nat_ind,
+///   proof term construit par mkAddSuccRightProof.
 /// ═════════════════════════════════════════════════════════════════════
 pub fn initNatAxioms(pool: *TermPool) !void {
     const nat_hash = std.hash.Wyhash.hash(0, "Nat");
@@ -658,12 +657,6 @@ pub fn initNatAxioms(pool: *TermPool) !void {
 
     _ = try pool.declareAxiom("nat_ind", nat_ind_type);
 
-    // Lemme de réduction pour add (utilisé par la preuve CIC de add_comm)
-    // add_succ_right : Πn:Nat. Πm:Nat. Eq(add(n, succ(m)), succ(add(n, m)))
-    // Note : add_zero_right n'est PAS déclaré - redondant avec la delta-rule
-    // add(n, zero) -> n de eval. Prouvable par nat_ind (test ci-dessous).
-    const add_n_sm_eq_s_anm = try pool.mkPi(nat_ref, try pool.mkPi(nat_ref, try pool.mkEq(try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(1)), try pool.mkSucc(try pool.mkVar(0))), try pool.mkSucc(try pool.mkApp(try pool.mkApp(try pool.mkRef(std.hash.Wyhash.hash(0, "add")), try pool.mkVar(1)), try pool.mkVar(0))))));
-    _ = try pool.declareAxiom("add_succ_right", add_n_sm_eq_s_anm);
 
     // cong_succ : Πa:Nat. Πb:Nat. Eq(a, b) → Eq(succ a, succ b)
     // Sous le Πa : var(0)=a
@@ -696,6 +689,40 @@ pub fn initNatAxioms(pool: *TermPool) !void {
                         try pool.mkEq(try pool.mkVar(2), try pool.mkVar(1)),
                         try pool.mkEq(try pool.mkVar(4), try pool.mkVar(2)))))));
     _ = try pool.declareAxiom("trans", trans_type);
+}
+
+/// Construit un proof term pour add_succ_right :
+///   Pi n m. Eq(add n (succ m), succ(add n m))
+/// nat_ind(P, base, step) n m.
+pub fn mkAddSuccRightProof(pool: *TermPool, n: u32, m: u32) !u32 {
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
+    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
+
+    const P_body = try pool.mkPi(nat_ref,
+        try pool.mkEq(
+            try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkSucc(try pool.mkVar(0))),
+            try pool.mkSucc(try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0)))));
+    const P = try pool.mkLam(nat_ref, P_body);
+
+    const base = try pool.mkLam(nat_ref, try pool.mkRefl(try pool.mkSucc(try pool.mkVar(0))));
+
+    const add_k_succ_m = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkSucc(try pool.mkVar(0)));
+    const succ_add_k_m = try pool.mkSucc(try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0)));
+    const ih_m = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0));
+    const step_inner = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(cong_succ_ref, add_k_succ_m), succ_add_k_m), ih_m);
+    const ih_type = try pool.mkApp(P, try pool.mkVar(0));
+    const step = try pool.mkLam(nat_ref,
+        try pool.mkLam(ih_type,
+            try pool.mkLam(nat_ref, step_inner)));
+
+    return pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base), step),
+            n),
+        m);
 }
 
 /// Vérification structurelle : valide qu'un terme de preuve par induction
@@ -1027,7 +1054,6 @@ test "add_comm via nat_ind" {
     const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
     const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
     const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
-    const asr_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add_succ_right"));
 
     // P = Lm n. Pi m:Nat. Eq(add n m, add m n)
     const P_body = try pool.mkPi(nat_ref,
@@ -1042,7 +1068,7 @@ test "add_comm via nat_ind" {
     // step = Lk. Lih:P(k). Lm.
     //   trans(succ(add k m), succ(add m k), add(m, succ k),
     //         cong_succ(add k m, add m k, ih m),
-    //         sym(add(m, succ k), succ(add m k), add_succ_right(m, k)))
+    //         sym(add(m, succ k), succ(add m k), mkAddSuccRightProof(m, k)))
     // Sous Lk,Lih,Lm : var(0)=m, var(1)=ih, var(2)=k
     const add_k_m = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0));
     const add_m_k = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(2));
@@ -1053,8 +1079,8 @@ test "add_comm via nat_ind" {
     const ih_m = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0));
     const p1 = try pool.mkApp(
         try pool.mkApp(try pool.mkApp(cong_succ_ref, add_k_m), add_m_k), ih_m);
-    // p2 = sym(add_m_succ_k, succ_add_m_k, add_succ_right(m, k))
-    const asr_mk = try pool.mkApp(try pool.mkApp(asr_ref, try pool.mkVar(0)), try pool.mkVar(2));
+    // p2 = sym(add_m_succ_k, succ_add_m_k, mkAddSuccRightProof(m, k))
+    const asr_mk = try mkAddSuccRightProof(&pool, try pool.mkVar(0), try pool.mkVar(2));
     const p2 = try pool.mkApp(
         try pool.mkApp(try pool.mkApp(sym_ref, add_m_succ_k), succ_add_m_k), asr_mk);
     // final = trans(succ_add_k_m, succ_add_m_k, add_m_succ_k, p1, p2)
@@ -1124,5 +1150,55 @@ test "add_zero_right derivable (delta + nat_ind)" {
 
     const ok = try verify(&pool, proof_term, theorem_type);
     std.debug.print("[SANITY] add_zero_right: type_check={}\n", .{ok});
+    try std.testing.expect(ok);
+}
+
+
+test "add_succ_right derivable via nat_ind" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
+    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
+
+    // P = Lm n. Pi m:Nat. Eq(add n (succ m), succ(add n m))
+    // Sous Lm n    : var(0)=n
+    // Sous Pi m    : var(0)=m, var(1)=n
+    const P_body = try pool.mkPi(nat_ref,
+        try pool.mkEq(
+            try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkSucc(try pool.mkVar(0))),
+            try pool.mkSucc(try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0)))));
+    const P = try pool.mkLam(nat_ref, P_body);
+
+    // base = Lm. refl(succ m)  : Eq(succ m, succ m) convertible a P(zero) par delta
+    const base = try pool.mkLam(nat_ref, try pool.mkRefl(try pool.mkSucc(try pool.mkVar(0))));
+
+    // step = Lk. Lih:P(k). Lm. cong_succ(add k (succ m), succ(add k m), ih m)
+    // Sous Lk,Lih,Lm : var(0)=m, var(1)=ih, var(2)=k
+    const add_k_succ_m = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkSucc(try pool.mkVar(0)));
+    const succ_add_k_m = try pool.mkSucc(try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0)));
+    const ih_m = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0));
+    const step_inner = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(cong_succ_ref, add_k_succ_m), succ_add_k_m), ih_m);
+    const ih_type = try pool.mkApp(P, try pool.mkVar(0));
+    const step = try pool.mkLam(nat_ref,
+        try pool.mkLam(ih_type,
+            try pool.mkLam(nat_ref, step_inner)));
+
+    const proof_term = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base), step);
+
+    // theorem_type = Pi n. Pi m. Eq(add n (succ m), succ(add n m))
+    const theorem_type = try pool.mkPi(nat_ref,
+        try pool.mkPi(nat_ref,
+            try pool.mkEq(
+                try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkSucc(try pool.mkVar(0))),
+                try pool.mkSucc(try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0))))));
+
+    const ok = try verify(&pool, proof_term, theorem_type);
+    std.debug.print("[SANITY] add_succ_right: type_check={}\n", .{ok});
     try std.testing.expect(ok);
 }
