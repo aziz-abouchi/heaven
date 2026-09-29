@@ -47,7 +47,6 @@ Sélection **explicite** : flag compile-time + profil runtime.
 - **Fast** : pipeline complet, optimisations agressives (QBE puis LLVM).
 - **Green** : passes minimales + instrumentation énergie branchée sur
   le profiler `green` existant (effets algébriques, roadmap #12).
-
 ## 4. Trois pipelines « WASM » (à ne pas confondre)
 
 1. **heaven.wasm** : le compilateur lui-même compilé en WASM
