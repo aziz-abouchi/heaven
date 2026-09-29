@@ -739,6 +739,31 @@ pub fn initNatAxioms(pool: *TermPool) !void {
                         try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(3)), try pool.mkVar(0)),
                         try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0)))))));
     _ = try pool.declareAxiom("cong_add_r", cong_add_r_type);
+
+    // eq_rect_nat : Pi P:Nat->Type. Pi a b:Nat. Eq(a,b) -> P(a) -> P(b)
+    // J-eliminator restreint a Nat. Primitif (remplace a terme les
+    // axiomes cong_succ, cong_add_l/r, sym, trans - a degraisser
+    // progressivement).
+    // Contexte : [P, a, b, h, pa]
+    //   Sous Pi P    : var(0)=P
+    //   Sous Pi a    : var(0)=a, var(1)=P
+    //   Sous Pi b    : var(0)=b, var(1)=a, var(2)=P
+    //   Sous Pi h    : var(0)=h, var(1)=b, var(2)=a, var(3)=P
+    //   Sous Pi pa   : var(0)=pa, var(1)=h, var(2)=b, var(3)=a, var(4)=P
+    const nat_to_type2 = try pool.mkPi(nat_ref, type0);
+    // Sous [P,a,b,h] : P=var(3), a=var(2), b=var(1), h=var(0)
+    //   domaine de pa : P(a) = app(var(3), var(2))
+    // Sous [P,a,b,h,pa] : P=var(4), a=var(3), b=var(2)
+    //   codomaine : P(b) = app(var(4), var(2))
+    const eq_rect_nat_type = try pool.mkPi(nat_to_type2,
+        try pool.mkPi(nat_ref,
+            try pool.mkPi(nat_ref,
+                try pool.mkPi(
+                    try pool.mkEq(try pool.mkVar(1), try pool.mkVar(0)),
+                    try pool.mkPi(
+                        try pool.mkApp(try pool.mkVar(3), try pool.mkVar(2)),
+                        try pool.mkApp(try pool.mkVar(4), try pool.mkVar(2)))))));
+    _ = try pool.declareAxiom("eq_rect_nat", eq_rect_nat_type);
 }
 
 /// Construit un proof term pour add_succ_right :
@@ -1931,4 +1956,34 @@ test "e2e proofs on concrete naturals" {
         std.debug.print("[E2E] add_assoc(2,3,4): {}\n", .{ok});
         try std.testing.expect(ok);
     }
+}
+
+
+test "eq_rect_nat sanity" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const eq_rect_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "eq_rect_nat"));
+    const zero = try pool.mkZero();
+    const rfl = try pool.mkRefl(zero);
+
+    // P = Lx. Eq(x, zero)
+    const P = try pool.mkLam(nat_ref,
+        try pool.mkEq(try pool.mkVar(0), zero));
+
+    // proof = eq_rect_nat(P, zero, zero, refl(zero), refl(zero))
+    const proof = try pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(
+                try pool.mkApp(try pool.mkApp(eq_rect_ref, P), zero),
+                zero),
+            rfl),
+        rfl);
+
+    const expected = try pool.mkEq(zero, zero);
+    const ok = try verify(&pool, proof, expected);
+    std.debug.print("[ER] eq_rect_nat zero: {}\n", .{ok});
+    try std.testing.expect(ok);
 }
