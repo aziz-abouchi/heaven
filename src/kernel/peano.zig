@@ -744,6 +744,56 @@ pub fn mkAddSuccRightProof(pool: *TermPool, n: u32, m: u32) !u32 {
         m);
 }
 
+
+/// Construit un proof term pour add_assoc :
+///   Pi a b c. Eq(add (add a b) c, add a (add b c))
+/// nat_ind(P, base, step) a b c.
+pub fn mkAddAssocProof(pool: *TermPool, a: u32, b: u32, c: u32) !u32 {
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const nat_ind_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "nat_ind"));
+    const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
+
+    // P = La. Pi b c. Eq(add (add a b) c, add a (add b c))
+    const P_body = try pool.mkPi(nat_ref,
+        try pool.mkPi(nat_ref,
+            try pool.mkEq(
+                try pool.mkApp(try pool.mkApp(add_ref,
+                    try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(1))),
+                    try pool.mkVar(0)),
+                try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)),
+                    try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0))))));
+    const P = try pool.mkLam(nat_ref, P_body);
+
+    // base = Lb. Lc. refl(add b c)
+    const base = try pool.mkLam(nat_ref,
+        try pool.mkLam(nat_ref,
+            try pool.mkRefl(try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0)))));
+
+    // step = Lk. Lih:P(k). Lb. Lc. cong_succ(add (add k b) c, add k (add b c), ih b c)
+    const add_add_k_b_c = try pool.mkApp(try pool.mkApp(add_ref,
+        try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(3)), try pool.mkVar(1))),
+        try pool.mkVar(0));
+    const add_k_add_b_c = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(3)),
+        try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(1)), try pool.mkVar(0)));
+    const ih_b_c = try pool.mkApp(try pool.mkApp(try pool.mkVar(2), try pool.mkVar(1)), try pool.mkVar(0));
+    const step_inner = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(cong_succ_ref, add_add_k_b_c), add_k_add_b_c), ih_b_c);
+    const ih_type = try pool.mkApp(P, try pool.mkVar(0));
+    const step = try pool.mkLam(nat_ref,
+        try pool.mkLam(ih_type,
+            try pool.mkLam(nat_ref,
+                try pool.mkLam(nat_ref, step_inner))));
+
+    const proof_term = try pool.mkApp(
+        try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base), step);
+
+    return pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(proof_term, a), b),
+        c);
+}
+
 /// Vérification structurelle : valide qu'un terme de preuve par induction
 /// est bien formé (bonne arité de nat_ind, base et step présents).
 /// C'est une étape intermédiaire avant le typage complet de nat_ind.
@@ -1279,5 +1329,30 @@ test "mul delta-reduction: 2*3 = 6" {
     const result = try eval(&pool, expr);
     const expected = try eval(&pool, six);
     const ok = try convertible(&pool, result, expected);
+    try std.testing.expect(ok);
+}
+
+
+test "add_assoc derivable via nat_ind" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const zero = try pool.mkZero();
+
+    // proof = mkAddAssocProof(zero, zero, zero)
+    // -> Eq(add (add zero zero) zero, add zero (add zero zero))
+    //    convertible a Eq(zero, zero) par delta
+    const proof = try mkAddAssocProof(&pool, zero, zero, zero);
+
+    const expected = try pool.mkEq(
+        try pool.mkApp(try pool.mkApp(add_ref,
+            try pool.mkApp(try pool.mkApp(add_ref, zero), zero)), zero),
+        try pool.mkApp(try pool.mkApp(add_ref, zero),
+            try pool.mkApp(try pool.mkApp(add_ref, zero), zero)));
+
+    const ok = try verify(&pool, proof, expected);
+    std.debug.print("[SANITY] add_assoc: type_check={}\n", .{ok});
     try std.testing.expect(ok);
 }
