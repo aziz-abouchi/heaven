@@ -902,3 +902,25 @@ test "nat_ind sanity: proves Eq(n,n)" {
     try std.testing.expect(ok);
 }
 // END SANITY TEST nat_ind
+
+test "subst shifts replacement under binder" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    // β-réduction : (λz.λw. var(1)) arg  ≡  λw. ↑arg
+    // var(1) sous λz.λw désigne la variable 0 du contexte extérieur (z).
+    // subst(body, 0, arg) doit :
+    //   - entrer sous λw (target+1=1), shifter arg de +1
+    //   - matcher var(1) contre target=1, retourner ↑arg
+    //   - résultat : λw. ↑arg
+    const body_of_lambda_z = try pool.mkLam(try pool.mkType(0),
+        try pool.mkVar(1)); // λw. var(1)
+    const arg = try pool.mkVar(0); // arg = var(0) du contexte ambiant
+    const r = try subst(&pool, body_of_lambda_z, 0, arg);
+
+    // Attendu : lam(_, var(1)) — arg shifté +1, pas var(0)
+    const r_node = pool.get(r);
+    try std.testing.expectEqual(TermTag.lam, r_node.tag);
+    const inner = pool.get(@as(u32, @intCast(r_node.payload2)));
+    try std.testing.expectEqual(TermTag.var_, inner.tag);
+    try std.testing.expectEqual(@as(u64, 1), inner.payload);
+}
