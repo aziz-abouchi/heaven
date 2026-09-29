@@ -257,6 +257,23 @@ sans bloquer le thread principal.
 - Pas de threads OS
 - Pas de distribution
 
+## État des prototypes (2026-09-29)
+
+| Prototype | Statut | Livré |
+|---|---|---|
+| **1** — spawn/tell/recv | ✅ | mailboxes FIFO, 3 tests |
+| **2-lite** — spawn(fn,init) + run(pid) | ✅ | handler + state + drain, 2 tests |
+| **2 (vrai)** — scheduler + yield | ⏳ | nécessite continuations |
+| **3** — préemption native | ⏳ | dépend de C1 |
+
+**Scope Prototype 1 + 2-lite** : validation du noyau 5-primitives
+en mode **caller-driven, non-préemptif**. Le modèle mental « process
+= mailbox + handler + state » fonctionne localement.
+
+**Scope restant (Prototype 3)** : ce qui exige les décisions C1-C4
+(stackful/stackless, préemption, faute, relation/search). Chantier
+multi-sessions, à démarrer à froid.
+
 ## Ce qui existe déjà dans le code
 
 - `runtime/actor/` — acteurs locaux (mailbox, lifecycle, registry)
