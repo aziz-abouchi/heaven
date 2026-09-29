@@ -852,6 +852,34 @@ pub fn mkAddAssocProof(pool: *TermPool, a: u32, b: u32, c: u32) !u32 {
 
 
 
+
+/// Derive cong_succ via eq_rect_nat :
+///   cong_succ(a, b, h) : Eq(succ a, succ b)
+/// Construction : eq_rect_nat(Lx. Eq(succ a, succ x), a, b, h, refl(succ a))
+pub fn mkCongSuccProof(pool: *TermPool, a: u32, b: u32, h: u32) !u32 {
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const eq_rect_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "eq_rect_nat"));
+
+    // P = Lx. Eq(succ a, succ x)
+    // Sous Lx : var(0)=x. a doit etre shifte +1.
+    const a_sh = try shift(pool, a, 0, 1);
+    const succ_a_sh = try pool.mkSucc(a_sh);
+    const P_body = try pool.mkEq(succ_a_sh, try pool.mkSucc(try pool.mkVar(0)));
+    const P = try pool.mkLam(nat_ref, P_body);
+
+    // refl(succ a) : Eq(succ a, succ a) = P(a)
+    const rfl = try pool.mkRefl(try pool.mkSucc(a));
+
+    // eq_rect_nat(P, a, b, h, rfl) : P(b) = Eq(succ a, succ b)
+    return pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(
+                try pool.mkApp(try pool.mkApp(eq_rect_ref, P), a),
+                b),
+            h),
+        rfl);
+}
+
 /// Construit un proof term pour add_comm :
 ///   Pi n m. Eq(add n m, add m n)
 pub fn mkAddCommProof(pool: *TermPool, n: u32, m_arg: u32) !u32 {
@@ -1986,4 +2014,33 @@ test "eq_rect_nat sanity" {
     const ok = try verify(&pool, proof, expected);
     std.debug.print("[ER] eq_rect_nat zero: {}\n", .{ok});
     try std.testing.expect(ok);
+}
+
+
+test "cong_succ derivable via eq_rect_nat" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const zero = try pool.mkZero();
+    const rfl = try pool.mkRefl(zero);
+
+    // mkCongSuccProof(zero, zero, refl(zero)) : Eq(succ zero, succ zero)
+    const proof = try mkCongSuccProof(&pool, zero, zero, rfl);
+    const expected = try pool.mkEq(try pool.mkSucc(zero), try pool.mkSucc(zero));
+    const ok = try verify(&pool, proof, expected);
+    std.debug.print("[CS-DER] cong_succ(zero,zero,rfl): {}\n", .{ok});
+    try std.testing.expect(ok);
+
+    // Test non-clos : sous [Nat], mkCongSuccProof(var0, var0, refl var0)
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    try ctx.push(0, nat_ref);
+    const v0 = try pool.mkVar(0);
+    const rfl_v0 = try pool.mkRefl(v0);
+    const proof2 = try mkCongSuccProof(&pool, v0, v0, rfl_v0);
+    const expected2 = try pool.mkEq(try pool.mkSucc(v0), try pool.mkSucc(v0));
+    try check(&pool, &ctx, proof2, expected2);
+    std.debug.print("[CS-DER2] cong_succ(var0,var0,rfl v0): OK\n", .{});
 }
