@@ -1067,9 +1067,10 @@ pub fn mkDistribProof(pool: *TermPool, a_arg: u32, b_arg: u32, c_arg: u32) !u32 
     const proof_term = try pool.mkApp(
         try pool.mkApp(try pool.mkApp(nat_ind_ref, P), base), step);
 
+    // L'ordre de P est Pi b. Pi a. Pi c. donc appliquer b puis a puis c.
     return pool.mkApp(
         try pool.mkApp(
-            try pool.mkApp(proof_term, a_arg), b_arg),
+            try pool.mkApp(proof_term, b_arg), a_arg),
         c_arg);
 }
 
@@ -1866,4 +1867,68 @@ test "distrib derivable via nat_ind" {
     const ok = try verify(&pool, proof, expected);
     std.debug.print("[SANITY] distrib: type_check={}\n", .{ok});
     try std.testing.expect(ok);
+}
+
+
+test "e2e proofs on concrete naturals" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const mul_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "mul"));
+    const zero = try pool.mkZero();
+    const one = try pool.mkSucc(zero);
+    const two = try pool.mkSucc(one);
+    const three = try pool.mkSucc(two);
+    const four = try pool.mkSucc(three);
+
+    // 1. add_comm(2, 3) : Eq(add 2 3, add 3 2)
+    {
+        const proof = try mkAddCommProof(&pool, two, three);
+        const expected = try pool.mkEq(
+            try pool.mkApp(try pool.mkApp(add_ref, two), three),
+            try pool.mkApp(try pool.mkApp(add_ref, three), two));
+        const ok = try verify(&pool, proof, expected);
+        std.debug.print("[E2E] add_comm(2,3): {}\n", .{ok});
+        try std.testing.expect(ok);
+    }
+
+    // 2. mul_comm(2, 3) : Eq(mul 2 3, mul 3 2)
+    {
+        const proof = try mkMulCommProof(&pool, two, three);
+        const expected = try pool.mkEq(
+            try pool.mkApp(try pool.mkApp(mul_ref, two), three),
+            try pool.mkApp(try pool.mkApp(mul_ref, three), two));
+        const ok = try verify(&pool, proof, expected);
+        std.debug.print("[E2E] mul_comm(2,3): {}\n", .{ok});
+        try std.testing.expect(ok);
+    }
+
+    // 3. distrib(2, 3, 4) : Eq(mul 2 (add 3 4), add (mul 2 3) (mul 2 4))
+    {
+        const proof = try mkDistribProof(&pool, two, three, four);
+        const expected = try pool.mkEq(
+            try pool.mkApp(try pool.mkApp(mul_ref, two),
+                try pool.mkApp(try pool.mkApp(add_ref, three), four)),
+            try pool.mkApp(try pool.mkApp(add_ref,
+                try pool.mkApp(try pool.mkApp(mul_ref, two), three)),
+                try pool.mkApp(try pool.mkApp(mul_ref, two), four)));
+        const ok = try verify(&pool, proof, expected);
+        std.debug.print("[E2E] distrib(2,3,4): {}\n", .{ok});
+        try std.testing.expect(ok);
+    }
+
+    // 4. add_assoc(2, 3, 4) : Eq(add (add 2 3) 4, add 2 (add 3 4))
+    {
+        const proof = try mkAddAssocProof(&pool, two, three, four);
+        const expected = try pool.mkEq(
+            try pool.mkApp(try pool.mkApp(add_ref,
+                try pool.mkApp(try pool.mkApp(add_ref, two), three)), four),
+            try pool.mkApp(try pool.mkApp(add_ref, two),
+                try pool.mkApp(try pool.mkApp(add_ref, three), four)));
+        const ok = try verify(&pool, proof, expected);
+        std.debug.print("[E2E] add_assoc(2,3,4): {}\n", .{ok});
+        try std.testing.expect(ok);
+    }
 }
