@@ -3,6 +3,36 @@
 Historique des fonctionnalités du langage. Les entrées sont en ordre
 antéchronologique.
 
+## 2026-09-29
+
+### Scoped effects — `bracket` / `local` / `catch`
+- Trois magic symbols synchrones : gestion de ressources, shadowing
+  local, rattrapage d'erreur.
+- `bracket(setup, body, teardown)`, `local(name, val, body)`,
+  `catch(body, default)`. Synchrone, pas de continuations.
+- 5 tests dans `test_suite.hvn`.
+- **Intégré dans** : `docs/spec/_effects.md`, STATUS.
+
+### Concurrence — décisions C1-C5 tranchées
+- C1 : hybride sémantique-unifiée (coopératif garanti, préemption
+  best-effort native).
+- C2 : Option D (lazy closure copy) pour la distribution.
+- C3 : reduction budget + safepoints.
+- C4 : structured concurrency (scopes).
+- C5 : sous-scheduler logique dédié.
+- **Intégré dans** : `docs/spec/_concurrency.md`.
+
+### Prototypes concurrence
+- Prototype 1 : `spawn`/`tell`/`recv` (3 tests).
+- Prototype 2-lite : `spawn(fn, init)` + `run(pid)` (2 tests).
+- Prototype 3 : différé, nécessite décision continuations
+  (`_continuations.md`).
+
+### Migration `Store.applyArgs`
+- Helper `Store.applyArgs(node)` + 7 sites migrés.
+- Guard informatif `[apply DUP]` dans `store.apply`.
+- **Intégré dans** : `docs/spec/_store_invariants.md`.
+
 ## 2026-09-25
 
 ### Windows — console UTF-8 + tab-completion + raw mode
