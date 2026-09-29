@@ -912,10 +912,13 @@ pub const Heaven = struct {
         }
 
         // ─── Logic : fact / query (etape 1 pipeline logique unifie) ───
-        if (std.mem.startsWith(u8, trimmed, "fact ")) {
+        // Une ligne contenant " = " est une définition équationnelle
+        // (ex. `fact n = n * fact (n - 1)`), pas un fait kanren.
+        const is_definition = std.mem.indexOf(u8, trimmed, " = ") != null;
+        if (std.mem.startsWith(u8, trimmed, "fact ") and !is_definition) {
             return self.evalFact(trimmed["fact ".len..]);
         }
-        if (std.mem.startsWith(u8, trimmed, "query ")) {
+        if (std.mem.startsWith(u8, trimmed, "query ") and !is_definition) {
             return self.evalQuery(trimmed["query ".len..]);
         }
 
@@ -1517,7 +1520,12 @@ pub const Heaven = struct {
         var in_token = false;
         for (lhs, 0..) |c, i| {
             if (c == '(') {
-                if (depth == 0 and !in_token) {
+                if (depth == 0) {
+                    // `f(x) = ...` : fermer le nom avant la parenthèse,
+                    // le groupe `(x)` devient son propre token.
+                    if (in_token) {
+                        try tokens.append(self.allocator, lhs[start..i]);
+                    }
                     start = i;
                     in_token = true;
                 }
@@ -1548,7 +1556,16 @@ pub const Heaven = struct {
         var patterns = std.ArrayListUnmanaged(Id){};
         defer patterns.deinit(self.allocator);
 
-        for (tokens.items[1..]) |tok| {
+        for (tokens.items[1..]) |tok_raw| {
+            var tok = tok_raw;
+            // `(v)` sans espace ni parenthèse interne = pattern variable ;
+            // `(cons h t)` reste un apply de constructeur.
+            if (tok.len >= 2 and tok[0] == '(' and tok[tok.len - 1] == ')') {
+                const inner = tok[1 .. tok.len - 1];
+                if (inner.len > 0 and std.mem.indexOfAny(u8, inner, " ()") == null) {
+                    tok = inner;
+                }
+            }
             const id = try self.parseExpression(tok);
             try patterns.append(self.allocator, id);
         }
