@@ -486,6 +486,13 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                 return bound;
             }
             if (name.len > 0 and name[0] >= 'A' and name[0] <= 'Z') return id;
+            // Fix C3 : un ctor déclaré (data / bootstrap) est une valeur
+            // légitime quelle que soit la casse. nil/cons/some/ok/...
+            // minuscules étaient rejetés ici (seuls zero/succ/quote
+            // étaient whitelistés, et les majuscules par heuristique).
+            if (engine.fns.get(name)) |fd| {
+                if (fd.ctor_arity != null) return id;
+            }
             const known_ctors = [_][]const u8{ "zero", "succ", "quote" };
             for (known_ctors) |kc| {
                 if (std.mem.eql(u8, name, kc)) return id;
