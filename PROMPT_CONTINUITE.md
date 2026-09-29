@@ -1,90 +1,51 @@
-# 📋 Prompt de continuité — Projet Heaven
-# Session du 2026-09-28 — SUITE 77/77, soundness verrouillée
+# Prompt de continuité — Heaven session suivante
 
-## 🎯 Contexte
-Heaven : langage expérimental en Zig. Dépôt : github.com/aziz-abouchi/heaven
-Machines : Linux x86_64 (~/Desktop/Dev/langage/boot) + macOS ARM.
-HEAD : dd8e61c — "fix(parse): infix parenthésé — nativeToSExpr avant tree-sitter"
+## HEAD
+df278cb (main) — test(kernel): subst shifts replacement under binder
+Session : e943eb2 (nat_ind type-check) + df278cb (test subst).
+Pushé sur origin/main.
 
-## ✅ ÉTAT
+## Tests
+173/173 Zig (1 skipped), 91/91 test_suite.hvn, 0 fuite.
 
-### Suite : 77/77 + 15 neutral, memory clean — INTÉGRALEMENT VERTE
-Tests unitaires : 170/171 + 1 skip.
-Soundness : « theorem a = b » REFUSÉ. La trajectoire complète :
-- a=b, a-b=b-a, a/b=b/a, a+b=b+c : ✗ refusés (6 couches traversées,
-  commit d2849f7 — voir git log pour l'histoire)
-- t_double_zero ✓, t_distrib ✓ (le fix parsing a refermé les deux :
-  l'infix parenthésé (x+0)+0 était routé vers tree-sitter → arbre
-  non-foldable. Fix : nativeToSExpr AVANT tree-sitter dans
-  parse_ops.parseExpression — src/core/commands/parse.zig)
-- Bonus : le codegen LaTeX produit enfin du LaTeX correct
-  ({x + y}^{2})
+## Session écoulée
+- nat_ind_type : indices De Bruijn corrigés (p_k var(2), p_succ_k var(3),
+  p_n var(3)). Les binders base et step sont sur la pile, pas seulement P.
+- infer nat_zero/nat_succ : lookupAxiom("Nat") renvoie Type(0), pas Nat.
+  Remplacé par mkRef(Nat) direct.
+- Test sanity nat_ind : P=λn.Eq(n,n), base=refl(zero),
+  step=λk.λih.refl(succ k) → type_check=true.
+- Test non-régression subst (shift replacement sous binder).
 
-### Architecture
-- src/kernel/ : UNIFIÉ (kernel.zig façade + peano.zig [moteur prove,
-  pool u32 iso-morphique Store] + CIC [quotients, Eq/refl])
-- Pipeline compilation UNIQUE : tree-sitter → syntax/ast → RFC-0001
-  lowering → core/expr (6 primitives) → backends MIR/C/WASM/JS/LaTeX
-- Refactorisation D4 en cours : commands.zig découpé en modules
-  (parse.zig, cas.zig, proofs.zig, format.zig — batch 5 fait).
-  Voir docs/DECISIONS.md
+## État chantier type_check kernel induction
+Kernel type-check nat_ind sur théorème réflexif : OK.
+verifyByInduction retourne type_check=false car le proof term réel
+(add_comm) est un stub : base et step n'utilisent pas ih.
 
-## 📋 File priorisée
+## Prochaine action
+Construire la vraie preuve CIC de add_comm :
+1. Ajouter cong_succ (ou eq_rect) dans initNatAxioms.
+2. step_proof utilisant ih :
+   ih(m) : Eq(add k m, add m k)
+   cong_succ(ih(m)) : Eq(succ(add k m), succ(add m k))
+   Puis conversion vers Eq(add(succ k, m), add(m, succ k))
+   via add_succ_right + symétrie à ajouter.
+3. Faire passer type_check=true dans verifyByInduction.
 
-1. KERNEL-AUTHORITY — PRIORITÉ ABSOLUE. 9 writers de verified
-   (8 proof_core + proofResult commands.zig). Kernel.check unique
-   sur Term = seule architecture où le bug soundness ne renaît pas.
-   Pont exprToTerm trivial côté peano (pools iso-morphiques).
-2. AUDIT conversion.zig — +617 lignes sur le MAC
-   (~/Desktop/Dev/heaven-conversion-audit.diff). À récupérer
-   (committer depuis le Mac sur branche audit/conversion, puller).
-   ORIGINE INCONNUE — à déterminer.
-3. FALLBACKS importExpr — occurrences restantes (format.zig:14
-   [latex], commands.zig l.267 [eval parenthésé], l.642, l.680,
-   typeOf ~l.825, parse.zig:327 [lambda]). Chacun : fallback
-   légitime (eval REPL best-effort) ou masque d'échec (→ expliciter) ?
-4. PERF t_distrib : 1360ms (60% du temps suite). Détection point
-   fixe par nodeHash au lieu de comparaison d'Id (b2 == current
-   ne détecte jamais la convergence — nouveaux Ids à chaque passe).
-5. format.zig:17 : commentaire orphelin « // ← ajouter » à retirer.
-6. Revalidation web (bash build.sh + page /test) — pas refaite
-   depuis les fixes core.
+## Fichiers de référence
+- src/kernel/peano.zig — infer/check/convertible/subst/eval
+  + tests sanity nat_ind et subst shift (fin de fichier)
+- src/core/proof_core.zig — verifyByInduction (~ligne 353)
+- docs/spec/_proof.md — architecture preuve
+- docs/spec/_continuations.md — Option B proposée, à valider
 
-## 📌 Règles gravées (ne pas réapprendre)
+## NE PAS TOUCHER
+wasm.zig, kernel.zig, mir.zig, x86_64_windows.zig, aarch64_macos.zig,
+commands.zig (racine), transform.zig, kernel_bridge.zig,
+branche feat/physical-telemetry.
 
-1. La soundness ne se désactive pas pour faire passer des tests
-   (le return error.UnboundVariable COMMENTÉ a coûté 6 couches)
-2. Grep qui APPELLE un writer avant de le patcher
-3. Non-buildé = non-existant (tout fichier traverse une step build)
-4. Pas de fallback de parsing silencieux — échec explicite
-5. Avant nettoyage : git log --oneline -- <path> (cache GitHub trompeur)
-6. Convention span_a : .apply → span_a[0] = func_id, parcours [1..]
-7. Double dispatch (eval + parseSExpr), double cible (natif + wasm)
-8. Suite complète après TOUT changement ; amend --force-with-lease
-   vérifie le contenu stagé (format.zig a été absorbé par surprise)
-
-## Commandes
-zig build && zig-out/bin/heaven --run-test core/test_suite.hvn
-zig build test --summary all
-zig-out/bin/heaven repl   # port 0 ; HTTP = port+2919
-
-## Session 2026-09-28 (suite) — kernel-authority avancée
-- Commits : a7c9cf9 (1er théorème kernel), f7c862a (verifyByEval),
-  eadba19 (3 writers supprimés), e33f462 (proof irrelevance CIC
-  neutralisée + base de confiance documentée)
-- TRUSTED CORE AUDITÉ EN ENTIER : infer vérifie les arguments,
-  nat_ind correct, conversion beta+delta réelle
-- Pont : src/core/kernel_bridge.zig (exprToTerm + declareFreeSymbols)
-- Suite : 76/77 (t_distrib : issue egraph)
-- Soundness : a=b refusé (inchangé)
-
-### Prochaine session — file balisée
-1. AUDIT diff +617 : sur le MAC, ~/Desktop/Dev/heaven-conversion-audit.diff
-   — implémente beta/iota CIC manquant. Checklist : subst sans capture,
-   correction proof-irrelevance, whnf beta->iota dans areEqual.
-2. add_comm via nat_ind : activer type_ok dans verifyByInduction —
-   la vraie mesure du kernel (prouver sans qu'on le lui ait dit)
-3. Writers restants : tactics x2 (ProofTerm à accumuler dans ProofState),
-   axiom -> declareAxiom, proof.zig ProofEnv (migrer shell vers ProofCore)
-4. Nettoyage : prints [kernel-dbg], [SimplifyEngine], EGraph saturation
-5. Perf t_distrib : détection point fixe par nodeHash (pas comparaison Id)
+## Méthode
+Petits pas vérifiés > gros refactor.
+Un commit = un thème. Tests verts avant commit.
+rm -rf .zig-cache/* zig-out avant chaque validation.
+zig build test --summary all, puis zig build && zig build test-regression.
