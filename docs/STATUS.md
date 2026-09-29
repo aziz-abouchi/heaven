@@ -1,6 +1,6 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-09-25
+Dernière mise à jour : 2026-09-29
 
 Ce document est la **source de vérité** sur ce qui marche. Toute
 affirmation du book ou du README doit pointer vers une ligne de ce
@@ -203,6 +203,17 @@ depuis une string utilisateur, jamais d'evar dedans).
 | EGraph tests | ✅ | 8 tests |
 
 ---
+
+## Concurrence et effets (2026-09-29)
+
+| Élément | Statut | Preuve | Limitation |
+|---|---|---|---|
+| `spawn` / `tell` / `recv` (process) | ✅ | test_suite.hvn (3 tests) | caller-driven, pas préemptif |
+| `run(pid)` (drain mailbox) | ✅ | test_suite.hvn (2 tests) | — |
+| `bracket` / `local` / `catch` | ✅ | test_suite.hvn (5 tests) | syntaxe scoped, pas handle-rec |
+| `handle-rec` (reprise) | 🚧 | — | nécessite continuations |
+| Scheduler préemptif | 🚧 | — | C3 tranchée (budget + safepoints) |
+| Distribution | 🚧 | — | C2 tranchée (Option D lazy copy) |
 
 ## Top priorités
 

@@ -62,7 +62,10 @@ Nessite : setup, run, teardown, retour du resultat de run.
 
 ## 3. Quatre techniques d'implementation
 
-### 3.1 Scoped syntax (pas des effets)
+### 3.1 Scoped syntax (pas des effets) — ✅ IMPLÉMENTÉE 2026-09-29
+
+**Statut** : livrée dans le commit 97b42b6. `bracket`/`local`/`catch`
+comme magic symbols dans `evalMagic`. 5 tests dans `test_suite.hvn`.
 
 Ajouter au parseur trois constructions :
   bracket { setup } { body } teardown
