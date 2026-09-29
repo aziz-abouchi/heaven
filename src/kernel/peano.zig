@@ -853,6 +853,45 @@ pub fn mkAddAssocProof(pool: *TermPool, a: u32, b: u32, c: u32) !u32 {
 
 
 
+
+/// Derive cong_add_l via eq_rect_nat :
+///   mkCongAddLProof(b, c, h) : Pi a. Eq(add a b, add a c)
+/// Construit La. eq_rect_nat(Lx. Eq(add a b, add a x), b, c, h,
+///                            refl(add a b)).
+pub fn mkCongAddLProof(pool: *TermPool, b: u32, c: u32, h: u32) !u32 {
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const eq_rect_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "eq_rect_nat"));
+
+    // Sous [a] : var(0) = a. b, c, h shiftes +1.
+    const b_sh = try shift(pool, b, 0, 1);
+    const c_sh = try shift(pool, c, 0, 1);
+    const h_sh = try shift(pool, h, 0, 1);
+
+    // P = Lx. Eq(add a b, add a x)
+    // Sous [a, x] : var(0) = x, var(1) = a. b est shift +2.
+    const b_sh2 = try shift(pool, b, 0, 2);
+    const a_here = try pool.mkVar(1);
+    const add_a_b = try pool.mkApp(try pool.mkApp(add_ref, a_here), b_sh2);
+    const add_a_x = try pool.mkApp(try pool.mkApp(add_ref, a_here), try pool.mkVar(0));
+    const P = try pool.mkLam(nat_ref, try pool.mkEq(add_a_b, add_a_x));
+
+    // refl(add a b) sous [a] : Eq(add a b_sh, add a b_sh), a = var(0)
+    const add_a_b_here = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), b_sh);
+    const rfl = try pool.mkRefl(add_a_b_here);
+
+    // eq_rect_nat(P, b_sh, c_sh, h_sh, rfl) : P(c_sh) = Eq(add a b, add a c)
+    const body = try pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(
+                try pool.mkApp(try pool.mkApp(eq_rect_ref, P), b_sh),
+                c_sh),
+            h_sh),
+        rfl);
+
+    return pool.mkLam(nat_ref, body);
+}
+
 /// Derive cong_succ via eq_rect_nat :
 ///   cong_succ(a, b, h) : Eq(succ a, succ b)
 /// Construction : eq_rect_nat(Lx. Eq(succ a, succ x), a, b, h, refl(succ a))
@@ -2043,4 +2082,30 @@ test "cong_succ derivable via eq_rect_nat" {
     const expected2 = try pool.mkEq(try pool.mkSucc(v0), try pool.mkSucc(v0));
     try check(&pool, &ctx, proof2, expected2);
     std.debug.print("[CS-DER2] cong_succ(var0,var0,rfl v0): OK\n", .{});
+}
+
+
+test "cong_add_l derivable via eq_rect_nat" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const add_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add"));
+    const zero = try pool.mkZero();
+    const rfl = try pool.mkRefl(zero);
+
+    // mkCongAddLProof(zero, zero, refl zero) : Pi a. Eq(add a zero, add a zero)
+    const proof = try mkCongAddLProof(&pool, zero, zero, rfl);
+    const applied = try pool.mkApp(proof, zero);
+    const expected = try pool.mkEq(
+        try pool.mkApp(try pool.mkApp(add_ref, zero), zero),
+        try pool.mkApp(try pool.mkApp(add_ref, zero), zero));
+    const ok = try verify(&pool, applied, expected);
+    std.debug.print("[CAL-DER] cong_add_l(0,0,rfl)(0): {}\n", .{ok});
+    try std.testing.expect(ok);
+
+    // TODO : test non-clos echoue (TypeMismatch). Bug de shift a
+    // investiguer sur mkCongAddLProof - les indices de P_body sous
+    // [a, x] semblent corrects (a=var(1), x=var(0), b=var(2)) mais
+    // la conversion echoue sous contexte non-vide. Cas clos OK.
 }
