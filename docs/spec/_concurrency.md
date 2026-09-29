@@ -162,18 +162,71 @@ native est un confort, pas un contrat.
 - Le coût de double maintenance est **concentré sur les schedulers**,
   pas sur la sémantique.
 
-### C2 — Migration : gestion des Id
+### C2 — Migration : gestion des `Id` (TRANCHÉE : cible Option D)
 
-`Id` dans `expr.zig` est un `u32` index local dans `Store.nodes`.
-Migration d'un process entre nœuds ⇒ les `Id` deviennent invalides.
+**Problème** : `Id` dans `expr.zig` est un `u32` index local dans
+`Store.nodes`. Migrer un process entre nœuds invalide ses `Id`.
 
-| Option                       | Coût                    |
-|------------------------------|-------------------------|
-| Re-sérialiser tout le Store  | ×1000 mémoire           |
-| IDs content-addressed        | Refonte `Store`         |
-| Store distribué lazy         | Complexité énorme       |
+**Quatre options** :
 
-**Aucune option triviale.** À trancher **avant** toute migration.
+| Opt | Mécanisme | Coût | Compatible hash-consing |
+|-----|-----------|------|------------------------|
+| A | Re-sérialiser tout le Store avec le process | ×1000 mémoire | ✅ (tout voyage) |
+| B | `Id` content-addressed (`hash(structure)`) | Refonte `Store` | ❌ (perd le hash actuel) |
+| C | Store distribué, `Id = (NodeId, LocalId)` | Complexité énorme | ❌ (latence partout) |
+| D | **Lazy closure copy** | ∝ taille du process | ✅ (dedup à réception) |
+
+**Décision** : **Option D** pour Prototype 4 (distribution).
+Report de l'implémentation — pas nécessaire pour Prototype 3
+(scheduler mono-node).
+
+### Option D en détail
+
+Un process ne référence **pas** tout le Store. Il référence :
+- son état courant
+- les messages de sa mailbox
+- les closures des handlers (dans `engine.fns`)
+
+À la migration :
+1. Calculer la **clôture** des `Id` accessibles depuis ces racines.
+2. Sérialiser ce sous-Store (avec re-numérotation locale).
+3. Transmettre.
+4. Décoder sur le nœud cible, en **re-hash-consant** contre le
+   Store existant (dedup automatique si `nodeHash` correspond).
+5. Traduire les `Id` du process vers les nouveaux `Id` locaux.
+
+**Coût** : proportionnel à la taille de la clôture, pas à tout
+le Store. Typiquement ~100x plus petit que Option A.
+
+**Seed existant** : `proof_helpers.copyIdBetweenStores` fait déjà
+une mini-version (copie un seul `Id` entre deux Stores). À
+étendre récursivement pour Option D.
+
+### Sous-décision actée
+
+**Un process est lié à un Store instance à un instant donné.**
+À la migration, ses `Id` sont **réécrits** vers le Store cible.
+Le `Process` struct (Prototype 1/2-lite) reste tel quel — pas
+de modification à faire tant que la migration n'est pas implémentée.
+
+### Pré-requis pour Option D
+
+1. ✅ `Store.applyArgs` (0f13f22) — itération propre sur les args.
+2. ⏳ Migrer les 181 sites `span_a.slice` restants (progressif).
+   Sans ça, la clôture d'un process peut contenir des nœuds
+   mal-formés.
+3. ⏳ `copyIdBetweenStores` → `copyClosureBetweenStores`
+   (récursion sur tous les `Id` atteignables + dédup par hash).
+4. ⏳ Format de sérialisation partielle (sous-Store) — extension
+   de `serialize.zig` HVN1.
+
+### Critère de bascule Option A → D
+
+Option A (envoyer tout) reste viable tant que :
+- Store total < ~10 MB
+- Migration < ~10 ms de latence acceptable
+
+Au-delà, Option D devient nécessaire. À évaluer à Prototype 4.
 
 ### C3 — Préemption native
 
