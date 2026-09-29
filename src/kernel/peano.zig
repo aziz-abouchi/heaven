@@ -348,7 +348,11 @@ fn subst(pool: *TermPool, expr: u32, target: u32, replacement: u32) !u32 {
             const rhs = try subst(pool, @as(u32, @intCast(t.payload2)), target, replacement);
             return pool.mkEq(lhs, rhs);
         },
-        .type_, .ref, .nat_zero, .refl => return expr,
+        .refl => {
+            const val = try subst(pool, @as(u32, @intCast(t.payload)), target, replacement);
+            return pool.mkRefl(val);
+        },
+        .type_, .ref, .nat_zero => return expr,
     }
 }
 
@@ -384,7 +388,11 @@ fn shift(pool: *TermPool, expr: u32, cutoff: u32, delta: i32) !u32 {
             const rhs = try shift(pool, @as(u32, @intCast(t.payload2)), cutoff, delta);
             return pool.mkEq(lhs, rhs);
         },
-        .type_, .ref, .nat_zero, .refl => return expr,
+        .refl => {
+            const val = try shift(pool, @as(u32, @intCast(t.payload)), cutoff, delta);
+            return pool.mkRefl(val);
+        },
+        .type_, .ref, .nat_zero => return expr,
     }
 }
 
@@ -2104,8 +2112,18 @@ test "cong_add_l derivable via eq_rect_nat" {
     std.debug.print("[CAL-DER] cong_add_l(0,0,rfl)(0): {}\n", .{ok});
     try std.testing.expect(ok);
 
-    // TODO : test non-clos echoue (TypeMismatch). Bug de shift a
-    // investiguer sur mkCongAddLProof - les indices de P_body sous
-    // [a, x] semblent corrects (a=var(1), x=var(0), b=var(2)) mais
-    // la conversion echoue sous contexte non-vide. Cas clos OK.
+    // Non-clos : sous [Nat], mkCongAddLProof(var0,var0,rfl var0)(var0)
+    var ctx = Context.init(std.testing.allocator);
+    defer ctx.deinit();
+    const nat_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "Nat"));
+    try ctx.push(0, nat_ref);
+    const v0 = try pool.mkVar(0);
+    const rfl_v0 = try pool.mkRefl(v0);
+    const proof2 = try mkCongAddLProof(&pool, v0, v0, rfl_v0);
+    const applied2 = try pool.mkApp(proof2, v0);
+    const expected2 = try pool.mkEq(
+        try pool.mkApp(try pool.mkApp(add_ref, v0), v0),
+        try pool.mkApp(try pool.mkApp(add_ref, v0), v0));
+    try check(&pool, &ctx, applied2, expected2);
+    std.debug.print("[CAL-DER2] cong_add_l non-close: OK\n", .{});
 }
