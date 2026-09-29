@@ -1,72 +1,88 @@
 # Prompt de continuité — Heaven session suivante
 
 ## HEAD
-d62e110 (main) — feat(kernel): delta-regles mul + mul_zero_right derivable
+7acec12 (main) — feat(kernel): axiomes cong_add_l + cong_add_r
 Tout poussé sur origin/main.
 
 ## Tests
-177/177 Zig + WIP externe (voir note), 116/145 HVN + WIP externe.
+176/177 Zig (1 skipped), HVN variable (WIP externe, voir note).
 [KERNEL] structural=true type_check=true pool_size=1083.
+peano.zig : 21/21 tests verts.
 
-## Session écoulée — 16 commits
+## Session écoulée — 19 commits poussés
 Kernel : e943eb2, df278cb, 156daa2, c6445af, b33183e, 3cf37b9,
-         99380af, 52263b8, ebc4731, 6d0f388, d62e110
-Docs  : 22b2466, 886dc19, 5842f7c
-Proto : 87c6545 (Prototype 3a-1 PromptStack)
+         99380af, 52263b8, ebc4731, 6d0f388, d62e110, 0635d1f,
+         7acec12
+Docs  : 22b2466, 886dc19, 5842f7c, 2f700e4
+Proto : 87c6545 (PromptStack 3a-1)
 
-Externe (pas de nous) : 2be075d (TCO trampoline).
+Externe (pas de nous) : 2be075d (TCO), d9d35ba (TCO bounce).
 
-## WIP non commitée (autre session, NE PAS TOUCHER)
-core/std/list.hvn, core/std/option.hvn, core/std/result.hvn,
-core/test_suite.hvn, src/vessel/public/test_suite.hvn
-(rajout ~262 lignes, dont +29 tests HVN).
+## WIP externe non commité (AUTRE SESSION, NE PAS TOUCHER)
+core/std/list.hvn, option.hvn, result.hvn, core/test_suite.hvn,
+src/vessel/public/test_suite.hvn, src/core/heaven_expr.zig,
+src/core/parse.zig, patch_parser_infix.py (untracked).
 
 ## Jalons kernel atteints
 1. [KERNEL] type_check=true sur add_comm via verifyByInduction.
-2. add_zero_right retiré (dérivable).
-3. add_succ_right retiré (helper mkAddSuccRightProof).
-4. delta-regles mul ajoutées (peano_mul).
-5. mul_zero_right dérivé par nat_ind.
+2. add_zero_right, add_succ_right, mul_zero_right : dérivés/retirés.
+3. delta-règles mul ajoutées (peano_mul).
+4. mkAddAssocProof (add_assoc dérivé).
+5. cong_add_l + cong_add_r (axiomes provisoires).
+
+## En cours — mul_succ_right (BLOQUÉ, à reprendre à froid)
+Helper mkMulSuccRightProof partiellement écrit mais retire avant
+commit (git checkout). Debug laisse : infer(proof) = TypeMismatch
+sous contexte [k, ih, m].
+
+Structure identifiée du proof term (5 maillons) :
+h1  = cong_add_l(mul k (succ m), add X k, ih(m), m)
+h1' = cong_succ(add m (mul k (succ m)), add m (add X k), h1)
+assoc = mkAddAssocProof(m, X, k)   [X = mul k m]
+h2  = cong_succ(add m (add X k), add (add m X) k, sym(assoc))
+step_inner_23 = trans(h1', h2)  (type : Eq(succ(mul...), succ(add (add m X) k)))
+h3  = sym(mkAddSuccRightProof(add m X, k))
+step_inner = trans(step_inner_23, h3)
+
+Suspects du TypeMismatch (à isoler par prints ciblés) :
+- mkAddAssocProof appelé sous [k, ih, m] : vérifier que les
+  indices DB de son P_body sont corrects dans ce contexte (ils
+  sont var(2), var(1), var(0) sous [a, b, c] du nat_ind, mais
+  appliqué ici il doit s'adapter).
+- cong_add_l : vérifier arité et indices sur appel concret.
 
 ## Découvertes importantes (ne pas réapprendre)
-1. Context.push stocke le type_idx brut. infer(.var_) doit shifter
-   de (db_idx + 1). Sans ce fix, variable sous contexte empilé =
-   type faux (capture). BUG FONDAMENTAL (b33183e).
-2. eval doit short-circuit PARTOUT (nat_succ/eq/pi/app) : sinon
-   runaway d'allocations → crash DebugAllocator. Deux fixes :
-   3cf37b9 (.nat_succ/.eq/.pi) + 6d0f388 (.app stuck).
+1. Context.push stocke type_idx brut. infer(.var_) doit shifter
+   de (db_idx + 1). BUG FONDAMENTAL corrige (b33183e).
+2. eval doit short-circuit PARTOUT (nat_succ/eq/pi/app) sinon
+   runaway -> crash DebugAllocator (3cf37b9, 6d0f388).
 3. Indices DB dans nat_ind_type : binders base et step sur la pile.
-4. `zig test src/kernel/peano.zig` plus rapide pour itérer kernel.
-5. Heredoc > 50 lignes = tronqué par navigateur. Préférer
-   cat > /tmp/script.py puis python3 /tmp/script.py en 2-3 blocs.
+4. ih_type d'un binder Pi doit s'ecrire sous le contexte PRECEDENT
+   (ex: sous [k] seulement pour mkMulSuccRightProof). Ecrire k=var(2)
+   donne UnboundVariable.
+5. Heredoc > 50 l. = tronque par navigateur. Preferer
+   cat > /tmp/s.py puis python3 /tmp/s.py en 2-3 blocs.
 
-## Prochaine action — mul_succ_right (chantier dédié)
-mul_succ_right : Pi n m. Eq(mul n (succ m), add(mul n m) n)
-Beaucoup plus dur que add_succ_right : necessite add_comm ET
-associativite de add a l'interieur du proof term.
-~2h, a attaquer a froid.
+## Architecture à terme (vision kernel)
+delta-regles minimales (2 par operateur, sur 1er argument) :
+  add(zero, n) -> n ; add(succ k, n) -> succ(add k n)
+  mul(zero, n) -> zero ; mul(succ k, n) -> add(n, mul k n)
+TOUT le reste = theoremes (add_zero_right, mul_succ_right, comm...).
+Congruence : idealement eq_rect unique (J-eliminator) remplacant
+cong_succ, cong_add_l/r, sym, trans. Compromis actuel acceptable.
 
-Alternatives :
-- Prototype 3a-2 (captureCont/throwCont) — 1 session dense
-- Migration 181 sites span_a.slice
-- Serialisation v2 (reachable subset)
-
-## Fichiers de reference
-- src/kernel/peano.zig — infer/check/convertible/subst/eval/shift
-  + mkAddSuccRightProof + 7 tests + delta mul
-- src/core/proof_core.zig — verifyByInduction (preuve CIC reelle)
-- src/core/continuation.zig — PromptStack (3a-1)
-- docs/DECISIONS.md — D1-D8
-- docs/spec/_continuations.md — Option B, Prototype 3a
+## Prochaines actions
+A. Finir mul_succ_right (~1h, debug cible).
+B. Prototype 3a-2 (captureCont/throwCont) — 1 session dense.
+C. Migration span_a.slice (181 sites).
+D. Serialisation v2.
 
 ## NE PAS TOUCHER
 wasm.zig, kernel.zig, mir.zig, x86_64_windows.zig, aarch64_macos.zig,
 commands.zig (racine), transform.zig, kernel_bridge.zig,
-branche feat/physical-telemetry.
-+ WIP non commit ci-dessus (autre session).
+branche feat/physical-telemetry + WIP externe ci-dessus.
 
 ## Methode
 Petits pas verifies > gros refactor. Un commit = un theme.
-Tests verts avant commit.
 rm -rf .zig-cache/* zig-out avant chaque validation.
-zig build test --summary all, puis zig build && zig build test-regression.
+zig test src/kernel/peano.zig (rapide) pour iterer kernel.
