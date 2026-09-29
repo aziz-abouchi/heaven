@@ -487,31 +487,44 @@ pub const ProofCore = struct {
             // step : Πk:Nat. P(k) → P(succ k)
             //      = λk:Nat. λih:(Πm:Nat. Eq(add k m, add m k)). λm:Nat. <preuve>
 
-            const zero = try pool.mkZero();
+            // base_proof : P(zero) = λm. refl(m)
+            // Eq(m,m) ≡ Eq(add zero m, add m zero) par delta
+            // (add(zero,m)→m, add(m,zero)→m).
+            const base_proof = try pool.mkLam(nat_ref, try pool.mkRefl(try pool.mkVar(0)));
 
-            // Base proof : λm:Nat. refl(add m zero)
-            // Note: add(zero,m)=m et add(m,zero)=m par les règles de add,
-            // donc Eq(add zero m, add m zero) ≡ Eq(m, m) qui est prouvé par refl(m)
-            // En De Bruijn sous λm : var(0) = m
-            // refl(var(0)) : Eq(var(0), var(0)) ≡ Eq(m, m)
-            // Mais P(zero) attend Eq(add(zero,m), add(m,zero))
-            // On utilise refl(add(m, zero)) car add(zero,m)→m et add(m,zero)→m
-            // Le kernel vérifie refl(a) : Eq(a,a), donc on doit avoir a=add(m,zero)
-            // et espérer que add(zero,m) ≡ add(m,zero) par conversion
-            const base_inner = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), zero); // add(m, zero)
-            const base_proof = try pool.mkLam(nat_ref, try pool.mkRefl(base_inner));
-
-            // Step proof : λk:Nat. λih:P(k). λm:Nat. refl(add m (succ k))
+            // step_proof : λk. λih:P(k). λm.
+            //   trans(succ(add k m), succ(add m k), add(m, succ k),
+            //         cong_succ(add k m, add m k, ih m),
+            //         sym(add(m, succ k), succ(add m k), add_succ_right(m, k)))
             // Sous λk.λih.λm : var(0)=m, var(1)=ih, var(2)=k
-            // P(succ k) = Πm:Nat. Eq(add(succ k, m), add(m, succ k))
-            // refl(add(m, succ k)) : Eq(add(m,succ k), add(m,succ k))
-            // On espère add(succ k, m) ≡ add(m, succ k) par conversion
-            const succk = try pool.mkSucc(try pool.mkVar(2)); // succ(k)
-            const step_inner = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), succk); // add(m, succ k)
-            const step_proof = try pool.mkLam(nat_ref, // λk:Nat
-                try pool.mkLam(try pool.mkApp(P, try pool.mkVar(0)), // λih:P(k)
-                    try pool.mkLam(nat_ref, // λm:Nat
-                        try pool.mkRefl(step_inner))));
+            const cong_succ_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "cong_succ"));
+            const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
+            const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
+            const asr_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "add_succ_right"));
+
+            const add_k_m = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(2)), try pool.mkVar(0));
+            const add_m_k = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkVar(2));
+            const succ_add_k_m = try pool.mkSucc(add_k_m);
+            const succ_add_m_k = try pool.mkSucc(add_m_k);
+            const add_m_succ_k = try pool.mkApp(try pool.mkApp(add_ref, try pool.mkVar(0)), try pool.mkSucc(try pool.mkVar(2)));
+
+            const ih_m = try pool.mkApp(try pool.mkVar(1), try pool.mkVar(0));
+            const p1 = try pool.mkApp(
+                try pool.mkApp(try pool.mkApp(cong_succ_ref, add_k_m), add_m_k), ih_m);
+            const asr_mk = try pool.mkApp(try pool.mkApp(asr_ref, try pool.mkVar(0)), try pool.mkVar(2));
+            const p2 = try pool.mkApp(
+                try pool.mkApp(try pool.mkApp(sym_ref, add_m_succ_k), succ_add_m_k), asr_mk);
+            const step_inner = try pool.mkApp(
+                try pool.mkApp(
+                    try pool.mkApp(
+                        try pool.mkApp(try pool.mkApp(trans_ref, succ_add_k_m), succ_add_m_k),
+                        add_m_succ_k),
+                    p1),
+                p2);
+
+            const step_proof = try pool.mkLam(nat_ref,
+                try pool.mkLam(try pool.mkApp(P, try pool.mkVar(0)),
+                    try pool.mkLam(nat_ref, step_inner)));
 
             // nat_ind(P, base, step) : Πn:Nat. P(n)
             // On encode nat_ind comme ref car c'est un axiome primitif
@@ -528,7 +541,7 @@ pub const ProofCore = struct {
                 return false;
             };
 
-            platform.dbg("[KERNEL] structural={} type_check={} (symbolic_step={})\\n", .{ structural_ok, type_ok, step_ok });
+            platform.dbg("[KERNEL] structural={} type_check={} (symbolic_step={}) pool_size={}\\n", .{ structural_ok, type_ok, step_ok, pool.terms.items.len });
 
             // Preuve acceptée si step symbolique passe ET structure du proof term valide
             // Le type-check complet de nat_ind sera activé quand le typage du prédicat sera corrigé
