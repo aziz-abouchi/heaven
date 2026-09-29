@@ -669,6 +669,25 @@ pub fn initNatAxioms(pool: *TermPool) !void {
                     try pool.mkSucc(try pool.mkVar(2)),
                     try pool.mkSucc(try pool.mkVar(1))))));
     _ = try pool.declareAxiom("cong_succ", cong_succ_type);
+
+    // sym : Pi a b:Nat. Eq(a,b) -> Eq(b,a)
+    const sym_type = try pool.mkPi(nat_ref,
+        try pool.mkPi(nat_ref,
+            try pool.mkPi(
+                try pool.mkEq(try pool.mkVar(1), try pool.mkVar(0)),
+                try pool.mkEq(try pool.mkVar(1), try pool.mkVar(2)))));
+    _ = try pool.declareAxiom("sym", sym_type);
+
+    // trans : Pi a b c:Nat. Eq(a,b) -> Eq(b,c) -> Eq(a,c)
+    const trans_type = try pool.mkPi(nat_ref,
+        try pool.mkPi(nat_ref,
+            try pool.mkPi(nat_ref,
+                try pool.mkPi(
+                    try pool.mkEq(try pool.mkVar(2), try pool.mkVar(1)),
+                    try pool.mkPi(
+                        try pool.mkEq(try pool.mkVar(2), try pool.mkVar(1)),
+                        try pool.mkEq(try pool.mkVar(4), try pool.mkVar(2)))))));
+    _ = try pool.declareAxiom("trans", trans_type);
 }
 
 /// Vérification structurelle : valide qu'un terme de preuve par induction
@@ -958,4 +977,33 @@ test "cong_succ sanity: Eq(zero,zero) -> Eq(succ zero, succ zero)" {
     const ok = try verify(&pool, proof, expected);
     std.debug.print("[SANITY] cong_succ: type_check={}\n", .{ok});
     try std.testing.expect(ok);
+}
+
+
+test "sym + trans sanity" {
+    var pool = TermPool.init(std.testing.allocator);
+    defer pool.deinit();
+    try initNatAxioms(&pool);
+
+    const zero = try pool.mkZero();
+    const rfl = try pool.mkRefl(zero);
+    const eq_zz = try pool.mkEq(zero, zero);
+
+    const sym_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "sym"));
+    const sym_proof = try pool.mkApp(try pool.mkApp(try pool.mkApp(sym_ref, zero), zero), rfl);
+    const ok_sym = try verify(&pool, sym_proof, eq_zz);
+    std.debug.print("[SANITY] sym: type_check={}\n", .{ok_sym});
+    try std.testing.expect(ok_sym);
+
+    const trans_ref = try pool.mkRef(std.hash.Wyhash.hash(0, "trans"));
+    const trans_proof = try pool.mkApp(
+        try pool.mkApp(
+            try pool.mkApp(
+                try pool.mkApp(try pool.mkApp(trans_ref, zero), zero),
+                zero),
+            rfl),
+        rfl);
+    const ok_trans = try verify(&pool, trans_proof, eq_zz);
+    std.debug.print("[SANITY] trans: type_check={}\n", .{ok_trans});
+    try std.testing.expect(ok_trans);
 }
