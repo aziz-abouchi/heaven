@@ -1,63 +1,73 @@
 # Prompt de continuité — Heaven session suivante
 
 ## HEAD
-(a completer apres le push ci-dessus)
+f29775d (main) — refactor(kernel): derive cong_succ, cong_add_l/r via eq_rect_nat
+Tout poussé sur origin/main.
 
 ## Tests
-28/28 tests peano verts. [KERNEL] type_check=true pool_size~1116.
+175/176 Zig (1 skipped), 100/100 HVN, 0 fuite.
+peano.zig : 27/27 tests.
+[KERNEL] structural=true type_check=true pool_size=1505.
 
-## Session écoulée — kernel arithmetique complet
-Teoremes derives par induction (tous valides sur arguments concrets 2,3,4) :
-- add_comm, add_assoc, add_succ_right
-- mul_zero_right, mul_succ_right, mul_comm
-- distrib
+## Session écoulée — jalon kernel : declassement des congruences
+- eq_rect_nat ajoute (J-eliminator restreint a Nat) : primitive unique
+  pour l'egalite.
+- 3 axiomes de congruence RETIRES, maintenant derives :
+  cong_succ (mkCongSuccProof), cong_add_l (mkCongAddLProof),
+  cong_add_r (mkCongAddRProof).
+- Tous les proof terms internes branches sur les helpers derives
+  (peano.zig + proof_core.zig).
+- Bug latent corrige : shift/subst ne propageaient pas dans .refl.
+- Bug latent corrige : mkCongAddRProof P devait etre Eq(add a c, add x c)
+  (invisible sur tests clos, cassait distrib sur (2,3,4)).
 
-Helpers exportes dans peano.zig :
-mkAddCommProof, mkAddAssocProof, mkAddSuccRightProof,
-mkMulZeroRightProof, mkMulSuccRightProof, mkMulCommProof,
-mkDistribProof, mkCongSuccProof, mkCongAddLProof, mkCongAddRProof
+## Base de confiance kernel — etat actuel
+PRIMITIFS : Nat, zero, succ, add, mul, nat_ind, eq_rect_nat.
+AXIOMES restants : sym, trans (derivables par eq_rect_nat).
+THEOREMES derives : add_comm, add_assoc, add_succ_right,
+mul_zero_right, mul_succ_right, mul_comm, distrib, cong_succ,
+cong_add_l, cong_add_r.
 
-Axiome primitif ajoute : eq_rect_nat (J-eliminator restreint Nat).
-cong_succ et cong_add_l sont maintenant DERIVES via eq_rect_nat.
+## Prochaines actions kernel
+A. Deriver sym via eq_rect_nat :
+   sym = La b h. eq_rect_nat(Ly. Eq(y, a), a, b, h, refl(a))
+B. Deriver trans via eq_rect_nat (plus delicat, c doit apparaitre).
+C. Ensuite : plus AUCUN axiome de congruence, kernel CIC minimal.
 
-## Bugs / limites connus
-1. mkCongAddLProof : cas NON-CLOS echoue (TypeMismatch sous [Nat]).
-   Suspect : eq_rect_nat ou shift de P_body avec vars libres.
-   TODO note dans le test "cong_add_l derivable via eq_rect_nat".
-2. mkCongAddRProof n'existe pas encore - a deriver pareil.
-
-## Pattern de bugs (3 occurrences historiques)
+## Patterns de bugs (3 occurrences, documentes)
 1. ih_type doit etre ecrit sous le contexte PRECEDENT (var(0) pour
    [k] seul), pas var(2).
 2. Ordre des arguments de retour doit matcher l'ordre des Pi dans P.
-   mkDistribProof : P = Pi b. Pi a. Pi c. donc retour (b_arg, a_arg, c_arg).
-3. cong_add_l vs cong_add_r : l (2e arg) vs r (1er arg).
+3. cong_add_l vs cong_add_r : l=2e arg, r=1er arg.
+4. eq_rect_nat : P doit cibler le BON cote (Eq(add a c, add x c)
+   vs Eq(add x c, add b c)) sinon P(b) est faux.
+Invisibles sur (zero,zero,...). Test e2e sur (2,3,4) INDISPENSABLE.
 
-Ces bugs sont invisibles sur (zero,zero,...). Le test e2e sur (2,3,4)
-est INDISPENSABLE.
+## WIP externe non commit
+core/std/*.hvn, parse.zig, core/test_suite.hvn,
+src/vessel/public/test_suite.hvn, patch_parser_infix.py.
 
 ## Architecture a terme (kernel)
 delta-regles minimales (2 par operateur, 1er argument) :
   add(zero,n)->n ; add(succ k,n)->succ(add k n)
   mul(zero,n)->zero ; mul(succ k,n)->add(n,mul k n)
 Equality : eq_rect_nat primitif, tout le reste derive.
-Actuellement 4 axiomes de congruence encore declares (a terme
-derives via eq_rect_nat) : sym, trans, cong_add_r, cong_succ.
+Apres sym/trans derives : 0 axiome de congruence.
 
-## Prochaines actions
-A. Deriver cong_add_r via eq_rect_nat (symetrique de cong_add_l).
-B. Deriver sym et trans via eq_rect_nat.
-C. Investiguer le bug non-clos de mkCongAddLProof.
-D. Prototype 3a-2 (captureCont/throwCont).
-E. Migration span_a.slice / serialisation v2.
+## Autres chantiers ouverts
+- Prototype 3a-2 (captureCont/throwCont) : continuations.
+- Migration span_a.slice (181 sites).
+- Serialisation v2 (reachable subset).
+- MIR (docs/mir en cours, externe).
 
 ## NE PAS TOUCHER
 wasm.zig, kernel.zig, mir.zig, x86_64_windows.zig, aarch64_macos.zig,
 commands.zig (racine), transform.zig, kernel_bridge.zig,
-branche feat/physical-telemetry.
-WIP externe (core/std/*.hvn, parse.zig, test_suite.hvn).
+branche feat/physical-telemetry + WIP externe ci-dessus.
 
 ## Methode
 Petits pas verifies > gros refactor. Un commit = un theme.
 Heredoc > 50 l. = tronque par navigateur -> scripts /tmp en 2-3 blocs.
 zig test src/kernel/peano.zig (rapide) pour iterer kernel.
+NE JAMAIS utiliser git checkout sur un fichier modifie sans verifier
+que le diff est bien du WIP et pas du travail en cours.
