@@ -122,23 +122,23 @@ test "qbe — M3 : oracle mir.execute vs natif" {
         const body = try applyNoFunc(&store, try store.sym("if"), &.{ cond, try store.int(10), try store.int(20) });
         try oracleCheck(alloc, &store, body, 10);
     }
-    //     // P3 : (while (< 5 1) 42) → 0
-    //     {
-    //         var store = Store.init(alloc);
-    //         defer store.deinit();
-    //         const cond = try applyNoFunc(&store, try store.sym("<"), &.{ try store.int(5), try store.int(1) });
-    //         const body = try applyNoFunc(&store, try store.sym("while"), &.{ cond, try store.int(42) });
-    //         try oracleCheck(alloc, &store, body, 0);
-    //     }
-    //     // P4 : (while (< 0 1) (break 7)) → 7
-    //     {
-    //         var store = Store.init(alloc);
-    //         defer store.deinit();
-    //         const cond = try applyNoFunc(&store, try store.sym("<"), &.{ try store.int(0), try store.int(1) });
-    //         const bk = try applyNoFunc(&store, try store.sym("break"), &.{try store.int(7)});
-    //         const body = try applyNoFunc(&store, try store.sym("while"), &.{ cond, bk });
-    //         try oracleCheck(alloc, &store, body, 7);
-    //     }
+    // P3 : (while (< 5 1) 42) -> 0
+    {
+        var store = Store.init(alloc);
+        defer store.deinit();
+        const cond = try applyNoFunc(&store, try store.sym("<"), &.{ try store.int(5), try store.int(1) });
+        const body = try applyNoFunc(&store, try store.sym("while"), &.{ cond, try store.int(42) });
+        try oracleCheck(alloc, &store, body, 0);
+    }
+    // P4 : (while (< 0 1) (break 7)) -> 7
+    {
+        var store = Store.init(alloc);
+        defer store.deinit();
+        const cond = try applyNoFunc(&store, try store.sym("<"), &.{ try store.int(0), try store.int(1) });
+        const bk = try applyNoFunc(&store, try store.sym("break"), &.{try store.int(7)});
+        const body = try applyNoFunc(&store, try store.sym("while"), &.{ cond, bk });
+        try oracleCheck(alloc, &store, body, 7);
+    }
 }
 
 test "qbe — rejet : call_user hors fn_defs (contrat §6)" {

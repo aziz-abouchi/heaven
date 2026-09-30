@@ -350,6 +350,15 @@ pub const MirFunction = struct {
         self.blocks.items[entry_block].terminator = .{ .jump = cond_block };
 
         const cond_val = try self.compileExpr(store, cond_id, cond_block, locals);
+
+        // Valeur de sortie normale (condition fausse). Doit figurer
+        // comme incoming du phi de sortie si des breaks existent : le
+        // CFG a un arc cond_block -> exit_block (else du branch), et
+        // QBE exige que TOUS les predecesseurs reels d'un bloc
+        // apparaissent dans ses phis ("predecessors not matched").
+        const normal_exit_reg = self.newReg();
+        try self.blocks.items[cond_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = normal_exit_reg, .value = 0 } });
+
         self.blocks.items[cond_block].terminator = .{ .branch = .{ .cond = cond_val, .then_block = body_block, .else_block = exit_block } };
 
         _ = try self.compileExpr(store, body_id, body_block, locals);
@@ -363,8 +372,14 @@ pub const MirFunction = struct {
         const phi_dest = self.newReg();
 
         if (break_entries.len > 0) {
-            // On a des break avec valeurs, créer un phi
-            const incoming_copy = try self.allocator.dupe(PhiEntry, break_entries);
+            // Phi de sortie : tous les breaks + la sortie normale
+            // (condition fausse -> 0).
+            var incoming = std.ArrayList(PhiEntry).empty;
+            defer incoming.deinit(self.allocator);
+            try incoming.appendSlice(self.allocator, break_entries);
+            try incoming.append(self.allocator, .{ .value = normal_exit_reg, .block = cond_block });
+
+            const incoming_copy = try self.allocator.dupe(PhiEntry, incoming.items);
             errdefer self.allocator.free(incoming_copy);
             try self.blocks.items[exit_block].instrs.append(self.allocator, .{ .phi = .{ .dest = phi_dest, .incoming = incoming_copy } });
         } else {
