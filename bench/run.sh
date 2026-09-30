@@ -14,10 +14,7 @@ fi
 HEAVEN=./zig-out/bin/heaven
 
 echo "=== interprète ==="
-if [ ${#LOOP_ARG[@]} -gt 0 ]; then
-    echo "(interprète ne supporte pas --loop, mesuré sans)"
-fi
-$HEAVEN --run-test "$PROG" 2>&1 | grep -E "wall time|peak mem"
+$HEAVEN bench-interp "$PROG" "$N" "${LOOP_ARG[@]}" 2>&1 | grep -E "BENCH|min|median|mean|energy|temp|rss"
 
 echo ""
 echo "=== QBE natif ==="
