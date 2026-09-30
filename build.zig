@@ -149,6 +149,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const abi_mod = b.addModule("abi", .{
+        .root_source_file = b.path("src/platform/abi/abi.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "platform", .module = platform_mod },
+        },
+    });
+
     const unify_proof_mod = b.addModule("unify_proof", .{
         .root_source_file = b.path("src/core/unify_proof.zig"),
         .target = target,
@@ -1290,6 +1299,17 @@ pub fn build(b: *std.Build) void {
         },
     }) });
 
+    const test_profile_egraph = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/inference/eqsat/profile_egraph_test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "egraph", .module = egraph_mod },
+            .{ .name = "abi", .module = abi_mod },
+        },
+    }) });
+
     const test_codegen_c = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/codegen/expr_c.zig"),
         .target = target,
@@ -1653,6 +1673,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_typeo_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_term_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_egraph).step);
+    test_step.dependOn(&b.addRunArtifact(test_profile_egraph).step);
     test_step.dependOn(&b.addRunArtifact(test_codegen_c).step);
     test_step.dependOn(&b.addRunArtifact(test_codegen_latex).step);
     test_step.dependOn(&b.addRunArtifact(test_engine).step);
