@@ -148,3 +148,40 @@ test "wat — call_user hors fn_defs : rejet explicite" {
     root.blocks.items[entry].terminator = .{ .ret = a };
     try std.testing.expectError(error.UnsupportedCall, wat.emitWat(alloc, &root));
 }
+
+test "wat — M2b : oracle mir.execute vs wasmtime" {
+    const alloc = std.testing.allocator;
+
+    // P1 : (+ 2 3) → 5 — arithmétique linéaire
+    {
+        var store = Store.init(alloc);
+        defer store.deinit();
+        const body = try applyNoFunc(&store, try store.sym("+"), &.{ try store.int(2), try store.int(3) });
+        try oracleCheck(alloc, &store, body, 5);
+    }
+    // P2 : (if (< 1 2) 10 20) → 10 — branch + phi de merge
+    {
+        var store = Store.init(alloc);
+        defer store.deinit();
+        const cond = try applyNoFunc(&store, try store.sym("<"), &.{ try store.int(1), try store.int(2) });
+        const body = try applyNoFunc(&store, try store.sym("if"), &.{ cond, try store.int(10), try store.int(20) });
+        try oracleCheck(alloc, &store, body, 10);
+    }
+    // P3 : (while (< 5 1) 42) → 0 — boucle jamais entrée
+    {
+        var store = Store.init(alloc);
+        defer store.deinit();
+        const cond = try applyNoFunc(&store, try store.sym("<"), &.{ try store.int(5), try store.int(1) });
+        const body = try applyNoFunc(&store, try store.sym("while"), &.{ cond, try store.int(42) });
+        try oracleCheck(alloc, &store, body, 0);
+    }
+    // P4 : (while (< 0 1) (break 7)) → 7 — break + phi à travers dispatch
+    {
+        var store = Store.init(alloc);
+        defer store.deinit();
+        const cond = try applyNoFunc(&store, try store.sym("<"), &.{ try store.int(0), try store.int(1) });
+        const bk = try applyNoFunc(&store, try store.sym("break"), &.{try store.int(7)});
+        const body = try applyNoFunc(&store, try store.sym("while"), &.{ cond, bk });
+        try oracleCheck(alloc, &store, body, 7);
+    }
+}
