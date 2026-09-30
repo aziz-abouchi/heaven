@@ -166,3 +166,46 @@ test "qbe — rejet : call_user hors fn_defs (contrat §6)" {
 
     try std.testing.expectError(error.UnsupportedCall, qbe.emitQbe(alloc, &mf));
 }
+
+test "qbe — shape : emitQbe produit la structure attendue (sans QBE)" {
+    const alloc = std.testing.allocator;
+    var store = Store.init(alloc);
+    defer store.deinit();
+
+    // (+ 2 3) : pipeline complet sauf invocation QBE.
+    const body = try applyNoFunc(&store, try store.sym("+"), &.{ try store.int(2), try store.int(3) });
+    var mf = try compileRoot(alloc, &store, body);
+    defer mf.deinit();
+
+    const ssa = try qbe.emitQbe(alloc, &mf);
+    defer alloc.free(ssa);
+
+    // Structure obligatoire :
+    // 1. wrapper heaven_main (le MIR root)
+    try std.testing.expect(has(ssa, "function l $heaven_main()"));
+    // 2. wrapper main export (QBE exige export+function sur une ligne)
+    try std.testing.expect(has(ssa, "export function $main()"));
+    // 3. appel printf + data $fmt pour le resultat i64
+    try std.testing.expect(has(ssa, "call $printf(l $fmt, l "));
+    try std.testing.expect(has(ssa, "data $fmt = { b \"%ld\\n\", b 0 }"));
+    // 4. pas de tabulation en indentation (QBE rejette)
+    try std.testing.expect(!has(ssa, "\t"));
+    // 5. un bloc @b0 par fonction
+    try std.testing.expect(has(ssa, "@b0"));
+    // 6. retour MIR traduit
+    try std.testing.expect(has(ssa, "ret %r"));
+
+    // Et pas de régression silencieuse : les N ouvrants/accolades
+    // doivent être équilibrés.
+    var opens: u32 = 0;
+    var closes: u32 = 0;
+    for (ssa) |c| {
+        if (c == '{') opens += 1;
+        if (c == '}') closes += 1;
+    }
+    try std.testing.expectEqual(opens, closes);
+}
+
+fn has(haystack: []const u8, needle: []const u8) bool {
+    return std.mem.indexOf(u8, haystack, needle) != null;
+}
