@@ -129,10 +129,10 @@ if [ ! -x "$VENDOR_DIR/qbe/obj/qbe" ]; then
     (cd "$VENDOR_DIR/qbe" && make)
 fi
 
-# Smoke test local : qbe → asm → cc → run. NB : ce miroir n'émet pas
-# .globl pour $main — injection (idem notre émetteur mir_qbe).
+# Smoke test local : qbe → asm → cc → run. `export function` est
+# requis pour l'export (sinon symbole local → link error).
 cat > /tmp/qbe_smoke.ssa <<'SMOKE'
-function $main() {
+export function $main() {
 @start
     %r =l call $printf(l $fmt, l 42)
     ret
@@ -140,8 +140,7 @@ function $main() {
 data $fmt = { b "smoke %ld\n", b 0 }
 SMOKE
 "$VENDOR_DIR/qbe/obj/qbe" -o /tmp/qbe_smoke.s /tmp/qbe_smoke.ssa
-( printf '.globl main\n'; cat /tmp/qbe_smoke.s ) > /tmp/qbe_smoke.s.g
-cc /tmp/qbe_smoke.s.g -o /tmp/qbe_smoke
+cc /tmp/qbe_smoke.s -o /tmp/qbe_smoke
 /tmp/qbe_smoke | grep -q "smoke 42"
 echo "[FORGE] QBE OK ($(uname -s)/$(uname -m))."
 
