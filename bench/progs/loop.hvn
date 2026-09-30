@@ -1,0 +1,2 @@
+fn count_up(n, acc) = (if (= n 0) acc (count_up (- n 1) (+ acc 1)))
+(count_up 1000000 0)

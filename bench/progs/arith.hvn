@@ -1,0 +1,2 @@
+fn sum_squares(n, acc) = (if (= n 0) acc (sum_squares (- n 1) (+ acc (* n n))))
+(sum_squares 100000 0)
