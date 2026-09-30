@@ -1141,6 +1141,17 @@ pub fn build(b: *std.Build) void {
 
     // ─── Tests ───
     // M2 : tests MIR→WAT (docs/BACKENDS.md, docs/MIR_CONTRACT.md)
+    // M3 : tests MIR→QBE (docs/BACKENDS.md, docs/MIR_CONTRACT.md)
+    const test_mir_qbe = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/backend/test_mir_qbe.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "mir", .module = mir_mod },
+            .{ .name = "expr", .module = expr_mod },
+        },
+    }) });
+
     const test_mir_wat = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/backend/test_mir_wat.zig"),
         .target = target,
@@ -1215,6 +1226,12 @@ pub fn build(b: *std.Build) void {
 
     const test_abi_profile_ser = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/platform/abi/profile_ser.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+
+    const test_abi_profile_tree = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/platform/abi/profile_tree.zig"),
         .target = target,
         .optimize = optimize,
     }) });
@@ -1614,6 +1631,7 @@ pub fn build(b: *std.Build) void {
 
     test_step.dependOn(&b.addRunArtifact(test_expr).step);
     test_step.dependOn(&run_test_mir_wat.step);
+    test_step.dependOn(&b.addRunArtifact(test_mir_qbe).step);
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_kanren_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_continuation).step);
@@ -1623,6 +1641,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_abi_metric).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_profile).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_profile_ser).step);
+    test_step.dependOn(&b.addRunArtifact(test_abi_profile_tree).step);
     test_step.dependOn(&b.addRunArtifact(test_typeo).step);
     test_step.dependOn(&b.addRunArtifact(test_typeo_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_term_bridge).step);
