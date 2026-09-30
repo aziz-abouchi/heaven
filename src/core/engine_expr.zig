@@ -63,6 +63,7 @@ pub const Env = struct {
 };
 
 pub const EvalError = error{
+    SuspendRequested,
     TypeError,
     ArityMismatch,
     DivisionByzero,
@@ -201,6 +202,10 @@ pub const Engine = struct {
     io_handler: ?IOHandler = null,
     in_handle: bool = false,
     fuel: u64 = 1_000_000,
+    /// Safepoint budget. Decremente a chaque appel de evaluate().
+    /// A 0 -> error.SuspendRequested (abort cooperatif).
+    /// Par defaut = maxInt (jamais suspendu) sauf via evalWithBudget.
+    reductions: u64 = std.math.maxInt(u64),
     /// TCO : nom de la fonction courante (self-tail-call detection)
     tco_name: ?[]const u8 = null,
     /// TCO : buffer fixe pour args du self-tail-call (max 8)
@@ -263,6 +268,36 @@ pub const Engine = struct {
         if (self.fuel == 0) return error.RecursionLimitExceeded;
         self.fuel -= 1;
         return evaluate(store, env, self, id, 0);
+    }
+
+    pub const EvalOutcome = union(enum) {
+        done: Id,
+        /// Budget epuise a un safepoint. Pas de reprise automatique
+        /// (3a-3 minimal). Le caller peut relancer avec un budget
+        /// plus grand, ou abandonner.
+        suspended,
+    };
+
+    /// Evalue avec un budget de reductions. Si le budget est epuise,
+    /// retourne `suspended` au lieu d'une erreur. Le fuel top-level
+    /// n'est pas touche.
+    /// Evalue avec un budget de reductions. Si le budget est epuise,
+    /// retourne `suspended` au lieu d'une erreur. Le fuel top-level
+    /// et les reductions sont restaures : cet appel n'affecte pas
+    /// l'etat global du moteur.
+    pub fn evalWithBudget(self: *Engine, id: Id, budget: u64) EvalError!EvalOutcome {
+        const saved_reductions = self.reductions;
+        const saved_fuel = self.fuel;
+        defer {
+            self.reductions = saved_reductions;
+            self.fuel = saved_fuel;
+        }
+        self.reductions = budget;
+        const result_id = self.eval(id) catch |e| switch (e) {
+            error.SuspendRequested => return .suspended,
+            else => return e,
+        };
+        return .{ .done = result_id };
     }
 
     pub fn evalFunction(self: *Engine, caller_env: *Env, name: []const u8, args: []const Id) EvalError!Id {
@@ -468,6 +503,11 @@ pub const Engine = struct {
 
 /// Évaluateur à 6 branches (primitives fondamentales uniquement).
 pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) EvalError!Id {
+    // Safepoint (3a-3) : budget de reductions. A 0 -> suspend.
+    // Le `try` des 56 sites recursifs propage automatiquement.
+    if (engine.reductions == 0) return error.SuspendRequested;
+    engine.reductions -= 1;
+
     if (platform.target.is_debug and id == 0xAAAAAAAA) {
         @panic("poison Id at evaluate entry");
     }
@@ -1364,4 +1404,88 @@ test "Env.get ne crash pas après init" {
     defer env.deinit();
     try env.put(42, 0);
     try std.testing.expectEqual(@as(?Id, 0), env.get(42));
+}
+
+test "safepoint : evalWithBudget suspend si budget insuffisant" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    var env = Env.init(allocator);
+    defer env.deinit();
+    var engine = Engine.initTest(allocator, &store, &env);
+    defer engine.deinit();
+
+    // Expression simple : 2 + 3
+    const x = try engine.store.int(2);
+    const y = try engine.store.int(3);
+    const frontend = try engine.store.binop("+", x, y);
+    const lowered = try engine.store.lowerRec(frontend);
+
+    // Budget 0 : suspend immediatement (le premier appel de evaluate
+    // consomme 1 reduction avant meme d'evaluer).
+    const outcome = try engine.evalWithBudget(lowered, 0);
+    try std.testing.expectEqual(Engine.EvalOutcome.suspended, outcome);
+}
+
+test "safepoint : evalWithBudget termine avec budget suffisant" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    var env = Env.init(allocator);
+    defer env.deinit();
+    var engine = Engine.initTest(allocator, &store, &env);
+    defer engine.deinit();
+
+    const x = try engine.store.int(2);
+    const y = try engine.store.int(3);
+    const frontend = try engine.store.binop("+", x, y);
+    const lowered = try engine.store.lowerRec(frontend);
+
+    // Budget large : termine normalement.
+    const outcome = try engine.evalWithBudget(lowered, 1000);
+    try std.testing.expect(outcome == .done);
+}
+
+test "safepoint : fuel top-level non affecte par evalWithBudget" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    var env = Env.init(allocator);
+    defer env.deinit();
+    var engine = Engine.initTest(allocator, &store, &env);
+    defer engine.deinit();
+
+    const fuel_before = engine.fuel;
+    const reductions_before = engine.reductions;
+
+    const x = try engine.store.int(2);
+    const y = try engine.store.int(3);
+    const frontend = try engine.store.binop("+", x, y);
+    const lowered = try engine.store.lowerRec(frontend);
+
+    _ = try engine.evalWithBudget(lowered, 1000);
+
+    // Le fuel top-level n'a pas bouge.
+    try std.testing.expectEqual(fuel_before, engine.fuel);
+    // Les reductions sont restaurees (saved via defer).
+    try std.testing.expectEqual(reductions_before, engine.reductions);
+}
+
+test "safepoint : reductions restaurees apres evalWithBudget" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    var env = Env.init(allocator);
+    defer env.deinit();
+    var engine = Engine.initTest(allocator, &store, &env);
+    defer engine.deinit();
+
+    // Modifie reductions manuellement
+    engine.reductions = 42;
+
+    const x = try engine.store.int(1);
+    _ = try engine.evalWithBudget(x, 1000);
+
+    // Restaure a 42, pas a maxInt.
+    try std.testing.expectEqual(@as(u64, 42), engine.reductions);
 }
