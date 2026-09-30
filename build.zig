@@ -1207,6 +1207,12 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }) });
 
+    const test_abi_profile = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/platform/abi/profile.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+
     const test_typeo = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/logic/typeo.zig"),
         .target = target,
@@ -1609,6 +1615,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_abi_error).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_capability).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_metric).step);
+    test_step.dependOn(&b.addRunArtifact(test_abi_profile).step);
     test_step.dependOn(&b.addRunArtifact(test_typeo).step);
     test_step.dependOn(&b.addRunArtifact(test_typeo_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_term_bridge).step);
