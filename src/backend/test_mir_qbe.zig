@@ -36,30 +36,7 @@ fn compileRoot(alloc: std.mem.Allocator, store: *Store, body: expr.Id) !MirFunct
     return mf;
 }
 
-fn freeInstrExtras(alloc: std.mem.Allocator, mf: *const MirFunction) void {
-    for (mf.blocks.items) |blk| {
-        for (blk.instrs.items) |inst| {
-            switch (inst) {
-                .phi => |p| alloc.free(@constCast(p.incoming)),
-                .call_user => |c| alloc.free(@constCast(c.args)),
-                else => {},
-            }
-        }
-    }
-}
 
-fn deinitSansValues(alloc: std.mem.Allocator, mf: *MirFunction) void {
-    for (mf.blocks.items) |*blk| blk.instrs.deinit(alloc);
-    mf.blocks.deinit(alloc);
-    mf.break_values.deinit(alloc);
-    var it = mf.fn_defs.valueIterator();
-    while (it.next()) |def| {
-        def.fn_mir.deinit();
-        alloc.free(def.param_names);
-        alloc.free(def.param_regs);
-    }
-    mf.fn_defs.deinit();
-}
 
 /// qbe → cc → run. Retourne le i64 imprimé par le wrapper $main.
 fn runNative(alloc: std.mem.Allocator, ssa: []const u8) !i64 {
@@ -115,8 +92,7 @@ fn runCapture(alloc: std.mem.Allocator, argv: []const []const u8, cwd: std.fs.Di
 
 fn oracleCheck(alloc: std.mem.Allocator, store: *Store, body: expr.Id, expected: i64) !void {
     var mf = try compileRoot(alloc, store, body);
-    defer deinitSansValues(alloc, &mf);
-    defer freeInstrExtras(alloc, &mf);
+    defer mf.deinit();
 
     var globals = std.AutoHashMap(u32, i64).init(alloc);
     defer globals.deinit();

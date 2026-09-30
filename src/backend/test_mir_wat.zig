@@ -44,23 +44,6 @@ fn has(haystack: []const u8, needle: []const u8) bool {
     return std.mem.indexOf(u8, haystack, needle) != null;
 }
 
-/// mir.zig (gelé) : deinit ne libère pas les slices internes des
-/// instructions (.phi.incoming — dupe mir.zig:316 ; .call_user.args).
-/// Fuite pré-existante ; fix réel à coordonner côté session kernel.
-/// Workaround : libération manuelle. En defer LIFO, ce bloc s'exécute
-/// AVANT le deinit (qui ne touche pas ces slices).
-fn freeInstrExtras(alloc: std.mem.Allocator, mf: *const MirFunction) void {
-    for (mf.blocks.items) |blk| {
-        for (blk.instrs.items) |inst| {
-            switch (inst) {
-                .phi => |p| alloc.free(@constCast(p.incoming)),
-                .call_user => |c| alloc.free(@constCast(c.args)),
-                else => {},
-            }
-        }
-    }
-}
-
 test "wat — arithmétique (+ 2 3)" {
     const alloc = std.testing.allocator;
     var store = Store.init(alloc);
@@ -71,7 +54,6 @@ test "wat — arithmétique (+ 2 3)" {
     const body = try applyNoFunc(&store, plus, &.{ two, three });
     var mf = try compileRoot(alloc, &store, body);
     defer mf.deinit();
-    defer freeInstrExtras(alloc, &mf);
     const out = try wat.emitWat(alloc, &mf);
     defer alloc.free(out);
     try std.testing.expect(has(out, "(export \"main\")"));
@@ -93,7 +75,6 @@ test "wat — if : branch, dispatch, global" {
     const body = try applyNoFunc(&store, if_s, &.{ cond, try store.int(10), try store.int(20) });
     var mf = try compileRoot(alloc, &store, body);
     defer mf.deinit();
-    defer freeInstrExtras(alloc, &mf);
     const out = try wat.emitWat(alloc, &mf);
     defer alloc.free(out);
     try std.testing.expect(has(out, "(global $g"));
@@ -109,7 +90,6 @@ test "wat — fn_defs : fonction séparée et appel" {
     const alloc = std.testing.allocator;
     var root = MirFunction.init(alloc);
     defer root.deinit();
-    defer freeInstrExtras(alloc, &root);
     const entry = try root.newBlock();
     const a = root.newReg();
     const b = root.newReg();
@@ -141,7 +121,6 @@ test "wat — call_user hors fn_defs : rejet explicite" {
     const alloc = std.testing.allocator;
     var root = MirFunction.init(alloc);
     defer root.deinit();
-    defer freeInstrExtras(alloc, &root);
     const entry = try root.newBlock();
     const a = root.newReg();
     try root.blocks.items[entry].instrs.append(alloc, .{ .call_user = .{ .dest = a, .name = 7, .args = &.{} } });
@@ -188,22 +167,6 @@ test "wat — M2b : oracle mir.execute vs wasmtime" {
 // ═══ M2b : helpers — exécution wasmtime + comparaison oracle ═══
 
 
-/// mir.zig (gelé) : execute() est destructif — executeLegacy fait
-/// clearAndFree + defer deinit sur values. Un mf.deinit() APRÈS
-/// execute() double-free (panic integer overflow dans sliceAsBytes,
-/// cf /tmp/m2b.log). Replica de deinit SANS la ligne values.
-fn deinitSansValues(alloc: std.mem.Allocator, mf: *MirFunction) void {
-    for (mf.blocks.items) |*blk| blk.instrs.deinit(alloc);
-    mf.blocks.deinit(alloc);
-    mf.break_values.deinit(alloc);
-    var it = mf.fn_defs.valueIterator();
-    while (it.next()) |def| {
-        def.fn_mir.deinit(); // jamais exécutées → values vides → sûr
-        alloc.free(def.param_names);
-        alloc.free(def.param_regs);
-    }
-    mf.fn_defs.deinit();
-}
 
 fn runWasmtime(alloc: std.mem.Allocator, wat_src: []const u8) !i64 {
     var tmp = std.testing.tmpDir(.{});
@@ -236,9 +199,7 @@ fn runWasmtime(alloc: std.mem.Allocator, wat_src: []const u8) !i64 {
 
 fn oracleCheck(alloc: std.mem.Allocator, store: *Store, body: expr.Id, expected: i64) !void {
     var mf = try compileRoot(alloc, store, body);
-    // execute() destructif : deinit complet après = double free.
-    defer deinitSansValues(alloc, &mf);
-    defer freeInstrExtras(alloc, &mf); // LIFO : avant deinitSansValues
+    defer mf.deinit();
 
     var globals = std.AutoHashMap(u32, i64).init(alloc);
     defer globals.deinit();

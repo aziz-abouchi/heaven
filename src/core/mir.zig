@@ -86,6 +86,16 @@ pub const MirFunction = struct {
 
     pub fn deinit(self: *MirFunction) void {
         for (self.blocks.items) |*blk| {
+            // Liberer les allocations internes des instructions qui en
+            // possedent. Reproduit par la recursion def.fn_mir.deinit()
+            // pour les fn_defs imbriquees.
+            for (blk.instrs.items) |inst| {
+                switch (inst) {
+                    .phi => |ph| self.allocator.free(ph.incoming),
+                    .call_user => |c| self.allocator.free(c.args),
+                    else => {},
+                }
+            }
             blk.instrs.deinit(self.allocator);
         }
         self.blocks.deinit(self.allocator);
@@ -391,8 +401,12 @@ pub const MirFunction = struct {
     fn executeLegacy(self: *MirFunction, global_vars: *std.AutoHashMap(u32, i64)) MirError!i64 {
         if (self.blocks.items.len == 0) return 0;
         var current_block: BlockId = 0;
-        self.values.clearAndFree(self.allocator);
-        defer self.values.deinit(self.allocator);
+        // NE PAS deinit() values ici : execute() peut etre appele
+        // plusieurs fois dans un meme test (oracle + codegen) et deinit()
+        // le detruirait prematurement. clearRetainingCapacity vide la
+        // liste mais conserve l'allocation, ce qui evite le double free
+        // au deinit() ulterieur. Valeurs restent possedees par MirFunction.
+        self.values.clearRetainingCapacity();
         var prev_block: BlockId = 0;
 
         var iterations: u32 = 0;
