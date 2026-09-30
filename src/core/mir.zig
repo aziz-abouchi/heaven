@@ -123,6 +123,105 @@ pub const MirFunction = struct {
         };
     }
 
+    /// Precompile les fonctions utilisateur (engine.fns) en fn_defs MIR.
+    /// Permet a compileExpr de resoudre les `call_user` vers des
+    /// fonctions definies par equation (`fn name(args) = body`).
+    ///
+    /// Limites actuelles :
+    /// - Une seule clause (pas de pattern matching).
+    /// - Tous les patterns doivent etre des symboles simples (pas de
+    ///   patterns complexes type `fn f(0) = ...`).
+    /// - Pas de recursion sur les clauses (la recursion du corps est
+    ///   OK, elle passe par call_user).
+    pub fn precompileUserFns(self: *MirFunction) !void {
+        const engine = self.engine orelse return;
+        const store = self.store orelse return;
+
+        var it = engine.fns.iterator();
+        while (it.next()) |entry| {
+            const name_str = entry.key_ptr.*;
+            const fn_def_user = entry.value_ptr.*;
+
+            // Skip constructeurs (data), multi-clauses, patterns complexes.
+            if (fn_def_user.ctor_arity != null) continue;
+            if (fn_def_user.num_clauses != 1) continue;
+
+            const clause = fn_def_user.clauses[0];
+
+            // Verifier que tous les patterns sont des syms.
+            var all_syms = true;
+            for (0..clause.num_patterns) |i| {
+                const pat = store.get(clause.patterns[i]);
+                if (pat.tag != .sym) {
+                    all_syms = false;
+                    break;
+                }
+            }
+            if (!all_syms) continue;
+
+            // Compiler la clause en MirFunction.
+            var fn_mir = MirFunction.init(self.allocator);
+            fn_mir.store = store;
+            fn_mir.engine = engine;
+            errdefer fn_mir.deinit();
+
+            const entry_block = try fn_mir.newBlock();
+            const param_regs = try self.allocator.alloc(Reg, clause.num_patterns);
+            errdefer self.allocator.free(param_regs);
+            const param_names = try self.allocator.alloc(Sym, clause.num_patterns);
+            errdefer self.allocator.free(param_names);
+
+            var locals = std.AutoHashMap(u32, Reg).init(self.allocator);
+            defer locals.deinit();
+
+            for (0..clause.num_patterns) |i| {
+                const pat_node = store.get(clause.patterns[i]);
+                const param_sym = pat_node.payload;
+                const reg = fn_mir.newReg();
+                param_regs[i] = reg;
+                param_names[i] = param_sym;
+                try locals.put(param_sym, reg);
+            }
+
+            const result = fn_mir.compileExpr(store, clause.body, entry_block, locals) catch {
+                // Fonction non MIR-compatible (litteral string, builtin
+                // non supporte, ...). On la saute : elle restera
+                // disponible en interprete, mais pas dans le binaire
+                // natif. checkCallUsers rejettera les call_user vers elle.
+                fn_mir.deinit();
+                self.allocator.free(param_names);
+                self.allocator.free(param_regs);
+                continue;
+            };
+            if (fn_mir.blocks.items[entry_block].terminator == .fallthrough) {
+                fn_mir.blocks.items[entry_block].terminator = .{ .ret = result };
+            }
+
+            // La cle de fn_defs est un Sym (u32 index dans l'interner),
+            // le meme que celui utilise par call_user.name (rempli a
+            // partir de func_node.payload dans compileExpr(.apply)).
+            const name_sym = store.interner.lookup(name_str) orelse {
+                fn_mir.deinit();
+                self.allocator.free(param_names);
+                self.allocator.free(param_regs);
+                continue;
+            };
+
+            // Ne pas ecraser un def existant (lambda compilee prioritaire).
+            if (!self.fn_defs.contains(name_sym)) {
+                try self.fn_defs.put(name_sym, .{
+                    .fn_mir = fn_mir,
+                    .param_names = param_names,
+                    .param_regs = param_regs,
+                });
+            } else {
+                fn_mir.deinit();
+                self.allocator.free(param_names);
+                self.allocator.free(param_regs);
+            }
+        }
+    }
+
     /// Alloue un nœud placeholder dans le Store Expr IR pour une valeur MIR
     pub fn newReg(self: *MirFunction) Reg {
         const reg = self.next_value;

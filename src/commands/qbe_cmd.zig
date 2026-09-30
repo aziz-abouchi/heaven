@@ -11,6 +11,7 @@ const std = @import("std");
 const expr = @import("expr");
 const parse = @import("parse");
 const heaven_expr = @import("heaven_expr");
+const engine_expr = @import("engine_expr");
 const mir = @import("mir");
 const mir_qbe = @import("mir_qbe");
 const platform = @import("platform");
@@ -22,9 +23,19 @@ const Reg = mir.Reg;
 
 /// Compile une expression unique en MirFunction.
 /// Pattern identique a compileRoot() dans test_mir_qbe.zig.
-fn compileRoot(alloc: std.mem.Allocator, store: *Store, body: expr.Id) !MirFunction {
+fn compileRoot(
+    alloc: std.mem.Allocator,
+    store: *Store,
+    engine: *engine_expr.Engine,
+    body: expr.Id,
+) !MirFunction {
     var mf = MirFunction.initWithStore(alloc, store);
     errdefer mf.deinit();
+    mf.engine = engine;
+    // Precompiler les fonctions utilisateur (fn name(args) = body)
+    // en fn_defs MIR. Necessaire pour resoudre les call_user (et
+    // passer checkCallUsers a l'emission).
+    try mf.precompileUserFns();
     const entry = try mf.newBlock();
     var locals = std.AutoHashMap(u32, Reg).init(alloc);
     defer locals.deinit();
@@ -48,6 +59,25 @@ fn isSkippable(line: []const u8) bool {
 /// Parse le fichier, renvoie la DERNIERE expression non-vide.
 /// On garde une seule expression : le wrapper $main printf le
 /// resultat i64, c'est notre "programme" pour ce soir.
+/// Detecte une ligne de definition (fn, let, data, theorem) qui doit
+/// etre evaluee pour peupler engine.fns / engine.macros / etc., plutot
+/// que compilee directement en MIR.
+fn isDefinition(trimmed: []const u8) bool {
+    if (std.mem.startsWith(u8, trimmed, "fn ")) return true;
+    if (std.mem.startsWith(u8, trimmed, "let ")) return true;
+    if (std.mem.startsWith(u8, trimmed, "data ")) return true;
+    if (std.mem.startsWith(u8, trimmed, "theorem ")) return true;
+    if (std.mem.startsWith(u8, trimmed, "actor ")) return true;
+    // Pattern `name(args) = body` ou `name(args) := body` : definition
+    // de fonction sans prefixe `fn`.
+    const eq_idx = std.mem.indexOfScalar(u8, trimmed, '=') orelse return false;
+    const paren_idx = std.mem.indexOfScalar(u8, trimmed, '(') orelse return false;
+    if (paren_idx > eq_idx) return false;
+    // Exclure les comparaisons (== , <= , >= , !=)
+    if (eq_idx + 1 < trimmed.len and trimmed[eq_idx + 1] == '=') return false;
+    return true;
+}
+
 fn parseLastExpr(
     alloc: std.mem.Allocator,
     heaven: *heaven_expr.Heaven,
@@ -61,10 +91,25 @@ fn parseLastExpr(
     while (lines.next()) |line| {
         if (isSkippable(line)) continue;
         const trimmed = std.mem.trim(u8, line, " \t\r");
+
+        // Les definitions sont EVALUEES (pour peupler engine.fns) puis
+        // ignorees pour la compilation MIR. eval() retourne un message
+        // alloue qu'il faut liberer.
+        if (isDefinition(trimmed)) {
+            const msg = heaven.eval(trimmed) catch |e| {
+                platform.debug.print(
+                    "[compile-qbe] warn: definition ignoree ({s}): {s}\n",
+                    .{ @errorName(e), trimmed[0..@min(trimmed.len, 60)] },
+                );
+                continue;
+            };
+            alloc.free(msg);
+            continue;
+        }
+
+        // Expression : parse + lower. La derniere gagne (le programme
+        // compile est l'unique expression resultat).
         const parsed = try parser.parseSExpr(trimmed);
-        // parseSExpr produit une forme frontend (.binop, .call, etc.).
-        // MIR attend du Core : .apply, .lit, .sym, .bind. lowerRec fait
-        // la conversion (meme pipeline que compile.zig).
         last = try heaven.store.lowerRec(parsed);
     }
     return last orelse error.NoExpression;
@@ -90,7 +135,7 @@ pub fn runCompileQbe(
     const body = try parseLastExpr(alloc, heaven, source);
 
     // 3. MIR
-    var mf = try compileRoot(alloc, heaven.store, body);
+    var mf = try compileRoot(alloc, heaven.store, &heaven.engine, body);
     defer mf.deinit();
 
     // 4. QBE IL
@@ -170,19 +215,19 @@ fn computeStats(samples: []u64) BenchStats {
     };
 }
 
-fn printStats(label: []const u8, s: BenchStats) void {
+fn printStats(kind: []const u8, label: []const u8, s: BenchStats) void {
     const ms = struct {
         fn f(ns: u64) f64 {
             return @as(f64, @floatFromInt(ns)) / 1_000_000.0;
         }
     }.f;
     platform.debug.print(
-        "[BENCH-QBE] {s} ({d} runs)\n" ++
+        "[BENCH-QBE] {s} ({s}, {d} runs)\n" ++
             "  min    : {d:.3} ms\n" ++
             "  median : {d:.3} ms\n" ++
             "  mean   : {d:.3} ms\n" ++
             "  max    : {d:.3} ms\n",
-        .{ label, s.iterations, ms(s.min_ns), ms(s.median_ns), ms(s.mean_ns), ms(s.max_ns) },
+        .{ label, kind, s.iterations, ms(s.min_ns), ms(s.median_ns), ms(s.mean_ns), ms(s.max_ns) },
     );
 }
 
@@ -210,7 +255,7 @@ pub fn runBenchQbe(
             alloc.destroy(heaven);
         }
         const body = try parseLastExpr(alloc, heaven, source);
-        var mf = try compileRoot(alloc, heaven.store, body);
+        var mf = try compileRoot(alloc, heaven.store, &heaven.engine, body);
         defer mf.deinit();
         const ssa = try mir_qbe.emitQbe(alloc, &mf);
         defer alloc.free(ssa);
@@ -222,12 +267,20 @@ pub fn runBenchQbe(
         try runChild(alloc, &.{ "cc", "-no-pie", "prog-bench.s", "-o", "prog-bench" }, tmp_dir);
     }
 
-    // 2. Mesurer N executions
-    var samples = try alloc.alloc(u64, n);
-    defer alloc.free(samples);
+    // 2. Mesurer N executions (wall time + CPU time via RUSAGE_CHILDREN)
+    var wall_samples = try alloc.alloc(u64, n);
+    defer alloc.free(wall_samples);
+    var cpu_samples = try alloc.alloc(u64, n);
+    defer alloc.free(cpu_samples);
+
+    const rusage = @cImport(@cInclude("sys/resource.h"));
 
     var i: u32 = 0;
     while (i < n) : (i += 1) {
+        // CPU avant
+        var ru0: rusage.rusage = undefined;
+        _ = rusage.getrusage(rusage.RUSAGE_CHILDREN, &ru0);
+
         const t0 = std.time.nanoTimestamp();
         var child = std.process.Child.init(&.{"./prog-bench"}, alloc);
         child.cwd_dir = tmp_dir;
@@ -236,9 +289,22 @@ pub fn runBenchQbe(
         try child.spawn();
         _ = try child.wait();
         const t1 = std.time.nanoTimestamp();
-        samples[i] = @intCast(t1 - t0);
+
+        // CPU apres
+        var ru1: rusage.rusage = undefined;
+        _ = rusage.getrusage(rusage.RUSAGE_CHILDREN, &ru1);
+
+        wall_samples[i] = @intCast(t1 - t0);
+        const delta_s: i64 = @intCast(ru1.ru_utime.tv_sec + ru1.ru_stime.tv_sec
+            - ru0.ru_utime.tv_sec - ru0.ru_stime.tv_sec);
+        const delta_us: i64 = @intCast(ru1.ru_utime.tv_usec + ru1.ru_stime.tv_usec
+            - ru0.ru_utime.tv_usec - ru0.ru_stime.tv_usec);
+        const delta_ns: i64 = delta_s * std.time.ns_per_s + delta_us * std.time.ns_per_us;
+        cpu_samples[i] = if (delta_ns > 0) @intCast(delta_ns) else 0;
     }
 
-    const s = computeStats(samples);
-    printStats(src_path, s);
+    const sw = computeStats(wall_samples);
+    printStats("wall", src_path, sw);
+    const sc = computeStats(cpu_samples);
+    printStats("cpu", src_path, sc);
 }
