@@ -1183,6 +1183,29 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     }) });
+    const test_abi_precision = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/platform/abi/precision.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+
+    const test_abi_error = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/platform/abi/error.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+
+    const test_abi_capability = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/platform/abi/capability.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+
+    const test_abi_metric = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/platform/abi/metric.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
 
     const test_typeo = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/logic/typeo.zig"),
@@ -1582,6 +1605,10 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_kanren_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_continuation).step);
+    test_step.dependOn(&b.addRunArtifact(test_abi_precision).step);
+    test_step.dependOn(&b.addRunArtifact(test_abi_error).step);
+    test_step.dependOn(&b.addRunArtifact(test_abi_capability).step);
+    test_step.dependOn(&b.addRunArtifact(test_abi_metric).step);
     test_step.dependOn(&b.addRunArtifact(test_typeo).step);
     test_step.dependOn(&b.addRunArtifact(test_typeo_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_term_bridge).step);
