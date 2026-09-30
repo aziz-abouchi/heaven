@@ -137,18 +137,23 @@ pub const MirFunction = struct {
         const engine = self.engine orelse return;
         const store = self.store orelse return;
 
-        var it = engine.fns.iterator();
-        while (it.next()) |entry| {
+        // Passe 1 : repertorier les noms de fonctions utilisateur
+        // eligibles.
+        var eligible: std.ArrayListUnmanaged([]const u8) = .{};
+        defer eligible.deinit(self.allocator);
+
+        var it_names = engine.fns.iterator();
+        while (it_names.next()) |entry| {
             const name_str = entry.key_ptr.*;
             const fn_def_user = entry.value_ptr.*;
 
-            // Skip constructeurs (data), multi-clauses, patterns complexes.
             if (fn_def_user.ctor_arity != null) continue;
             if (fn_def_user.num_clauses != 1) continue;
 
             const clause = fn_def_user.clauses[0];
-
-            // Verifier que tous les patterns sont des syms.
+            if (std.mem.eql(u8, name_str, "choose") or std.mem.eql(u8, name_str, "fib")) {
+                std.debug.print("[mir-filt] '{s}': num_patterns={d}\n", .{ name_str, clause.num_patterns });
+            }
             var all_syms = true;
             for (0..clause.num_patterns) |i| {
                 const pat = store.get(clause.patterns[i]);
@@ -157,15 +162,31 @@ pub const MirFunction = struct {
                     break;
                 }
             }
+            if (std.mem.eql(u8, name_str, "choose") or std.mem.eql(u8, name_str, "fib")) {
+                std.debug.print("[mir-filt] '{s}': all_syms={}\n", .{ name_str, all_syms });
+            }
             if (!all_syms) continue;
 
-            // Compiler la clause en MirFunction.
+            try eligible.append(self.allocator, name_str);
+        }
+
+        // Passe 1 (suite) : pre-enregistrer les placeholders (fn_mir
+        // vide, mais nom dans fn_defs). Indispensable pour que les
+        // appels recursifs (fib appelle fib) soient resolus par
+        // checkCallUsers a l'emission.
+        for (eligible.items) |name_str| {
+            const name_sym = store.interner.lookup(name_str) orelse continue;
+            if (self.fn_defs.contains(name_sym)) continue;
+
+            const fn_def_user = engine.fns.get(name_str) orelse continue;
+            const clause = fn_def_user.clauses[0];
+
             var fn_mir = MirFunction.init(self.allocator);
             fn_mir.store = store;
             fn_mir.engine = engine;
             errdefer fn_mir.deinit();
 
-            const entry_block = try fn_mir.newBlock();
+            _ = try fn_mir.newBlock();
             const param_regs = try self.allocator.alloc(Reg, clause.num_patterns);
             errdefer self.allocator.free(param_regs);
             const param_names = try self.allocator.alloc(Sym, clause.num_patterns);
@@ -183,41 +204,57 @@ pub const MirFunction = struct {
                 try locals.put(param_sym, reg);
             }
 
-            const result = fn_mir.compileExpr(store, clause.body, entry_block, locals) catch {
-                // Fonction non MIR-compatible (litteral string, builtin
-                // non supporte, ...). On la saute : elle restera
-                // disponible en interprete, mais pas dans le binaire
-                // natif. checkCallUsers rejettera les call_user vers elle.
-                fn_mir.deinit();
-                self.allocator.free(param_names);
-                self.allocator.free(param_regs);
-                continue;
-            };
-            if (fn_mir.blocks.items[entry_block].terminator == .fallthrough) {
-                fn_mir.blocks.items[entry_block].terminator = .{ .ret = result };
+            try self.fn_defs.put(name_sym, .{
+                .fn_mir = fn_mir,
+                .param_names = param_names,
+                .param_regs = param_regs,
+            });
+        }
+
+        // Passe 2 : compiler les corps. Tous les noms sont deja dans
+        // fn_defs, donc les appels recursifs sont resolus.
+        for (eligible.items) |name_str| {
+            const name_sym = store.interner.lookup(name_str) orelse continue;
+            const def = self.fn_defs.getPtr(name_sym) orelse continue;
+
+            // Skip si deja compile (plus dun bloc = corps compile).
+            if (def.fn_mir.blocks.items.len > 1) continue;
+
+            const fn_def_user = engine.fns.get(name_str) orelse continue;
+            const clause = fn_def_user.clauses[0];
+
+            var locals = std.AutoHashMap(u32, Reg).init(self.allocator);
+            defer locals.deinit();
+            for (def.param_regs, 0..) |reg, i| {
+                try locals.put(def.param_names[i], reg);
             }
 
-            // La cle de fn_defs est un Sym (u32 index dans l'interner),
-            // le meme que celui utilise par call_user.name (rempli a
-            // partir de func_node.payload dans compileExpr(.apply)).
-            const name_sym = store.interner.lookup(name_str) orelse {
-                fn_mir.deinit();
-                self.allocator.free(param_names);
-                self.allocator.free(param_regs);
+            // Le corps de la clause est en forme frontend (.binop,
+            // .call, etc.). MIR attend du Core (.apply, .lit, .sym).
+            // lowerRec fait la conversion (meme pipeline que parseLastExpr
+            // dans qbe_cmd.zig / wasm_cmd.zig).
+            const lowered_body = store.lowerRec(clause.body) catch {
+                if (self.fn_defs.fetchRemove(name_sym)) |kv| {
+                    var v = kv.value;
+                    v.fn_mir.deinit();
+                    self.allocator.free(v.param_names);
+                    self.allocator.free(v.param_regs);
+                }
                 continue;
             };
-
-            // Ne pas ecraser un def existant (lambda compilee prioritaire).
-            if (!self.fn_defs.contains(name_sym)) {
-                try self.fn_defs.put(name_sym, .{
-                    .fn_mir = fn_mir,
-                    .param_names = param_names,
-                    .param_regs = param_regs,
-                });
-            } else {
-                fn_mir.deinit();
-                self.allocator.free(param_names);
-                self.allocator.free(param_regs);
+            const result = def.fn_mir.compileExpr(store, lowered_body, 0, locals) catch {
+                // Recuperer la valeur pour liberer proprement avant
+                // de la retirer de fn_defs.
+                if (self.fn_defs.fetchRemove(name_sym)) |kv| {
+                    var v = kv.value;
+                    v.fn_mir.deinit();
+                    self.allocator.free(v.param_names);
+                    self.allocator.free(v.param_regs);
+                }
+                continue;
+            };
+            if (def.fn_mir.blocks.items[0].terminator == .fallthrough) {
+                def.fn_mir.blocks.items[0].terminator = .{ .ret = result };
             }
         }
     }
@@ -279,6 +316,7 @@ pub const MirFunction = struct {
 
     pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: BlockId, locals: std.AutoHashMap(u32, Reg)) MirError!Reg {
         const node = store.get(id);
+        // std.debug.print("[mir-tag] compileExpr tag={any}\n", .{node.tag});
         switch (node.tag) {
             .bind => {
                 const sym = node.payload;
@@ -328,7 +366,9 @@ pub const MirFunction = struct {
             },
             .apply => {
                 const func_node = store.get(node.payload);
-                if (func_node.tag != .sym) return error.UnsupportedExpr;
+                if (func_node.tag != .sym) {
+                    return error.UnsupportedExpr;
+                }
                 const op_name = store.interner.resolve(func_node.payload);
                 // Convention Store : span_a[0] = func_id (docs/spec/
                 // _store_invariants.md). Certains tests construisent
@@ -394,7 +434,9 @@ pub const MirFunction = struct {
                 }
                 return error.UnsupportedExpr;
             },
-            else => return error.UnsupportedExpr,
+            else => {
+                return error.UnsupportedExpr;
+            },
         }
     }
 

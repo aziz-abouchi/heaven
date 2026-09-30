@@ -156,13 +156,18 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
     if (lhs_node.tag == .sym) {
         const name = cmds.store.interner.resolve(lhs_node.payload);
         const body_id = cmds.parseExpression(rhs) catch return cmds.allocator.dupe(u8, "parse error in body");
+        // Lowering uniforme : tous les corps passent par lowerRec, comme
+        // dans le cas avec patterns (ligne ~212). Permet a
+        // precompileUserFns (mir.zig) de ne PAS re-lower (double
+        // lowering corrompt les .apply).
+        const lowered_body = try cmds.store.lowerRec(body_id);
 
         var def: engine_expr.FunctionDef = .{
             .clauses = undefined,
             .num_clauses = 1,
             .ctor_arity = null, // ← explicite
         };
-        def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = 0, .body = body_id };
+        def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = 0, .body = lowered_body };
 
         const owned_name = try cmds.engine.allocator.dupe(u8, name);
         platform.dbg("[fns.put] site=1 name='{s}' key_addr={d}\n", .{ name, @intFromPtr(owned_name.ptr) });
@@ -208,7 +213,15 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
             pat_ids[i] = arg_span[patterns_start + i];
         }
 
-        const body_id = cmds.parseExpression(rhs) catch return cmds.allocator.dupe(u8, "parse error in body");
+        // Corps en S-expr pur (commence par '(') : parseSExpr, comme le
+        // top-level. parseExpression passe par tree-sitter pour '<' et
+        // '>' (confondus avec des balises) et produit une structure
+        // currifiee : apply(apply(<, ...), [n, 2]). parseSExpr produit
+        // un arbre propre.
+        const body_id = if (rhs.len > 0 and rhs[0] == '(')
+            cmds.parser.parseSExpr(rhs) catch return cmds.allocator.dupe(u8, "parse error in body")
+        else
+            cmds.parseExpression(rhs) catch return cmds.allocator.dupe(u8, "parse error in body");
         const lowered_body = try cmds.store.lowerRec(body_id);
 
         var def: engine_expr.FunctionDef = .{
