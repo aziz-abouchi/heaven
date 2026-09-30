@@ -76,6 +76,16 @@ structure qui porte des métriques **typées par précision et par
 disponibilité**, avec son identité stable et sa relation de
 parenté.
 
+
+### Implémentation (2026-09-30)
+
+Voir `src/platform/abi/profile.zig` : `Profile` est une struct
+avec 7 champs `Metric(T)` + `id`, `parent`, `scope`. `computeId()`
+fait le hash content-addressed (Wyhash sur les 7 champs + parent +
+scope). 22 tests.
+
+`ProfileId` = `u64`. `ScopeKind` = `local | remote | nested`.
+
 ## Typage des métriques
 
 Chaque métrique porte **trois informations** : sa valeur, sa
@@ -150,6 +160,21 @@ concurrence). Elle porte :
 Un acteur sans `EnergyCap` reçoit `Energy<Unavailable>` sur toute
 lecture. Aucune exception.
 
+
+### Implémentation (2026-09-30)
+
+Voir `src/platform/abi/precision.zig` (types `Precision`,
+`Monotonic`, `Value(T, P)` compile-time, `Metric(T)` runtime) et
+`src/platform/abi/metric.zig` (`Metric(K, P)`, 7 Kinds :
+`WallTime`, `CpuTime`, `Rss`, `PeakRss`, `Energy`, `Instructions`,
+`Allocations`).
+
+`Scalar(K)` : `Energy` en `f64`, les autres en `u64`.
+
+`Metric(K, .unavailable)` n'a pas de champ `value`. `.init(v)` et
+`.as()` sont des `@compileError` explicites, pas des panics
+runtime.
+
 ## `Profile` = effet scopé
 
 Contrainte 1 de `_runtime.md` : `Profile` doit s'exprimer avec
@@ -219,6 +244,21 @@ Sans les capabilities listées, les métriques correspondantes sont
 `Unavailable` — pas d'erreur, pas de refus. Le `Profile` final
 contient les métriques que la plateforme peut fournir, et marque
 les autres `Unavailable`.
+
+
+### Implémentation (2026-09-30)
+
+`Profile` est un terme réifiable (`profile.zig`), mais la syntaxe
+`profile { body }` n'est pas encore implémentée. La structure
+`bracket` est en place (`_effects.md`), l'articulation avec le
+prompt (contrainte 2) dépend du Prototype 3a-2 (`captureCont`).
+
+Politique d'accès explicite (`profile.zig`) :
+`requireMeasuredEnergy` refuse les estimations,
+`energyWithFallback` les annote (`Reading(T) { value: ?T,
+estimated: bool }`). C'est la validation empirique de P3 dans un
+langage dynamique : le caller doit choisir une politique, il n'y a
+pas d'accès silencieusement mélangé.
 
 ## Boucle `Metrics → EGraph → Proof`
 
@@ -293,6 +333,25 @@ profils identiques sérialisent au même `id`, permettant la dédup.
 
 Pré-requis : `_serialize.md` doit acter l'extension (section
 `Profile` du format HVN1).
+
+
+### Implémentation (2026-09-30)
+
+Voir `src/platform/abi/profile_ser.zig` et l'extension
+`_serialize.md` §Profils (HVP1) :
+
+Format HVP1 v1 : magic `"HVP1"` + parent flag + parent `u64` (opt)
++ scope + 7 champs (tag + valeur). 6 octets vide, 77 octets rempli.
+
+L'`id` n'est **pas** sérialisé : `deserialize` le recalcule par
+`computeId()`. Content-addressed : deux profils identiques
+produisent les mêmes bytes et le même id.
+
+8 tests dont 3 cas de corruption (`BadMagic`, `BadTag`,
+`BadScope`).
+
+Non implémenté (v2) : index optionnel de profils dans HVN1
+(`profile_count` + chunks HVP1 self-contained).
 
 ## Non-goals (explicites)
 
