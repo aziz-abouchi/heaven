@@ -32,13 +32,14 @@
 
 ## 4. Phi
 En tête du bloc cible ; sélection par prédécesseur réellement
-emprunté. Dégénérés autorisés par le compileur : 1 incoming
+emprunté (`prev_block` dans l'interprète). Dégénérés autorisés par le compileur : 1 incoming
 (branche sœur = break), 0 incoming (les deux branches ont rompu) —
 remplacé par `const_int 0`.
 
 ## 5. Globals
-`load/store` adressent des variables globales par `Sym` (u32),
-fournies par l'appelant. Non défini au load → error.
+`load/store` adressent des variables globales par `Sym` (u32).
+L'interprète les prend dans une `AutoHashMap(u32, i64)` fournie
+par l'appelant. Non défini au load → `error.UndefinedVariable`.
 
 ## 6. call_user — la vraie frontière
 Deux résolutions, dans cet ordre :
