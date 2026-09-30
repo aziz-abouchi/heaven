@@ -87,3 +87,36 @@ débloque handle-rec + scheduler préemptif (C3).
 Prototype 3 = 3 sous-sessions (3a-1, 3a-2, 3a-3).
 Contrainte d'ordre : ne pas démarrer 3a-2 avant 3a-1 vert.
 Ne pas démarrer C3 (scheduler préemptif) avant 3a-2 stable.
+
+## Note 3a-3 (2026-09-30) — abort coopératif ≠ scheduling
+
+Le prototype 3a-3-lite (`Engine.evalWithBudget` dans
+`engine_expr.zig`) implémente un **abort coopératif** : un budget
+de réductions est décrémenté à chaque entrée de `evaluate`, et
+une fois épuisé, `error.SuspendRequested` est propagée jusqu'au
+caller, qui reçoit `EvalOutcome.suspended`.
+
+**Ce n'est pas un primitif de scheduling.**
+
+Un test naïf (round-robin entre 3 tâches avec budget=1) a montré la
+limite : appeler `evalWithBudget(t, 1)` N fois suspend N fois à
+l'entrée, sans jamais progresser dans l'évaluation. Il n'y a pas
+de reprise au point de suspension.
+
+Deux usages légitimes :
+- **Timeout** : abandonner une évaluation après N réductions.
+- **Budget explicite** : un appelant qui veut borner le coût d'une
+  évaluation et décider quoi faire en cas d'épuisement.
+
+Deux usages **impossibles** sans 3a-3-complet :
+- **Round-robin** (scheduling coopératif fin).
+- **Préemption native** (C3 de `_concurrency.md`).
+
+Raison : le safepoint ne capture pas la pile au point d'abandon.
+`captureCont`/`throwCont` existent (`continuation.zig`, 3a-2),
+mais sur une pile *symbolique* non branchée sur `evaluate`. Le
+branchement réel reste à faire (3a-3-complet).
+
+Décision : le scheduler (`_concurrency.md` Prototype 2 « vrai »)
+ne peut pas être construit sur `evalWithBudget` seul. Il exige le
+branchement de `captureCont` dans le tree-walker.
