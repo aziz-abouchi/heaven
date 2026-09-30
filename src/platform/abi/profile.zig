@@ -367,3 +367,115 @@ test "diff : isFullyComparable=true si champs absents des deux" {
     // energy absent des deux -> absent_both -> comparable
     try std.testing.expect(d.isFullyComparable());
 }
+
+// ─────────────────────────────────────────────────────────────
+// Politiques d'acces par precision (validation P3)
+// ─────────────────────────────────────────────────────────────
+//
+// P3 de _platform.md : le compilateur refuse les usages implicites
+// d'une precision insuffisante. Dans un langage dynamique comme
+// Zig, on ne peut pas empecher un caller de lire un champ
+// estimated -- mais on peut lui FORCER a choisir une politique
+// explicite pour chaque niveau de precision.
+
+/// Resultat d'une lecture avec fallback.
+pub fn Reading(comptime T: type) type {
+    return struct {
+        value: ?T,
+        /// Vrai si la valeur provient d'une estimation, pas d'une
+        /// mesure. Un caller qui traite le resultat doit decider
+        /// quoi faire de ce flag.
+        estimated: bool,
+
+        pub fn hasValue(self: @This()) bool {
+            return self.value != null;
+        }
+
+        pub fn isMeasured(self: @This()) bool {
+            return self.value != null and !self.estimated;
+        }
+    };
+}
+
+/// Exige une mesure. Retourne null si le champ est estime ou
+/// indisponible. A utiliser quand une valeur fausse est pire que
+/// pas de valeur (benchmark, optimisation energetique).
+pub fn requireMeasuredEnergy(p: Profile) ?f64 {
+    return switch (p.energy) {
+        .measured => |v| v,
+        else => null,
+    };
+}
+
+/// Politique de fallback : accepte une estimation, signale le fait.
+/// A utiliser quand une valeur approximative est utile mais doit
+/// etre annotee.
+pub fn energyWithFallback(p: Profile) Reading(f64) {
+    return switch (p.energy) {
+        .measured => |v| .{ .value = v, .estimated = false },
+        .estimated => |v| .{ .value = v, .estimated = true },
+        .unavailable => .{ .value = null, .estimated = false },
+    };
+}
+
+/// Idem pour le temps mural (u64).
+pub fn wallTimeWithFallback(p: Profile) Reading(u64) {
+    return switch (p.wall_time) {
+        .measured => |v| .{ .value = v, .estimated = false },
+        .estimated => |v| .{ .value = v, .estimated = true },
+        .unavailable => .{ .value = null, .estimated = false },
+    };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tests politiques d'acces
+// ─────────────────────────────────────────────────────────────
+
+test "requireMeasuredEnergy : accepte measured" {
+    var p = Profile.empty();
+    p.energy = .{ .measured = 42.5 };
+    try std.testing.expectEqual(@as(?f64, 42.5), requireMeasuredEnergy(p));
+}
+
+test "requireMeasuredEnergy : refuse estimated" {
+    var p = Profile.empty();
+    p.energy = .{ .estimated = 42.5 };
+    try std.testing.expectEqual(@as(?f64, null), requireMeasuredEnergy(p));
+}
+
+test "requireMeasuredEnergy : refuse unavailable" {
+    const p = Profile.empty();
+    try std.testing.expectEqual(@as(?f64, null), requireMeasuredEnergy(p));
+}
+
+test "energyWithFallback : distingue measured et estimated" {
+    var p1 = Profile.empty();
+    p1.energy = .{ .measured = 42.5 };
+    const r1 = energyWithFallback(p1);
+    try std.testing.expect(r1.isMeasured());
+    try std.testing.expectEqual(@as(f64, 42.5), r1.value.?);
+
+    var p2 = Profile.empty();
+    p2.energy = .{ .estimated = 40.0 };
+    const r2 = energyWithFallback(p2);
+    try std.testing.expect(r2.hasValue());
+    try std.testing.expect(!r2.isMeasured());
+    try std.testing.expect(r2.estimated);
+    try std.testing.expectEqual(@as(f64, 40.0), r2.value.?);
+}
+
+test "energyWithFallback : unavailable -> pas de valeur" {
+    const p = Profile.empty();
+    const r = energyWithFallback(p);
+    try std.testing.expect(!r.hasValue());
+    try std.testing.expect(!r.isMeasured());
+    try std.testing.expect(!r.estimated);
+}
+
+test "wallTimeWithFallback : u64" {
+    var p = Profile.empty();
+    p.wall_time = .{ .measured = 1234 };
+    const r = wallTimeWithFallback(p);
+    try std.testing.expect(r.isMeasured());
+    try std.testing.expectEqual(@as(u64, 1234), r.value.?);
+}
