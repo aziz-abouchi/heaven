@@ -41,6 +41,11 @@ remplacé par `const_int 0`.
 L'interprète les prend dans une `AutoHashMap(u32, i64)` fournie
 par l'appelant. Non défini au load → `error.UndefinedVariable`.
 
+**Note exécution** : `execute()` est destructif — `values` est
+libéré en sortie (defer deinit interne d'executeLegacy). Un
+consommateur ne doit PAS appeler `deinit()` après `execute()` :
+double free. (Contournement : deinitSansValues dans test_mir_wat.zig.)
+
 ## 6. call_user — la vraie frontière
 Deux résolutions, dans cet ordre :
 1. `fn_defs[name]` : lambda compilée (via `bind` d'une lambda,

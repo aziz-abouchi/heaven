@@ -150,10 +150,6 @@ test "wat — call_user hors fn_defs : rejet explicite" {
 }
 
 test "wat — M2b : oracle mir.execute vs wasmtime" {
-    // TEMP : signal 6 (SIGABRT) en diagnostic — trace dans /tmp/m2b.log.
-    // Skip pour ne pas tenir main rouge. Réactiver après fix.
-    const m2b_enabled = false;
-    if (!m2b_enabled) return error.SkipZigTest;
     const alloc = std.testing.allocator;
 
     // P1 : (+ 2 3) → 5 — arithmétique linéaire
@@ -191,6 +187,24 @@ test "wat — M2b : oracle mir.execute vs wasmtime" {
 }
 // ═══ M2b : helpers — exécution wasmtime + comparaison oracle ═══
 
+
+/// mir.zig (gelé) : execute() est destructif — executeLegacy fait
+/// clearAndFree + defer deinit sur values. Un mf.deinit() APRÈS
+/// execute() double-free (panic integer overflow dans sliceAsBytes,
+/// cf /tmp/m2b.log). Replica de deinit SANS la ligne values.
+fn deinitSansValues(alloc: std.mem.Allocator, mf: *MirFunction) void {
+    for (mf.blocks.items) |*blk| blk.instrs.deinit(alloc);
+    mf.blocks.deinit(alloc);
+    mf.break_values.deinit(alloc);
+    var it = mf.fn_defs.valueIterator();
+    while (it.next()) |def| {
+        def.fn_mir.deinit(); // jamais exécutées → values vides → sûr
+        alloc.free(def.param_names);
+        alloc.free(def.param_regs);
+    }
+    mf.fn_defs.deinit();
+}
+
 fn runWasmtime(alloc: std.mem.Allocator, wat_src: []const u8) !i64 {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
@@ -222,8 +236,9 @@ fn runWasmtime(alloc: std.mem.Allocator, wat_src: []const u8) !i64 {
 
 fn oracleCheck(alloc: std.mem.Allocator, store: *Store, body: expr.Id, expected: i64) !void {
     var mf = try compileRoot(alloc, store, body);
-    defer mf.deinit();
-    defer freeInstrExtras(alloc, &mf); // LIFO : avant deinit
+    // execute() destructif : deinit complet après = double free.
+    defer deinitSansValues(alloc, &mf);
+    defer freeInstrExtras(alloc, &mf); // LIFO : avant deinitSansValues
 
     var globals = std.AutoHashMap(u32, i64).init(alloc);
     defer globals.deinit();

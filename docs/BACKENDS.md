@@ -97,7 +97,7 @@ matrice est la mesure réelle.
 - **M2** MIR→WAT puis binaire. **M2a ✅** émetteur texte
   (`src/backend/mir_wat.zig`) + 4 golden tests dans `zig build test`
   (dispatch trampoline, phis abattus, fn_defs, rejet explicite).
-  M2b : exécution wasmtime (installer wasmtime-cli).
+  M2b ✅ : oracle mir.execute vs wasmtime run — test_mir_wat.zig.
 - **M3** QBE IL depuis MIR : natif rapide remplace TCC.
 - **M4** flag Green/Fast + instrumentation énergie.
 - **M5** LLVM (décision dédiée requise, cf. vestige legacy/).
