@@ -201,6 +201,16 @@ const BenchStats = struct {
     iterations: u32,
 };
 
+/// Stats supplementaires : energie, temperature, RSS pic.
+const ExtraStats = struct {
+    energy_uj: u64 = 0,
+    temp_start_mc: i64 = 0,
+    temp_end_mc: i64 = 0,
+    rss_peak_kb: u64 = 0,
+};
+
+
+
 fn computeStats(samples: []u64) BenchStats {
     std.mem.sort(u64, samples, {}, std.sort.asc(u64));
     var sum: u128 = 0;
@@ -237,8 +247,10 @@ pub fn runBenchQbe(
     alloc: std.mem.Allocator,
     src_path: []const u8,
     iterations: u32,
+    loop_count: u32,
 ) !void {
     const n: u32 = if (iterations == 0) 100 else iterations;
+    const m: u32 = if (loop_count == 0) 1 else loop_count;
 
     // Repertoire temporaire pour le binaire.
     var tmp_dir = try std.fs.cwd().makeOpenPath(".zig-qbe-tmp", .{});
@@ -257,7 +269,7 @@ pub fn runBenchQbe(
         const body = try parseLastExpr(alloc, heaven, source);
         var mf = try compileRoot(alloc, heaven.store, &heaven.engine, body);
         defer mf.deinit();
-        const ssa = try mir_qbe.emitQbe(alloc, &mf);
+        const ssa = try mir_qbe.emitQbeLoop(alloc, &mf, m);
         defer alloc.free(ssa);
         try tmp_dir.writeFile(.{ .sub_path = "prog-bench.ssa", .data = ssa });
 
@@ -273,13 +285,14 @@ pub fn runBenchQbe(
     var cpu_samples = try alloc.alloc(u64, n);
     defer alloc.free(cpu_samples);
 
-    const rusage = @cImport(@cInclude("sys/resource.h"));
+
+    var extra: ExtraStats = .{};
+    extra.temp_start_mc = platform.profiler.readTempMc(0) orelse 0;
+    const energy_before = platform.profiler.readEnergyUj();
 
     var i: u32 = 0;
     while (i < n) : (i += 1) {
-        // CPU avant
-        var ru0: rusage.rusage = undefined;
-        _ = rusage.getrusage(rusage.RUSAGE_CHILDREN, &ru0);
+        const ru0 = platform.profiler.getChildrenUsage();
 
         const t0 = std.time.nanoTimestamp();
         var child = std.process.Child.init(&.{"./prog-bench"}, alloc);
@@ -290,21 +303,68 @@ pub fn runBenchQbe(
         _ = try child.wait();
         const t1 = std.time.nanoTimestamp();
 
-        // CPU apres
-        var ru1: rusage.rusage = undefined;
-        _ = rusage.getrusage(rusage.RUSAGE_CHILDREN, &ru1);
+        const ru1 = platform.profiler.getChildrenUsage();
 
         wall_samples[i] = @intCast(t1 - t0);
-        const delta_s: i64 = @intCast(ru1.ru_utime.tv_sec + ru1.ru_stime.tv_sec
-            - ru0.ru_utime.tv_sec - ru0.ru_stime.tv_sec);
-        const delta_us: i64 = @intCast(ru1.ru_utime.tv_usec + ru1.ru_stime.tv_usec
-            - ru0.ru_utime.tv_usec - ru0.ru_stime.tv_usec);
+        const delta_s: i64 = @intCast(ru1.utime.sec + ru1.stime.sec
+            - ru0.utime.sec - ru0.stime.sec);
+        const delta_us: i64 = @intCast(ru1.utime.usec + ru1.stime.usec
+            - ru0.utime.usec - ru0.stime.usec);
         const delta_ns: i64 = delta_s * std.time.ns_per_s + delta_us * std.time.ns_per_us;
         cpu_samples[i] = if (delta_ns > 0) @intCast(delta_ns) else 0;
+
+        const rss = @as(u64, @intCast(ru1.maxrss));
+        if (rss > extra.rss_peak_kb) extra.rss_peak_kb = rss;
     }
 
+    extra.temp_end_mc = platform.profiler.readTempMc(0) orelse 0;
+    if (energy_before) |e0| {
+        if (platform.profiler.readEnergyUj()) |e1| {
+            if (e1 > e0) extra.energy_uj = e1 - e0;
+        }
+    }
+
+    const total_inner: u64 = @as(u64, n) * @as(u64, m);
+    platform.debug.print(
+        "[BENCH-QBE] {s} : {d} spawns x {d} iterations internes = {d} total\n",
+        .{ src_path, n, m, total_inner },
+    );
     const sw = computeStats(wall_samples);
     printStats("wall", src_path, sw);
     const sc = computeStats(cpu_samples);
     printStats("cpu", src_path, sc);
+    printExtra(extra, n, energy_before != null);
+}
+
+fn printExtra(e: ExtraStats, n: u32, energy_available: bool) void {
+    const per_run_uj: f64 = if (n > 0)
+        @as(f64, @floatFromInt(e.energy_uj)) / @as(f64, @floatFromInt(n))
+    else
+        0;
+    platform.debug.print(
+        "[BENCH-QBE] extras\n" ++
+            "  rss pic       : {d} KB\n",
+        .{e.rss_peak_kb},
+    );
+    if (energy_available) {
+        platform.debug.print(
+            "  energy total  : {d} uJ  ({d:.1} uJ/run)\n",
+            .{ e.energy_uj, per_run_uj },
+        );
+    } else {
+        platform.debug.print(
+            "  energy        : indisponible (RAPL inaccessible)\n" ++
+                "                  activer avec : sudo chmod +r /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj\n",
+            .{},
+        );
+    }
+    platform.debug.print(
+        "  temp debut    : {d:.1} C\n" ++
+            "  temp fin      : {d:.1} C  (delta {d:.1} C)\n",
+        .{
+            @as(f64, @floatFromInt(e.temp_start_mc)) / 1000.0,
+            @as(f64, @floatFromInt(e.temp_end_mc)) / 1000.0,
+            @as(f64, @floatFromInt(e.temp_end_mc - e.temp_start_mc)) / 1000.0,
+        },
+    );
 }

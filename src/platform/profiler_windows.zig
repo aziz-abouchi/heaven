@@ -47,3 +47,24 @@ pub fn getResourceUsage() ResourceUsage {
 
     return .{};
 }
+// ─────────────────────────────────────────────────────────────
+// Extension : mesure d'un process enfant (bench)
+// ─────────────────────────────────────────────────────────────
+
+/// Usage des process enfants. Windows n'a pas de RUSAGE_CHILDREN
+/// direct : il faut GetProcessTimes(handle_enfant). Stub retournant
+/// des zeros : le bench indiquera 0 CPU time (a implementer quand
+/// un vrai use case Windows se presentera).
+pub fn getChildrenUsage() ResourceUsage {
+    return .{};
+}
+
+/// Pas de RAPL sur Windows (WMI/PDH plus tard).
+pub fn readEnergyUj() ?u64 {
+    return null;
+}
+
+/// Temperature via WMI/MSAcpi : stub.
+pub fn readTempMc(_: u8) ?i64 {
+    return null;
+}

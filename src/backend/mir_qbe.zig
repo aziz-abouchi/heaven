@@ -17,6 +17,18 @@ const BasicBlock = mir.BasicBlock;
 /// Émet l'IL complet : globals, une fonction par fn_def (locales),
 /// $heaven_main (le MIR root), $main exporté qui printf le résultat.
 pub fn emitQbe(allocator: std.mem.Allocator, root: *const MirFunction) ![]u8 {
+    return emitQbeLoop(allocator, root, 1);
+}
+
+/// Variante avec boucle dans le wrapper $main. Genere un binaire qui
+/// execute le corps `loop_count` fois avant de printf. Utile pour
+/// amortir le cout de fork+exec quand on mesure l'energie ou la
+/// temperature (qui bougent a l'echelle de la seconde, pas de la ms).
+pub fn emitQbeLoop(
+    allocator: std.mem.Allocator,
+    root: *const MirFunction,
+    loop_count: u32,
+) ![]u8 {
     // Fail-fast : verifier tous les call_user AVANT d'ecrire un seul
     // octet. Conforme au contrat docs/MIR_CONTRACT.md §6 : un appel
     // vers une fonction hors fn_defs doit etre rejete explicitement,
@@ -66,8 +78,24 @@ pub fn emitQbe(allocator: std.mem.Allocator, root: *const MirFunction) ![]u8 {
 
     try w.writeAll("export function $main() {\n");
     try w.writeAll("@start\n");
-    try w.writeAll("    %r =l call $heaven_main()\n");
-    try w.writeAll("    %r2 =l call $printf(l $fmt, l %r)\n");
+    if (loop_count <= 1) {
+        try w.writeAll("    %r =l call $heaven_main()\n");
+        try w.writeAll("    %r2 =l call $printf(l $fmt, l %r)\n");
+    } else {
+        // Boucle loop_count fois sur $heaven_main, imprime le dernier
+        // resultat. Amortit fork+exec pour la mesure d'energie.
+        try w.writeAll("    %loop_i =l copy 0\n");
+        try w.writeAll("    %loop_r =l copy 0\n");
+        try w.writeAll("@loop\n");
+        try w.print("    %loop_cond =w csltl %loop_i, {d}\n", .{loop_count});
+        try w.writeAll("    jnz %loop_cond, @loop_body, @loop_done\n");
+        try w.writeAll("@loop_body\n");
+        try w.writeAll("    %loop_r =l call $heaven_main()\n");
+        try w.writeAll("    %loop_i =l add %loop_i, 1\n");
+        try w.writeAll("    jmp @loop\n");
+        try w.writeAll("@loop_done\n");
+        try w.writeAll("    %r2 =l call $printf(l $fmt, l %loop_r)\n");
+    }
     try w.writeAll("    ret\n");
     try w.writeAll("}\n");
     try w.writeAll("data $fmt = { b \"%ld\\n\", b 0 }\n");
