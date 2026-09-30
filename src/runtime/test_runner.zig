@@ -203,7 +203,12 @@ pub fn runTestFile(allocator: std.mem.Allocator, path: []const u8) !bool {
 }
 
 /// Parcourt tous les *.hvn d'un dossier et lance leur suite.
-/// Retourne true si au moins un fichier a échoué.
+/// ISOLEMENT : chaque fichier tourne dans un sous-processus
+/// (self-exec `--run-test`). Un panic/abort/crash = échec de CE
+/// fichier, la suite continue. (Avant : le process mourait avec
+/// tout le run — vécu x3 : verify_book, test_factorial, M2b.)
+/// Limite connue : pas de timeout — un fichier qui HANG hangue
+/// toujours le run (amélioration future : Child + alarm).
 pub fn runTestDir(allocator: std.mem.Allocator, dir_path: []const u8) !bool {
     var dir = try platform.fs.cwd().openDir(dir_path, .{ .iterate = true });
     defer dir.close();
@@ -212,18 +217,43 @@ pub fn runTestDir(allocator: std.mem.Allocator, dir_path: []const u8) !bool {
     var any_failed = false;
     var files: usize = 0;
 
+    const exe_path = std.fs.selfExePathAlloc(allocator) catch null;
+    defer if (exe_path) |p| allocator.free(p);
+
     while (try it.next()) |entry| {
         if (entry.kind != .file) continue;
         if (!std.mem.endsWith(u8, entry.name, ".hvn")) continue;
         const full_path = try std.fs.path.join(allocator, &.{ dir_path, entry.name });
         defer allocator.free(full_path);
-        const failed = runTestFile(allocator, full_path) catch |err| {
-            platform.debug.print("✗ {s}: {}\n", .{ full_path, err });
-            any_failed = true;
-            continue;
-        };
-        if (failed) any_failed = true;
         files += 1;
+
+        if (exe_path) |exe| {
+            var child = std.process.Child.init(
+                &[_][]const u8{ exe, "--run-test", full_path },
+                allocator,
+            );
+            const term = child.spawnAndWait() catch |err| {
+                platform.debug.print("✗ {s}: (spawn) {}\n", .{ full_path, err });
+                any_failed = true;
+                continue;
+            };
+            const bad = switch (term) {
+                .Exited => |code| code != 0,
+                else => true, // signal (panic/segv) : échec du fichier
+            };
+            if (bad) {
+                platform.debug.print("✗ {s}: CRASH/FAIL ({s}) — isolé, suite continue\n", .{ full_path, @tagName(term) });
+                any_failed = true;
+            }
+        } else {
+            // selfExePath indisponible : fallback in-process (ancien comportement)
+            const failed = runTestFile(allocator, full_path) catch |err| {
+                platform.debug.print("✗ {s}: {}\n", .{ full_path, err });
+                any_failed = true;
+                continue;
+            };
+            if (failed) any_failed = true;
+        }
     }
 
     if (files == 0) {
