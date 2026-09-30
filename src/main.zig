@@ -219,8 +219,19 @@ pub fn main() !void {
     }
     if (std.mem.eql(u8, args[1], "bench-wasm") and args.len >= 3) {
         const wasm_cmd = @import("commands/wasm_cmd.zig");
-        const n: u32 = if (args.len >= 4) std.fmt.parseInt(u32, args[3], 10) catch 100 else 100;
-        try wasm_cmd.runBenchWasm(allocator, args[2], n);
+        var n: u32 = 100;
+        var m: u32 = 1;
+        var i: usize = 3;
+        while (i < args.len) {
+            if (std.mem.eql(u8, args[i], "--loop") and i + 1 < args.len) {
+                m = std.fmt.parseInt(u32, args[i + 1], 10) catch 1;
+                i += 2;
+            } else {
+                n = std.fmt.parseInt(u32, args[i], 10) catch n;
+                i += 1;
+            }
+        }
+        try wasm_cmd.runBenchWasm(allocator, args[2], n, m);
         return;
     }
     if (std.mem.eql(u8, args[1], "bench-qbe") and args.len >= 3) {

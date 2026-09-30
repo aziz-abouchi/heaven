@@ -16,6 +16,18 @@ const FnDefs = std.AutoHashMap(u32, FnDef);
 /// Émet le module WAT complet : globals (union des load/store),
 /// une fonction WASM par fn_def, et $main exporté → i64.
 pub fn emitWat(allocator: std.mem.Allocator, root: *const MirFunction) ![]u8 {
+    return emitWatLoop(allocator, root, 1);
+}
+
+/// Variante avec boucle dans $main. Genere une fonction WASM interne
+/// $heaven_main (corps du root) et un $main exporte qui l'itere
+/// loop_count fois. Utile pour amortir le bootstrap wasmtime (~5 ms
+/// par spawn) sur les mesures de perf et d'energie.
+pub fn emitWatLoop(
+    allocator: std.mem.Allocator,
+    root: *const MirFunction,
+    loop_count: u32,
+) ![]u8 {
     var buf: std.ArrayList(u8) = .empty;
     errdefer buf.deinit(allocator);
     const w = buf.writer(allocator);
@@ -53,9 +65,32 @@ pub fn emitWat(allocator: std.mem.Allocator, root: *const MirFunction) ![]u8 {
         try w.writeAll(")\n");
     }
 
-    try w.writeAll("(func $main (export \"main\") (result i64)\n");
-    try emitBody(w, root, null, &root.fn_defs);
-    try w.writeAll(")\n)\n");
+    if (loop_count <= 1) {
+        // Wrapper simple : $main est le corps du root, inchange.
+        try w.writeAll("(func $main (export \"main\") (result i64)\n");
+        try emitBody(w, root, null, &root.fn_defs);
+        try w.writeAll(")\n)\n");
+    } else {
+        // $heaven_main : le corps du root.
+        try w.writeAll("(func $heaven_main (result i64)\n");
+        try emitBody(w, root, null, &root.fn_defs);
+        try w.writeAll(")\n");
+        // $main : boucle loop_count fois sur $heaven_main.
+        try w.writeAll("(func $main (export \"main\") (result i64)\n");
+        try w.writeAll("(local $i i64)\n");
+        try w.writeAll("(local $r i64)\n");
+        try w.writeAll("(local.set $i (i64.const 0))\n");
+        try w.writeAll("(local.set $r (i64.const 0))\n");
+        try w.writeAll("(block $done\n");
+        try w.writeAll("(loop $iter\n");
+        try w.print("(br_if $done (i64.ge_s (local.get $i) (i64.const {d})))\n", .{loop_count});
+        try w.writeAll("(local.set $r (call $heaven_main))\n");
+        try w.writeAll("(local.set $i (i64.add (local.get $i) (i64.const 1)))\n");
+        try w.writeAll("(br $iter)\n");
+        try w.writeAll(")\n)\n");
+        try w.writeAll("(local.get $r)\n");
+        try w.writeAll(")\n)\n");
+    }
     return buf.toOwnedSlice(allocator);
 }
 

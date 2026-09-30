@@ -159,8 +159,10 @@ pub fn runBenchWasm(
     alloc: std.mem.Allocator,
     src_path: []const u8,
     iterations: u32,
+    loop_count: u32,
 ) !void {
     const n: u32 = if (iterations == 0) 100 else iterations;
+    const m: u32 = if (loop_count == 0) 1 else loop_count;
 
     var tmp_dir = try std.fs.cwd().makeOpenPath(".zig-wasm-tmp", .{});
     defer tmp_dir.close();
@@ -178,7 +180,7 @@ pub fn runBenchWasm(
         const body = try parseLastExpr(alloc, heaven, source);
         var mf = try compileRoot(alloc, heaven.store, &heaven.engine, body);
         defer mf.deinit();
-        const wat = try mir_wat.emitWat(alloc, &mf);
+        const wat = try mir_wat.emitWatLoop(alloc, &mf, m);
         defer alloc.free(wat);
         try tmp_dir.writeFile(.{ .sub_path = "prog.wat", .data = wat });
     }
@@ -232,8 +234,8 @@ pub fn runBenchWasm(
     const temp_end = platform.profiler.readTempMc(0) orelse 0;
 
     platform.debug.print(
-        "[BENCH-WASM] {s} : {d} runs (wasmtime {s})\n",
-        .{ src_path, n, "49.x" },
+        "[BENCH-WASM] {s} : {d} spawns x {d} iterations internes = {d} total\n",
+        .{ src_path, n, m, @as(u64, n) * @as(u64, m) },
     );
     const sw = computeStats(wall_samples);
     printStats("wall", src_path, sw);
