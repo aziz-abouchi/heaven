@@ -21,12 +21,14 @@ peano.zig : 27/27 tests.
 - Bug latent corrige : mkCongAddRProof P devait etre Eq(add a c, add x c)
   (invisible sur tests clos, cassait distrib sur (2,3,4)).
 
-## Base de confiance kernel — etat actuel
+## Base de confiance kernel — etat final (190daaa, 2026-09-30)
 PRIMITIFS : Nat, zero, succ, add, mul, nat_ind, eq_rect_nat.
-AXIOMES restants : sym, trans (derivables par eq_rect_nat).
-THEOREMES derives : add_comm, add_assoc, add_succ_right,
-mul_zero_right, mul_succ_right, mul_comm, distrib, cong_succ,
-cong_add_l, cong_add_r.
+AXIOMES   : AUCUN axiome de congruence.
+DERIVES   : sym, trans, cong_succ, cong_add_l, cong_add_r
+            + add_comm, add_assoc, add_succ_right, mul_zero_right,
+              mul_succ_right, mul_comm, distrib.
+            Tous construits sur eq_rect_nat + nat_ind.
+pool_size : 1782 (preuves derivees plus volumineuses qu'axiomes).
 
 ## Prochaines actions kernel
 A. Deriver sym via eq_rect_nat :
