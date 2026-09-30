@@ -177,3 +177,193 @@ test "Profile : energy en f64" {
     p.energy = .{ .measured = 42.5 };
     try std.testing.expectEqual(@as(f64, 42.5), p.energy.valueOrNull().?);
 }
+
+// ─────────────────────────────────────────────────────────────
+// ProfileDiff : comparaison structuree de deux profils
+// ─────────────────────────────────────────────────────────────
+
+/// Statut d'un champ dans un diff.
+pub const FieldStatus = enum {
+    /// Present dans les deux, meme precision, meme valeur.
+    identical,
+    /// Present dans les deux, meme precision, valeurs differentes.
+    changed,
+    /// Present dans les deux, precision differente (ex: measured vs
+    /// estimated). La comparaison numerique est alors ambigue.
+    precision_changed,
+    /// Present dans p1, absent dans p2.
+    only_in_left,
+    /// Absent dans p1, present dans p2.
+    only_in_right,
+    /// Absent dans les deux.
+    absent_both,
+
+    pub fn isComparable(self: FieldStatus) bool {
+        return switch (self) {
+            // Rien a comparer : les deux profils sont muets sur ce champ.
+            .absent_both => true,
+            // Comparaison numerique possible.
+            .identical, .changed => true,
+            // Ambigu ou asymetrique.
+            .precision_changed, .only_in_left, .only_in_right => false,
+        };
+    }
+};
+
+/// Resultat d'un diff : un statut par champ.
+pub const ProfileDiff = struct {
+    wall_time: FieldStatus,
+    cpu_time: FieldStatus,
+    rss: FieldStatus,
+    peak_rss: FieldStatus,
+    energy: FieldStatus,
+    instructions: FieldStatus,
+    allocations: FieldStatus,
+
+    const Self = @This();
+
+    /// Deux profils sont numeriquement comparables si tous leurs
+    /// champs differents ont la meme precision.
+    pub fn isFullyComparable(self: Self) bool {
+        return self.field_statuses().allComparable();
+    }
+
+    pub fn field_statuses(self: Self) FieldStatuses {
+        return .{
+            .wall_time = self.wall_time,
+            .cpu_time = self.cpu_time,
+            .rss = self.rss,
+            .peak_rss = self.peak_rss,
+            .energy = self.energy,
+            .instructions = self.instructions,
+            .allocations = self.allocations,
+        };
+    }
+};
+
+pub const FieldStatuses = struct {
+    wall_time: FieldStatus,
+    cpu_time: FieldStatus,
+    rss: FieldStatus,
+    peak_rss: FieldStatus,
+    energy: FieldStatus,
+    instructions: FieldStatus,
+    allocations: FieldStatus,
+
+    pub fn allComparable(self: @This()) bool {
+        return self.wall_time.isComparable()
+            and self.cpu_time.isComparable()
+            and self.rss.isComparable()
+            and self.peak_rss.isComparable()
+            and self.energy.isComparable()
+            and self.instructions.isComparable()
+            and self.allocations.isComparable();
+    }
+};
+
+pub fn diff(p1: Profile, p2: Profile) ProfileDiff {
+    return .{
+        .wall_time = fieldDiff(u64, p1.wall_time, p2.wall_time),
+        .cpu_time = fieldDiff(u64, p1.cpu_time, p2.cpu_time),
+        .rss = fieldDiff(u64, p1.rss, p2.rss),
+        .peak_rss = fieldDiff(u64, p1.peak_rss, p2.peak_rss),
+        .energy = fieldDiff(f64, p1.energy, p2.energy),
+        .instructions = fieldDiff(u64, p1.instructions, p2.instructions),
+        .allocations = fieldDiff(u64, p1.allocations, p2.allocations),
+    };
+}
+
+fn fieldDiff(comptime T: type, m1: Metric(T), m2: Metric(T)) FieldStatus {
+    const a1 = m1.isAvailable();
+    const a2 = m2.isAvailable();
+    if (!a1 and !a2) return .absent_both;
+    if (a1 and !a2) return .only_in_left;
+    if (!a1 and a2) return .only_in_right;
+    if (m1.precision() != m2.precision()) return .precision_changed;
+    // Memes precisions : comparer valeurs.
+    const v1 = m1.valueOrNull().?;
+    const v2 = m2.valueOrNull().?;
+    if (v1 == v2) return .identical;
+    return .changed;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tests ProfileDiff
+// ─────────────────────────────────────────────────────────────
+
+test "diff : deux profils vides -> absent_both partout" {
+    const p1 = Profile.empty();
+    const p2 = Profile.empty();
+    const d = diff(p1, p2);
+    try std.testing.expectEqual(FieldStatus.absent_both, d.wall_time);
+    try std.testing.expectEqual(FieldStatus.absent_both, d.energy);
+}
+
+test "diff : memes valeurs -> identical" {
+    var p1 = Profile.empty();
+    var p2 = Profile.empty();
+    p1.wall_time = .{ .measured = 1000 };
+    p2.wall_time = .{ .measured = 1000 };
+    const d = diff(p1, p2);
+    try std.testing.expectEqual(FieldStatus.identical, d.wall_time);
+}
+
+test "diff : valeurs differentes -> changed" {
+    var p1 = Profile.empty();
+    var p2 = Profile.empty();
+    p1.rss = .{ .measured = 4096 };
+    p2.rss = .{ .measured = 8192 };
+    const d = diff(p1, p2);
+    try std.testing.expectEqual(FieldStatus.changed, d.rss);
+}
+
+test "diff : precisions differentes -> precision_changed" {
+    var p1 = Profile.empty();
+    var p2 = Profile.empty();
+    p1.energy = .{ .measured = 42.5 };
+    p2.energy = .{ .estimated = 42.5 };
+    const d = diff(p1, p2);
+    // Meme valeur, precision differente
+    try std.testing.expectEqual(FieldStatus.precision_changed, d.energy);
+}
+
+test "diff : disponible d'un cote seulement" {
+    var p1 = Profile.empty();
+    const p2 = Profile.empty();
+    p1.instructions = .{ .measured = 1000 };
+    const d = diff(p1, p2);
+    try std.testing.expectEqual(FieldStatus.only_in_left, d.instructions);
+    // Inverse
+    const d2 = diff(p2, p1);
+    try std.testing.expectEqual(FieldStatus.only_in_right, d2.instructions);
+}
+
+test "diff : isFullyComparable sur champs comparables" {
+    var p1 = Profile.empty();
+    var p2 = Profile.empty();
+    p1.wall_time = .{ .measured = 1000 };
+    p2.wall_time = .{ .measured = 2000 };
+    p1.rss = .{ .measured = 4096 };
+    p2.rss = .{ .measured = 4096 };
+    const d = diff(p1, p2);
+    try std.testing.expect(d.isFullyComparable());
+}
+
+test "diff : isFullyComparable=false si precision change" {
+    var p1 = Profile.empty();
+    var p2 = Profile.empty();
+    p1.energy = .{ .measured = 42.5 };
+    p2.energy = .{ .estimated = 42.5 };
+    const d = diff(p1, p2);
+    try std.testing.expect(!d.isFullyComparable());
+}
+
+test "diff : isFullyComparable=true si champs absents des deux" {
+    var p1 = Profile.empty();
+    var p2 = Profile.empty();
+    p1.wall_time = .{ .measured = 1000 };
+    p2.wall_time = .{ .measured = 2000 };
+    const d = diff(p1, p2);
+    // energy absent des deux -> absent_both -> comparable
+    try std.testing.expect(d.isFullyComparable());
+}
