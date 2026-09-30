@@ -70,6 +70,30 @@ Apres sym/trans derives : 0 axiome de congruence.
   ProfileId, bestForMetric). Premiere brique de la boucle
   Metrics -> EGraph -> Proof. 8 tests.
 
+## QBE : migration 2021 -> v1.2 (457bb62, 2026-09-30)
+Le pin precedent (4420727, 2021-10-29) pointait sur le miroir
+github.com/andrewchambers/qbe, FIGE en 2021. Rejette la syntaxe
+SSA moderne -> pipeline MIR -> QBE -> asm -> binaire casse.
+
+Nouvelle source : release officielle
+  https://c9x.me/compile/release/qbe-1.2.tar.xz
+Cache : vendor/cache/qbe-1.2.tar.xz
+Install : vendor/qbe-1.2/ (binaire a la racine, pas obj/)
+
+`zig build test` : 378/380 (2 skipped).
+
+Bugfixes WIP externe (note dans /tmp/note_mir_qbe.md, a transmettre
+a Qwen/GLM) :
+1. mir_qbe.zig:61-62 : "export\nfunction" -> "export function"
+   sur une ligne (QBE rejette la version orpheline).
+2. mir_qbe.zig : 19 tabulations remplacees par 4 espaces
+   (QBE rejette les tabs).
+3. test_mir_qbe.zig:69 : chemin QBE absolu remplace par
+   realpathAlloc AVANT le chdir vers tmp.dir.
+
+Cleanup restant : supprimer vendor/qbe/ (2021) une fois la
+migration confirmee.
+
 ## ABI platform — etat final (8 fichiers, ~84 tests)
 precision.zig (7), error.zig (4), capability.zig (15),
 metric.zig (6), profile.zig (28), profile_ser.zig (8),
