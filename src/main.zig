@@ -206,6 +206,18 @@ pub fn main() !void {
         try compile_cmd.runCompile(allocator, args[2]);
         return;
     }
+
+    if (std.mem.eql(u8, args[1], "compile-qbe") and args.len >= 5 and std.mem.eql(u8, args[3], "-o")) {
+        const qbe_cmd = @import("commands/qbe_cmd.zig");
+        try qbe_cmd.runCompileQbe(allocator, args[2], args[4]);
+        return;
+    }
+    if (std.mem.eql(u8, args[1], "bench-qbe") and args.len >= 3) {
+        const qbe_cmd = @import("commands/qbe_cmd.zig");
+        const n: u32 = if (args.len >= 4) std.fmt.parseInt(u32, args[3], 10) catch 100 else 100;
+        try qbe_cmd.runBenchQbe(allocator, args[2], n);
+        return;
+    }
     if (std.mem.eql(u8, args[1], "run") and args.len >= 3) {
         const run_cmd = @import("commands/run.zig");
         try run_cmd.runRun(allocator, &.{args[2]});

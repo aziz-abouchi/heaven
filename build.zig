@@ -429,6 +429,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const mir_qbe_mod = b.createModule(.{
+        .root_source_file = b.path("src/backend/mir_qbe.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "mir", .module = mir_mod },
+        },
+    });
+
     const x86_64_mod = b.createModule(.{
         .root_source_file = b.path("src/core/x86_64.zig"),
         .target = target,
@@ -1118,6 +1127,8 @@ pub fn build(b: *std.Build) void {
                     .{ .name = "commands", .module = commands_mod },
                     .{ .name = "universal_translator", .module = universal_translator_mod },
                     .{ .name = "profiler", .module = profiler_mod },
+                    .{ .name = "mir", .module = mir_mod },
+                    .{ .name = "mir_qbe", .module = mir_qbe_mod },
                 },
             },
         ),

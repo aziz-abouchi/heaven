@@ -231,7 +231,16 @@ pub const MirFunction = struct {
                 const func_node = store.get(node.payload);
                 if (func_node.tag != .sym) return error.UnsupportedExpr;
                 const op_name = store.interner.resolve(func_node.payload);
-                const args = node.span_a.slice(store.pool.items);
+                // Convention Store : span_a[0] = func_id (docs/spec/
+                // _store_invariants.md). Certains tests construisent
+                // span_a = [arg0, arg1, ...] (sans le func). On
+                // normalise : si le premier arg est le func lui-meme,
+                // on le saute.
+                const raw_args = node.span_a.slice(store.pool.items);
+                const args = if (raw_args.len > 0 and raw_args[0] == node.payload)
+                    raw_args[1..]
+                else
+                    raw_args;
 
                 if (std.mem.eql(u8, op_name, "while") and args.len == 2) {
                     return try self.compileWhile(store, args[0], args[1], target_block, locals);
