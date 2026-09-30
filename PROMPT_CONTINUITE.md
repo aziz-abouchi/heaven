@@ -56,6 +56,45 @@ delta-regles minimales (2 par operateur, 1er argument) :
 Equality : eq_rect_nat primitif, tout le reste derive.
 Apres sym/trans derives : 0 axiome de congruence.
 
+## Session 2026-09-30 (suite) — commits b01de06..0462157
+- 735c3f7 feat(engine_expr): safepoint 3a-3-lite (evalWithBudget
+  / EvalOutcome). Engine.reductions, error.SuspendRequested,
+  abort cooperatif. 4 tests.
+- ccb8711 docs(_continuations.md): note "abort cooperatif !=
+  scheduling". Constat : evalWithBudget suspend a l'entree, ne
+  reprend pas. Le scheduler exige 3a-3-complet.
+- dbeca0c feat(platform/abi): ProfileTree (hierarchie de profils,
+  children/ancestors/rootOf/depth, dedup content-addressed).
+  8 tests.
+- 0462157 feat(platform/abi): ProfileAnnotations (ClassId <->
+  ProfileId, bestForMetric). Premiere brique de la boucle
+  Metrics -> EGraph -> Proof. 8 tests.
+
+## ABI platform — etat final (8 fichiers, ~84 tests)
+precision.zig (7), error.zig (4), capability.zig (15),
+metric.zig (6), profile.zig (28), profile_ser.zig (8),
+profile_tree.zig (8), profile_annotations.zig (8).
+
+Tous branches dans build.zig (test_abi_*). `zig build test` : 375/377
+(1 skip WIP MIR, 1 fail test_mir_qbe externe).
+
+## Regle P3 tenue par le type
+Deux verrous concrets :
+- requireMeasuredEnergy (profile.zig) : refuse les estimations.
+- bestForMetric (profile_annotations.zig) : ne considere que
+  `measured`, jamais `estimated`.
+Un optimiseur qui veut choisir une classe DOIT passer par
+bestForMetric -- il ne peut pas prendre une decision sur une
+valeur non fiable.
+
+## Prochains chantiers (independants)
+A. 3a-3-complet : brancher captureCont dans engine_expr.evaluate.
+   Session dense, touche le tree-walker (56 sites recursifs,
+   propage via try). Debloque scheduler + handle-rec.
+B. egraph.add_profile : relier ProfileAnnotations a egraph.zig.
+   La couche donnees existe, il reste le pont.
+C. MIR/QBE (autre session) -- NE PAS TOUCHER.
+
 ## ABI platform etendue (2026-09-30, commits f912737..11419cf)
 src/platform/abi/ contient maintenant 6 fichiers :
 - precision.zig   (7 tests) : Precision, Monotonic, Value, Metric
