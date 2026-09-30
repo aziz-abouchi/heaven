@@ -115,6 +115,36 @@ fi
 
 echo "[FORGE] TCC présent."
 
+#─── QBE : backend natif (M3 — docs/BACKENDS.md) ───
+# Amont git.c9x.me/qbe — DNS instable, miroir GitHub figé (commit
+# 4420727 ; la syntaxe SSA utilisée est stable). Binaire : obj/qbe.
+if [ ! -d "$VENDOR_DIR/qbe" ]; then
+    echo "[FORGE] Clonage QBE (miroir)..."
+    git clone https://github.com/andrewchambers/qbe.git "$VENDOR_DIR/qbe"
+fi
+git -C "$VENDOR_DIR/qbe" checkout -q 4420727
+
+if [ ! -x "$VENDOR_DIR/qbe/obj/qbe" ]; then
+    echo "[FORGE] Build QBE..."
+    (cd "$VENDOR_DIR/qbe" && make)
+fi
+
+# Smoke test local : qbe → asm → cc → run. NB : ce miroir n'émet pas
+# .globl pour $main — injection (idem notre émetteur mir_qbe).
+cat > /tmp/qbe_smoke.ssa <<'SMOKE'
+function $main() {
+@start
+    %r =l call $printf(l $fmt, l 42)
+    ret
+}
+data $fmt = { b "smoke %ld\n", b 0 }
+SMOKE
+"$VENDOR_DIR/qbe/obj/qbe" -o /tmp/qbe_smoke.s /tmp/qbe_smoke.ssa
+( printf '.globl main\n'; cat /tmp/qbe_smoke.s ) > /tmp/qbe_smoke.s.g
+cc /tmp/qbe_smoke.s.g -o /tmp/qbe_smoke
+/tmp/qbe_smoke | grep -q "smoke 42"
+echo "[FORGE] QBE OK ($(uname -s)/$(uname -m))."
+
 # libdatachannel
 if [ ! -d "$VENDOR_DIR/libdatachannel" ]; then
     echo "[FORGE] Clonage libdatachannel..."
