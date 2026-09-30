@@ -23,6 +23,11 @@ pub fn build(b: *std.Build) void {
     options.addOption(bool, "is_wasm", target.query.cpu_arch == .wasm32);
     options.addOption(bool, "network", network);
     options.addOption(i64, "build_timestamp", std.time.timestamp());
+    // Chemin absolu vers QBE v1.2, injecte a la compilation pour les
+    // tests qui doivent l'invoquer (test_mir_qbe). Evite le piege du
+    // CWD : `zig build test` execute les binaires depuis .zig-cache/,
+    // pas depuis la racine du repo.
+    options.addOptionPath("qbe_path", .{ .cwd_relative = b.pathFromRoot("vendor/qbe-1.2/qbe") });
 
     // 2. Module platform
     // Formate dynamiquement le chemin : ex. "src/platform/wasm32_wasi.zig" ou "src/platform/aarch64_macos.zig"
@@ -1160,6 +1165,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr", .module = expr_mod },
         },
     }) });
+    test_mir_qbe.root_module.addOptions("build_options", options);
 
     const test_mir_wat = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/backend/test_mir_wat.zig"),

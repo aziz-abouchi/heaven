@@ -221,3 +221,59 @@ que le diff est bien du WIP et pas du travail en cours.
   test_mir_wat.zig, fix réel à coordonner.
 - M2b : wasmtime (cargo install wasmtime-cli) — oracle
   mir.execute vs exécution WAT réelle.
+
+## Addendum — session backends, clôture (2026-09-30 PM)
+
+### HANDOVER MIR/QBE → DeepSeek
+- src/backend/mir_qbe.zig + test_mir_qbe.zig + câblage build.zig :
+  transférés. État : working tree, NON committé, validation verte
+  NON établie à notre main. 3 bugs pipeline corrigés localement
+  (export function sur 1 ligne ; tabs interdits → 4 espaces —
+  cause des erreurs qbe "??" ; chemin qbe résolu en absolu AVANT
+  le chdir tmpdir).
+- build.sh : migration vendor QBE miroir-2021 → v1.2 officielle
+  (working tree). Miroir andrewchambers ABANDONNÉ.
+- mir_wat.zig + test_mir_wat.zig (M2a/M2b) : restent à ce fil.
+  VERT (cf6d7dc) — oracle mir.execute vs wasmtime.
+
+### Topologie — 3 sessions sur l'arbre
+1. kernel/stdlib — WIP : core/std/*, test_suite x2, parse.zig,
+   patch_parser_infix.py
+2. DeepSeek — MIR/QBE (handover ci-dessus)
+3. backends (ce fil) — M2 WAT, docs, infra
+→ JAMAIS de reset --hard sans status vérifié (#10), JAMAIS de
+  git add -A (#9). Trois mains, un arbre.
+
+### Commits de la session backends (résumé)
+d9d35ba TCO spine | c620281 fact/f(x) | 35b99d8 ctors minuscules
+629110b BACKENDS.md M0 | cda121d+11f128c MIR_CONTRACT M1
+ff0ecb0 M2a émetteur WAT | cf6d7dc M2b oracle wasmtime
+9f1329a+a302e59 bootstrap QBE build.sh
+(22b4321 : main rouge 40 min, notre faute, fixé en 7961082)
+
+### Conventions #13-#16 (cumulent #9-#12 de l'addendum moteur)
+- #13 : git log --oneline -- <file> AVANT tout cat > sur docs/
+  (incident 290f301 : M1 a écrasé le leur sans fusion).
+- #14 : garde d'idempotence = identifiant unique (nom de fn),
+  jamais une substring — "M2b" matchait l'en-tête M2a (22b4321).
+- #15 : commit fail-closed — push seulement si "Build Summary"
+  vert lu sur le MÊME tour.
+- #16 : valider un bloc de script extrait = reproduire son
+  contexte (set -e inclus) — sinon la validation ment (9f1329a).
+- Heredocs longs = mangled par le navigateur (tabs, fragments
+  silencieux). Vérifier le fichier après gros collage.
+
+### Sujets suivants (session backends, par priorité)
+1. Runner panic-isolé : --run-tests <dir> → un fichier = un
+   process fork/exec. Un panic ne tue plus la CI à 3 mains.
+   Vécu x3 cette semaine (verify_book, test_factorial, M2b).
+2. t_distrib ~2s — RÉGRESSION (1375ms au 28/09). Piste :
+   fix-point e-graph par nodeHash.
+3. tco_deep ~40µs/iter — le trampoline ré-alloue par rebond.
+4. M4 Green/Fast (BACKENDS.md §3) — après stabilisation M3.
+5. Dettes docs : README (39 tests→375+, "MIR ~40%", step wasm
+   inexistante → bash build.sh) ; STATUS.md lignes TCO/CIC.
+
+### Relais kernel — ENVOYÉ (texte dans le log de session)
+Fuite defs.zig:228 + mir.zig deinit/execute + 290f301 + M2/M3.
+Si non traité à la prochaine session : relancer.
