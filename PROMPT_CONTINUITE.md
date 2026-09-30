@@ -1,7 +1,7 @@
 # Prompt de continuité — Heaven session suivante
 
 ## HEAD
-097a493 (main) — bench: fib.hvn (recursion non-tail)
+11ca8f4 (main) — docs sync 2026-09-30 (STATUS/BACKENDS/CHANGELOG)
 Session : f31b2eb (fix mir+defs), 22de554 (_bench.md), 097a493 (fib.hvn)
 Tout poussé sur origin/main.
 
