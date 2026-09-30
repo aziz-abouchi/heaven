@@ -110,6 +110,14 @@ pub fn main() !void {
 
     platform.debug_enabled = platform.getenv("HEAVEN_DEBUG") != null;
 
+    // Sortie differee : std.process.exit() court-circuite TOUS les
+    // defer, y compris le check de fuite gpa plus bas. On pose un
+    // exit-defer EN PREMIER (donc execute EN DERNIER, LIFO) qui
+    // appelle exit une fois que tous les autres defers (cleanup
+    // engine/store/shell, check gpa) ont tourne.
+    var requested_exit: ?u8 = null;
+    defer if (requested_exit) |code| std.process.exit(code);
+
     var gpa = std.heap.GeneralPurposeAllocator(.{
         .safety = true, // active toutes les vérifications
         .thread_safe = true, // support multi-thread
@@ -211,12 +219,12 @@ pub fn main() !void {
     //}
     if (std.mem.eql(u8, args[1], "--run-test")) {
         const test_runner = @import("runtime/test_runner.zig");
-        if (try test_runner.runTestFile(allocator, args[2])) std.process.exit(1);
+        if (try test_runner.runTestFile(allocator, args[2])) requested_exit = 1;
         return;
     }
     if (std.mem.eql(u8, args[1], "--run-tests")) {
         const test_runner = @import("runtime/test_runner.zig");
-        if (try test_runner.runTestDir(allocator, args[2])) std.process.exit(1);
+        if (try test_runner.runTestDir(allocator, args[2])) requested_exit = 1;
         return;
     }
     if (std.mem.eql(u8, args[1], "test") and args.len >= 3) {
@@ -459,6 +467,7 @@ pub fn main() !void {
     if (net_thread) |t| t.detach();
     signal_thread.detach();
 
-    // 3. Forcer la fermeture du processus.
-    std.process.exit(0);
+    // 3. Sortie normale : le defer exit-defer s'en charge apres les
+    // autres defers (cleanup shell/engine/store, check gpa).
+    requested_exit = 0;
 }
