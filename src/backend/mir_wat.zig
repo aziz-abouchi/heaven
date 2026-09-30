@@ -1,0 +1,174 @@
+//! MIR → WAT : émetteur texte (jalon M2a — docs/BACKENDS.md).
+//! Contrat : docs/MIR_CONTRACT.md. Lecture seule de MirFunction.
+//! call_user hors fn_defs → error.UnsupportedCall (rejet explicite,
+//! jamais de repli silencieux sur l'interprète).
+
+const std = @import("std");
+const mir = @import("mir");
+
+const MirFunction = mir.MirFunction;
+const FnDef = mir.FnDef;
+const Instr = mir.Instr;
+const BlockId = mir.BlockId;
+const BasicBlock = mir.BasicBlock;
+const FnDefs = std.AutoHashMap(u32, FnDef);
+
+/// Émet le module WAT complet : globals (union des load/store),
+/// une fonction WASM par fn_def, et $main exporté → i64.
+pub fn emitWat(allocator: std.mem.Allocator, root: *const MirFunction) ![]u8 {
+    var buf: std.ArrayList(u8) = .empty;
+    errdefer buf.deinit(allocator);
+    const w = buf.writer(allocator);
+    try w.writeAll("(module\n");
+
+    var global_set = std.AutoHashMap(u32, void).init(allocator);
+    defer global_set.deinit();
+    try collectGlobals(&global_set, root);
+    var fit = root.fn_defs.keyIterator();
+    while (fit.next()) |k| {
+        const fd = root.fn_defs.get(k.*).?;
+        try collectGlobals(&global_set, &fd.fn_mir);
+    }
+    var git = global_set.keyIterator();
+    while (git.next()) |g| {
+        try w.print("(global $g{d} (mut i64) (i64.const 0))\n", .{g.*});
+    }
+
+    // Snapshot des noms (itération stable sur la HashMap).
+    // NB : ordre d'émission non déterministe — les golden tests ne
+    // dépendent que de la présence de fragments, pas de l'ordre.
+    var fn_names: std.ArrayList(u32) = .empty;
+    defer fn_names.deinit(allocator);
+    var kit = root.fn_defs.keyIterator();
+    while (kit.next()) |k| try fn_names.append(allocator, k.*);
+
+    for (fn_names.items) |sym| {
+        const def = root.fn_defs.get(sym).?;
+        try w.print("(func $f{d} ", .{sym});
+        for (def.param_regs, 0..) |_, i| {
+            try w.print("(param $p{d} i64) ", .{i});
+        }
+        try w.writeAll("(result i64)\n");
+        try emitBody(w, &def.fn_mir, &def, &root.fn_defs);
+        try w.writeAll(")\n");
+    }
+
+    try w.writeAll("(func $main (export \"main\") (result i64)\n");
+    try emitBody(w, root, null, &root.fn_defs);
+    try w.writeAll(")\n)\n");
+    return buf.toOwnedSlice(allocator);
+}
+
+/// Corps d'une fonction : locals (1 par reg + $cur), prologue
+/// params→regs, dispatch trampoline — (loop $dispatch) + chaîne de
+/// (if $cur==k). Correct pour tout CFG ; O(nb blocs) par
+/// branchement. Le relooping structuré est un chantier M3+.
+fn emitBody(w: anytype, f: *const MirFunction, def: ?*const FnDef, fdefs: *const FnDefs) !void {
+    if (f.blocks.items.len == 0) {
+        try w.writeAll("(i64.const 0)\n");
+        return;
+    }
+    var r: u32 = 0;
+    while (r < f.next_value) : (r += 1) {
+        try w.print("(local $r{d} i64)\n", .{r});
+    }
+    try w.writeAll("(local $cur i32)\n");
+
+    if (def) |d| {
+        for (d.param_regs, 0..) |preg, i| {
+            try w.print("(local.set $r{d} (local.get $p{d}))\n", .{ preg, i });
+        }
+    }
+
+    try w.writeAll("(local.set $cur (i32.const 0))\n");
+    try w.writeAll("(loop $dispatch\n");
+    for (f.blocks.items, 0..) |*blk, i| {
+        const bid: BlockId = @intCast(i);
+        try w.print("(if (i32.eq (local.get $cur) (i32.const {d}))\n", .{bid});
+        try w.writeAll("  (then\n");
+        for (blk.instrs.items) |inst| {
+            switch (inst) {
+                .phi => {}, // émis par les prédécesseurs (contrat §4)
+                .jump, .branch, .ret => return error.TerminatorInBody,
+                else => try emitInstr(w, inst, fdefs),
+            }
+        }
+        try emitTerminator(w, f, blk, bid);
+        try w.writeAll("  ))\n");
+    }
+    try w.writeAll("br $dispatch\n)\n");
+    try w.writeAll("(i64.const 0)\n");
+}
+
+fn emitInstr(w: anytype, inst: Instr, fdefs: *const FnDefs) !void {
+    switch (inst) {
+        .const_int => |c| try w.print("(local.set $r{d} (i64.const {d}))\n", .{ c.dest, c.value }),
+        .add => |a| try w.print("(local.set $r{d} (i64.add (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
+        .sub => |a| try w.print("(local.set $r{d} (i64.sub (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
+        .mul => |a| try w.print("(local.set $r{d} (i64.mul (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
+        .div => |a| try w.print("(local.set $r{d} (i64.div_s (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
+        .cmp_lt => |a| try w.print("(local.set $r{d} (i64.extend_i32_s (i64.lt_s (local.get $r{d}) (local.get $r{d}))))\n", .{ a.dest, a.lhs, a.rhs }),
+        .cmp_eq => |a| try w.print("(local.set $r{d} (i64.extend_i32_s (i64.eq (local.get $r{d}) (local.get $r{d}))))\n", .{ a.dest, a.lhs, a.rhs }),
+        .load => |l| try w.print("(local.set $r{d} (global.get $g{d}))\n", .{ l.dest, l.sym }),
+        .store => |s| try w.print("(global.set $g{d} (local.get $r{d}))\n", .{ s.sym, s.src }),
+        .call_user => |c| {
+            if (!fdefs.contains(c.name)) return error.UnsupportedCall;
+            try w.print("(local.set $r{d} (call $f{d}", .{ c.dest, c.name });
+            for (c.args) |arg| {
+                try w.print(" (local.get $r{d})", .{arg});
+            }
+            try w.writeAll("))\n");
+        },
+        .phi, .jump, .branch, .ret => unreachable, // filtrés en amont
+    }
+}
+
+/// Terminateur d'un bloc. Les phis du bloc cible sont abattus
+/// en local.set dans le prédécesseur (contrat §4).
+fn emitTerminator(w: anytype, f: *const MirFunction, blk: *const BasicBlock, pred: BlockId) !void {
+    switch (blk.terminator) {
+        .jump => |t| {
+            try emitPhiStores(w, f, t, pred);
+            try w.print("(local.set $cur (i32.const {d}))\nbr $dispatch\n", .{t});
+        },
+        .branch => |b| {
+            try w.print("(if (i64.ne (local.get $r{d}) (i64.const 0))\n", .{b.cond});
+            try w.writeAll("  (then\n");
+            try emitPhiStores(w, f, b.then_block, pred);
+            try w.print("  (local.set $cur (i32.const {d}))\n  br $dispatch\n", .{b.then_block});
+            try w.writeAll("  )\n  (else\n");
+            try emitPhiStores(w, f, b.else_block, pred);
+            try w.print("  (local.set $cur (i32.const {d}))\n  br $dispatch\n", .{b.else_block});
+            try w.writeAll("  )\n)\n");
+        },
+        .ret => |rv| try w.print("(return (local.get $r{d}))\n", .{rv}),
+        .fallthrough => try w.writeAll("(return (i64.const 0))\n"),
+    }
+}
+
+fn emitPhiStores(w: anytype, f: *const MirFunction, target: BlockId, pred: BlockId) !void {
+    for (f.blocks.items[target].instrs.items) |inst| {
+        switch (inst) {
+            .phi => |p| {
+                for (p.incoming) |in| {
+                    if (in.block == pred) {
+                        try w.print("(local.set $r{d} (local.get $r{d}))\n", .{ p.dest, in.value });
+                    }
+                }
+            },
+            else => {},
+        }
+    }
+}
+
+fn collectGlobals(set: *std.AutoHashMap(u32, void), f: *const MirFunction) !void {
+    for (f.blocks.items) |*blk| {
+        for (blk.instrs.items) |inst| {
+            switch (inst) {
+                .load => |l| try set.put(l.sym, {}),
+                .store => |s| try set.put(s.sym, {}),
+                else => {},
+            }
+        }
+    }
+}

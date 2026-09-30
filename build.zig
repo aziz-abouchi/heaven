@@ -1140,6 +1140,18 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(exe);
 
     // ─── Tests ───
+    // M2 : tests MIR→WAT (docs/BACKENDS.md, docs/MIR_CONTRACT.md)
+    const test_mir_wat = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/backend/test_mir_wat.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "mir", .module = mir_mod },
+            .{ .name = "expr", .module = expr_mod },
+        },
+    }) });
+    const run_test_mir_wat = b.addRunArtifact(test_mir_wat);
+
     const test_expr = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/core/expr.zig"),
         .target = target,
@@ -1566,6 +1578,7 @@ pub fn build(b: *std.Build) void {
     }
 
     test_step.dependOn(&b.addRunArtifact(test_expr).step);
+    test_step.dependOn(&run_test_mir_wat.step);
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_kanren_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_continuation).step);

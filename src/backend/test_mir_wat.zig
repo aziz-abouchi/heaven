@@ -1,0 +1,150 @@
+//! Tests M2a : MIR → WAT (fragments golden). L'oracle de sémantique
+//! reste mir.execute ; l'exécution réelle du WAT (wasmtime) = M2b.
+
+const std = @import("std");
+const mir = @import("mir");
+const expr = @import("expr");
+const wat = @import("mir_wat.zig");
+
+const Store = expr.Store;
+const MirFunction = mir.MirFunction;
+const Reg = mir.Reg;
+
+/// Convention attendue par compileExpr : span_a = args SEULS,
+/// payload = func. (store.apply peut préfixer func dans span_a —
+/// cf. expr.applyArgs ; construction manuelle pour être
+/// indépendant de la convention.)
+fn applyNoFunc(store: *Store, func: expr.Id, args: []const expr.Id) !expr.Id {
+    const span = try store.reserveSpan(args.len);
+    for (args, 0..) |a, i| store.pool.items[span.start + i] = a;
+    return store.addNode(.{
+        .tag = .apply,
+        .payload = func,
+        .aux = 0,
+        .span_a = span,
+        .span_b = expr.Span.EMPTY,
+    });
+}
+
+fn compileRoot(alloc: std.mem.Allocator, store: *Store, body: expr.Id) !MirFunction {
+    var mf = MirFunction.initWithStore(alloc, store);
+    errdefer mf.deinit();
+    const entry = try mf.newBlock();
+    var locals = std.AutoHashMap(u32, Reg).init(alloc);
+    defer locals.deinit();
+    const result = try mf.compileExpr(store, body, entry, locals);
+    // Ne pas écraser un terminator posé par compileIf (branch).
+    if (mf.blocks.items[entry].terminator == .fallthrough) {
+        mf.blocks.items[entry].terminator = .{ .ret = result };
+    }
+    return mf;
+}
+
+fn has(haystack: []const u8, needle: []const u8) bool {
+    return std.mem.indexOf(u8, haystack, needle) != null;
+}
+
+/// mir.zig (gelé) : deinit ne libère pas les slices internes des
+/// instructions (.phi.incoming — dupe mir.zig:316 ; .call_user.args).
+/// Fuite pré-existante ; fix réel à coordonner côté session kernel.
+/// Workaround : libération manuelle. En defer LIFO, ce bloc s'exécute
+/// AVANT le deinit (qui ne touche pas ces slices).
+fn freeInstrExtras(alloc: std.mem.Allocator, mf: *const MirFunction) void {
+    for (mf.blocks.items) |blk| {
+        for (blk.instrs.items) |inst| {
+            switch (inst) {
+                .phi => |p| alloc.free(@constCast(p.incoming)),
+                .call_user => |c| alloc.free(@constCast(c.args)),
+                else => {},
+            }
+        }
+    }
+}
+
+test "wat — arithmétique (+ 2 3)" {
+    const alloc = std.testing.allocator;
+    var store = Store.init(alloc);
+    defer store.deinit();
+    const plus = try store.sym("+");
+    const two = try store.int(2);
+    const three = try store.int(3);
+    const body = try applyNoFunc(&store, plus, &.{ two, three });
+    var mf = try compileRoot(alloc, &store, body);
+    defer mf.deinit();
+    defer freeInstrExtras(alloc, &mf);
+    const out = try wat.emitWat(alloc, &mf);
+    defer alloc.free(out);
+    try std.testing.expect(has(out, "(export \"main\")"));
+    try std.testing.expect(has(out, "(i64.const 2)"));
+    try std.testing.expect(has(out, "(i64.const 3)"));
+    try std.testing.expect(has(out, "i64.add"));
+    try std.testing.expect(has(out, "(return (local.get $r"));
+    try std.testing.expectEqual(@as(usize, 0), std.mem.count(u8, out, "$g"));
+}
+
+test "wat — if : branch, dispatch, global" {
+    const alloc = std.testing.allocator;
+    var store = Store.init(alloc);
+    defer store.deinit();
+    const if_s = try store.sym("if");
+    const lt = try store.sym("<");
+    const x = try store.sym("x");
+    const cond = try applyNoFunc(&store, lt, &.{ x, try store.int(2) });
+    const body = try applyNoFunc(&store, if_s, &.{ cond, try store.int(10), try store.int(20) });
+    var mf = try compileRoot(alloc, &store, body);
+    defer mf.deinit();
+    defer freeInstrExtras(alloc, &mf);
+    const out = try wat.emitWat(alloc, &mf);
+    defer alloc.free(out);
+    try std.testing.expect(has(out, "(global $g"));
+    try std.testing.expect(has(out, "i64.lt_s"));
+    try std.testing.expect(has(out, "i64.extend_i32_s"));
+    try std.testing.expect(has(out, "(loop $dispatch"));
+    try std.testing.expect(has(out, "br $dispatch"));
+    // entry + then + else + merge = 4 gardes de dispatch.
+    try std.testing.expectEqual(@as(usize, 4), std.mem.count(u8, out, "(if (i32.eq (local.get $cur)"));
+}
+
+test "wat — fn_defs : fonction séparée et appel" {
+    const alloc = std.testing.allocator;
+    var root = MirFunction.init(alloc);
+    defer root.deinit();
+    defer freeInstrExtras(alloc, &root);
+    const entry = try root.newBlock();
+    const a = root.newReg();
+    const b = root.newReg();
+    const c = root.newReg();
+    try root.blocks.items[entry].instrs.append(alloc, .{ .const_int = .{ .dest = a, .value = 20 } });
+    try root.blocks.items[entry].instrs.append(alloc, .{ .const_int = .{ .dest = b, .value = 22 } });
+    const args42 = try alloc.dupe(u32, &.{ a, b });
+    try root.blocks.items[entry].instrs.append(alloc, .{ .call_user = .{ .dest = c, .name = 42, .args = args42 } });
+    root.blocks.items[entry].terminator = .{ .ret = c };
+
+    var fn_mir = MirFunction.init(alloc);
+    const fentry = try fn_mir.newBlock();
+    const p0 = fn_mir.newReg();
+    fn_mir.blocks.items[fentry].terminator = .{ .ret = p0 };
+    try root.fn_defs.put(42, .{
+        .fn_mir = fn_mir,
+        .param_names = &[_]u32{},
+        .param_regs = try alloc.dupe(u32, &[_]u32{p0}),
+    });
+
+    const out = try wat.emitWat(alloc, &root);
+    defer alloc.free(out);
+    try std.testing.expect(has(out, "(func $f42 (param $p0 i64) (result i64)"));
+    try std.testing.expect(has(out, "(local.set $r0 (local.get $p0))"));
+    try std.testing.expect(has(out, "(local.set $r2 (call $f42 (local.get $r0) (local.get $r1)))"));
+}
+
+test "wat — call_user hors fn_defs : rejet explicite" {
+    const alloc = std.testing.allocator;
+    var root = MirFunction.init(alloc);
+    defer root.deinit();
+    defer freeInstrExtras(alloc, &root);
+    const entry = try root.newBlock();
+    const a = root.newReg();
+    try root.blocks.items[entry].instrs.append(alloc, .{ .call_user = .{ .dest = a, .name = 7, .args = &.{} } });
+    root.blocks.items[entry].terminator = .{ .ret = a };
+    try std.testing.expectError(error.UnsupportedCall, wat.emitWat(alloc, &root));
+}
