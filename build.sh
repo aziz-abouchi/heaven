@@ -116,17 +116,38 @@ fi
 echo "[FORGE] TCC présent."
 
 #─── QBE : backend natif (M3 — docs/BACKENDS.md) ───
-# Amont git.c9x.me/qbe — DNS instable, miroir GitHub figé (commit
-# 4420727 ; la syntaxe SSA utilisée est stable). Binaire : obj/qbe.
-if [ ! -d "$VENDOR_DIR/qbe" ]; then
-    echo "[FORGE] Clonage QBE (miroir)..."
-    git clone https://github.com/andrewchambers/qbe.git "$VENDOR_DIR/qbe"
-fi
-git -C "$VENDOR_DIR/qbe" checkout -q 4420727
+# Amont : c9x.me/compile/release/qbe-<version>.tar.xz (release
+# officielle). Le miroir github.com/andrewchambers/qbe est FIGE en
+# 2021 (commit 4420727) et rejette la syntaxe SSA moderne
+# (tabulations, etc.). Ne pas l'utiliser.
+#
+# Le tarball officiel est mis en cache dans vendor/cache/ pour
+# éviter un re-téléchargement si vendor/qbe-<version>/ est supprimé.
+QBE_VERSION="1.2"
+QBE_DIR="$VENDOR_DIR/qbe-$QBE_VERSION"
+QBE_TARBALL_URL="https://c9x.me/compile/release/qbe-$QBE_VERSION.tar.xz"
+QBE_CACHE_DIR="$VENDOR_DIR/cache"
+QBE_TARBALL_CACHE="$QBE_CACHE_DIR/qbe-$QBE_VERSION.tar.xz"
 
-if [ ! -x "$VENDOR_DIR/qbe/obj/qbe" ]; then
-    echo "[FORGE] Build QBE..."
-    (cd "$VENDOR_DIR/qbe" && make)
+if [ ! -d "$QBE_DIR" ]; then
+    echo "[FORGE] Installation QBE $QBE_VERSION..."
+    mkdir -p "$QBE_CACHE_DIR"
+    if [ ! -f "$QBE_TARBALL_CACHE" ]; then
+        echo "[FORGE] Téléchargement $QBE_TARBALL_URL..."
+        curl -sL "$QBE_TARBALL_URL" -o "$QBE_TARBALL_CACHE"
+    fi
+    # Verifier que c'est bien un tarball (et pas une page d'erreur).
+    if ! file "$QBE_TARBALL_CACHE" | grep -q "XZ compressed"; then
+        echo "[FORGE] ERREUR : $QBE_TARBALL_CACHE n'est pas une archive xz."
+        exit 1
+    fi
+    mkdir -p "$QBE_DIR"
+    tar -xf "$QBE_TARBALL_CACHE" -C "$QBE_DIR" --strip-components=1
+fi
+
+if [ ! -x "$QBE_DIR/qbe" ]; then
+    echo "[FORGE] Build QBE $QBE_VERSION..."
+    (cd "$QBE_DIR" && make)
 fi
 
 # Smoke test local : qbe → asm → cc → run. `export function` est
@@ -139,10 +160,10 @@ export function $main() {
 }
 data $fmt = { b "smoke %ld\n", b 0 }
 SMOKE
-"$VENDOR_DIR/qbe/obj/qbe" -o /tmp/qbe_smoke.s /tmp/qbe_smoke.ssa
+"$QBE_DIR/qbe" -o /tmp/qbe_smoke.s /tmp/qbe_smoke.ssa
 cc /tmp/qbe_smoke.s -o /tmp/qbe_smoke
 /tmp/qbe_smoke | grep -q "smoke 42"
-echo "[FORGE] QBE OK ($(uname -s)/$(uname -m))."
+echo "[FORGE] QBE OK $QBE_VERSION ($(uname -s)/$(uname -m))."
 
 # libdatachannel
 if [ ! -d "$VENDOR_DIR/libdatachannel" ]; then
