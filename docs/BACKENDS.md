@@ -63,7 +63,9 @@ Sélection **explicite** : flag compile-time + profil runtime.
 
 | Composant | Fichier | État |
 |---|---|---|
-| MIR (IR + interp) | `src/core/mir.zig` (978 l.) | `compileExpr`, `execute` (i64), `dump` ; 15 instr ; commande `mir` |
+| MIR (IR + interp) | `src/core/mir.zig` (~1050 l.) | `compileExpr`, `execute` (i64), `dump` ; 15 instr ; `precompileUserFns` ; commande `mir` |
+| MIR -> WAT | `src/backend/mir_wat.zig` | M2a ✅ ; `compile-wasm`, `bench-wasm` |
+| MIR -> QBE IL | `src/backend/mir_qbe.zig` | M3 ✅ ; `compile-qbe`, `bench-qbe` |
 | C / JS / LaTeX | `src/codegen/{expr_c,expr_js,expr_latex}.zig` | depuis Expr, vivants |
 | TCC | `vendor/tcc` + build.zig | compilé/linké ; usage runtime à auditer |
 | x86-64 | `src/core/x86_64.zig` (37 l.) | stub `emitFromFunction(MirFunction)` |
@@ -98,8 +100,14 @@ matrice est la mesure réelle.
   (`src/backend/mir_wat.zig`) + 4 golden tests dans `zig build test`
   (dispatch trampoline, phis abattus, fn_defs, rejet explicite).
   M2b ✅ : oracle mir.execute vs wasmtime run — test_mir_wat.zig.
-- **M3** QBE IL depuis MIR : natif rapide remplace TCC.
-- **M4** flag Green/Fast + instrumentation énergie.
+- **M3 ✅** QBE IL depuis MIR : `mir_qbe.zig` + `qbe_cmd.zig`.
+  Migration QBE v1.2 (release officielle, miroir GitHub 2021
+  abandonné). Commandes `compile-qbe` et `bench-qbe`. Fonctions
+  utilisateur récursives compilables. fib(25) = 75025 en 1.15 ms
+  (interprète 29 824 ms, ~26 000×).
+- **M4** flag Green/Fast + instrumentation énergie. Profiler
+  étendu (RAPL energy, thermal_zone) ; reste à brancher sur un
+  flag CLI `-Ogreen`/`-Ofast`.
 - **M5** LLVM (décision dédiée requise, cf. vestige legacy/).
 
 ## 8. Coordination

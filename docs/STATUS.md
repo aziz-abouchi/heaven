@@ -1,6 +1,6 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-09-29
+Dernière mise à jour : 2026-09-30
 
 Ce document est la **source de vérité** sur ce qui marche. Toute
 affirmation du book ou du README doit pointer vers une ligne de ce
@@ -188,6 +188,26 @@ depuis une string utilisateur, jamais d'evar dedans).
 | `core/bootstrap.hvn` | ⚠️ | `add`/`mul` OK ; signatures `theorem`/`prove` **sans corps** |
 
 **Note** : `module X` en tête est **inert** (no-op). Les `: Type` sans `=` sont des signatures non enregistrées. Le `std/` est en fait "signatures + quelques clauses".
+
+## Backends natifs et WASM (2026-09-30)
+
+| Élément | Statut | Preuve | Limitation |
+|---|---|---|---|
+| Compilation QBE (M3) | ✅ | `compile-qbe <src> -o <bin>` ; fib(25) = 75025 | sous-ensemble MIR (15 instr) ; pas de TCO ; pas de strings/IO |
+| Compilation WASM (M2a/M2b) | ✅ | `compile-wasm <src> -o <wat>` ; wasmtime run | sous-ensemble MIR ; stack WASM par défaut trop petite (flag requis) |
+| Bench interprète | ✅ | `bench-interp <src> [N] [--loop M]` | in-process, pas de spawn |
+| Bench QBE | ✅ | `bench-qbe` ; wall/cpu/energy/temp/RSS | RAPL root-only par défaut (CVE-2020-8694) |
+| Bench WASM | ✅ | `bench-wasm` ; idem | bootstrap wasmtime ~5 ms amorti via `--loop` |
+| Profiler plateforme | ✅ | `platform/profiler_*.zig` ; `getChildrenUsage`, `readEnergyUj`, `readTempMc` | Linux : RAPL + thermal_zone. macOS/Windows : stubs |
+
+Métriques mesurées : wall, cpu (RUSAGE_CHILDREN pour bench,
+RUSAGE_SELF pour interp), energy (RAPL package), temperature
+(thermal_zone0), RSS pic.
+
+Résultats de référence (`docs/spec/_bench.md`) :
+- `count_down 100000` : QBE **0.06 ms** / WASM 0.11 ms /
+  interprète 3500 ms.
+- `fib 25` : QBE **1.15 ms** / interprète 29 824 ms.
 
 ## Infrastructure
 

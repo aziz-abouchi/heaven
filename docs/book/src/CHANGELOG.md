@@ -3,6 +3,45 @@
 Historique des fonctionnalités du langage. Les entrées sont en ordre
 antéchronologique.
 
+## 2026-09-30
+
+### Compilation native QBE (jalon M3)
+- Migration QBE 2021 (miroir figé) vers **v1.2** (release
+  officielle c9x.me). Le miroir `andrewchambers/qbe` est abandonné.
+- `heaven compile-qbe <src.hvn> -o <bin>` : parse -> MIR ->
+  `emitQbe` -> qbe -> cc -> binaire natif.
+- `heaven bench-qbe <src> [N] [--loop M]` : wall / cpu / energy
+  RAPL / temperature / RSS.
+- Compilation des fonctions utilisateur récursives (fib, choose) :
+  fix en 3 bugs chaînés (`parseSExpr` pour `<`, `lowerRec`
+  uniforme, `precompileUserFns` en 2 passes).
+- **Intégré dans** : STATUS, BACKENDS, `_bench.md`.
+
+### Compilation WASM via wasmtime (jalon M2b)
+- `heaven compile-wasm <src.hvn> -o <bin.wat>` : MIR -> `emitWat`,
+  exécution via `wasmtime run --invoke main`.
+- `heaven bench-wasm <src> [N] [--loop M]`.
+- `emitWatLoop` pour amortir le bootstrap wasmtime (~5 ms).
+- Flag `-W max-wasm-stack=67108864` requis pour la récursion
+  profonde (TCO WASM pas encore implémenté).
+- **Intégré dans** : STATUS, BACKENDS, `_bench.md`.
+
+### Benchmarking — 3 backends symétriques
+- `heaven bench-interp` (in-process), `bench-qbe`, `bench-wasm`.
+- Métriques : wall, cpu (RUSAGE_CHILDREN), energy (RAPL),
+  temperature (thermal_zone), RSS.
+- `bench/run.sh` : compare les 3 backends.
+- `bench/progs/{count_down,arith,loop,fib}.hvn`.
+- **Intégré dans** : `docs/spec/_bench.md` (méthodologie et
+  résultats).
+
+### Résultats marquants
+- `count_down 100000` : QBE **0.06 ms** vs interprète 3500 ms
+  (~59 000×).
+- `fib 25` = 75025 : QBE **1.15 ms** vs interprète 29 824 ms
+  (~26 000×).
+- WASM (wasmtime) : ~2× plus lent que QBE, plus portable.
+
 ## 2026-09-29
 
 ### Scoped effects — `bracket` / `local` / `catch`
