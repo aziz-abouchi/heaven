@@ -438,6 +438,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const mir_wat_mod = b.createModule(.{
+        .root_source_file = b.path("src/backend/mir_wat.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "mir", .module = mir_mod },
+        },
+    });
+
     const x86_64_mod = b.createModule(.{
         .root_source_file = b.path("src/core/x86_64.zig"),
         .target = target,
@@ -1129,6 +1138,7 @@ pub fn build(b: *std.Build) void {
                     .{ .name = "profiler", .module = profiler_mod },
                     .{ .name = "mir", .module = mir_mod },
                     .{ .name = "mir_qbe", .module = mir_qbe_mod },
+                    .{ .name = "mir_wat", .module = mir_wat_mod },
                 },
             },
         ),

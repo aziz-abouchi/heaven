@@ -212,6 +212,17 @@ pub fn main() !void {
         try qbe_cmd.runCompileQbe(allocator, args[2], args[4]);
         return;
     }
+    if (std.mem.eql(u8, args[1], "compile-wasm") and args.len >= 5 and std.mem.eql(u8, args[3], "-o")) {
+        const wasm_cmd = @import("commands/wasm_cmd.zig");
+        try wasm_cmd.runCompileWasm(allocator, args[2], args[4]);
+        return;
+    }
+    if (std.mem.eql(u8, args[1], "bench-wasm") and args.len >= 3) {
+        const wasm_cmd = @import("commands/wasm_cmd.zig");
+        const n: u32 = if (args.len >= 4) std.fmt.parseInt(u32, args[3], 10) catch 100 else 100;
+        try wasm_cmd.runBenchWasm(allocator, args[2], n);
+        return;
+    }
     if (std.mem.eql(u8, args[1], "bench-qbe") and args.len >= 3) {
         const qbe_cmd = @import("commands/qbe_cmd.zig");
         var n: u32 = 100;
