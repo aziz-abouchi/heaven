@@ -56,6 +56,23 @@ delta-regles minimales (2 par operateur, 1er argument) :
 Equality : eq_rect_nat primitif, tout le reste derive.
 Apres sym/trans derives : 0 axiome de congruence.
 
+## Cascade specs livree (2026-09-30)
+Trois specs forment la colonne vertébrale du runtime :
+- docs/spec/_platform.md (331 l., commit 3459881) :
+  capabilities, precision typee, erreurs unifiees, non-goals.
+- docs/spec/_runtime.md (262 l., commit 340d0c4) :
+  carte d'articulation _concurrency/_effects/_continuations/
+  _platform. Invariant fondateur : les 5 primitives runtime
+  (spawn/send/recv/yield/self) sont des effets algebriques, pas
+  des primitives CIC.
+- docs/spec/_metrics.md (336 l., commit b473aa7) :
+  Profile comme terme (hashable/comparable/stockable/injectible),
+  Metric<T, P: Precision>, boucle Metrics -> EGraph -> Proof.
+
+Cascade : _platform -> _runtime -> _metrics. Pre-requis :
+_serialize.md (section Profile HVN1), spec securite
+(RemoteProfileCap), Prototype 4 (add_profile dans EGraph).
+
 ## Spec platform (nouveau)
 docs/spec/_platform.md livree (2026-09-30, commit 3459881).
 - 5 principes : capabilities (P1), pas d'authority ambiante (P2),
