@@ -140,3 +140,29 @@ test "qbe — M3 : oracle mir.execute vs natif" {
     //         try oracleCheck(alloc, &store, body, 7);
     //     }
 }
+
+test "qbe — rejet : call_user hors fn_defs (contrat §6)" {
+    const alloc = std.testing.allocator;
+    var store = Store.init(alloc);
+    defer store.deinit();
+
+    var mf = MirFunction.initWithStore(alloc, &store);
+    defer mf.deinit();
+    const entry = try mf.newBlock();
+
+    // arguments alloues (comme compileExpr les aurait fait).
+    // deinit() de MirFunction libere .call_user.args, donc pas de
+    // defer ici : ca ferait un double free.
+    const args = try alloc.alloc(mir.Id, 0);
+
+    try mf.blocks.items[entry].instrs.append(alloc, .{
+        .call_user = .{
+            .dest = mf.newReg(),
+            .name = 0xDEADBEEF, // jamais dans fn_defs
+            .args = args,
+        },
+    });
+    mf.blocks.items[entry].terminator = .{ .ret = 0 };
+
+    try std.testing.expectError(error.UnsupportedCall, qbe.emitQbe(alloc, &mf));
+}

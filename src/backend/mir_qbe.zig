@@ -13,11 +13,17 @@ const Instr = mir.Instr;
 const BlockId = mir.BlockId;
 const Reg = mir.Reg;
 const BasicBlock = mir.BasicBlock;
-const FnDefs = std.AutoHashMap(u32, FnDef);
 
 /// Émet l'IL complet : globals, une fonction par fn_def (locales),
 /// $heaven_main (le MIR root), $main exporté qui printf le résultat.
 pub fn emitQbe(allocator: std.mem.Allocator, root: *const MirFunction) ![]u8 {
+    // Fail-fast : verifier tous les call_user AVANT d'ecrire un seul
+    // octet. Conforme au contrat docs/MIR_CONTRACT.md §6 : un appel
+    // vers une fonction hors fn_defs doit etre rejete explicitement,
+    // jamais silencieusement transforme en .ssa que QBE refusera
+    // avec un message obscur.
+    try checkCallUsers(root);
+
     var buf: std.ArrayList(u8) = .empty;
     errdefer buf.deinit(allocator);
     const w = buf.writer(allocator);
@@ -66,6 +72,32 @@ pub fn emitQbe(allocator: std.mem.Allocator, root: *const MirFunction) ![]u8 {
     try w.writeAll("}\n");
     try w.writeAll("data $fmt = { b \"%ld\\n\", b 0 }\n");
     return buf.toOwnedSlice(allocator);
+}
+
+/// Verifie que tous les call_user referencent une fonction presente
+/// dans root.fn_defs. Couvre root et chaque fn_def (contrat §6 :
+/// les corps de fn_def sont des lambdas compilees sans call_user,
+/// mais on verifie par prudence).
+fn checkCallUsers(root: *const MirFunction) !void {
+    const defs = &root.fn_defs;
+    try checkBlocks(root, defs);
+    var it = defs.valueIterator();
+    while (it.next()) |def| {
+        try checkBlocks(&def.fn_mir, defs);
+    }
+}
+
+fn checkBlocks(f: *const MirFunction, defs: *const std.AutoHashMap(u32, FnDef)) !void {
+    for (f.blocks.items) |*blk| {
+        for (blk.instrs.items) |inst| {
+            switch (inst) {
+                .call_user => |c| {
+                    if (!defs.contains(c.name)) return error.UnsupportedCall;
+                },
+                else => {},
+            }
+        }
+    }
 }
 
 fn emitBody(w: anytype, f: *const MirFunction) !void {

@@ -42,9 +42,12 @@ L'interprète les prend dans une `AutoHashMap(u32, i64)` fournie
 par l'appelant. Non défini au load → `error.UndefinedVariable`.
 
 **Note exécution** : `execute()` est destructif — `values` est
-libéré en sortie (defer deinit interne d'executeLegacy). Un
-consommateur ne doit PAS appeler `deinit()` après `execute()` :
-double free. (Contournement : deinitSansValues dans test_mir_wat.zig.)
+libéré en sortie ? **Non — corrigé au 2026-09-30** (commit e2fc04a).
+`execute()` utilise désormais `clearRetainingCapacity` sur `values`
+(pas `clearAndFree`) et ne detruit plus la liste. Un consommateur
+peut appeler `deinit()` apres `execute()` — c'est le comportement
+attendu. `deinit()` est l'unique proprietaire des allocations.
+Les workarounds `deinitSansValues`/`freeInstrExtras` sont retires.
 
 ## 6. call_user — la vraie frontière
 Deux résolutions, dans cet ordre :
