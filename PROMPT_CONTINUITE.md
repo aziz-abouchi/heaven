@@ -81,3 +81,16 @@ Heredoc > 50 l. = tronque par navigateur -> scripts /tmp en 2-3 blocs.
 zig test src/kernel/peano.zig (rapide) pour iterer kernel.
 NE JAMAIS utiliser git checkout sur un fichier modifie sans verifier
 que le diff est bien du WIP et pas du travail en cours.
+
+## Addendum backends (même session, fin)
+- cda121d M1 : docs/MIR_CONTRACT.md (contrat MIR — attention : a
+  écrasé 290f301 sans fusion, réconcilié en 11f128c ; convention
+  #13 : git log -- <file> avant tout cat > sur docs/)
+- ff0ecb0 M2a : src/backend/mir_wat.zig — émetteur MIR→WAT,
+  4 golden tests (179/180, zéro leak). Dispatch trampoline v0,
+  phis abattus, call_user restreint à fn_defs.
+- Fuite mir.zig (gelé, côté kernel) : deinit ne libère pas
+  .phi.incoming (l.316) ni .call_user.args — workaround dans
+  test_mir_wat.zig, fix réel à coordonner.
+- M2b : wasmtime (cargo install wasmtime-cli) — oracle
+  mir.execute vs exécution WAT réelle.
