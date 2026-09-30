@@ -54,6 +54,14 @@ delta-regles minimales (2 par operateur, 1er argument) :
 Equality : eq_rect_nat primitif, tout le reste derive.
 Apres sym/trans derives : 0 axiome de congruence.
 
+## Spec platform (nouveau)
+docs/spec/_platform.md livree (2026-09-30, commit 3459881).
+- 5 principes : capabilities (P1), pas d'authority ambiante (P2),
+  precision dans le type (P3), pas de null (P4), erreur unique (P5).
+- 13 familles ABI, 7 capabilities, table dispo par cible.
+- Prochaines specs : _runtime.md puis _metrics.md (ordre impose :
+  _metrics depend du modele de Profile typé par precision de P3).
+
 ## Autres chantiers ouverts
 - Prototype 3a-2 (captureCont/throwCont) : continuations.
 - Migration span_a.slice (181 sites).
