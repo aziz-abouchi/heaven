@@ -224,15 +224,20 @@ que le diff est bien du WIP et pas du travail en cours.
 
 ## Addendum — session backends, clôture (2026-09-30 PM)
 
-### HANDOVER MIR/QBE → DeepSeek
+### HANDOVER MIR/QBE → DeepSeek (CLOS le 2026-09-30, commits 457bb62..e2fc04a)
 - src/backend/mir_qbe.zig + test_mir_qbe.zig + câblage build.zig :
-  transférés. État : working tree, NON committé, validation verte
-  NON établie à notre main. 3 bugs pipeline corrigés localement
-  (export function sur 1 ligne ; tabs interdits → 4 espaces —
-  cause des erreurs qbe "??" ; chemin qbe résolu en absolu AVANT
-  le chdir tmpdir).
-- build.sh : migration vendor QBE miroir-2021 → v1.2 officielle
-  (working tree). Miroir andrewchambers ABANDONNÉ.
+  COMMITTÉS (876c9de, e2fc04a). 379/380 tests, 0 fuite.
+- build.sh : migration QBE 2021 → v1.2 COMMITTÉE (457bb62).
+  Miroir andrewchambers ABANDONNÉ définitivement.
+- mir.zig : deinit complet + execute() non destructif (e2fc04a).
+  Workarounds locaux (freeInstrExtras, deinitSansValues) supprimés
+  des tests M2b/M3.
+- Reste à faire (prochains commits) :
+  * checkCallUsers dans mir_qbe.zig (contrat, NON IMPLÉMENTÉ).
+  * P3/P4 (while/break) dans test_mir_qbe.zig (MIR les gère).
+  * Globals = data $g{d} = { l 0 } : taille fixe 8o, à adapter
+    au vrai store.
+  * Test unitaire emitQbe (snapshot .ssa sans QBE installé).
 - mir_wat.zig + test_mir_wat.zig (M2a/M2b) : restent à ce fil.
   VERT (cf6d7dc) — oracle mir.execute vs wasmtime.
 
