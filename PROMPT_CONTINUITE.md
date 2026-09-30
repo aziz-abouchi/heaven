@@ -56,6 +56,39 @@ delta-regles minimales (2 par operateur, 1er argument) :
 Equality : eq_rect_nat primitif, tout le reste derive.
 Apres sym/trans derives : 0 axiome de congruence.
 
+## ABI platform etendue (2026-09-30, commits f912737..11419cf)
+src/platform/abi/ contient maintenant 6 fichiers :
+- precision.zig   (7 tests) : Precision, Monotonic, Value, Metric
+- error.zig       (4 tests) : PlatformError, FailureReason
+- capability.zig (15 tests) : FileCap, NetCap, EnergyCap
+- metric.zig      (6 tests) : Metric(K, P), 7 Kinds
+- profile.zig    (28 tests) : Profile + ProfileDiff + politiques
+- profile_ser.zig (8 tests) : format HVP1
+
+Branche dans build.zig : `zig build test` execute tout.
+
+## Continuations 3a-2 livree (11419cf)
+src/core/continuation.zig (9 tests) :
+- 3a-1 : Prompt, PromptStack (push/pop/top/depth)
+- 3a-2 : Frame, CaptureStack, Continuation, captureCont,
+  throwCont. Pile simulee, non branchee sur engine_expr.
+
+## Specs etendues
+- docs/spec/_serialize.md : section Profils (HVP1) — format v1,
+  id non serialise, dedup content-addressed, index v2 reporte.
+- docs/spec/_metrics.md : 4 notes "Implementation (2026-09-30)"
+  pointant vers src/platform/abi/*.zig.
+
+## Prochain increment
+- 3a-3 : brancher captureCont/throwCont dans engine_expr.evaluate
+  (handle-rec + scheduler C3). Dense, touche le tree-walker.
+- Ou : Profile dans EGraph (boucle Metrics -> Proof, spec _metrics.md).
+
+## WIP externe (NE PAS TOUCHER)
+src/backend/mir_qbe.zig, test_mir_qbe.zig, qbe-1.3.tar.xz (M3).
+Note : `zig build test` est rouge a cause de test_mir_qbe
+(M3 : oracle mir.execute vs natif). Ce n'est PAS notre travail.
+
 ## ABI platform implementee (2026-09-30)
 src/platform/abi/ livre (commit aafd7f3) :
 - precision.zig : Precision, Monotonic, Value(T,P), Metric(T)
