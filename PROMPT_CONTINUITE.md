@@ -1,284 +1,65 @@
 # Prompt de continuité — Heaven session suivante
 
 ## HEAD
-f29775d (main) — refactor(kernel): derive cong_succ, cong_add_l/r via eq_rect_nat
+097a493 (main) — bench: fib.hvn (recursion non-tail)
+Session : f31b2eb (fix mir+defs), 22de554 (_bench.md), 097a493 (fib.hvn)
 Tout poussé sur origin/main.
 
 ## Tests
-175/176 Zig (1 skipped), 100/100 HVN, 0 fuite.
-peano.zig : 27/27 tests.
-[KERNEL] structural=true type_check=true pool_size=1505.
+Zig : 381/382 (1 skip test_mir_wat).
+HVN : ~95/95.
 
-## Session écoulée — jalon kernel : declassement des congruences
-- eq_rect_nat ajoute (J-eliminator restreint a Nat) : primitive unique
-  pour l'egalite.
-- 3 axiomes de congruence RETIRES, maintenant derives :
-  cong_succ (mkCongSuccProof), cong_add_l (mkCongAddLProof),
-  cong_add_r (mkCongAddRProof).
-- Tous les proof terms internes branches sur les helpers derives
-  (peano.zig + proof_core.zig).
-- Bug latent corrige : shift/subst ne propageaient pas dans .refl.
-- Bug latent corrige : mkCongAddRProof P devait etre Eq(add a c, add x c)
-  (invisible sur tests clos, cassait distrib sur (2,3,4)).
+## Ce qui a été fait cette session
+- QBE v1.2 opérationnel (compile + bench).
+- WASM via wasmtime (M2a/M2b).
+- bench-interp / bench-qbe / bench-wasm : wall, cpu, energy RAPL,
+  temperature, RSS, --loop.
+- Compilation des fonctions utilisateur recursives : fib(25) = 75025
+  en QBE 1.15 ms (vs 29824 ms interprete, ~26000x).
+- bench/run.sh, bench/progs/{count_down,arith,loop,fib}.hvn.
+- docs/spec/_bench.md : methodologie et resultats.
 
-## Base de confiance kernel — etat final (190daaa, 2026-09-30)
-PRIMITIFS : Nat, zero, succ, add, mul, nat_ind, eq_rect_nat.
-AXIOMES   : AUCUN axiome de congruence.
-DERIVES   : sym, trans, cong_succ, cong_add_l, cong_add_r
-            + add_comm, add_assoc, add_succ_right, mul_zero_right,
-              mul_succ_right, mul_comm, distrib.
-            Tous construits sur eq_rect_nat + nat_ind.
-pool_size : 1782 (preuves derivees plus volumineuses qu'axiomes).
-
-## Prochaines actions kernel
-A. Deriver sym via eq_rect_nat :
-   sym = La b h. eq_rect_nat(Ly. Eq(y, a), a, b, h, refl(a))
-B. Deriver trans via eq_rect_nat (plus delicat, c doit apparaitre).
-C. Ensuite : plus AUCUN axiome de congruence, kernel CIC minimal.
-
-## Patterns de bugs (3 occurrences, documentes)
-1. ih_type doit etre ecrit sous le contexte PRECEDENT (var(0) pour
-   [k] seul), pas var(2).
-2. Ordre des arguments de retour doit matcher l'ordre des Pi dans P.
-3. cong_add_l vs cong_add_r : l=2e arg, r=1er arg.
-4. eq_rect_nat : P doit cibler le BON cote (Eq(add a c, add x c)
-   vs Eq(add x c, add b c)) sinon P(b) est faux.
-Invisibles sur (zero,zero,...). Test e2e sur (2,3,4) INDISPENSABLE.
-
-## WIP externe non commit
-core/std/*.hvn, parse.zig, core/test_suite.hvn,
-src/vessel/public/test_suite.hvn, patch_parser_infix.py.
-
-## Architecture a terme (kernel)
-delta-regles minimales (2 par operateur, 1er argument) :
-  add(zero,n)->n ; add(succ k,n)->succ(add k n)
-  mul(zero,n)->zero ; mul(succ k,n)->add(n,mul k n)
-Equality : eq_rect_nat primitif, tout le reste derive.
-Apres sym/trans derives : 0 axiome de congruence.
-
-## Session 2026-09-30 (suite) — commits b01de06..0462157
-- 735c3f7 feat(engine_expr): safepoint 3a-3-lite (evalWithBudget
-  / EvalOutcome). Engine.reductions, error.SuspendRequested,
-  abort cooperatif. 4 tests.
-- ccb8711 docs(_continuations.md): note "abort cooperatif !=
-  scheduling". Constat : evalWithBudget suspend a l'entree, ne
-  reprend pas. Le scheduler exige 3a-3-complet.
-- dbeca0c feat(platform/abi): ProfileTree (hierarchie de profils,
-  children/ancestors/rootOf/depth, dedup content-addressed).
-  8 tests.
-- 0462157 feat(platform/abi): ProfileAnnotations (ClassId <->
-  ProfileId, bestForMetric). Premiere brique de la boucle
-  Metrics -> EGraph -> Proof. 8 tests.
-
-## QBE : migration 2021 -> v1.2 (457bb62, 2026-09-30)
-Le pin precedent (4420727, 2021-10-29) pointait sur le miroir
-github.com/andrewchambers/qbe, FIGE en 2021. Rejette la syntaxe
-SSA moderne -> pipeline MIR -> QBE -> asm -> binaire casse.
-
-Nouvelle source : release officielle
-  https://c9x.me/compile/release/qbe-1.2.tar.xz
-Cache : vendor/cache/qbe-1.2.tar.xz
-Install : vendor/qbe-1.2/ (binaire a la racine, pas obj/)
-
-`zig build test` : 378/380 (2 skipped).
-
-Bugfixes WIP externe (note dans /tmp/note_mir_qbe.md, a transmettre
-a Qwen/GLM) :
-1. mir_qbe.zig:61-62 : "export\nfunction" -> "export function"
-   sur une ligne (QBE rejette la version orpheline).
-2. mir_qbe.zig : 19 tabulations remplacees par 4 espaces
-   (QBE rejette les tabs).
-3. test_mir_qbe.zig:69 : chemin QBE absolu remplace par
-   realpathAlloc AVANT le chdir vers tmp.dir.
-
-Cleanup restant : supprimer vendor/qbe/ (2021) une fois la
-migration confirmee.
-
-## ABI platform — etat final (8 fichiers, ~84 tests)
-precision.zig (7), error.zig (4), capability.zig (15),
-metric.zig (6), profile.zig (28), profile_ser.zig (8),
-profile_tree.zig (8), profile_annotations.zig (8).
-
-Tous branches dans build.zig (test_abi_*). `zig build test` : 375/377
-(1 skip WIP MIR, 1 fail test_mir_qbe externe).
-
-## Regle P3 tenue par le type
-Deux verrous concrets :
-- requireMeasuredEnergy (profile.zig) : refuse les estimations.
-- bestForMetric (profile_annotations.zig) : ne considere que
-  `measured`, jamais `estimated`.
-Un optimiseur qui veut choisir une classe DOIT passer par
-bestForMetric -- il ne peut pas prendre une decision sur une
-valeur non fiable.
-
-## Prochains chantiers (independants)
-A. 3a-3-complet : brancher captureCont dans engine_expr.evaluate.
-   Session dense, touche le tree-walker (56 sites recursifs,
-   propage via try). Debloque scheduler + handle-rec.
-B. egraph.add_profile : relier ProfileAnnotations a egraph.zig.
-   La couche donnees existe, il reste le pont.
-C. MIR/QBE (autre session) -- NE PAS TOUCHER.
-
-## ABI platform etendue (2026-09-30, commits f912737..11419cf)
-src/platform/abi/ contient maintenant 6 fichiers :
-- precision.zig   (7 tests) : Precision, Monotonic, Value, Metric
-- error.zig       (4 tests) : PlatformError, FailureReason
-- capability.zig (15 tests) : FileCap, NetCap, EnergyCap
-- metric.zig      (6 tests) : Metric(K, P), 7 Kinds
-- profile.zig    (28 tests) : Profile + ProfileDiff + politiques
-- profile_ser.zig (8 tests) : format HVP1
-
-Branche dans build.zig : `zig build test` execute tout.
-
-## Continuations 3a-2 livree (11419cf)
-src/core/continuation.zig (9 tests) :
-- 3a-1 : Prompt, PromptStack (push/pop/top/depth)
-- 3a-2 : Frame, CaptureStack, Continuation, captureCont,
-  throwCont. Pile simulee, non branchee sur engine_expr.
-
-## Specs etendues
-- docs/spec/_serialize.md : section Profils (HVP1) — format v1,
-  id non serialise, dedup content-addressed, index v2 reporte.
-- docs/spec/_metrics.md : 4 notes "Implementation (2026-09-30)"
-  pointant vers src/platform/abi/*.zig.
-
-## Prochain increment
-- 3a-3 : brancher captureCont/throwCont dans engine_expr.evaluate
-  (handle-rec + scheduler C3). Dense, touche le tree-walker.
-- Ou : Profile dans EGraph (boucle Metrics -> Proof, spec _metrics.md).
+## Fix majeur — fonctions utilisateur (f31b2eb)
+3 bugs chaines :
+1. defs.zig : parseSExpr pour les corps S-expr purs. parseExpression
+   -> tree-sitter confond `<` avec une balise et currifie.
+2. defs.zig : lowerRec uniforme (le cas "sans patterns" l'oubliait).
+3. mir.zig : precompileUserFns en 2 passes (placeholders avant
+   compilation des corps). Resout la recursion (fib appelle fib).
 
 ## WIP externe (NE PAS TOUCHER)
-src/backend/mir_qbe.zig, test_mir_qbe.zig, qbe-1.3.tar.xz (M3).
-Note : `zig build test` est rouge a cause de test_mir_qbe
-(M3 : oracle mir.execute vs natif). Ce n'est PAS notre travail.
+- src/core/heaven_expr.zig + engine_expr.zig + parse.zig : feature
+  "guards" (autre session). ~88 l. de diff non commitees.
+  BUGBLOQUANT chez eux : heaven_expr.zig:516 a
+  `self.engine.fns.functions.getPtr` au lieu de
+  `self.engine.fns.getPtr` (fns est deja la map). Corrige
+  localement, pas commit.
+- tests/guards.hvn : leur test (untracked).
+- src/core/parse.zig, src/runtime/shell/commands_test.zig :
+  modifies non commites.
+- core/std/*.hvn, core/test_suite.hvn, src/vessel/public/*.hvn :
+  WIP, ne pas toucher.
 
-## ABI platform implementee (2026-09-30)
-src/platform/abi/ livre (commit aafd7f3) :
-- precision.zig : Precision, Monotonic, Value(T,P), Metric(T)
-- error.zig     : PlatformError, FailureReason, Result(T)
-- capability.zig : FileCap, NetCap, EnergyCap + restrict()
-26 tests (7+4+15), tous verts. Aucun branchement build.zig.
-Testables en isolation : zig test src/platform/abi/<f>.zig
+## Pistes pour la prochaine session
+1. TCO WASM/QBE : mir_wat/mir_qbe convertissent recursion tail en
+   boucle -> supprime le besoin de `-W max-wasm-stack=67108864`.
+2. Rattraper bench-wasm fib (le dernier bench a timeout).
+3. Complete _bench.md avec les chiffres fib interp vs QBE.
+4. Fix RAPL persistant (udev rule) pour eviter `sudo chmod +r`.
+5. Auto-hebergement (long terme) : BigInt (libtommath), I/O,
+   structures de donnees, puis self-parse/self-compile.
 
-## Prochain increment (concret, testable)
-- Metric<T,P> en Zig : instancier pour les metriques de _metrics.md
-  (wall_time, rss, energy, ...) sans dependre de platform.
-- Ou : etendre _serialize.md avec section Profile (doc, pre-requis
-  metrics).
+## Fichiers de reference
+- src/commands/qbe_cmd.zig, wasm_cmd.zig, bench_interp.zig
+- src/backend/mir_qbe.zig, mir_wat.zig
+- src/core/mir.zig (precompileUserFns)
+- src/core/commands/defs.zig (parseSExpr)
+- bench/run.sh, bench/progs/
+- docs/spec/_bench.md
 
-## Cascade specs livree (2026-09-30)
-Trois specs forment la colonne vertébrale du runtime :
-- docs/spec/_platform.md (331 l., commit 3459881) :
-  capabilities, precision typee, erreurs unifiees, non-goals.
-- docs/spec/_runtime.md (262 l., commit 340d0c4) :
-  carte d'articulation _concurrency/_effects/_continuations/
-  _platform. Invariant fondateur : les 5 primitives runtime
-  (spawn/send/recv/yield/self) sont des effets algebriques, pas
-  des primitives CIC.
-- docs/spec/_metrics.md (336 l., commit b473aa7) :
-  Profile comme terme (hashable/comparable/stockable/injectible),
-  Metric<T, P: Precision>, boucle Metrics -> EGraph -> Proof.
-
-Cascade : _platform -> _runtime -> _metrics. Pre-requis :
-_serialize.md (section Profile HVN1), spec securite
-(RemoteProfileCap), Prototype 4 (add_profile dans EGraph).
-
-## Spec platform (nouveau)
-docs/spec/_platform.md livree (2026-09-30, commit 3459881).
-- 5 principes : capabilities (P1), pas d'authority ambiante (P2),
-  precision dans le type (P3), pas de null (P4), erreur unique (P5).
-- 13 familles ABI, 7 capabilities, table dispo par cible.
-- Prochaines specs : _runtime.md puis _metrics.md (ordre impose :
-  _metrics depend du modele de Profile typé par precision de P3).
-
-## Autres chantiers ouverts
-- Prototype 3a-2 (captureCont/throwCont) : continuations.
-- Migration span_a.slice (181 sites).
-- Serialisation v2 (reachable subset).
-- MIR (docs/mir en cours, externe).
-
-## NE PAS TOUCHER
-wasm.zig, kernel.zig, mir.zig, x86_64_windows.zig, aarch64_macos.zig,
-commands.zig (racine), transform.zig, kernel_bridge.zig,
-branche feat/physical-telemetry + WIP externe ci-dessus.
-
-## Methode
-Petits pas verifies > gros refactor. Un commit = un theme.
-Heredoc > 50 l. = tronque par navigateur -> scripts /tmp en 2-3 blocs.
-zig test src/kernel/peano.zig (rapide) pour iterer kernel.
-NE JAMAIS utiliser git checkout sur un fichier modifie sans verifier
-que le diff est bien du WIP et pas du travail en cours.
-
-## Addendum backends (même session, fin)
-- cda121d M1 : docs/MIR_CONTRACT.md (contrat MIR — attention : a
-  écrasé 290f301 sans fusion, réconcilié en 11f128c ; convention
-  #13 : git log -- <file> avant tout cat > sur docs/)
-- ff0ecb0 M2a : src/backend/mir_wat.zig — émetteur MIR→WAT,
-  4 golden tests (179/180, zéro leak). Dispatch trampoline v0,
-  phis abattus, call_user restreint à fn_defs.
-- Fuite mir.zig (gelé, côté kernel) : deinit ne libère pas
-  .phi.incoming (l.316) ni .call_user.args — workaround dans
-  test_mir_wat.zig, fix réel à coordonner.
-- M2b : wasmtime (cargo install wasmtime-cli) — oracle
-  mir.execute vs exécution WAT réelle.
-
-## Addendum — session backends, clôture (2026-09-30 PM)
-
-### HANDOVER MIR/QBE → DeepSeek (CLOS le 2026-09-30, commits 457bb62..e2fc04a)
-- src/backend/mir_qbe.zig + test_mir_qbe.zig + câblage build.zig :
-  COMMITTÉS (876c9de, e2fc04a). 379/380 tests, 0 fuite.
-- build.sh : migration QBE 2021 → v1.2 COMMITTÉE (457bb62).
-  Miroir andrewchambers ABANDONNÉ définitivement.
-- mir.zig : deinit complet + execute() non destructif (e2fc04a).
-  Workarounds locaux (freeInstrExtras, deinitSansValues) supprimés
-  des tests M2b/M3.
-- Reste à faire (prochains commits) :
-  * checkCallUsers dans mir_qbe.zig (contrat, NON IMPLÉMENTÉ).
-  * P3/P4 (while/break) dans test_mir_qbe.zig (MIR les gère).
-  * Globals = data $g{d} = { l 0 } : taille fixe 8o, à adapter
-    au vrai store.
-  * Test unitaire emitQbe (snapshot .ssa sans QBE installé).
-- mir_wat.zig + test_mir_wat.zig (M2a/M2b) : restent à ce fil.
-  VERT (cf6d7dc) — oracle mir.execute vs wasmtime.
-
-### Topologie — 3 sessions sur l'arbre
-1. kernel/stdlib — WIP : core/std/*, test_suite x2, parse.zig,
-   patch_parser_infix.py
-2. DeepSeek — MIR/QBE (handover ci-dessus)
-3. backends (ce fil) — M2 WAT, docs, infra
-→ JAMAIS de reset --hard sans status vérifié (#10), JAMAIS de
-  git add -A (#9). Trois mains, un arbre.
-
-### Commits de la session backends (résumé)
-d9d35ba TCO spine | c620281 fact/f(x) | 35b99d8 ctors minuscules
-629110b BACKENDS.md M0 | cda121d+11f128c MIR_CONTRACT M1
-ff0ecb0 M2a émetteur WAT | cf6d7dc M2b oracle wasmtime
-9f1329a+a302e59 bootstrap QBE build.sh
-(22b4321 : main rouge 40 min, notre faute, fixé en 7961082)
-
-### Conventions #13-#16 (cumulent #9-#12 de l'addendum moteur)
-- #13 : git log --oneline -- <file> AVANT tout cat > sur docs/
-  (incident 290f301 : M1 a écrasé le leur sans fusion).
-- #14 : garde d'idempotence = identifiant unique (nom de fn),
-  jamais une substring — "M2b" matchait l'en-tête M2a (22b4321).
-- #15 : commit fail-closed — push seulement si "Build Summary"
-  vert lu sur le MÊME tour.
-- #16 : valider un bloc de script extrait = reproduire son
-  contexte (set -e inclus) — sinon la validation ment (9f1329a).
-- Heredocs longs = mangled par le navigateur (tabs, fragments
-  silencieux). Vérifier le fichier après gros collage.
-
-### Sujets suivants (session backends, par priorité)
-1. Runner panic-isolé : --run-tests <dir> → un fichier = un
-   process fork/exec. Un panic ne tue plus la CI à 3 mains.
-   Vécu x3 cette semaine (verify_book, test_factorial, M2b).
-2. t_distrib ~2s — RÉGRESSION (1375ms au 28/09). Piste :
-   fix-point e-graph par nodeHash.
-3. tco_deep ~40µs/iter — le trampoline ré-alloue par rebond.
-4. M4 Green/Fast (BACKENDS.md §3) — après stabilisation M3.
-5. Dettes docs : README (39 tests→375+, "MIR ~40%", step wasm
-   inexistante → bash build.sh) ; STATUS.md lignes TCO/CIC.
-
-### Relais kernel — ENVOYÉ (texte dans le log de session)
-Fuite defs.zig:228 + mir.zig deinit/execute + 290f301 + M2/M3.
-Si non traité à la prochaine session : relancer.
+## Methodes
+- Heredoc > 50 l. = tronque par navigateur (scinder en 2-3 blocs).
+- git add cible uniquement (jamais -A, 3 sessions sur l'arbre).
+- Avant de retoucher mir.zig/defs.zig, verifier qu'aucune session
+  parallèle n'y travaille.
+- Utiliser src/platform/* pour toute syscall, jamais std.posix direct.
