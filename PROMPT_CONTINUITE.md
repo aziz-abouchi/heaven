@@ -56,6 +56,20 @@ delta-regles minimales (2 par operateur, 1er argument) :
 Equality : eq_rect_nat primitif, tout le reste derive.
 Apres sym/trans derives : 0 axiome de congruence.
 
+## ABI platform implementee (2026-09-30)
+src/platform/abi/ livre (commit aafd7f3) :
+- precision.zig : Precision, Monotonic, Value(T,P), Metric(T)
+- error.zig     : PlatformError, FailureReason, Result(T)
+- capability.zig : FileCap, NetCap, EnergyCap + restrict()
+26 tests (7+4+15), tous verts. Aucun branchement build.zig.
+Testables en isolation : zig test src/platform/abi/<f>.zig
+
+## Prochain increment (concret, testable)
+- Metric<T,P> en Zig : instancier pour les metriques de _metrics.md
+  (wall_time, rss, energy, ...) sans dependre de platform.
+- Ou : etendre _serialize.md avec section Profile (doc, pre-requis
+  metrics).
+
 ## Cascade specs livree (2026-09-30)
 Trois specs forment la colonne vertébrale du runtime :
 - docs/spec/_platform.md (331 l., commit 3459881) :
