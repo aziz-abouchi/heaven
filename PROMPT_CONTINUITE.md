@@ -46,14 +46,18 @@ HVN : ~95/95.
 - TCO WASM/QBE : les self-tail-calls sont transformes en boucle dans
   `mir_qbe.zig` et `mir_wat.zig`. `count_down 10000000` compile et
   tourne. Le flag `-W max-wasm-stack=67108864` n'est plus requis.
+- bench-wasm fib verifie : median 6.75 ms sur 5 runs, pas de timeout.
+  Le timeout initial venait de la pile native non bornee.
 
 ### Restant
-1. Rattraper bench-wasm fib (le dernier bench a timeout, peut-etre
-   resolu par TCO, a verifier).
-2. Complete _bench.md avec les chiffres fib interp vs QBE.
-3. TCO etendue : recursion mutuelle, trampolines multi-fonctions.
-4. Fix RAPL persistant (udev rule) pour eviter `sudo chmod +r`.
-5. Auto-hebergement (long terme) : BigInt (libtommath), I/O,
+1. Complete _bench.md avec les chiffres fib interp vs QBE.
+2. TCO etendue : recursion mutuelle, trampolines multi-fonctions.
+3. Fix RAPL persistant (udev rule) pour eviter `sudo chmod +r`.
+4. wasm32-wasi (A : compilateur en WASI ; B : programmes compiles
+   en WASI). Priorite basse. Voir docs/spec/_wasm_targets.md.
+5. Cross-compilation vers d'autres arches / OS (QBE deja multi-cible
+   x86-64/ARM64/RISC-V, a brancher dans build.zig et tester).
+6. Auto-hebergement (long terme) : BigInt (libtommath), I/O,
    structures de donnees, puis self-parse/self-compile.
 
 ## Fichiers de reference
