@@ -63,3 +63,25 @@ HVN : ~95/95.
 - Avant de retoucher mir.zig/defs.zig, verifier qu'aucune session
   parallèle n'y travaille.
 - Utiliser src/platform/* pour toute syscall, jamais std.posix direct.
+
+## Addendum -- session guards (2026-10-01)
+
+### Livre
+- 867ec43 : guards sur clauses (f p | cond = body). 17/17.
+  6 bugs de suture (tokenizer lhs_eff, split =, == non evaluable,
+  mem.replace in-place = corruption tas). Credit : fix fns.getPtr
+  (session MIR/QBE) inclus.
+- d377a73 : STATUS guards ✅. 7be1b81 : tranchages comprehensions
+  (ROADMAP, 5 decisions : syntaxe double, sequentiel, linear,
+  SubstStream, Set-quotient).
+
+### Conventions #17-#18
+- #17 : std.mem.replace exige src != dest (in-place = UB,
+  SIGSEGV differe DebugAllocator).
+- #18 : ASCII seul (commands, patches, commits).
+
+### File
+- t_distrib ~2s (regression vivante, piste nodeHash)
+- tco_deep ~40us/iter (trampoline)
+- M4 Green/Fast (debloque depuis M3)
+- Comprehensions : spec decidee, implementation a ouvrir

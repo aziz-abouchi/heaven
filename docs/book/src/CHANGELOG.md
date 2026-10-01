@@ -5,6 +5,26 @@ antéchronologique.
 
 ## 2026-10-01
 
+### Guards sur clauses - `f p | cond = body` (`867ec43`)
+
+- `FunctionClause.guard (?Id)` + `setLastGuard` : aucune signature
+  existante modifiee. Extraction `|` a profondeur 0 du LHS,
+  evaluation dans l'env des captures, refus -> nettoyage bindings,
+  clause suivante (ordre lineaire preserve). `otherwise` = alias
+  vers `true`. tests/guards.hvn : 17/17.
+- Six bugs de suture corriges au passage : tokenizer LHS decalle
+  apres extraction (preuve : les `__curry` comptaient les clauses
+  `| otherwise`), split `=` face a `==`/`!=`/`<=`/`>=`, s-expr
+  `==` non evaluable par evalMagic (normalisation de tete),
+  `std.mem.replace` in-place = corruption de tas (SIGSEGV
+  differe, diagnostique au gdb - buffer separe desormais).
+- Conventions : #17 `std.mem.replace` exige src != dest ;
+  #18 ASCII seul dans commands/patches/commits.
+- Tranchages comprehensions poses dans ROADMAP (5 decisions,
+  `7be1b81`).
+
+## 2026-10-01
+
 ### Ontologie - separation catalogue / semantique (Phases 1-2)
 
 - **Renommage** : `src/core/ontology.zig` -> `src/core/algo_catalog.zig`.
