@@ -49,6 +49,30 @@ Grep les lignes utiles (wall, cpu, energy, temp, rss).
 ## Limites connues
 
 ### RAPL (énergie)
+
+Depuis la CVE-2020-8694, le kernel restreint la lecture de
+`/sys/class/powercap/intel-rapl/*/energy_uj` aux processus root. Un
+`sudo chmod +r` fonctionne mais doit etre refait a chaque reboot.
+Pour rendre la lecture permanente :
+
+    bash scripts/setup-rapl.sh [groupe]     # defaut : users
+
+Le script detecte la plateforme et propose la methode adaptee :
+
+| Plateforme | Action |
+|---|---|
+| Guix System | snippet `/etc/config.scm` + `guix system reconfigure` |
+| NixOS | snippet `configuration.nix` + `nixos-rebuild switch` |
+| Distro classique (root) | installe `/etc/udev/rules.d/99-rapl-readable.rules` |
+
+Dans tous les cas, la regle accorde la lecture (`0440`) au groupe
+specifie. Verification :
+
+    ls -la /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj
+    # attendu : -r--r----- root users
+
+Sans ce fix, `bench-qbe` et `bench-wasm` retournent une energie nulle
+ou une erreur de permission.
 `/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj` est root-only
 depuis CVE-2020-8694. Pour l'activer :
 
