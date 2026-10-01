@@ -106,28 +106,6 @@ défaut.
     heaven> fromMaybe Nothing 0
     0
 
-## Les gardes (roadmap)
-
-Parfois un motif ne suffit pas. On veut tester une condition sur les
-valeurs. On ajoute une **garde**, séparée par une barre verticale.
-
-    heaven> sign x | x > 0 = "positif"
-    heaven> sign 0 = "nul"
-    heaven> sign x = "négatif"
-
-La première clause a une garde : elle ne s'applique que si `x > 0`.
-La deuxième clause n'a pas de garde. La troisième non plus. Heaven
-les essaie dans l'ordre, avec les gardes.
-
-    heaven> sign 5
-    "positif"
-    heaven> sign 0
-    "nul"
-    heaven> sign (-3)
-    "négatif"
-
-Attention à la syntaxe de `(-3)` : le `-` unaire doit être parenthésé.
-Sinon Heaven croit que vous voulez faire une soustraction.
 
 ## Les constructeurs récursifs
 
