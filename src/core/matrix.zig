@@ -232,28 +232,19 @@ pub const Matrix = struct {
                     self.allocator.free(nc.origin);
                     self.allocator.destroy(nc);
                 },
-                // AJOUT : Libérer les tableaux de la Forge
-                .HFunc => |func| {
-                    if (func.params.len > 0) self.allocator.free(func.params);
-                },
-                .HBlock => |ids| {
-                    self.allocator.free(ids);
-                },
-                .Apply => |app| {
-                    if (app.args.len > 0) self.allocator.free(app.args);
-                },
-                .Relation => |rel| {
-                    if (rel.args.len > 0) self.allocator.free(rel.args);
-                },
-                .Rule => |rule| {
-                    if (rule.body.len > 0) self.allocator.free(rule.body);
-                },
-                .EClass => |ids| {
-                    if (ids.len > 0) self.allocator.free(ids);
-                },
-                .Mailbox => |ids| {
-                    if (ids.len > 0) self.allocator.free(ids);
-                },
+                // NOTE (2026-10-01) : les variants Forge (HFunc,
+                // HBlock, Apply, Relation, Rule, EClass, Mailbox) ont
+                // leurs slices alloues par l'arena de l'ingestor
+                // (universal.zig, self.arena.allocator()). Cette arena
+                // est liberee en bloc par UniversalIngestor.deinit() ->
+                // self.arena.deinit(), qui s'execute AVANT matrix.deinit()
+                // (defers LIFO dans main.zig). Les liberer ici avec
+                // self.allocator provoquait un double-free au Ctrl+D.
+                //
+                // Stop-gap en attendant D1 (deplacer l'ecosysteme Astra
+                // vers src/legacy/). Le vrai fix est de clarifier la
+                // propriete : l'arena possede ces slices, la Matrix
+                // n'en est qu'une vue.
                 else => {}, // Les autres nœuds ne possèdent pas de mémoire allouée ici
             }
         }
