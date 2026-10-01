@@ -580,6 +580,29 @@ Matérialisation explicite si nécessaire :
    (Haskell lazy list) ?
 4. Renommage des Stream kanren : `SubstStream` ou autre ?
 5. `Set<T>` : basé sur `HashSet` ou `Ord` + tri ?
+### Tranchages proposes (2026-10-01, session backends)
+
+Reponses aux 5 points ci-dessus, a valider avant implementation :
+
+1. Syntaxe : LES DEUX. `[e | x <- xs, p]` en sucre frontend,
+   `(for (x <- xs) (when p) e)` comme forme S-expr de lowering
+   (meme pattern que infixe natif -> S-expr via nativeToSExpr).
+2. Sequentiel par defaut. La spec dit elle-meme qu'un Stream peut
+   etre execute en parallele "sans changer la semantique" :
+   le parallelisme est donc opt-in, jamais observable.
+3. `linear` par defaut (Rust Iterator). Coherent zero-GC + QTT.
+   Un consommateur many peut toujours collect() ; l'inverse
+   (fork d'un stream linear) est le piege classique.
+4. `SubstStream`. Descriptif, honnete sur l'origine, sans
+   confusion possible avec le Stream<T> semantique.
+5. `Set<T>` : quotient de `List<T>` par l'egalite structurelle.
+   Heaven a deja les quotients CIC (class/lift, cf test_wasm.zig)
+   et structuralEql. Un HashSet casserait la coherence
+   preuve/eval ; le quotient rend les Sets prouvables.
+
+Si valides : remplacer la liste ci-dessus par ces decisions et
+basculer le statut de la section en implementation.
+
 
 **À intégrer avec `_concurrency.md`** : les compréhensions doivent
 produire des `Stream<T>` compatibles avec le noyau 5-primitives.
