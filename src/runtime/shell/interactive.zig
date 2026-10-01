@@ -1,5 +1,5 @@
 const std = @import("std");
-const readkey = @import("platform/readkey.zig");
+const readkey = @import("../../platform/readkey.zig");
 const platform = @import("platform");
 const History = @import("history.zig").History;
 const Heaven = @import("heaven_expr").Heaven;
