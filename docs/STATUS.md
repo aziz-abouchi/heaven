@@ -292,7 +292,7 @@ Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
     `src/kernel/` source de vérité, `core/kernel.zig` thin
     wrapper puis suppression. 2-3 sessions. Risque élevé
     (`proof_core`, `wasm.zig`, `cli/repl`, `frontend/parser`).
-11. **`readKey` → `platform`** — sortir `readKeyWindows`,
+11. ~~**`readKey` → `platform`**~~ ✅ (2026-10-01) — sorti
     `readKeyUnix`, les `VK_*` et `INPUT_RECORD` de
     `interactive.zig` vers `platform.readKey()`. Cohérence
     avec la règle platform. 1 session.
