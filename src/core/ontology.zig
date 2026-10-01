@@ -1,22 +1,19 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const expr = @import("expr");
-const Store = expr.Store;
-const Id = expr.Id;
 
 /// ═══════════════════════════════════════════════════
 /// L2 — ONTOLOGIE COMPUTATIONNELLE
 /// Concepts, propriétés, subsomption, complexité
 /// ═══════════════════════════════════════════════════
 pub const Complexity = enum {
-    constant, // O(1)
-    logarithmic, // O(log n)
-    linear, // O(n)
-    linearithmic, // O(n log n)
-    quadratic, // O(n²)
-    cubic, // O(n³)
-    exponential, // O(2ⁿ)
-    factorial, // O(n!)
+    constant,
+    logarithmic,
+    linear,
+    linearithmic,
+    quadratic,
+    cubic,
+    exponential,
+    factorial,
     unknown,
 
     pub fn format(self: Complexity) []const u8 {
@@ -43,9 +40,9 @@ pub const Complexity = enum {
 };
 
 pub const StackUsage = enum {
-    constant, // constant stack (iterative) O(1)
-    linear, // linear stack (recursive) O(n),
-    logarithmic, // logarithmic stack (divide & conquer) O(log n),
+    constant,
+    linear,
+    logarithmic,
     unknown,
 
     pub fn format(self: StackUsage) []const u8 {
@@ -64,20 +61,24 @@ pub const AlgoProperty = struct {
     space: StackUsage,
     is_tail_recursive: bool,
     is_parallelizable: bool,
-    domain_constraint: ?[]const u8, // e.g. "n > 0", "n >= 0"
+    domain_constraint: ?[]const u8,
 
     pub fn dominates(self: AlgoProperty, other: AlgoProperty) bool {
-        // self dominates other if same or better in all dimensions
         return Complexity.le(self.time, other.time) and
             (@intFromEnum(self.space) <= @intFromEnum(other.space));
     }
 };
 
-/// A Concept in the ontology
+/// A concept in the ontology.
+///
+/// NOTE: `name` aliases the hashmap key in `Ontology.concepts`.
+/// The key owns the allocation. `deinit` frees the key but MUST NOT
+/// free `Concept.name` again — they point to the same memory.
+/// Kept as a convenience field for consumers (see
+/// src/runtime/shell/commands.zig).
 pub const Concept = struct {
     name: []const u8,
     parent: ?[]const u8,
-    // superclass (is-a)
     properties: [8]?Property,
     num_props: u8,
     algorithms: [16]?AlgoProperty,
@@ -108,41 +109,37 @@ pub const Ontology = struct {
     }
 
     pub fn deinit(self: *Ontology) void {
-        // 1. Libérer les concepts (clés et parents)
+        // concepts : la clé du hashmap est la SEULE propriétaire du nom.
+        // Concept.name est un alias de la clé (même pointeur) — ne PAS
+        // le libérer ici, sinon double-free. On libère la clé et le parent.
         var it = self.concepts.iterator();
         while (it.next()) |entry| {
-            self.allocator.free(entry.key_ptr.*); // Libère name_dupe
+            self.allocator.free(entry.key_ptr.*);
             if (entry.value_ptr.parent) |p| {
-                self.allocator.free(p); // Libère parent_dupe
+                self.allocator.free(p);
             }
         }
         self.concepts.deinit(self.allocator);
 
-        // 2. Libérer les listes d'équivalents
-        // Attention : on ne libère pas les clés de equiv_classes car elles pointent
-        // vers les mêmes chaînes que les noms de concepts (qu'on a déjà libérées ci-dessus).
-        // On ne libère pas non plus les items de la liste car ce sont des string literals pour l'instant.
+        // equiv_classes : les clés pointent vers des chaînes qui
+        // appartiennent à l'appelant (souvent des littéraux). On ne
+        // libère que les ArrayList, pas les items.
         var equiv_it = self.equiv_classes.iterator();
         while (equiv_it.next()) |entry| {
-            entry.value_ptr.deinit(self.allocator); // Libère la mémoire de l'ArrayList
+            entry.value_ptr.deinit(self.allocator);
         }
         self.equiv_classes.deinit(self.allocator);
     }
 
     // ─── Concepts ───
+
     pub fn defineConcept(self: *Ontology, name: []const u8, parent: ?[]const u8) !void {
         const name_dupe = try self.allocator.dupe(u8, name);
-        const parent_dupe = if (parent) |p| try self.allocator.dupe(u8, p) else null;
-        const c = Concept{
-            .name = name_dupe,
-            .parent = parent_dupe,
+        errdefer self.allocator.free(name_dupe);
 
-            .properties = [_]?Property{null} ** 8,
-            .num_props = 0,
-            .algorithms = [_]?AlgoProperty{null} ** 16,
-            .num_algos = 0,
-        };
-        _ = c;
+        const parent_dupe = if (parent) |p| try self.allocator.dupe(u8, p) else null;
+        errdefer if (parent_dupe) |p| self.allocator.free(p);
+
         try self.concepts.put(self.allocator, name_dupe, .{
             .name = name_dupe,
             .parent = parent_dupe,
@@ -215,30 +212,23 @@ pub const Ontology = struct {
     fn scoreAlgo(_: *Ontology, algo: AlgoProperty, ctx: OptContext) i32 {
         var score: i32 = 0;
 
-        // Time complexity score (lower is better)
-        // Exponential penalty for worse time complexity
         const time_val = @as(i32, @intFromEnum(algo.time));
         score -= time_val * time_val * 10;
 
-        // Stack usage matters for large n
         if (ctx.expected_n > 10000) {
             if (algo.space == .constant) score += 50;
             if (algo.space == .linear) score -= 50;
         }
 
-        // Parallelism bonus
         if (ctx.has_gpu and algo.is_parallelizable) score += 30;
 
-        // Tail recursion bonus (no stack overflow)
         if (algo.is_tail_recursive) score += 20;
 
-        // Small n: prefer simpler code
         if (ctx.expected_n < 20) score += 10;
 
-        // Domain constraint check
         if (algo.domain_constraint) |dc| {
             if (std.mem.eql(u8, dc, "n > 0") and ctx.expected_n == 0) {
-                score -= 1000; // Invalid for this input
+                score -= 1000;
             }
         }
 
@@ -263,7 +253,6 @@ pub const Ontology = struct {
         if (context.has_gpu) try w.writeAll(", GPU disponible");
         try w.writeAll("\n\n");
 
-        // List all algorithms
         try w.writeAll("  Algorithmes connus:\n");
         var i: u8 = 0;
         while (i < concept.num_algos) : (i += 1) {
@@ -275,12 +264,10 @@ pub const Ontology = struct {
             }
         }
 
-        // Best choice
         if (self.chooseBest(concept_name, context)) |best| {
             try std.fmt.format(w, "\n  \xe2\x9c\x93 Choix optimal: {s} ({s})\n", .{ best.name, best.time.format() });
         }
 
-        // Equivalences
         if (self.getEquivalents(concept_name)) |equivs| {
             try w.writeAll("\n  Formes \xc3\xa9quivalentes:\n");
             for (equivs) |eq| {
@@ -295,7 +282,7 @@ pub const Ontology = struct {
 pub const OptContext = struct {
     expected_n: u64,
     has_gpu: bool,
-    max_stack: u64, // 0 = unlimited
+    max_stack: u64,
     prefer_simple: bool,
 };
 
@@ -321,9 +308,6 @@ pub const MetaEngine = struct {
     }
 
     fn bootstrap(self: *MetaEngine) !void {
-        // ─── Ontologie de base ───
-
-        // Concepts mathématiques
         try self.ontology.defineConcept("Computation", null);
         try self.ontology.defineConcept("Arithmetic", "Computation");
         try self.ontology.defineConcept("Factorial", "Arithmetic");
@@ -331,8 +315,6 @@ pub const MetaEngine = struct {
         try self.ontology.defineConcept("Sort", "Computation");
         try self.ontology.defineConcept("Search", "Computation");
         try self.ontology.defineConcept("Product", "Arithmetic");
-
-        // ─── Factorial : 3 algorithmes équivalents ───
 
         try self.ontology.registerAlgo("Factorial", .{
             .name = "\xce\xa0(k=1..n) k",
@@ -342,7 +324,6 @@ pub const MetaEngine = struct {
             .is_parallelizable = true,
             .domain_constraint = null,
         });
-
         try self.ontology.registerAlgo("Factorial", .{
             .name = "n * (n-1)! with n>0",
             .time = .linear,
@@ -351,7 +332,6 @@ pub const MetaEngine = struct {
             .is_parallelizable = false,
             .domain_constraint = "n > 0",
         });
-
         try self.ontology.registerAlgo("Factorial", .{
             .name = "fold(*, 1, [1..n])",
             .time = .linear,
@@ -361,13 +341,10 @@ pub const MetaEngine = struct {
             .domain_constraint = null,
         });
 
-        // Equivalences
         try self.ontology.declareEquivalent("Factorial", "\xce\xa0(k=1..n) k");
         try self.ontology.declareEquivalent("Factorial", "n * (n-1)! with n>0");
         try self.ontology.declareEquivalent("Factorial", "fold(*, 1, [1..n])");
         try self.ontology.declareEquivalent("Factorial", "gamma(n+1)");
-
-        // ─── Fibonacci ───
 
         try self.ontology.registerAlgo("Fibonacci", .{
             .name = "fib(n-1) + fib(n-2)",
@@ -377,7 +354,6 @@ pub const MetaEngine = struct {
             .is_parallelizable = false,
             .domain_constraint = "n >= 0",
         });
-
         try self.ontology.registerAlgo("Fibonacci", .{
             .name = "matrix_pow([[1,1],[1,0]], n)",
             .time = .logarithmic,
@@ -386,7 +362,6 @@ pub const MetaEngine = struct {
             .is_parallelizable = false,
             .domain_constraint = "n >= 0",
         });
-
         try self.ontology.registerAlgo("Fibonacci", .{
             .name = "fib_iter(a=0, b=1, n)",
             .time = .linear,
@@ -400,8 +375,6 @@ pub const MetaEngine = struct {
         try self.ontology.declareEquivalent("Fibonacci", "matrix_pow([[1,1],[1,0]], n)[0][1]");
         try self.ontology.declareEquivalent("Fibonacci", "fib_iter(0, 1, n)");
 
-        // ─── Sort ───
-
         try self.ontology.registerAlgo("Sort", .{
             .name = "quicksort",
             .time = .linearithmic,
@@ -410,7 +383,6 @@ pub const MetaEngine = struct {
             .is_parallelizable = true,
             .domain_constraint = null,
         });
-
         try self.ontology.registerAlgo("Sort", .{
             .name = "mergesort",
             .time = .linearithmic,
@@ -419,7 +391,6 @@ pub const MetaEngine = struct {
             .is_parallelizable = true,
             .domain_constraint = null,
         });
-
         try self.ontology.registerAlgo("Sort", .{
             .name = "insertion_sort",
             .time = .quadratic,
@@ -429,8 +400,6 @@ pub const MetaEngine = struct {
             .domain_constraint = null,
         });
     }
-
-    // ─── API ───
 
     pub fn userDefineConcept(self: *MetaEngine, name: []const u8, parent: ?[]const u8) !void {
         try self.ontology.defineConcept(name, parent);
@@ -460,3 +429,82 @@ pub const MetaEngine = struct {
         return self.ontology.describeChoice(concept, ctx, self.allocator);
     }
 };
+
+// ═══════════════════════════════════════════════════
+// Tests
+// ═══════════════════════════════════════════════════
+
+test "ontology: isA is reflexive, transitive, not symmetric" {
+    var ont = Ontology.init(std.testing.allocator);
+    defer ont.deinit();
+
+    try ont.defineConcept("Computation", null);
+    try ont.defineConcept("Arithmetic", "Computation");
+    try ont.defineConcept("Factorial", "Arithmetic");
+
+    try std.testing.expect(ont.isA("Arithmetic", "Arithmetic"));
+    try std.testing.expect(ont.isA("Arithmetic", "Computation"));
+    try std.testing.expect(ont.isA("Factorial", "Computation"));
+    try std.testing.expect(!ont.isA("Computation", "Arithmetic"));
+    try std.testing.expect(!ont.isA("Inconnu", "Computation"));
+}
+
+test "ontology: chooseBest depends on context" {
+    var ont = Ontology.init(std.testing.allocator);
+    defer ont.deinit();
+
+    try ont.defineConcept("Sort", null);
+
+    try ont.registerAlgo("Sort", .{
+        .name = "insertion_sort",
+        .time = .quadratic,
+        .space = .constant,
+        .is_tail_recursive = false,
+        .is_parallelizable = false,
+        .domain_constraint = null,
+    });
+    try ont.registerAlgo("Sort", .{
+        .name = "mergesort",
+        .time = .linearithmic,
+        .space = .linear,
+        .is_tail_recursive = false,
+        .is_parallelizable = false,
+        .domain_constraint = null,
+    });
+
+    const small_ctx = OptContext{
+        .expected_n = 10,
+        .has_gpu = false,
+        .max_stack = 0,
+        .prefer_simple = true,
+    };
+    const best_small = ont.chooseBest("Sort", small_ctx) orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("mergesort", best_small.name);
+
+    const large_ctx = OptContext{
+        .expected_n = 100_000,
+        .has_gpu = false,
+        .max_stack = 0,
+        .prefer_simple = false,
+    };
+    const best_large = ont.chooseBest("Sort", large_ctx) orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("insertion_sort", best_large.name);
+}
+
+test "ontology: equivalence classes" {
+    var ont = Ontology.init(std.testing.allocator);
+    defer ont.deinit();
+
+    try ont.declareEquivalent("Factorial", "prod(1..n)");
+    try ont.declareEquivalent("Factorial", "gamma(n+1)");
+
+    const equivs = ont.getEquivalents("Factorial") orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expectEqual(@as(usize, 2), equivs.len);
+    try std.testing.expectEqualStrings("prod(1..n)", equivs[0]);
+    try std.testing.expectEqualStrings("gamma(n+1)", equivs[1]);
+
+    try std.testing.expect(ont.getEquivalents("Inconnu") == null);
+}
