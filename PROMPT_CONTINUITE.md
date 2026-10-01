@@ -61,6 +61,16 @@ HVN : ~95/95.
 4. Auto-hebergement (long terme) : BigInt (libtommath), I/O,
    structures de donnees, puis self-parse/self-compile.
 
+## Bug connexe observe (2026-10-01)
+
+Au shutdown du REPL apres avoir charge deux fonctions mutuellement
+recursives (ex. `isEven`/`isOdd`), un `Invalid free` se declenche
+dans `src/core/matrix.zig:237` (`free(func.params)`). C'est un bug
+**independant** de la TCO, probablement lie a D1 (deplacer
+l'ecosysteme Astra vers `src/legacy/`). A traiter separement.
+
+Voir `docs/spec/_tco_mutual.md` (section "Probleme connexe").
+
 ## Fichiers de reference
 - src/commands/qbe_cmd.zig, wasm_cmd.zig, bench_interp.zig
 - src/backend/mir_qbe.zig, mir_wat.zig
