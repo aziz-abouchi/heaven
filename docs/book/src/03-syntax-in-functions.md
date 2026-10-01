@@ -256,3 +256,30 @@ Quand tu écris des clauses, Heaven vérifie trois choses :
 
 C'est la vérification v2c (2026-09-23). L'unification vraie
 d'indexes (`Vec (n + m)`, liaison `n := k`) est en roadmap v2d.
+
+## Les gardes
+
+Parfois un pattern seul ne suffit pas a choisir une clause. Tu veux
+dire : "si l'argument a cette forme ET qu'il satisfait une
+condition". C'est une **garde**.
+
+    clamp x | x < 0 = 0
+    clamp x | x > 9 = 9
+    clamp x | otherwise = x
+
+La barre verticale `|` separe les patterns de la condition. Heaven
+matche d'abord le pattern, puis evalue la garde. Si elle rend
+false, il essaie la clause suivante -- exactement comme si le
+pattern n'avait pas matche.
+
+1. **Les captures sont visibles** dans la garde. Le `x` de `x < 0`
+   est le `x` capture par le pattern.
+2. **L'ordre compte.** Premiere garde vraie gagne, comme pour les
+   patterns : essai de haut en bas.
+3. **otherwise** est un alias vers true -- la clause par defaut,
+   a mettre en dernier.
+4. **== fonctionne** en garde :
+
+       signe x | x < 0 = 0 - 1
+       signe x | x == 0 = 0
+       signe x | otherwise = 1

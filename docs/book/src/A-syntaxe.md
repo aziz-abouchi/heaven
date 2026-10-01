@@ -139,6 +139,10 @@ La syntaxe équationnelle gère plusieurs clauses :
 ## Gardes
 
     sign x | x > 0 = "positif"
+
+`otherwise` est un alias vers `true` (clause par defaut). `==` est
+legal en garde. Les gardes s'evaluent apres le match, captures
+visibles ; refus = clause suivante (ordre lineaire).
     sign 0 = "nul"
     sign x = "négatif"
 
