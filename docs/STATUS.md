@@ -208,6 +208,29 @@ Voir `docs/spec/_ontology.md` pour les decisions actees.
 
 Phases : 1 faite (`c651fa9`), 2 ce commit, 3 et 4 planifiees.
 
+## Knowledge / RDF / RDFS (2026-10-01)
+
+La couche Knowledge est distincte de `Expr` et ne constitue pas un
+second IR. Elle conserve ses propres identifiants (`KnowledgeId`) et
+n'est reliée a `Expr` que par des lowerings explicites.
+
+| Element | Statut | Preuve | Limitation |
+|---|---|---|---|
+| Ressources URI / blank / literal | stable | `src/knowledge/resource.zig` | RDF minimal |
+| Triples | stable | `src/knowledge/triple.zig` | pas de quad/context |
+| Assertions | stable | `src/knowledge/assertion.zig` | confidence low/medium/high |
+| Provenance | stable | tests KnowledgeStore | sources enumerees |
+| Status asserted/imported/derived/inferred/certified | stable | `assertion.zig` | enum ferme |
+| KnowledgeStore | stable | `src/knowledge/store.zig` | stockage lineaire POC |
+| Plusieurs provenances pour un meme triple | stable | test Store | pas de deduplication |
+| RDFS `subClassOf` transitif | stable POC | `src/knowledge/rdfs.zig` | seul fragment RDFS implemente |
+| Fermeture non destructive | stable POC | test RDFS | resultat separe du Store |
+| Reflexivite implicite | absent volontairement | test RDFS | `A -> A` non ajoute |
+| Turtle | 🚧 | — | parseur a venir |
+| `rdf:type`, domain, range, subProperty | 🚧 | — | hors POC |
+| OWL / SPARQL | 🚧 | — | hors POC |
+| Lowering explicite Knowledge -> Expr | 🚧 | — | contrat a definir par cas d'usage |
+
 ## Backends natifs et WASM (2026-09-30)
 
 | Élément | Statut | Preuve | Limitation |

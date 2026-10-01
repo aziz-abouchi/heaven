@@ -1,108 +1,230 @@
-# Ontologie Heaven - perimetre, frontiere, decisions
+# Knowledge et ontologie Heaven - perimetre, frontiere, decisions
 
-> Statut : **decide**. Les cinq questions sont tranchees (2026-10-01).
-> `src/core/ontology.zig` existe desormais comme squelette (Phase 2).
-> Les Phases 3 (SMT-LIB) et 4 (MPST labels) sont planifiees mais pas
-> commencees.
+> Statut : **decide**.
+>
+> Depuis le 2026-10-01, la connaissance RDF/RDFS est une couche
+> distincte du Core `Expr`. Elle n'est pas un second IR.
+>
+> `src/core/algo_catalog.zig` et `src/core/ontology.zig` sont
+> conserves comme composants historiques/specifiques tant qu'une
+> migration explicite n'est pas decidee.
 
-## Contexte
+## 1. Frontiere architecturale
 
-Deux fichiers distincts, deux roles :
+Heaven possede un IR compilable unique :
 
-| Fichier | Role | Representation |
-|---|---|---|
-| `src/core/algo_catalog.zig` | Catalogue d'algorithmes, complexite, choix contextuel | strings |
-| `src/core/ontology.zig` | Concepts sur le Core IR, trust, provenance | `Id` (a terme) |
+    Source / Domain
+          |
+          | lowering explicite
+          v
+         Expr
+          |
+          v
+         MIR
+          |
+          v
+       backend
 
-`algo_catalog.zig` est l'ancien `ontology.zig` renomme
-(commit `c651fa9`). Il reste un composant a cote du Core, sans
-pretention semantique.
+La couche Knowledge ne remplace pas `Expr` :
 
-## Decisions actees
+    RDF / RDFS / connaissances
+              |
+              v
+        KnowledgeStore
+              |
+              v
+          Reasoner
+              |
+              | lowering explicite, si necessaire
+              v
+             Expr
 
-### 1. Nom
+Une structure est consideree comme un IR concurrent seulement si elle
+possede sa propre semantique generale d'execution, son propre pipeline
+de compilation/backend et pretend representer arbitrairement les
+programmes Heaven.
 
-`algo_catalog.zig` pour le catalogue d'algorithmes.
-`ontology.zig` reserve pour le niveau **High-Level Semantic IR**
-decrit dans `docs/core/core-ir.md` section 18.
+Le KnowledgeStore ne satisfait pas ce critere.
 
-### 2. Frontiere avec le Core
+## 2. Identite
 
-L'ontologie **manipule des `Id`** (pas des strings). Elle vit
-au-dessus du Core, dans le niveau `High-Level Semantic IR`. Les
-noms (`[]const u8`) restent presents pour l'affichage, mais
-l'identite semantique passe par `Id`.
+Les identifiants sont volontairement distincts :
 
-Consequence : a terme, `Concept.expr_id` pointera vers un noeud
-reel du Store, et `isA` sera verifiable par `structuralEql`.
+    KnowledgeId != Expr.Id
 
-### 3. Sources externes - SMT-LIB en premier
+`KnowledgeId` identifie une ressource ou un noeud de la couche
+Knowledge. `Expr.Id` identifie un noeud du Core Store.
 
-Ordre d'integration :
+Le fait que les deux soient actuellement representes par des `u32`
+ne cree aucune compatibilite implicite.
 
-1. **SMT-LIB** (Phase 3) - format standard, parseur facile,
-   oracle disponible (Z3, cvc5). Emission : `Heaven -> .smt2`.
-   Import : axiomes `(assert ...)` comme concepts `asserted`.
-2. OWL / RDF / SPARQL - plus tard, quand un cas d'usage le
-   demandera.
-3. Lean / Rocq - oracles seulement (LSP), pas d'import semantique.
-4. MLCPD - tooling, pas runtime.
+## 3. Ressources RDF
 
-### 4. Trust et provenance - maintenant
+`src/knowledge/resource.zig` definit :
 
-Trois niveaux :
+- `Resource.uri` pour les URI ;
+- `Resource.blank` pour les blank nodes ;
+- `Literal` pour les valeurs lexicales, datatype et langue ;
+- `Node` comme union ressource/litteral.
 
-- **`asserted`** - vient d'une source externe non verifiee
-  (DBpedia, fichier SMT-LIB, saisie utilisateur)
-- **`derived`** - derive par une regle interne valide
-  (subsomption, reecriture)
-- **`certified`** - prouve par `proof_core.zig`
+L'egalite est structurelle dans chaque categorie.
 
-Chaque concept et chaque relation porte une `Provenance` :
-- `source` : `user | smt_lib | owl | lean | rocq | mpst | internal`
-- `source_id` : identifiant optionnel (URI, nom de fichier,
-  numero de ligne SMT-LIB)
-- `timestamp` : secondes Unix
+## 4. Triples
 
-Une relation `equivalent-to` **asserted** reste un candidat, pas
-un theoreme. La preuve se fait ailleurs (`proof_core`).
+`src/knowledge/triple.zig` definit :
 
-### 5. Relation avec MPST
+    Triple {
+        subject,
+        predicate,
+        object,
+    }
 
-L'ontologie **alimente les labels de session**. Concretement :
+Les triples ne sont pas des noeuds `Expr`.
 
-- Un concept peut etre utilise comme role dans un type global.
-- Une relation `produces`/`consumes` decrit un flux de messages.
-- Les `TrustLevel` s'appliquent aux labels : un role `asserted`
-  peut etre verifie plus strictement qu'un role `certified`.
+## 5. Assertions et provenance
 
-Phase 4 : integration dans `elab.zig` et `mpst.zig`. Pas
-commencee.
+`src/knowledge/assertion.zig` separe trois notions :
 
-## Ce que le squelette actuel ne fait pas
+### Provenance
 
-`src/core/ontology.zig` (Phase 2) contient :
-- `TrustLevel`, `SourceKind`, `Provenance`
-- `Concept`, `Relation`, `RelationKind`
-- `Ontology` avec `addConcept`, `addRelation`, `isA`, `filterByTrust`
-- 3 tests
+Elle indique d'ou vient une assertion :
 
-Il ne contient **pas** :
-- de projection vers/depuis `expr.Store` (Phase 3)
-- d'emission SMT-LIB (Phase 3)
-- de lien avec `mpst.zig` (Phase 4)
-- de commandes REPL
+- source ;
+- source_id optionnel ;
+- timestamp ;
+- revision optionnelle.
 
-Le fichier n'est **pas branche** dans `build.zig` ni importe par
-`main.zig`. Il est testable isolement via `zig test
-src/core/ontology.zig`. C'est volontaire : on construit la
-fondation avant de la cabler.
+### Status
 
-## Feuille de route
+Le statut est ferme :
 
-| Phase | Contenu | Statut |
-|---|---|---|
-| 1 | Renommer `ontology.zig` en `algo_catalog.zig` | fait (`c651fa9`) |
-| 2 | Creer `src/core/ontology.zig` (squelette) | ce commit |
-| 3 | Emission SMT-LIB + oracle Z3/cvc5 | planifie |
-| 4 | Alimenter les labels MPST depuis l'ontologie | planifie |
+    asserted
+    imported
+    derived
+    inferred
+    certified
+
+`trusted` n'est pas un statut.
+
+### Confidence
+
+La confiance est optionnelle :
+
+    low
+    medium
+    high
+
+Ces trois dimensions ne doivent pas etre fusionnees.
+
+Une sortie d'un oracle statistique ou externe peut etre conservee comme
+candidate avec sa provenance et son niveau de confiance, sans devenir
+automatiquement `derived` ou `certified`.
+
+## 6. KnowledgeStore
+
+`src/knowledge/store.zig` conserve les assertions dans un espace
+independant du Core Store.
+
+Le Store :
+
+- accepte plusieurs assertions portant le meme triple ;
+- conserve leurs provenances distinctes ;
+- ne deduplique pas automatiquement ;
+- ne fusionne pas les ressources ;
+- permet `add`, `get`, `count` et `find`.
+
+Le choix de conserver plusieurs assertions est intentionnel :
+l'origine d'une connaissance fait partie de son contexte.
+
+## 7. Reasoners
+
+Un reasoner est un moteur specialise de domaine.
+
+Il peut posseder :
+
+- ses propres structures temporaires ;
+- ses propres algorithmes ;
+- ses propres resultats de fermeture ou de resolution.
+
+Il ne devient pas pour autant un nouvel IR de Heaven.
+
+Le premier reasoner implemente dans `src/knowledge/rdfs.zig` est la
+fermeture transitive de `rdfs:subClassOf`.
+
+Exemple :
+
+    A subClassOf B
+    B subClassOf C
+
+donne :
+
+    A subClassOf C
+
+La fermeture :
+
+- ne modifie pas le Store source ;
+- retourne les assertions inferees separement ;
+- marque les nouvelles assertions `inferred` ;
+- ne cree pas de reflexivite implicite ;
+- ne remplace pas une assertion deja presente.
+
+## 8. Perimetre RDFS du POC
+
+Le POC couvre uniquement :
+
+    rdfs:subClassOf
+
+et sa transitivite.
+
+Ne sont pas encore implementes :
+
+- `rdf:type` ;
+- `rdfs:domain` ;
+- `rdfs:range` ;
+- `rdfs:subPropertyOf` ;
+- OWL ;
+- SPARQL ;
+- Turtle ;
+- sameAs/mergeAs.
+
+Ces extensions devront avoir leur propre contrat avant implementation.
+
+## 9. sameAs et fusion
+
+`sameAs` est une relation de connaissance, pas une commande de fusion.
+
+Une assertion :
+
+    sameAs(A, B)
+
+reste conservee avec sa provenance.
+
+Un eventuel `mergeAs(A, B)` sera une decision explicite produisant une
+entite alignee. Le reasoner peut exploiter `sameAs` pour repondre a une
+requete sans detruire les assertions originales.
+
+## 10. Ancien systeme ontology
+
+`src/core/algo_catalog.zig` est un catalogue d'algorithmes. Il ne doit
+pas etre confondu avec RDF/RDFS.
+
+`src/core/ontology.zig` est un ancien squelette semantique conserve
+pour l'instant pour compatibilite et experimentation.
+
+Il ne faut pas introduire une conversion implicite :
+
+    ontology -> Knowledge
+    Knowledge -> Expr
+
+Une conversion future devra etre explicitement definie.
+
+## 11. Prochaines etapes
+
+Ordre prevu :
+
+1. formaliser l'API `Closure` ;
+2. ajouter un parseur Turtle minimal ;
+3. ajouter des requetes simples sur le KnowledgeStore ;
+4. etendre RDFS seulement apres validation du contrat ;
+5. definir explicitement les lowerings `Knowledge -> Expr` lorsqu'un
+   cas d'usage computationnel le justifiera.

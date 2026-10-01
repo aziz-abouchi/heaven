@@ -122,6 +122,40 @@ On peut intégrer Heaven dans une application C, Python, ou autre. Le
 module WebAssembly (`heaven.wasm`) est l'exemple le plus abouti : il
 tourne dans un navigateur, avec le même code que le natif.
 
+## Knowledge et donnees externes
+
+Un programme reel ne manipule pas seulement ses propres donnees. Il peut
+aussi devoir raisonner sur des informations provenant de plusieurs
+sources.
+
+Heaven possede une couche **Knowledge** pour ce cas d'usage.
+
+Elle represente actuellement un sous-ensemble RDF minimal :
+
+    sujet  predicat  objet
+
+Chaque assertion peut conserver sa provenance, son statut et un niveau
+de confiance.
+
+Le premier reasoner implemente une fermeture transitive de
+`rdfs:subClassOf` :
+
+    A subClassOf B
+    B subClassOf C
+
+permet d'inferer :
+
+    A subClassOf C
+
+La fermeture ne modifie pas les assertions originales. Les nouvelles
+assertions sont marquees `inferred`.
+
+Cette couche reste independante de `Expr`. Si une connaissance doit
+participer a un calcul Heaven, le passage vers `Expr` devra etre
+explicite.
+
+Le POC ne fournit pas encore de parser Turtle ni de SPARQL.
+
 ## Le REPL web
 
 C'est le point d'entrée le plus accessible : ouvrez

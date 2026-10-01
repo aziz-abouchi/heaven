@@ -648,3 +648,70 @@ Effort : 3 jours. **Prérequis** : `#io`.
 
 Chaque section peut être extraite en RFC séparée. Les numéros
 d'effort sont des estimations à un développeur familier avec le code.
+
+---
+
+## #knowledge — KnowledgeStore RDF/RDFS
+
+### POC v0 ✅ *fait* — 2026-10-01
+
+La couche Knowledge est maintenant separee du Core `Expr`.
+
+Modules :
+
+- `src/knowledge/resource.zig`
+- `src/knowledge/triple.zig`
+- `src/knowledge/assertion.zig`
+- `src/knowledge/store.zig`
+- `src/knowledge/rdfs.zig`
+
+Contrat :
+
+- `KnowledgeId != Expr.Id` ;
+- URI, blank node et literal ;
+- triples structures ;
+- assertions avec provenance, status et confidence ;
+- plusieurs provenances possibles pour un meme triple ;
+- fermeture transitive `rdfs:subClassOf` ;
+- fermeture non destructive ;
+- assertions inferees marquees `inferred`.
+
+Le KnowledgeStore n'est pas un IR et ne possede pas de backend.
+Toute utilisation computationnelle future passera par un lowering
+explicite vers `Expr`.
+
+### v1 — Turtle minimal
+
+- parser Turtle minimal ;
+- prefixes ;
+- URI ;
+- blank nodes ;
+- literals ;
+- insertion dans `KnowledgeStore`.
+
+### v2 — Requetes Knowledge
+
+- recherche par sujet/predicate/objet ;
+- resultats portant leur provenance ;
+- API de requete stable ;
+- fermeture RDFS exploitable sans mutation du Store.
+
+### v3 — RDFS et lowerings
+
+Apres validation du POC :
+
+- `rdf:type` ;
+- `rdfs:subPropertyOf` ;
+- `rdfs:domain` ;
+- `rdfs:range` ;
+- contrat `Knowledge -> Expr` pour les cas computationnels ;
+- conservation des assertions originales lors des deductions.
+
+### Hors perimetre initial
+
+- OWL complet ;
+- SPARQL ;
+- fusion implicite via `sameAs` ;
+- second IR specialise ;
+- backend direct depuis Knowledge.
+

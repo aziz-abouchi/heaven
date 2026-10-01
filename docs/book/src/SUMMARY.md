@@ -12,6 +12,7 @@
 - [Real World](09-real-world.md)
 - [Modules et imports](11-modules.md)
 - [Under the Hood](10-under-the-hood.md)
+- [Knowledge et raisonnement](12-knowledge.md)
 
 ---
 

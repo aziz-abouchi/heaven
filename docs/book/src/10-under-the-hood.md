@@ -174,34 +174,79 @@ Le fix est une ligne. La leçon : dans un langage non typé, `u32`
 peut cacher n'importe quoi. Le hash-consing aide, mais ne remplace
 pas la discipline.
 
-## L'ontologie et son catalogue
+## Knowledge, ontologie et catalogue
 
-Le fichier `src/core/algo_catalog.zig` - anciennement `ontology.zig`,
-renomme en octobre 2026 - est un catalogue d'algorithmes : il
-enregistre pour chaque concept (Factorial, Fibonacci, Sort) plusieurs
-implementations avec leur complexite temps, leur usage de pile, leur
-parallelisme, et un score qui choisit la meilleure selon un contexte
-(`expected_n`, `has_gpu`, etc.). Ce n'est pas une ontologie au sens
-OWL/DL - c'est un outil de decision.
+Heaven distingue maintenant trois choses qui avaient historiquement
+ete melangees.
 
-Le nom `ontology` a ete libere pour un fichier distinct,
-`src/core/ontology.zig`, qui porte une vraie semantique : chaque
-concept a un `TrustLevel` (`asserted`, `derived`, `certified`), une
-`Provenance` (source, source_id, timestamp), et a terme un `expr_id`
-pointant vers un noeud du Store. Les relations entre concepts sont
-typees (`is-a`, `equivalent-to`, `produces`, `consumes`, `has-part`).
+Le fichier `src/core/algo_catalog.zig` est un **catalogue
+d'algorithmes**. Il enregistre des implementations, leur complexite
+et des informations permettant un choix contextuel. Ce n'est pas une
+ontologie RDF.
 
-Aujourd'hui, ce fichier est un **squelette** : il compile, il a trois
-tests, mais il n'est branche nulle part. Les Phases 3 et 4 prevoient
-de l'alimenter depuis SMT-LIB (emission + oracle Z3/cvc5) puis de
-l'utiliser pour les labels de session MPST. Tant que ces phases ne
-sont pas attaquees, `ontology.zig` vit isole, testable via
-`zig test src/core/ontology.zig`.
+`src/core/ontology.zig` est un ancien squelette semantique conserve
+pour compatibilite et experimentation. Il n'est pas le chemin de
+compilation du langage.
 
-C'est un choix delibere : construire la fondation avant de la cabler.
-Le jour ou un cas d'usage concret se presentera (un concept a
-importer depuis un fichier `.smt2`, un role a typer pour un
-protocole), la structure sera prete.
+La nouvelle couche `src/knowledge/` represente explicitement des
+connaissances RDF/RDFS :
+
+    resource.zig
+    triple.zig
+    assertion.zig
+    store.zig
+    rdfs.zig
+
+Elle possede son propre espace d'identifiants :
+
+    KnowledgeId
+
+et ne partage pas les identifiants `Expr.Id`.
+
+### Pourquoi ce n'est pas un second IR
+
+`Expr` reste le seul IR compilable de Heaven.
+
+Knowledge peut avoir des structures specialisees, comme les triples ou
+les graphes temporaires du reasoner RDFS, mais elles ne definissent pas
+un nouveau pipeline general d'execution.
+
+La frontiere est :
+
+    Knowledge
+       |
+       | lowering explicite
+       v
+      Expr
+       |
+       v
+      MIR
+       |
+       v
+    backend
+
+Cette regle permet d'ajouter RDF, RDFS ou d'autres sources de
+connaissances sans multiplier les IR concurrents.
+
+### Provenance et deduction
+
+Une assertion Knowledge conserve son origine.
+
+Le reasoner RDFS produit des assertions `inferred`, mais ne modifie pas
+le Store source.
+
+Cela permet de distinguer :
+
+    asserted -> ce qu'une source affirme
+
+    imported -> ce qui a ete importe
+
+    derived / inferred -> ce que le systeme deduit
+
+    certified -> ce qui dispose d'une certification explicite
+
+La provenance et la confidence restent des dimensions separees du
+status.
 
 ## Le noyau de preuve
 

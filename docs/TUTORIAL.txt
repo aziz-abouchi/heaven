@@ -80,3 +80,54 @@ RESSOURCES
 - docs/TRANSFORM.txt      : interface de transformation
 - docs/ARCHITECTURE.txt   : architecture technique
 - docs/HEAVEN_LANGUAGE.txt : syntaxe du langage
+
+EXEMPLE 4 : KNOWLEDGE ET RAISONNEMENT RDF
+-----------------------------------------
+
+Heaven possede une couche Knowledge distincte du langage executable.
+
+Une connaissance RDF est representee comme un triple :
+
+   sujet  predicat  objet
+
+Exemple conceptuel :
+
+   A subClassOf B
+   B subClassOf C
+
+Le reasoner RDFS peut alors produire :
+
+   A subClassOf C
+
+La nouvelle assertion est `inferred`. Les assertions originales restent
+dans le KnowledgeStore avec leur provenance.
+
+Important :
+
+   Knowledge != Expr
+
+Knowledge n'est pas un second IR de compilation. Si une connaissance
+doit participer a un calcul Heaven, un lowering explicite vers `Expr`
+sera necessaire.
+
+Le POC actuel implemente :
+
+- URI ;
+- blank nodes ;
+- literals ;
+- triples ;
+- provenance ;
+- status `asserted/imported/derived/inferred/certified` ;
+- confidence `low/medium/high` ;
+- KnowledgeStore ;
+- `rdfs:subClassOf` transitif.
+
+Pas encore :
+
+- Turtle ;
+- SPARQL ;
+- OWL ;
+- `rdf:type` ;
+- domain/range RDFS.
+
+Le code du POC se trouve dans `src/knowledge/`.

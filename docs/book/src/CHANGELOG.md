@@ -5,6 +5,22 @@ antéchronologique.
 
 ## 2026-10-01
 
+### Knowledge / RDF / RDFS - POC
+
+- Ajout de `src/knowledge/` : ressources URI/blank/literal, triples,
+  assertions, provenance et `KnowledgeStore`.
+- `KnowledgeId` reste distinct de `Expr.Id`.
+- Ajout d'un reasoner RDFS minimal pour la fermeture transitive de
+  `rdfs:subClassOf`.
+- La fermeture est non destructive et produit des assertions
+  `inferred`.
+- Decision architecturale : Knowledge n'est pas un second IR ; tout
+  passage vers le calcul Heaven passe par un lowering explicite vers
+  `Expr`.
+- Le POC ne couvre pas encore Turtle, SPARQL, OWL ou les autres regles
+  RDFS.
+
+
 ### Guards sur clauses - `f p | cond = body` (`867ec43`)
 
 - `FunctionClause.guard (?Id)` + `setLastGuard` : aucune signature
