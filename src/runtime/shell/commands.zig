@@ -3,7 +3,7 @@ const Shell = @import("init.zig").Shell;
 const session_lib = @import("../../runtime/session.zig");
 const eval = @import("eval.zig");
 const utils = @import("utils.zig");
-const ontology_lib = @import("ontology");
+const algo_catalog_lib = @import("algo_catalog");
 const cmd_list = @import("commands_list.zig");
 const platform = @import("platform");
 const engine_expr = @import("engine_expr");
@@ -860,7 +860,7 @@ pub fn cmdOnto(self: *Shell, input: []const u8) void {
             return;
         }
     }
-    const ctx = ontology_lib.OptContext{ .expected_n = 100, .has_gpu = false, .max_stack = 0, .prefer_simple = false };
+    const ctx = algo_catalog_lib.OptContext{ .expected_n = 100, .has_gpu = false, .max_stack = 0, .prefer_simple = false };
     const desc = self.meta.ontology.describeChoice(name, ctx, self.allocator) catch return;
     defer self.allocator.free(desc);
     platform.debug.print("{s}", .{desc});

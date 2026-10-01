@@ -559,8 +559,8 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    const ontology_mod = b.createModule(.{
-        .root_source_file = b.path("src/core/ontology.zig"),
+    const algo_catalog_mod = b.createModule(.{
+        .root_source_file = b.path("src/core/algo_catalog.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
@@ -1106,7 +1106,7 @@ pub fn build(b: *std.Build) void {
                     .{ .name = "codegen_c", .module = codegen_c_legacy_mod },
                     .{ .name = "matrix_bridge", .module = matrix_bridge_mod },
                     .{ .name = "heaven_expr", .module = heaven_expr_mod },
-                    .{ .name = "ontology", .module = ontology_mod },
+                    .{ .name = "algo_catalog", .module = algo_catalog_mod },
                     .{ .name = "types", .module = types_mod },
                     .{ .name = "lowering", .module = lowering_mod },
                     .{ .name = "matrix_lib", .module = matrix_mod },

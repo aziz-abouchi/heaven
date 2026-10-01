@@ -2,7 +2,7 @@ const std = @import("std");
 const matrix_lib = @import("matrix_lib");
 const universal_lib = @import("../../inference/forge/universal.zig");
 const heaven_expr_lib = @import("heaven_expr");
-const ontology_lib = @import("ontology");
+const algo_catalog_lib = @import("algo_catalog");
 const swarm_lib = @import("../swarm/runtime.zig");
 const green_lib = @import("../green.zig");
 const proof_lib = @import("proof");
@@ -21,7 +21,7 @@ pub const Shell = struct {
     prolog: prolog_lib.PrologEngine,
     heaven: *heaven_expr_lib.Heaven,
     kanren: @import("kanren").KanrenEngine,
-    meta: *ontology_lib.MetaEngine,
+    meta: *algo_catalog_lib.MetaEngine,
     swarm: *swarm_lib.SwarmRuntime,
     green: *green_lib.GreenScheduler,
     proofs: *proof_lib.ProofEnv,
@@ -41,9 +41,9 @@ pub const Shell = struct {
             .heaven = he,
             .kanren = @import("kanren").KanrenEngine.init(alloc),
             .meta = blk: {
-                const me = alloc.create(ontology_lib.MetaEngine) catch @panic("alloc meta");
+                const me = alloc.create(algo_catalog_lib.MetaEngine) catch @panic("alloc meta");
                 //defer alloc.destroy(me);
-                me.* = ontology_lib.MetaEngine.init(alloc);
+                me.* = algo_catalog_lib.MetaEngine.init(alloc);
                 break :blk me;
             },
             .swarm = blk: {
