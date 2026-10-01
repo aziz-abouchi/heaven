@@ -354,7 +354,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const kanren_expr_mod = b.createModule(.{
-        .root_source_file = b.path("src/core/kanren_expr.zig"),
+        .root_source_file = b.path("src/logic/kanren_expr.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
@@ -1267,7 +1267,7 @@ pub fn build(b: *std.Build) void {
     }) });
 
     const test_kanren_expr = b.addTest(.{ .root_module = b.createModule(.{
-        .root_source_file = b.path("src/core/kanren_expr.zig"),
+        .root_source_file = b.path("src/logic/kanren_expr.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{.{ .name = "expr", .module = expr_mod }},

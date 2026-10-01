@@ -35,7 +35,7 @@ const std_loader = @import("std_loader");
 const import_mod = @import("import");
 const diff_mod = @import("diff");
 const ImportState = import_mod.ImportState;
-const kanren_expr_mod = @import("kanren_expr");
+const kanren_expr_mod = @import("kanren_expr"); // Deplace dans src/logic/
 const unify_proof_mod = @import("tactics").unify_proof;
 const hole_runtime_mod = @import("hole_runtime");
 
@@ -452,6 +452,7 @@ pub const Heaven = struct {
         }
 
         if (self.current_module) |m| self.allocator.free(m);
+        if (self.last_eq_lhs) |l| self.allocator.free(l);
         for (self.loading_modules.items) |m| self.allocator.free(m);
         self.loading_modules.deinit(self.allocator);
         {
