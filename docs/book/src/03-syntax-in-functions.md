@@ -261,3 +261,23 @@ pattern n'avait pas matche.
        signe x | x < 0 = 0 - 1
        signe x | x == 0 = 0
        signe x | otherwise = 1
+
+## La forme alignee
+
+Quand plusieurs gardes se suivent, repeter le nom et le pattern a
+chaque ligne devient verbeux. Une ligne qui commence par `|`
+continue la clause precedente -- memes nom et patterns, nouvelle
+garde :
+
+    classifie x | x < 0 = 0 - 1
+                | x == 0 = 0
+                | otherwise = 1
+
+C'est exactement la meme chose que :
+
+    classifie x | x < 0 = 0 - 1
+    classifie x | x == 0 = 0
+    classifie x | otherwise = 1
+
+Une continuation doit suivre sa clause (ou une autre continuation)
+-- seule, elle est refusee avec une erreur propre.
