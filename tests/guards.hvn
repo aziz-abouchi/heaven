@@ -21,3 +21,18 @@ test "guard_absent_inchange": (nonGuard 42) == 42
 categorie n | n <= 0 = 0 - 1
 categorie n | otherwise = 1
 test "guard_le_token": (categorie (0 - 1)) == (0 - 1)
+
+# ── Forme alignee (continuation de clause) ──
+classifie x | x < 0 = 0 - 1
+            | x == 0 = 0
+            | otherwise = 1
+test "aligne_classifie_neg": (classifie (0 - 3)) == (0 - 1)
+test "aligne_classifie_zero": (classifie 0) == 0
+test "aligne_classifie_pos": (classifie 7) == 1
+
+# Continuation apres clause non gardee : le LHS de base est repris nu
+grade n | n >= 90 = 4
+         | n >= 80 = 3
+grade n = 2
+test "aligne_apres_nu": (grade 95) == 4
+test "aligne_default": (grade 50) == 2

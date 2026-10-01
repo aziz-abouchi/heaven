@@ -142,6 +142,12 @@ pub const Heaven = struct {
     /// Namespace courant (`module M` → "M"). Utilisé pour aliasser les
     /// théorèmes sous `M.name` dans proof_core.
     current_module: ?[]const u8 = null,
+    /// Forme alignee des gardes : LHS (nom+patterns+garde) de la derniere
+    /// equation enregistree. Une ligne commencant par '|' (profondeur 0,
+    /// contexte equation) continue cette clause : nouvelle garde, memes
+    /// nom/patterns. Reset par toute ligne non-continuation reconnue
+    /// comme definition/eval.
+    last_eq_lhs: ?[]const u8 = null,
     /// Registre des types de données (v0 #type-dep).
     type_registry: type_registry_mod.TypeRegistry,
     /// Pile de modules en cours de chargement — détection de cycles.
@@ -511,6 +517,14 @@ pub const Heaven = struct {
     }
 
     /// Guards : pose la garde sur la dernière clause de `name`.
+    /// Forme alignee : memorise le LHS de la derniere equation (dupe,
+    /// l'ancien est libere). Le LHS memorise CONTIENT sa garde.
+    fn setLastEqLhs(self: *Heaven, lhs: []const u8) !void {
+        const owned = try self.allocator.dupe(u8, lhs);
+        if (self.last_eq_lhs) |old| self.allocator.free(old);
+        self.last_eq_lhs = owned;
+    }
+
     fn setClauseGuard(self: *Heaven, name: []const u8, guard: ?Id) void {
         const g = guard orelse return;
         if (self.engine.fns.getPtr(name)) |fd| {
@@ -560,6 +574,47 @@ pub const Heaven = struct {
     pub fn eval(self: *Heaven, src: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, src, " \t\n\r");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "");
+
+        // ─── Forme alignee des gardes : continuation de clause ───
+        // Une ligne top-level commencant par '|' et contenant un '=' de
+        // definition continue la derniere equation : "nom patterns" est
+        // repris, seule la garde change.
+        if (trimmed.len > 1 and trimmed[0] == '|') {
+            if (self.last_eq_lhs) |prev_lhs| {
+                // Extraire la garde : entre le '|' et le '=' de definition
+                var eq_pos: usize = 0;
+                var scan: usize = 0;
+                while (std.mem.indexOfScalarPos(u8, trimmed, scan, '=')) |p| {
+                    const prev: u8 = if (p > 0) trimmed[p - 1] else 0;
+                    const next: u8 = if (p + 1 < trimmed.len) trimmed[p + 1] else 0;
+                    const is_cmp = prev == '=' or prev == '!' or prev == '<' or prev == '>';
+                    if (!is_cmp and next != '=') { eq_pos = p; break; }
+                    scan = p + 1;
+                }
+                if (eq_pos > 1) {
+                    const guard = std.mem.trim(u8, trimmed[1..eq_pos], " \t");
+                    const body = std.mem.trim(u8, trimmed[eq_pos + 1 ..], " \t");
+                    if (guard.len > 0 and body.len > 0) {
+                        // Nouveau LHS complet : "prev_lhs_sans_sa_garde | guard"
+                        // prev_lhs contient deja sa garde -> la retirer d'abord.
+                        var base_lhs = prev_lhs;
+                        if (std.mem.lastIndexOfScalar(u8, prev_lhs, '|')) |bar| {
+                            base_lhs = std.mem.trim(u8, prev_lhs[0..bar], " \t");
+                        }
+                        const joined = try std.fmt.allocPrint(
+                            self.allocator, "{s} | {s}", .{ base_lhs, guard });
+                        defer self.allocator.free(joined);
+                        const result = try self.evalEquation(joined, body);
+                        try self.setLastEqLhs(joined);
+                        return result;
+                    }
+                }
+            }
+            // '|' en tete sans precedent ou mal forme -> erreur propre,
+            // pas de repli silencieux (convention #5).
+            return self.allocator.dupe(u8,
+                "\u{2717} continuation de garde sans clause precedente");
+        }
 
         // ─── v3a : mode strict — refus des noms cachés ───
         if (self.hidden_names.count() > 0) {
@@ -1527,6 +1582,7 @@ pub const Heaven = struct {
     }
 
     fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
+        try self.setLastEqLhs(lhs);  // forme alignee : LHS brut, garde comprise
         // ─── Guards : `f p | cond = body` ───
         // '|' à profondeur 0 du LHS sépare patterns / garde. (Un '|'
         // n'a pas d'autre lecture légale dans un LHS d'équation.)
