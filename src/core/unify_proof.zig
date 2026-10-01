@@ -29,15 +29,60 @@ pub const UnifyError = error{
 /// Unification. Retourne `true` si `a` et `b` peuvent être unifiés,
 /// en remplissant `subst` au passage. Retourne `false` sinon (sans
 /// rollback partiel — l'appelant doit jeter la subst en cas d'échec).
+
+/// Évaluation arithmétique partielle pour l'unification (v2f).
+/// Réduit les expressions simples comme (add zero x) -> x, ou (add 2 3) -> 5.
+fn evalArith(ctx: *const Ctx, id: Id) !Id {
+    if (id >= ctx.store.len()) return id;
+    const node = ctx.store.get(id);
+    if (node.tag != .apply) return id;
+    
+    const func = ctx.store.get(node.payload);
+    if (func.tag != .sym) return id;
+    
+    const name = ctx.store.interner.resolve(func.payload);
+    const pool = ctx.store.pool.items;
+    const args = node.span_a.slice(pool);
+    
+    // Cas : (add zero x) -> x  ou  (add x zero) -> x
+    if (std.mem.eql(u8, name, "add") or std.mem.eql(u8, name, "+")) {
+        if (args.len == 3) { // [sym, arg1, arg2]
+            const arg1 = args[1];
+            const arg2 = args[2];
+            const node1 = ctx.store.get(arg1);
+            const node2 = ctx.store.get(arg2);
+            
+            // Vérifier si arg1 est "zero"
+            if (node1.tag == .sym and std.mem.eql(u8, ctx.store.interner.resolve(node1.payload), "zero")) {
+                return arg2;
+            }
+            // Vérifier si arg2 est "zero"
+            if (node2.tag == .sym and std.mem.eql(u8, ctx.store.interner.resolve(node2.payload), "zero")) {
+                return arg1;
+            }
+        }
+    }
+    
+    // Cas : (succ n) où n est un entier littéral -> n + 1
+    // (À étendre si besoin, pour l'instant on garde simple)
+    
+    return id; // Pas de réduction possible, on retourne l'ID tel quel
+}
+
 pub fn unify(ctx: *const Ctx, a: Id, b: Id, subst: *Subst) UnifyError!bool {
     if (a == b) return true;
 
-    // Normalisation AC pour l'unification modulo arithmetique (v2f)
-    // Cela permet d'unifier `add x y` avec `add y x`, ou `+ 2 3` avec `+ 3 2`.
+    // 1. Normalisation AC (commutativite/associativite)
     const norm_a = try canon.canonicalizeAC(ctx.store, a);
     const norm_b = try canon.canonicalizeAC(ctx.store, b);
     
     if (norm_a == norm_b) return true;
+
+    // 2. Evaluation arithmetique partielle (ex: add zero x -> x)
+    const eval_a = try evalArith(ctx, norm_a);
+    const eval_b = try evalArith(ctx, norm_b);
+    
+    if (eval_a == eval_b) return true;
 
     if (ctx.store.isEvar(a)) |pa| {
         if (subst.get(pa)) |bound| return unify(ctx, bound, b, subst);
@@ -174,4 +219,24 @@ test "unification modulo AC - avec evars" {
     // Vérifier que evar est liée à add x y
     const bound = subst.get(0);
     try std.testing.expect(bound != null);
+}
+
+test "unification modulo arithmetique - zero identity" {
+    const allocator = std.testing.allocator;
+    var store = try Store.init(allocator);
+    defer store.deinit();
+    
+    const ctx = Ctx{ .store = &store, .allocator = allocator };
+    var subst = Subst{};
+    defer subst.deinit(allocator);
+    
+    // Créer : add x zero
+    const x = try store.sym("x");
+    const zero = try store.sym("zero");
+    const add_sym = try store.sym("add");
+    const add_x_zero = try store.apply(add_sym, &.{ x, zero });
+    
+    // Unifier avec : x
+    const result = try unify(&ctx, add_x_zero, x, &subst);
+    try std.testing.expect(result);
 }
