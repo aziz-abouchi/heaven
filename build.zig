@@ -154,6 +154,39 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const knowledge_resource_mod = b.addModule("knowledge_resource", .{
+        .root_source_file = b.path("src/knowledge/resource.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const knowledge_triple_mod = b.addModule("knowledge_triple", .{
+        .root_source_file = b.path("src/knowledge/triple.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "resource", .module = knowledge_resource_mod },
+        },
+    });
+
+    const knowledge_assertion_mod = b.addModule("knowledge_assertion", .{
+        .root_source_file = b.path("src/knowledge/assertion.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "triple", .module = knowledge_triple_mod },
+        },
+    });
+
+    const knowledge_store_mod = b.addModule("knowledge_store", .{
+        .root_source_file = b.path("src/knowledge/store.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "assertion", .module = knowledge_assertion_mod },
+        },
+    });
+
     const abi_mod = b.addModule("abi", .{
         .root_source_file = b.path("src/platform/abi/abi.zig"),
         .target = target,
@@ -1171,6 +1204,9 @@ pub fn build(b: *std.Build) void {
     sync_tests.addArgs(&.{ "core/test_suite.hvn", "src/vessel/public/test_suite.hvn" });
     const sync_step = b.step("sync-tests", "Copy test_suite.hvn to vessel/public/ for WASM");
     sync_step.dependOn(&sync_tests.step);
+    
+    // Rendre la synchronisation automatique lors de l'installation (y compris WASM)
+    b.getInstallStep().dependOn(sync_step);
 
     b.installArtifact(exe);
 
@@ -1620,6 +1656,22 @@ pub fn build(b: *std.Build) void {
         if (tree_sitter_lib) |lib| test_commands_full.linkLibrary(lib);
     }
 
+    const test_knowledge = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/knowledge/tests.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "resource", .module = knowledge_resource_mod },
+                .{ .name = "triple", .module = knowledge_triple_mod },
+                .{ .name = "assertion", .module = knowledge_assertion_mod },
+                .{ .name = "knowledge_store", .module = knowledge_store_mod },
+            },
+        }),
+    });
+
+    const run_test_knowledge = b.addRunArtifact(test_knowledge);
+
     const test_step = b.step("test", "Run all tests");
 
     const test_serialize = b.addTest(.{ .root_module = b.createModule(.{
@@ -1682,6 +1734,7 @@ pub fn build(b: *std.Build) void {
         test_step.dependOn(&run_test_syntax_lower.step);
     }
 
+    test_step.dependOn(&run_test_knowledge.step);
     test_step.dependOn(&b.addRunArtifact(test_expr).step);
     test_step.dependOn(&run_test_mir_wat.step);
     test_step.dependOn(&b.addRunArtifact(test_mir_qbe).step);
