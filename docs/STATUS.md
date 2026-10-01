@@ -189,6 +189,25 @@ depuis une string utilisateur, jamais d'evar dedans).
 
 **Note** : `module X` en tête est **inert** (no-op). Les `: Type` sans `=` sont des signatures non enregistrées. Le `std/` est en fait "signatures + quelques clauses".
 
+## Ontologie (2026-10-01)
+
+Voir `docs/spec/_ontology.md` pour les decisions actees.
+
+| Element | Statut | Preuve | Limitation |
+|---|---|---|---|
+| `algo_catalog.zig` (ex-`ontology.zig`) | stable | 3 tests `zig test` | composant a cote du Core, strings |
+| `ontology.zig` (squelette Phase 2) | partiel | 3 tests `zig test` | non branche dans `build.zig` |
+| Trust levels (asserted/derived/certified) | stable | test `trust filtering` | - |
+| Provenance (source, source_id, timestamp) | stable | present sur chaque Concept/Relation | - |
+| Subsomption is-a | stable | test `isA reflexive and transitive` | parent unique, pas de DAG |
+| Relations typees (5 kinds) | partiel | enum defini, non teste | pas de verif de coherence |
+| Projection vers `expr.Store` | absent | - | Phase 3 |
+| Emission SMT-LIB | absent | - | Phase 3 |
+| Integration MPST | absent | - | Phase 4 |
+| Commandes REPL (`:onto`) | absent | - | Phase 3+ |
+
+Phases : 1 faite (`c651fa9`), 2 ce commit, 3 et 4 planifiees.
+
 ## Backends natifs et WASM (2026-09-30)
 
 | Élément | Statut | Preuve | Limitation |

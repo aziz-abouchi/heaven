@@ -1,133 +1,108 @@
-# Ontologie Heaven — périmètre et frontière
+# Ontologie Heaven - perimetre, frontiere, decisions
 
-> Statut : **à décider**. Ce document ne code rien, il pose cinq
-> questions. Tant qu'elles ne sont pas tranchées, `src/core/ontology.zig`
-> reste **gelé en l'état** (bugs corrigés, tests ajoutés, aucune
-> extension).
+> Statut : **decide**. Les cinq questions sont tranchees (2026-10-01).
+> `src/core/ontology.zig` existe desormais comme squelette (Phase 2).
+> Les Phases 3 (SMT-LIB) et 4 (MPST labels) sont planifiees mais pas
+> commencees.
 
 ## Contexte
 
-`src/core/ontology.zig` existe (~330 lignes). Importé par `main.zig`
-via le module `ontology`. Dépendance déclarée : `expr` (retirée au
-dernier nettoyage, car non utilisée).
+Deux fichiers distincts, deux roles :
 
-Ce que le fichier **est** aujourd'hui : un catalogue d'algorithmes
-avec métadonnées de complexité (temps, espace, parallélisme,
-tail-recursion, contrainte de domaine), une relation de subsomption
-is-a, des classes d'équivalence textuelles, et un scoring qui choisit
-un algorithme selon un contexte (`expected_n`, `has_gpu`, etc.).
-
-Ce que le fichier **n'est pas** :
-
-- pas une ontologie OWL/DL (pas de propriétés peuplées, pas de
-  description logic, pas de raisonneur)
-- pas connecté au Core IR (la dépendance `expr` était déclarée mais
-  morte ; le fichier travaille sur des strings)
-- pas une source de vérité (pas de trust level, pas de provenance)
-- pas une interface avec des sources externes (aucun import OWL,
-  SMT-LIB, DBpedia, Lean, MLCPD)
-
-## Les cinq questions
-
-### 1. Nom et périmètre
-
-Le fichier s'appelle `ontology` mais fait un **catalogue d'algorithmes**.
-
-Option A : garder le nom. Le fichier est l'ontologie au sens large
-(connaissance structurée sur les concepts computationnels), et son
-périmètre s'étendra plus tard.
-
-Option B : renommer (`algo_catalog.zig` ou `complexity.zig`) et
-réserver le nom `ontology` à un futur niveau sémantique plus large,
-au-dessus du Core.
-
-**À décider.** Si B, le renommage est trivial mais ouvre la question
-de ce qu'est le futur `ontology.zig` — qui n'a pas encore de spec.
-
-### 2. Frontière avec le Core
-
-Actuellement : strings. `declareEquivalent`, `defineConcept`,
-`registerAlgo` prennent des `[]const u8`. La dépendance `expr` était
-déclarée et jamais utilisée.
-
-Option A : l'ontologie reste **à côté** du Core. Elle manipule des
-noms, sert d'aide à la décision (choix d'algo, description), sans
-toucher au noyau. Aucune dépendance `expr` nécessaire.
-
-Option B : l'ontologie vit **au-dessus** du Core. Elle manipule des
-`Id`, s'insère dans le niveau `High-Level Semantic IR` de
-`docs/core/core-ir.md` (§18), et devient le pivot entre syntaxes de
-surface et Core. C'est un chantier de plusieurs sessions.
-
-**À décider.** Si B, `ontology.zig` devra être réécrit, pas étendu.
-
-### 3. Sources externes
-
-Aujourd'hui : aucune. `declareEquivalent` prend des strings libres,
-sans provenance ni format d'échange.
-
-Sources envisagées, par difficulté croissante :
-
-| Source | Nature | Complexité d'intégration |
+| Fichier | Role | Representation |
 |---|---|---|
-| SMT-LIB | format standard + oracle | faible |
-| OWL / RDF / SPARQL | graphe + raisonneur | moyenne |
-| Lean / Rocq | oracles (LSP) | élevée (pas d'import sémantique) |
-| MLCPD | dataset (tooling) | faible mais hors runtime |
+| `src/core/algo_catalog.zig` | Catalogue d'algorithmes, complexite, choix contextuel | strings |
+| `src/core/ontology.zig` | Concepts sur le Core IR, trust, provenance | `Id` (a terme) |
 
-**À décider.** Introduit-on une source externe maintenant (et
-laquelle), ou reste-t-on sur du local tant qu'aucun cas d'usage
-concret ne l'exige ?
+`algo_catalog.zig` est l'ancien `ontology.zig` renomme
+(commit `c651fa9`). Il reste un composant a cote du Core, sans
+pretention semantique.
 
-Note : `docs/DECISIONS.md` dit explicitement que les rapports LLM
-sur les ontologies « doivent être vérifiés ligne par ligne avant
-d'être planifiés ». Ne pas construire de pont externe sans cas
-d'usage.
+## Decisions actees
 
-### 4. Trust et provenance
+### 1. Nom
 
-Aujourd'hui : absents.
+`algo_catalog.zig` pour le catalogue d'algorithmes.
+`ontology.zig` reserve pour le niveau **High-Level Semantic IR**
+decrit dans `docs/core/core-ir.md` section 18.
 
-Trois niveaux proposés (alignés sur la discussion architecturale) :
+### 2. Frontiere avec le Core
 
-- **Certified** : prouvé par `proof_core.zig`
-- **Derived** : dérivation interne valide
-- **Asserted** : vient d'une source externe non vérifiée
+L'ontologie **manipule des `Id`** (pas des strings). Elle vit
+au-dessus du Core, dans le niveau `High-Level Semantic IR`. Les
+noms (`[]const u8`) restent presents pour l'affichage, mais
+l'identite semantique passe par `Id`.
 
-Ajouter ces niveaux maintenant serait spéculatif : aucune source
-externe n'existe, aucune preuve n'est attachée aux algos enregistrés.
-La doctrine du repo (pas de feature sans cas d'usage) suggère
-d'attendre.
+Consequence : a terme, `Concept.expr_id` pointera vers un noeud
+reel du Store, et `isA` sera verifiable par `structuralEql`.
 
-**À décider.** Ajouter `trust_level` + `provenance` maintenant, ou
-quand la première source externe arrive ?
+### 3. Sources externes - SMT-LIB en premier
+
+Ordre d'integration :
+
+1. **SMT-LIB** (Phase 3) - format standard, parseur facile,
+   oracle disponible (Z3, cvc5). Emission : `Heaven -> .smt2`.
+   Import : axiomes `(assert ...)` comme concepts `asserted`.
+2. OWL / RDF / SPARQL - plus tard, quand un cas d'usage le
+   demandera.
+3. Lean / Rocq - oracles seulement (LSP), pas d'import semantique.
+4. MLCPD - tooling, pas runtime.
+
+### 4. Trust et provenance - maintenant
+
+Trois niveaux :
+
+- **`asserted`** - vient d'une source externe non verifiee
+  (DBpedia, fichier SMT-LIB, saisie utilisateur)
+- **`derived`** - derive par une regle interne valide
+  (subsomption, reecriture)
+- **`certified`** - prouve par `proof_core.zig`
+
+Chaque concept et chaque relation porte une `Provenance` :
+- `source` : `user | smt_lib | owl | lean | rocq | mpst | internal`
+- `source_id` : identifiant optionnel (URI, nom de fichier,
+  numero de ligne SMT-LIB)
+- `timestamp` : secondes Unix
+
+Une relation `equivalent-to` **asserted** reste un candidat, pas
+un theoreme. La preuve se fait ailleurs (`proof_core`).
 
 ### 5. Relation avec MPST
 
-`src/core/mpst.zig` existe, importé par `elab`. `docs/capabilities.md`
-mentionne : « les caps sont des labels de session ». Si l'ontologie
-alimente les labels MPST (concepts → rôles), elle doit s'intégrer à
-`elab`. Si elle reste orthogonale, elle n'a rien à voir avec MPST.
+L'ontologie **alimente les labels de session**. Concretement :
 
-**À décider.** L'ontologie alimente-t-elle les labels MPST ? Ou
-reste-t-elle séparée ?
+- Un concept peut etre utilise comme role dans un type global.
+- Une relation `produces`/`consumes` decrit un flux de messages.
+- Les `TrustLevel` s'appliquent aux labels : un role `asserted`
+  peut etre verifie plus strictement qu'un role `certified`.
 
-## Décision à prendre
+Phase 4 : integration dans `elab.zig` et `mpst.zig`. Pas
+commencee.
 
-Cinq questions. Deux façons de les traiter :
+## Ce que le squelette actuel ne fait pas
 
-- **Maintenant** : une session de 30 minutes, on tranche chaque point
-  par oui/non, et on écrit la réponse ici.
-- **Plus tard** : on attend qu'un cas d'usage concret les pose, on
-  ne spécule pas.
+`src/core/ontology.zig` (Phase 2) contient :
+- `TrustLevel`, `SourceKind`, `Provenance`
+- `Concept`, `Relation`, `RelationKind`
+- `Ontology` avec `addConcept`, `addRelation`, `isA`, `filterByTrust`
+- 3 tests
 
-Tant qu'aucune réponse n'est donnée, `ontology.zig` reste **gelé en
-l'état corrigé** : bugs fixés, tests ajoutés, aucune extension. Le
-fichier ne prétend pas être ce qu'il n'est pas, et il ne bloque rien.
+Il ne contient **pas** :
+- de projection vers/depuis `expr.Store` (Phase 3)
+- d'emission SMT-LIB (Phase 3)
+- de lien avec `mpst.zig` (Phase 4)
+- de commandes REPL
 
-## Ce que ce document n'est pas
+Le fichier n'est **pas branche** dans `build.zig` ni importe par
+`main.zig`. Il est testable isolement via `zig test
+src/core/ontology.zig`. C'est volontaire : on construit la
+fondation avant de la cabler.
 
-Ce n'est pas une spec d'ontologie formelle. Ce n'est pas un plan
-d'intégration de sources externes. Ce n'est pas une réponse aux
-questions — c'est la liste des questions auxquelles il faudra
-répondre *avant* d'écrire la moindre ligne de code supplémentaire.
+## Feuille de route
+
+| Phase | Contenu | Statut |
+|---|---|---|
+| 1 | Renommer `ontology.zig` en `algo_catalog.zig` | fait (`c651fa9`) |
+| 2 | Creer `src/core/ontology.zig` (squelette) | ce commit |
+| 3 | Emission SMT-LIB + oracle Z3/cvc5 | planifie |
+| 4 | Alimenter les labels MPST depuis l'ontologie | planifie |

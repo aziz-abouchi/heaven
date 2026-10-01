@@ -3,6 +3,33 @@
 Historique des fonctionnalités du langage. Les entrées sont en ordre
 antéchronologique.
 
+## 2026-10-01
+
+### Ontologie - separation catalogue / semantique (Phases 1-2)
+
+- **Renommage** : `src/core/ontology.zig` -> `src/core/algo_catalog.zig`.
+  Le fichier est un catalogue d'algorithmes avec metadonnees de
+  complexite, pas une ontologie au sens OWL/DL. Le nom `ontology` est
+  libere pour un niveau semantique distinct (`c651fa9`).
+- **Nettoyage** du catalogue : import `expr` mort supprime, ownership
+  de `Concept.name` documente, `errdefer` ajoute, 3 tests
+  (subsomption transitive, choix contextuel, classes d'equivalence)
+  (`8c44091`).
+- **Creation** de `src/core/ontology.zig` : squelette minimal avec
+  `TrustLevel` (asserted/derived/certified), `Provenance`
+  (source/source_id/timestamp), `Concept`, `Relation` (5 kinds),
+  API `addConcept`/`addRelation`/`isA`/`filterByTrust`, 3 tests.
+  Non branche dans `build.zig` - testable isolement via
+  `zig test src/core/ontology.zig`.
+- **Documentation** : `docs/spec/_ontology.md` passe de 5 questions
+  ouvertes a 5 decisions actees.
+- **Phases 3 et 4** planifiees : emission SMT-LIB + oracle Z3/cvc5,
+  puis alimentation des labels MPST depuis l'ontologie.
+
+### Tests
+
+3 tests Zig ajoutes, executes isolement via `zig test`.
+
 ## 2026-09-30
 
 ### Compilation native QBE (jalon M3)

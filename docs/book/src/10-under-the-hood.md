@@ -174,6 +174,35 @@ Le fix est une ligne. La leçon : dans un langage non typé, `u32`
 peut cacher n'importe quoi. Le hash-consing aide, mais ne remplace
 pas la discipline.
 
+## L'ontologie et son catalogue
+
+Le fichier `src/core/algo_catalog.zig` - anciennement `ontology.zig`,
+renomme en octobre 2026 - est un catalogue d'algorithmes : il
+enregistre pour chaque concept (Factorial, Fibonacci, Sort) plusieurs
+implementations avec leur complexite temps, leur usage de pile, leur
+parallelisme, et un score qui choisit la meilleure selon un contexte
+(`expected_n`, `has_gpu`, etc.). Ce n'est pas une ontologie au sens
+OWL/DL - c'est un outil de decision.
+
+Le nom `ontology` a ete libere pour un fichier distinct,
+`src/core/ontology.zig`, qui porte une vraie semantique : chaque
+concept a un `TrustLevel` (`asserted`, `derived`, `certified`), une
+`Provenance` (source, source_id, timestamp), et a terme un `expr_id`
+pointant vers un noeud du Store. Les relations entre concepts sont
+typees (`is-a`, `equivalent-to`, `produces`, `consumes`, `has-part`).
+
+Aujourd'hui, ce fichier est un **squelette** : il compile, il a trois
+tests, mais il n'est branche nulle part. Les Phases 3 et 4 prevoient
+de l'alimenter depuis SMT-LIB (emission + oracle Z3/cvc5) puis de
+l'utiliser pour les labels de session MPST. Tant que ces phases ne
+sont pas attaquees, `ontology.zig` vit isole, testable via
+`zig test src/core/ontology.zig`.
+
+C'est un choix delibere : construire la fondation avant de la cabler.
+Le jour ou un cas d'usage concret se presentera (un concept a
+importer depuis un fichier `.smt2`, un role a typer pour un
+protocole), la structure sera prete.
+
 ## Le noyau de preuve
 
 À part, il y a le **noyau** (`kernel.zig`). Il ne partage rien avec
