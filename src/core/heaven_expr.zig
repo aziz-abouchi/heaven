@@ -1583,7 +1583,11 @@ pub const Heaven = struct {
     }
 
     fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
-        try self.setLastEqLhs(lhs);  // forme alignee : LHS brut, garde comprise
+        // NB : setLastEqLhs est appelé en FIN de parcours (juste avant le
+        // return de succès), PAS en tête -- la forme alignée lit
+        // last_eq_lhs pendant son exécution ; le libérer en cours de
+        // route = use-after-free (corruption tas, cf bisection 867ec43
+        // sain / 89ead1f crash).
         // ─── Guards : `f p | cond = body` ───
         // '|' à profondeur 0 du LHS sépare patterns / garde. (Un '|'
         // n'a pas d'autre lecture légale dans un LHS d'équation.)
@@ -1858,6 +1862,7 @@ pub const Heaven = struct {
         if (!in_strict_module) {
             try self.registerClause(name, patterns.items, body_used);
             if (guard_id != null) self.setClauseGuard(name, guard_id);
+            try self.setLastEqLhs(lhs);
         } else {
             const owned = try self.allocator.dupe(u8, name);
             const gop = self.hidden_names.getOrPut(self.allocator, owned) catch {
