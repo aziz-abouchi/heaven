@@ -12,6 +12,7 @@ const std = @import("std");
 const expr = @import("expr");
 const Id = expr.Id;
 const Store = expr.Store;
+const canon = @import("canon");
 
 pub const Subst = std.AutoHashMapUnmanaged(u32, Id);
 
@@ -30,6 +31,13 @@ pub const UnifyError = error{
 /// rollback partiel — l'appelant doit jeter la subst en cas d'échec).
 pub fn unify(ctx: *const Ctx, a: Id, b: Id, subst: *Subst) UnifyError!bool {
     if (a == b) return true;
+
+    // Normalisation AC pour l'unification modulo arithmetique (v2f)
+    // Cela permet d'unifier `add x y` avec `add y x`, ou `+ 2 3` avec `+ 3 2`.
+    const norm_a = try canon.canonicalizeAC(ctx.store, a);
+    const norm_b = try canon.canonicalizeAC(ctx.store, b);
+    
+    if (norm_a == norm_b) return true;
 
     if (ctx.store.isEvar(a)) |pa| {
         if (subst.get(pa)) |bound| return unify(ctx, bound, b, subst);
@@ -115,4 +123,55 @@ pub fn rewriteIn(ctx: *const Ctx, e: Id, from: Id, to: Id) UnifyError!Id {
         },
         else => return e,
     }
+}
+
+
+test "unification modulo AC - commutativite" {
+    const allocator = std.testing.allocator;
+    var store = try Store.init(allocator);
+    defer store.deinit();
+    
+    const ctx = Ctx{ .store = &store, .allocator = allocator };
+    var subst = Subst{};
+    defer subst.deinit(allocator);
+    
+    // Créer : add x y
+    const x = try store.sym("x");
+    const y = try store.sym("y");
+    const add_sym = try store.sym("add");
+    const add_x_y = try store.apply(add_sym, &.{ x, y });
+    
+    // Créer : add y x
+    const add_y_x = try store.apply(add_sym, &.{ y, x });
+    
+    // Tester l'unification
+    const result = try unify(&ctx, add_x_y, add_y_x, &subst);
+    try std.testing.expect(result);
+}
+
+test "unification modulo AC - avec evars" {
+    const allocator = std.testing.allocator;
+    var store = try Store.init(allocator);
+    defer store.deinit();
+    
+    const ctx = Ctx{ .store = &store, .allocator = allocator };
+    var subst = Subst{};
+    defer subst.deinit(allocator);
+    
+    // Créer : add x y
+    const x = try store.sym("x");
+    const y = try store.sym("y");
+    const add_sym = try store.sym("add");
+    const add_x_y = try store.apply(add_sym, &.{ x, y });
+    
+    // Créer une evar
+    const evar = try store.evar(0);
+    
+    // Unifier add x y avec evar
+    const result = try unify(&ctx, add_x_y, evar, &subst);
+    try std.testing.expect(result);
+    
+    // Vérifier que evar est liée à add x y
+    const bound = subst.get(0);
+    try std.testing.expect(bound != null);
 }

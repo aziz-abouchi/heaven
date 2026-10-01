@@ -207,14 +207,6 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    const unify_proof_mod = b.addModule("unify_proof", .{
-        .root_source_file = b.path("src/core/unify_proof.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "expr", .module = expr_mod },
-        },
-    });
 
     const hole_mod = b.addModule("hole", .{
         .root_source_file = b.path("src/core/hole.zig"),
@@ -377,6 +369,15 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "platform", .module = platform_mod },
+        },
+    });
+    const unify_proof_mod = b.addModule("unify_proof", .{
+        .root_source_file = b.path("src/core/unify_proof.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "canon", .module = canon_mod },
         },
     });
 

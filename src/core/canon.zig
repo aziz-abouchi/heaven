@@ -154,7 +154,8 @@ pub fn canonicalizeAC(store: *Store, id: Id) !Id {
     if (op.tag != .sym) return id;
 
     const name = store.interner.resolve(op.payload);
-    const is_commutative = std.mem.eql(u8, name, "+") or std.mem.eql(u8, name, "*") or
+    const is_commutative = std.mem.eql(u8, name, "+") or std.mem.eql(u8, name, "add") or
+        std.mem.eql(u8, name, "*") or std.mem.eql(u8, name, "mul") or
         std.mem.eql(u8, name, "&") or std.mem.eql(u8, name, "|") or
         std.mem.eql(u8, name, "=");
     if (!is_commutative) return id;
