@@ -466,15 +466,22 @@ pub const Infer = struct {
                 }
                 const op_name = self.store.interner.resolve(op_node.payload);
                 if (std.mem.eql(u8, op_name, "->")) {
-                    // span_a = [sym("->"), arg, ret] — 3 éléments (la fonction est incluse).
                     if (children.len == 3) {
+                        // Cas : [sym("->"), arg, ret]
                         const arg_str = try self.typeStr(subst, children[1], allocator);
                         defer allocator.free(arg_str);
                         const ret_str = try self.typeStr(subst, children[2], allocator);
                         defer allocator.free(ret_str);
                         return try std.fmt.allocPrint(allocator, "{s} -> {s}", .{ arg_str, ret_str });
+                    } else if (children.len == 2) {
+                        // Cas : [arg, ret] (sans le symbole "->" en tête de children)
+                        const arg_str = try self.typeStr(subst, children[0], allocator);
+                        defer allocator.free(arg_str);
+                        const ret_str = try self.typeStr(subst, children[1], allocator);
+                        defer allocator.free(ret_str);
+                        return try std.fmt.allocPrint(allocator, "{s} -> {s}", .{ arg_str, ret_str });
                     }
-                    return try allocator.dupe(u8, "->");
+                    return try allocator.dupe(u8, "->"); // Fallback de sécurité
                 } else {
                     if (children.len == 1) {
                         const arg_str = try self.typeStr(subst, children[0], allocator);
