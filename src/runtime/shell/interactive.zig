@@ -1,4 +1,5 @@
 const std = @import("std");
+const readkey = @import("platform/readkey.zig");
 const platform = @import("platform");
 const History = @import("history.zig").History;
 const Heaven = @import("heaven_expr").Heaven;
@@ -111,81 +112,9 @@ pub const Reader = struct {
         self.raw_mode = false;
     }
 
-    pub fn readKey(self: *Reader) !KeyEvent {
-        if (platform.target.is_windows) {
-            return self.readKeyWindows();
-        } else {
-            return self.readKeyUnix();
-        }
-    }
-
-    fn readKeyWindows(self: *Reader) !KeyEvent {
+    pub fn readKey(self: *Reader) !readkey.KeyEvent {
         _ = self;
-        const windows = std.os.windows;
-        const handle = windows.kernel32.GetStdHandle(windows.STD_INPUT_HANDLE) orelse return error.BadFileDescriptor;
-        var event: INPUT_RECORD = undefined;
-        var events_read: u32 = 0;
-        while (true) {
-            const ok = ReadConsoleInputA(handle, &event, 1, &events_read);
-            if (ok == 0) return error.ReadError;
-            if (event.EventType == KEY_EVENT and event.Event.KeyEvent.bKeyDown != 0) {
-                const ascii = event.Event.KeyEvent.uChar.AsciiChar;
-                if (ascii != 0) {
-                    return switch (ascii) {
-                        '\r' => .enter,
-                        '\t' => .tab,
-                        127 => .backspace,
-                        3 => .ctrl_c,
-                        4 => .ctrl_d,
-                        27 => .escape,
-                        else => .{ .char = ascii },
-                    };
-                }
-                const vk = event.Event.KeyEvent.wVirtualKeyCode;
-                return switch (vk) {
-                    VK_UP => .arrow_up,
-                    VK_DOWN => .arrow_down,
-                    VK_LEFT => .arrow_left,
-                    VK_RIGHT => .arrow_right,
-                    else => .unknown,
-                };
-            }
-        }
-    }
-
-    fn readKeyUnix(self: *Reader) !KeyEvent {
-        _ = self;
-        var buf: [1]u8 = undefined;
-        const n = try platform.posix.read(0, &buf);
-        if (n == 0) return error.EndOfStream;
-        const c = buf[0];
-        if (c == 27) {
-            var seq: [2]u8 = undefined;
-            var count: usize = 0;
-            while (count < 2) {
-                const r = try platform.posix.read(0, seq[count .. count + 1]);
-                if (r == 0) break;
-                count += 1;
-            }
-            if (count >= 2 and seq[0] == '[') {
-                return switch (seq[1]) {
-                    'A' => .arrow_up,
-                    'B' => .arrow_down,
-                    'C' => .arrow_right,
-                    'D' => .arrow_left,
-                    else => .escape,
-                };
-            }
-            return .escape;
-        }
-        return switch (c) {
-            '\r' => .enter,
-            '\t' => .tab,
-            127 => .backspace,
-            3 => .ctrl_c,
-            4 => .ctrl_d,
-            else => .{ .char = c },
-        };
+        return readkey.readKey();
     }
 
     fn clampCursor(self: *Reader) void {
