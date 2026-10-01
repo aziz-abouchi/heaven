@@ -235,8 +235,8 @@ n'est reliée a `Expr` que par des lowerings explicites.
 
 | Élément | Statut | Preuve | Limitation |
 |---|---|---|---|
-| Compilation QBE (M3) | ✅ | `compile-qbe <src> -o <bin>` ; fib(25) = 75025 | sous-ensemble MIR (15 instr) ; pas de TCO ; pas de strings/IO |
-| Compilation WASM (M2a/M2b) | ✅ | `compile-wasm <src> -o <wat>` ; wasmtime run | sous-ensemble MIR ; stack WASM par défaut trop petite (flag requis) |
+| Compilation QBE (M3) | ✅ | `compile-qbe <src> -o <bin>` ; fib(25) = 75025 | sous-ensemble MIR (15 instr) ; TCO self-tail-call (2026-10-01) ; pas de strings/IO |
+| Compilation WASM (M2a/M2b) | ✅ | `compile-wasm <src> -o <wat>` ; wasmtime run | sous-ensemble MIR ; TCO self-tail-call (2026-10-01), flag `-W max-wasm-stack` plus requis |
 | Bench interprète | ✅ | `bench-interp <src> [N] [--loop M]` | in-process, pas de spawn |
 | Bench QBE | ✅ | `bench-qbe` ; wall/cpu/energy/temp/RSS | RAPL root-only par défaut (CVE-2020-8694) |
 | Bench WASM | ✅ | `bench-wasm` ; idem | bootstrap wasmtime ~5 ms amorti via `--loop` |
@@ -291,7 +291,7 @@ Résultats de référence (`docs/spec/_bench.md`) :
    (kanren_expr, Store-based). Étapes 2-3 : `rule` (SLD simple),
    `?-` (Prolog) + raccord shell.
 3. **README aligné sur STATUS** (✅ fait).
-4. ~~**Type-dep v2d**~~ ✅ 2026-09-24 · ~~**v2e**~~ ✅ 2026-09-25
+4. ~~**Type-dep v2d**~~ ✅ 2026-09-24 · ~~**v2e**~~ ✅ 2026-09-25 · ~~**v2f**~~ ✅ 2026-10-01 (AC)
    (fix `holesToEvars` + exposition `subst_v2d`).
    → suite : **v2f** — unification vraie (`Vec (n + m)` modulo arithmétique).
 5. **Documenter QTT** dans le book.
