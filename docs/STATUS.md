@@ -291,7 +291,7 @@ Résultats de référence (`docs/spec/_bench.md`) :
    (kanren_expr, Store-based). Étapes 2-3 : `rule` (SLD simple),
    `?-` (Prolog) + raccord shell.
 3. **README aligné sur STATUS** (✅ fait).
-4. ~~**Type-dep v2d**~~ ✅ 2026-09-24 · ~~**v2e/v2f**~~ ✅ 2026-10-01 (unification modulo AC + evaluation partielle)
+4. ~~**Type-dep v2d**~~ ✅ 2026-09-24 · ~~**v2e/v2f**~~ ✅ 2026-10-01 (unification modulo AC + evaluation partielle + litteraux)
    (fix `holesToEvars` + exposition `subst_v2d`).
    → suite : **v2f** — unification vraie (`Vec (n + m)` modulo arithmétique).
 5. **Documenter QTT** dans le book.
