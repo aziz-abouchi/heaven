@@ -66,12 +66,14 @@ Le die met plusieurs secondes à chauffer. Sur des benchs courts
 (< 5 s), `delta = 0.0 C`. Pour voir une variation, il faut des
 runs de 30 s+ (`--loop` élevé).
 
-### TCO WASM
-`mir_wat` ne fait pas (encore) de TCO (recursion tail -> boucle
-WASM). Conséquence : `count_down 100000` fait 100k frames WASM, ce
-qui exige `-W max-wasm-stack=67108864` (64 MB). Sans ce flag :
-stack overflow. Un vrai TCO supprimerait ce besoin et accélérerait
-la récursion tail.
+### TCO WASM/QBE (2026-10-01)
+Les self-tail-calls sont transformes en boucle dans `mir_qbe.zig`
+et `mir_wat.zig` : un `call_user` terminal vers la fonction
+courante devient un saut au bloc d'entree. Consequence : plus
+besoin de `-W max-wasm-stack=67108864`, la pile native reste
+petite. `count_down 10000000` compile et tourne sur les deux
+backends. La TCO ne couvre pas encore la recursion mutuelle ni
+les trampolines multi-fonctions.
 
 ### Interprète en `--run-test` vs `bench-interp`
 `time ./heaven --run-test <file>` mesure le processus complet :
@@ -140,6 +142,34 @@ Le programme `loop` est 10× plus long que `count_down` en interprète
 (1M itérations vs 100k). Le ratio natif reste cohérent (~1.5 ms vs
 ~0.06 ms, donc ~25× — proportionnel au nombre d'itérations).
 
+## Résultats — `fib.hvn` (`fib 25` = 75025)
+
+Commande (5 runs, sans `--loop`) :
+
+    ./zig-out/bin/heaven bench-interp bench/progs/fib.hvn 5
+    ./zig-out/bin/heaven bench-qbe    bench/progs/fib.hvn 5
+    ./zig-out/bin/heaven bench-wasm   bench/progs/fib.hvn 5
+
+`fib` n'est **pas** tail-recursive : la TCO ne s'applique pas.
+Chaque backend paie le cout complet de l'arbre de recursion
+(~242 786 appels de fonction pour fib(25), aucun n'est memoise).
+L'ecart interp/natif vient du cout par appel, pas d'une
+optimisation d'arbre.
+
+| Backend | CPU median | CPU min | CPU max |
+|---|---|---|---|
+| **Interprète** | 29 215 ms | 28 886 ms | 29 884 ms |
+| **QBE natif** | **1.50 ms** | 1.48 ms | 1.60 ms |
+| **WASM** | 6.75 ms | 6.59 ms | 7.31 ms |
+
+Ratio interp / QBE ≈ **19 500×**.
+Ratio QBE / WASM ≈ **4.5×** (wasmtime surcoût).
+
+`bench-wasm fib` a longtemps timeoute a cause de la pile native
+non bornee (chaque frame WASM grossissait sans limite). Le TCO
+du 2026-10-01 a supprime ce besoin : la mesure passe desormais
+sans flag `-W max-wasm-stack`.
+
 ## Interprétation
 
 1. **QBE ≈ 2× WASM** : wasmtime ajoute un surcoût de runtime (bounds
@@ -181,19 +211,3 @@ Le programme `loop` est 10× plus long que `count_down` en interprète
 4. **`_metrics.md` : injection dans l'EGraph** — la boucle complète
    `Metrics -> EGraph -> Proof`.
 5. **`optimize for energy`** : implémenter la sélection par profil.
-
-
----
-
-## Note TCO (2026-10-01)
-
-Les backends QBE et WASM appliquent desormais une transformation
-tail-call pour les self-tail-calls (`call_user` immediatement
-suivi d'un `ret`, ou d'un `jump` vers un bloc join pur `phi+ret`).
-Consequences pour les benchs :
-
-- `count_down 10000000` (10 M de recursions) compile et tourne sur
-  QBE et WASM sans flag.
-- Le flag `-W max-wasm-stack=67108864` n'est **plus requis** pour
-  wasmtime.
-- `bench-wasm` peut etre relance sans adaptateur de pile.
