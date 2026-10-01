@@ -187,6 +187,17 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const knowledge_rdfs_mod = b.addModule("knowledge_rdfs", .{
+        .root_source_file = b.path("src/knowledge/rdfs.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "assertion", .module = knowledge_assertion_mod },
+            .{ .name = "knowledge_store", .module = knowledge_store_mod },
+            .{ .name = "resource", .module = knowledge_resource_mod },
+        },
+    });
+
     const abi_mod = b.addModule("abi", .{
         .root_source_file = b.path("src/platform/abi/abi.zig"),
         .target = target,
@@ -1200,11 +1211,11 @@ pub fn build(b: *std.Build) void {
     }
 
     // Step: sync-tests — copie test_suite.hvn vers vessel/public/ pour WASM
-    const sync_tests = b.addSystemCommand(&.{ "cp" });
+    const sync_tests = b.addSystemCommand(&.{"cp"});
     sync_tests.addArgs(&.{ "core/test_suite.hvn", "src/vessel/public/test_suite.hvn" });
     const sync_step = b.step("sync-tests", "Copy test_suite.hvn to vessel/public/ for WASM");
     sync_step.dependOn(&sync_tests.step);
-    
+
     // Rendre la synchronisation automatique lors de l'installation (y compris WASM)
     b.getInstallStep().dependOn(sync_step);
 
@@ -1666,6 +1677,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "triple", .module = knowledge_triple_mod },
                 .{ .name = "assertion", .module = knowledge_assertion_mod },
                 .{ .name = "knowledge_store", .module = knowledge_store_mod },
+                .{ .name = "knowledge_rdfs", .module = knowledge_rdfs_mod },
             },
         }),
     });
