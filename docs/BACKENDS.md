@@ -106,7 +106,7 @@ matrice est la mesure réelle.
   abandonné). Commandes `compile-qbe` et `bench-qbe`. Fonctions
   utilisateur récursives compilables. fib(25) = 75025 en 1.15 ms
   (interprète 29 824 ms, ~26 000×).
-  **TCO (2026-10-01)** : les self-tail-calls (`call_user` immediatement suivi d'un `ret`, ou d'un `jump` vers un bloc join pur `phi+ret`) sont transformes en boucle `jmp @b0` avec phi d'entree pour les parametres. `count_down 10000000` compile et tourne.
+  **TCO (2026-10-01)** : les self-tail-calls (`call_user` immediatement suivi d'un `ret`, ou d'un `jump` vers un bloc join pur `phi+ret`) sont transformes en boucle `jmp @b0` avec phi d'entree pour les parametres. `count_down 10000000` compile et tourne. **Non couvert** : recursion mutuelle, cycles 3+, trampolines (voir `docs/spec/_tco_mutual.md`).
 - **M4** flag Green/Fast + instrumentation énergie. Profiler
   étendu (RAPL energy, thermal_zone) ; reste à brancher sur un
   flag CLI `-Ogreen`/`-Ofast`.

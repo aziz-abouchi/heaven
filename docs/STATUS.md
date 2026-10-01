@@ -235,8 +235,8 @@ n'est reliée a `Expr` que par des lowerings explicites.
 
 | Élément | Statut | Preuve | Limitation |
 |---|---|---|---|
-| Compilation QBE (M3) | ✅ | `compile-qbe <src> -o <bin>` ; fib(25) = 75025 | sous-ensemble MIR (15 instr) ; TCO self-tail-call (2026-10-01) ; pas de strings/IO |
-| Compilation WASM (M2a/M2b) | ✅ | `compile-wasm <src> -o <wat>` ; wasmtime run | sous-ensemble MIR ; TCO self-tail-call (2026-10-01), flag `-W max-wasm-stack` plus requis |
+| Compilation QBE (M3) | ✅ | `compile-qbe <src> -o <bin>` ; fib(25) = 75025 | sous-ensemble MIR (15 instr) ; TCO self-tail-call ; recursion mutuelle : `docs/spec/_tco_mutual.md` ; pas de strings/IO |
+| Compilation WASM (M2a/M2b) | ✅ | `compile-wasm <src> -o <wat>` ; wasmtime run | sous-ensemble MIR ; TCO self-tail-call, flag `-W max-wasm-stack` plus requis ; recursion mutuelle : `docs/spec/_tco_mutual.md` |
 | Bench interprète | ✅ | `bench-interp <src> [N] [--loop M]` | in-process, pas de spawn |
 | Bench QBE | ✅ | `bench-qbe` ; wall/cpu/energy/temp/RSS | RAPL root-only par défaut (CVE-2020-8694) |
 | Bench WASM | ✅ | `bench-wasm` ; idem | bootstrap wasmtime ~5 ms amorti via `--loop` |
