@@ -273,7 +273,7 @@ Résultats de référence (`docs/spec/_bench.md`) :
    → suite : **v2f** — unification vraie (`Vec (n + m)` modulo arithmétique).
 5. **Documenter QTT** dans le book.
 6. Remplir les `std/*.hvn` restants (`kernel.hvn`, signatures sans corps).
-7. Sync auto `test_suite.hvn` (natif ↔ WASM).
+7. ~~Sync auto `test_suite.hvn` (natif ↔ WASM).~~ [OK] (2026-10-01)
 
 Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
 
