@@ -96,3 +96,9 @@ HVN : ~95/95.
 - tco_deep ~40us/iter (trampoline)
 - M4 Green/Fast (debloque depuis M3)
 - Comprehensions : spec decidee, implementation a ouvrir
+
+## Addendum -- forme alignee (2026-10-01 soir)
+- 89ead1f : gardes en forme alignee (continuation '|').
+- b26eb9f : fix use-after-free setLastEqLhs (bisection 867/89e).
+  Lecon gravee : les tests d'une feature ne voient pas un UAF --
+  seule la suite complete le detecte (convention #6).
