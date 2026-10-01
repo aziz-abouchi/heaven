@@ -31,6 +31,7 @@ pub fn run(self: *Shell) !void {
             platform.debug.print("Erreur de lecture : {}\n", .{err});
             continue;
         };
+        defer self.allocator.free(line);
         if (line.len == 0) continue;
 
         // Commande !n
@@ -111,6 +112,7 @@ fn runProofInteractive(
             platform.debug.print("  erreur de lecture : {}\n", .{err});
             return;
         };
+        defer self.allocator.free(tactic_line);
         const trimmed = std.mem.trim(u8, tactic_line, " \t\r\n");
         if (trimmed.len == 0) continue;
 

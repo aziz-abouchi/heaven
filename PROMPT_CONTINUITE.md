@@ -71,6 +71,21 @@ l'ecosysteme Astra vers `src/legacy/`). A traiter separement.
 
 Voir `docs/spec/_tco_mutual.md` (section "Probleme connexe").
 
+## Leaks residuels identifies (2026-10-01)
+
+Deux leaks preexistants, non urgents, visibles dans le rapport debug.
+
+### L1 - proofs.zig:222 (evalTheorem)
+
+`cmds.allocator.dupe(u8, msg)` cree une string retournee a
+l'appelant (`commands.zig:580` -> `heaven_expr.zig:2353`), qui ne la
+libere jamais. Se declenche a chaque `theorem t : ...`.
+
+### L2 - interactive.zig:146 (readLine dans runProofInteractive)
+
+La `tactic_line` n'est pas liberee sur les chemins `abort` ou `EOF`.
+Fix trivial mais a verifier que `applyLine` ne retient pas `trimmed`.
+
 ## Fichiers de reference
 - src/commands/qbe_cmd.zig, wasm_cmd.zig, bench_interp.zig
 - src/backend/mir_qbe.zig, mir_wat.zig

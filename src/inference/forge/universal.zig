@@ -621,7 +621,7 @@ pub const UniversalIngestor = struct {
         }
         if (stmts.items.len == 0) return 0;
         if (stmts.items.len == 1) return stmts.items[0];
-        const owned = try self.allocator.dupe(matrix_lib.BobId, stmts.items);
+        const owned = try self.arena.allocator().dupe(matrix_lib.BobId, stmts.items);
         return self.matrix.addNode(.{ .HBlock = owned });
     }
 
