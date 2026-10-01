@@ -143,6 +143,13 @@ La syntaxe équationnelle gère plusieurs clauses :
 `otherwise` est un alias vers `true` (clause par defaut). `==` est
 legal en garde. Les gardes s'evaluent apres le match, captures
 visibles ; refus = clause suivante (ordre lineaire).
+
+Forme alignee -- une ligne commencant par `|` continue la clause
+precedente (memes nom/patterns, nouvelle garde) :
+
+    classifie x | x < 0 = "negatif"
+                | x == 0 = "nul"
+                | otherwise = "positif"
     sign 0 = "nul"
     sign x = "négatif"
 

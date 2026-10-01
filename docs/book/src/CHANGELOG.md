@@ -3,6 +3,21 @@
 Historique des fonctionnalités du langage. Les entrées sont en ordre
 antéchronologique.
 
+## 2026-10-01 (soir)
+
+### Gardes en forme alignee -- continuation de clause (`89ead1f`, fix `b26eb9f`)
+
+- Une ligne top-level commencant par `|` continue la derniere
+  equation : memes nom/patterns, nouvelle garde. Pur sucre sur
+  les clauses gardees (867ec43).
+- Fix bisectione : use-after-free dans setLastEqLhs (hook en tete
+  d'evalEquation liberait le LHS pendant que la continuation le
+  lisait -- corruption tas, assert double-mapping DebugAllocator).
+  867ec43 sain / 89ead1f crash -> memorisation deplacee en fin de
+  parcours. Lecon : 28/28 sur la feature ne detecte pas un UAF ;
+  la suite complete (convention #6) l'a attrape.
+- tests/guards.hvn : 28/28.
+
 ## 2026-10-01
 
 ### Knowledge / RDF / RDFS - POC
