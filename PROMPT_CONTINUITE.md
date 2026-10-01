@@ -41,10 +41,17 @@ HVN : ~95/95.
   WIP, ne pas toucher.
 
 ## Pistes pour la prochaine session
-1. TCO WASM/QBE : mir_wat/mir_qbe convertissent recursion tail en
-   boucle -> supprime le besoin de `-W max-wasm-stack=67108864`.
-2. Rattraper bench-wasm fib (le dernier bench a timeout).
-3. Complete _bench.md avec les chiffres fib interp vs QBE.
+
+### Fait cette session (2026-10-01)
+- TCO WASM/QBE : les self-tail-calls sont transformes en boucle dans
+  `mir_qbe.zig` et `mir_wat.zig`. `count_down 10000000` compile et
+  tourne. Le flag `-W max-wasm-stack=67108864` n'est plus requis.
+
+### Restant
+1. Rattraper bench-wasm fib (le dernier bench a timeout, peut-etre
+   resolu par TCO, a verifier).
+2. Complete _bench.md avec les chiffres fib interp vs QBE.
+3. TCO etendue : recursion mutuelle, trampolines multi-fonctions.
 4. Fix RAPL persistant (udev rule) pour eviter `sudo chmod +r`.
 5. Auto-hebergement (long terme) : BigInt (libtommath), I/O,
    structures de donnees, puis self-parse/self-compile.

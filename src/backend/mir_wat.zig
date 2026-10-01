@@ -10,6 +10,7 @@ const MirFunction = mir.MirFunction;
 const FnDef = mir.FnDef;
 const Instr = mir.Instr;
 const BlockId = mir.BlockId;
+const Reg = mir.Reg;
 const BasicBlock = mir.BasicBlock;
 const FnDefs = std.AutoHashMap(u32, FnDef);
 
@@ -61,19 +62,19 @@ pub fn emitWatLoop(
             try w.print("(param $p{d} i64) ", .{i});
         }
         try w.writeAll("(result i64)\n");
-        try emitBody(w, &def.fn_mir, &def, &root.fn_defs);
+        try emitBody(w, &def.fn_mir, &def, &root.fn_defs, sym);
         try w.writeAll(")\n");
     }
 
     if (loop_count <= 1) {
         // Wrapper simple : $main est le corps du root, inchange.
         try w.writeAll("(func $main (export \"main\") (result i64)\n");
-        try emitBody(w, root, null, &root.fn_defs);
+        try emitBody(w, root, null, &root.fn_defs, null);
         try w.writeAll(")\n)\n");
     } else {
         // $heaven_main : le corps du root.
         try w.writeAll("(func $heaven_main (result i64)\n");
-        try emitBody(w, root, null, &root.fn_defs);
+        try emitBody(w, root, null, &root.fn_defs, null);
         try w.writeAll(")\n");
         // $main : boucle loop_count fois sur $heaven_main.
         try w.writeAll("(func $main (export \"main\") (result i64)\n");
@@ -98,7 +99,7 @@ pub fn emitWatLoop(
 /// params→regs, dispatch trampoline — (loop $dispatch) + chaîne de
 /// (if $cur==k). Correct pour tout CFG ; O(nb blocs) par
 /// branchement. Le relooping structuré est un chantier M3+.
-fn emitBody(w: anytype, f: *const MirFunction, def: ?*const FnDef, fdefs: *const FnDefs) !void {
+fn emitBody(w: anytype, f: *const MirFunction, def: ?*const FnDef, fdefs: *const FnDefs, cur_sym: ?u32) !void {
     if (f.blocks.items.len == 0) {
         try w.writeAll("(i64.const 0)\n");
         return;
@@ -106,6 +107,11 @@ fn emitBody(w: anytype, f: *const MirFunction, def: ?*const FnDef, fdefs: *const
     var r: u32 = 0;
     while (r < f.next_value) : (r += 1) {
         try w.print("(local $r{d} i64)\n", .{r});
+    }
+    // 8 temporaires TCO
+    var t: u32 = 0;
+    while (t < 8) : (t += 1) {
+        try w.print("(local $r{d} i64)\n", .{ f.next_value + t });
     }
     try w.writeAll("(local $cur i32)\n");
 
@@ -115,12 +121,65 @@ fn emitBody(w: anytype, f: *const MirFunction, def: ?*const FnDef, fdefs: *const
         }
     }
 
+    // Pre-pass TCO : identifier les blocs self-tail-call.
+    var tco = try f.allocator.alloc(bool, f.blocks.items.len);
+    defer f.allocator.free(tco);
+    @memset(tco, false);
+    if (cur_sym) |sym| {
+        for (f.blocks.items, 0..) |*blk, i| {
+            if (blk.instrs.items.len == 0) continue;
+            const c = switch (blk.instrs.items[blk.instrs.items.len - 1]) {
+                .call_user => |cc| cc,
+                else => continue,
+            };
+            if (c.name != sym) continue;
+            switch (blk.terminator) {
+                .ret => |rv| { if (rv != c.dest) continue; },
+                .jump => |jt| {
+                    const tg = &f.blocks.items[jt];
+                    var only_phi = true;
+                    for (tg.instrs.items) |ins| {
+                        if (ins != .phi) { only_phi = false; break; }
+                    }
+                    if (!only_phi) continue;
+                    if (tg.terminator != .ret) continue;
+                },
+                else => continue,
+            }
+            tco[i] = true;
+        }
+    }
+
     try w.writeAll("(local.set $cur (i32.const 0))\n");
     try w.writeAll("(loop $dispatch\n");
     for (f.blocks.items, 0..) |*blk, i| {
         const bid: BlockId = @intCast(i);
         try w.print("(if (i32.eq (local.get $cur) (i32.const {d}))\n", .{bid});
         try w.writeAll("  (then\n");
+        if (tco[i]) {
+            const c = blk.instrs.items[blk.instrs.items.len - 1].call_user;
+            for (blk.instrs.items[0 .. blk.instrs.items.len - 1]) |inst| {
+                switch (inst) {
+                    .phi => {},
+                    else => try emitInstr(w, inst, fdefs),
+                }
+            }
+            // Temps : $r{next_value}..$r{next_value+7}
+            const base: Reg = f.next_value;
+            for (c.args, 0..) |arg, k| {
+                try w.print("  (local.set $r{d} (local.get $r{d}))\n", .{ base + k, arg });
+            }
+            if (def) |d| {
+                for (d.param_regs, 0..) |preg, k| {
+                    if (k < c.args.len) {
+                        try w.print("  (local.set $r{d} (local.get $r{d}))\n", .{ preg, base + k });
+                    }
+                }
+            }
+            try w.writeAll("  (local.set $cur (i32.const 0))\n  br $dispatch\n");
+            try w.writeAll("  ))\n");
+            continue;
+        }
         for (blk.instrs.items) |inst| {
             switch (inst) {
                 .phi => {}, // émis par les prédécesseurs (contrat §4)

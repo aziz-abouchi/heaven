@@ -283,6 +283,53 @@ le point d'entrée du wasm.
 Les tests tournent en WASM avec le même `heaven.eval`. C'est ce qui
 garantit que le comportement du web est identique au natif.
 
+## Les backends compiles : MIR, QBE, WASM
+
+Au-dela de l'interprete et du backend C, Heaven a un pipeline de
+compilation qui passe par un IR intermediaire, le **MIR** (Middle
+IR). Le MIR est un langage a base de blocs basiques, avec des
+instructions simples (arithmetique sur i64, comparaisons, sauts,
+phi). Deux backends consomment ce MIR :
+
+- `mir_qbe.zig` : emet de l'IL QBE, qui est ensuite compile par
+  l'outil `qbe` vers du code natif (x86-64, ARM, RISC-V).
+- `mir_wat.zig` : emet du WAT (WebAssembly text), executable par
+  wasmtime ou tout runtime WASM.
+
+L'interet du MIR comme contrat : un seul pipeline de lowering, N
+consommateurs. Les deux backends sont petits (~200 lignes chacun),
+lisibles, et testables isolement.
+
+### Tail Call Optimization
+
+Le point qui a change en octobre 2026 : les **self-tail-calls** sont
+detectes et transformes en boucle. Un self-tail-call est une
+instruction `call_user` qui est la derniere d'un bloc et dont le
+resultat est immediatement retourne (par un `ret` direct, ou via un
+`jump` vers un bloc join pur `phi+ret`).
+
+Quand le pattern est reconnu, le backend :
+
+1. Emet les instructions normales du bloc (tout sauf le `call_user`).
+2. Copie les arguments dans des registres temporaires.
+3. Copie ces temporaires dans les registres des parametres.
+4. Saute au bloc d'entree `@b0` (QBE) ou repositionne `$cur = 0`
+   (WASM).
+
+En QBE, qui est en SSA strict, le bloc d'entree porte des **phi
+nodes** pour chaque parametre, qui recoivent leur valeur soit de
+`@entry` (les arguments ABI), soit des blocs TCO. En WASM, les
+locals sont mutables, donc un simple `local.set` suffit.
+
+Consequence directe : `count_down 10000000` (10 millions de
+recursions) compile et tourne sur les deux backends. Et sur WASM, le
+flag `-W max-wasm-stack=67108864` n'est plus necessaire — la pile
+reste petite, la boucle tourne.
+
+La TCO couvre uniquement les self-tail-calls. La recursion mutuelle,
+les appels non-tail et les trampolines multi-fonctions restent a
+faire.
+
 ## La philosophie
 
 Trois principes structurent Heaven :

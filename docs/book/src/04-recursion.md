@@ -127,9 +127,15 @@ après. Heaven peut **réutiliser** le même cadre de pile au lieu d'en
 empiler un nouveau. C'est ce qu'on appelle l'**optimisation d'appel
 terminal**.
 
-Heaven ne l'implémente pas encore (c'est dans le backlog), mais il
-faut écrire vos fonctions comme si c'était le cas. C'est une
-discipline, pas une contrainte.
+Heaven applique cette optimisation dans ses backends compiles
+(QBE et WASM), mais seulement pour les **self-tail-calls** : une
+fonction qui s'appelle elle-meme en position terminale. Depuis
+octobre 2026, ce pattern est transforme en boucle, ce qui permet
+a `count_down 10000000` de tourner sans exploser la pile.
+
+Pour les autres formes (recursion mutuelle, appels non-tail), il
+faut encore ecrire vos fonctions comme si la TCO etait partout.
+C'est une discipline, pas une contrainte.
 
 ## La récursion mutuelle
 

@@ -100,11 +100,13 @@ matrice est la mesure réelle.
   (`src/backend/mir_wat.zig`) + 4 golden tests dans `zig build test`
   (dispatch trampoline, phis abattus, fn_defs, rejet explicite).
   M2b ✅ : oracle mir.execute vs wasmtime run — test_mir_wat.zig.
+  **TCO (2026-10-01)** : meme transformation dans `mir_wat.zig`. `wasmtime run --invoke main` sur `count_down 10000000` retourne `10000000` **sans** le flag `-W max-wasm-stack=67108864`, qui n'est plus requis.
 - **M3 ✅** QBE IL depuis MIR : `mir_qbe.zig` + `qbe_cmd.zig`.
   Migration QBE v1.2 (release officielle, miroir GitHub 2021
   abandonné). Commandes `compile-qbe` et `bench-qbe`. Fonctions
   utilisateur récursives compilables. fib(25) = 75025 en 1.15 ms
   (interprète 29 824 ms, ~26 000×).
+  **TCO (2026-10-01)** : les self-tail-calls (`call_user` immediatement suivi d'un `ret`, ou d'un `jump` vers un bloc join pur `phi+ret`) sont transformes en boucle `jmp @b0` avec phi d'entree pour les parametres. `count_down 10000000` compile et tourne.
 - **M4** flag Green/Fast + instrumentation énergie. Profiler
   étendu (RAPL energy, thermal_zone) ; reste à brancher sur un
   flag CLI `-Ogreen`/`-Ofast`.

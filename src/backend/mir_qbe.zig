@@ -64,16 +64,16 @@ pub fn emitQbeLoop(
         for (def.param_regs, 0..) |_, i| {
             try w.print("{s}l %a{d}", .{ if (i > 0) ", " else "", i });
         }
-        try w.writeAll(") {\n@entry\n");
-        for (def.param_regs, 0..) |preg, i| {
-            try w.print("    %r{d} =l copy %a{d}\n", .{ preg, i });
-        }
-        try emitBody(w, &def.fn_mir);
+        try w.writeAll(") {\n");
+
+
+
+        try emitBody(w, &def.fn_mir, def.param_regs, sym);
         try w.writeAll("}\n");
     }
 
     try w.writeAll("function l $heaven_main() {\n");
-    try emitBody(w, root);
+    try emitBody(w, root, null, null);
     try w.writeAll("}\n");
 
     try w.writeAll("export function $main() {\n");
@@ -128,26 +128,94 @@ fn checkBlocks(f: *const MirFunction, defs: *const std.AutoHashMap(u32, FnDef)) 
     }
 }
 
-fn emitBody(w: anytype, f: *const MirFunction) !void {
+fn emitBody(w: anytype, f: *const MirFunction, param_regs: ?[]const Reg, cur_sym: ?u32) !void {
     if (f.blocks.items.len == 0) {
         try w.writeAll("    ret 0\n");
         return;
     }
-    var tmp: Reg = f.next_value; // temps au-delà des regs réels
+    var tco = try f.allocator.alloc(bool, f.blocks.items.len);
+    defer f.allocator.free(tco);
+    @memset(tco, false);
+    var any_tco = false;
+    if (cur_sym) |sym| {
+        for (f.blocks.items, 0..) |*blk, i| {
+            if (blk.instrs.items.len == 0) continue;
+            const c = switch (blk.instrs.items[blk.instrs.items.len - 1]) {
+                .call_user => |cc| cc,
+                else => continue,
+            };
+            if (c.name != sym) continue;
+            switch (blk.terminator) {
+                .ret => |rv| { if (rv != c.dest) continue; },
+                .jump => |t| {
+                    const tg = &f.blocks.items[t];
+                    var only_phi = true;
+                    for (tg.instrs.items) |ins| {
+                        if (ins != .phi) { only_phi = false; break; }
+                    }
+                    if (!only_phi) continue;
+                    if (tg.terminator != .ret) continue;
+                },
+                else => continue,
+            }
+            tco[i] = true;
+            any_tco = true;
+        }
+    }
+    if (param_regs) |pr| {
+        try w.writeAll("@entry\n");
+        if (any_tco) {
+            try w.writeAll("    jmp @b0\n");
+        } else {
+            for (pr, 0..) |preg, i| {
+                try w.print("    %r{d} =l copy %a{d}\n", .{ preg, i });
+            }
+        }
+    }
+    var tmp: Reg = f.next_value;
     for (f.blocks.items, 0..) |*blk, i| {
         try w.print("@b{d}\n", .{i});
-        // Phis d'abord (ils vivent en tête du bloc, contrat §4)
+        if (i == 0 and any_tco) {
+            if (param_regs) |pr| {
+                for (pr, 0..) |preg, k| {
+                    try w.print("    %r{d} =l phi @entry %a{d}", .{ preg, k });
+                    for (tco, 0..) |b, j| {
+                        if (b) try w.print(", @b{d} %t{d}_{d}", .{ j, j, k });
+                    }
+                    try w.writeAll("\n");
+                }
+            }
+        }
         for (blk.instrs.items) |inst| {
             switch (inst) {
                 .phi => |p| {
-                    try w.print("    %r{d} =l phi ", .{p.dest});
-                    for (p.incoming, 0..) |in, j| {
-                        try w.print("{s}@b{d} %r{d}", .{ if (j > 0) ", " else "", in.block, in.value });
+                    try w.print("    %r{d} =l phi", .{p.dest});
+                    var first = true;
+                    for (p.incoming) |in| {
+                        if (tco[in.block]) continue;
+                        if (!first) try w.writeAll(",");
+                        try w.print(" @b{d} %r{d}", .{ in.block, in.value });
+                        first = false;
                     }
+                    if (first) try w.writeAll(" @entry 0");
                     try w.writeAll("\n");
                 },
                 else => {},
             }
+        }
+        if (tco[i]) {
+            const c = blk.instrs.items[blk.instrs.items.len - 1].call_user;
+            for (blk.instrs.items[0 .. blk.instrs.items.len - 1]) |inst| {
+                switch (inst) {
+                    .phi => {},
+                    else => try emitInstr(w, inst, &tmp),
+                }
+            }
+            for (c.args, 0..) |arg, k| {
+                try w.print("    %t{d}_{d} =l copy %r{d}\n", .{ i, k, arg });
+            }
+            try w.writeAll("    jmp @b0\n");
+            continue;
         }
         for (blk.instrs.items) |inst| {
             switch (inst) {

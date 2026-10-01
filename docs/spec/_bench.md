@@ -181,3 +181,19 @@ Le programme `loop` est 10× plus long que `count_down` en interprète
 4. **`_metrics.md` : injection dans l'EGraph** — la boucle complète
    `Metrics -> EGraph -> Proof`.
 5. **`optimize for energy`** : implémenter la sélection par profil.
+
+
+---
+
+## Note TCO (2026-10-01)
+
+Les backends QBE et WASM appliquent desormais une transformation
+tail-call pour les self-tail-calls (`call_user` immediatement
+suivi d'un `ret`, ou d'un `jump` vers un bloc join pur `phi+ret`).
+Consequences pour les benchs :
+
+- `count_down 10000000` (10 M de recursions) compile et tourne sur
+  QBE et WASM sans flag.
+- Le flag `-W max-wasm-stack=67108864` n'est **plus requis** pour
+  wasmtime.
+- `bench-wasm` peut etre relance sans adaptateur de pile.

@@ -39,7 +39,28 @@ antéchronologique.
 - Tranchages comprehensions poses dans ROADMAP (5 decisions,
   `7be1b81`).
 
-## 2026-10-01
+### Tail Call Optimization (QBE + WASM)
+
+- **Self-tail-calls** detectes et transformes en boucle dans les
+  deux backends (`mir_qbe.zig`, `mir_wat.zig`). Un bloc est TCO si
+  sa derniere instruction est un `call_user` vers la fonction
+  courante et que le terminator est soit `ret(dest)`, soit un
+  `jump` vers un bloc join pur (`phi+ret`).
+- **QBE** : phi nodes d'entree pour les parametres (SSA strict),
+  copies via temporaires. `count_down 10000000` compile et tourne.
+- **WASM** : `local.set` directs (locals mutables). `count_down
+  10000000` tourne **sans** le flag `-W max-wasm-stack=67108864`,
+  qui n'est plus requis.
+- Non-regression verifiee : `fib(25) = 75025`,
+  `arith = 333338333350000`, `loop = 1000000` sur les deux backends.
+- Limite : seuls les self-tail-calls sont couverts. La recursion
+  mutuelle et les trampolines multi-fonctions restent a faire.
+
+### Fix import readkey (45021e9)
+
+- `interactive.zig` importait `platform/readkey.zig` depuis
+  `src/runtime/shell/`, chemin qui ne resout pas. Fix :
+  `../../platform/readkey.zig`.
 
 ### Ontologie - separation catalogue / semantique (Phases 1-2)
 
