@@ -57,7 +57,7 @@ Légende :
 | `data Name (n : Nat) = ...` | ✅ | `type_registry.zig` + 5 tests v2c/v2d | 1 param typé max (v0) |
 | Pattern matching multi-clause | ✅ | `evalEquation` | ordre linéaire d'essai |
 | Wildcard `_` en pattern | ✅ | test `let_many` | — |
-| Guards `\| x > 0` | ❌ | — | jamais implémenté |
+| Guards `\| x > 0` | ✅ | tests/guards.hvn (17/17) | ordre linéaire ; otherwise ; == normalisé |
 
 ### Type-dep v2 (indexes dépendants)
 
