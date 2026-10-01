@@ -168,7 +168,7 @@ test "walrus operator := defines function correctly" {
     _ = try cmds.eval("triple x := x * 3");
 
     // Vérifier qu'il n'y a qu'UNE clause avec 1 pattern
-    const fn_def = cmds.engine.fns.get("triple").?;
+    const fn_def = cmds.engine.fns.get("triple") orelse return error.FunctionNotFound;
     platform.dbg(
         "\n[Shell WALRUS DEBUG] clauses={d} patterns={d}\n",
         .{

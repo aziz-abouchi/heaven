@@ -20,7 +20,6 @@ pub const Shell = struct {
     memo: std.StringHashMap(i64),
     prolog: prolog_lib.PrologEngine,
     heaven: *heaven_expr_lib.Heaven,
-    kanren: @import("kanren").KanrenEngine,
     meta: *algo_catalog_lib.MetaEngine,
     swarm: *swarm_lib.SwarmRuntime,
     green: *green_lib.GreenScheduler,
@@ -39,7 +38,6 @@ pub const Shell = struct {
             .memo = std.StringHashMap(i64).init(alloc),
             .prolog = prolog_lib.PrologEngine.init(alloc),
             .heaven = he,
-            .kanren = @import("kanren").KanrenEngine.init(alloc),
             .meta = blk: {
                 const me = alloc.create(algo_catalog_lib.MetaEngine) catch @panic("alloc meta");
                 //defer alloc.destroy(me);

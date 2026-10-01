@@ -77,71 +77,6 @@ pub fn cmdAsk(self: *Shell, query_str: []const u8) void {
     }
 }
 
-pub fn cmdRunStar(self: *Shell, query_str: []const u8, max_results: u32) void {
-    const kanren_mod = @import("kanren");
-
-    if (!self.kanren.relations.contains("append")) {
-        var snapshot = self.matrix.snapshotSymbols(self.allocator) catch |err| {
-            platform.dbg("[ERROR] Failed to snapshot symbols: {s}\n", .{@errorName(err)});
-            return;
-        };
-        defer snapshot.deinit();
-        self.kanren.loadFromSymbols(snapshot);
-    }
-
-    const paren_start = std.mem.indexOf(u8, query_str, "(") orelse return;
-    const paren_end = std.mem.lastIndexOf(u8, query_str, ")") orelse return;
-    const pred = std.mem.trim(u8, query_str[0..paren_start], " ");
-    const args_str = query_str[paren_start + 1 .. paren_end];
-
-    var args_buf: [8]kanren_mod.Term = undefined;
-    var arity: usize = 0;
-    var query_vars: [8]QV = undefined;
-    var num_qv: usize = 0;
-
-    var depth: u32 = 0;
-    var start: usize = 0;
-    for (args_str, 0..) |ch, idx| {
-        if (ch == '[') depth += 1 else if (ch == ']') {
-            if (depth > 0) depth -= 1;
-        } else if (ch == ',' and depth == 0) {
-            if (arity < 8) {
-                args_buf[arity] = parseKanrenArg(self, std.mem.trim(u8, args_str[start..idx], " "), &query_vars, &num_qv);
-                arity += 1;
-            }
-            start = idx + 1;
-        }
-    }
-    if (start <= args_str.len and arity < 8) {
-        const trimmed = std.mem.trim(u8, args_str[start..], " ");
-        if (trimmed.len > 0) {
-            args_buf[arity] = parseKanrenArg(self, trimmed, &query_vars, &num_qv);
-            arity += 1;
-        }
-    }
-
-    const results = self.kanren.solve(pred, args_buf[0..arity], max_results);
-    if (results.items.items.len == 0) {
-        platform.debug.print("  Aucune solution.\n", .{});
-        return;
-    }
-
-    for (results.items.items, 0..) |sub, idx| {
-        platform.debug.print("  #{d}: ", .{idx + 1});
-        var first = true;
-        for (query_vars[0..num_qv]) |qv| {
-            const resolved = sub.walkDeep(.{ .Var = qv.id });
-            if (!first) platform.debug.print(", ", .{});
-            var buf: [256]u8 = undefined;
-            platform.debug.print("{s} = {s}", .{ qv.name, resolved.format(&buf) });
-            first = false;
-        }
-        if (first) platform.debug.print("true", .{});
-        platform.debug.print("\n", .{});
-        if (idx >= max_results - 1) break;
-    }
-}
-
 pub fn cmdHandleLine(self: *Shell, line: []const u8) void {
     self.ingestor.ingest("repl.hvn", line) catch {};
 }
@@ -280,7 +215,7 @@ pub fn cmdDoc(self: *Shell) void {
     defer self.allocator.free(kb_desc);
     platform.debug.print("{s}", .{kb_desc});
     platform.debug.print(" {d} Prolog clauses\n", .{self.prolog.clauses.items.len});
-    platform.debug.print(" {d} Kanren relations\n", .{self.kanren.relations.count()});
+    // platform.debug.print(" {d} Kanren relations\n", .{self.kanren.relations.count()}); // Supprime avec le pipeline logique
     const s = self.matrix.getStats();
     platform.debug.print(" {d} Matrix nodes, {d} symbols\n\n", .{ s.nodes, s.symbols });
 }
@@ -1041,24 +976,6 @@ pub fn exprRewrite(self: *Shell, input: []const u8) void {
 
 pub fn exprType(self: *Shell, input: []const u8) void {
     eval.exprType(self, input);
-}
-
-fn parseKanrenArg(self: *Shell, text: []const u8, qvs: *[8]QV, num_qv: *usize) @import("kanren").Term {
-    if (text.len == 0) return .Nil;
-    if (std.mem.eql(u8, text, "[]")) return .Nil;
-    if (text[0] >= 'A' and text[0] <= 'Z') {
-        const v = self.kanren.fresh();
-        if (num_qv.* < 8) {
-            qvs[num_qv.*] = .{ .name = text, .id = v.Var };
-            num_qv.* += 1;
-        }
-        return v;
-    }
-    if (std.fmt.parseInt(i64, text, 10)) |n| return .{ .Int = n } else |_| {}
-    if (text[0] == '[' and text[text.len - 1] == ']') {
-        return self.kanren.parseListTerm(text[1 .. text.len - 1], null);
-    }
-    return .{ .Atom = text };
 }
 
 // ═══════════════════════════════════════════════════════════

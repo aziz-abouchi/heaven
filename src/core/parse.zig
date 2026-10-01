@@ -516,8 +516,23 @@ pub const Parser = struct {
             const func_name = trimmed[0..space];
             const arg_str = std.mem.trim(u8, trimmed[space + 1 ..], " ");
             if (func_name.len > 0 and arg_str.len > 0) {
+                // Vérifier si c'est une fonction enregistrée OU un constructeur connu
                 const is_registered = self.engine.fns.getEntry(func_name) != null;
-                if (is_registered) {
+                const known_constructors = [_][]const u8{
+                    "cons", "nil",           // List
+                    "pair",                  // Pair
+                    "some", "none",          // Option
+                    "ok", "err",             // Result
+                    "zero", "succ",          // Nat
+                };
+                var is_constructor = false;
+                for (known_constructors) |ctor| {
+                    if (std.mem.eql(u8, func_name, ctor)) {
+                        is_constructor = true;
+                        break;
+                    }
+                }
+                if (is_registered or is_constructor) {
                     var arg_ids: std.ArrayListUnmanaged(Id) = .{};
                     defer arg_ids.deinit(self.allocator);
                     var depth: i32 = 0;

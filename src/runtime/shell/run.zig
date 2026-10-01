@@ -270,7 +270,6 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !b
                 // On sortira par le haut
                 return false;
             } else if (comptime std.mem.eql(u8, cmd_def.name, "run*")) {
-                commands.cmdRunStar(self, args, 20);
             } else if (comptime std.mem.eql(u8, cmd_def.name, "load")) {
                 if (args.len > 0) {
                     const result = commands.cmdLoadFile(self, args) catch |err| {

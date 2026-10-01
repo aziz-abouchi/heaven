@@ -1,0 +1,47 @@
+function l $f73(l %a0, l %a1) {
+@entry
+    jmp @b0
+@b0
+    %r0 =l phi @entry %a0, @b2 %t2_0
+    %r1 =l phi @entry %a1, @b2 %t2_1
+    %r2 =l copy 0
+    %t10 =w ceqw %r0, %r2
+    %r3 =l extsw %t10
+    jnz %r3, @b1, @b2
+@b1
+    jmp @b3
+@b2
+    %r4 =l copy 1
+    %r5 =l sub %r0, %r4
+    %r6 =l copy 1
+    %r7 =l add %r1, %r6
+    %t2_0 =l copy %r5
+    %t2_1 =l copy %r7
+    jmp @b0
+@b3
+    %r9 =l phi @b1 %r1
+    ret %r9
+}
+function l $heaven_main() {
+@b0
+    %r0 =l copy 1000000
+    %r1 =l copy 0
+    %r2 =l call $f73(l %r0, l %r1)
+    ret %r2
+}
+export function $main() {
+@start
+    %loop_i =l copy 0
+    %loop_r =l copy 0
+@loop
+    %loop_cond =w csltl %loop_i, 100
+    jnz %loop_cond, @loop_body, @loop_done
+@loop_body
+    %loop_r =l call $heaven_main()
+    %loop_i =l add %loop_i, 1
+    jmp @loop
+@loop_done
+    %r2 =l call $printf(l $fmt, l %loop_r)
+    ret
+}
+data $fmt = { b "%ld\n", b 0 }

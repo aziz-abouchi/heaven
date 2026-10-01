@@ -3,11 +3,43 @@ module List
 data List a = nil | cons a (List a)
 
 head (cons x _) = x
-
 tail (cons _ xs) = xs
 
 length nil = zero
 length (cons _ xs) = succ (length xs)
 
+null nil = true
+null (cons _ _) = false
+
 append nil ys = ys
 append (cons x xs) ys = cons x (append xs ys)
+
+concat nil ys = ys
+concat (cons x xs) ys = cons x (concat xs ys)
+
+map _ nil = nil
+map f (cons x xs) = cons (f x) (map f xs)
+
+reverse xs = rev_helper xs nil
+rev_helper nil acc = acc
+rev_helper (cons x xs) acc = rev_helper xs (cons x acc)
+
+filter _ nil = nil
+filter f (cons x xs) = if (f x) (cons x (filter f xs)) (filter f xs)
+
+foldl _ acc nil = acc
+foldl f acc (cons x xs) = foldl f (f acc x) xs
+
+foldr _ acc nil = acc
+foldr f acc (cons x xs) = f x (foldr f acc xs)
+
+take _ nil = nil
+take (succ n) (cons x xs) = cons x (take n xs)
+take zero _ = nil
+
+drop _ nil = nil
+drop zero xs = xs
+drop (succ n) (cons _ xs) = drop n xs
+
+elem _ nil = false
+elem x (cons y ys) = if (= x y) true (elem x ys)

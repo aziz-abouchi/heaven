@@ -10,3 +10,15 @@ is_err (ok _) = false
 
 map_result _ (err e) = err e
 map_result f (ok x) = ok (f x)
+
+map_err _ (ok x) = ok x
+map_err f (err e) = err (f e)
+
+bind_result _ (err e) = err e
+bind_result f (ok x) = f x
+
+flatten_result (err e) = err e
+flatten_result (ok x) = x
+
+from_result default (err _) = default
+from_result _ (ok x) = x

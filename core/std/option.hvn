@@ -10,3 +10,15 @@ is_none (some _) = false
 
 map_option _ none = none
 map_option f (some x) = some (f x)
+
+bind_option _ none = none
+bind_option f (some x) = f x
+
+flatten_option none = none
+flatten_option (some x) = x
+
+from_option default none = default
+from_option _ (some x) = x
+
+default_option none x = some x
+default_option (some x) _ = some x
