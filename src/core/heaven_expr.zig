@@ -510,6 +510,14 @@ pub const Heaven = struct {
         _ = self;
     }
 
+    /// Guards : pose la garde sur la dernière clause de `name`.
+    fn setClauseGuard(self: *Heaven, name: []const u8, guard: ?Id) void {
+        const g = guard orelse return;
+        if (self.engine.fns.getPtr(name)) |fd| {
+            fd.setLastGuard(g);
+        }
+    }
+
     pub fn registerClause(self: *Heaven, name: []const u8, patterns: []const Id, body: Id) !void {
         const owned_key = try self.engine.allocator.dupe(u8, name);
         const result = try self.engine.fns.getOrPut(self.engine.allocator, owned_key);
@@ -943,17 +951,25 @@ pub const Heaven = struct {
                     return self.evalEquation(lhs, rhs);
                 }
             }
-        } else if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_pos| {
-            // Pas de :=, chercher = simple
-            // Vérifier que ce n'est pas == ou !=
-            if (eq_pos + 1 < trimmed.len and trimmed[eq_pos + 1] == '=') {
-                // C'est ==, pas une définition
-            } else {
-                const lhs = std.mem.trim(u8, trimmed[0..eq_pos], " ");
-                const rhs = std.mem.trim(u8, trimmed[eq_pos + 1 ..], " ");
-                if (!std.mem.startsWith(u8, lhs, "(") and lhs.len > 0 and rhs.len > 0) {
-                    return self.evalEquation(lhs, rhs);
+        } else {
+            // Chercher le premier '=' de DÉFINITION : non précédé de
+            // !, <, >, = (sinon ==/!=/<=/>=), non suivi de '=' (==).
+            // Nécessaire depuis les gardes : `f x | x == 0 = 0` doit
+            // couper sur le DERNIER =, pas sur celui du ==.
+            var scan: usize = 0;
+            while (std.mem.indexOfScalarPos(u8, trimmed, scan, '=')) |eq_pos| {
+                const prev: u8 = if (eq_pos > 0) trimmed[eq_pos - 1] else 0;
+                const next: u8 = if (eq_pos + 1 < trimmed.len) trimmed[eq_pos + 1] else 0;
+                const is_comparison = prev == '=' or prev == '!' or prev == '<' or prev == '>';
+                if (!is_comparison and next != '=') {
+                    const lhs = std.mem.trim(u8, trimmed[0..eq_pos], " ");
+                    const rhs = std.mem.trim(u8, trimmed[eq_pos + 1 ..], " ");
+                    if (!std.mem.startsWith(u8, lhs, "(") and lhs.len > 0 and rhs.len > 0) {
+                        return self.evalEquation(lhs, rhs);
+                    }
+                    break;
                 }
+                scan = eq_pos + 1;
             }
         }
 
@@ -1511,6 +1527,26 @@ pub const Heaven = struct {
     }
 
     fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
+        // ─── Guards : `f p | cond = body` ───
+        // '|' à profondeur 0 du LHS sépare patterns / garde. (Un '|'
+        // n'a pas d'autre lecture légale dans un LHS d'équation.)
+        var lhs_eff = lhs;
+        var guard_str: ?[]const u8 = null;
+        {
+            var depth: usize = 0;
+            var i: usize = 0;
+            while (i < lhs_eff.len) : (i += 1) {
+                const c = lhs_eff[i];
+                if (c == '(') depth += 1 else if (c == ')') {
+                    if (depth > 0) depth -= 1;
+                } else if (c == '|' and depth == 0) {
+                    guard_str = std.mem.trim(u8, lhs_eff[i + 1 ..], " \t");
+                    lhs_eff = std.mem.trim(u8, lhs_eff[0..i], " \t");
+                    break;
+                }
+            }
+        }
+
         // Tokeniser le LHS avec gestion des parenthèses
         var tokens = std.ArrayListUnmanaged([]const u8){};
         defer tokens.deinit(self.allocator);
@@ -1518,13 +1554,13 @@ pub const Heaven = struct {
         var start: usize = 0;
         var depth: usize = 0;
         var in_token = false;
-        for (lhs, 0..) |c, i| {
+        for (lhs_eff, 0..) |c, i| {
             if (c == '(') {
                 if (depth == 0) {
                     // `f(x) = ...` : fermer le nom avant la parenthèse,
                     // le groupe `(x)` devient son propre token.
                     if (in_token) {
-                        try tokens.append(self.allocator, lhs[start..i]);
+                        try tokens.append(self.allocator, lhs_eff[start..i]);
                     }
                     start = i;
                     in_token = true;
@@ -1533,13 +1569,13 @@ pub const Heaven = struct {
             } else if (c == ')') {
                 depth -= 1;
                 if (depth == 0 and in_token) {
-                    try tokens.append(self.allocator, lhs[start .. i + 1]);
+                    try tokens.append(self.allocator, lhs_eff[start .. i + 1]);
                     in_token = false;
                     start = i + 1;
                 }
             } else if (c == ' ' and depth == 0) {
                 if (in_token) {
-                    try tokens.append(self.allocator, lhs[start..i]);
+                    try tokens.append(self.allocator, lhs_eff[start..i]);
                     in_token = false;
                 }
                 start = i + 1;
@@ -1548,7 +1584,7 @@ pub const Heaven = struct {
                 in_token = true;
             }
         }
-        if (in_token) try tokens.append(self.allocator, lhs[start..]);
+        if (in_token) try tokens.append(self.allocator, lhs_eff[start..]);
 
         if (tokens.items.len == 0) return error.InvalidSyntax;
 
@@ -1571,6 +1607,46 @@ pub const Heaven = struct {
         }
 
         const body = try self.parseExpression(rhs);
+        var guard_id: ?Id = null;
+        if (guard_str) |gs_raw| {
+            const gs = std.mem.trim(u8, gs_raw, " \t");
+            if (std.mem.eql(u8, gs, "true") or std.mem.eql(u8, gs, "otherwise")) {
+                guard_id = try self.store.lit(.{ .boolean = true });
+            } else if (std.mem.eql(u8, gs, "false")) {
+                guard_id = try self.store.lit(.{ .boolean = false });
+            } else if (expr.nativeToSExpr(gs, self.allocator)) |sexpr| {
+                defer self.allocator.free(sexpr);
+                // nativeToSExpr rend (== x 0) ; evalMagic expose "="
+                // mais pas "==" (magics engine_expr). '==' n'y apparaît
+                // qu'en tête d'application. NB : PAS de std.mem.replace
+                // in-place — src/dest doivent être non-overlapping (le
+                // remplacement 4→3 octets en place corrompt le tas :
+                // SIGSEGV différé dans le DebugAllocator, cf gdb).
+                if (std.mem.indexOf(u8, sexpr, "(== ") == null) {
+                    guard_id = try self.parseExpression(sexpr);
+                } else {
+                    var out = std.ArrayListUnmanaged(u8){};
+                    defer out.deinit(self.allocator);
+                    var r: usize = 0;
+                    while (r < sexpr.len) {
+                        if (sexpr[r] == '(' and r + 3 < sexpr.len and
+                            sexpr[r + 1] == '=' and sexpr[r + 2] == '=' and
+                            sexpr[r + 3] == ' ')
+                        {
+                            try out.appendSlice(self.allocator, "(= ");
+                            r += 4;
+                        } else {
+                            try out.append(self.allocator, sexpr[r]);
+                            r += 1;
+                        }
+                    }
+                    guard_id = try self.parseExpression(out.items);
+                }
+            } else |_| {
+                guard_id = try self.parseExpression(gs);
+            }
+        }
+
 
         // ─── v2a : vérification d'arité / forme des patterns ───
         // Si une signature a été déclarée via `sig name : ...`, vérifier :
@@ -1724,6 +1800,7 @@ pub const Heaven = struct {
         const in_strict_module = self.strict_modules and self.current_module != null;
         if (!in_strict_module) {
             try self.registerClause(name, patterns.items, body_used);
+            if (guard_id != null) self.setClauseGuard(name, guard_id);
         } else {
             const owned = try self.allocator.dupe(u8, name);
             const gop = self.hidden_names.getOrPut(self.allocator, owned) catch {
@@ -1749,6 +1826,7 @@ pub const Heaven = struct {
                 );
                 defer self.allocator.free(qualified);
                 self.registerClause(qualified, patterns.items, body_used) catch {};
+                if (guard_id != null) self.setClauseGuard(qualified, guard_id);
             }
         }
 

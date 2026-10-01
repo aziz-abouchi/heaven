@@ -1,0 +1,23 @@
+# Guards — clauses gardées (ROADMAP : « jamais implémentés » → ici)
+
+clamp x | x < 0 = 0
+clamp x | x > 9 = 9
+clamp x | otherwise = x
+
+signe x | x < 0 = 0 - 1
+signe x | x == 0 = 0
+signe x | true = 1
+
+test "guard_clamp_low": (clamp (0 - 5)) == 0
+test "guard_clamp_mid": (clamp 5) == 5
+test "guard_clamp_high": (clamp 15) == 9
+test "guard_order_first_wins": (signe (0 - 3)) == (0 - 1)
+test "guard_eq_zero": (signe 0) == 0
+test "guard_fallthrough": (signe 7) == 1
+
+nonGuard x = x
+test "guard_absent_inchange": (nonGuard 42) == 42
+
+categorie n | n <= 0 = 0 - 1
+categorie n | otherwise = 1
+test "guard_le_token": (categorie (0 - 1)) == (0 - 1)

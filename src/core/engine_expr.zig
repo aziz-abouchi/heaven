@@ -87,6 +87,7 @@ pub const EvalError = error{
 pub const FunctionClause = struct {
     patterns: [8]expr.Id,
     num_patterns: u8,
+    guard: ?Id = null,
     body: expr.Id,
 };
 
@@ -101,6 +102,14 @@ pub const FunctionDef = struct {
         @memcpy(clause.patterns[0..clause.num_patterns], patterns[0..clause.num_patterns]);
         self.clauses[self.num_clauses] = clause;
         self.num_clauses += 1;
+    }
+
+    /// Guards : pose la garde sur la dernière clause enregistrée.
+    /// (Évite de propager un paramètre à travers toute la chaîne
+    /// addClause/register/registerClause et leurs appelants.)
+    pub fn setLastGuard(self: *FunctionDef, g: ?Id) void {
+        if (self.num_clauses == 0) return;
+        self.clauses[self.num_clauses - 1].guard = g;
     }
 };
 
@@ -439,6 +448,26 @@ pub const Engine = struct {
                 }
 
                 if (matched) {
+                    // ─── Guard : clause gardée (f p | cond = body) ───
+                    // Évaluée dans new_env (captures visibles). != true →
+                    // même nettoyage que non-match, clause suivante.
+                    if (clause.guard) |g| {
+                        const gv = try evaluate(store, &new_env, self, g, 0);
+                        const gn = store.get(gv);
+                        var guard_ok = false;
+                        if (gn.tag == .lit) {
+                            switch (store.lits.items[gn.aux]) {
+                                .boolean => |b| guard_ok = b,
+                                else => {},
+                            }
+                        }
+                        if (!guard_ok) {
+                            for (bound_syms[0..bound_count]) |sym| {
+                                new_env.delete(sym);
+                            }
+                            continue;
+                        }
+                    }
                     // TCO : spine de queue = seules positions légitimes de bounce
                     self.tco_spine_len = 0;
                     collectTailSpine(store, clause.body, name, &self.tco_spine_buf, &self.tco_spine_len);
