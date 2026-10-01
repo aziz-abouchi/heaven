@@ -502,12 +502,9 @@ Effort : 1 jour.
 
 ---
 
-## #fix-arrow — Fix `typeStr`
+## #fix-arrow — Fix `typeStr` ✅ _fait_
 
-`typeStr` imprime `-> -> _t0` au lieu de `_t0 -> _t0`. Bug dans
-`types.zig::typeStr` branche `"->"` (children.len == 2 vs 3).
-
-Effort : 30 min.
+Le bug d'affichage `-> -> _t0` a été corrigé en gérant correctement le cas `children.len == 2` dans `types.zig::typeStr`.
 
 ---
 
