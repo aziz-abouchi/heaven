@@ -31,7 +31,8 @@ pub const UnifyError = error{
 /// rollback partiel — l'appelant doit jeter la subst en cas d'échec).
 
 /// Évaluation arithmétique partielle pour l'unification (v2f).
-/// Réduit les expressions simples comme (add zero x) -> x, ou (add 2 3) -> 5.
+/// Réduit les expressions simples comme (add zero x) -> x, (add 2 3) -> 5,
+/// ou (succ (succ zero)) -> 2.
 fn evalArith(ctx: *const Ctx, id: Id) !Id {
     if (id >= ctx.store.len()) return id;
     const node = ctx.store.get(id);
@@ -60,11 +61,37 @@ fn evalArith(ctx: *const Ctx, id: Id) !Id {
             if (node2.tag == .sym and std.mem.eql(u8, ctx.store.interner.resolve(node2.payload), "zero")) {
                 return arg1;
             }
+            
+            // Addition de littéraux : (add 2 3) -> 5
+            if (node1.tag == .lit and node2.tag == .lit) {
+                const lit1 = ctx.store.get(node1.payload);
+                const lit2 = ctx.store.get(node2.payload);
+                if (lit1.tag == .int and lit2.tag == .int) {
+                    const sum = lit1.payload + lit2.payload;
+                    return try ctx.store.lit(.{ .int = sum });
+                }
+            }
         }
     }
     
     // Cas : (succ n) où n est un entier littéral -> n + 1
-    // (À étendre si besoin, pour l'instant on garde simple)
+    if (std.mem.eql(u8, name, "succ")) {
+        if (args.len == 2) { // [sym, arg]
+            const arg = args[1];
+            const arg_node = ctx.store.get(arg);
+            if (arg_node.tag == .lit) {
+                const lit = ctx.store.get(arg_node.payload);
+                if (lit.tag == .int) {
+                    const result = lit.payload + 1;
+                    return try ctx.store.lit(.{ .int = result });
+                }
+            }
+            // Cas : (succ zero) -> 1
+            if (arg_node.tag == .sym and std.mem.eql(u8, ctx.store.interner.resolve(arg_node.payload), "zero")) {
+                return try ctx.store.lit(.{ .int = 1 });
+            }
+        }
+    }
     
     return id; // Pas de réduction possible, on retourne l'ID tel quel
 }
@@ -238,5 +265,46 @@ test "unification modulo arithmetique - zero identity" {
     
     // Unifier avec : x
     const result = try unify(&ctx, add_x_zero, x, &subst);
+    try std.testing.expect(result);
+}
+
+test "unification modulo arithmetique - addition de litteraux" {
+    const allocator = std.testing.allocator;
+    var store = try Store.init(allocator);
+    defer store.deinit();
+    
+    const ctx = Ctx{ .store = &store, .allocator = allocator };
+    var subst = Subst{};
+    defer subst.deinit(allocator);
+    
+    // Créer : add 2 3
+    const two = try store.lit(.{ .int = 2 });
+    const three = try store.lit(.{ .int = 3 });
+    const add_sym = try store.sym("add");
+    const add_2_3 = try store.apply(add_sym, &.{ two, three });
+    
+    // Unifier avec : 5
+    const five = try store.lit(.{ .int = 5 });
+    const result = try unify(&ctx, add_2_3, five, &subst);
+    try std.testing.expect(result);
+}
+
+test "unification modulo arithmetique - succ de zero" {
+    const allocator = std.testing.allocator;
+    var store = try Store.init(allocator);
+    defer store.deinit();
+    
+    const ctx = Ctx{ .store = &store, .allocator = allocator };
+    var subst = Subst{};
+    defer subst.deinit(allocator);
+    
+    // Créer : succ zero
+    const zero = try store.sym("zero");
+    const succ_sym = try store.sym("succ");
+    const succ_zero = try store.apply(succ_sym, &.{ zero });
+    
+    // Unifier avec : 1
+    const one = try store.lit(.{ .int = 1 });
+    const result = try unify(&ctx, succ_zero, one, &subst);
     try std.testing.expect(result);
 }
