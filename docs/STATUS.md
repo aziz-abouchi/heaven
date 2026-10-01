@@ -240,7 +240,8 @@ n'est reliée a `Expr` que par des lowerings explicites.
 | Bench interprète | ✅ | `bench-interp <src> [N] [--loop M]` | in-process, pas de spawn |
 | Bench QBE | ✅ | `bench-qbe` ; wall/cpu/energy/temp/RSS | RAPL root-only par défaut (CVE-2020-8694) |
 | Bench WASM | ✅ | `bench-wasm` ; idem | bootstrap wasmtime ~5 ms amorti via `--loop` |
-| Profiler plateforme | ✅ | `platform/profiler_*.zig` ; `getChildrenUsage`, `readEnergyUj`, `readTempMc` | Linux : RAPL + thermal_zone. macOS/Windows : stubs |
+| Profiler plateforme | ✅ | `platform/profiler_*.zig` ; `getChildrenUsage`, `readEnergyUj`, `readTempMc` | Linux : RAPL + thermal_zone ; macOS/Windows : stubs |
+| RAPL sans sudo | ✅ | `scripts/setup-rapl.sh` (Guix / NixOS / generique) | CVE-2020-8694 : lecture restreinte au root par defaut |
 
 Métriques mesurées : wall, cpu (RUSAGE_CHILDREN pour bench,
 RUSAGE_SELF pour interp), energy (RAPL package), temperature

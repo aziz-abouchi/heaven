@@ -122,6 +122,11 @@ où le temps CPU passé dans les effets est mesuré. On l'active avec :
     heaven> green (handle (perform "Log" 42) logHandler)
     142 (green calls: 1, cpu: 324000ns, wall: 326247ns, energy: 0.000J)
 
+Note : `energy: 0.000J` signifie que la lecture d'energie RAPL a
+echoue (permission refusee). Pour l'activer, voir
+`scripts/setup-rapl.sh` qui installe la regle udev adaptee a votre
+plateforme (Guix System, NixOS ou distro classique).
+
 Le résultat est le même (`142`), mais on a en plus le nombre d'appels
 et les métriques. Utile pour optimiser sans changer le code.
 

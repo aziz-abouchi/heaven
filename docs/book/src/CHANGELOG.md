@@ -20,6 +20,20 @@ antéchronologique.
 
 ## 2026-10-01
 
+### Fix RAPL persistant (scripts/setup-rapl.sh)
+
+- Nouveau script `scripts/setup-rapl.sh` qui detecte la plateforme
+  et propose la bonne methode pour rendre lisible
+  `/sys/class/powercap/intel-rapl/*/energy_uj` sans sudo (depuis la
+  CVE-2020-8694, le kernel restreint la lecture au root).
+- Guix System : snippet `/etc/config.scm` a coller, puis
+  `guix system reconfigure`.
+- NixOS : snippet `configuration.nix`, puis `nixos-rebuild switch`.
+- Distro classique (lance en root) : installe
+  `/etc/udev/rules.d/99-rapl-readable.rules`.
+- `docs/spec/_bench.md` : la section RAPL renvoie vers le script.
+- Resout la piste #4 du PROMPT_CONTINUITE.
+
 ### Knowledge / RDF / RDFS - POC
 
 - Ajout de `src/knowledge/` : ressources URI/blank/literal, triples,
