@@ -277,7 +277,7 @@ Résultats de référence (`docs/spec/_bench.md`) :
 
 Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
 
-8. **Spec formelle du langage** (pour LLMs) — `docs/spec/heaven.md`.
+8. ~~**Spec formelle du langage** (pour LLMs) — `docs/spec/heaven.md`.~~ [OK] (2026-10-01)
    EBNF + sémantique des formes acceptées + erreurs canoniques.
    Descriptif d'abord (WYSIWYG), section « écarts connus ».
    5-7 sessions. Format : 1 fichier agrégé + `grammar.ebnf`
