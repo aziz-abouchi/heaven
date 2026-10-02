@@ -120,3 +120,22 @@ branchement réel reste à faire (3a-3-complet).
 Décision : le scheduler (`_concurrency.md` Prototype 2 « vrai »)
 ne peut pas être construit sur `evalWithBudget` seul. Il exige le
 branchement de `captureCont` dans le tree-walker.
+
+## Note 3a-3 (2026-10-02) — evalWithRetry, borne du modèle redémarrable
+
+Ajout de `Engine.evalWithRetry(id, initial_budget, max_budget)` dans
+`engine_expr.zig` : boucle qui relance `evalWithBudget` avec un
+budget doublé jusqu'à `done` ou épuisement du max. Retourne l'`Id`
+du résultat ou `null`.
+
+Ce n'est **pas** 3a-3. C'est le premier consommateur réel du
+safepoint, qui borne son domaine :
+
+- **Utilisable** : timeout, budget explicite, calcul pur redémarrable.
+- **Inutilisable** : scheduling, `handle-rec`, tout ce qui produit
+  des effets. Le redémarrage rejoue les effets.
+
+Ceci confirme la note du 2026-09-30 : le vrai 3a-3 exige le
+branchement de `captureCont` dans `evaluate`, avec restructuration
+des corps de handler en unités réévaluables. Effort 2-3 sessions
+(voir D8 dans `docs/DECISIONS.md`, révisée le 2026-10-02).

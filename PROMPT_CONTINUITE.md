@@ -90,22 +90,18 @@ liberait des slices qui appartenaient a l'arena de
 `UniversalIngestor`. Fix : retirer les 7 free Forge de
 `matrix.deinit()`.
 
-## Leaks residuels (non resolus)
+## Leaks residuels (RESOLUS 2026-10-02)
 
-Deux leaks preexistants, non urgents, visibles dans le rapport
-debug.
+Les deux leaks L1 (proofs.zig:222) et L2 (interactive.zig:146)
+identifies le 2026-10-01 sont **resolus** :
 
-### L1 - proofs.zig:222 (evalTheorem)
+- Verification : `theorem t : x + 0 = x` + `prove t by simplify`
+  + `abort` + EOF dans preuve : 0 leak (HEAVEN_DEBUG=1).
+- `zig build test` : aucun leak.
 
-`cmds.allocator.dupe(u8, msg)` cree une string retournee a
-l'appelant (`commands.zig:580` -> `heaven_expr.zig:2353`), qui ne
-la libere jamais. Se declenche a chaque `theorem t : ...`.
-
-### L2 - interactive.zig:146 (readLine dans runProofInteractive)
-
-La `tactic_line` n'est pas liberee sur les chemins `abort` ou
-`EOF`. Fix trivial mais a verifier que `applyLine` ne retient pas
-`trimmed`.
+Ils ont ete corriges par les refactors des sessions 2026-10-01 et
+2026-10-02 (PROMPT restructure, run.zig defer free, etc.). Aucune
+action residuelle.
 
 ## Debug print bruyant
 
