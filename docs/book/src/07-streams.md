@@ -73,6 +73,29 @@ Mais avec `>>>`, on écrit :
 `pipeline` est une fonction. Elle prend un stream, en garde 2, puis
 incrémente. Chaque etape est independante. C'est le principe des pipelines.
 
+## Les compréhensions
+
+Une transformation + un filtre en une seule forme -- la
+compréhension :
+
+    (for (x <- xs) (* x 2))
+    (for (x <- xs) (when big) x)
+
+La première double chaque élément. La seconde ne garde que les
+éléments où `big` est vrai. C'est exactement :
+
+    (map (λx. (* x 2)) xs)
+    (map (λx. x) (filter (λx. (big x)) xs))
+
+Le `when` filtre AVANT l'expression (conception ROADMAP :
+filter puis map). La forme est du sucre : le désucrage vers
+`map`/`filter` se fait avant l'évaluation -- le pipeline
+standard s'applique, composition `>>>` comprise.
+
+Plusieurs `when` et la forme carrée `[e | x <- xs, p]` : phase B
+(tranchages ROADMAP). Les générateurs multiples (produit
+croisé) : phase C avec le Stream paresseux.
+
 ## Le pipeline complet
 
 Voici un exemple réaliste, inspiré d'un traitement de logs :

@@ -161,6 +161,15 @@ Une clause peut avoir plusieurs gardes :
                 | x == 0 = "nul"
                 | x > 0 = "positif"
 
+## Compréhensions
+
+    (for (x <- xs) E)              -- map
+    (for (x <- xs) (when P) E)      -- filter puis map
+
+Désucrage : `(map (λx. E) xs)` et
+`(map (λx. E) (filter (λx. (P x)) xs))`. Grammaire : `ForExpr`
+(GRAMMAR.md). La forme carrée `[E | x <- xs, P]` est en phase B.
+
 ## Assertions et tests
 
     assert_eq expr == expr
