@@ -334,6 +334,29 @@ pub const Math = struct {
                     }
                 }
 
+                // Règle fondamentale : (add (succ x) y) -> (succ (add x y))
+                if ((std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "add")) and args.len == 2) {
+                    const arg0_node = self.store.get(new_args[0]);
+                    if (arg0_node.tag == .apply) {
+                        const succ_node = self.store.get(arg0_node.payload);
+                        if (succ_node.tag == .sym) {
+                            const succ_name = self.store.interner.resolve(succ_node.payload);
+                            if (std.mem.eql(u8, succ_name, "succ") or std.mem.eql(u8, succ_name, "inc")) {
+                                const inner_args = self.store.spanSliceConst(arg0_node.span_a);
+                                if (inner_args.len >= 2) {
+                                    changed.* = true;
+                                    // Créer (add x y) où x est inner_args[1] et y est new_args[1]
+                                    const add_sym = try self.store.sym("add");
+                                    const inner_add = try self.store.apply(add_sym, &.{inner_args[1], new_args[1]});
+                                    // Retourner (succ (add x y))
+                                    // arg0_node.payload est DÉJÀ l'Id du nœud symbole "succ", on l'utilise directement !
+                                    return try self.store.apply(arg0_node.payload, &.{inner_add});
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Règle : (+ x 0) -> x et (+ 0 x) -> x (gère "+" et "add", ainsi que le symbole "zero")
                 if ((std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "add")) and args.len == 2) {
                     const node0 = self.store.get(new_args[0]);
@@ -349,6 +372,8 @@ pub const Math = struct {
                         changed.* = true;
                         return new_args[0];
                     }
+
+
 
                     // Règle : (+ x x) → (* 2 x)
                     if (self.structuralEq(new_args[0], new_args[1])) {

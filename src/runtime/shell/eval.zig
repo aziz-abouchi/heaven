@@ -52,6 +52,7 @@ pub fn evalHeavenCode(self: *Shell, code: []const u8) void {
         self.ingestor.ingest("repl.hvn", trimmed) catch {};
         return;
     };
+    defer self.allocator.free(result); // <-- FIX MEMORY LEAK
     platform.debug.print("{s}\n", .{result});
 }
 
