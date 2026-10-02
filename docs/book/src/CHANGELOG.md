@@ -2,6 +2,17 @@
 
 ## 2026-10-02
 
+### TCO mutuelle etendue - SCC 3+
+
+- `fuseTailSCCs` generalise `fuseTailPairs` : tout SCC (2+ fonctions
+  mutuellement recursives en tail) devient une fonction `$scc_N` avec
+  tag dispatch a N branches. `findTailSCCs` utilise une fermeture
+  transitive (Floyd-Warshall booleen).
+- `f 1000000 = 200` sur un cycle `f -> g -> h -> f` (QBE + WASM).
+- Non couvert : SCC avec arites differentes, trampolines generaux.
+- Non-regression : 2-cycle (`isEven 100000000 = 1`), `fib`, `count_down`,
+  `arith`.
+
 ### TCO mutuelle (QBE + WASM)
 
 - WASM : `return_call` natif (proposal tail-call, wasmtime 49).

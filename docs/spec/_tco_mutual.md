@@ -1,8 +1,10 @@
 # TCO etendue : recursion mutuelle
 
 > Statut : **fait** (2026-10-02). WASM : `return_call` natif. QBE :
-> fusion SCC au niveau MIR (`e6a31ff`). `isEven 100000000 = 1` sur
-> les deux backends, non-regression fib/count_down/arith OK.
+> fusion SCC au niveau MIR — paires (`e6a31ff`) puis SCC 3+
+> (`8fcfa20`). `isEven 100000000 = 1` (2-cycle) et `f 1000000 = 200`
+> (3-cycle) sur les deux backends, non-regression fib/count_down/arith
+> OK.
 
 ## Approche retenue par backend
 
@@ -30,17 +32,17 @@ QBE 1.2 **n'accepte pas** `ret %r =l call $f(...)` — erreur de
 syntaxe "newline expected". Le language QBE ne fait pas de TCO.
 
 Solution : fusion SCC **au niveau MIR** (pas dans le backend).
-- `findTailPairs` : detecte les paires (a, b) mutuellement
-  recursives en tail. Implemente, limite aux SCC de taille 2.
-- `fuseTailPairs` : pour chaque paire, cree une fonction `$scc_N`
-  avec tag dispatch (bloc 0 : `branch tag == 0`), copie les blocs
-  de a et b avec decalage reg/block (`copyBlocksForFusion`), et
-  reecrit les `call_user` intra-SCC en `call_user $scc_N` avec un
-  tag constant.
+- `findTailPairs` / `findTailSCCs` : detectent les SCC (paires via
+  pairs, taille arbitraire via SCCs).
+- `fuseTailPairs` / `fuseTailSCCs` : pour chaque SCC, cree une
+  fonction `$scc_N` avec tag dispatch. La variante N-ary utilise
+  un dispatch a N branches (bloc 0 : check tag==0, bloc 1 : check
+  tag==1, ..., bloc N-2 : fallback). Chaque membre occupe une region
+  contigue de blocs et regs, decalee (`copyBlocksForFusionN`).
 - `wrapWithSccCall` : remplace le corps des fonctions originales
   par un wrapper qui appelle `$scc_N` avec le bon tag.
-- Limite : SCC de taille 2 uniquement. Cycles de taille 3+ et
-  graphes a plusieurs paires ne sont pas geres.
+- Couvre SCC de taille 2 et 3+. Verifie : `isEven 100000000 = 1`
+  (2-cycle), `f 1000000 = 200` (3-cycle f -> g -> h -> f).
 
 Avantage : une seule implementation pour les deux backends. WASM
 continue a beneficier de `return_call` en bonus pour les tail-calls
@@ -93,9 +95,9 @@ nouvelle frame native. A 1 000 000 de tours, la pile deborde.
 
 ### Ce qui n'est pas couvert
 
-- Recursion mutuelle : `f` et `g` s'appellent en tail, directement.
-- Cycles plus longs (3+ fonctions).
-- Trampolines generaux (n'importe quel tail-call inter-fonction).
+- Trampolines generaux (tail-call inter-fonction hors du SCC).
+- Le cas ou des fonctions d'un SCC ont des arites differentes
+  (le code exige `param_regs.len` identiques pour tous les membres).
 
 ## Approche A : SCC simple + tag dispatch
 
