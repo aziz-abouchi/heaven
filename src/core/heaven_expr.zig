@@ -1749,7 +1749,7 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         }
 
         const body = try self.parseExpression(rhs);
-        if (std.mem.indexOf(u8, lhs, "filter") != null)        var guard_id: ?Id = null;
+        var guard_id: ?Id = null;
         if (guard_str) |gs_raw| {
             const gs = std.mem.trim(u8, gs_raw, " \t");
             if (std.mem.eql(u8, gs, "true") or std.mem.eql(u8, gs, "otherwise")) {
