@@ -36,6 +36,77 @@ modifications en cours de cette session.
 Un commit local `3469bc3` (session parallele, eval.zig + math.zig)
 attend d'etre pousse.
 
+## Addendum -- session 2026-10-02 (nuit) -- bug memoire EGraph
+
+### Diagnostic
+
+Crash intermittent dans `verifyByInduction` (2/3 a 4/10 selon les runs),
+DebugAllocator `assert(!gop.found_existing)` (double-mapped pages).
+Detecte tardivement, ne pointe pas la vraie source.
+
+### Isolation (8 tests de neutralisation)
+
+1. Neutraliser `rewriteViaPipeline` complet : **0/10 panic** -> c'est
+   bien dans cette fonction.
+2. Neutraliser `simplifyWithEGraph` seul : **0/10 panic** -> c'est lui.
+3. Neutraliser `saturate` seul : **10/10 panic** (!) -> saturate
+   n'est pas la source, sa neutralisation aggrave.
+4. Neutraliser les `deinit` de l'egraph : ~6/10 -> deinit necessaires
+   mais pas la cause.
+5. Checks d'Id retournes invalides : 0 occurrence.
+6. Checks recursifs sur descendants : 0 occurrence.
+7. Checks OOB dans `EGraph.merge` : 0 occurrence.
+8. Checks de bornes sur `applyBetaReduction` : partiel.
+
+### Cause identifiee (partielle)
+
+Dangling slices de `self.store.pool.items`. Pattern general :
+capturer une slice du pool, puis appeler une fonction qui modifie le
+Store (`sym`, `apply`, `pushSpan`, `addNode`), reallouant le pool.
+
+Fixes appliques (commit ee... a pousser) :
+- `applyBetaReduction` : pool capture en tete remplace par relecture
+  a chaque usage (3 sites).
+- `substitute.apply` et `.lambda` : snapshot des args/body avant
+  recursion.
+
+Fenetre du crash reduite mais **pas fermee** (~13/20 panics sur
+derniers runs). D'autres sites du meme type existent probablement
+dans `egraph.zig`, `pattern.zig`, `rules.zig`.
+
+### Piste pour la prochaine session
+
+**`git bisect` sur `src/core/egraph_rewriter.zig` + `egraph.zig` +
+`simplify_engine.zig`** :
+
+    git log --oneline --since="7 days ago" -- \
+      src/core/egraph_rewriter.zig src/inference/eqsat/egraph.zig \
+      src/core/simplify_engine.zig
+
+Commits recents connus : `9c90969` (perf t_distrib, ajout
+rewriteViaPipeline), `f8e9535` (ordre superieur + comprehension).
+
+Commande de test (rapide) :
+
+    for i in $(seq 1 10); do
+      ./zig-out/bin/heaven --run-test core/test_suite.hvn 2>&1 | grep -c panic
+    done
+
+Si 0 -> commit sain. Si >0 -> commit bugge.
+
+Alternatives si bisect ne trouve pas :
+- Remplacer les slices pool par `spanSliceConst` partout dans
+  `egraph_rewriter.zig` (copie systematique, cout negligeable).
+- Instrumenter le Store pour detecter les reallocations de pool
+  (`pool.capacity` change -> log) et voir si elles coincident avec
+  les lectures dangereuses.
+
+### Gains conserves
+
+- `boolSymLitEq` : 96/97 -> **98/98 tests verts**.
+- Deux lignes fusionnees du meme style que `488d5f2` reparees.
+- Trois fixes de dangling slices.
+
 ## Addendum -- session 2026-10-02 (soir) : points 1-4
 
 Fait ce soir :
