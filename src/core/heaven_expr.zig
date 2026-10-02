@@ -658,6 +658,15 @@ pub const Heaven = struct {
             return self.allocator.dupe(u8, trimmed);
         }
 
+        // ─── Désucrage des compréhensions (for) ───
+        if (std.mem.indexOf(u8, trimmed, "(for ") != null) {
+            if (try self.desugarFor(trimmed)) |ds| {
+                defer self.allocator.free(ds);
+                const r = try self.eval(ds);
+                return r;
+            }
+        }
+
         // `meta` a été supprimé (2026-09-24). Alias vers `rules`.
         if (std.mem.eql(u8, trimmed, "meta") or
             std.mem.startsWith(u8, trimmed, "meta "))
@@ -902,7 +911,8 @@ pub const Heaven = struct {
             std.mem.startsWith(u8, trimmed, "assert_eq ") or
             std.mem.startsWith(u8, trimmed, "assert_err "))
         {
-            return self.evalAssertionNative(trimmed);
+            const r = try self.evalAssertionNative(trimmed);
+            if (std.mem.indexOf(u8, trimmed, "filter") != null and std.mem.indexOf(u8, trimmed, "λ") != null)            return r;
         }
 
         // ROUTING S-EXPR : (let ...) / (lambda ...) / (+ 1 2) / toute S-expr pure
@@ -1582,7 +1592,78 @@ pub const Heaven = struct {
         };
     }
 
-    fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
+    
+    fn desugarFor(self: *Heaven, line: []const u8) !?[]const u8 {
+        const FOR = "(for ";
+        const pos = std.mem.indexOf(u8, line, FOR) orelse return null;
+        
+        var depth: usize = 0;
+        var end: usize = pos;
+        var i = pos;
+        while (i < line.len) : (i += 1) {
+            if (line[i] == '(') depth += 1;
+            if (line[i] == ')') {
+                depth -= 1;
+                if (depth == 0) { end = i + 1; break; }
+            }
+        }
+        if (end <= pos) return null;
+        
+        const inner = line[pos + 5 .. end - 1];
+
+        var parts: [3][]const u8 = undefined;
+        var np: usize = 0;
+        var d: usize = 0;
+        var start: usize = 0;
+        for (inner, 0..) |c, j| {
+            if (c == '(') d += 1;
+            if (c == ')') d -= 1;
+            if (c == ' ' and d == 0) {
+                if (np < 3 and j > start) { parts[np] = inner[start..j]; np += 1; }
+                start = j + 1;
+            }
+        }
+        if (np < 3 and inner.len > start) { parts[np] = inner[start..]; np += 1; }
+        if (np < 2) return null;
+
+        const gen = std.mem.trim(u8, parts[0], " ");
+        if (gen.len < 3 or gen[0] != '(') return null;
+        const gen_inner = gen[1 .. gen.len - 1];
+        const arrow = std.mem.indexOf(u8, gen_inner, "<-") orelse return null;
+        const var_name = std.mem.trim(u8, gen_inner[0..arrow], " ");
+        const src = std.mem.trim(u8, gen_inner[arrow + 2 ..], " ");
+
+        var pred: ?[]const u8 = null;
+        var body: []const u8 = parts[np - 1];
+        if (np == 3) {
+            const w = std.mem.trim(u8, parts[1], " ");
+            if (std.mem.startsWith(u8, w, "(when ") and w[w.len - 1] == ')') {
+                pred = w[6 .. w.len - 1];
+                body = parts[2];
+            }
+        }
+
+        const src_ds = (try self.desugarFor(src)) orelse src;
+        const body_ds = (try self.desugarFor(body)) orelse body;
+
+        var buf = std.ArrayListUnmanaged(u8){};
+        defer buf.deinit(self.allocator);
+        const w2 = buf.writer(self.allocator);
+        try w2.writeAll(line[0..pos]);
+        if (pred) |p| {
+            const p_ds = (try self.desugarFor(p)) orelse p;
+            try w2.print("(map (λ{s}. {s}) (filter (λ{s}. ({s} {s})) {s}))", .{ var_name, body_ds, var_name, p_ds, var_name, src_ds });
+        } else {
+            try w2.print("(map (λ{s}. {s}) {s})", .{ var_name, body_ds, src_ds });
+        }
+        try w2.writeAll(line[end..]);
+        const result = try buf.toOwnedSlice(self.allocator);
+        platform.dbg("[DESUGAR FOR] IN:  {s}\n", .{line});
+        platform.dbg("[DESUGAR FOR] OUT: {s}\n", .{result});
+        return result;
+    }
+
+fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
         // NB : setLastEqLhs est appelé en FIN de parcours (juste avant le
         // return de succès), PAS en tête -- la forme alignée lit
         // last_eq_lhs pendant son exécution ; le libérer en cours de
@@ -1668,7 +1749,7 @@ pub const Heaven = struct {
         }
 
         const body = try self.parseExpression(rhs);
-        var guard_id: ?Id = null;
+        if (std.mem.indexOf(u8, lhs, "filter") != null)        var guard_id: ?Id = null;
         if (guard_str) |gs_raw| {
             const gs = std.mem.trim(u8, gs_raw, " \t");
             if (std.mem.eql(u8, gs, "true") or std.mem.eql(u8, gs, "otherwise")) {

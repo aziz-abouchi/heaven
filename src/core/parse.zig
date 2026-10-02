@@ -113,23 +113,9 @@ pub const Parser = struct {
             if (std.fmt.parseFloat(f64, trimmed)) |v| return self.store.float(v) else |_| {}
         }
 
-        // Syntaxe fun x => expr ou fun x y => expr (ou λ)
-        if (std.mem.startsWith(u8, trimmed, "fun ") or std.mem.startsWith(u8, trimmed, "λ ")) {
-            const keyword_len = if (std.mem.startsWith(u8, trimmed, "fun ")) "fun ".len else "λ ".len;
-            const rest = trimmed[keyword_len..];
-            if (std.mem.indexOf(u8, rest, "=>")) |arrow_pos| {
-                const params_str = std.mem.trim(u8, rest[0..arrow_pos], " \t");
-                const body_str = std.mem.trim(u8, rest[arrow_pos + 2 ..], " \t");
-                var param_ids: std.ArrayListUnmanaged(Id) = .{};
-                defer param_ids.deinit(self.allocator);
-                var it = std.mem.tokenizeScalar(u8, params_str, ' ');
-                while (it.next()) |p| {
-                    if (p.len > 0) try param_ids.append(self.allocator, try self.store.sym(p));
-                }
-                const body_id = try self.parseSExpr(body_str);
-                try param_ids.append(self.allocator, body_id);
-                return self.store.call("λ", param_ids.items);
-            }
+        // Délégation à parseLambda pour gérer correctement λx. body ou \x. body
+        if (std.mem.startsWith(u8, trimmed, "λ") or std.mem.startsWith(u8, trimmed, "\\") or std.mem.startsWith(u8, trimmed, "fun ")) {
+            return self.parseLambda(trimmed);
         }
 
         // Syntaxe let x = expr ou let x := expr
@@ -618,8 +604,8 @@ pub const Parser = struct {
             }
         } else return error.NotALambda;
         if (param_str.len == 0 or body_str.len == 0) return error.NotALambda;
-        const body_id = self.parseLambda(body_str) catch |err| {
-            if (err == error.NotALambda) return self.parseLetExpr(body_str);
+        // Le corps d'une lambda peut être n'importe quelle expression S-Expr
+        const body_id = self.parseSExpr(body_str) catch |err| {
             return err;
         };
         return self.store.lambdaNative(&.{param_str}, body_id);
