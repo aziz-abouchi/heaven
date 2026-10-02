@@ -53,7 +53,21 @@ HVN : ~95/95.
   generique). Rend la lecture d'energy_uj permanente sans sudo.
 
 ### Restant
-1. TCO etendue : recursion mutuelle, trampolines multi-fonctions.
+1. TCO etendue QBE : fusion SCC au niveau MIR.
+   - B1 fait (`19f3bac`) : findTailPairs + fuseTailPairs (stub).
+     Appel depuis qbe_cmd.zig et wasm_cmd.zig.
+   - B2 a faire : remplacer le stub par la vraie fonction fusionnee
+     (tag dispatch, regions par membre, reecriture des tail-calls
+     intra-SCC en jmp intra-bloc).
+   - B3 a faire : remplacer les membres du SCC par des wrappers qui
+     appellent la fonction fusionnee avec le bon tag.
+   - B4 a faire : isEven 10000000 en QBE, non-regression WASM.
+   - WASM a deja sa TCO mutuelle via `return_call` natif (`9309c4c`).
+     La fusion MIR ne concerne que QBE, mais beneficiera a WASM pour
+     les tail-calls hors fn_defs.
+   - Spec : docs/spec/_tco_mutual.md, section 'QBE : fusion SCC'.
+   - Fichiers : src/core/mir.zig (passe), mir_qbe.zig (helpers de
+     detection, deja presents).
 2. wasm32-wasi (A : compilateur en WASI ; B : programmes compiles
    en WASI). Priorite basse. Voir docs/spec/_wasm_targets.md.
 3. Cross-compilation vers d'autres arches / OS (QBE deja multi-cible
