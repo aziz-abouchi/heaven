@@ -575,7 +575,7 @@ pub const Parser = struct {
         var work = std.mem.trim(u8, input, " \t");
         if (work.len == 0) return error.NotALambda;
         const is_backslash = work[0] == '\\';
-        const is_lambda_char = work[0] == 'λ';
+        const is_lambda_char = std.mem.startsWith(u8, work, "λ");
         const arrow_pos = blk: {
             var i: usize = 0;
             while (i < work.len - 1) : (i += 1) {
@@ -586,30 +586,24 @@ pub const Parser = struct {
         var param_str: []const u8 = undefined;
         var body_str: []const u8 = undefined;
         if (is_backslash or is_lambda_char) {
-            const after_prefix = if (is_backslash) work[1..] else work[3..];
+            const after_prefix = if (is_backslash) work[1..] else work[2..]; // 'λ' est 2 octets en UTF-8
             const trimmed_prefix = std.mem.trimLeft(u8, after_prefix, " \t");
-            const delim_pos: usize = 0;
-            var punct_pos: usize = 0;
+            var delim_pos: usize = 0;
             var found = false;
-            for (trimmed_prefix, 0..) |c, i| {
+            for (trimmed_prefix, 0..) |c, idx| {
                 if (found) break;
-                // On cherche le premier '.' ou '=>' qui n'est PAS suivi d'un '\' ou 'λ'
-                if (c == '.' or (c == '=' and i + 1 < trimmed_prefix.len and trimmed_prefix[i + 1] == '>')) {
-                    punct_pos = i;
+                if (c == '.' or (c == '=' and idx + 1 < trimmed_prefix.len and trimmed_prefix[idx + 1] == '>')) {
+                    delim_pos = idx;
                     found = true;
                 } else if (c == ' ' or c == '\t') {
-                    // Si c'est un espace, vérifier que ce n'est pas "\x " ou "λ "
-                    const prev = if (i > 0) trimmed_prefix[i - 1] else 0;
-                    if (prev != '\\' and prev != 'λ') {
-                        punct_pos = i;
-                        found = true;
-                    }
-                } else {
-                    punct_pos = i + 1;
+                    delim_pos = idx;
+                    found = true;
                 }
             }
+            if (!found) delim_pos = trimmed_prefix.len;
+            
             param_str = std.mem.trim(u8, trimmed_prefix[0..delim_pos], " \t");
-            var body_start = punct_pos;
+            var body_start = delim_pos;
             if (body_start < trimmed_prefix.len and (trimmed_prefix[body_start] == '-' or trimmed_prefix[body_start] == '=')) {
                 body_start += 2; // skip -> ou =>
             } else if (body_start < trimmed_prefix.len and trimmed_prefix[body_start] == '.') {
