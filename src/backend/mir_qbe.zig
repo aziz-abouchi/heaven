@@ -58,6 +58,14 @@ pub fn emitQbeLoop(
     var kit = root.fn_defs.keyIterator();
     while (kit.next()) |k| try fn_names.append(allocator, k.*);
 
+    if (std.posix.getenv("HEAVEN_SCC_DUMP") != null) {
+        const pairs = try detectTailPairs(root, allocator);
+        defer allocator.free(pairs);
+        for (pairs) |p| {
+            std.debug.print("[SCC] mutual pair a={d} b={d}\n", .{ p.a, p.b });
+        }
+    }
+
     for (fn_names.items) |sym| {
         const def = root.fn_defs.get(sym).?;
         try w.print("function l $f{d}(", .{sym});
@@ -126,6 +134,59 @@ fn checkBlocks(f: *const MirFunction, defs: *const std.AutoHashMap(u32, FnDef)) 
             }
         }
     }
+}
+
+const TailPair = struct { a: u32, b: u32 };
+
+/// Cherche un tail-call dans `f` vers `target` (self ou autre).
+/// Meme pattern que la TCO : derniere instr = call_user target,
+/// terminator = ret(dest) ou jump vers bloc phi-pur + ret.
+fn hasTailCall(f: *const MirFunction, target: u32) bool {
+    for (f.blocks.items) |*blk| {
+        if (blk.instrs.items.len == 0) continue;
+        const last = blk.instrs.items[blk.instrs.items.len - 1];
+        const c = switch (last) {
+            .call_user => |cc| cc,
+            else => continue,
+        };
+        if (c.name != target) continue;
+        switch (blk.terminator) {
+            .ret => |rv| if (rv == c.dest) return true,
+            .jump => |t| {
+                if (t >= f.blocks.items.len) continue;
+                const tg = &f.blocks.items[t];
+                var only_phi = true;
+                for (tg.instrs.items) |ins| {
+                    if (ins != .phi) { only_phi = false; break; }
+                }
+                if (only_phi and tg.terminator == .ret) return true;
+            },
+            else => {},
+        }
+    }
+    return false;
+}
+
+/// Cherche les paires (a, b) mutuellement recursives en tail.
+/// Pour isEven / isOdd : retourne [{a=even, b=odd}].
+fn detectTailPairs(root: *const MirFunction, alloc: std.mem.Allocator) ![]TailPair {
+    var pairs: std.ArrayListUnmanaged(TailPair) = .{};
+    errdefer pairs.deinit(alloc);
+    var it_a = root.fn_defs.iterator();
+    while (it_a.next()) |entry_a| {
+        const a = entry_a.key_ptr.*;
+        const def_a = entry_a.value_ptr;
+        var it_b = root.fn_defs.iterator();
+        while (it_b.next()) |entry_b| {
+            const b = entry_b.key_ptr.*;
+            if (a >= b) continue;
+            const def_b = entry_b.value_ptr;
+            if (hasTailCall(&def_a.fn_mir, b) and hasTailCall(&def_b.fn_mir, a)) {
+                try pairs.append(alloc, .{ .a = a, .b = b });
+            }
+        }
+    }
+    return pairs.toOwnedSlice(alloc);
 }
 
 fn emitBody(w: anytype, f: *const MirFunction, param_regs: ?[]const Reg, cur_sym: ?u32) !void {
