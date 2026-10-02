@@ -1,9 +1,10 @@
 # Chapitre 9 — Real World
 
-> **État** : ce chapitre décrit la vision cible du chapitre IO.
-> Actuellement, seuls les acteurs et le REPL web fonctionnent.
-> Le sous-système IO (lecture/écriture fichiers, ABI C) est la
-> priorité 1 de la roadmap — voir `docs/STATUS.md`.
+> **État** : le sous-système IO (`readFile`, `writeFile`, `print`,
+> `readLine`) fonctionne via les effets algebriques, avec un handler
+> par defaut. Les acteurs fonctionnent en mode sequentiel (pas de
+> preemption). Le REPL web (Vessel) fonctionne. L'ABI C (`extern fn`)
+> reste en roadmap.
 
 > *« La théorie, c'est quand on sait tout et que rien ne fonctionne.
 > La pratique, c'est quand tout fonctionne et que personne ne sait

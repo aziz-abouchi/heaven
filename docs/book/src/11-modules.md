@@ -92,5 +92,5 @@ Le mode non-strict est le défaut ; `strict off` le désactive.
   sémantique.
 - Pas de rechargement dynamique ni de sélection d'import
   (`{ foo, bar }`).
-- `fn`/`let` ne sont pas encore aliasés sous `M.x` (seul les
-  `theorem` le sont depuis la v0).
+- Alias sous `M.x` supporté pour `fn`, `let` et `theorem`. Les
+  constructeurs et les `data` ne sont pas encore aliasés.

@@ -142,26 +142,17 @@ L'infrastructure est en place :
 
 ### La commande `:hole`
 
-Dans le REPL, `:hole` afficherait le but et le contexte :
+Dans le REPL, `:hole` (liste) et `:refine` (raffinement) sont
+implémentés. Ils s'appuient sur `hole_runtime.zig` : `inferHoleType`
+(deduit le type d'un trou depuis son parent), `describeHole` (but +
+contexte), `refine` (lie un trou a une expression).
 
-    heaven> :hole ? + 3 = 10
+Exemples et syntaxe complète : voir la section « Holes — mise à
+jour » plus bas dans ce chapitre.
 
-Ceci **n'est pas encore implémenté**. La commande existe
-(`cmdHole` dans `commands.zig`) mais affiche seulement l'usage. Une
-vraie implémentation :
-
-1. Résoudrait les équations arithmétiques simples (`? + 3 = 10` → `7`).
-2. Afficherait le but et le contexte pour un trou typé.
-3. Permettrait le raffinement interactif (`?h` → une expression).
-
-    -- vision : non implémenté
-    heaven> :hole ? + 3 = 10
-    ? = 7
-
-    -- vision : non implémenté
-    heaven> f x = ?h
-    ?h : Int
-    -- x : Int
+Limite actuelle : `inferHoleType` ne remonte qu'au parent direct.
+Le raffinement qui resout des equations arithmetiques
+(`? + 3 = 10` -> `7`) n'est pas encore implemente.
 
 ### Pourquoi c'est utile
 
