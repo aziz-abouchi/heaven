@@ -74,6 +74,117 @@ pub const MirFunction = struct {
     fn_defs: std.AutoHashMap(Sym, FnDef),
     values: std.ArrayListUnmanaged(i64),
 
+    /// Cherche un tail-call dans `f` vers `target`. Meme pattern que
+    /// mir_qbe.zig::hasTailCall : derniere instr = call_user, terminator
+    /// ret ou jump vers bloc phi-pur + ret.
+    fn hasTailCallTo(f: *const MirFunction, target: u32) bool {
+        for (f.blocks.items) |*blk| {
+            if (blk.instrs.items.len == 0) continue;
+            const c = switch (blk.instrs.items[blk.instrs.items.len - 1]) {
+                .call_user => |cc| cc,
+                else => continue,
+            };
+            if (c.name != target) continue;
+            switch (blk.terminator) {
+                .ret => |rv| if (rv == c.dest) return true,
+                .jump => |t| {
+                    if (t >= f.blocks.items.len) continue;
+                    const tg = &f.blocks.items[t];
+                    var only_phi = true;
+                    for (tg.instrs.items) |ins| {
+                        if (ins != .phi) { only_phi = false; break; }
+                    }
+                    if (only_phi and tg.terminator == .ret) return true;
+                },
+                else => {},
+            }
+        }
+        return false;
+    }
+
+    /// Detecte les paires mutuellement recursives en tail (SCC de taille 2).
+    /// Retourne les paires [a, b] avec a < b.
+    pub fn findTailPairs(self: *MirFunction, allocator: std.mem.Allocator) ![]const [2]u32 {
+        var pairs: std.ArrayListUnmanaged([2]u32) = .{};
+        errdefer pairs.deinit(allocator);
+
+        var syms: std.ArrayListUnmanaged(u32) = .{};
+        defer syms.deinit(allocator);
+        var it = self.fn_defs.keyIterator();
+        while (it.next()) |k| try syms.append(allocator, k.*);
+
+        for (syms.items, 0..) |a, i| {
+            const def_a = self.fn_defs.get(a) orelse continue;
+            for (syms.items[i + 1 ..]) |b| {
+                const def_b = self.fn_defs.get(b) orelse continue;
+                if (hasTailCallTo(&def_a.fn_mir, b) and hasTailCallTo(&def_b.fn_mir, a)) {
+                    try pairs.append(allocator, .{ a, b });
+                }
+            }
+        }
+        return pairs.toOwnedSlice(allocator);
+    }
+
+    /// Info sur une paire fusionnee par fuseTailPairs.
+    pub const FusedPairInfo = struct {
+        scc_sym: u32,
+        a_sym: u32,
+        b_sym: u32,
+    };
+
+    /// B1 (squelette) : cree une fonction fusionnee par paire detectee.
+    /// Pour l'instant, la fonction fusionnee est un STUB (retourne arg0)
+    /// qui n'est jamais appelee. Aucune modification des fn_defs
+    /// originaux. But : valider que l'ajout dans fn_defs ne casse rien.
+    pub fn fuseTailPairs(self: *MirFunction, allocator: std.mem.Allocator) ![]const FusedPairInfo {
+        const pairs = try self.findTailPairs(allocator);
+        defer allocator.free(pairs);
+
+        if (pairs.len == 0) return allocator.alloc(FusedPairInfo, 0);
+
+        var max_sym: u32 = 0;
+        var it = self.fn_defs.keyIterator();
+        while (it.next()) |k| if (k.* > max_sym) { max_sym = k.*; };
+
+        var infos = try allocator.alloc(FusedPairInfo, pairs.len);
+        errdefer allocator.free(infos);
+
+        for (pairs, 0..) |pair, i| {
+            const scc_sym = max_sym + 1 + @as(u32, @intCast(i));
+            const def_a = self.fn_defs.get(pair[0]) orelse continue;
+            const K = def_a.param_regs.len;
+
+            var fused = MirFunction.init(allocator);
+            errdefer fused.deinit();
+
+            var fused_param_regs = try allocator.alloc(Reg, K + 1);
+            errdefer allocator.free(fused_param_regs);
+            var fused_param_names = try allocator.alloc(Sym, K + 1);
+            errdefer allocator.free(fused_param_names);
+
+            for (0..K) |j| {
+                fused_param_regs[j] = fused.newReg();
+                fused_param_names[j] = def_a.param_names[j];
+            }
+            const tag_reg = fused.newReg();
+            fused_param_regs[K] = tag_reg;
+            fused_param_names[K] = 0;
+
+            _ = try fused.newBlock();
+            fused.blocks.items[0].terminator = .{ .ret = fused_param_regs[0] };
+
+            try self.fn_defs.put(scc_sym, .{
+                .fn_mir = fused,
+                .param_regs = fused_param_regs,
+                .param_names = fused_param_names,
+            });
+
+            infos[i] = .{ .scc_sym = scc_sym, .a_sym = pair[0], .b_sym = pair[1] };
+        }
+
+        return infos;
+    }
+
     pub fn init(allocator: std.mem.Allocator) MirFunction {
         return .{
             .allocator = allocator,
