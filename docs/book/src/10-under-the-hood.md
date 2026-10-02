@@ -302,33 +302,39 @@ lisibles, et testables isolement.
 
 ### Tail Call Optimization
 
-Le point qui a change en octobre 2026 : les **self-tail-calls** sont
-detectes et transformes en boucle. Un self-tail-call est une
-instruction `call_user` qui est la derniere d'un bloc et dont le
-resultat est immediatement retourne (par un `ret` direct, ou via un
-`jump` vers un bloc join pur `phi+ret`).
+Deux formes de TCO sont implementees (octobre 2026) :
 
-Quand le pattern est reconnu, le backend :
-
-1. Emet les instructions normales du bloc (tout sauf le `call_user`).
-2. Copie les arguments dans des registres temporaires.
-3. Copie ces temporaires dans les registres des parametres.
-4. Saute au bloc d'entree `@b0` (QBE) ou repositionne `$cur = 0`
-   (WASM).
+**Self-tail-calls** — une fonction qui s'appelle elle-meme en
+position terminale. Detectes dans les deux backends, transformes en
+boucle. Le pattern : `call_user` en derniere instruction d'un bloc,
+suivi d'un `ret` direct ou d'un `jump` vers un bloc join pur
+(`phi + ret`). Le backend emet alors : instructions normales, copie
+des args vers temporaires, copie des temporaires vers les registres
+de parametres, saut au bloc d'entree.
 
 En QBE, qui est en SSA strict, le bloc d'entree porte des **phi
-nodes** pour chaque parametre, qui recoivent leur valeur soit de
-`@entry` (les arguments ABI), soit des blocs TCO. En WASM, les
-locals sont mutables, donc un simple `local.set` suffit.
+nodes** pour chaque parametre (valeur prise de `@entry` ou d'un bloc
+TCO). En WASM, les locals sont mutables, un simple `local.set`
+suffit.
 
-Consequence directe : `count_down 10000000` (10 millions de
-recursions) compile et tourne sur les deux backends. Et sur WASM, le
-flag `-W max-wasm-stack=67108864` n'est plus necessaire — la pile
-reste petite, la boucle tourne.
+**Recursion mutuelle** — deux fonctions qui s'appellent l'une
+l'autre en position terminale (`isEven`/`isOdd`). Chaque backend a
+sa strategie :
 
-La TCO couvre uniquement les self-tail-calls. La recursion mutuelle,
-les appels non-tail et les trampolines multi-fonctions restent a
-faire.
+- **WASM** : instruction native `return_call` (proposal tail-call,
+  supportee par wasmtime 49). Aucune transformation, le moteur fait
+  le travail.
+- **QBE** : QBE 1.2 ne connait pas les tail-calls. La solution est
+  une **fusion SCC au niveau MIR** : les deux fonctions deviennent
+  une seule fonction avec un tag de dispatch, les appels internes
+  deviennent des sauts. Le backend ne voit qu'une fonction normale.
+
+Consequence : `count_down 10000000` et `isEven 100000000` compilent
+et tournent sans exploser la pile. Sur WASM, le flag
+`-W max-wasm-stack=67108864` n'est plus necessaire.
+
+**Non couvert** : cycles de trois fonctions ou plus, trampolines
+generaux (tail-calls hors du groupe fusionne).
 
 ## La philosophie
 
@@ -349,14 +355,15 @@ Trois principes structurent Heaven :
 
 Heaven est un projet jeune. Il manque :
 
-- **L'optimisation d'appel terminal** (récursion efficace).
-- **La paresse** sur les streams.
-- **Les types quotients** dans le noyau.
-- **Un scheduler** pour les acteurs.
+- **La paresse** sur les streams (evaluation stricte aujourd'hui).
+- **Les types quotients** dans le noyau CIC.
+- **Un scheduler** preemptif pour les acteurs (sequentiel aujourd'hui).
 - **Une bibliothèque standard** plus riche.
-- **L'unification vraie des indexes** (`Vec (n + m)`, v2f).
+- **Des cycles SCC de 3+ fonctions** pour la TCO mutuelle (QBE).
+- **L'unification d'indexes dependants au-dela de v2f** (`Vec (n + m)`
+  modulo arithmetique complete).
 
-Chaque point est identifié. La structure est prête. C'est une question
+Chaque point est identifie. La structure est prete. C'est une question
 de temps et de contributions.
 
 ## Le mot de la fin

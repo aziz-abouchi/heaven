@@ -186,21 +186,18 @@ prouvé — dans les limites de son kernel, qu'on verra au chapitre 8.
 ### Les holes — demander de l'aide
 
 Un **trou** n'est pas un `TODO` ni un `undefined`. C'est une **demande
-d'assistance au système**. Tu écris :
+d'assistance au système**. Depuis septembre 2026 la syntaxe unifiee
+est `_` (comme Idris et Agda). Tu ecris :
 
-    f x = ? + 1
+    f x = _ + 1
 
-et le système te répond avec le **but** (ce qu'il attend) et le
-**contexte** (ce qui est en portée). Tu raffines progressivement,
-jusqu'à ce qu'il ne reste plus de `?`.
+et le systeme te repond avec le **but** (le type attendu) et le
+**contexte** (les variables en portee). Tu raffines avec `:hole` puis
+`:refine <id> <expr>` jusqu'a ce qu'il ne reste plus de `_`.
 
-C'est le **type-driven development**, popularisé par Idris et Agda.
-On en reparle en détail au chapitre 8.
-
-    -- vision : non implémenté
-    heaven> f x = ? + 1
-    ? : Int
-    -- x : Int
+C'est le **type-driven development**, popularise par Idris et Agda.
+On en reparle en detail au chapitre 8, avec les commandes
+`:hole` et `:refine` (implementees).
 
 ## Où aller ensuite
 

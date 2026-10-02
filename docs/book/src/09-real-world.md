@@ -89,12 +89,16 @@ agréable pour le code concurrent.
 
 ## Concurrence et parallélisme
 
-Heaven n'a pas encore de vrai parallélisme (pas de threads user-space
-avec préemption). Les acteurs sont séquentiels. Mais le modèle est
-prêt : le jour où on ajoute un scheduler, les acteurs existants
-tourneront en parallèle sans changement.
+Heaven n'a pas encore de vrai parallelisme au niveau acteurs : ils
+sont sequentiels, un message a la fois. Le modele est pret
+cependant. Une decision de conception (C3, docs/spec/_concurrency.md)
+a tranche pour un scheduler cooperatif a safepoints, avec des
+budgets de reduction par acteur. L'implementation attend le
+branchement des continuations delimitees (voir la decision D8 dans
+docs/DECISIONS.md - `continuation.zig` existe mais n'est pas encore
+cable dans engine_expr.zig).
 
-En attendant, on peut utiliser `perform` pour simuler des tâches
+En attendant, on peut utiliser `perform` pour simuler des taches
 longues et les ordonnancer manuellement.
 
 ## Appeler du code C
