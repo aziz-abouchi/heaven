@@ -153,8 +153,7 @@ Dans le monde réel, on assemble beaucoup de transformations :
 incrémente, puis double. Chaque étape est indépendante. On peut
 réordonner, tester, remplacer.
 
-C'est exactement le style d'astra-core, un DSL de pipelines qu'on
-verra en détail au chapitre 7.
+C'est la base des pipelines qu'on verra en detail au chapitre 7.
 
 ## La curryfication
 

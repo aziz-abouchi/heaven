@@ -4,9 +4,8 @@
 
 Un `Stream`, c'est une liste paresseuse. Elle peut être infinie, ou
 très longue, ou simplement inconnue à l'avance. On la décrit au fur et
-à mesure qu'on la consomme. C'est le modèle qui sous-tend les pipelines
-de traitement, les flux de données, et — dans notre cas — le DSL
-d'astra-core.
+à mesure qu'on la consomme. C'est le modele qui sous-tend les pipelines de
+traitement et les flux de donnees.
 
 ## La structure
 
@@ -72,8 +71,7 @@ Mais avec `>>>`, on écrit :
     (Cons 2 (Cons 3 End))
 
 `pipeline` est une fonction. Elle prend un stream, en garde 2, puis
-incrémente. Chaque étape est indépendante. C'est exactement le style
-d'astra-core.
+incrémente. Chaque etape est independante. C'est le principe des pipelines.
 
 ## Le pipeline complet
 
@@ -139,19 +137,18 @@ En pratique, `Stream` est ce qu'on utilise pour tout ce qui vient
 d'ailleurs : fichiers, réseau, capteurs, événements. Une `List` est
 ce qu'on utilise pour des données qu'on contrôle entièrement.
 
-## Le lien avec astra-core
+## Les pipelines en pratique
 
-astra-core est un DSL qui décrit des pipelines de traitement. Sa
-syntaxe :
+Voici la syntaxe complete d'un pipeline de traitement :
 
     logPipeline = filter isCritical >>> map toAlert >>> window 100 >>> tap notify
 
-Chaque étape est une fonction. Le `>>>` les compose. Le résultat est
+Chaque etape est une fonction. Le `>>>` les compose. Le resultat est
 une fonction qui prend un stream et rend un stream.
 
-C'est exactement ce qu'on vient de voir. Heaven implémente déjà
-`filter`, `map`, `>>>`. Le jour où on ajoute `window` et `tap` avec
-effets, on aura un astra-core complet, dans le langage lui-même.
+Heaven implemente deja `filter`, `map`, `>>>`. Le jour ou `window`
+et `tap` (avec effets) seront ajoutes, on aura un pipeline de
+traitement complet dans le langage lui-meme.
 
 ## Récapitulatif
 

@@ -169,8 +169,8 @@ Une liste paresseuse, avec une syntaxe légère pour la composer :
     heaven> map (inc >>> dbl) (Cons 1 (Cons 2 End))
     (Cons 4 (Cons 6 End))
 
-Le `>>>` compose deux fonctions. C'est le style d'astra-core, un DSL
-de pipelines qu'on verra au chapitre 7.
+Le `>>>` compose deux fonctions. C'est la base des pipelines
+de traitement qu'on verra au chapitre 7.
 
 ### Les théorèmes
 
