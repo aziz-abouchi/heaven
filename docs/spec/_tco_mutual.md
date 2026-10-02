@@ -1,9 +1,61 @@
 # TCO etendue : recursion mutuelle
 
-> Statut : **spec** (2026-10-01). L'implementation dans `mir_qbe.zig` et
-> `mir_wat.zig` reste a faire. La TCO self-tail-call (une fonction qui
-> s'appelle elle-meme en position terminale) est faite et fonctionne
-> (`045a59b`). Ce document traite le cas suivant.
+> Statut : **partiellement fait** (2026-10-02). WASM : `return_call`
+> natif, valide sur `isEven 100000000`. QBE : pas de tail-call natif
+> dans la version 1.2, la fusion SCC reste a implementer.
+
+## Approche retenue par backend
+
+### WASM : `return_call` natif (FAIT)
+
+wasmtime 49 supporte le proposal `tail-call`, expose en WAT via
+`return_call`. La transformation est triviale :
+
+    (call $f (local.get $r0))    ; non-tail
+    ;; devient
+    (return_call $f (local.get $r0))    ; tail
+
+Avantages : aucune fusion de fonctions, aucun tag, aucune
+construction de SCC. Marche pour self ET mutual recursion
+indifferemment.
+
+Verifie sur :
+- `isEven 1000000` -> 1
+- `isEven 100000000` -> 1 (100M iterations, pas de trap)
+- non-regression : `count_down 100000` -> 100000, `fib 25` -> 75025
+
+### QBE : fusion SCC (A FAIRE)
+
+QBE 1.2 **n'accepte pas** `ret %r =l call $f(...)` — erreur de
+syntaxe "newline expected". Le language QBE ne fait pas de TCO.
+
+Solution : fusion SCC **au niveau MIR** (pas dans le backend).
+- `buildTailCallGraph` : aretes tail `f -> g` (meme pattern que la
+  TCO self-tail actuelle).
+- `findSCCs` : Tarjan sur les symbols u32.
+- `fuseSCC` : pour chaque SCC de taille > 1, creer une fonction
+  fusionnee avec tag dispatch, remplacer les membres par des
+  wrappers.
+- Les backends (QBE et WASM) voient une fonction normale et
+  l'emettent sans changement.
+
+Avantage : une seule implementation pour les deux backends. WASM
+continue a beneficier de `return_call` en bonus pour les tail-calls
+hors SCC.
+
+Le plan detaille ci-dessous (approche A) reste valide pour QBE.
+
+## Etat historique (approches analysees)
+
+Le document ci-dessous presente les trois approches possibles :
+
+1. SCC simple + tag dispatch (retenue pour QBE)
+2. SCC general (extension naturelle)
+3. Trampoline general (non retenu)
+
+---
+
+## Le probleme
 
 ## Le probleme
 
