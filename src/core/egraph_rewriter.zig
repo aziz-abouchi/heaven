@@ -227,7 +227,11 @@ pub const Rewriter = struct {
     fn applyBetaReduction(self: *Rewriter, class: ClassId) !?ClassId {
         //platform.dbg("[applyBetaReduction] class {d}\n", .{class});
         const eclass = &self.egraph.classes.items[class];
-        const pool = self.store.pool.items;
+        // NE PAS capturer `self.store.pool.items` ici : la fonction
+        // modifie le Store (sym, apply, pushSpan via substitute), ce
+        // qui peut réallouer le pool. Toute slice capturée avant
+        // devient dangling -> lecture de mémoire libérée.
+        // On relit `self.store.pool.items` à chaque usage.
         for (eclass.nodes.items) |node_id| {
             // --- NOUVEAU : Ne pas réduire deux fois le même nœud ---
             if (self.beta_reduced.contains(node_id)) continue;
@@ -247,13 +251,13 @@ pub const Rewriter = struct {
                     // ----------------------------------------------------------------
 
                     const param_sym = func_node.payload;
-                    const body_slice = func_node.span_a.slice(pool);
+                    const body_slice = func_node.span_a.slice(self.store.pool.items);
                     if (body_slice.len == 0) {
                         //platform.dbg("[applyBetaReduction] body empty\n", .{});
                         continue;
                     }
                     const body = body_slice[0];
-                    const args = node.span_a.slice(pool);
+                    const args = node.span_a.slice(self.store.pool.items);
                     if (args.len < 2) {
                         //platform.dbg("[applyBetaReduction] args len < 2\n", .{});
                         continue;
@@ -270,7 +274,7 @@ pub const Rewriter = struct {
                         if (body_func.tag == .sym) {
                             const op_name = self.store.interner.resolve(body_func.payload);
                             if (std.mem.eql(u8, op_name, "+") or std.mem.eql(u8, op_name, "*")) {
-                                const args_body = body_node.span_a.slice(pool);
+                                const args_body = body_node.span_a.slice(self.store.pool.items);
                                 if (args_body.len == 2) {
                                     const a = args_body[0];
                                     const b = args_body[1];
@@ -333,7 +337,12 @@ pub const Rewriter = struct {
             .lit => return id,
             .apply => {
                 const new_func = try self.substitute(node.payload, subst);
-                const old_args = node.span_a.slice(self.store.pool.items);
+                // SNAPSHOT : copier les args AVANT les appels recursifs.
+                // Chaque recursion peut faire grossir self.store.pool,
+                // ce qui invalide toute slice capturée avant.
+                const old_args_slice = node.span_a.slice(self.store.pool.items);
+                const old_args = try self.allocator.dupe(Id, old_args_slice);
+                defer self.allocator.free(old_args);
                 var new_args = std.ArrayListUnmanaged(Id){};
                 defer new_args.deinit(self.allocator);
                 for (old_args) |arg| {
@@ -351,7 +360,10 @@ pub const Rewriter = struct {
                         try new_subst.put(entry.key_ptr.*, entry.value_ptr.*);
                     }
                 }
-                const old_body = node.span_a.slice(self.store.pool.items);
+                // SNAPSHOT idem : copier avant recursion.
+                const old_body_slice = node.span_a.slice(self.store.pool.items);
+                const old_body = try self.allocator.dupe(Id, old_body_slice);
+                defer self.allocator.free(old_body);
                 var new_body = std.ArrayListUnmanaged(Id){};
                 defer new_body.deinit(self.allocator);
                 for (old_body) |child| {
