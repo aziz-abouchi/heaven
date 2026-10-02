@@ -2,6 +2,22 @@
 
 ## 2026-10-02
 
+### TCO mutuelle (QBE + WASM)
+
+- WASM : `return_call` natif (proposal tail-call, wasmtime 49).
+  `isEven 100000000 = 1` sur WASM, sans flag de pile.
+- QBE : QBE 1.2 n'a pas de tail-call natif ; la recursion mutuelle
+  est traitee par fusion SCC au niveau MIR. Une paire mutuellement
+  recursive (a, b) devient une fonction `$scc_N` avec tag dispatch,
+  les appels intra-SCC deviennent des appels a `$scc_N` avec tag
+  constant. `isEven 100000000 = 1` sur QBE.
+- Detection : `MirFunction.findTailPairs()`, dump debug via
+  `HEAVEN_SCC_DUMP=1`.
+- Non couvert : cycles de 3+ fonctions, trampolines generaux.
+- Spec : `docs/spec/_tco_mutual.md`.
+- Non-regression : `fib 25 = 75025`, `count_down 100000 = 100000`,
+  `arith = 333338333350000` sur QBE et WASM.
+
 ### rewriteViaPipeline : convergence structurelle (a0a8485)
 
 La détection de point fixe comparait les Ids -- or le pipeline

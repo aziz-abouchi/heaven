@@ -1,6 +1,6 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-09-30
+Dernière mise à jour : 2026-10-02
 
 Ce document est la **source de vérité** sur ce qui marche. Toute
 affirmation du book ou du README doit pointer vers une ligne de ce
@@ -12,6 +12,14 @@ Légende :
 - ⚠️ **partiel** — implémenté, limitations connues
 - 🚧 **roadmap** — non implémenté, spec existe (voir `ROADMAP.md`)
 - ❌ **absent** — non implémenté, aucune spec
+
+---
+
+## Progrès récents
+
+- **2026-10-02** : Unification arithmétique v2f complète (AC, succ, mul, identités, symbole `zero`) et testée sur types dépendants (`Vec (n+m)`). Commande REPL `:norm` opérationnelle.
+- **2026-10-01** : Nettoyage massif du pipeline logique (~1500 lignes supprimées : term_bridge, typeo, evalo, legacy/).
+- **2026-10-01** : Stabilisation du build WASM (475 Ko en ReleaseSmall) et création du stub wasm32_wasi.zig.
 
 ---
 
@@ -46,7 +54,7 @@ Légende :
 | Arrow `a -> b` interne | ✅ | `Store.apply(sym("->"), …)` | — |
 ||Affichage arrow | ✅ | `typeStr` | — |
 | Types paramétrés (`Maybe a`) | ⚠️ | `evalDataDecl` | paramètre `a` ignoré à l'enregistrement |
-| Types dépendants (`Vec (succ n)`) | ⚠️ | `evalDataDecl` + v2c (`checkCtorDomainKind`) | index au-delà de `succ _`/`zero` non unifiés (v2f) |
+| Types dépendants (`Vec (succ n)`, `Vec (n+m)`) | ✅ | `evalDataDecl` + v2f (`unify_proof` + `simplifyStep`) | unification arithmétique complète (AC, succ, mul, identités, zero) |
 
 ## Data & Pattern matching
 
@@ -70,7 +78,7 @@ Légende :
 | `ctor_results` (ctor → forme résultat) | ✅ | `evalDataDecl` v2d | arity>0 → `(succ _)` uniquement |
 | Unification `ctor_results[ctor]` ~ domaine | ✅ | `evalEquation` v2e (`unify_proof` + `holesToEvars`) | best-effort : échec ≠ rejet |
 | Instanciation RHS sous `subst_v2d` | ✅ | `registerClause(body_used)` (v2e) | no-op avant v2e : `_` = `Tag.hole`, non lié |
-| Unification vraie (`Vec (n + m)` modulo arithmétique) | 🚧 | — | v2f roadmap |
+| Unification vraie (`Vec (n + m)` modulo arithmétique) | ✅ | `unify_proof.zig` + `math.zig` (simplifyStep) | AC + succ + mul + identités + symbole zero + :norm REPL |
 
 **Note v2e (2026-09-25)** : un bug a été découvert en testant v2e —
 `_` est parsé en `Tag.hole`, et `unify_proof.unify` ne lie que les
@@ -236,8 +244,8 @@ n'est reliée a `Expr` que par des lowerings explicites.
 
 | Élément | Statut | Preuve | Limitation |
 |---|---|---|---|
-| Compilation QBE (M3) | ✅ | `compile-qbe <src> -o <bin>` ; fib(25) = 75025 | sous-ensemble MIR (15 instr) ; TCO self-tail-call ; recursion mutuelle : `docs/spec/_tco_mutual.md` ; pas de strings/IO |
-| Compilation WASM (M2a/M2b) | ✅ | `compile-wasm <src> -o <wat>` ; wasmtime run | sous-ensemble MIR ; TCO self-tail-call, flag `-W max-wasm-stack` plus requis ; recursion mutuelle : `docs/spec/_tco_mutual.md` |
+| Compilation QBE (M3) | ✅ | `compile-qbe <src> -o <bin>` ; fib(25) = 75025 | sous-ensemble MIR (15 instr) ; TCO self-tail + mutuelle (fusion SCC, paires) ; pas de strings/IO |
+| Compilation WASM (M2a/M2b) | ✅ | `compile-wasm <src> -o <wat>` ; wasmtime run | sous-ensemble MIR ; TCO self-tail + mutuelle via `return_call` natif ; flag `-W max-wasm-stack` plus requis |
 | Bench interprète | ✅ | `bench-interp <src> [N] [--loop M]` | in-process, pas de spawn |
 | Bench QBE | ✅ | `bench-qbe` ; wall/cpu/energy/temp/RSS | RAPL root-only par défaut (CVE-2020-8694) |
 | Bench WASM | ✅ | `bench-wasm` ; idem | bootstrap wasmtime ~5 ms amorti via `--loop` |
@@ -295,7 +303,7 @@ Résultats de référence (`docs/spec/_bench.md`) :
 3. **README aligné sur STATUS** (✅ fait).
 4. ~~**Type-dep v2d**~~ ✅ 2026-09-24 · ~~**v2e/v2f**~~ ✅ 2026-10-01 (unification arithmetique complete : AC + succ + mul + identites)
    (fix `holesToEvars` + exposition `subst_v2d`).
-   → suite : **v2f** — unification vraie (`Vec (n + m)` modulo arithmétique).
+   ✅ v2f terminé — unification vraie (`Vec (n + m)` modulo arithmétique).
 5. **Documenter QTT** dans le book.
 6. Remplir les `std/*.hvn` restants (`kernel.hvn`, signatures sans corps).
 7. ~~Sync auto `test_suite.hvn` (natif ↔ WASM).~~ [OK] (2026-10-01)

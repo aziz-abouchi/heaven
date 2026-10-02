@@ -1,8 +1,8 @@
 # TCO etendue : recursion mutuelle
 
-> Statut : **partiellement fait** (2026-10-02). WASM : `return_call`
-> natif, valide sur `isEven 100000000`. QBE : pas de tail-call natif
-> dans la version 1.2, la fusion SCC reste a implementer.
+> Statut : **fait** (2026-10-02). WASM : `return_call` natif. QBE :
+> fusion SCC au niveau MIR (`e6a31ff`). `isEven 100000000 = 1` sur
+> les deux backends, non-regression fib/count_down/arith OK.
 
 ## Approche retenue par backend
 
@@ -24,20 +24,23 @@ Verifie sur :
 - `isEven 100000000` -> 1 (100M iterations, pas de trap)
 - non-regression : `count_down 100000` -> 100000, `fib 25` -> 75025
 
-### QBE : fusion SCC (A FAIRE)
+### QBE : fusion SCC (FAIT)
 
 QBE 1.2 **n'accepte pas** `ret %r =l call $f(...)` — erreur de
 syntaxe "newline expected". Le language QBE ne fait pas de TCO.
 
 Solution : fusion SCC **au niveau MIR** (pas dans le backend).
-- `buildTailCallGraph` : aretes tail `f -> g` (meme pattern que la
-  TCO self-tail actuelle).
-- `findSCCs` : Tarjan sur les symbols u32.
-- `fuseSCC` : pour chaque SCC de taille > 1, creer une fonction
-  fusionnee avec tag dispatch, remplacer les membres par des
-  wrappers.
-- Les backends (QBE et WASM) voient une fonction normale et
-  l'emettent sans changement.
+- `findTailPairs` : detecte les paires (a, b) mutuellement
+  recursives en tail. Implemente, limite aux SCC de taille 2.
+- `fuseTailPairs` : pour chaque paire, cree une fonction `$scc_N`
+  avec tag dispatch (bloc 0 : `branch tag == 0`), copie les blocs
+  de a et b avec decalage reg/block (`copyBlocksForFusion`), et
+  reecrit les `call_user` intra-SCC en `call_user $scc_N` avec un
+  tag constant.
+- `wrapWithSccCall` : remplace le corps des fonctions originales
+  par un wrapper qui appelle `$scc_N` avec le bon tag.
+- Limite : SCC de taille 2 uniquement. Cycles de taille 3+ et
+  graphes a plusieurs paires ne sont pas geres.
 
 Avantage : une seule implementation pour les deux backends. WASM
 continue a beneficier de `return_call` en bonus pour les tail-calls

@@ -277,16 +277,15 @@ substitution avant enregistrement (`body_used`).
 aucun test actuel ne prouve que la substitution **change** un résultat
 (les exemples ont `x` indépendant de l'index). À valider en v2e.
 
-### v2e — *roadmap* (unification vraie, index non-symbolique)
+### v2e/v2f ✅ *fait* (2026-10-02) — unification vraie, index non-symbolique
 
-La convention attrape les cas simples mais rate :
-- `Vector (n + m)` — index non-symbolique.
-- `head _ (Cons x _) = x` devrait lier `n := k` (aujourd'hui on
-  accepte par compatibilité step/step, sans lier).
+✅ **Implémenté et testé** :
+- `Vec (n + m)` modulo arithmétique (AC + identités + évaluation littérale)
+- `Vec (succ (succ zero))` ≡ `Vec 2`
+- Support du symbole `zero` et des noms canoniques `add`, `mul`, `succ`
+- Commande REPL `:norm` pour visualiser les réductions
 
-Vraie unification de premier ordre nécessaire pour ces cas.
-
-**Effort v2e** : 2-3 sessions.
+**Effort réel** : 2 sessions (2026-10-01 et 2026-10-02).
 
 ### v0 ✅ *fait*
 
