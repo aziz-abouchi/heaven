@@ -278,7 +278,7 @@ peut avancer independamment.
 - Brain cognitif complet : `inference/neural/synthesis.zig` expérimental
 - Auto-hébergement total : jalon, pas tâche
 
-Ces sujets vivent dans `docs/VISION.md` (à créer), pas dans la roadmap.
+Ces sujets vivent dans `docs/VISION.md`, pas dans la roadmap.
 
 ## Règle de méthode
 

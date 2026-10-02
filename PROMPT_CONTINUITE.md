@@ -36,6 +36,45 @@ modifications en cours de cette session.
 Un commit local `3469bc3` (session parallele, eval.zig + math.zig)
 attend d'etre pousse.
 
+## Addendum -- session 2026-10-02 (soir) : points 1-4
+
+Fait ce soir :
+- **Cleanup debug** (`1b4705d`) : CANON BUG conditionne a
+  HEAVEN_DEBUG, mir-filt retire.
+- **docs/VISION.md** (`fe57b61`) : document de vision long terme
+  (invariants, noyau CIC, essaim, multi-syntaxes, ontologies).
+- **Audit book ch. 05/06/07/12** : rien a patcher, deja coherent.
+- **Cross-compile QBE** (`3b24438`, `be5fe1f`, `48baaca`) :
+  `--target` supporte 5 cibles (amd64_sysv, amd64_apple, arm64,
+  arm64_apple, rv64). Emet l'assembleur pour la cible demandee,
+  pas le binaire (cross-cc non gere).
+
+Restant apres ces points :
+- D8 vrai 3a-3 (2-3 sessions)
+- D9 (Vessel -> Expr, 1-2 sessions)
+- wasm32-wasi (session parallele)
+- Audit des 36 @panic restants
+- D9 inventaire (docs/spec/_vessel_decouple.md) -- en cours
+
+## Addendum -- session 2026-10-02 (soir)
+
+Fait ce soir :
+- **Cleanup debug** (`1b4705d`) : CANON BUG conditionne a
+  HEAVEN_DEBUG, mir-filt retire.
+- **docs/VISION.md** (`fe57b61`) : document de vision long terme
+  (invariants, noyau CIC, essaim, multi-syntaxes, ontologies).
+- **Audit book ch. 05/06/07/12** : rien a patcher, deja coherent.
+- **Cross-compile QBE** (`3b24438`, `be5fe1f`, `48baaca`) :
+  `--target` supporte 5 cibles (amd64_sysv, amd64_apple, arm64,
+  arm64_apple, rv64). Emet l'assembleur pour la cible demandee,
+  pas le binaire (cross-cc non gere).
+
+Restant apres ces points :
+- D8 vrai 3a-3 (2-3 sessions)
+- D9 (Vessel -> Expr, 1-2 sessions)
+- wasm32-wasi (session parallele)
+- Audit des 36 @panic restants
+
 ## Pistes actives (2026-10-02)
 
 ### Court terme
