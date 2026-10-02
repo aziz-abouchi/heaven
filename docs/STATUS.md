@@ -131,6 +131,7 @@ depuis une string utilisateur, jamais d'evar dedans).
 | `theorem name : lhs = rhs` | ✅ | `evalTheorem` | seulement `lhs = rhs` |
 | `prove by eval` | ✅ | `verifyByEval` | — |
 | `prove by simplify` | ✅ | `verifyBySimplify` (fixpoint) | — |
+| perf `prove by simplify` | ✅ | t_distrib 1416ms -> 66ms (a0a8485/9c90969) | convergence structurelle du pipeline -- comparaison d'Id jamais valide sur arbres ré-alloués |
 | `prove by induction x` | ⚠️ | `verifyByInduction` | **pas testé** en suite standard |
 | `prove by rewrite` | ⚠️ | `verifyByRewrite` | dépend de `canonEqStr` (stub) |
 | `prove t by { ... }` (tactics) | ✅ | `runTacticsBlock` | simplify/refl/exact/induction/rewrite/apply/seq/try/repeat |

@@ -137,3 +137,15 @@ Fix trivial mais a verifier que `applyLine` ne retient pas `trimmed`.
   envoye avec reproducteur. Notre b26eb9f (fix UAF) reste valide
   pour ce qu'il corrigeait (ordre de liberation), mais la cause
   racine du 134 est le leak peano.
+
+## Addendum -- perf t_distrib (2026-10-02)
+- 9c90969 : rewriteViaPipeline convergence structurelle.
+  t_distrib 1416ms -> 66ms (21x), saturations 20 -> 1.
+  Cause : comparaison d'Id pour le point fixe -- or le pipeline
+  re-alloue des Ids a chaque passage. LECON GENERALISABLE :
+  jamais == sur Id comme critere de convergence dans un pipeline
+  qui re-alloue -- toujours structuralEql. (Sweep fait : un seul
+  site, celui-ci, corrige.)
+- 08-proofs.md : rien a jour -- la perf ne change pas la
+  semantique documentee. Si un chapitre perf nait un jour,
+  y referencer les 21x.
