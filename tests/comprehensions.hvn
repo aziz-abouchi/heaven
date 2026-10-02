@@ -1,0 +1,25 @@
+-- Comprehensions phase A : (for (x <- xs) [(when p)] e)
+-- Desucrage vers map/filter du stdlib Stream
+
+data Stream a = Cons a (Stream a) | End
+
+map f End = End
+map f (Cons x rest) = Cons (f x) (map f rest)
+
+filter p End = End
+filter p (Cons x rest) = if (p x) (Cons x (filter p rest)) (filter p rest)
+
+tk zero s = End
+tk (succ n) End = End
+tk (succ n) (Cons x rest) = Cons x (tk n rest)
+
+big x = x > 10
+
+-- sans when : map
+test "for_map": (tk (succ (succ zero)) (for (x <- (Cons 1 (Cons 2 (Cons 3 End)))) (* x 2))) == (Cons 2 (Cons 4 End))
+
+-- avec when : filter puis map
+test "for_filter_map": (tk (succ zero) (for (x <- (Cons 5 (Cons 20 (Cons 7 End)))) (when big) x)) == (Cons 20 End)
+
+-- expression non triviale
+test "for_expr": (tk (succ (succ zero)) (for (x <- (Cons 1 (Cons 2 (Cons 3 End)))) (+ x 10))) == (Cons 11 (Cons 12 End))

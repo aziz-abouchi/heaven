@@ -661,6 +661,7 @@ pub const Heaven = struct {
         // ─── Désucrage des compréhensions (for) ───
         if (std.mem.indexOf(u8, trimmed, "(for ") != null) {
             if (try self.desugarFor(trimmed)) |ds| {
+                platform.dbg("[DS] {s}\n", .{ds});
                 defer self.allocator.free(ds);
                 const r = try self.eval(ds);
                 return r;

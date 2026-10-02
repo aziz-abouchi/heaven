@@ -609,6 +609,11 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                     return id;
                 }
             }
+            if (engine.fns.get(name)) |fd| {
+                if (fd.num_clauses > 0 and fd.ctor_arity == null) {
+                    return id; // symbole-fonction user = valeur appelable
+                }
+            }
             const known_ctors = [_][]const u8{ "zero", "succ", "quote" };
             for (known_ctors) |kc| {
                 if (std.mem.eql(u8, name, kc)) return id;
@@ -842,7 +847,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                     if (lam_span.len == 1) {
                         const arg_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
                         try env.put(bound_node.payload, arg_val);
-                        defer env.delete(bound_node.payload);
+                        // (defer delete retiré : thunk)
                         return evaluate(store, env, engine, lam_span[0], depth + 1);
                     }
                 }
@@ -1280,7 +1285,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 if (lam_span.len == 1) {
                     const arg_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
                     try env.put(bound_node.payload, arg_val);
-                    defer env.delete(bound_node.payload);
+                    // (defer delete retiré : thunk)
                     return evaluate(store, env, engine, lam_span[0], depth + 1);
                 }
             }
