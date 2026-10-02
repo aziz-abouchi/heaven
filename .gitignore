@@ -63,3 +63,6 @@ core/book_suite.hvn
 src/vessel/public/test_suite.hvn
 docs/book/book/
 docs/book/book/
+
+# Artefacts QBE (repertoire temporaire de compile-qbe)
+.zig-qbe-tmp/
