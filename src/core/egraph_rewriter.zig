@@ -226,13 +226,15 @@ pub const Rewriter = struct {
 
     fn applyBetaReduction(self: *Rewriter, class: ClassId) !?ClassId {
         //platform.dbg("[applyBetaReduction] class {d}\n", .{class});
-        const eclass = &self.egraph.classes.items[class];
-        // NE PAS capturer `self.store.pool.items` ici : la fonction
-        // modifie le Store (sym, apply, pushSpan via substitute), ce
-        // qui peut réallouer le pool. Toute slice capturée avant
-        // devient dangling -> lecture de mémoire libérée.
-        // On relit `self.store.pool.items` à chaque usage.
-        for (eclass.nodes.items) |node_id| {
+        // SNAPSHOT des node_ids AVANT tout appel qui peut reallouer
+        // classes.items. Le corps de la boucle appelle
+        // self.egraph.addExpr(new_body) qui peut faire grossir
+        // classes.items -> `&self.egraph.classes.items[class]` devient
+        // un pointeur dangling, et l'itération suivante lit freed memory.
+        // Fix : copier la liste des node_ids une fois pour toutes.
+        const nodes_snapshot = try self.allocator.dupe(Id, self.egraph.classes.items[class].nodes.items);
+        defer self.allocator.free(nodes_snapshot);
+        for (nodes_snapshot) |node_id| {
             // --- NOUVEAU : Ne pas réduire deux fois le même nœud ---
             if (self.beta_reduced.contains(node_id)) continue;
             // --------------------------------------------------------
