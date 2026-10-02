@@ -27,69 +27,90 @@ HVN : ~95/95.
 3. mir.zig : precompileUserFns en 2 passes (placeholders avant
    compilation des corps). Resout la recursion (fib appelle fib).
 
-## WIP externe (NE PAS TOUCHER)
-- src/core/heaven_expr.zig + engine_expr.zig + parse.zig : feature
-  "guards" (autre session). ~88 l. de diff non commitees.
-  BUGBLOQUANT chez eux : heaven_expr.zig:516 a
-  `self.engine.fns.functions.getPtr` au lieu de
-  `self.engine.fns.getPtr` (fns est deja la map). Corrige
-  localement, pas commit.
-- tests/guards.hvn : leur test (untracked).
-- src/core/parse.zig, src/runtime/shell/commands_test.zig :
-  modifies non commites.
-- core/std/*.hvn, core/test_suite.hvn, src/vessel/public/*.hvn :
-  WIP, ne pas toucher.
+## Etat de l'arbre (2026-10-02)
 
-## Pistes pour la prochaine session
+Le conflit de stash sur `src/vessel/public/test_suite.hvn` est
+resolu (`tco_deep` reajoute). L'arbre est propre a part les
+modifications en cours de cette session.
 
-### Fait cette session (2026-10-01)
-- TCO WASM/QBE : les self-tail-calls sont transformes en boucle dans
-  `mir_qbe.zig` et `mir_wat.zig`. `count_down 10000000` compile et
-  tourne. Le flag `-W max-wasm-stack=67108864` n'est plus requis.
-- bench-wasm fib verifie : median 6.75 ms sur 5 runs, pas de timeout.
-  Le timeout initial venait de la pile native non bornee.
-- _bench.md complete avec les chiffres fib (interp / QBE / WASM).
-- Fix RAPL : `scripts/setup-rapl.sh` adaptatif (Guix / NixOS /
-  generique). Rend la lecture d'energy_uj permanente sans sudo.
+Un commit local `3469bc3` (session parallele, eval.zig + math.zig)
+attend d'etre pousse.
 
-### Restant
-1. TCO etendue QBE/WASM : **fait** (`e6a31ff`).
-   - WASM : `return_call` natif. isEven 100000000 = 1.
-   - QBE : fusion SCC MIR pour les paires mutuellement recursives.
-     isEven 100000000 = 1.
-   - Non couvert : cycles de 3+ fonctions, trampolines generaux.
-   - Spec : docs/spec/_tco_mutual.md.
-2. wasm32-wasi (A : compilateur en WASI ; B : programmes compiles
-   en WASI). Priorite basse. Voir docs/spec/_wasm_targets.md.
-3. Cross-compilation vers d'autres arches / OS (QBE deja multi-cible
-   x86-64/ARM64/RISC-V, a brancher dans build.zig et tester).
-4. Auto-hebergement (long terme) : BigInt (libtommath), I/O,
-   structures de donnees, puis self-parse/self-compile.
+## Pistes actives (2026-10-02)
 
-## Bug connexe observe (2026-10-01)
+### Court terme
 
-Au shutdown du REPL apres avoir charge deux fonctions mutuellement
-recursives (ex. `isEven`/`isOdd`), un `Invalid free` se declenche
-dans `src/core/matrix.zig:237` (`free(func.params)`). C'est un bug
-**independant** de la TCO, probablement lie a D1 (deplacer
-l'ecosysteme Astra vers `src/legacy/`). A traiter separement.
+1. **D1bis** — degager les imports morts de `main.zig` (30 min).
+   `heaven_lib`, `react_lib`, `SRG`, `EQSATPlanner`, `transpiler_lib`
+   sont importes mais jamais utilises au runtime. Voir
+   `DECISIONS.md` D1 revisee.
 
-Voir `docs/spec/_tco_mutual.md` (section "Probleme connexe").
+2. **Leaks residuels** — voir section dediee plus bas. L1
+   (`proofs.zig:222`) et L2 (`interactive.zig:146`).
 
-## Leaks residuels identifies (2026-10-01)
+3. **`[fns.deinit] freeing key=...`** — ~90 lignes de debug print
+   a chaque shutdown. Conditionner a `HEAVEN_DEBUG=1`.
 
-Deux leaks preexistants, non urgents, visibles dans le rapport debug.
+### Moyen terme
+
+4. **D8 — continuations delimitees**. `src/core/continuation.zig`
+   existe (334 l., 9 tests) mais n'est branche nulle part.
+   Etape 3a-3 : brancher dans `engine_expr.zig` + tests end-to-end.
+   Debloque `handle-rec` et le scheduler preemptif.
+
+5. **D9 — decoupler Vessel d'Astra** (1-2 sessions). Vessel lit
+   `matrix.getStats()`, `matrix.nodes.iterator()`. Recabler sur
+   `expr.Store`. Debloque la suppression effective de `matrix.zig`
+   et elimine le doublon de bootstrap.
+
+6. **Audit des 39 `@panic`/`unreachable`** (1 session). Le nombre
+   a double depuis 2026-09-29 (19 -> 39). A trier : defensifs vs
+   bugs latents.
+
+### Long terme
+
+7. **wasm32-wasi** (A : compilateur en WASI ; B : programmes
+   compiles en WASI). Session parallele a cree
+   `src/platform/wasm32_wasi.zig` (542 l.). Priorite basse.
+
+8. **Cross-compilation** vers d'autres arches / OS. QBE est deja
+   multi-cible (x86-64/ARM64/RISC-V), a brancher dans `build.zig`.
+
+9. **Cycles SCC 3+ fonctions** (TCO mutuelle etendue). Actuellement
+   limite aux paires.
+
+10. **Auto-hebergement** (long terme) : BigInt (libtommath), I/O,
+    structures de donnees, puis self-parse/self-compile.
+
+## Bug matrix (RESOLU 2026-10-01)
+
+Le `Invalid free` au shutdown du REPL (`matrix.zig:237`,
+`free(func.params)`) est corrige (`c27cc54`). Cause : la Matrix
+liberait des slices qui appartenaient a l'arena de
+`UniversalIngestor`. Fix : retirer les 7 free Forge de
+`matrix.deinit()`.
+
+## Leaks residuels (non resolus)
+
+Deux leaks preexistants, non urgents, visibles dans le rapport
+debug.
 
 ### L1 - proofs.zig:222 (evalTheorem)
 
 `cmds.allocator.dupe(u8, msg)` cree une string retournee a
-l'appelant (`commands.zig:580` -> `heaven_expr.zig:2353`), qui ne la
-libere jamais. Se declenche a chaque `theorem t : ...`.
+l'appelant (`commands.zig:580` -> `heaven_expr.zig:2353`), qui ne
+la libere jamais. Se declenche a chaque `theorem t : ...`.
 
 ### L2 - interactive.zig:146 (readLine dans runProofInteractive)
 
-La `tactic_line` n'est pas liberee sur les chemins `abort` ou `EOF`.
-Fix trivial mais a verifier que `applyLine` ne retient pas `trimmed`.
+La `tactic_line` n'est pas liberee sur les chemins `abort` ou
+`EOF`. Fix trivial mais a verifier que `applyLine` ne retient pas
+`trimmed`.
+
+## Debug print bruyant
+
+`[fns.deinit] freeing key=...` : ~90 lignes a chaque shutdown
+(`engine_expr.zig:252`). A conditionner a `HEAVEN_DEBUG=1`.
 
 ## Fichiers de reference
 - src/commands/qbe_cmd.zig, wasm_cmd.zig, bench_interp.zig

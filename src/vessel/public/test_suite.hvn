@@ -202,6 +202,7 @@ skill algebra
 # ── TCO (Tail Call Optimization) — Section 10 ──
 fn count_down(n, acc) = (if (= n 0) acc (count_down (- n 1) (+ acc 1)))
 test "tco_small": (count_down 100 0) == 100
+test "tco_deep": (count_down 100000 0) == 100000
 
 fn my_not(b) = (if b false true)
 fn my_and(a, b) = (if a b false)
