@@ -286,6 +286,41 @@ action residuelle.
 - bench/run.sh, bench/progs/
 - docs/spec/_bench.md
 
+## REGLE D'OR -- enrichir la non-regression
+
+**Toute nouvelle feature ou tout bug fix qui change le comportement
+du langage DOIT etre accompagne d'un test dans la suite.**
+
+3 endroits, selon la nature :
+
+1. **Feature du langage** (mot-cle, tactique, type) : ajouter un
+   `test "..."` dans `core/test_suite.hvn`. La suite tourne en
+   DebugAllocator (via `HEAVEN_NO_LEAK_CHECK=0`) et avec page_allocator.
+
+2. **Feature d'un backend** (QBE, WASM, cross-compile) : ajouter un
+   cas dans `scripts/smoke.sh`. Format :
+
+       $HEAVEN compile-qbe bench/progs/X.hvn -o /tmp/smoke_X_qbe
+       check "QBE X = attendu" "valeur" "$(/tmp/smoke_X_qbe)"
+
+   Et le meme pour WASM si applicable.
+
+3. **Cas complexe ou integration** (plusieurs features combinees) :
+   ajouter un fichier `tests/<nom>.hvn` autonome.
+
+**Verification avant commit :** lancer `bash tests.sh` et vérifier que
+tout ce qui passait avant passe encore. Les échecs préexistants
+(`tests/verify_book.hvn` 41/43, `tests/unlower_spec.hvn` 0/3, etc.)
+ne sont pas une raison d'ignorer de nouveaux échecs.
+
+**Ne pas supprimer** un test qui échoue sans documenter pourquoi dans
+le commit. Si un test est faux (mauvaise syntaxe), le corriger.
+
+**Rappel des sessions parallèles :** 3 sessions peuvent tourner en
+parallèle sur le depot. Avant de modifier `core/test_suite.hvn`,
+`tests/`, ou `scripts/smoke.sh`, vérifier qu'aucune autre session n'y
+travaille (`git status`, `git log`).
+
 ## Methodes
 - Heredoc > 50 l. = tronque par navigateur (scinder en 2-3 blocs).
 - git add cible uniquement (jamais -A, 3 sessions sur l'arbre).
