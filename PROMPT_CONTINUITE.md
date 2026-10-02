@@ -171,3 +171,12 @@ action residuelle.
 - 08-proofs.md : rien a jour -- la perf ne change pas la
   semantique documentee. Si un chapitre perf nait un jour,
   y referencer les 21x.
+
+---
+## 📅 Journal : 02 Oct 2026
+- **feat** : Parsing lambda `λ` 100% fiable (UTF-8, delim_pos, délégation parseSExpr).
+- **feat** : Désucrage des compréhensions `(for ... (when ...))` opérationnel via `desugarFor`. Tests `comprehensions.hvn` validés.
+- **fix** : Fuite de mémoire dans `eval.zig` colmatée (`defer free`).
+- **fix** : Panic `Invalid free` à la fermeture du REPL dans `matrix.zig` résolu.
+- **fix** : Règle de réécriture v2f `(add (succ x) y)` stabilisée.
+- **Prochaines étapes candidates** : Spécification formelle EBNF, Support WASM IO, ou Pipeline logique unifié (rule/prolog).

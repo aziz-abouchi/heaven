@@ -210,3 +210,10 @@ Voir docs/ROADMAP.md pour les chantiers en cours.
 
 Licence
 Apache 2.0
+
+---
+### 🚀 Mise à jour Octobre 2026 : Stabilité et Expressivité
+- **Parsing Lambda Robuste** : Support UTF-8 complet pour le caractère `λ` (gestion correcte des 2 octets), correction de la logique d'extraction des paramètres (`delim_pos`) dans `parseLambda`, et délégation systématique depuis `parseSExpr`.
+- **Comprehensions (For/When)** : Implémentation complète du désucrage `desugarFor` dans `heaven_expr.zig`. La syntaxe `(for (x <- xs) (when p) e)` est désormais traduite en `(map (λx. e) (filter (λx. (p x)) xs))`. Les tests `tests/comprehensions.hvn` passent avec succès.
+- **Stabilité Mémoire** : Correction d'une fuite de mémoire dans `eval.zig` (ajout de `defer free`) et élimination d'un panic `Invalid free` à la fermeture du REPL dans `matrix.zig`.
+- **Unification v2f** : Règle de réécriture arithmétique `(add (succ x) y) -> (succ (add x y))` pleinement opérationnelle et testée.
