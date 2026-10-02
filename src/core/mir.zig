@@ -680,9 +680,6 @@ pub const MirFunction = struct {
             if (fn_def_user.num_clauses != 1) continue;
 
             const clause = fn_def_user.clauses[0];
-            if (std.mem.eql(u8, name_str, "choose") or std.mem.eql(u8, name_str, "fib")) {
-                std.debug.print("[mir-filt] '{s}': num_patterns={d}\n", .{ name_str, clause.num_patterns });
-            }
             var all_syms = true;
             for (0..clause.num_patterns) |i| {
                 const pat = store.get(clause.patterns[i]);
@@ -690,9 +687,6 @@ pub const MirFunction = struct {
                     all_syms = false;
                     break;
                 }
-            }
-            if (std.mem.eql(u8, name_str, "choose") or std.mem.eql(u8, name_str, "fib")) {
-                std.debug.print("[mir-filt] '{s}': all_syms={}\n", .{ name_str, all_syms });
             }
             if (!all_syms) continue;
 

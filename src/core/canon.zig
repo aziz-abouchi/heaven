@@ -204,10 +204,13 @@ fn rebuildAC(store: *Store, op_sym: Sym, items: []const Id) !Id {
     if (items.len == 0) unreachable;
     if (items.len == 1) return items[0];
 
-    // INSTRUMENTATION — avant toute écriture :
-    for (items, 0..) |it, i| {
-        if (it >= store.nodes.items.len) {
-            platform.debug.print("[CANON BUG] items[{d}]={d} >= len={d}\n", .{ i, it, store.nodes.items.len });
+    // Warning de corruption : items contient un Id hors-bornes.
+    // Conditionne a HEAVEN_DEBUG pour ne pas polluer la sortie normale.
+    if (platform.debug_enabled) {
+        for (items, 0..) |it, i| {
+            if (it >= store.nodes.items.len) {
+                platform.debug.print("[CANON BUG] items[{d}]={d} >= len={d}\n", .{ i, it, store.nodes.items.len });
+            }
         }
     }
 
