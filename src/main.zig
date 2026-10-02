@@ -214,7 +214,14 @@ pub fn main() !void {
 
     if (std.mem.eql(u8, args[1], "compile-qbe") and args.len >= 5 and std.mem.eql(u8, args[3], "-o")) {
         const qbe_cmd = @import("commands/qbe_cmd.zig");
-        try qbe_cmd.runCompileQbe(allocator, args[2], args[4]);
+        var target: ?[]const u8 = null;
+        var i: usize = 5;
+        while (i + 1 < args.len) : (i += 1) {
+            if (std.mem.eql(u8, args[i], "--target")) {
+                target = args[i + 1];
+            }
+        }
+        try qbe_cmd.runCompileQbe(allocator, args[2], args[4], target);
         return;
     }
     if (std.mem.eql(u8, args[1], "compile-wasm") and args.len >= 5 and std.mem.eql(u8, args[3], "-o")) {

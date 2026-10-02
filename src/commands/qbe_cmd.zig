@@ -125,6 +125,7 @@ pub fn runCompileQbe(
     alloc: std.mem.Allocator,
     src_path: []const u8,
     out_path: []const u8,
+    target: ?[]const u8,
 ) !void {
     // 1. Lire le source
     const source = try std.fs.cwd().readFileAlloc(alloc, src_path, 16 * 1024 * 1024);
@@ -162,10 +163,28 @@ pub fn runCompileQbe(
 
     try tmp_dir.writeFile(.{ .sub_path = "prog.ssa", .data = ssa });
 
-    // 6. qbe -> prog.s
-    try runChild(alloc, &.{ qbe_path, "-o", "prog.s", "prog.ssa" }, tmp_dir);
+    // 6. qbe -> prog.s (avec ou sans cible explicite)
+    if (target) |t| {
+        try runChild(alloc, &.{ qbe_path, "-t", t, "-o", "prog.s", "prog.ssa" }, tmp_dir);
+    } else {
+        try runChild(alloc, &.{ qbe_path, "-o", "prog.s", "prog.ssa" }, tmp_dir);
+    }
 
-    // 7. cc -> prog
+    if (target) |t| {
+        // Cross-compilation : on s'arrete a l'assembleur.
+        // Un cross-cc (gcc-aarch64-linux-gnu, gcc-riscv64-linux-gnu, ...)
+        // est necessaire pour produire le binaire final. Non gere ici.
+        const asm_text = try tmp_dir.readFileAlloc(alloc, "prog.s", 32 * 1024 * 1024);
+        defer alloc.free(asm_text);
+        try std.fs.cwd().writeFile(.{ .sub_path = out_path, .data = asm_text });
+        platform.debug.print(
+            "[COMPILE-QBE] {s} -> {s} (asm pour target '{s}', pas de binaire)\n",
+            .{ src_path, out_path, t },
+        );
+        return;
+    }
+
+    // 7. cc -> prog (natif seulement)
     try runChild(alloc, &.{ "cc", "-no-pie", "prog.s", "-o", "prog" }, tmp_dir);
 
     // 8. Copier prog vers out_path, puis rendre executable
