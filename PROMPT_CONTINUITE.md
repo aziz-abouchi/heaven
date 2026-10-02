@@ -180,3 +180,18 @@ action residuelle.
 - **fix** : Panic `Invalid free` à la fermeture du REPL dans `matrix.zig` résolu.
 - **fix** : Règle de réécriture v2f `(add (succ x) y)` stabilisée.
 - **Prochaines étapes candidates** : Spécification formelle EBNF, Support WASM IO, ou Pipeline logique unifié (rule/prolog).
+
+## Addendum -- ordre superieur + comprehension (2026-10-02 PM)
+- f8e9535 : 3 bugs racines. (1) symbole-fonction = valeur
+  (le "application partielle" du 28/09 MORT -- test_stream 33/37).
+  (2) defer env.delete premature x3 : thunk/t valeur differee
+  -- filter-λ et le when en dependent. (3) comprehension phase A :
+  desucrage TEXTE (for ...) -> map/filter, 10/12.
+- OUVERT : parseOrDispatch/interpForAssert (parseur de TEST)
+  ne connait pas λ S-expr -- 2 tests comprehension. Matrice
+  complete en session : DS parfaits, chemins radiographies,
+  reproducteurs /tmp/ds2.hvn /tmp/fl2.hvn.
+- LECON #19 : le test-runner et le REPL ont des parseurs
+  DIFFERENTS (interpForAssert vs parseExpression) -- une forme
+  peut passer dans l'un et pas dans l'autre. Toujours sonder
+  les deux.

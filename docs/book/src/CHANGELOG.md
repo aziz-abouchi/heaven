@@ -1,5 +1,27 @@
 # Changelog du langage
 
+## 2026-10-02 (après-midi)
+
+### Ordre supérieur complet + compréhensions phase A (`f8e9535`)
+
+Trois bugs racines :
+1. **Symbole-fonction = valeur** : `evaluate(.sym)` rejettait
+   tout symbole désignant une fonction user (UnboundVariable) --
+   le bug « application partielle » du 28/09. `filter isBig ...`
+   vivant. test_stream : 28 → 33/37.
+2. **`defer env.delete` prématuré (3 sites)** : le corps d'une
+   λ peut rendre une valeur différée qui résout le paramètre
+   après la sortie -- le delete tuait le binding avant
+   résolution. `filter (λx. (big x))` : suspension → résultat
+   exact.
+3. **Compréhensions phase A** : `(for (x <- xs) [(when p)] e)`
+   désucré en texte vers `map`/`filter` du stdlib Stream.
+   La forme carrée `[e | x <- xs, p]` et les générateurs
+   multiples : phase B/C (tranchages ROADMAP).
+
+Reste ouvert : le parseur de TEST (`parseOrDispatch`) ne
+connaît pas λ S-expr -- 2 tests comprehension sur 12.
+
 ## 2026-10-02
 
 ### TCO mutuelle etendue - SCC 3+

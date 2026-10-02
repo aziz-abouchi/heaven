@@ -96,11 +96,15 @@ depuis une string utilisateur, jamais d'evar dedans).
 
 | Élément | Statut | Preuve | Limitation |
 |---|---|---|---|
+| Compréhensions `(for (x <- xs) [(when p)] e)` | ⚠️ | tests/comprehensions.hvn 10/12 | parseur de test λ : 2 échecs ; forme carrée = phase B |
+
+| Élément | Statut | Preuve | Limitation |
+|---|---|---|---|
 | Récursion simple | ✅ | `fact`, `add` | pas de TCO |
 | Récursion mutuelle | ✅ | `isEven`/`isOdd` | — |
 | Curryfication | ✅ | `Store.lambda` currifie | — |
 | `>>>` composition | ✅ | `evalMagic` | — |
-| `map`/`filter`/`take` sur Stream | ✅ | `core/stream.hvn` | évaluation **stricte** |
+| `map`/`filter`/`take` sur Stream | ✅ | `core/stream.hvn` | ordre supérieur réparé (f8e9535) : symbole ET lambda en argument |
 | Paresse des streams | 🚧 | — | — |
 
 ## QTT
