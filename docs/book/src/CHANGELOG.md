@@ -1,5 +1,15 @@
 # Changelog du langage
 
+## 2026-10-02
+
+### rewriteViaPipeline : convergence structurelle (a0a8485)
+
+La détection de point fixe comparait les Ids -- or le pipeline
+ré-alloue de nouveaux Ids à chaque passage, arbres identiques
+compris. Break jamais pris : 10 rounds par côté, 20 saturations
+e-graph. Fix : structuralEql aux 4 points de convergence.
+**t_distrib : 1416ms -> 66ms (21x)**. Saturations : 20 -> 1.
+
 Historique des fonctionnalités du langage. Les entrées sont en ordre
 antéchronologique.
 
