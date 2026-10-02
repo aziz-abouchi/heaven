@@ -211,16 +211,39 @@ débloque C3.
 3a-2 captureCont (1 sess.), 3a-3 branchement handle-rec + scheduler
 (1 sess.). Détail dans `docs/spec/_continuations.md`.
 
-**État réel 2026-10-02** :
-- 3a-2 FAIT : `src/core/continuation.zig` (334 lignes, 9 tests)
-  implémente `captureCont`, `throwCont`, `pushPrompt`, `popPrompt`,
-  `CaptureStack`.
-- 3a-3 À FAIRE : `continuation.zig` n'est importé nulle part dans
-  `engine_expr.zig` ni `heaven_expr.zig`. Le tree-walker ne
-  suspend rien. `handle-rec` et le scheduler préemptif restent
-  bloqués.
+**État réel 2026-10-02 (audite)** :
+- 3a-1 FAIT : `src/core/continuation.zig` — `PromptStack`, push/pop/top
+  avec tests.
+- 3a-2 FAIT (modele symbolique) : `CaptureStack`, `Frame`, `captureCont`,
+  `throwCont`. **Mais** la pile est une simulation avec des `Frame`
+  opaques (`prompt: u32`, `position: u32`, `env: u64`). Aucun lien avec
+  `engine_expr.evaluate`. Cette couche est prete a etre utilisee, pas
+  branchee.
+- **Safepoint cooperatif existe deja** (session parallele) :
+  `engine.reductions`, `error.SuspendRequested`, `evalWithBudget(id,
+  budget) -> EvalOutcome { done, suspended }`. Modele **redemarrable** :
+  le caller relance avec un budget plus grand, pas de reprise exacte.
+- **3a-3 A FAIRE**, et plus gros que prevu :
+  1. Le safepoint actuel n'est pas une capture. Il sert au yield
+     top-level (interrompre un calcul pur), pas a `handle-rec`.
+  2. Pour `handle-rec`, il faut re-evaluer **le corps du handler**
+     depuis un point precis apres le `perform` — donc :
+     - restructurer `evaluate` pour que les corps de handler soient
+       evaluables par morceaux, pas d'un bloc recursif.
+     - lier `continuation.zig` (frame symbolique) a `evaluate`
+       (positions et env reels).
+     - gerer les allocations Store qui peuvent se decaler entre
+       capture et reprise (les `Id` restent valides, le pool realloue).
+  3. Sans cette refonte, `handle-rec` rejoue les side effects.
 
-**Effort restant** : 1-2 sessions (3a-3 + tests end-to-end).
+**Effort restant revise** : 2-3 sessions (pas 1-2).
+
+**Non couvert volontairement** : le yield top-level marche deja
+grace au safepoint + `evalWithBudget` (modele redemarrable). Le
+scheduler preemptif C3 peut utiliser ce modele sans attendre 3a-3.
+
+**Débloque** : handle-rec (reprise exacte), scheduler preemptif C3
+peut avancer independamment.
 
 **Débloque** : handle-rec, scheduler préemptif C3, puis C2 distribution.
 

@@ -309,6 +309,34 @@ pub const Engine = struct {
         return .{ .done = result_id };
     }
 
+    /// B (2026-10-02) : premier consommateur du safepoint.
+    /// Relance l'evaluation avec un budget croissant jusqu'a
+    /// completion ou epuisement du budget maximal. Modele
+    /// redemarrable : chaque tentative repart du debut (pas de
+    /// reprise exacte). Valide uniquement pour du calcul pur.
+    ///
+    /// Retourne l'Id du resultat, ou null si le budget maximal
+    /// est atteint sans terminer.
+    pub fn evalWithRetry(
+        self: *Engine,
+        id: Id,
+        initial_budget: u64,
+        max_budget: u64,
+    ) EvalError!?Id {
+        var budget = initial_budget;
+        while (budget <= max_budget) {
+            const outcome = try self.evalWithBudget(id, budget);
+            switch (outcome) {
+                .done => |result_id| return result_id,
+                .suspended => {
+                    if (budget == max_budget) return null;
+                    budget = @min(budget * 2, max_budget);
+                },
+            }
+        }
+        return null;
+    }
+
     pub fn evalFunction(self: *Engine, caller_env: *Env, name: []const u8, args: []const Id) EvalError!Id {
         const store = self.store;
         const fn_def = self.fns.get(name) orelse return error.UnknownSymbol;
@@ -365,6 +393,9 @@ pub const Engine = struct {
 
                 var matched = true;
                 for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
+                    if (std.mem.eql(u8, name, "id2")) {
+                        platform.dbg("[ho-dbg] clause id2 : num_patterns={d} current_args={d}\n", .{ clause.num_patterns, current_args_len });
+                    }
                     const arg_val = current_args_buf[i]; // déjà évalué
                     const p_node = store.get(p);
 
@@ -389,6 +420,10 @@ pub const Engine = struct {
                             }
                         }
                         try new_env.put(p_node.payload, arg_val);
+                        if (std.mem.eql(u8, name, "id2")) {
+                            const bn = store.get(arg_val);
+                            platform.dbg("[ho-dbg] binding f <- tag={s}\n", .{@tagName(bn.tag)});
+                        }
                 if (bound_count < 8) {
                     bound_syms[bound_count] = p_node.payload;
                     bound_count += 1;
@@ -562,6 +597,18 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             if (engine.fns.get(name)) |fd| {
                 if (fd.ctor_arity != null) return id;
             }
+            // Ordre supérieur : un symbole désignant une FONCTION USER
+            // s'évalue en lui-même (valeur). Le binding de pattern le
+            // stocke tel quel, et l'appel (f x) le résout via ENV-BOUND
+            // Cas 1 (symbole lié à un symbole de fonction). Sans ceci,
+            // evaluate(isBig) = UnboundVariable -- TCO/evalFunction
+            // évaluant leurs args tuaient tout appel ordre supérieur
+            // (filter/map/take : le bug "application partielle" du 28/09).
+            if (engine.fns.get(name)) |fd| {
+                if (fd.num_clauses > 0 and fd.ctor_arity == null) {
+                    return id;
+                }
+            }
             const known_ctors = [_][]const u8{ "zero", "succ", "quote" };
             for (known_ctors) |kc| {
                 if (std.mem.eql(u8, name, kc)) return id;
@@ -590,8 +637,15 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                     const lam_span = store.spanSliceConst(evaled_node.span_a);
                     if (lam_span.len != 1) return error.NotALambda;
                     const param_sym = evaled_node.payload;
+                    {
+                        const pn = store.interner.resolve(param_sym);
+                        platform.dbg("[ho-dbg] beta : param='{s}' arg_val_tag={s}\n", .{ pn, @tagName(store.get(arg_val).tag) });
+                    }
+                    // Pas de defer delete : l'évaluation du corps peut rendre
+                    // une valeur différée qui résout le paramètre APRÈS la
+                    // sortie -- le delete tuait le binding avant résolution
+                    // (x libre → UnboundVariable dans filter/map avec λ).
                     try env.put(param_sym, arg_val);
-                    defer env.delete(param_sym);
                     return evaluate(store, env, engine, lam_span[0], depth + 1);
                 }
 
@@ -707,6 +761,7 @@ fn isFrontendExtensionApply(name: []const u8) bool {
 }
 
 fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
+    platform.dbg("[ho-dbg] evalMagic op={s} args={d}\n", .{ op, args.len });
     // Buffer stack-local : zéro allocation pour args ≤ 8 (limite patterns).
     // Les appels récursifs à evaluate() peuvent realloc pool.items,
     // rendant la slice `args` dangling. On copie sur la stack.
@@ -783,6 +838,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 const bound_node = store.get(bound);
                 if (bound_node.tag == .lambda) {
                     const lam_span = bound_node.span_a.slice(store.pool.items);
+                    platform.dbg("[ho-dbg] ENV-BOUND lambda : op={s} args={d} lam_span={d}\n", .{ op, args_snap.len, lam_span.len });
                     if (lam_span.len == 1) {
                         const arg_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
                         try env.put(bound_node.payload, arg_val);
@@ -1498,6 +1554,55 @@ test "safepoint : fuel top-level non affecte par evalWithBudget" {
     try std.testing.expectEqual(fuel_before, engine.fuel);
     // Les reductions sont restaurees (saved via defer).
     try std.testing.expectEqual(reductions_before, engine.reductions);
+}
+
+test "evalWithRetry : budget initial suffisant" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    var env = Env.init(allocator);
+    defer env.deinit();
+    var engine = Engine.initTest(allocator, &store, &env);
+    defer engine.deinit();
+
+    const expr_id = try store.int(42);
+    const result = try engine.evalWithRetry(expr_id, 1000, 100_000);
+    try std.testing.expect(result != null);
+    try std.testing.expectEqual(expr_id, result.?);
+}
+
+test "evalWithRetry : budget initial insuffisant, retry reussit" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    var env = Env.init(allocator);
+    defer env.deinit();
+    var engine = Engine.initTest(allocator, &store, &env);
+    defer engine.deinit();
+
+    // Construit (+ 1 2) : plusieurs safepoints necessaires.
+    const one = try store.int(1);
+    const two = try store.int(2);
+    const plus_sym = try store.sym("+");
+    const expr_id = try store.apply(plus_sym, &.{ one, two });
+
+    const result = try engine.evalWithRetry(expr_id, 0, 100_000);
+    try std.testing.expect(result != null);
+}
+
+test "evalWithRetry : budget max atteint retourne null" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    var env = Env.init(allocator);
+    defer env.deinit();
+    var engine = Engine.initTest(allocator, &store, &env);
+    defer engine.deinit();
+
+    const expr_id = try store.int(42);
+    // Budget initial = max = 0 : ne peut pas evaluer un seul noeud.
+    const result = try engine.evalWithRetry(expr_id, 0, 0);
+    try std.testing.expect(result == null);
 }
 
 test "safepoint : reductions restaurees apres evalWithBudget" {
