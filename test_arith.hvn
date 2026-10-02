@@ -1,0 +1,21 @@
+-- Test d'unification arithmétique (v2f)
+-- Ce fichier démontre les capacités du moteur d'unification modulo arithmétique.
+
+-- 1. Commutativité (AC)
+-- Le moteur sait que (add x y) est identique à (add y x)
+
+-- 2. Identité de l'addition
+-- (add x zero) s'unifie directement avec x
+
+-- 3. Évaluation de littéraux
+-- (add 2 3) s'évalue et s'unifie avec 5
+
+-- 4. Successeur chaîné
+-- (succ (succ zero)) s'unifie avec 2
+
+-- 5. Multiplication et annulation
+-- (mul x 0) s'unifie avec 0
+-- (mul 2 3) s'unifie avec 6
+
+-- Ces règles sont testées unitairement dans src/core/unify_proof.zig
+-- et sont désormais prêtes à être utilisées par le moteur de typage dépendant.

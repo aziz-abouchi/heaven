@@ -125,14 +125,14 @@ fn emitBody(w: anytype, f: *const MirFunction, def: ?*const FnDef, fdefs: *const
     var tco = try f.allocator.alloc(bool, f.blocks.items.len);
     defer f.allocator.free(tco);
     @memset(tco, false);
-    if (cur_sym) |sym| {
+    if (cur_sym != null) {
         for (f.blocks.items, 0..) |*blk, i| {
             if (blk.instrs.items.len == 0) continue;
             const c = switch (blk.instrs.items[blk.instrs.items.len - 1]) {
                 .call_user => |cc| cc,
                 else => continue,
             };
-            if (c.name != sym) continue;
+            if (!fdefs.contains(c.name)) continue;
             switch (blk.terminator) {
                 .ret => |rv| { if (rv != c.dest) continue; },
                 .jump => |jt| {
@@ -164,19 +164,14 @@ fn emitBody(w: anytype, f: *const MirFunction, def: ?*const FnDef, fdefs: *const
                     else => try emitInstr(w, inst, fdefs),
                 }
             }
-            // Temps : $r{next_value}..$r{next_value+7}
-            const base: Reg = f.next_value;
-            for (c.args, 0..) |arg, k| {
-                try w.print("  (local.set $r{d} (local.get $r{d}))\n", .{ base + k, arg });
+            // WASM tail-call natif : return_call $fN arg0 arg1 ...
+            // Le moteur WASM (wasmtime, browser) reutilise la frame
+            // courante. Marche pour self ET mutual recursion.
+            try w.print("  (return_call $f{d}", .{c.name});
+            for (c.args) |arg| {
+                try w.print(" (local.get $r{d})", .{arg});
             }
-            if (def) |d| {
-                for (d.param_regs, 0..) |preg, k| {
-                    if (k < c.args.len) {
-                        try w.print("  (local.set $r{d} (local.get $r{d}))\n", .{ preg, base + k });
-                    }
-                }
-            }
-            try w.writeAll("  (local.set $cur (i32.const 0))\n  br $dispatch\n");
+            try w.writeAll(")\n");
             try w.writeAll("  ))\n");
             continue;
         }
