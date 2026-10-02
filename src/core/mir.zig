@@ -208,6 +208,75 @@ pub const MirFunction = struct {
         return pairs.toOwnedSlice(allocator);
     }
 
+    /// Generalisation : retourne les SCCs (composantes fortement
+    /// connexes) de taille >= 2 dans le graphe des tail-calls.
+    /// Chaque SCC est une liste de symbols, le caller doit liberer
+    /// chaque slice et le slice externe.
+    ///
+    /// Algorithme : fermeture transitive (Floyd-Warshall booleen) sur
+    /// la matrice d'adjacence. Pour N fonctions (< 100), le cout
+    /// O(N^3) est negligeable.
+    pub fn findTailSCCs(self: *MirFunction, allocator: std.mem.Allocator) ![]const []const u32 {
+        var syms: std.ArrayListUnmanaged(u32) = .{};
+        defer syms.deinit(allocator);
+        var it = self.fn_defs.keyIterator();
+        while (it.next()) |k| try syms.append(allocator, k.*);
+        const n = syms.items.len;
+        if (n == 0) return allocator.alloc([]const u32, 0);
+
+        const edge = try allocator.alloc(bool, n * n);
+        defer allocator.free(edge);
+        @memset(edge, false);
+        for (syms.items, 0..) |a, i| {
+            const def_a = self.fn_defs.get(a) orelse continue;
+            for (syms.items, 0..) |b, j| {
+                if (i == j) continue;
+                if (hasTailCallTo(&def_a.fn_mir, b)) edge[i * n + j] = true;
+            }
+        }
+
+        for (0..n) |k| {
+            for (0..n) |i| {
+                if (!edge[i * n + k]) continue;
+                for (0..n) |j| {
+                    if (edge[k * n + j]) edge[i * n + j] = true;
+                }
+            }
+        }
+
+        const assigned = try allocator.alloc(bool, n);
+        defer allocator.free(assigned);
+        @memset(assigned, false);
+
+        var sccs: std.ArrayListUnmanaged([]const u32) = .{};
+        errdefer {
+            for (sccs.items) |sl| allocator.free(sl);
+            sccs.deinit(allocator);
+        }
+
+        for (0..n) |i| {
+            if (assigned[i]) continue;
+            var members: std.ArrayListUnmanaged(u32) = .{};
+            defer members.deinit(allocator);
+            try members.append(allocator, syms.items[i]);
+            for (i + 1..n) |j| {
+                if (assigned[j]) continue;
+                if (edge[i * n + j] and edge[j * n + i]) {
+                    try members.append(allocator, syms.items[j]);
+                    assigned[j] = true;
+                }
+            }
+            assigned[i] = true;
+            if (members.items.len >= 2) {
+                const copy = try allocator.alloc(u32, members.items.len);
+                @memcpy(copy, members.items);
+                try sccs.append(allocator, copy);
+            }
+        }
+
+        return sccs.toOwnedSlice(allocator);
+    }
+
     /// Info sur une paire fusionnee par fuseTailPairs.
     pub const FusedPairInfo = struct {
         scc_sym: u32,
