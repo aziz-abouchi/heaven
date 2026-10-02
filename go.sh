@@ -24,4 +24,7 @@ zig build $NETWORK_FLAG
 zig build test $NETWORK_FLAG
 
 # 6. Lancer
-HEAVEN_DEBUG=1 ./zig-out/bin/heaven 8080
+# Debug conditionnel : traces [fns.deinit], [BOOT], [DIAG] etc.
+# Activees seulement si HEAVEN_DEBUG est non-vide.
+# Pour activer : HEAVEN_DEBUG=1 bash go.sh
+HEAVEN_DEBUG="${HEAVEN_DEBUG:-}" ./zig-out/bin/heaven 8080

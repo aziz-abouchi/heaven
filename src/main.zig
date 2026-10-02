@@ -107,7 +107,13 @@ pub fn main() !void {
     // No-op sur Unix.
     platform.initConsole();
 
-    platform.debug_enabled = platform.getenv("HEAVEN_DEBUG") != null;
+    // Debug actif si HEAVEN_DEBUG est definie, non-vide et != "0".
+    // Une variable vide (HEAVEN_DEBUG=) ne suffit pas - voir go.sh
+    // qui passe HEAVEN_DEBUG="${HEAVEN_DEBUG:-}" (vide si non defini).
+    platform.debug_enabled = if (platform.getenv("HEAVEN_DEBUG")) |v|
+        v.len > 0 and !std.mem.eql(u8, v, "0")
+    else
+        false;
 
     // Sortie differee : std.process.exit() court-circuite TOUS les
     // defer, y compris le check de fuite gpa plus bas. On pose un
