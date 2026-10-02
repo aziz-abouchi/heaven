@@ -108,6 +108,64 @@ fn copyBlocksForFusion(
     }
 }
 
+/// Info sur un SCC fusionne par fuseTailSCCs.
+pub const FusedSccInfo = struct {
+    scc_sym: u32,
+    members: []const u32,
+};
+
+/// Cherche l'index d'un symbol dans un SCC. Null si absent.
+fn findMemberIdx(members: []const u32, sym: u32) ?u32 {
+    for (members, 0..) |m, i| if (m == sym) return @intCast(i);
+    return null;
+}
+
+/// Variante N-ary de copyBlocksForFusion. Reecrit tout call_user
+/// vers un membre du SCC en call_user vers scc_sym avec tag = index
+/// du membre dans le SCC.
+fn copyBlocksForFusionN(
+    fused: *MirFunction,
+    src: *const MirFunction,
+    allocator: std.mem.Allocator,
+    reg_off: u32,
+    block_off: u32,
+    members: []const u32,
+    scc_sym: u32,
+) !void {
+    for (src.blocks.items) |src_blk| {
+        var new_blk = BasicBlock{ .instrs = .{}, .terminator = .fallthrough };
+        for (src_blk.instrs.items) |inst| {
+            switch (inst) {
+                .call_user => |c| {
+                    if (findMemberIdx(members, c.name)) |mi| {
+                        const tag_value: i64 = @intCast(mi);
+                        const tag_c = fused.newReg();
+                        try new_blk.instrs.append(allocator, .{ .const_int = .{ .dest = tag_c, .value = tag_value } });
+                        const new_args = try allocator.alloc(Reg, c.args.len + 1);
+                        for (c.args, 0..) |arg, idx| new_args[idx] = arg + reg_off;
+                        new_args[c.args.len] = tag_c;
+                        try new_blk.instrs.append(allocator, .{ .call_user = .{
+                            .dest = c.dest + reg_off,
+                            .name = scc_sym,
+                            .args = new_args,
+                        } });
+                    } else {
+                        try new_blk.instrs.append(allocator, try shiftInstr(allocator, inst, reg_off, block_off));
+                    }
+                },
+                else => try new_blk.instrs.append(allocator, try shiftInstr(allocator, inst, reg_off, block_off)),
+            }
+        }
+        new_blk.terminator = switch (src_blk.terminator) {
+            .ret => |rv| .{ .ret = rv + reg_off },
+            .jump => |t| .{ .jump = t + block_off },
+            .branch => |b| .{ .branch = .{ .cond = b.cond + reg_off, .then_block = b.then_block + block_off, .else_block = b.else_block + block_off } },
+            .fallthrough => .fallthrough,
+        };
+        try fused.blocks.append(allocator, new_blk);
+    }
+}
+
 /// Helpers de decalage pour la fusion SCC. Utilises pour copier les
 /// blocs et regs d'une fonction source dans une fonction fusionnee en
 /// evitant les collisions de numerotation.
@@ -411,6 +469,138 @@ pub const MirFunction = struct {
         }
 
         return infos;
+    }
+
+    /// Generalisation N-ary : fusion de chaque SCC (tail-call graph)
+    /// en une fonction avec tag dispatch a N branches.
+    /// Le caller doit liberer chaque info.members et le slice externe.
+    ///
+    /// Layout regs : 0=tag, 1=zero, 2=cond, 3=const,
+    /// [4 .. 4+sum(next_value)) = regs des membres (decales).
+    /// Layout blocks : 0..N-2 = checks, puis regions contigues.
+    pub fn fuseTailSCCs(self: *MirFunction, allocator: std.mem.Allocator) ![]const FusedSccInfo {
+        const sccs = try self.findTailSCCs(allocator);
+        defer {
+            for (sccs) |scc| allocator.free(scc);
+            allocator.free(sccs);
+        }
+        if (sccs.len == 0) return allocator.alloc(FusedSccInfo, 0);
+
+        var max_sym: u32 = 0;
+        var it = self.fn_defs.keyIterator();
+        while (it.next()) |k| if (k.* > max_sym) { max_sym = k.*; };
+
+        var infos: std.ArrayListUnmanaged(FusedSccInfo) = .{};
+        errdefer {
+            for (infos.items) |info| allocator.free(info.members);
+            infos.deinit(allocator);
+        }
+
+        for (sccs, 0..) |scc, idx| {
+            const N = scc.len;
+            if (N < 2) continue;
+            const scc_sym = max_sym + 1 + @as(u32, @intCast(idx));
+
+            const def0 = self.fn_defs.get(scc[0]) orelse continue;
+            const K = def0.param_regs.len;
+            var k_ok = true;
+            for (scc) |m| {
+                const d = self.fn_defs.get(m) orelse { k_ok = false; break; };
+                if (d.param_regs.len != K) { k_ok = false; break; }
+            }
+            if (!k_ok) continue;
+
+            const region_start = try allocator.alloc(u32, N);
+            defer allocator.free(region_start);
+            const reg_start = try allocator.alloc(u32, N);
+            defer allocator.free(reg_start);
+
+            var cur_blk: u32 = @intCast(N - 1);
+            var cur_reg: u32 = 0;
+            for (scc, 0..) |m, i| {
+                region_start[i] = cur_blk;
+                reg_start[i] = cur_reg;
+                const d = self.fn_defs.get(m) orelse continue;
+                cur_blk += @intCast(d.fn_mir.blocks.items.len);
+                cur_reg += d.fn_mir.next_value;
+            }
+
+            const tag_reg: Reg = 0;
+            const zero_reg: Reg = 1;
+            const cond_reg: Reg = 2;
+            const const_reg: Reg = 3;
+            const REG_BASE: u32 = 4;
+
+            var fused = MirFunction.init(allocator);
+            errdefer fused.deinit();
+            var r: u32 = 0;
+            while (r < REG_BASE + cur_reg) : (r += 1) _ = fused.newReg();
+
+            var fused_param_regs = try allocator.alloc(Reg, K + 1);
+            errdefer allocator.free(fused_param_regs);
+            var fused_param_names = try allocator.alloc(Sym, K + 1);
+            errdefer allocator.free(fused_param_names);
+            for (0..K) |j| {
+                fused_param_regs[j] = def0.param_regs[j] + REG_BASE;
+                fused_param_names[j] = def0.param_names[j];
+            }
+            fused_param_regs[K] = tag_reg;
+            fused_param_names[K] = 0;
+
+            // @b0 : init + check 0.
+            _ = try fused.newBlock();
+            const b0 = &fused.blocks.items[0];
+            try b0.instrs.append(allocator, .{ .const_int = .{ .dest = zero_reg, .value = 0 } });
+            for (scc, 0..) |m, mi| {
+                if (mi == 0) continue;
+                const d = self.fn_defs.get(m) orelse continue;
+                const reg_off_mi: u32 = REG_BASE + reg_start[mi];
+                for (0..K) |j| {
+                    const src = fused_param_regs[j];
+                    const dst = d.param_regs[j] + reg_off_mi;
+                    try b0.instrs.append(allocator, .{ .add = .{ .dest = dst, .lhs = src, .rhs = zero_reg } });
+                }
+            }
+            try b0.instrs.append(allocator, .{ .const_int = .{ .dest = const_reg, .value = 0 } });
+            try b0.instrs.append(allocator, .{ .cmp_eq = .{ .dest = cond_reg, .lhs = tag_reg, .rhs = const_reg } });
+            const else0: u32 = if (N > 2) 1 else region_start[N - 1];
+            b0.terminator = .{ .branch = .{ .cond = cond_reg, .then_block = region_start[0], .else_block = else0 } };
+
+            // @b1..@b[N-2] : checks intermediaires.
+            var ci: u32 = 1;
+            while (ci < N - 1) : (ci += 1) {
+                _ = try fused.newBlock();
+                const b = &fused.blocks.items[ci];
+                try b.instrs.append(allocator, .{ .const_int = .{ .dest = const_reg, .value = @intCast(ci) } });
+                try b.instrs.append(allocator, .{ .cmp_eq = .{ .dest = cond_reg, .lhs = tag_reg, .rhs = const_reg } });
+                const else_b: u32 = if (ci + 1 < N - 1) ci + 1 else region_start[N - 1];
+                b.terminator = .{ .branch = .{ .cond = cond_reg, .then_block = region_start[ci], .else_block = else_b } };
+            }
+
+            // Regions.
+            for (scc, 0..) |m, mi| {
+                const d = self.fn_defs.get(m) orelse continue;
+                const reg_off_mi: u32 = REG_BASE + reg_start[mi];
+                try copyBlocksForFusionN(&fused, &d.fn_mir, allocator, reg_off_mi, region_start[mi], scc, scc_sym);
+            }
+
+            try self.fn_defs.put(scc_sym, .{
+                .fn_mir = fused,
+                .param_regs = fused_param_regs,
+                .param_names = fused_param_names,
+            });
+
+            const K_u32: u32 = @intCast(K);
+            for (scc, 0..) |m, mi| {
+                try self.wrapWithSccCall(m, scc_sym, @intCast(mi), K_u32);
+            }
+
+            const members_copy = try allocator.alloc(u32, N);
+            @memcpy(members_copy, scc);
+            try infos.append(allocator, .{ .scc_sym = scc_sym, .members = members_copy });
+        }
+
+        return infos.toOwnedSlice(allocator);
     }
 
     pub fn init(allocator: std.mem.Allocator) MirFunction {

@@ -27,8 +27,11 @@ fn compileRoot(
     errdefer mf.deinit();
     mf.engine = engine;
     try mf.precompileUserFns();
-    const scc_infos = try mf.fuseTailPairs(mf.allocator);
-    defer mf.allocator.free(scc_infos);
+    const scc_infos = try mf.fuseTailSCCs(mf.allocator);
+    defer {
+        for (scc_infos) |info| mf.allocator.free(info.members);
+        mf.allocator.free(scc_infos);
+    }
     const entry = try mf.newBlock();
     var locals = std.AutoHashMap(u32, Reg).init(alloc);
     defer locals.deinit();
