@@ -1,0 +1,51 @@
+# tests/features_smoke.hvn
+# Smoke test des features introduites le 2026-10-02.
+# Doit rester vert. Si un test echoue : regression detectee.
+
+# --- Ordre superieur ---
+fn isBig(x) = (> x 1)
+fn double(x) = (* x 2)
+test "features_filter_sym": (filter isBig (cons 1 (cons 2 (cons 3 nil)))) == (cons 2 (cons 3 nil))
+test "features_filter_lambda": (filter (λx. (> x 1)) (cons 1 (cons 2 (cons 3 nil)))) == (cons 2 (cons 3 nil))
+test "features_map_sym": (map double (cons 1 (cons 2 nil))) == (cons 2 (cons 4 nil))
+
+# --- Types dependants (v2f) ---
+data Vec (n : Nat) = Nil | Cons a (Vec n)
+sig head : (n : Nat) -> Vec (succ n) -> a
+head _ (Cons x _) = x
+test "features_vec_head": (head 0 (Cons 42 Nil)) == 42
+
+# --- QTT ---
+test "features_qtt_linear": (let linear x = 5 in (+ x 1)) == 6
+test "features_qtt_many": (let many x = 5 in (+ x x)) == 10
+test "features_qtt_erased": (let erased x = 5 in 42) == 42
+
+# --- Tactiques composables ---
+theorem features_t_simplify : x + 0 = x
+prove features_t_simplify by { simplify }
+theorem features_t_seq : (x + 0) + 0 = x
+prove features_t_seq by { simplify; simplify }
+theorem features_t_try : x * 1 = x
+prove features_t_try by { try simplify; simplify }
+
+# --- Kernel CIC (induction Peano) ---
+theorem features_t_induction : x + 0 = x
+prove features_t_induction by induction on x
+
+# --- Effets algebriques ---
+fn features_logHandler msg = (+ msg 100)
+test "features_effect_handle": (handle (perform "Log" 42) features_logHandler) == 142
+test "features_scoped_bracket": (bracket 0 42 99) == 42
+test "features_scoped_catch": (catch (/ 1 0) 42) == 42
+
+# --- miniKanren ---
+fact features_parent Alice Bob
+test "features_kanren_query": (query features_parent Alice _) == 1
+
+# --- Gardes alignees ---
+classifie x | x < 0 = 0 - 1
+            | x == 0 = 0
+            | otherwise = 1
+test "features_guard_neg": (classifie (0 - 3)) == (0 - 1)
+test "features_guard_zero": (classifie 0) == 0
+test "features_guard_pos": (classifie 5) == 1

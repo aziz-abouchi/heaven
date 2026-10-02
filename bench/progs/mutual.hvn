@@ -1,0 +1,3 @@
+fn isEven(n) = (if (= n 0) 1 (isOdd (- n 1)))
+fn isOdd(n)  = (if (= n 0) 0 (isEven (- n 1)))
+(isEven 100000000)

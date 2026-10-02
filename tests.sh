@@ -1,5 +1,5 @@
 #!/bin/bash
-# tests.sh — lance tous les tests/*.hvn.
+# tests.sh — lance tous les tests/*.hvn + smoke des backends.
 #
 # HEAVEN_NO_LEAK_CHECK=1 par defaut : depuis 2026-10-02, un bug
 # intermittent fait paniquer le DebugAllocator pendant certains tests
@@ -14,7 +14,20 @@ fi
 
 rm -fr zig-out .zig-cache
 zig build || exit 1
+
+echo ""
+echo "===== core/test_suite.hvn ====="
+zig-out/bin/heaven --run-test core/test_suite.hvn 2>&1 | tail -8
+
+echo ""
+echo "===== tests/*.hvn ====="
 for f in tests/*.hvn; do
   echo "===== $f ====="
-  zig-out/bin/heaven --run-test "$f" 2>&1 | grep -v '^\s*$' || echo "  (exit $?)"
+  zig-out/bin/heaven --run-test "$f" 2>&1 | grep -E "Total: [0-9]+ / [0-9]+" | tail -1
 done
+
+echo ""
+echo "===== scripts/smoke.sh (backends QBE + WASM) ====="
+bash scripts/smoke.sh
+
+exit $?
