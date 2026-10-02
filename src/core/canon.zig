@@ -198,6 +198,9 @@ fn flattenAC(store: *Store, id: Id, op_name: []const u8, out: *std.ArrayList(Id)
 }
 
 fn rebuildAC(store: *Store, op_sym: Sym, items: []const Id) !Id {
+    // Defensif : l'appelant (canonicalize) filtre `args.len <= 2` en
+    // amont, donc `items` contient au moins 2 elements. Un items vide
+    // signale un bug de flattenAC (parcours qui n'a rien collecte).
     if (items.len == 0) unreachable;
     if (items.len == 1) return items[0];
 

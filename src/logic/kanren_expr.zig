@@ -74,8 +74,17 @@ pub fn unify(store: *const Store, subst: *Subst, a_raw: Id, b_raw: Id) UnifyErro
             if (aa.len != ab.len) return UnifyError.Failure;
             for (aa, ab) |ca, cb| try unify(store, subst, ca, cb);
         },
-        .hole => unreachable,
-        else => unreachable,
+        // Les holes sont interceptes plus haut (walk + deux verifs
+        // en tete de unify). Si un arrive ici c'est un invariant
+        // casse : on renvoie Failure plutot que de paniquer.
+        .hole => return UnifyError.Failure,
+
+        // `.lambda` et `.evar` ne sont pas geres par cette version
+        // de unify. Historiquement un `else => unreachable` masquait
+        // ce trou. On renvoie Failure explicitement pour ne pas
+        // crasher sur un cas non prevu. Unification lambda complete
+        // est un TODO (voir STATUS / kanren).
+        else => return UnifyError.Failure,
     }
 }
 

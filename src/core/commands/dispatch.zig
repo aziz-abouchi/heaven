@@ -85,8 +85,7 @@ pub fn eval(cmds: anytype, input: []const u8) anyerror![]u8 {
         return expr.toStringInfix(cmds.store, result, cmds.allocator);
     }
 
-    if (std.mem.indexOf(u8, trimmed, ":=") != null) {
-        const walrus_pos = std.mem.indexOf(u8, trimmed, ":=") orelse unreachable;
+    if (std.mem.indexOf(u8, trimmed, ":=")) |walrus_pos| {
         const lhs = std.mem.trim(u8, trimmed[0..walrus_pos], " ");
 
         // Détecter si c'est une définition de fonction (LHS avec paramètres)
