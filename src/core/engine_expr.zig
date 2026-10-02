@@ -323,14 +323,21 @@ pub const Engine = struct {
         initial_budget: u64,
         max_budget: u64,
     ) EvalError!?Id {
+        // Cas trivial : si max_budget == 0, on ne peut rien faire.
+        if (max_budget == 0) return null;
         var budget = initial_budget;
-        while (budget <= max_budget) {
+        var attempt: u32 = 0;
+        while (attempt < 64) : (attempt += 1) {
             const outcome = try self.evalWithBudget(id, budget);
             switch (outcome) {
                 .done => |result_id| return result_id,
                 .suspended => {
-                    if (budget == max_budget) return null;
-                    budget = @min(budget * 2, max_budget);
+                    if (budget >= max_budget) return null;
+                    // Growth strict : evite la boucle infinie quand
+                    // budget == 0 (0 * 2 == 0). On ajoute 1 pour
+                    // garantir une progression.
+                    const next = @max(budget * 2, budget + 1);
+                    budget = @min(next, max_budget);
                 },
             }
         }
