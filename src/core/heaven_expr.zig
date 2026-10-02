@@ -913,7 +913,7 @@ pub const Heaven = struct {
             std.mem.startsWith(u8, trimmed, "assert_err "))
         {
             const r = try self.evalAssertionNative(trimmed);
-            if (std.mem.indexOf(u8, trimmed, "filter") != null and std.mem.indexOf(u8, trimmed, "λ") != null)            return r;
+            return r;
         }
 
         // ROUTING S-EXPR : (let ...) / (lambda ...) / (+ 1 2) / toute S-expr pure

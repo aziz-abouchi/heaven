@@ -630,11 +630,28 @@ pub const Math = struct {
         };
     }
 
+    /// Compare sym("true"/"false") a lit(.boolean) comme egaux.
+    /// `a` doit etre le sym, `b` le lit. Retourne false sinon.
+    fn boolSymLitEq(self: *Math, a: expr.Node, b: expr.Node) bool {
+        if (a.tag != .sym or b.tag != .lit) return false;
+        const name = self.store.interner.resolve(a.payload);
+        const lit = self.store.lits.items[b.aux];
+        if (lit != .boolean) return false;
+        if (std.mem.eql(u8, name, "true")) return lit.boolean == true;
+        if (std.mem.eql(u8, name, "false")) return lit.boolean == false;
+        return false;
+    }
+
     pub fn structuralEq(self: *Math, a: Id, b: Id) bool {
         if (a == b) return true;
         const na = self.store.get(a);
         const nb = self.store.get(b);
-        if (na.tag != nb.tag) return false;
+        if (na.tag != nb.tag) {
+            // Normalisation bool : l'engine retourne sym("true"/"false")
+            // quand le parser du test produit lit(.boolean=true/false).
+            // Les deux designent la meme valeur.
+            return self.boolSymLitEq(na, nb) or self.boolSymLitEq(nb, na);
+        }
         switch (na.tag) {
             .lit => {
                 const la = self.store.lits.items[na.aux];
