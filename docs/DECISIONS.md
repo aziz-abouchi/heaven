@@ -4,37 +4,85 @@ Document de référence pour les choix structurants.
 Chaque décision est ancrée sur un constat de code (chiffres,
 chemins, lignes). Une décision non appliquée reste **proposée**.
 
-Dernière mise à jour : 2026-09-29.
+Dernière mise à jour : 2026-10-02.
 
 ## Contexte chiffré
 
-- **54 258 lignes de Zig** dans `src/` (~180 fichiers)
-- **~16 000 lignes vivantes** : `core/expr.zig`, `engine_expr.zig`,
-  `heaven_expr.zig`, `expr_parser.zig`, `kernel/peano.zig`,
-  `elab.zig`, `proof_core.zig`, `tactics.zig`, `eqsat/egraph.zig`,
-  `logic/kanren.zig`, `platform/*`
-- **~20 000 lignes dormantes/orphelines** : ancien écosystème
-  Astra (`matrix.zig`, `matrix_bridge.zig`, `vessel/*`,
-  `runtime/heaven.zig`, `runtime/eQSATPlanner.zig`,
-  `scut/*`, `inference/forge/*`, `inference/neural/*`)
-- **21 TODO/FIXME**, **19 `@panic`/`unreachable`**
+Chiffres vérifiés le 2026-10-02 :
 
-## D1 — Faire le deuil d'Astra
+- **59 250 lignes de Zig** dans `src/` (**206 fichiers**)
+- **18 TODO/FIXME**, **39 `@panic`/`unreachable`** (les `@panic` ont
+  doublé depuis le 2026-09-29, à auditer)
 
-**Constat** : ~20k lignes de code d'un langage parallèle
-(`matrix.Matrix`, `SRG`, `eQSATPlanner`, `AutoFab`) qui n'a
-jamais convergé vers le noyau 6 primitives. Le vrai Heaven
-utilise `expr.Store` + `engine_expr`, pas `matrix`.
+Évolution depuis le 2026-09-29 :
+- Fichiers : ~180 → 206
+- Lignes : 54 258 → 59 250
+- TODO/FIXME : 21 → 18
+- @panic/unreachable : 19 → 39 (doublement à investiguer)
 
-**Action** : déplacer vers `src/legacy/`. Vérifier qu'aucun
-fichier vivant n'en dépend (audit préalable).
+## D1 — Faire le deuil d'Astra (RÉVISÉE 2026-10-02)
 
-**Effort** : 1 session.
+**Constat après audit** : la version du 2026-09-29 supposait que
+*les 20k lignes Astra étaient dormantes*. C'est **faux**. Audit du
+2026-10-02 :
 
-**Critère** : `zig build test` et `zig build test-regression`
-restent verts. `main.zig` n'importe plus `matrix_lib`,
-`vessel_lib`, `heaven_lib`, `transpiler_lib`, `universal_lib`,
-`autofab_lib`, `react_lib`, `dispatch`, `SRG`, `EQSATPlanner`.
+- **`matrix_lib`, `autofab_lib`, `vessel_lib`, `universal_lib`
+  sont VIVANTS** : ils portent l'IDE web Vessel (dashboard, REPL
+  web, visualisateur eGraph, process monitor). `vessel/bridge.zig`
+  lit `matrix.getStats()`, `matrix.nodes.iterator()`, appelle
+  `syncMatrixWithFile(matrix, fab, ...)`. `uni_ingest.ingest()`
+  peuple la matrix à partir des `.hvn` (bootstrap, kernel, logic,
+  prelude, io).
+
+- **`heaven_lib` (Engine), `react_lib`, `SRG`, `EQSATPlanner`,
+  `transpiler_lib` sont MORTS** : importés dans `main.zig`, mais
+  jamais utilisés au runtime (`grep` : seuls des `deinit` et une
+  assignation `.autofab = &fab`).
+
+**Décision révisée :**
+
+- **Ne pas déplacer** `matrix.zig`, `matrix_bridge.zig`,
+  `vessel/*`, `runtime/autofab.zig`, `inference/forge/universal.zig`,
+  `runtime/shell/*` : ils portent Vessel.
+- **Dégager** de `main.zig` les imports et blocs morts :
+  `heaven_lib`, `react_lib`, `SRG`, `EQSATPlanner`, `transpiler_lib`.
+  Supprimer les initialisations correspondantes (lignes ~370-390
+  de `main.zig` au 2026-10-02).
+- **Découpler Vessel** du noyau Expr (recâbler le dashboard sur
+  `expr.Store` au lieu de `matrix`) est un **chantier séparé**,
+  non planifié. Voir D9 (nouvelle).
+
+**Note importante** : il y a un **doublon de bootstrap**. Les
+5 fichiers `.hvn` sont chargés deux fois : une fois par
+`uni_ingest.ingest()` dans la matrix (pour Vessel), une fois par
+`heaven_expr.zig:347` + `std_loader.zig` (pour le REPL).
+Tant que Vessel dépend de matrix, ce doublon reste.
+
+**Effort** : 30 min pour le nettoyage des imports morts.
+
+**Critère** : `zig build` vert, `zig build test` vert,
+`./zig-out/bin/heaven repl` fonctionne, Vessel démarre
+(`http://localhost:port/`) et affiche la matrix peuplée.
+
+## D9 — Découpler Vessel du noyau Astra (NOUVELLE 2026-10-02)
+
+**Constat** : Vessel (`vessel/bridge.zig`) lit directement
+`matrix` (getStats, nodes.iterator, syncMatrixWithFile). C'est
+le dernier point de couplage fort entre l'ancien écosystème
+Astra et l'environnement utilisateur (IDE web).
+
+**Action** : recâbler les endpoints de Vessel pour qu'ils
+lisent le `expr.Store` au lieu de `matrix`. Nécessite :
+- Un équivalent `getStats()` sur le Store (nb de nœuds, symboles).
+- Un équivalent `nodes.iterator()` exposant les nœuds du Store.
+- Un endpoint `syncWithFile` qui passe par `heaven_expr` au lieu
+  de `syncMatrixWithFile`.
+
+**Effort** : 1-2 sessions. Risque moyen (Vessel est l'environnement
+principal, ne pas casser).
+
+**Débloque** : la suppression effective de `matrix.zig` (D1
+complète), et supprime le doublon de bootstrap.
 
 ## D2 — Moteurs logiques (FERMÉE 2026-09-28, doc + rename)
 
@@ -65,27 +113,31 @@ couches distinctes coexistent :
   N'utilise pas le kernel.
 - **Store** (`proof.zig`, `proof_core.zig`, `proof_helpers.zig`,
   `proof_state.zig`) : orchestration des preuves au niveau Core.
-- **Kernel** (`kernel/peano.zig`, 853 l.) : CIC minimaliste.
+- **Kernel** (`kernel/peano.zig`, 1966 l. au 2026-10-02 - a double depuis l'audit initial) : CIC minimaliste.
 - **Pont** (`kernel_bridge.zig`, 143 l.) : traduit `Id` ↔ `u32`.
 
 **Action** : documentation seule. Voir `docs/spec/_proof.md`.
 
 **Effort** : 30 min. Aucun refactor justifié.
 
-## D4 — Découper le shell
+## D4 — Découper le shell (FAITE 2026-09-30)
 
-**Constat** : `core/commands.zig` (2338 l.) + `runtime/shell/commands.zig`
-(1604 l.) = **3942 lignes** pour un shell.
+**Constat initial** : `core/commands.zig` (2338 l.) +
+`runtime/shell/commands.zig` (1604 l.) = 3942 lignes.
 
-**Action** : séparer par domaine dans `core/commands/` :
-- `commands/logic.zig` (fact, query, rule)
-- `commands/proofs.zig` (theorem, prove, skill)
-- `commands/cas.zig` (simplify, derive, integrate, solve)
-- `commands/modules.zig` (module, import, export)
-- `commands/actors.zig` (spawn, send, state)
-- `commands/meta.zig` (rules, help, stats)
+**État réel 2026-10-02** :
+- `core/commands.zig` : **652 l.** (dispatch principal uniquement)
+- `runtime/shell/commands.zig` : **1535 l.** (REPL interactif,
+  pas le dispatch)
+- `src/core/commands/` contient **8 sous-modules** : `cas.zig`,
+  `defs.zig`, `dispatch.zig`, `format.zig`, `meta.zig`,
+  `parse.zig`, `proofs.zig`, `runtime.zig`
 
-**Effort** : 2 sessions.
+Le découpage est fait. `core/commands.zig` est passé de 2338 à
+652 lignes. Les sous-modules `logic.zig`, `modules.zig`,
+`actors.zig` mentionnés dans le plan initial n'ont pas été créés
+séparément - la logique correspondante vit dans `defs.zig`
+(définitions, guards) et `dispatch.zig` (routage).
 
 ## D5 — Un seul `NodeKind` (RÉSOLU, faux problème)
 
@@ -98,29 +150,33 @@ pas sur la `Matrix` abstraite).
 
 **Verdict** : rien à fusionner. D5 fermée sans action.
 
-## D6 — Nettoyer `main.zig`
+## D6 — Nettoyer `main.zig` (absorbée par D1bis 2026-10-02)
 
-**Constat** : lignes 22-36 de `main.zig` importent 15 modules,
-dont la moitié ne devrait plus être là après D1.
+**Constat initial** : lignes 22-36 de `main.zig` importent 15
+modules, dont plusieurs sans usage réel.
 
-**Action** : après D1, ne garder que les imports du noyau vivant.
-Le shell devient un module unique `shell_mod`.
+**État réel 2026-10-02** : après audit, la moitié sont vivants
+(portent Vessel), l'autre moitié (`heaven_lib`, `react_lib`,
+`SRG`, `EQSATPlanner`, `transpiler_lib`) est morte.
 
-**Effort** : 1 session après D1.
+**Action** : voir D1bis (dans la D1 révisée). Effort : 30 min.
+D6 fermée sans action séparée.
 
-## D7 — Sérialisation canonique du Core
+## D7 — Sérialisation canonique du Core (FAITE 2026-09-28)
 
-**Constat** : ~6 TODO de `core/network/swarm.zig`,
-`core/network/handlers.zig`, `codegen_wrapper.zig` demandent un
-format d'échange binaire pour le Core. Absent.
+**État réel 2026-10-02** : `src/core/serialize.zig` existe
+(10 659 octets). API : `encode(store, writer)`, `decode(reader,
+allocator)`. Format `HVN1` versionné (`MAGIC = "HVN1"`,
+`VERSION = 1`). Refus explicite des versions inconnues.
 
-**Action** : `core/serialize.zig` :
-- `encode(store: *Store, id: Id, writer: anytype) !void`
-- `decode(reader: anytype, allocator) !Id`
-- Format versionné : `magic = "HVNv1"`, refus des versions inconnues.
-- Test d'inverse : `decode(encode(e)) == e` (α-équivalence).
+**Ce qui est encodé** : nœuds du Store, pool d'arguments,
+littéraux, interner de symboles.
 
-**Effort** : 2-3 sessions.
+**Ce qui reste à faire** (séparé, non planifié) :
+- Test d'inverse explicite `decode(encode(e)) == e` avec
+  α-équivalence sur plusieurs expressions Core.
+- Intégration dans `core/network/*` (les TODO mentionnés dans
+  la version initiale de cette décision).
 
 **Débloque** : cache disque, communication entre process,
 tests reproductibles, IPFS (si un jour).
@@ -149,21 +205,39 @@ débloque C3.
 3a-2 captureCont (1 sess.), 3a-3 branchement handle-rec + scheduler
 (1 sess.). Détail dans `docs/spec/_continuations.md`.
 
-**Effort** : 3 sessions.
+**État réel 2026-10-02** :
+- 3a-2 FAIT : `src/core/continuation.zig` (334 lignes, 9 tests)
+  implémente `captureCont`, `throwCont`, `pushPrompt`, `popPrompt`,
+  `CaptureStack`.
+- 3a-3 À FAIRE : `continuation.zig` n'est importé nulle part dans
+  `engine_expr.zig` ni `heaven_expr.zig`. Le tree-walker ne
+  suspend rien. `handle-rec` et le scheduler préemptif restent
+  bloqués.
+
+**Effort restant** : 1-2 sessions (3a-3 + tests end-to-end).
 
 **Débloque** : handle-rec, scheduler préemptif C3, puis C2 distribution.
 
-## Roadmap courte (7 sessions)
+## Roadmap courte (recalibrée 2026-10-02)
 
-| # | Session | Débloque |
+| # | Session | État |
 |---|---|---|
-| 1 | Fix `parseExpression` (infix parenthésé) | P0 stabilité |
-| 2 | D1 — déplacer Astra vers `src/legacy/` | 20k lignes clarifiées |
-| 3 | D7 — sérialisation Core | prérequis réseau/cache |
-| 4 | D4 — découper `commands.zig` | shell maintenable |
-| 5 | D2 — unifier miniKanren | logique clarifiée |
-| 6 | D3 — clarifier CIC/elab/proof_core | noyau clarifié |
-| 7 | Scoped syntax `bracket`/`local`/`catch` | effets scopés réels |
+| 1 | Fix `parseExpression` (infix parenthésé) | FAIT |
+| 2 | D2 — unifier miniKanren (rename) | FAIT |
+| 3 | D3 — clarifier CIC/elab/proof_core | FAIT (doc) |
+| 4 | D4 — découper `commands.zig` | FAIT (652 l. restants) |
+| 5 | D7 — sérialisation Core | FAIT (`serialize.zig`) |
+| 6 | Scoped syntax `bracket`/`local`/`catch` | FAIT |
+| 7 | TCO self-tail + mutuelle | FAIT (QBE + WASM) |
+
+**Ce qui reste réellement :**
+
+| # | Session | Effort | Débloque |
+|---|---|---|---|
+| 1 | D1bis — dégager imports morts de `main.zig` | 30 min | clarté |
+| 2 | D8 — brancher `continuation.zig` (3a-3) | 1-2 sess. | handle-rec, scheduler |
+| 3 | D9 — découpler Vessel d'Astra | 1-2 sess. | suppr. matrix.zig |
+| 4 | Audit des 39 `@panic`/`unreachable` | 1 sess. | robustesse |
 
 ## Ce qu'on ne fera pas (vision, hors scope)
 
