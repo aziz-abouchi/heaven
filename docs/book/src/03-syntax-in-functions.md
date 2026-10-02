@@ -233,7 +233,8 @@ Quand tu écris des clauses, Heaven vérifie trois choses :
     ✓ clause enregistrée pour 'head'
 
 C'est la vérification v2c (2026-09-23). L'unification vraie
-d'indexes (`Vec (n + m)`, liaison `n := k`) est en roadmap v2d.
+d'indexes (`Vec (n + m)`, liaison `n := k`) est fait depuis v2f
+(2026-10-02).
 
 ## Les gardes
 

@@ -293,7 +293,7 @@ Tapez `}` ou `qed` pour valider, `abort` pour annuler.
     apply H       -- l'unification lie x := a
 
 C'est une unification de premier ordre. L'unification vraie avec
-indexes dépendants (`Vec (n + m)`) reste en roadmap.
+indexes dépendants (`Vec (n + m)`) est fait depuis v2f (2026-10-02).
 
 ### Skills
 
