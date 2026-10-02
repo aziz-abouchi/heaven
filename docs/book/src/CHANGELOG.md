@@ -24,6 +24,16 @@ connaît pas λ S-expr -- 2 tests comprehension sur 12.
 
 ## 2026-10-02
 
+### Cross-compilation QBE (--target)
+
+- `compile-qbe <src> -o <out> [--target <name>]` : emet l'assembleur
+  pour la cible demandee (QBE IL natif). Cibles : `amd64_sysv`,
+  `amd64_apple`, `arm64`, `arm64_apple`, `rv64`.
+- Sans `--target`, comportement natif inchange (QBE + cc + binaire).
+- Verifie : assembleur correct produit pour les 5 cibles.
+- Le binaire final pour cible etrangere necessite un cross-cc (non
+  gere dans cette version).
+
 ### TCO mutuelle etendue - SCC 3+
 
 - `fuseTailSCCs` generalise `fuseTailPairs` : tout SCC (2+ fonctions

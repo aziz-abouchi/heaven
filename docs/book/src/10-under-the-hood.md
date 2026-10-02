@@ -333,8 +333,32 @@ Consequence : `count_down 10000000` et `isEven 100000000` compilent
 et tournent sans exploser la pile. Sur WASM, le flag
 `-W max-wasm-stack=67108864` n'est plus necessaire.
 
-**Non couvert** : cycles de trois fonctions ou plus, trampolines
-generaux (tail-calls hors du groupe fusionne).
+**SCC de taille arbitraire** — depuis octobre 2026, la fusion SCC
+couvre aussi les cycles de 3+ fonctions (`f -> g -> h -> f`). Chaque
+SCC devient une fonction avec un tag dispatch a N branches. Verifie :
+`f 1000000 = 200` sur un cycle de 3.
+
+**Non couvert** : trampolines generaux (tail-calls inter-fonction
+hors du SCC), et SCC dont les membres ont des arites differentes.
+
+### Cross-compilation
+
+QBE supporte 5 cibles natives. `compile-qbe` accepte un flag
+`--target` :
+
+    ./zig-out/bin/heaven compile-qbe fib.hvn -o fib.s --target arm64
+    ./zig-out/bin/heaven compile-qbe fib.hvn -o fib.s --target rv64
+
+Sans `--target`, le comportement est natif : QBE emet pour la
+machine courante, `cc` assemble et link, un binaire executable est
+produit. Avec `--target`, QBE emet l'assembleur pour la cible
+demandee et on s'arrete la (fichier `.s`). Un cross-cc
+(`aarch64-linux-gnu-gcc`, `riscv64-linux-gnu-gcc`) est necessaire
+pour produire le binaire final, il n'est pas gere par Heaven.
+
+Cibles disponibles : `amd64_sysv` (Linux x86-64), `amd64_apple`
+(macOS Intel), `arm64` (Linux ARM64), `arm64_apple` (macOS Apple
+Silicon), `rv64` (RISC-V 64 bits).
 
 ## La philosophie
 

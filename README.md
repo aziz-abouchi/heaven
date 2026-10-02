@@ -70,6 +70,8 @@ catch.
 
 Compilation :
 - QBE : compile-qbe <src.hvn> -o <bin>  → binaire natif
+- Cross : compile-qbe <src.hvn> -o <out.s> --target <name> → assembleur
+  pour amd64_sysv, amd64_apple, arm64, arm64_apple, rv64
 - WASM : compile-wasm <src.hvn> -o <out.wat>  → wasmtime run
 - Bench : bench-interp, bench-qbe, bench-wasm (wall, cpu, énergie RAPL,
 température, RSS)
@@ -203,6 +205,7 @@ lit le MIR et émet son langage cible sans connaître Heaven.
 - docs/book/ — livre complet (12 chapitres + annexes) : démarrage, types,
 pattern matching, récursion, ordre supérieur, effets, streams, preuves,
 monde réel, sous le capot, modules, knowledge.
+- docs/VISION.md — vision long terme (pourquoi, direction, invariants).
 - docs/STATUS.md — source de vérité (ce qui marche).
 - docs/DECISIONS.md — décisions structurantes (D1-D9).
 - docs/ROADMAP.md — specs actionnables.
