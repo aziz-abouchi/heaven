@@ -415,3 +415,57 @@ test "unification - annulation mul : mul x 0 = 0" {
     const result = try unify(&ctx, mul_x_0, zero_lit, &subst);
     try std.testing.expect(result);
 }
+
+test "unification dependante - Vec (add 2 3) unifie avec Vec 5" {
+    const allocator = std.testing.allocator;
+    var store = try Store.init(allocator);
+    defer store.deinit();
+    
+    const ctx = Ctx{ .store = &store, .allocator = allocator };
+    var subst = Subst{};
+    defer subst.deinit(allocator);
+    
+    // Construire : Vec (add 2 3)
+    const two = try store.lit(.{ .int = 2 });
+    const three = try store.lit(.{ .int = 3 });
+    const add_sym = try store.sym("add");
+    const add_2_3 = try store.apply(add_sym, &.{ two, three });
+    const vec_sym = try store.sym("Vec");
+    const vec_add_2_3 = try store.apply(vec_sym, &.{ add_2_3 });
+    
+    // Construire : Vec 5
+    const five = try store.lit(.{ .int = 5 });
+    const vec_5 = try store.apply(vec_sym, &.{ five });
+    
+    // Unifier
+    const result = try unify(&ctx, vec_add_2_3, vec_5, &subst);
+    try std.testing.expect(result);
+}
+
+test "unification dependante - Vec (add n m) unifie avec Vec (add m n) via AC" {
+    const allocator = std.testing.allocator;
+    var store = try Store.init(allocator);
+    defer store.deinit();
+    
+    const ctx = Ctx{ .store = &store, .allocator = allocator };
+    var subst = Subst{};
+    defer subst.deinit(allocator);
+    
+    // Variables (représentées comme des symboles pour ce test simplifié)
+    const n = try store.sym("n");
+    const m = try store.sym("m");
+    const add_sym = try store.sym("add");
+    const vec_sym = try store.sym("Vec");
+    
+    // Construire : Vec (add n m)
+    const add_n_m = try store.apply(add_sym, &.{ n, m });
+    const vec_n_m = try store.apply(vec_sym, &.{ add_n_m });
+    
+    // Construire : Vec (add m n)
+    const add_m_n = try store.apply(add_sym, &.{ m, n });
+    const vec_m_n = try store.apply(vec_sym, &.{ add_m_n });
+    
+    // Unifier (doit réussir grâce à la normalisation AC)
+    const result = try unify(&ctx, vec_n_m, vec_m_n, &subst);
+    try std.testing.expect(result);
+}

@@ -978,6 +978,20 @@ pub fn exprType(self: *Shell, input: []const u8) void {
     eval.exprType(self, input);
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// Normalisation / Simplification arithmétique (v2f)
+// ═══════════════════════════════════════════════════════════
+pub fn cmdNorm(self: *Shell, input: []const u8) void {
+    if (input.len == 0) return;
+    const result = self.heaven.simplify(input) catch |err| {
+        platform.debug.print(" erreur de simplification: {}\n", .{err});
+        return;
+    };
+    defer self.allocator.free(result);
+    platform.debug.print("{s}  ~>  {s}\n", .{ input, result });
+}
+
 // ═══════════════════════════════════════════════════════════
 // MLCPD & MCP Commands
 // ═══════════════════════════════════════════════════════════

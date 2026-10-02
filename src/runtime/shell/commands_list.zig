@@ -18,6 +18,7 @@ pub const CommandTag = enum {
     theorems,
     skill,
     simplify,
+    norm,
     rewrite,
     explain,
     eval,
@@ -101,6 +102,7 @@ pub const commands = [_]Command{
 
     // Calcul Symbolique & Transformation
     .{ .name = "simplify", .tag = .simplify, .shortcut = "simp", .description = "Simplifier (rewrite)", .method = "exprSimplify" },
+    .{ .name = "norm", .tag = .norm, .shortcut = "n", .description = "Normaliser/simplifier arithmétiquement", .method = "cmdNorm" },
     .{ .name = "rewrite", .tag = .rewrite, .shortcut = "rw", .description = "Ajouter une règle de réécriture", .method = "exprRewrite" },
     .{ .name = "explain", .tag = .explain, .shortcut = "x", .description = "Détailler les étapes de calcul", .method = "cmdExplain" },
     .{ .name = "eval", .tag = .eval, .shortcut = "e", .description = "Évaluer une expression", .method = "exprEval" },

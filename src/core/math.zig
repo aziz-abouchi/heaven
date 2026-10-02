@@ -156,7 +156,7 @@ pub const Math = struct {
                     platform.dbg("[deriveExpr] apply op={s}, args.len={d}\n", .{ op, args.len });
                 }
 
-                if (std.mem.eql(u8, op, "+")) {
+                if (std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "add")) {
                     var derived = try self.allocator.alloc(Id, args.len);
                     defer self.allocator.free(derived);
                     for (args, 0..) |arg, i| {
@@ -164,12 +164,12 @@ pub const Math = struct {
                     }
                     const plus_sym = try self.store.sym("+");
                     break :blk try self.store.apply(plus_sym, derived);
-                } else if (std.mem.eql(u8, op, "-")) {
+                } else if (std.mem.eql(u8, op, "-") or std.mem.eql(u8, op, "sub")) {
                     const du = try self.deriveExpr(args[0], variable);
                     const dv = try self.deriveExpr(args[1], variable);
                     const minus_sym = try self.store.sym("-");
                     break :blk try self.store.apply(minus_sym, &.{ du, dv });
-                } else if (std.mem.eql(u8, op, "*")) {
+                } else if (std.mem.eql(u8, op, "*") or std.mem.eql(u8, op, "mul")) {
                     const u = args[0];
                     const v = args[1];
                     const du = try self.deriveExpr(u, variable);
@@ -290,23 +290,23 @@ pub const Math = struct {
                     new_args[i] = try self.simplifyStep(arg, changed);
                 }
 
-                // ── Constant folding : (+ 2 3) → 5 ──
+                                // ── Constant folding : (+ 2 3) → 5, (add 2 3) → 5, etc. ──
                 if (args.len == 2) {
                     if (self.getIntLit(new_args[0])) |a| {
                         if (self.getIntLit(new_args[1])) |b| {
-                            if (std.mem.eql(u8, op, "+")) {
+                            if (std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "add")) {
                                 changed.* = true;
                                 return try self.store.int(a + b);
                             }
-                            if (std.mem.eql(u8, op, "-")) {
+                            if (std.mem.eql(u8, op, "-") or std.mem.eql(u8, op, "sub")) {
                                 changed.* = true;
                                 return try self.store.int(a - b);
                             }
-                            if (std.mem.eql(u8, op, "*")) {
+                            if (std.mem.eql(u8, op, "*") or std.mem.eql(u8, op, "mul")) {
                                 changed.* = true;
                                 return try self.store.int(a * b);
                             }
-                            if (std.mem.eql(u8, op, "/") and b != 0) {
+                            if ((std.mem.eql(u8, op, "/") or std.mem.eql(u8, op, "div")) and b != 0) {
                                 changed.* = true;
                                 return try self.store.int(@divTrunc(a, b));
                             }
@@ -318,8 +318,8 @@ pub const Math = struct {
                     }
                 }
 
-                // Règle : (* 1 x) → x  et  (* x 1) → x
-                if (std.mem.eql(u8, op, "*") and args.len == 2) {
+                // Règle : (* 1 x) → x  et  (* x 1) → x  et  (* x 0) → 0
+                if ((std.mem.eql(u8, op, "*") or std.mem.eql(u8, op, "mul")) and args.len == 2) {
                     if (self.isIntLit(new_args[0], 1)) {
                         changed.* = true;
                         return new_args[1];
@@ -328,14 +328,27 @@ pub const Math = struct {
                         changed.* = true;
                         return new_args[0];
                     }
-                    // Règle : (* x 0) → 0  et  (* 0 x) → 0
                     if (self.isIntLit(new_args[0], 0) or self.isIntLit(new_args[1], 0)) {
                         changed.* = true;
                         return try self.store.int(0);
                     }
                 }
 
-                if (std.mem.eql(u8, op, "+") and args.len == 2) {
+                // Règle : (+ x 0) -> x et (+ 0 x) -> x (gère "+" et "add", ainsi que le symbole "zero")
+                if ((std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "add")) and args.len == 2) {
+                    const node0 = self.store.get(new_args[0]);
+                    const node1 = self.store.get(new_args[1]);
+                    const is_zero_0 = self.isIntLit(new_args[0], 0) or (node0.tag == .sym and std.mem.eql(u8, self.store.interner.resolve(node0.payload), "zero"));
+                    const is_zero_1 = self.isIntLit(new_args[1], 0) or (node1.tag == .sym and std.mem.eql(u8, self.store.interner.resolve(node1.payload), "zero"));
+                    
+                    if (is_zero_0) {
+                        changed.* = true;
+                        return new_args[1];
+                    }
+                    if (is_zero_1) {
+                        changed.* = true;
+                        return new_args[0];
+                    }
 
                     // Règle : (+ x x) → (* 2 x)
                     if (self.structuralEq(new_args[0], new_args[1])) {
@@ -346,9 +359,6 @@ pub const Math = struct {
                     }
 
                     // Factorisation : (+ (* a b) (* a c)) → (* a (+ b c))
-                    // Les 4 permutations (facteur commun à gauche, à droite,
-                    // en croisé) sont couvertes pour ne pas dépendre de la
-                    // commutativité de `*`, non modélisée dans cette passe.
                     if (self.asMul(new_args[0])) |m0| {
                         if (self.asMul(new_args[1])) |m1| {
                             var common: ?Id = null;
@@ -356,21 +366,13 @@ pub const Math = struct {
                             var other1: Id = undefined;
 
                             if (self.structuralEq(m0.a, m1.a)) {
-                                common = m0.a;
-                                other0 = m0.b;
-                                other1 = m1.b;
+                                common = m0.a; other0 = m0.b; other1 = m1.b;
                             } else if (self.structuralEq(m0.a, m1.b)) {
-                                common = m0.a;
-                                other0 = m0.b;
-                                other1 = m1.a;
+                                common = m0.a; other0 = m0.b; other1 = m1.a;
                             } else if (self.structuralEq(m0.b, m1.a)) {
-                                common = m0.b;
-                                other0 = m0.a;
-                                other1 = m1.b;
+                                common = m0.b; other0 = m0.a; other1 = m1.b;
                             } else if (self.structuralEq(m0.b, m1.b)) {
-                                common = m0.b;
-                                other0 = m0.a;
-                                other1 = m1.a;
+                                common = m0.b; other0 = m0.a; other1 = m1.a;
                             }
 
                             if (common) |c| {
@@ -381,17 +383,21 @@ pub const Math = struct {
                             }
                         }
                     }
+                }
 
-                    // Règle : (+ 0 x) → x
-                    if (self.isIntLit(new_args[0], 0)) {
+                // Règle : (succ zero) -> 1 ou (succ n) -> n + 1
+                if ((std.mem.eql(u8, op, "succ") or std.mem.eql(u8, op, "inc")) and args.len == 1) {
+                    const arg_node = self.store.get(new_args[0]);
+                    const is_zero_sym = arg_node.tag == .sym and std.mem.eql(u8, self.store.interner.resolve(arg_node.payload), "zero");
+                    
+                    // Vérifie la VALEUR réelle (0) via isIntLit, ou le symbole "zero"
+                    if (self.isIntLit(new_args[0], 0) or is_zero_sym) {
                         changed.* = true;
-                        return new_args[1];
+                        return try self.store.int(1);
                     }
-
-                    // Règle : (+ x 0) → x
-                    if (self.isIntLit(new_args[1], 0)) {
+                    if (self.getIntLit(new_args[0])) |a| {
                         changed.* = true;
-                        return new_args[0];
+                        return try self.store.int(a + 1);
                     }
                 }
 
@@ -929,7 +935,7 @@ pub const Math = struct {
                 const op_node = self.store.get(node.payload);
                 if (op_node.tag != .sym) return self.store.int(0);
                 const op = self.store.interner.resolve(op_node.payload);
-                if (std.mem.eql(u8, op, "+")) {
+                if (std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "add")) {
                     var result: Id = 0;
                     for (args) |arg| {
                         const integ = try self.integrateExpr(arg, variable);
@@ -939,13 +945,13 @@ pub const Math = struct {
                     }
                     return result;
                 }
-                if (std.mem.eql(u8, op, "-")) {
+                if (std.mem.eql(u8, op, "-") or std.mem.eql(u8, op, "sub")) {
                     if (args.len < 2) return self.store.int(0);
                     const in1 = try self.integrateExpr(args[0], variable);
                     const in2 = try self.integrateExpr(args[1], variable);
                     return self.store.binop("-", in1, in2);
                 }
-                if (std.mem.eql(u8, op, "*")) {
+                if (std.mem.eql(u8, op, "*") or std.mem.eql(u8, op, "mul")) {
                     // Version simplifiée : si un facteur est constant, on l'intègre avec l'autre
                     // Sinon, on retourne 0.
                     if (args.len < 2) return self.store.int(0);
@@ -1090,10 +1096,10 @@ pub const Math = struct {
                 if (raw.len < 3) return; // func + au moins 2 args
                 const args = raw[1..]; // skip func
                 if (args.len != 2) return; // binaire pour l'instant
-                if (std.mem.eql(u8, op, "+")) {
+                if (std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "add")) {
                     self.collectCoeffs(args[0], v, a, b, c);
                     self.collectCoeffs(args[1], v, a, b, c);
-                } else if (std.mem.eql(u8, op, "-")) {
+                } else if (std.mem.eql(u8, op, "-") or std.mem.eql(u8, op, "sub")) {
                     self.collectCoeffs(args[0], v, a, b, c);
                     var a2: i64 = 0;
                     var b2: i64 = 0;
@@ -1102,7 +1108,7 @@ pub const Math = struct {
                     a.* -= a2;
                     b.* -= b2;
                     c.* -= c2;
-                } else if (std.mem.eql(u8, op, "*")) {
+                } else if (std.mem.eql(u8, op, "*") or std.mem.eql(u8, op, "mul")) {
                     const n0 = self.store.get(args[0]);
                     const n1 = self.store.get(args[1]);
                     if (n0.tag == .lit and n1.tag == .sym) {
@@ -1304,7 +1310,7 @@ pub const Math = struct {
         const args = raw[1..];
         const a0 = args[0];
         const a1 = args[1];
-        if (std.mem.eql(u8, op, "*")) {
+        if (std.mem.eql(u8, op, "*") or std.mem.eql(u8, op, "mul")) {
             const left = try self.expandExpr(a0);
             const right = try self.expandExpr(a1);
             if (left < self.store.len()) {
