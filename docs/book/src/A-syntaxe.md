@@ -88,10 +88,12 @@ Liaison locale. Le nom est visible dans la partie après `in`.
 
 ## if
 
-    if cond then a else b          -- forme native (roadmap)
-    (if cond a b)                  -- forme préfixe (actuelle)
+    if cond then a else b          -- forme infixe
+    (if cond a b)                  -- forme prefixe
 
-La forme préfixe est la seule garantie aujourd'hui.
+Les deux formes sont acceptees et equivalentes. La forme infixe
+`if cond then a else b` est la plus lisible pour les expressions
+courantes ; la forme prefixe reste utile pour les cas imbriques.
 
 ## data
 

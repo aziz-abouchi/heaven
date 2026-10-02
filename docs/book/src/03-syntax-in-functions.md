@@ -162,16 +162,19 @@ toujours garantir qu'une liste n'est pas vide. On verra comment
 exprimer ça avec les types au chapitre 8 (types dépendants), mais pour
 l'instant, acceptons l'imperfection.
 
-## Les alias de type
+## Les alias de type (roadmap)
 
-Parfois un type est long à écrire. On peut lui donner un nom court :
+Un alias de type serait un nom court pour un type long :
 
-    heaven> type Nom = String	(roadmap)
-    ✓ Nom défini
+    -- vision : non implémenté
+    type Nom = String
 
-Mais ce n'est pas un nouveau type : c'est un synonyme. `Nom` et
-`String` sont interchangeables. Utile pour la lisibilité, pas pour la
-sûreté.
+L'alias ne cree pas un nouveau type, juste un synonyme. Utile pour la
+lisibilite, pas pour la surete.
+
+Ce n'est pas encore implémenté. La commande `type` existe mais elle
+sert a **afficher le type d'une expression** (inference), pas a
+declarer un alias.
 
 ## Récapitulatif
 
