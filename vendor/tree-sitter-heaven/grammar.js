@@ -1533,6 +1533,15 @@ _expr: ($) =>
   ),
 
 list_comprehension: ($) => seq( "[", $._expr, repeat1(seq("for", $.identifier, "in", $._expr)), optional(seq("if", $._expr)), "]" ),
+
+    // Syntaxe S-Expression pour les compréhensions (désucrage en map/filter)
+    for_expr: ($) => seq(
+      "(", "for",
+      "(", $.identifier, "<-", $._expr, ")",
+      optional(seq("(", "when", $._expr, ")")),
+      $._expr,
+      ")"
+    ),
 unit_expr: ($) => seq("(", ")"),
 paren_expr: ($) => seq("(", $._expr, ")"),
 self_expr: ($) => "self",
@@ -1569,6 +1578,11 @@ index: ($) => prec(14, seq($._expr, "[", $._expr, "]")),
 lambda: ($) =>
   choice(
     prec.right(-3, seq("|", optional(sep1($.identifier, ",")), "|", choice($.block, $._expr))),
+    // Style 1: λx. body ou \x. body
+    prec.right(-3, seq(choice("λ", "\\"), $.identifier, ".", $._expr)),
+    // Style 2: λx => body ou \x => body
+    prec.right(-3, seq(choice("λ", "\\"), $.identifier, choice("=>", "→"), $._expr)),
+    // Style 3: λ(x) => body (conservé pour compatibilité multi-paramètres)
     prec.right(-3, seq(choice("λ", "\\", "fn"), "(", optional(sep1($.param, ",")), ")", choice("=>", "→"), $._expr))
   ),
 
