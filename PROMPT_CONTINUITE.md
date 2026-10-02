@@ -128,3 +128,12 @@ Fix trivial mais a verifier que `applyLine` ne retient pas `trimmed`.
 - b26eb9f : fix use-after-free setLastEqLhs (bisection 867/89e).
   Lecon gravee : les tests d'une feature ne voient pas un UAF --
   seule la suite complete le detecte (convention #6).
+
+## Correction interpretation (2026-10-02)
+- Le "crash corruption tas" chase hier (bisection 867/89e) etait
+  en fait le leak kernel au shutdown : gpa.deinit abort (exit 134)
+  quand une preuve CIC passe par shift/mkApp. Stack : peano.zig
+  104/123/372-388. Flaky (4/5). Dossier session kernel -- relais
+  envoye avec reproducteur. Notre b26eb9f (fix UAF) reste valide
+  pour ce qu'il corrigeait (ordre de liberation), mais la cause
+  racine du 134 est le leak peano.
