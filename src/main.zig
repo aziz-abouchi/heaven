@@ -17,7 +17,6 @@ const MessageQueue = network_queue.MessageQueue;
 const matrix_lib = @import("matrix_lib");
 const vessel_lib = @import("vessel/bridge.zig");
 const heaven_lib = @import("runtime/heaven.zig");
-const transpiler_lib = @import("inference/forge/transpiler.zig");
 const universal_lib = @import("inference/forge/universal.zig");
 const autofab_lib = @import("runtime/autofab.zig");
 const react_lib = @import("core/react.zig");

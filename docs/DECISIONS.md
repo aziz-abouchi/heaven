@@ -34,23 +34,29 @@ Chiffres vérifiés le 2026-10-02 :
   peuple la matrix à partir des `.hvn` (bootstrap, kernel, logic,
   prelude, io).
 
-- **`heaven_lib` (Engine), `react_lib`, `SRG`, `EQSATPlanner`,
-  `transpiler_lib` sont MORTS** : importés dans `main.zig`, mais
-  jamais utilisés au runtime (`grep` : seuls des `deinit` et une
-  assignation `.autofab = &fab`).
+- **`transpiler_lib` est MORT** : 1 seule occurrence dans
+  `main.zig` (l'import lui-meme). Retire le 2026-10-02.
+
+- **`heaven_lib`, `react_lib`, `SRG`, `EQSATPlanner` sont VIVANTS**.
+  Correction 2026-10-02 apres verification transitive :
+  `heaven_engine` est passe a `shell_lib.Shell.init` (REPL) et a
+  `loop.runLoop` qui appelle `engine.pulse` en boucle et
+  `engine.srg.select`. `react_lib.ReactionEngine` est utilise dans
+  le thread reseau `net_thread`. L'audit initial (grep local sur
+  `main.zig`) avait conclu a tort qu'ils etaient morts.
 
 **Décision révisée :**
 
 - **Ne pas déplacer** `matrix.zig`, `matrix_bridge.zig`,
   `vessel/*`, `runtime/autofab.zig`, `inference/forge/universal.zig`,
   `runtime/shell/*` : ils portent Vessel.
-- **Dégager** de `main.zig` les imports et blocs morts :
-  `heaven_lib`, `react_lib`, `SRG`, `EQSATPlanner`, `transpiler_lib`.
-  Supprimer les initialisations correspondantes (lignes ~370-390
-  de `main.zig` au 2026-10-02).
+- **Dégager** de `main.zig` les imports et blocs morts.
+  Au 2026-10-02 : seul `transpiler_lib` (retire). Les 4 autres
+  sont vivants et restent.
 - **Découpler Vessel** du noyau Expr (recâbler le dashboard sur
-  `expr.Store` au lieu de `matrix`) est un **chantier séparé**,
-  non planifié. Voir D9 (nouvelle).
+  `expr.Store` au lieu de `matrix`) est le **vrai** chantier pour
+  faire tomber Astra. Voir D9. Effort 1-2 sessions, pas 30 min
+  comme annonce initialement pour D1bis.
 
 **Note importante** : il y a un **doublon de bootstrap**. Les
 5 fichiers `.hvn` sont chargés deux fois : une fois par
