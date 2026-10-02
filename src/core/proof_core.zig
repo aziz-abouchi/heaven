@@ -205,19 +205,24 @@ pub const ProofCore = struct {
         // OPTIMISATION : early exit si aucun changement dans un round complet
         var round: u32 = 0;
         while (round < 10) : (round += 1) {
+            // NB : comparer par Id ne détecte PAS la stabilité -- le
+            // pipeline (addExpr/substitute) ré-alloue de nouveaux Ids à
+            // chaque passage, arbres identiques compris. La convergence
+            // se juge STRUCTURELLEMENT. (Sinon : 10 rounds à fond, 20
+            // saturations e-graph, ~1,3s perdus sur t_distrib.)
             const b1 = heaven.math.simplifyBasic(current) catch current;
-            if (b1 == current) break; // simplifyBasic n'a rien changé
+            if (expr.structuralEql(heaven.store, b1, current)) break;
             const eg = heaven.simplify_eng.simplifyWithEGraph(b1, null, null) catch b1;
-            if (eg == b1) {
+            if (expr.structuralEql(heaven.store, eg, b1)) {
                 current = b1;
-                break; // EGraph n'a rien changé
+                break;
             }
             const b2 = heaven.math.simplifyBasic(eg) catch eg;
-            if (b2 == eg) {
+            if (expr.structuralEql(heaven.store, b2, eg)) {
                 current = eg;
-                break; // deuxième simplifyBasic n'a rien changé
+                break;
             }
-            if (b2 == current) break; // retour à la forme précédente (cycle)
+            if (expr.structuralEql(heaven.store, b2, current)) break; // cycle
             current = b2;
         }
         return current;
