@@ -248,7 +248,7 @@ n'est reliée a `Expr` que par des lowerings explicites.
 
 | Élément | Statut | Preuve | Limitation |
 |---|---|---|---|
-| Compilation QBE (M3) | ✅ | `compile-qbe <src> -o <bin>` ; fib(25) = 75025 | sous-ensemble MIR (15 instr) ; TCO self-tail + mutuelle (fusion SCC 2+ membres) ; pas de strings/IO |
+| Compilation QBE (M3) | ✅ | `compile-qbe <src> -o <bin>` ; fib(25) = 75025 | sous-ensemble MIR (15 instr) ; TCO self-tail + mutuelle (fusion SCC 2+ membres) ; cross-compile `--target` (5 cibles) ; pas de strings/IO |
 | Compilation WASM (M2a/M2b) | ✅ | `compile-wasm <src> -o <wat>` ; wasmtime run | sous-ensemble MIR ; TCO self-tail + mutuelle (fusion SCC + `return_call` natif) ; flag `-W max-wasm-stack` plus requis |
 | Bench interprète | ✅ | `bench-interp <src> [N] [--loop M]` | in-process, pas de spawn |
 | Bench QBE | ✅ | `bench-qbe` ; wall/cpu/energy/temp/RSS | RAPL root-only par défaut (CVE-2020-8694) |

@@ -107,6 +107,8 @@ matrice est la mesure réelle.
   utilisateur récursives compilables. fib(25) = 75025 en 1.15 ms
   (interprète 29 824 ms, ~26 000×).
   **TCO (2026-10-01, etendue 2026-10-02)** : les self-tail-calls sont transformes en boucle `jmp @b0`. La recursion mutuelle est traitee par fusion SCC au niveau MIR (`fuseTailSCCs`, `src/core/mir.zig`) : chaque SCC (2+ fonctions mutuellement recursives) devient une fonction `$scc_N` avec tag dispatch a N branches. `isEven 100000000 = 1` (2-cycle), `f 1000000 = 200` (3-cycle). **Non couvert** : trampolines generaux, SCC avec arites differentes (voir `docs/spec/_tco_mutual.md`).
+
+  **Cross-compilation (2026-10-02)** : `compile-qbe <src> -o <out> [--target <name>]`. Sans `--target`, comportement natif (QBE + cc + binaire). Avec `--target`, QBE emet l'assembleur pour la cible et on s'arrete la (fichier `.s`). Cibles : `amd64_sysv`, `amd64_apple`, `arm64`, `arm64_apple`, `rv64`. Le binaire final pour cible etrangere necessite un cross-cc (non gere).
 - **M4** flag Green/Fast + instrumentation énergie. Profiler
   étendu (RAPL energy, thermal_zone) ; reste à brancher sur un
   flag CLI `-Ogreen`/`-Ofast`.
