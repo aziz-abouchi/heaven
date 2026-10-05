@@ -566,6 +566,21 @@ pub const Engine = struct {
                 return try store.lambda(new_params, body);
             }
 
+            // ─── Fallback : clause 0-pattern (f = λx.body) ───
+            // Si aucune clause ne matche par arité, mais qu'une clause a
+            // 0 pattern, on évalue son corps puis on applique les args au
+            // résultat. Ex : `f = λx. x ; f 42` → (λx.x) 42 → 42.
+            for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
+                if (clause.num_patterns != 0) continue;
+                if (clause.guard != null) continue;
+                const body_val = try evaluate(store, caller_env, self, clause.body, 0);
+                if (current_args_len == 0) return body_val;
+                const bv_node = store.get(body_val);
+                if (bv_node.tag != .lambda) continue;
+                const applied = try store.apply(body_val, current_args_buf[0..current_args_len]);
+                return try evaluate(store, caller_env, self, applied, 0);
+            }
+
             return error.ArityMismatch;
         }
     }
