@@ -424,6 +424,7 @@ ctor_arg_type: ($) => choice(
   $.generic_type,
   $.paren_type,
   $.type_name,
+  $.identifier,
 ),
 
 // ═══════════════════════════════════════════════════════════════════════════

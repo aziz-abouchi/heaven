@@ -63,8 +63,7 @@ pub const Typer = struct {
                 return self.freshVar();
             },
             .apply => {
-                const pool = self.store.pool.items;
-                const args = node.span_a.slice(pool);
+                const args = self.store.applyArgs(node);
                 for (args) |arg| {
                     _ = self.infer(arg);
                 }

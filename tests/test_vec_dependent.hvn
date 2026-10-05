@@ -1,0 +1,28 @@
+-- Test de validation : unification v2f sur types dépendants
+
+-- Vecteur de taille n (paramètre de type)
+data Vec n = nil | cons Nat (Vec n)
+
+-- Fonction append : concatène deux vecteurs
+-- Le type de retour est Vec (add n m), ce qui teste l'unification arithmétique
+append : Vec n -> Vec m -> Vec (add n m)
+append nil ys = ys
+append (cons x xs) ys = cons x (append xs ys)
+
+-- Test 1 : Vec (add 2 3) doit unifier avec Vec 5
+v1 : Vec 2
+v1 = cons 1 (cons 2 nil)
+
+v2 : Vec 3
+v2 = cons 3 (cons 4 (cons 5 nil))
+
+result1 : Vec 5
+result1 = append v1 v2
+
+-- Test 2 : Vec (succ (succ zero)) doit unifier avec Vec 2
+v3 : Vec (succ (succ zero))
+v3 = cons 10 (cons 20 nil)
+
+-- Test 3 : commutativité de l'addition dans les types
+reorder : Vec (add n m) -> Vec (add m n)
+reorder v = v

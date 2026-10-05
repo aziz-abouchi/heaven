@@ -2,6 +2,22 @@
 # Smoke test des features introduites le 2026-10-02.
 # Doit rester vert. Si un test echoue : regression detectee.
 
+# --- Lambda : 4 styles de parsing ---
+fn l1(x) = (* x 2)
+test "features_lambda_dot": (l1 21) == 42
+f2 = λx. (* x 2)
+test "features_lambda_unicode_dot": (f2 21) == 42
+f3 = λx => (* x 2)
+test "features_lambda_unicode_arrow": (f3 21) == 42
+f4 = \x. (* x 2)
+test "features_lambda_ascii": (f4 21) == 42
+f5 = λ(x) => (* x 2)
+test "features_lambda_parens": (f5 21) == 42
+
+# --- Compréhensions ---
+test "features_for_map": (for (x <- (cons 1 (cons 2 nil))) (* x 2)) == (cons 2 (cons 4 nil))
+test "features_for_filter": (for (x <- (cons 1 (cons 2 (cons 3 nil)))) (when (> x 1)) (* x 10)) == (cons 20 (cons 30 nil))
+
 # --- Ordre superieur ---
 fn isBig(x) = (> x 1)
 fn double(x) = (* x 2)

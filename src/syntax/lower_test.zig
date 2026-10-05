@@ -160,3 +160,76 @@ test "syntax HIR — vector literal" {
         else => return error.TestExpectedEqual,
     }
 }
+
+test "syntax HIR — data generic" {
+    const source =
+        \\data Vec<n> = Nil | Cons n
+        \\
+    ;
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    var result = try lower_mod.lowerSource(arena.allocator(), source);
+    defer result.deinit();
+
+    try testing.expectEqual(@as(usize, 1), result.items.len);
+
+    switch (result.items[0]) {
+        .data_decl => |data| {
+            try testing.expectEqualStrings("Vec", data.name);
+            try testing.expectEqual(@as(usize, 2), data.constructors.len);
+
+            try testing.expectEqualStrings(
+                "Nil",
+                data.constructors[0].name,
+            );
+
+            try testing.expectEqualStrings(
+                "Cons",
+                data.constructors[1].name,
+            );
+
+            try testing.expectEqual(
+                @as(usize, 1),
+                data.constructors[1].args.len,
+            );
+        },
+        else => return error.TestExpectedEqual,
+    }
+}
+
+test "syntax HIR — recursive generic data" {
+    const source =
+        \\data List<a> = Nil | Cons a (List<a>)
+        \\
+    ;
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    var result = try lower_mod.lowerSource(arena.allocator(), source);
+    defer result.deinit();
+
+    try testing.expectEqual(@as(usize, 1), result.items.len);
+
+    switch (result.items[0]) {
+        .data_decl => |data| {
+            try testing.expectEqualStrings("List", data.name);
+            try testing.expectEqual(@as(usize, 2), data.constructors.len);
+
+            const cons = data.constructors[1];
+
+            try testing.expectEqualStrings(
+                "Cons",
+                cons.name,
+            );
+
+            try testing.expectEqual(
+                @as(usize, 2),
+                cons.args.len,
+            );
+        },
+        else => return error.TestExpectedEqual,
+    }
+}

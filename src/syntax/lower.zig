@@ -210,12 +210,40 @@ pub const Lowerer = struct {
         };
     }
 
+
+    fn lowerTParams(self: *Lowerer, node: ts.TSNode) LowerError![]ast.TypeExpr {
+        var params = std.ArrayListUnmanaged(ast.TypeExpr){};
+
+        errdefer {
+            for (params.items) |*p| p.deinit(self.allocator);
+            params.deinit(self.allocator);
+        }
+
+        const n = self.namedCount(node);
+        var i: u32 = 0;
+        while (i < n) : (i += 1) {
+            try params.append(
+                self.allocator,
+                try self.lowerType(self.namedChild(node, i)),
+            );
+        }
+
+        return params.toOwnedSlice(self.allocator);
+    }
+
     fn lowerDataDecl(self: *Lowerer, node: ts.TSNode) LowerError!ast.DataDecl {
         const name_node = field(node, "name") orelse {
             // La grammaire actuelle peut exposer le nom comme premier enfant nommé.
             if (self.namedCount(node) == 0) return LowerError.MissingField;
             return self.lowerDataDeclByChildren(node);
         };
+
+        var params: []ast.TypeExpr = &.{};
+
+        const tparams_node = field(node, "tparams");
+        if (tparams_node) |tp| {
+            params = try self.lowerTParams(tp);
+        }
 
         var constructors = std.ArrayListUnmanaged(ast.DataConstructor){};
         errdefer {
@@ -229,6 +257,7 @@ pub const Lowerer = struct {
             const child = self.namedChild(node, i);
             if (child.id == name_node.id) continue;
 
+            if (std.mem.eql(u8, self.kind(child), "tparams")) continue;
             if (std.mem.eql(u8, self.kind(child), "data_constructor")) {
                 try constructors.append(
                     self.allocator,
@@ -239,6 +268,7 @@ pub const Lowerer = struct {
 
         return .{
             .name = self.text(name_node),
+            .params = params,
             .constructors = try constructors.toOwnedSlice(self.allocator),
             .span = self.span(node),
         };
@@ -269,6 +299,7 @@ pub const Lowerer = struct {
 
         return .{
             .name = name,
+            .params = &.{},
             .constructors = try constructors.toOwnedSlice(self.allocator),
             .span = self.span(node),
         };
@@ -726,6 +757,16 @@ pub const Lowerer = struct {
                     .args = try args.toOwnedSlice(self.allocator),
                 },
             };
+        }
+
+        if (std.mem.eql(u8, k, "paren_type")) {
+            if (self.namedCount(node) == 0) {
+                return LowerError.MissingField;
+            }
+
+            return self.lowerType(
+                self.namedChild(node, 0),
+            );
         }
 
         if (std.mem.eql(u8, k, "arrow_type")) {

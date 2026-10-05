@@ -83,10 +83,14 @@ pub const FunctionDecl = struct {
 
 pub const DataDecl = struct {
     name: []const u8,
+    params: []TypeExpr,
     constructors: []DataConstructor,
     span: Span = .{},
 
     pub fn deinit(self: *DataDecl, allocator: Allocator) void {
+        for (self.params) |*param| param.deinit(allocator);
+        if (self.params.len != 0) allocator.free(self.params);
+
         for (self.constructors) |*ctor| ctor.deinit(allocator);
         if (self.constructors.len != 0) allocator.free(self.constructors);
     }

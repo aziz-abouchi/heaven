@@ -1,175 +1,285 @@
-# Effets de portee dans Heaven — conception
+# Heaven — Effects, `perform` / `handle` et suspension
 
-Date : 2026-09-26
-Statut : analyse + recommandation. Aucun code prod modifie.
-Source : src/core/engine_expr.zig l.734-797, core/test_suite.hvn.
+> Statut : fondations expérimentales mesurées
+> Portée : `src/core/engine_expr.zig`
 
-## 1. Contrat reel de perform / handle
+## 1. État actuel
 
-### 1.1 Implementation (citations)
+Le système `perform` / `handle` est expérimental.
 
-perform (l.735-767) :
-- Evalue le DERNIER argument, le stocke dans engine.last_performed
-- Si pas in_handle et qu'un IO handler est installe -> dispatch sur le label
-- Sinon -> retourne last_performed ou args[0]
+`perform` utilise actuellement `Engine.last_performed` pour exposer la dernière valeur produite.
 
-handle (l.769-797) :
-- Sauve green_mode, last_performed, in_handle
-- Met in_handle = true, last_performed = null
-- Evalue le corps
-- Restaure tous les flags
-- Si last_performed a ete mis PENDANT le corps ET qu'un handler est fourni :
-  - call_id = apply(handler, [val])
-  - return evaluate(call_id)
-- Sinon -> retourne le resultat du corps
+`handle` évalue actuellement la computation puis inspecte `last_performed`.
 
-engine.last_performed est un CHAMP GLOBAL de l'engine
-(src/core/engine_expr.zig:148), pas un contexte par appel.
+Il n'y a actuellement aucune capture de continuation.
 
-### 1.2 Semantique effective
+Le mécanisme actuel ne doit donc pas être décrit comme un shallow handler ou un deep handler.
 
-| Propriete | Valeur | Preuve |
-|---|---|---|
-| Shallow | OUI | Le handler n'est pas reinstalle |
-| Final | OUI | h(v) remplace tout le handle |
-| One-shot | OUI | Seul le DERNIER perform est capture |
-| Non type | OUI | grep dans elab.zig = 0 occurrence |
-| Non composable (nesting) | OUI | Flag global ecrase par handle interne |
-| Sans continuation | OUI | Aucun mecanisme de reprise |
+## 2. `perform`
 
-Ce n'est PAS un systeme d'effets algebriques. C'est une exception
-one-shot via flag global. Le nom perform/handle evoque Plotkin-Power,
-la semantique n'y ressemble pas.
+Le comportement actuel est essentiellement :
 
-### 1.3 Impact reel
+    perform operation argument
+        → évaluer argument
+        → last_performed = résultat
+        → retourner le résultat
 
-grep "handle\|perform" core/test_suite.hvn = 2 lignes (l.30 et l.37).
-Deux. Pas "12-15". Toute migration qui touche le contrat
-h : arg -> result n'impacte QUE ces 2 cas.
+Lorsqu'un `io_handler` est installé et qu'aucun `handle` explicite n'est actif, `perform` peut dispatcher vers cet handler.
 
-## 2. Ce qu'on veut — 3 cas d'usage concrets
+Le dispatch actuel utilise un label textuel.
 
-### 2.1 catch (annulation)
-catch { risky_computation } — si erreur, retourne une valeur par defaut.
-Nessite : le handler peut ARRETER le corps. Pas de reprise.
+Ce mécanisme est expérimental et ne constitue pas encore la sémantique définitive des effets de Heaven.
 
-### 2.2 local (modification d'environnement restreinte)
-local (env_mod) { body } — pendant body, env modifie ; apres, restaure.
+## 3. `handle`
 
-### 2.3 bracket (acquisition/liberation)
-bracket { setup } { body } teardown
-Nessite : setup, run, teardown, retour du resultat de run.
+Le `handle` actuel :
 
-## 3. Quatre techniques d'implementation
+1. active `in_handle` ;
+2. évalue la computation ;
+3. récupère `last_performed` ;
+4. restaure l'état précédent ;
+5. appelle éventuellement le handler avec cette valeur.
 
-### 3.1 Scoped syntax (pas des effets) — ✅ IMPLÉMENTÉE 2026-09-29
+Il n'y a pas :
 
-**Statut** : livrée dans le commit 97b42b6. `bracket`/`local`/`catch`
-comme magic symbols dans `evalMagic`. 5 tests dans `test_suite.hvn`.
+- de capture de continuation ;
+- de reprise exacte ;
+- de continuation one-shot ;
+- de sémantique shallow/deep formellement implémentée.
 
-Ajouter au parseur trois constructions :
-  bracket { setup } { body } teardown
-  local (env_mod) { body }
-  catch { body } default
+## 4. `last_performed`
 
-Implementation : dans engine_expr.evaluate, un case pour chaque.
-Le bracket sauve l'env, execute setup, execute body avec defer sur
-teardown, retourne resultat.
+`last_performed` est un seul emplacement :
 
-Cout : ~60-100 lignes dans engine_expr.zig + cases dans le parser.
-Risque : FAIBLE. N'affecte pas perform/handle existants.
-Limite : pas composables avec handle.
+    Engine.last_performed : ?expr.Id
 
-### 3.2 handle-rec shallow (sans continuation)
+Plusieurs `perform` peuvent donc s'écraser mutuellement.
 
-Etendre handle avec un variant handle-rec :
-  handle-rec e h — h : op -> arg -> HandleAction
-  HandleAction = Stop(result) | Continue(arg)
+Le mécanisme actuel est un mécanisme one-slot / post-evaluation.
 
-Si le handler retourne .Stop(v), le corps est abandonne et handle-rec
-retourne v. Si .Continue(a), le corps continue avec une nouvelle valeur.
+Le terme « one-shot » ne signifie pas continuation one-shot : aucune continuation n'est capturée.
 
-Attention : sans continuation, .Continue ne peut pas vraiment
-"continuer" — il faut re-evaluer le corps depuis le debut, ce qui
-rejoue les effets. Sur du tree-walking avec I/O, ca double les Print.
+## 5. Effets structurés — direction future
 
-Cout : ~150 lignes. Risque : MOYEN. Semantique piegeuse.
-Limite : utilisable SEULEMENT pour catch (annulation).
+La direction architecturale est de représenter les opérations d'effet comme des `Expr` normales.
 
-### 3.3 handle-rec avec continuation (CPS)
+Exemple conceptuel :
 
-Transformer evaluate en style passage de continuation :
-  fn evaluate(store, env, engine, id, depth, k: *const fn (Id) EvalError!Id) EvalError!Id
+    perform (ReadFile cap path)
 
-Chaque retour devient un appel a k. Le handle-rec peut alors capturer
-k comme valeur, l'appeler plus tard.
+plutôt que :
 
-Cout : refonte de ~600 lignes de evaluate, plus tous les call-sites.
-Risque : ELEVE. Casse potentiellement tout.
-Gain : systeme d'effets algebriques COMPLET (Plotkin-Power).
+    perform "ReadFile" path
 
-### 3.4 Continuations delimitees via trampoline
+Les opérations pourront être par exemple :
 
-Ajouter un mode "CPS" uniquement aux frontieres magiques (handle,
-if, while), laisser le reste direct-style.
+    ReadFile cap path
+    WriteFile cap path bytes
+    HttpGet cap url
+    Send socket message
+    Receive socket
 
-Cout : ~300-500 lignes. Risque : ELEVE (boundary entre les 2 modes).
+Aucun Effects IR séparé n'est prévu.
 
-## 4. Decision recommandee
+## 6. Capacités
 
-Pour ton cas d'usage (ressources par message d'acteur) : technique 3.1.
+Les effets système doivent être contrôlés par des capacités explicites.
 
-Raisons :
-1. Couvre 100 % du besoin reel (bracket autour d'un handler de message,
-   local pour variables d'env, catch pour isolation)
-2. Cout faible (~60-100 lignes), risque faible
-3. Ne touche pas au systeme perform/handle existant (2 tests continuent)
-4. Ne necessite pas de choisir entre CPS et trampoline maintenant
+Exemples :
 
-Ce qu'on perd : composition avec handle. Pas prioritaire pour Heaven.
+    FileCap
+    NetCap
+    ProcessCap
+    StorageCap
+    DomCap
+    WebSocketCap
+    RemoteCap
 
-Si un jour on veut un vrai systeme d'effets algebriques complet ->
-technique 3.3, session dediee de refonte de evaluate.
+Le MVP n'impose pas `Eff<T>`.
 
-## 5. Plan de sessions
+Une signature comme :
 
-| Session | Sujet | Livrable |
-|---|---|---|
-| 1 (cette) | Conception, ce doc | _effects.md |
-| 2 | Scoped syntax bracket / local / catch | ~80 lignes engine + 4 tests |
-| 3 (si besoin) | handle-rec shallow pour catch type | ~150 lignes |
-| 4+ (optionnel) | Refonte CPS | 2-3 sessions |
+    read_one : FileCap -> Path -> Bytes
 
-## 6. Decisions a valider par l'auteur
+reste possible, avec l'effet exprimé dans le corps.
 
-1. Technique : 3.1 (scoped syntax) ou 3.3 (CPS refonte) ?
-   Recommandation : 3.1.
-2. Syntaxe cible (proposee) :
-   bracket { setup } { body } teardown
-   local (env_mod) { body }
-   catch { body } default
-3. Priorite : apres rule/SLD (STATUS #2) ou avant ?
-   Recommandation : apres.
+## 7. `do`
 
-## 7. Ce qu'il faudra verifier avant la session 2
+`do` reste du sucre syntaxique pour les opérations de liaison.
 
-- if, while sont des magic symbols (isMagicSymbol l.485). Ou sont
-  leurs cases dans evaluate ?
-- Comment evaluate interagit avec env.put / env.delete
-- Les effets Print/ReadFile traversent io_handler, pas le flag
-  in_handle — comment eviter les conflits ?
-- green active/desactive des flags engine-wide
+Il n'introduit pas de nouvelle primitive runtime.
 
-## 8. Note methode
+## 8. Safepoints et `reductions`
 
-Cette conception a ete redigee apres LECTURE du code reel, pas apres
-lecture d'une reponse LLM. Les verifications demandees ont revele que
-le plan initial (fourni par un LLM) contenait des FAITS INVENTES :
+Le moteur possède déjà un safepoint coopératif.
 
-- "~12-15 tests handle/perform" -> en realite 2
-- "typage par inference directe" -> en realite AUCUN typage
-- "capture la stack frame sous forme de Lambda" -> IMPOSSIBLE en
-  tree-walking sans CPS
+À chaque appel d'évaluation :
 
-Toute conception de ce chantier doit se baser sur les CITATIONS du
-code, pas sur des paraphrases plausibles.
+    if reductions == 0
+        → SuspendRequested
+
+puis :
+
+    reductions -= 1
+
+`evalWithBudget` installe temporairement un budget de réductions.
+
+À épuisement :
+
+    EvalOutcome.suspended
+
+Le budget et le fuel sont ensuite restaurés.
+
+## 9. Signification de `.suspended`
+
+`.suspended` signifie actuellement :
+
+    l'évaluation a atteint un safepoint alors que son budget était épuisé.
+
+Il ne signifie pas :
+
+    une continuation a été capturée et peut être reprise.
+
+Donc :
+
+    suspended != resumable continuation
+
+## 10. `evalWithRetry`
+
+`evalWithRetry` augmente progressivement le budget et recommence l'évaluation depuis le début.
+
+Schéma :
+
+    evaluate(id)
+        → suspended
+        → budget augmenté
+        → evaluate(id) depuis le début
+
+Le code documente ce mécanisme comme redémarrable et valide uniquement pour du calcul pur.
+
+Il ne constitue pas un mécanisme général pour les effets.
+
+## 11. Budget versus continuation
+
+Deux mécanismes doivent rester distincts.
+
+`reductions` répond à :
+
+    Combien de travail cette évaluation peut-elle effectuer avant de rendre la main ?
+
+Une continuation répond à :
+
+    Comment reprendre exactement cette computation là où elle a été interrompue ?
+
+Donc :
+
+    reductions = quand rendre la main
+    continuation = comment reprendre
+
+## 12. D8
+
+D8 est la future mécanique générale de continuation et de suspension.
+
+> D8 est la mécanique générale de suspension du langage, pas une fonctionnalité spécifique au HTTP.
+
+Conceptuellement :
+
+    evaluate
+        → suspension
+        → continuation
+        → resume / discard
+
+Un futur `perform` pourra évoluer vers un modèle conceptuel :
+
+    perform operation
+        → capture continuation k
+        → handler(operation, k)
+
+La forme exacte de cette API reste à définir.
+
+D8 n'est pas encore implémenté.
+
+## 13. Laziness
+
+La direction architecturale est que Heaven soit lazy lorsque la sémantique le permet.
+
+Une stream pure peut utiliser des thunks sans nécessiter D8.
+
+Une stream effectful nécessitant :
+
+    ReadFile
+    HttpGet
+    Receive
+    perform ...
+
+a besoin d'un mécanisme de suspension et de reprise.
+
+D8 est destiné à fournir cette mécanique.
+
+## 14. Convergence
+
+Le même mécanisme de suspension doit pouvoir servir à terme pour :
+
+    lazy streams
+    actors
+    events
+    scheduler
+    HTTP
+    WebSocket
+    RPC
+    remote execution
+
+D8 est donc une primitive générale, pas une fonctionnalité HTTP.
+
+## 15. État d'implémentation
+
+| Fonctionnalité | État |
+|---|---|
+| perform | expérimental |
+| handle | expérimental |
+| last_performed | implémenté |
+| IO handler | implémenté |
+| safepoint | implémenté |
+| reductions | implémenté |
+| evalWithBudget | implémenté |
+| evalWithRetry | implémenté |
+| suspension coopérative | partielle |
+| reprise exacte | non implémentée |
+| continuation | non implémentée |
+| D8 | futur |
+| handlers continuation-based | futur |
+| lazy effectful streams | futur |
+| scheduler basé sur continuation | futur |
+
+## 16. Contraintes
+
+1. Les effets restent des `Expr`.
+2. Aucun Effects IR séparé.
+3. Les capacités contrôlent les ressources.
+4. `reductions` ne doit pas être confondu avec D8.
+5. `evalWithRetry` reste réservé aux calculs redémarrables sans effets problématiques.
+6. D8 ne doit être conçu qu'après mesure des besoins réels de suspension.
+7. Les mécanismes futurs doivent être mesurés sur le code existant avant de figer leur sémantique.
+
+## 17. Décision actuelle
+
+    perform / handle
+        → expérimental
+        → last_performed
+        → aucune continuation
+
+    reductions
+        → safepoint coopératif
+        → budget d'évaluation
+
+    evalWithBudget
+        → interruption contrôlée
+        → aucune reprise exacte
+
+    evalWithRetry
+        → restart depuis le début
+        → calcul pur uniquement
+
+    D8
+        → future continuation machine
+        → fondation générale de suspension
