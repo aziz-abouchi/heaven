@@ -1653,7 +1653,7 @@ pub const Heaven = struct {
         try w2.writeAll(line[0..pos]);
         if (pred) |p| {
             const p_ds = (try self.desugarFor(p)) orelse p;
-            try w2.print("(map (λ{s}. {s}) (filter (λ{s}. ({s} {s})) {s}))", .{ var_name, body_ds, var_name, p_ds, var_name, src_ds });
+            try w2.print("(map (λ{s}. {s}) (filter (λ{s}. {s}) {s}))", .{ var_name, body_ds, var_name, p_ds, src_ds });
         } else {
             try w2.print("(map (λ{s}. {s}) {s})", .{ var_name, body_ds, src_ds });
         }
