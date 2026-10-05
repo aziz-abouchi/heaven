@@ -771,7 +771,7 @@ pub const TypeChecker = struct {
             if (fnode.tag != .sym) return null;
             const fname = self.store.interner.resolve(fnode.payload);
             if (!std.mem.eql(u8, fname, "Type")) return null;
-            const args = self.store.spanSliceConst(node.span_a);
+            const args = self.store.applyArgs(node);
             if (args.len != 1) return null;
             const arg_node = self.store.get(args[0]);
             if (arg_node.tag != .lit) return null;
