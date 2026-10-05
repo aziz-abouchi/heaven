@@ -237,9 +237,11 @@ pub const Parser = struct {
                     if (eq_pos + 1 >= after_let.len or after_let[eq_pos + 1] != '=') {
                         const before_eq = std.mem.trim(u8, after_let[0..eq_pos], " ");
                         const after_eq = std.mem.trim(u8, after_let[eq_pos + 1 ..], " ");
-                        const converted = std.fmt.allocPrint(self.allocator, "(let {s} {s})", .{ before_eq, after_eq }) catch {
-                            return self.store.sym(trimmed);
-                        };
+                        const needs_wrap = after_eq.len > 0 and after_eq[0] != '(' and std.mem.indexOfScalar(u8, after_eq, ' ') != null;
+                        const converted = if (needs_wrap)
+                            std.fmt.allocPrint(self.allocator, "(let {s} ({s}))", .{ before_eq, after_eq }) catch { return self.store.sym(trimmed); }
+                        else
+                            std.fmt.allocPrint(self.allocator, "(let {s} {s})", .{ before_eq, after_eq }) catch { return self.store.sym(trimmed); };
                         defer self.allocator.free(converted);
                         // Re-parser avec la string convertie
                         return self.parseSExpr(converted);
@@ -255,9 +257,11 @@ pub const Parser = struct {
                     if (eq_pos + 1 >= after_letrec.len or after_letrec[eq_pos + 1] != '=') {
                         const before_eq = std.mem.trim(u8, after_letrec[0..eq_pos], " ");
                         const after_eq = std.mem.trim(u8, after_letrec[eq_pos + 1 ..], " ");
-                        const converted = std.fmt.allocPrint(self.allocator, "(letrec {s} {s})", .{ before_eq, after_eq }) catch {
-                            return self.store.sym(trimmed);
-                        };
+                        const needs_wrap = after_eq.len > 0 and after_eq[0] != '(' and std.mem.indexOfScalar(u8, after_eq, ' ') != null;
+                        const converted = if (needs_wrap)
+                            std.fmt.allocPrint(self.allocator, "(letrec {s} ({s}))", .{ before_eq, after_eq }) catch { return self.store.sym(trimmed); }
+                        else
+                            std.fmt.allocPrint(self.allocator, "(letrec {s} {s})", .{ before_eq, after_eq }) catch { return self.store.sym(trimmed); };
                         defer self.allocator.free(converted);
                         // Re-parser avec la string convertie
                         return self.parseSExpr(converted);
@@ -306,7 +310,16 @@ pub const Parser = struct {
 
             // === EFFETS ALGÉBRIQUES ===
             if (std.mem.eql(u8, op, "perform") and num_parts >= 2) {
-                const effect_name = parts[1];
+                const first = parts[1];
+                // Gap 3 : `perform (S-expr)` -> un seul Id structure.
+                // `(perform (Test 42))` -> `apply(perform, [apply(Test, [42])])`.
+                if (first.len >= 2 and first[0] == '(' and first[first.len - 1] == ')') {
+                    const op_id = try self.parseSExpr(first);
+                    const p = try self.store.sym("perform");
+                    var one = [_]Id{op_id};
+                    return self.store.apply(p, one[0..]);
+                }
+                const effect_name = first;
                 var args: std.ArrayListUnmanaged(Id) = .{};
                 defer args.deinit(self.allocator);
                 for (parts[2..num_parts]) |p| {

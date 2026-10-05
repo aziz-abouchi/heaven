@@ -176,6 +176,28 @@ pub const MatrixBridge = struct {
         }
 
         if (std.mem.startsWith(u8, trimmed, "perform ") or std.mem.startsWith(u8, trimmed, "perform(")) {
+            // Gap 3 : `perform (S-expr)` -> un seul Id structure.
+            const after_kw = std.mem.trim(u8, trimmed["perform".len..], " \t");
+            if (after_kw.len >= 2 and after_kw[0] == '(' and after_kw[after_kw.len - 1] == ')') {
+                var d: i32 = 0;
+                var close_at: usize = 0;
+                var k: usize = 0;
+                while (k < after_kw.len) : (k += 1) {
+                    const c = after_kw[k];
+                    if (c == '(') {
+                        d += 1;
+                    } else if (c == ')') {
+                        d -= 1;
+                        if (d == 0) { close_at = k; break; }
+                    }
+                }
+                if (close_at == after_kw.len - 1) {
+                    const op_id = try self.parseAddSub(after_kw);
+                    const p = try self.store.sym("perform");
+                    var one = [_]Id{op_id};
+                    return self.store.apply(p, one[0..]);
+                }
+            }
             const start = std.mem.indexOfScalar(u8, trimmed, '(') orelse return self.store.sym(trimmed);
             const end = std.mem.lastIndexOfScalar(u8, trimmed, ')') orelse return self.store.sym(trimmed);
             if (end > start) {
