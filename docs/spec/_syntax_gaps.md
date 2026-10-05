@@ -53,7 +53,15 @@ dispatch.
 **Workaround :** eviter le `|` en debut de ligne en contexte
 non-guard.
 
-## Gap 3 -- perform (Op args) aplatit
+## Gap 3 -- perform (Op args) aplatit  [CORRIGE]
+
+**Corrige le 2026-10-05** (commit af6710b). Trois parsers intervenaient :
+- `parse.zig:308` — branche perform detecte S-expr -> un seul Id
+- `parse.zig:237` — conversion `let x = expr` wrap expr composee
+- `matrix_bridge.zig:178` — branche perform ne depouille plus les parens
+
+`perform (Test 42)` produit maintenant `apply(perform, [apply(Test, [42])])`
+sur les trois chemins (REPL direct, let avec parens, let sans parens).
 
 **Reproduction :**
 
@@ -115,7 +123,7 @@ CAF et avec Prolog pour les faits a 0 argument).
 
 | Gap | Impact | Effort estime |
 |---|---|---|
-| Gap 3 (`perform` structure) | Bloque la spec effets | 1-2 sessions |
+| Gap 3 (`perform` structure) | ✅ Corrige | — |
 | Gap 1 (`data` multi-lignes) | Confort de lecture | 1 session |
 | Gap 2 (`|` en tete) | Lie a Gap 1 | 1 session |
 | Note (clause 0-pattern) | Documentation | 30 min |
@@ -129,6 +137,6 @@ structures, et donc de `eval.hvn` et du serveur HTTP.
 |---|---|---|
 | 1 | oui | non (WIP externe) |
 | 2 | oui | non (WIP externe) |
-| 3 | oui | non (WIP externe) |
+| 3 | oui | oui (af6710b) |
 | Note 0-pattern | oui | n/a |
 
