@@ -203,7 +203,7 @@ A documenter dans `_store_ast.md`.
    ses propres enfants, geres par la table ci-dessus.
 3. Env n'est pas une liste. C'est une chaine de `bind`.
 4. `List` utilisateur est un ADT HVN normal, implemente dans
-   `core/std/list.hvn` — hors MOP.
+   `core/std/list.hvn` -- hors MOP.
 5. Le MOP n'a aucune notion de `Value`. Tout est `Id`.
 
 ## Etat
