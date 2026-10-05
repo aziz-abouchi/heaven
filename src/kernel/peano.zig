@@ -329,6 +329,7 @@ fn subst(pool: *TermPool, expr: u32, target: u32, replacement: u32) !u32 {
         .app => {
             const f = try subst(pool, @as(u32, @intCast(t.payload)), target, replacement);
             const a = try subst(pool, @as(u32, @intCast(t.payload2)), target, replacement);
+            if (f == @as(u32, @intCast(t.payload)) and a == @as(u32, @intCast(t.payload2))) return expr;
             return pool.mkApp(f, a);
         },
         .lam, .pi => {
@@ -336,6 +337,7 @@ fn subst(pool: *TermPool, expr: u32, target: u32, replacement: u32) !u32 {
             // Under binder: shift target up, shift replacement up
             const shifted_replacement = try shift(pool, replacement, 0, 1);
             const body = try subst(pool, @as(u32, @intCast(t.payload2)), target + 1, shifted_replacement);
+            if (ty == @as(u32, @intCast(t.payload)) and body == @as(u32, @intCast(t.payload2))) return expr;
             if (t.tag == .lam) return pool.mkLam(ty, body);
             return pool.mkPi(ty, body);
         },
@@ -371,25 +373,30 @@ fn shift(pool: *TermPool, expr: u32, cutoff: u32, delta: i32) !u32 {
         .app => {
             const f = try shift(pool, @as(u32, @intCast(t.payload)), cutoff, delta);
             const a = try shift(pool, @as(u32, @intCast(t.payload2)), cutoff, delta);
+            if (f == @as(u32, @intCast(t.payload)) and a == @as(u32, @intCast(t.payload2))) return expr;
             return pool.mkApp(f, a);
         },
         .lam, .pi => {
             const ty = try shift(pool, @as(u32, @intCast(t.payload)), cutoff, delta);
             const body = try shift(pool, @as(u32, @intCast(t.payload2)), cutoff + 1, delta);
+            if (ty == @as(u32, @intCast(t.payload)) and body == @as(u32, @intCast(t.payload2))) return expr;
             if (t.tag == .lam) return pool.mkLam(ty, body);
             return pool.mkPi(ty, body);
         },
         .nat_succ => {
             const inner = try shift(pool, @as(u32, @intCast(t.payload)), cutoff, delta);
+            if (inner == @as(u32, @intCast(t.payload))) return expr;
             return pool.mkSucc(inner);
         },
         .eq => {
             const lhs = try shift(pool, @as(u32, @intCast(t.payload)), cutoff, delta);
             const rhs = try shift(pool, @as(u32, @intCast(t.payload2)), cutoff, delta);
+            if (lhs == @as(u32, @intCast(t.payload)) and rhs == @as(u32, @intCast(t.payload2))) return expr;
             return pool.mkEq(lhs, rhs);
         },
         .refl => {
             const val = try shift(pool, @as(u32, @intCast(t.payload)), cutoff, delta);
+            if (val == @as(u32, @intCast(t.payload))) return expr;
             return pool.mkRefl(val);
         },
         .type_, .ref, .nat_zero => return expr,
