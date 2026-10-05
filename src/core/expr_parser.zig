@@ -60,14 +60,67 @@ pub const ExprParser = struct {
         const is_ascii_lambda = trimmed.len > 0 and trimmed[0] == '\\';
         if (is_unicode_lambda or is_ascii_lambda) {
             const prefix_len: usize = if (is_unicode_lambda) 2 else 1;
-            const dot_pos = std.mem.indexOfScalar(u8, trimmed, '.') orelse
-                return error.InvalidLambda;
-            if (dot_pos <= prefix_len) return error.InvalidLambda;
-            const param = trimmed[prefix_len..dot_pos];
-            const body_str = std.mem.trim(u8, trimmed[dot_pos + 1 ..], " \t");
-            if (param.len == 0 or body_str.len == 0) return error.InvalidLambda;
+
+            // Cas A : λ(x, y) => body  ou  λ(x) -> body
+            if (std.mem.indexOfScalarPos(u8, trimmed, prefix_len, '(')) |open| {
+                if (std.mem.indexOfScalarPos(u8, trimmed, open + 1, ')')) |close| {
+                    if (close + 1 < trimmed.len) {
+                        const after = std.mem.trimLeft(u8, trimmed[close + 1 ..], " \t");
+                        if (std.mem.startsWith(u8, after, "=>") or std.mem.startsWith(u8, after, "->")) {
+                            const params_inner = std.mem.trim(u8, trimmed[open + 1 .. close], " \t");
+                            const body_str = std.mem.trim(u8, after[2..], " \t");
+                            if (params_inner.len == 0 or body_str.len == 0) return error.InvalidLambda;
+                            var params_list: std.ArrayListUnmanaged([]const u8) = .{};
+                            defer params_list.deinit(self.allocator);
+                            var pit = std.mem.tokenizeAny(u8, params_inner, " ,");
+                            while (pit.next()) |pname| try params_list.append(self.allocator, pname);
+                            const body_id = try self.parseExpression(body_str);
+                            return try self.store.lambdaNative(params_list.items, body_id);
+                        }
+                    }
+                }
+            }
+
+            // Chercher séparateur : '.' en priorité, sinon '=>' / '->'
+            var params_end: usize = 0;
+            var body_start: usize = 0;
+            var has_delim = false;
+
+            if (std.mem.indexOfScalarPos(u8, trimmed, prefix_len, '.')) |dot_pos| {
+                if (dot_pos > prefix_len) {
+                    params_end = dot_pos;
+                    body_start = dot_pos + 1;
+                    has_delim = true;
+                }
+            }
+            if (!has_delim) {
+                var i: usize = prefix_len;
+                while (i + 1 < trimmed.len) : (i += 1) {
+                    if ((trimmed[i] == '=' or trimmed[i] == '-') and trimmed[i + 1] == '>') {
+                        if (i > prefix_len) {
+                            params_end = i;
+                            body_start = i + 2;
+                            has_delim = true;
+                        }
+                        break;
+                    }
+                }
+            }
+            if (!has_delim) return error.InvalidLambda;
+
+            const param_str = std.mem.trim(u8, trimmed[prefix_len..params_end], " \t");
+            const body_str = std.mem.trim(u8, trimmed[body_start..], " \t");
+            if (param_str.len == 0 or body_str.len == 0) return error.InvalidLambda;
+
+            // Multi-paramètres : λx y. body / λx y => body
+            var params_list: std.ArrayListUnmanaged([]const u8) = .{};
+            defer params_list.deinit(self.allocator);
+            var pit = std.mem.tokenizeAny(u8, param_str, " ,");
+            while (pit.next()) |pname| try params_list.append(self.allocator, pname);
+            if (params_list.items.len == 0) return error.InvalidLambda;
+
             const body_id = try self.parseExpression(body_str);
-            return try self.store.lambdaNative(&.{param}, body_id);
+            return try self.store.lambdaNative(params_list.items, body_id);
         }
 
         // Unicode : x² → x^2
