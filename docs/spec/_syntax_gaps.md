@@ -137,10 +137,40 @@ CAF et avec Prolog pour les faits a 0 argument).
   au lieu de `7`. La 1re β-reduction ne substitue pas `x`.
 - Zone : `engine_expr.zig:645-668` (beta), `store.lambdaNative`.
 
-### Bug restant : panic kernel shift
-- `prove features_t_induction by induction` panic sur `kernel/peano.zig:374 shift`.
-- Recursion infinie : terme cyclique OU accumulation de shift sur `replacement`.
-- Zone : `peano.zig:337 subst`, `peano.zig:360-398 shift`.
+### Corrige : beta-reduction par substitution AST
+- Avant : `f = λx. λy. (+ x y) ; f 3 4` retournait `(lambda y (+ x y))`
+  car la beta ne capturait pas l'environnement.
+- Fix `expr.zig` (`substSym`) + `engine_expr.zig` (beta recurse sur args).
+- Commit `d4e8cd3`.
+
+### Corrige : panic kernel shift/subst
+- `prove x + 0 = x by induction on x` faisait exploser le TermPool
+  (100k cap, `@panic unreachable`).
+- Cause : `shift`/`subst` allouaient systematiquement un nouveau terme,
+  meme sans changement.
+- Fix `kernel/peano.zig` : court-circuit si les enfants rendent le
+  meme index.
+- Commit `1283237`.
+
+### Corrige : for...when
+- `(for (x <- L) (when P) B)` desugairait en `(filter (λx. (P x)) L)`,
+  appliquant P a x en plus.
+- Fix `heaven_expr.zig:1656` : `(filter (λx. P) L)`.
+- Commit `5652ce9`.
+
+### Bug restant : kanren query
+- `query features_parent Alice _` retourne `(query features_parent Alice <?>)` au lieu de `1`.
+- Zone : moteur kanren (`src/logic/kanren_expr.zig`).
+
+### Bug restant : REPL for sans parens
+- `for (x <- L) B` tape au REPL echoue (UnboundVariable), alors que
+  `(for (x <- L) B)` ou la meme ligne dans un fichier `.hvn` marche.
+- Zone : `heaven_expr.zig` wrapper "forme composee sans parentheses" (3143).
+
+### Bug restant : fact 5 et les equations
+- `fact 0 = 1 ; fact n = n * fact (n - 1) ; fact 5` retourne
+  `✓ fact 5 (0 arg(s))` au lieu de `120`.
+- Zone : `defs.zig` (evalEquation) vs `parse.zig`.
 
 ## Priorite
 
