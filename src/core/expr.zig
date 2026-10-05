@@ -841,6 +841,115 @@ pub const Store = struct {
         return self.lambda(params, body);
     }
 
+    /// Substitution d'un symbole par une Id dans un AST.
+    /// Respecte le shadowing : un lambda/bind qui rebinde `sym` masque
+    /// les occurrences dans son corps.
+    pub fn substSym(self: *Store, id: Id, target_sym: Sym, replacement: Id) !Id {
+        const node = self.get(id);
+        switch (node.tag) {
+            .sym => {
+                if (node.payload == target_sym) return replacement;
+                return id;
+            },
+            .apply => {
+                const old_args = try self.copyPoolSlice(self.spanSliceConst(node.span_a));
+                defer self.allocator.free(old_args);
+
+                const new_func = try self.substSym(node.payload, target_sym, replacement);
+                var any_changed = (new_func != node.payload);
+
+                const new_args = try self.allocator.alloc(Id, old_args.len);
+                defer self.allocator.free(new_args);
+                for (old_args, 0..) |child, i| {
+                    new_args[i] = try self.substSym(child, target_sym, replacement);
+                    if (new_args[i] != child) any_changed = true;
+                }
+                if (!any_changed) return id;
+                return self.addNode(.{
+                    .tag = .apply,
+                    .payload = new_func,
+                    .aux = node.aux,
+                    .span_a = try self.pushSpan(new_args),
+                    .span_b = node.span_b,
+                });
+            },
+            .lambda => {
+                // Shadowing : ne pas descendre dans le corps si rebindé
+                if (node.payload == target_sym) return id;
+
+                const old_body = try self.copyPoolSlice(self.spanSliceConst(node.span_a));
+                defer self.allocator.free(old_body);
+
+                var changed = false;
+                const new_body = try self.allocator.alloc(Id, old_body.len);
+                defer self.allocator.free(new_body);
+                for (old_body, 0..) |child, i| {
+                    new_body[i] = try self.substSym(child, target_sym, replacement);
+                    if (new_body[i] != child) changed = true;
+                }
+                if (!changed) return id;
+                return self.addNode(.{
+                    .tag = .lambda,
+                    .payload = node.payload,
+                    .aux = node.aux,
+                    .span_a = try self.pushSpan(new_body),
+                    .span_b = node.span_b,
+                });
+            },
+            .bind => {
+                if (node.payload == target_sym) return id;
+
+                const old_a = try self.copyPoolSlice(self.spanSliceConst(node.span_a));
+                defer self.allocator.free(old_a);
+
+                var changed = false;
+                const new_a = try self.allocator.alloc(Id, old_a.len);
+                defer self.allocator.free(new_a);
+                for (old_a, 0..) |child, i| {
+                    new_a[i] = try self.substSym(child, target_sym, replacement);
+                    if (new_a[i] != child) changed = true;
+                }
+                if (!changed) return id;
+                return self.addNode(.{
+                    .tag = .bind,
+                    .payload = node.payload,
+                    .aux = node.aux,
+                    .span_a = try self.pushSpan(new_a),
+                    .span_b = node.span_b,
+                });
+            },
+            .relation => {
+                const old_a = try self.copyPoolSlice(self.spanSliceConst(node.span_a));
+                defer self.allocator.free(old_a);
+                const old_b = try self.copyPoolSlice(self.spanSliceConst(node.span_b));
+                defer self.allocator.free(old_b);
+
+                var changed = false;
+                const new_a = try self.allocator.alloc(Id, old_a.len);
+                defer self.allocator.free(new_a);
+                for (old_a, 0..) |child, i| {
+                    new_a[i] = try self.substSym(child, target_sym, replacement);
+                    if (new_a[i] != child) changed = true;
+                }
+                const new_b = try self.allocator.alloc(Id, old_b.len);
+                defer self.allocator.free(new_b);
+                for (old_b, 0..) |child, i| {
+                    new_b[i] = try self.substSym(child, target_sym, replacement);
+                    if (new_b[i] != child) changed = true;
+                }
+                if (!changed) return id;
+                return self.addNode(.{
+                    .tag = .relation,
+                    .payload = node.payload,
+                    .aux = node.aux,
+                    .span_a = try self.pushSpan(new_a),
+                    .span_b = try self.pushSpan(new_b),
+                });
+            },
+            else => return id,
+        }
+    }
+
     pub fn relation(
         self: *Store,
         head: []const u8,

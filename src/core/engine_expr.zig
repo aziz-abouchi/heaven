@@ -668,12 +668,20 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                         const pn = store.interner.resolve(param_sym);
                         platform.dbg("[ho-dbg] beta : param='{s}' arg_val_tag={s}\n", .{ pn, @tagName(store.get(arg_val).tag) });
                     }
-                    // Pas de defer delete : l'évaluation du corps peut rendre
-                    // une valeur différée qui résout le paramètre APRÈS la
-                    // sortie -- le delete tuait le binding avant résolution
-                    // (x libre → UnboundVariable dans filter/map avec λ).
-                    try env.put(param_sym, arg_val);
-                    return evaluate(store, env, engine, lam_span[0], depth + 1);
+                    // Substitution AST (capture env, évite les closures).
+                    // Necessaire pour les lambdas imbriquees :
+                    // f = λx. λy. (+ x y) ; f 3 doit produire λy. (+ 3 y).
+                    const substituted = try store.substSym(lam_span[0], param_sym, arg_val);
+
+                    if (all_args.len == 2) {
+                        return evaluate(store, env, engine, substituted, depth + 1);
+                    }
+
+                    // Args excedentaires : reappliquer recursivement.
+                    // f 3 4 -> (f 3) 4 -> ((λy. (+ 3 y)) 4) -> 7
+                    const rest_args = all_args[2..];
+                    const reapplied = try store.apply(substituted, rest_args);
+                    return evaluate(store, env, engine, reapplied, depth + 1);
                 }
 
                 const new_apply = try store.addNode(.{ .tag = .apply, .payload = evaled_op, .aux = 0, .span_a = node.span_a, .span_b = Span.EMPTY });
