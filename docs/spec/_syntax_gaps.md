@@ -132,11 +132,6 @@ CAF et avec Prolog pour les faits a 0 argument).
 - Fix `engine_expr.zig:569-583` : fallback si clause 0-pattern retourne une lambda.
 - Commit `6b4650f`.
 
-### Bug restant : multi-params λ
-- `f = λx y. (+ x y)` puis `f 3 4` retourne `(lambda y (+ x y))`
-  au lieu de `7`. La 1re β-reduction ne substitue pas `x`.
-- Zone : `engine_expr.zig:645-668` (beta), `store.lambdaNative`.
-
 ### Corrige : beta-reduction par substitution AST
 - Avant : `f = λx. λy. (+ x y) ; f 3 4` retournait `(lambda y (+ x y))`
   car la beta ne capturait pas l'environnement.
