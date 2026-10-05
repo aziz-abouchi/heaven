@@ -1,0 +1,225 @@
+-- =====================================================================
+-- Heaven -- HTTP file server (spec cible, NON COMPILABLE)
+-- =====================================================================
+--
+-- Ce fichier illustre la direction architecturale de Heaven pour les
+-- effets, les capacites et le lazy streaming. Il n'est PAS compilable
+-- aujourd'hui.
+--
+-- Chaque brique utilisee est suivie de son etat dans STATUS.md.
+--
+-- Reference : docs/spec/_effects.md, docs/spec/_store_ast.md.
+--
+-- Prerequis non satisfaits :
+--   [1] data EffOp avec arguments non-atomiques .................. manquant
+--   [2] perform (Op args) structure .............................. manquant
+--   [3] handle multi-shot (D8) ................................... manquant
+--   [4] Capabilities typees (FileCap, NetCap) .................... design only
+--   [5] do (sucre sur bind) ...................................... manquant
+--   [6] Stream lazy effectful .................................... manquant
+--   [7] Scheduler (Accept suspend/reprenable) .................... manquant
+--
+-- =====================================================================
+
+
+-- ---------------------------------------------------------------------
+-- 1. Types d'effets
+-- ---------------------------------------------------------------------
+--
+-- EffOp est un data type HVN normal. Chaque constructeur porte ses
+-- arguments typés. Les capacites sont des arguments ordinaires, pas
+-- des chaines magiques.
+--
+-- Etat : data existe [1 partiel], arguments non-atomiques non testes.
+
+data EffOp
+  = Listen NetCap Port
+  | Accept NetCap Socket
+  | ReadRequest Socket
+  | ReadFile FileCap Path
+  | WriteResponse NetCap Socket Bytes
+  | CloseSocket NetCap Socket
+
+
+-- ---------------------------------------------------------------------
+-- 2. Capacites
+-- ---------------------------------------------------------------------
+--
+-- Une capacite est une valeur QTT lineaire. Elle ne peut pas etre
+-- copiee, seulement transferee.
+--
+-- Etat : design seulement (docs/capabilities.md).
+
+-- data FileCap  -- linear
+-- data NetCap   -- linear
+
+
+-- ---------------------------------------------------------------------
+-- 3. Types de base
+-- ---------------------------------------------------------------------
+--
+-- Etat : Path, Bytes, Socket, Port non existants.
+-- A implementer dans core/std/*.hvn.
+
+-- type Path    = String
+-- type Bytes   = List U8
+-- type Socket  = Int
+-- type Port    = Int
+
+
+-- ---------------------------------------------------------------------
+-- 4. Construction de la reponse HTTP
+-- ---------------------------------------------------------------------
+--
+-- Pur, sans effet. Utilise la concatenation de chaines.
+--
+-- Etat : ++ non implemente, to_string non implemente.
+
+http_ok : Bytes -> Bytes
+http_ok body =
+  "HTTP/1.1 200 OK\r\n"
+  ++ "Content-Type: text/plain\r\n"
+  ++ "Content-Length: "
+  ++ (to_string (length body))
+  ++ "\r\n\r\n"
+  ++ body
+
+http_not_found : Path -> Bytes
+http_not_found path =
+  "HTTP/1.1 404 Not Found\r\n"
+  ++ "Content-Type: text/plain\r\n\r\n"
+  ++ "File not found: "
+  ++ path
+
+
+-- ---------------------------------------------------------------------
+-- 5. Traitement d'un client
+-- ---------------------------------------------------------------------
+--
+-- perform (ReadRequest socket) : le handler remplace l'operation
+-- par sa valeur. Plusieurs perform dans le meme scope : necessite
+-- handle multi-shot [3].
+--
+-- Etat : perform structure [2] manquant, handle multi-shot [3] manquant.
+
+handle_client : FileCap -> NetCap -> Socket -> Unit
+handle_client file_cap net_cap socket =
+  let request = perform (ReadRequest socket) in
+  let path    = request_path request in
+  let body    = perform (ReadFile file_cap path) in
+  let reply   = http_ok body in
+    perform (WriteResponse net_cap socket reply)
+
+-- Note : CloseSocket non appele ici. A traiter par un bracket/scope
+-- (cleanup garanti). Voir core/runtime/bracket.hvn (a ecrire).
+
+
+-- ---------------------------------------------------------------------
+-- 6. Boucle serveur
+-- ---------------------------------------------------------------------
+--
+-- La boucle Accept -> handle_client -> Accept -> ... est conceptuel-
+-- lement une computation suspendable. Chaque Accept suspend le
+-- serveur jusqu'a la prochaine connexion.
+--
+-- Etat : necessite D8 [3] et un scheduler [7].
+
+serve_loop : FileCap -> NetCap -> Socket -> Unit
+serve_loop file_cap net_cap server =
+  let client = perform (Accept net_cap server) in
+    handle_client file_cap net_cap client
+
+
+-- ---------------------------------------------------------------------
+-- 7. Handler des effets
+-- ---------------------------------------------------------------------
+--
+-- Le handler est une fonction HVN qui interprete un EffOp. Il fait
+-- le pont entre les operations abstraites de Heaven et le systeme
+-- reel.
+--
+-- Etat : syntaxe match sur data structure partiellement en place.
+-- Les fonctions native_* (listen, accept, read) n'existent pas.
+
+io_handler : FileCap -> NetCap -> EffOp -> Id
+io_handler file_cap net_cap op =
+  match op with
+
+    Listen cap port ->
+      native_listen cap port
+
+    Accept cap socket ->
+      native_accept cap socket
+
+    ReadRequest socket ->
+      native_read_request socket
+
+    ReadFile cap path ->
+      native_read_file cap path
+
+    WriteResponse cap socket bytes ->
+      native_write cap socket bytes
+
+    CloseSocket cap socket ->
+      native_close cap socket
+
+
+-- ---------------------------------------------------------------------
+-- 8. Programme principal
+-- ---------------------------------------------------------------------
+--
+-- handle prend le corps de l'evaluation et un handler. Le handler
+-- est invoque a chaque perform, avec la continuation disponible.
+--
+-- Etat : handle actuel est one-slot post-evaluation (voir
+-- _effects.md). Ceci n'est PAS compilable.
+
+main : FileCap -> NetCap -> Unit
+main file_cap net_cap =
+  handle
+    let server = perform (Listen net_cap 8080) in
+      serve_loop file_cap net_cap server
+  with
+    io_handler file_cap net_cap
+
+
+-- =====================================================================
+-- Ce que ce fichier demontre
+-- =====================================================================
+--
+-- 1. Separation stricte entre la logique metier (http_ok, handle_client,
+--    serve_loop) et l'interpretation systeme (io_handler).
+--
+-- 2. Les effets sont des valeurs structurees (EffOp), pas des chaines.
+--    Le type checker, le pattern matching et les preuves peuvent les
+--    comprendre.
+--
+-- 3. Les capacites (FileCap, NetCap) sont des arguments typés. Le
+--    handler les utilise comme autorites.
+--
+-- 4. Le meme serve_loop pourrait etre execute par :
+--      io_handler_native    -- systeme reel
+--      io_handler_wasm      -- WASM + WASI
+--      io_handler_test      -- simulation
+--      io_handler_sandbox   -- droits restreints
+--      io_handler_remote    -- distribution Bobiverse
+--    sans reecrire le serveur.
+--
+-- 5. La boucle serve_loop est potentiellement infinie. Sa forme
+--    definitive depend de D8 et du scheduler.
+--
+-- =====================================================================
+-- Cible d'implementation
+-- =====================================================================
+--
+-- Etape 1 : ReadTest (un seul perform, pas d'argument)
+-- Etape 2 : ReadFile cap path (un seul perform, argument structure)
+-- Etape 3 : deux perform dans le meme handle (necessite D8 ou
+--           multi-shot)
+-- Etape 4 : capabilities typees
+-- Etape 5 : Accept suspendable (D8 + scheduler)
+-- Etape 6 : serve_loop complete
+--
+-- Reference : _effects.md sections 8-14 pour le detail des prerequis.
+--
+-- =====================================================================
