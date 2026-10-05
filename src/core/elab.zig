@@ -894,10 +894,18 @@ pub const TypeChecker = struct {
         const pi_fn = self.store.get(func_type_node.payload);
         if (pi_fn.tag != .sym) return TypeError.NotAFunction;
         const pi_name = self.store.interner.resolve(pi_fn.payload);
-        if (!std.mem.eql(u8, pi_name, "Pi")) return TypeError.NotAFunction;
 
         const pi_args = self.store.applyArgs(func_type_node);
         if (pi_args.len != 2) return TypeError.NotAFunction;
+
+        if (std.mem.eql(u8, pi_name, "->")) {
+            const arg = self.store.applyArgs(apply_node);
+            if (arg.len != 1) return TypeError.NotAFunction;
+            try self.checkType(ctx, arg[0], pi_args[0]);
+            return pi_args[1];
+        }
+
+        if (!std.mem.eql(u8, pi_name, "Pi")) return TypeError.NotAFunction;
 
         const binder = self.store.get(pi_args[0]);
         if (binder.tag != .bind) return TypeError.NotAFunction;
@@ -1761,6 +1769,59 @@ test "type-dep v1b — A -> B est un type de fonction" {
 }
 
 // ─── Tests type-dep v1b ───
+
+test "type-dep v1b — succ n : Nat" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    var ctx = TypingContext.init(allocator);
+    defer ctx.deinit();
+
+    const type_sym = try store.sym("Type");
+    const nat = try store.sym("Nat");
+    try ctx.extend("Nat", type_sym);
+
+    const nat_arrow = try store.call("->", &.{ nat, nat });
+    const succ_sym = try store.sym("succ");
+    try ctx.extend("succ", nat_arrow);
+    try ctx.extend("n", nat);
+
+    const n = try store.sym("n");
+    const succ_n = try store.apply(succ_sym, &.{n});
+
+    var checker = TypeChecker.init(allocator, &store);
+    const ty = try checker.inferType(&ctx, succ_n);
+
+    try std.testing.expect(checker.typesEqual(ty, nat));
+}
+
+test "type-dep v1b — succ rejette un argument de mauvais type" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    var ctx = TypingContext.init(allocator);
+    defer ctx.deinit();
+
+    const type_sym = try store.sym("Type");
+    const nat = try store.sym("Nat");
+    const bool_ty = try store.sym("Bool");
+    try ctx.extend("Nat", type_sym);
+    try ctx.extend("Bool", type_sym);
+
+    const nat_arrow = try store.call("->", &.{ nat, nat });
+    const succ_sym = try store.sym("succ");
+    try ctx.extend("succ", nat_arrow);
+
+    const bad = try store.sym("b");
+    try ctx.extend("b", bool_ty);
+
+    const succ_b = try store.apply(succ_sym, &.{bad});
+
+    var checker = TypeChecker.init(allocator, &store);
+    try std.testing.expectError(error.TypeMismatch, checker.inferType(&ctx, succ_b));
+}
 
 test "type-dep v1b — Π(n:Nat).Vec(succ n) est un Type" {
     const allocator = std.testing.allocator;
