@@ -120,6 +120,40 @@ explicites. Mais pour un projet solo, c'est un compromis
 raisonnable : pas de fichier `interface.zig` à maintenir, pas de
 boilerplate, et le compilateur vérifie tout.
 
+## Pipeline syntaxique HIR pour les déclarations `data`
+
+Depuis octobre 2026, les déclarations de types paramétrés passent par un
+chemin syntaxique explicite avant l'élaboration :
+
+    source Heaven
+          |
+          v
+    Tree-sitter CST
+          |
+          v
+    syntax/lower.zig
+          |
+          v
+    ast.DataDecl
+          |
+          v
+    elabDataDecl
+          |
+          v
+    TypeRegistry / runtime
+
+Par exemple :
+
+    data List<a> = Nil | Cons a (List<a>)
+
+est reconnu par le parseur puis abaissé en un nœud HIR `DataDecl` contenant
+le nom du type, ses paramètres et ses constructeurs.
+
+Le champ `DataDecl.params` conserve les paramètres génériques au niveau HIR.
+La propagation complète dans l'élaboration et le runtime reste une étape
+suivante.
+
+
 ## Deux sortes de trous
 
 Il y a **deux** notions de « trou » dans Heaven, et les confondre

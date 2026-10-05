@@ -195,6 +195,18 @@ pourquoi c'est le cœur du paradigme fonctionnel.
 
 ---
 
+## Types paramétrés
+
+Depuis octobre 2026, le pipeline syntaxique HIR couvre aussi les déclarations `data` génériques avec paramètres non typés :
+
+```heaven
+data List<a> = Nil | Cons a (List<a>)
+```
+
+Cette forme est reconnue par Tree-sitter et abaissée dans l'AST HIR (`DataDecl.params`).
+
+Limitation actuelle : les paramètres génériques doivent encore être propagés dans l'élaboration et l'enregistrement runtime.
+
 ## Types dépendants (surface)
 
 Depuis septembre 2026, `data` accepte des **paramètres typés** :

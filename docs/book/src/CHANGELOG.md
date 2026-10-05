@@ -1,3 +1,11 @@
+# Changements récents
+
+## 2026-10-05
+
+- Documentation mise à jour pour le pipeline HIR des déclarations `data` génériques.
+- Ajout de la distinction entre types paramétrés (`List<a>`) et types dépendants (`Vec (n : Nat)`).
+- Documentation du nouveau champ HIR `DataDecl.params`.
+
 # Changelog du langage
 
 ## 2026-10-02 (après-midi)

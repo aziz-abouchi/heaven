@@ -125,6 +125,17 @@ toujours la même structure, elle change juste de contenu.
 On verra tout au chapitre 7. Pour l'instant, note que `Stream` prend
 `a` et construit un type.
 
+## État actuel des types paramétrés
+
+Depuis octobre 2026, le pipeline syntaxique HIR reconnaît les paramètres génériques des déclarations `data` :
+
+```heaven
+data List<a> = Nil | Cons a (List<a>)
+```
+
+Les paramètres sont conservés dans l'AST HIR via `DataDecl.params`. La propagation complète vers l'élaboration et l'enregistrement runtime reste une étape en cours.
+
+
 ## Ce que ça change
 
 Tu te dis peut-être : « pourquoi tout ce cérémonial ? Python marche
