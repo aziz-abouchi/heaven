@@ -119,6 +119,29 @@ appele ; sa valeur est la clause elle-meme, pas son resultat.
 **Pas un bug** : c'est un choix (coherent avec Haskell pour les
 CAF et avec Prolog pour les faits a 0 argument).
 
+## Corriges recents (hors Gap 1/2/3)
+
+### λ : support etendu
+- `λx => body`, `λx -> body` : ajoute le separateur `=>`/`->`
+- `λ(x, y) => body` : params entre parens
+- `λx y z. body` : multi-params
+- Commit `4e606c1`, branche `expr_parser.zig:64-115`
+
+### Clause 0-pattern applicable
+- `f = λx. x` puis `f 42` retournait `ArityMismatch`.
+- Fix `engine_expr.zig:569-583` : fallback si clause 0-pattern retourne une lambda.
+- Commit `6b4650f`.
+
+### Bug restant : multi-params λ
+- `f = λx y. (+ x y)` puis `f 3 4` retourne `(lambda y (+ x y))`
+  au lieu de `7`. La 1re β-reduction ne substitue pas `x`.
+- Zone : `engine_expr.zig:645-668` (beta), `store.lambdaNative`.
+
+### Bug restant : panic kernel shift
+- `prove features_t_induction by induction` panic sur `kernel/peano.zig:374 shift`.
+- Recursion infinie : terme cyclique OU accumulation de shift sur `replacement`.
+- Zone : `peano.zig:337 subst`, `peano.zig:360-398 shift`.
+
 ## Priorite
 
 | Gap | Impact | Effort estime |
