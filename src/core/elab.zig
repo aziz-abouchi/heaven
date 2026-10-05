@@ -910,7 +910,7 @@ pub const TypeChecker = struct {
         const type_b = pi_args[1];
 
         // ⚠️ Prendre le dernier enfant comme argument
-        const apply_args = apply_node.span_a.slice(p);
+        const apply_args = self.store.applyArgs(apply_node);
         if (apply_args.len == 0) return TypeError.NotAFunction;
         const arg = apply_args[apply_args.len - 1];
 
@@ -971,14 +971,13 @@ pub const TypeChecker = struct {
     /// Vérifie la conformité comportementale vis-à-vis de la projection locale MPST.
     pub fn inferSpawn(self: *TypeChecker, ctx: *const TypingContext, spawn_id: Id) !Id {
         const node = self.store.get(spawn_id);
-        const p = self.store.pool.items;
 
         if (node.tag != .apply) return TypeError.NotAFunction;
 
-        const args = node.span_a.slice(p);
+        const args = self.store.applyArgs(node);
         if (args.len < 2) return TypeError.TypeMismatch;
 
-        const actor_id = args;
+        const actor_id = args[0];
         const protocol_id = args[1];
 
         // 1. Inférence du rôle de l'acteur et du protocole global
@@ -1132,7 +1131,7 @@ pub const TypeChecker = struct {
                 if (fn_node.tag == .lambda) {
                     const param_name = self.store.interner.resolve(fn_node.payload);
                     const p = self.store.pool.items;
-                    const app_children = node.span_a.slice(p);
+                    const app_children = self.store.applyArgs(node);
                     if (app_children.len == 0) return error.NotImplemented;
                     const arg = app_children[app_children.len - 1];
                     const lambda_children = fn_node.span_a.slice(p);
@@ -1209,8 +1208,7 @@ pub const TypeChecker = struct {
             },
             .apply => {
                 const new_fn = try self.substituteVariable(node.payload, var_name, replacement);
-                const p = self.store.pool.items;
-                const args = node.span_a.slice(p);
+                const args = self.store.applyArgs(node);
                 var new_args = std.ArrayListUnmanaged(Id){};
                 defer new_args.deinit(self.allocator);
                 for (args) |arg| {
@@ -1303,7 +1301,7 @@ pub const TypeChecker = struct {
                 const new_func = try self.substVar(node.payload, var_name, replacement);
                 var new_args: std.ArrayListUnmanaged(Id) = .{};
                 defer new_args.deinit(self.allocator);
-                for (node.span_a.slice(p)) |arg| {
+                for (self.store.applyArgs(node)) |arg| {
                     try new_args.append(self.allocator, try self.substVar(arg, var_name, replacement));
                 }
                 return self.store.apply(new_func, new_args.items);
@@ -1523,6 +1521,25 @@ test "TypeChecker substVar - simple variable" {
     // Substitute x with 5 in y → should get y (unchanged)
     const result2 = try checker.substVar(y, "x", five);
     try std.testing.expect(result2 == y);
+}
+
+test "TypeChecker substVar - application arguments" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    const f = try store.sym("f");
+    const x = try store.sym("x");
+    const five = try store.int(5);
+    const app = try store.apply(f, &.{x});
+
+    var checker = TypeChecker.init(allocator, &store);
+    const result = try checker.substVar(app, "x", five);
+
+    const args = store.applyArgs(store.get(result));
+    try std.testing.expectEqual(@as(usize, 1), args.len);
+    try std.testing.expectEqual(five, args[0]);
+    try std.testing.expectEqual(f, store.get(store.get(result).payload).payload);
 }
 
 test "TypeChecker substVar - lambda shadowing" {
