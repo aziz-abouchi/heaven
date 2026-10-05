@@ -30,8 +30,63 @@ Un mot est **du shell** si :
 | `strict on\|off` | Active le mode strict |
 | `data D p1 p2 = C1 \| C2` | Déclare un type |
 | `sig f : A -> B` | Déclare une signature |
-| `f x = ...` | Équation (définition) |
+| `f x = ...` | Équation (définition de fonction) |
+| `f = ...` | Clause 0-pattern (voir note ci-dessous) |
 | `let x = v in b` | Liaison locale |
+| `let x = v` (top-level) | Binding de valeur (voir note ci-dessous) |
+
+**Note -- valeurs vs fonctions.**
+
+Trois formes se ressemblent mais produisent des choses
+différentes :
+
+| Forme | Ce qui est cree | Comment y acceder |
+|---|---|---|
+| `f args = body` | Clause de fonction (>= 1 pattern) | `(f a b)` |
+| `f = body` | Clause 0-pattern | `(f)` (non garanti, voir ci-dessous) |
+| `let x = body` | Binding de valeur, evalue immediatement | `x` |
+
+En pratique :
+
+- Pour une **fonction**, utiliser `f args = body`.
+- Pour une **valeur**, utiliser `let x = body`.
+- `f = body` (sans args) cree une clause, pas un binding. Sa
+  valeur n'est pas directement accessible comme un symbole
+  ordinaire. A eviter pour les valeurs.
+
+**Exemples corrects :**
+
+    -- fonction
+    double x = x * 2
+
+    -- valeur
+    let pi = 3
+    let two_pi = pi + pi
+
+    -- valeur calculee a partir d'un constructeur
+    data EffOp = Test Int
+    let op = (Test 42)
+
+    -- valeur calculee a partir d'un effet structure
+    let op2 = perform (Test 42)
+
+**Exemple a eviter :**
+
+    do_thing = 42        -- clause 0-pattern, PAS un binding
+    -- test "..." : (do_thing) == 42   -- echoue
+
+Preferer :
+
+    let do_thing = 42
+    test "..." : do_thing == 42          -- passe
+
+**Consequence sur les specs.** Dans `docs/spec/examples/http_server.hvn`,
+les valeurs auxiliaires sont declarees avec `let`, et les fonctions
+avec `f args = ...`. Aucune clause 0-pattern n'est utilisee.
+
+**Etat :** documente, non corrige. Le comportement actuel
+(clause 0-pattern non appelable via `(f)`) est enregistre dans
+`docs/spec/_syntax_gaps.md` comme note, pas comme bug.
 
 ### 1.2 Types
 | Mot-clé | Rôle |
