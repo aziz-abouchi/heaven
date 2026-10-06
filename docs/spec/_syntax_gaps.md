@@ -281,13 +281,20 @@ kanren (`src/logic/kanren_expr.zig`).
 - Aucun test : ni unitaire Zig, ni `.hvn`.
 - Usage reel : seul `:explain` (`cmdExplain`) interroge le KB Prolog.
 
-**Statut : legacy dormant.**
-- Ne pas etendre tant que Matrix n'est pas supprime (D9).
-- Si un vrai Prolog est souhaite un jour : reecrire sur `Store`
-  (comme kanren), ~300 lignes.
-- Si personne ne le reclame : disparaitra avec Matrix.
+**Statut : expose au REPL (commit suivant).**
+- `:p-fact pred(arg1, arg2)` : ajoute un fait.
+- `?- pred(arg1, arg2)` : requete (goal).
+- `?- pred(arg1, X)` : requete avec variable (X reste lie).
 
-**Decision** : documenter seulement. Aucun patch code.
+**Limites restantes** :
+- Pas de regles (`:-`) chargees interactivement.
+- Pas de fichier `.pl` (Prolog) via `:load`.
+- Backend reste Matrix (D9 futur).
+- `printClean` filtre trop agressivement : un goal avec variable
+  affiche `true` sans le binding. A ameliorer.
+
+**Chantier futur** : reecrire sur `Store` pour supprimer la
+dependance Matrix (D9).
 
 ### Doc : doctests book (12 corrections, 6 residus)
 
