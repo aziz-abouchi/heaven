@@ -269,6 +269,26 @@ mais etait byte-identique a `x86_64_linux.zig` (`posix.fork`,
   avoir un equivalent. Les trois candidats le supportent.
 - Effort : 2-4 sessions. Pas urgent.
 
+### Etat : Prolog (moteur logique separe)
+
+`src/runtime/prolog.zig` (308 LOC) est un moteur Prolog distinct du
+kanren (`src/logic/kanren_expr.zig`).
+
+**Caracteristiques :**
+- Backend : `Matrix` (pas `Store`) — depend de l'archi en cours
+  de depreciation (voir `_vessel_decouple.md`, D9).
+- Aucun mot-cle REPL : pas de `?-`. Pas exposable au shell.
+- Aucun test : ni unitaire Zig, ni `.hvn`.
+- Usage reel : seul `:explain` (`cmdExplain`) interroge le KB Prolog.
+
+**Statut : legacy dormant.**
+- Ne pas etendre tant que Matrix n'est pas supprime (D9).
+- Si un vrai Prolog est souhaite un jour : reecrire sur `Store`
+  (comme kanren), ~300 lignes.
+- Si personne ne le reclame : disparaitra avec Matrix.
+
+**Decision** : documenter seulement. Aucun patch code.
+
 ## Priorite
 
 | Gap | Impact | Effort estime |
