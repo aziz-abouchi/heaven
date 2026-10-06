@@ -50,3 +50,6 @@ jobs:
 
       - name: Run multi-file test suites (tests/*.hvn, incl. verify_book.hvn)
         run: zig build -Dnetwork=false test-files
+
+      - name: Check doc freshness (docgen --check)
+        run: python3 scripts/docgen.py --check
