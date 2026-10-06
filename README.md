@@ -32,8 +32,8 @@ intermédiaire à blocs basiques) alimente deux backends :
 - QBE → code natif x86-64, ARM, RISC-V
 - WASM → WebAssembly text, exécutable par wasmtime
 
-Performance mesurée : fib(25) compile en 1.5 ms contre 29 200 ms en
-interprété (environ 19 500x). isEven 100000000 (100M récursions mutuelles)
+Performance mesurée : fib(25) compile en 1.15 ms contre 29 824 ms en
+interprété (environ 26 000x). isEven 100000000 (100M récursions mutuelles)
 tourne sans stack overflow — TCO self-tail et mutuelle (fusion SCC) sur les
 deux backends.
 
@@ -80,12 +80,14 @@ Compilation :
 température, RSS)
 
 Modules : module M, import "path.hvn" as Name, transitif, cycles détectés,
-HEAVEN_PATH, export, idempotence, mode strict on/off.
+HEAVEN_PATH, export, idempotence, mode strict on/off. Les définitions
+sont aliasées sous M.x ; le mode strict (opt-in) bloque le nom nu.
 
 QTT : let linear / erased / many x = … in …, violations détectées à
 l'élaboration.
 
-Stdlib : Bool, List, Option, Pair, Result, Stream chargés au boot.
+Stdlib : Bool, List, Option, Pair, Result, Stream — chargés au boot
+(signatures + quelques clauses ; voir docs/STATUS.md pour l'état exact).
 
 Acteurs : spawn / tell / recv, séquentiel pour l'instant.
 
@@ -237,8 +239,8 @@ Ce qui est stable :
 - Noyau (6 primitives, hash-consing, structuralEql)
 - Parsing infixe et S-expression
 - Types dépendants (surface + unification arithmétique v2f)
-- Tactiques composables (v1.5)
-- Modules et imports
+- Tactiques composables (v1.5) — couverture hétérogène (voir STATUS.md)
+- Modules et imports (v0 — alias M.x ; fn/let en cours)
 - Effets algébriques, IO
 - Compilation QBE et WASM
 - TCO self-tail et mutuelle (SCC 2+)
