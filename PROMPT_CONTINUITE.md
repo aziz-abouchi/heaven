@@ -65,7 +65,6 @@ Deux fixes techniques structurels, plus 6 corrections documentaires.
 ### Docs a auditer (Passe 2, post-stabilisation)
 
 - `HEAVEN_ARCHITECTURE_2026.md` (3 mois sans MAJ)
-- `HEAVEN.md` (11 lignes, 3 juin)
 - `docs/book/src/10-under-the-hood.md` (utilise `List<a>` en exemple)
 - `PROMPT_CONTINUITE.md` lui-meme (fait dans cet addendum)
 

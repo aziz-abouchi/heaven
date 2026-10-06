@@ -89,7 +89,10 @@ l'élaboration.
 Stdlib : Bool, List, Option, Pair, Result, Stream — chargés au boot
 (signatures + quelques clauses ; voir docs/STATUS.md pour l'état exact).
 
-Acteurs : spawn / tell / recv, séquentiel pour l'instant.
+Acteurs : deux mécanismes distincts, séquentiels pour l'instant.
+- `spawn` / `tell` / `recv` : prototype de concurrence, mailbox FIFO
+- `send(X, msg)` : envoi au handler d'un acteur (`let actor A = ... with h`)
+- Un seul thread, pas de scheduler préemptif (voir STATUS.md)
 
 Pipeline logique : miniKanren (kanren_expr), fact/query au REPL, synthèse
 → E-Graph → extraction.

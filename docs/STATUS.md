@@ -175,7 +175,7 @@ depuis une string utilisateur, jamais d'evar dedans).
 |---|---|---|---|
 | `fn handler(state, msg) = …` | ✅ | test suite | — |
 | `let X = 0 with handler` | ✅ | test suite | — |
-| `send(X, msg)` | ✅ | test suite | séquentiel |
+| `send(X, msg)` | ✅ | test suite | acteur + handler ; séquentiel |
 | `state(X)` | ✅ | test suite | — |
 | Parallélisme réel | 🚧 | — | pas de scheduler |
 
@@ -287,7 +287,7 @@ Résultats de référence (`docs/spec/_bench.md`) :
 
 | Élément | Statut | Preuve | Limitation |
 |---|---|---|---|
-| `spawn` / `tell` / `recv` (process) | ✅ | test_suite.hvn (3 tests) | caller-driven, pas préemptif |
+| `spawn` / `tell` / `recv` (process) | ✅ | test_suite.hvn (3 tests) | prototype concurrence, mailbox FIFO, caller-driven |
 | `run(pid)` (drain mailbox) | ✅ | test_suite.hvn (2 tests) | — |
 | `bracket` / `local` / `catch` | ✅ | test_suite.hvn (5 tests) | syntaxe scoped, pas handle-rec |
 | `handle-rec` (reprise) | 🚧 | — | nécessite continuations |

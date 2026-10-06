@@ -204,7 +204,6 @@ la doc et le code, releves le 2026-10-06.
 
 ### Reste a auditer
 - `HEAVEN_ARCHITECTURE_2026.md` (3 mois sans MAJ)
-- `HEAVEN.md` (11 lignes, 3 juin)
 - `PROMPT_CONTINUITE.md` (16 KB, 2 oct. — pas resynchronise apres les
   6 fixes du 2026-10-05)
 - `docs/book/src/10-under-the-hood.md` (utilise `data List<a>`, non

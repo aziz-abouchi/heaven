@@ -168,7 +168,9 @@ Ces fonctions acceptent aussi la forme préfixe `simplify e`, `derive e` au REPL
 | `let actor X = v with handler` | Spawn un acteur |
 | `let macro M(args) = body` | Macro hygiénique |
 | `fn handler(state, msg) = ...` | Handler d'acteur |
-| `send(X, msg)` | Envoie |
+| `send(X, msg)` | Envoie un message au handler d'un acteur |
+| `tell(p, msg)` | Dépose dans la mailbox FIFO (prototype concurrence) |
+| `recv(p)` | Retire le premier message de la mailbox |
 | `state(X)` | État |
 | `spawn(...)` | Green thread |
 
