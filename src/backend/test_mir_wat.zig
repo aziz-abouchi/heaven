@@ -188,7 +188,13 @@ fn runWasmtime(alloc: std.mem.Allocator, wat_src: []const u8) !i64 {
     defer alloc.free(stdout);
     const stderr = try child.stderr.?.readToEndAlloc(alloc, 4096);
     defer alloc.free(stderr);
-    const term = try child.wait();
+    // Note : en Zig 0.15, l'erreur de spawn (FileNotFound si
+    // wasmtime absent) peut etre differement rapportee au wait()
+    // selon le POSIX. On catch ici aussi, cas observe en CI.
+    const term = child.wait() catch |err| switch (err) {
+        error.FileNotFound => return error.SkipZigTest,
+        else => return err,
+    };
     const code = switch (term) { .Exited => |c| c, else => return error.WasmtimeFailed };
     if (code != 0) {
         std.debug.print("wasmtime stderr: {s}\n", .{stderr});
