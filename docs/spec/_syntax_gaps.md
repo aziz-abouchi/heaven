@@ -213,14 +213,17 @@ la doc et le code, releves le 2026-10-06.
   supporte par le REPL — voir Gap "evalDataDecl" ci-dessous)
 - `docs/book/src/02`, `03` : idem pour `List<a>`
 
-### Gap ouvert : evalDataDecl generiques `<a>`
-- **REPL** : `data List<a> = ...` enregistre `"List<a>"` littéral avec
-  0 param, **silencieusement**.
+### Gap ouvert : evalDataDecl generiques `<a>` (partiel)
+- **Nom + params** : CORRIGE (commit local). `data List<a> = ...` donne
+  maintenant `List` avec `1 param`, `data Pair<a, b>` donne `2 param`,
+  `data Box<a : Type>` donne `1 param`. Les syntaxes `MyList a` et
+  `Vec (n : Nat)` sont preservees.
+- **Corps** : RESTE A FAIRE. Dans `Cons a (List<a>)`, l'argument
+  `List<a>` est traite comme symbole litteral, pas comme
+  `apply(List, [a])`. Impact : le TypeChecker ne peut pas verifier
+  les usages generiques dans les constructeurs.
 - **Tree-sitter** : accepte `<a>` depuis la regen du `.so`
   (`make` dans `vendor/tree-sitter-heaven/`).
-- **A faire** : parser `<a>` dans `evalDataDecl` (nom + params) et
-  propager les params dans `parseExpression` côté types d'arguments
-  (`Cons a (List<a>)`).
 
 ## Priorite
 
