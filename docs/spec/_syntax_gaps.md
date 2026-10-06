@@ -334,13 +334,16 @@ que le doctest lineaire ne reproduit pas. Acceptes tels quels :
 - `:triple-query <subject-iri>` requete par sujet.
 
 **Syntaxe supportee** : `@prefix`, triples `<s> <p> <o> .`, prefixes
-(`ex:Alice`), litteraux, blank nodes.
+(`ex:Alice`), litteraux, blank nodes, `;` (predicats multiples),
+`,` (objets multiples), `a` (raccourci `rdf:type`).
 
 **A tester / completer** :
-- Triples avec plusieurs objets (`a p o1, o2 .`)
 - Collections RDF (`( ... )`)
 - Reification (`<< s p o >>`)
+- Annotations `{| ... |}`
+- Litteraux multi-lignes (`"""..."""`)
 - Requetes par predicat (`:triple-pred`) ou par objet.
+- Verification que les iris completes sont bien resolues (avec `<...>`).
 
 ## Priorite
 
