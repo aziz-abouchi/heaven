@@ -166,17 +166,24 @@ l'instant, acceptons l'imperfection.
 
 ## Les alias de type (roadmap)
 
-Un alias de type serait un nom court pour un type long :
+Un alias de type est un nom court pour un type long :
 
-    -- vision : non implémenté
-    type Nom = String
+    heaven> type Nom = String
+    ✓ type Nom = String
+    heaven> type Nom
+    Nom : String
 
 L'alias ne cree pas un nouveau type, juste un synonyme. Utile pour la
 lisibilite, pas pour la surete.
 
-Ce n'est pas encore implémenté. La commande `type` existe mais elle
-sert a **afficher le type d'une expression** (inference), pas a
-declarer un alias.
+La commande `type` sert aussi a **afficher le type d'une expression**
+(inference) :
+
+    heaven> type 42
+    42 : Int
+
+Distinction : `type X = Y` declare un alias, `type expr` infere le
+type de l'expression.
 
 ## Récapitulatif
 

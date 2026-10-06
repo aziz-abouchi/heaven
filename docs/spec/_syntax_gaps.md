@@ -307,6 +307,22 @@ que le doctest lineaire ne reproduit pas. Acceptes tels quels :
 - CI utilise `--warn-only` (informe sans bloquer).
 - Un futur passage peut les traiter individuellement.
 
+### Feature : alias de type (`type Nom = Cible`)
+
+**Implemente** (commit ef743b0) :
+- `type Nom = Cible` enregistre un alias.
+- `type Nom` retourne la cible.
+- Redefinition : derniere gagne.
+
+**Non implemente (chantier)** :
+- Resolution **profonde** : un alias n'est pas substitue dans les
+  signatures (`f : Nom -> Int` reste `Nom`, pas `String -> Int`),
+  ni dans les arguments de type (`List<Nom>` reste tel quel).
+- Verification que la cible est un type valide : `type X = bidule`
+  est accepte.
+- Effort : ~2-3h pour une resolution profonde dans `parseExpression`
+  ou `TypeRegistry`. Risque de regression moyen.
+
 ## Priorite
 
 | Gap | Impact | Effort estime |
