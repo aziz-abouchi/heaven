@@ -1297,9 +1297,10 @@ pub const Heaven = struct {
         //    incluses : (n : Vec a), (f : a -> b), etc.).
         var cursor: usize = 0;
 
-        // 1a. Nom du type : suite jusqu'au 1er espace ou '('.
+        // 1a. Nom du type : suite jusqu'au 1er espace, '(' ou '<'.
         while (cursor < head.len and
-            head[cursor] != ' ' and head[cursor] != '\t') : (cursor += 1)
+            head[cursor] != ' ' and head[cursor] != '\t' and
+            head[cursor] != '<') : (cursor += 1)
         {}
         const type_name = head[0..cursor];
         if (type_name.len == 0)
@@ -1344,13 +1345,47 @@ pub const Heaven = struct {
                     .name = try self.allocator.dupe(u8, pname),
                     .ty = ptype,
                 });
+            } else if (head[cursor] == '<') {
+                // Paramètres génériques : <a>, <a, b>, <a : Type>.
+                const open = cursor;
+                cursor += 1;
+                var depth: usize = 1;
+                while (cursor < head.len and depth > 0) : (cursor += 1) {
+                    if (head[cursor] == '<') depth += 1 else if (head[cursor] == '>') depth -= 1;
+                }
+                if (depth != 0)
+                    return self.allocator.dupe(u8, "syntax error: '<' non fermée dans params");
+                const inner = std.mem.trim(u8, head[open + 1 .. cursor - 1], " \t");
+                var pit = std.mem.tokenizeAny(u8, inner, ",");
+                while (pit.next()) |raw| {
+                    const p = std.mem.trim(u8, raw, " \t");
+                    if (p.len == 0) continue;
+                    if (std.mem.indexOfScalar(u8, p, ':')) |colon| {
+                        const pname = std.mem.trim(u8, p[0..colon], " \t");
+                        const ptype_str = std.mem.trim(u8, p[colon + 1 ..], " \t");
+                        if (pname.len == 0 or ptype_str.len == 0)
+                            return self.allocator.dupe(u8, "syntax error: param vide");
+                        const ptype = self.parseExpression(ptype_str) catch
+                            return self.allocator.dupe(u8, "syntax error: type de param invalide");
+                        try params.append(self.allocator, .{
+                            .name = try self.allocator.dupe(u8, pname),
+                            .ty = ptype,
+                        });
+                    } else {
+                        try params.append(self.allocator, .{
+                            .name = try self.allocator.dupe(u8, p),
+                            .ty = null,
+                        });
+                    }
+                }
             } else {
-                // Param non typé : identifiant jusqu'au prochain espace ou '('.
+                // Param non typé : identifiant jusqu'au prochain espace, '(' ou '<'.
                 const start = cursor;
                 while (cursor < head.len and
                     head[cursor] != ' ' and
                     head[cursor] != '\t' and
-                    head[cursor] != '(') : (cursor += 1)
+                    head[cursor] != '(' and
+                    head[cursor] != '<') : (cursor += 1)
                 {}
                 if (cursor == start) break; // sécurité
                 const pname = head[start..cursor];
