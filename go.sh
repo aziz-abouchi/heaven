@@ -23,6 +23,11 @@ zig build $NETWORK_FLAG
 # 5. Tests
 zig build test $NETWORK_FLAG
 
+# 5b. Doc factuelle (README chiffres)
+if command -v python3 >/dev/null 2>&1 && [ -f scripts/docgen.py ]; then
+    python3 scripts/docgen.py || echo "[go.sh] docgen echoue (non bloquant)"
+fi
+
 # 6. Lancer
 # Debug conditionnel : traces [fns.deinit], [BOOT], [DIAG] etc.
 # Activees seulement si HEAVEN_DEBUG est non-vide.

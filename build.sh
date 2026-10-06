@@ -191,4 +191,12 @@ zig build
 echo "[FORGE] Tests..."
 zig build test
 
+#─── Documentation factuelle ───
+# Regenere les chiffres du README (tests, dates) pour eviter que le
+# CI (docgen --check) echoue sur un push. Non bloquant.
+if command -v python3 >/dev/null 2>&1 && [ -f scripts/docgen.py ]; then
+    echo "[FORGE] Mise a jour doc (docgen)..."
+    python3 scripts/docgen.py || echo "[FORGE] docgen echoue (non bloquant)"
+fi
+
 echo "[FORGE] Terminé. Lancer avec: zig build run -- <port>"
