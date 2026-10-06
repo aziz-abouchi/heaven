@@ -18,6 +18,17 @@ Les chiffres factuels du `README.md` sont **generes** par
 Consequence : toute session qui modifie un chiffre a la main verra
 son commit rejete par le CI.
 
+### STATUS.md est aussi genere
+
+Depuis 2026-10-06, `docs/STATUS.md` est genere depuis
+`docs/status.json` (21 sections, 138 features) :
+
+- `zig build status` / `python3 scripts/status_gen.py` : regenere.
+- `python3 scripts/status_gen.py --check` : CI, exit 1 si divergence.
+- Editer `docs/status.json`, pas `STATUS.md`.
+- Si on doit editer le markdown a la main (cas exceptionnel) :
+  `python3 scripts/status_import.py` re-parse vers le JSON.
+
 **Incident 2026-10-06** : une session parallele a restaure README.md
 a un etat pre-docgen (`b9eb621`), ecrasant les markers. Le CI est
 passe parce que les markers avaient disparu (regex ne matche rien).
