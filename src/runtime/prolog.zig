@@ -133,7 +133,7 @@ pub const PrologEngine = struct {
         self.clauses.deinit(self.allocator);
     }
 
-    fn parseRule(self: *PrologEngine, text: []const u8) void {
+    pub fn parseRule(self: *PrologEngine, text: []const u8) void {
         const sep = std.mem.indexOf(u8, text, ":-") orelse return;
         const head_str = std.mem.trim(u8, text[0..sep], " ");
         const body_str = std.mem.trim(u8, text[sep + 2 ..], " ");

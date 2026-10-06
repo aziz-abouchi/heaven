@@ -1621,6 +1621,21 @@ pub fn cmdTriples(self: *Shell) void {
     }
 }
 
+/// `:p-rule head(args) :- body1, body2, ...` : ajoute une regle Prolog.
+pub fn cmdPrologRule(self: *Shell, input: []const u8) void {
+    const trimmed = std.mem.trim(u8, input, " \t");
+    if (trimmed.len == 0) {
+        platform.debug.print("Usage: :p-rule head(args) :- body1, body2\n", .{});
+        return;
+    }
+    if (std.mem.indexOf(u8, trimmed, ":-") == null) {
+        platform.debug.print("parse error: ':-' attendu\n", .{});
+        return;
+    }
+    self.prolog.parseRule(trimmed);
+    platform.debug.print("\u{2713} p-rule enregistree\n", .{});
+}
+
 /// `:p-fact pred(arg1, arg2, ...)` : ajoute un fait a la base Prolog.
 pub fn cmdPrologFact(self: *Shell, input: []const u8) void {
     const trimmed = std.mem.trim(u8, input, " \t");

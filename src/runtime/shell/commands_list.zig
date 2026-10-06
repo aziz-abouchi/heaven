@@ -10,6 +10,7 @@ pub const CommandTag = enum {
     triple_count,
     triple_query,
     p_fact,
+    p_rule,
     cmd_type,
     infer,
     qtt,
@@ -92,6 +93,7 @@ pub const commands = [_]Command{
     .{ .name = "triple-count", .tag = .triple_count, .description = "Nombre de triplets chargés", .method = "cmdTripleCount" },
     .{ .name = "triple-query", .tag = .triple_query, .description = "Requête par sujet", .method = "cmdTripleQuery" },
     .{ .name = "p-fact", .tag = .p_fact, .description = "Ajouter un fait Prolog", .method = "cmdPrologFact" },
+    .{ .name = "p-rule", .tag = .p_rule, .description = "Ajouter une regle Prolog", .method = "cmdPrologRule" },
 
 
     // Logique & Types
