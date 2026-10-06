@@ -252,6 +252,7 @@ pub const Heaven = struct {
             .parse = parseHeavenExpr,
             .deriveId = deriveIdHeavenExpr,
             .simplify = simplifyHeavenExpr,
+            .kanren_query = kanrenQueryHeavenExpr,
         };
 
         // Initialiser l'engine DANS self.engine (champ stable du heap)
@@ -3562,6 +3563,21 @@ fn extractHeadName(s: []const u8) []const u8 {
     const start = i;
     while (i < s.len and (std.ascii.isAlphanumeric(s[i]) or s[i] == '_')) : (i += 1) {}
     return s[start..i];
+}
+
+/// Bridge evalMagic -> Kanren. Reconstruit une relation depuis les
+/// args de l'appel `(query name arg1 _ ...)`, interroge le KB, et
+/// retourne le nombre de solutions comme Id entier.
+fn kanrenQueryHeavenExpr(ctx: *anyopaque, store: *Store, args: []const Id) engine_expr.EvalError!expr.Id {
+    const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));
+    if (args.len < 1) return error.InvalidInput;
+    const head_node = store.get(args[0]);
+    if (head_node.tag != .sym) return error.InvalidInput;
+    const name = store.interner.resolve(head_node.payload);
+    const pat = store.relation(name, args[1..], &.{}) catch return error.OutOfMemory;
+    var stream = heaven.kanren.queryPattern(pat) catch return error.OutOfMemory;
+    defer stream.deinit();
+    return store.int(@intCast(stream.len())) catch error.OutOfMemory;
 }
 
 fn parseHeavenExpr(ctx: *anyopaque, input: []const u8) engine_expr.EvalError!expr.Id {

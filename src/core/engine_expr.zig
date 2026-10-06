@@ -145,6 +145,10 @@ pub const HeavenVTable = struct {
     parse: *const fn (*anyopaque, []const u8) EvalError!Id,
     deriveId: *const fn (*anyopaque, []const u8, []const u8) EvalError!Id,
     simplify: *const fn (*anyopaque, []const u8) EvalError![]const u8,
+    /// Appelé par evalMagic pour `(query name arg1 _ ...)`.
+    /// Retourne le nombre de solutions comme Id entier.
+    /// Nullable — les tests et le bootstrap peuvent la laisser null.
+    kanren_query: ?*const fn (*anyopaque, *Store, []const Id) EvalError!Id = null,
 };
 
 // Vtable factice pour les tests (ne devrait jamais être appelée)
@@ -1320,6 +1324,16 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 }
             }
         }
+    }
+
+    // ═══ KANREN QUERY (form) ═══
+    // (query name arg1 _ ...) evalue en nombre de solutions.
+    // Voir Heaven.kanrenQueryHeavenExpr pour l'implementation.
+    if (std.mem.eql(u8, op, "query")) {
+        if (engine.vtable.kanren_query) |f| {
+            return f(engine.heaven_ctx, store, args_snap);
+        }
+        return error.UnknownSymbol;
     }
 
     return error.UnknownSymbol;
