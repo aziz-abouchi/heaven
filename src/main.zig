@@ -187,18 +187,40 @@ pub fn main() !void {
             \\
             \\Usage: heaven <command> [args]
             \\
-            \\Commands:
-            \\  parse   <file.hvn>    Parse and show AST
-            \\  check   <file.hvn>    Type-check
-            \\  compile <file.hvn>    Generate C code (output.c)
-            \\  run     <file.hvn>    Compile and execute
-            \\  test    <file.hvn>    Run test blocks
-            \\  fmt     <file.hvn>    Format source code
-            \\  doc     <file.hvn>    Generate documentation
-            \\  lsp                   Start LSP server
-            \\  repl                  Interactive REPL
-            \\  transpile [--to c|heaven|latex] <file>  Transpile
-            \\  help                  Show this help
+            \\Frontend:
+            \\  parse   <file.hvn>                        Parse and show AST
+            \\  check   <file.hvn>                        Type-check
+            \\  fmt     <file.hvn>                        Format source code
+            \\  doc     <file.hvn>                        Generate documentation
+            \\  transpile [--to c|heaven|latex] <file>    Transpile
+            \\
+            \\Execution:
+            \\  run     <file.hvn>                        Compile and execute
+            \\  test    <file.hvn>                        Run test blocks
+            \\  repl                                       Interactive REPL
+            \\
+            \\Backends:
+            \\  compile <file.hvn>                        Generate C code (output.c)
+            \\  compile-qbe  <src.hvn> -o <bin>  [--target <name>]  Native via QBE
+            \\  compile-wasm <src.hvn> -o <out.wat>                 WebAssembly
+            \\
+            \\Benchmarks:
+            \\  bench-interp <file.hvn>                   Interpreter timings
+            \\  bench-qbe    <file.hvn>                   QBE timings
+            \\  bench-wasm   <file.hvn>                   WASM timings
+            \\
+            \\Tools:
+            \\  lsp                                        Start LSP server
+            \\  mcp                                        Start MCP server
+            \\  --completions                              Shell completions
+            \\  help                                       Show this help
+            \\
+            \\Internal:
+            \\  --run-test  <file.hvn>                    Run a single test file
+            \\  --run-tests <dir>                         Run all .hvn in a directory
+            \\
+            \\Targets for compile-qbe --target:
+            \\  amd64_sysv, amd64_apple, arm64, arm64_apple, rv64
             \\
         , .{});
         return;
