@@ -1,5 +1,13 @@
 # Heaven
 
+<!--
+  ⚠️  NE PAS ÉDITER LES CHIFFRES ENTRE MARKERS <!-- DOCGEN:xxx --> ... <!-- /DOCGEN -->
+  Régénérer via : zig build docgen  (ou python3 scripts/docgen.py)
+  Vérifier      : zig build docgen-check  (le CI échoue si périmé)
+  Voir PROMPT_CONTINUITE.md section "Convention doc".
+-->
+
+
 Un langage de programmation où tout ce que vous affirmez peut être prouvé,
 où le code se compile en natif et en WASM, et dont la direction
 architecturale vise une gestion mémoire pilotée par le type system

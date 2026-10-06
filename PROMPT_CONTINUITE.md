@@ -18,6 +18,12 @@ Les chiffres factuels du `README.md` sont **generes** par
 Consequence : toute session qui modifie un chiffre a la main verra
 son commit rejete par le CI.
 
+**Incident 2026-10-06** : une session parallele a restaure README.md
+a un etat pre-docgen (`b9eb621`), ecrasant les markers. Le CI est
+passe parce que les markers avaient disparu (regex ne matche rien).
+Correctif : bandeau d'avertissement en tete de README + reinsere
+les markers (commit `e5e92d8`).
+
 ## HEAD
 edb628f (main) — docs(spec): bug take masque par prelude corrige
 Tout poussé sur origin/main.
