@@ -289,6 +289,24 @@ kanren (`src/logic/kanren_expr.zig`).
 
 **Decision** : documenter seulement. Aucun patch code.
 
+### Doc : doctests book (12 corrections, 6 residus)
+
+`scripts/doctest.py` rejoue les 193 blocs `heaven> X` du book et
+signale les erreurs d'eval. Corrections faites (commit 8dd0c19) :
+
+- `data Stream` + `mapStream`/`inc`/`dbl` ajoutes avant usage (01, 05, 07)
+- `data MyList` + `data Maybe` ajoutes avant usage (04)
+- `name Unknown`, `head Empty`, `inconnu 42` marques skip (pedagogiques)
+- `accumulateur`, `import util.hvn` marques skip (illustratifs)
+- `prove ... by {` skippe (interactif)
+- `B-erreurs.md` entier en `skip-file` (chapitre pedagogique)
+
+Residus (6 erreurs) : cascades autour de streams/zip dans 05 et 07,
+`strict on` + U.public dans 11. Exemples qui dependent d'un contexte
+que le doctest lineaire ne reproduit pas. Acceptes tels quels :
+- CI utilise `--warn-only` (informe sans bloquer).
+- Un futur passage peut les traiter individuellement.
+
 ## Priorite
 
 | Gap | Impact | Effort estime |

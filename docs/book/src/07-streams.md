@@ -62,6 +62,7 @@ pas.
 Rappelez-vous du chapitre 5 : `>>>` compose deux fonctions. Sur les
 streams, c'est magique :
 
+    heaven> inc x = x + 1
     heaven> stream = Cons 1 (Cons 2 (Cons 3 End))
     heaven> take 2 (map inc stream)
     (Cons 2 (Cons 3 End))

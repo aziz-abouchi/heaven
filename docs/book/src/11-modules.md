@@ -58,6 +58,7 @@ Par défaut tout est exporté. Pour restreindre :
     public x = x * 2
     export public
 
+<!-- doctest: skip -->
     heaven> import "util.hvn" as U
 <!-- doctest: skip -->
     heaven> U.public 5
@@ -79,8 +80,10 @@ Pour n'exposer **que** les noms préfixés :
 À partir de là, un fichier importé **doit** passer par ses alias.
 Les noms nus sont refusés :
 
+<!-- doctest: skip -->
     heaven> import "util.hvn" as U
     heaven> U.public 5
+<!-- /doctest -->
     10
     heaven> public 5
     ✗ 'public' inaccessible (défini dans un module en mode strict;

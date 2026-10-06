@@ -272,7 +272,9 @@ L'enchaînement se fait avec `;` :
 
 `prove t by {` (sans `}`) ouvre un mode interactif :
 
+<!-- doctest: skip -->
     heaven> prove add_zero by {
+<!-- /doctest -->
     Goal 1/1
       ── Target ──
         (= (+ x 0) x)
@@ -311,7 +313,9 @@ reflexivity`), `induction` (= `induction {var}; simplify; reflexivity`).
 Depuis septembre 2026, la syntaxe unifiée est `_` (comme Idris/Agda).
 Le REPL expose `:hole` (liste) et `:refine <id> <expr>` :
 
+<!-- doctest: skip -->
     heaven> _
+<!-- /doctest -->
     _
     heaven> :hole
     ?0 : Int

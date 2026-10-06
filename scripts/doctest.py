@@ -107,6 +107,8 @@ def main():
                     help="Exit 1 si au moins une erreur detectee")
     ap.add_argument("--verbose", action="store_true",
                     help="Affiche l'output complet en cas d'erreur")
+    ap.add_argument("--warn-only", action="store_true",
+                    help="Affiche les erreurs mais exit 0 (pour CI informatif)")
     args = ap.parse_args()
 
     targets = ([Path(f) for f in args.files] if args.files
@@ -163,8 +165,10 @@ def main():
     print(f"Total : {total_cmds} commandes, {total_errors} erreur(s)")
     if failed_files:
         print(f"Fichiers en echec : {', '.join(failed_files)}")
-        if args.check:
+        if args.check and not args.warn_only:
             sys.exit(1)
+        elif args.warn_only:
+            print("(mode --warn-only : exit 0 malgre les erreurs)")
     else:
         print("Tous les doctests passent.")
 

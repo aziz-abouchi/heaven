@@ -93,7 +93,7 @@ Avec elle, on peut écrire `somme` en une ligne :
 
 Ou `longueur` :
 
-    heaven> length xs = fold (acc x = acc + 1) 0 xs
+    heaven> length xs = fold (\acc x = acc + 1) 0 xs
 
 (On reviendra sur cette syntaxe de lambda raccourcie — pour l'instant,
 retenez que `fold` est l'outil universel pour réduire une liste.)
