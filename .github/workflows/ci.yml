@@ -39,3 +39,9 @@ jobs:
 
       - name: Run functional test suite
         run: zig build -Dnetwork=false run -- --run-test core/test_suite.hvn
+
+      - name: Run Heaven regression suite (core/test_suite.hvn)
+        run: zig build -Dnetwork=false test-regression
+
+      - name: Run multi-file test suites (tests/*.hvn, incl. verify_book.hvn)
+        run: zig build -Dnetwork=false test-files
