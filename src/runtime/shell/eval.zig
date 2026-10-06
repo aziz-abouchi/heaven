@@ -59,6 +59,7 @@ pub fn evalHeavenCode(self: *Shell, code: []const u8) void {
 // Fonctions requises par commands.zig — redirigent toutes vers Heaven.eval
 pub fn exprEval(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
+    defer self.allocator.free(result);
 
     platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
@@ -68,30 +69,35 @@ pub fn exprSimplify(self: *Shell, input: []const u8) void {
         platform.debug.print("Simplify error: {}\n", .{err});
         return;
     };
+    defer self.allocator.free(result);
 
     platform.debug.print("{s}\n", .{result});
 }
 
 pub fn exprFact(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
+    defer self.allocator.free(result);
 
     platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub fn exprRule(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
+    defer self.allocator.free(result);
 
     platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub fn exprQuery(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
+    defer self.allocator.free(result);
 
     platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
 
 pub fn exprRewrite(self: *Shell, input: []const u8) void {
     const result = self.heaven.eval(input) catch return;
+    defer self.allocator.free(result);
 
     platform.debug.print("\xe2\x86\x92 {s}\n", .{result});
 }
