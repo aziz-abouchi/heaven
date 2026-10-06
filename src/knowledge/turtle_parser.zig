@@ -73,16 +73,22 @@ pub const ParseError = error{
 
 // ─── Parser principal ──────────────────────────────────────────────────────────
 
+const RDF_FIRST = "http://www.w3.org/1999/02/22-rdf-syntax-ns#first";
+const RDF_REST = "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest";
+const RDF_NIL = "http://www.w3.org/1999/02/22-rdf-syntax-ns#nil";
+
 pub const TurtleParser = struct {
     allocator: std.mem.Allocator,
     prefixes: PrefixMap,
     triples: std.ArrayListUnmanaged(Triple),
+    next_blank_id: u32 = 0,
     
     pub fn init(allocator: std.mem.Allocator) TurtleParser {
         return .{
             .allocator = allocator,
             .prefixes = PrefixMap.init(allocator),
             .triples = std.ArrayListUnmanaged(Triple){},
+            .next_blank_id = 0,
         };
     }
     
@@ -229,6 +235,92 @@ pub const TurtleParser = struct {
         return p;
     }
     
+    /// Genere un blank node frais `genidN`. Le nom n'inclut pas le
+    /// prefixe `_:` (convention interne).
+    fn allocBlankTerm(self: *TurtleParser, id: u32) ParseError!Term {
+        const name = try std.fmt.allocPrint(self.allocator, "genid{d}", .{id});
+        return Term{ .blank_node = name };
+    }
+
+    fn allocIriTerm(self: *TurtleParser, iri: []const u8) ParseError!Term {
+        return Term{ .iri = try self.allocator.dupe(u8, iri) };
+    }
+
+    /// Parse une collection RDF `( i1 i2 i3 )`. Produit la chaine
+    /// standard rdf:first/rdf:rest avec des blank nodes `_:genidN`.
+    /// Retourne le blank node de tete (ou rdf:nil si vide).
+    fn parseCollection(self: *TurtleParser, input: []const u8, pos: *usize) ParseError!Term {
+        var p = pos.* + 1; // skip '('
+        p = self.skipWhitespace(input, p);
+        
+        // Collection vide = rdf:nil
+        if (p < input.len and input[p] == ')') {
+            pos.* = p + 1;
+            return self.allocIriTerm(RDF_NIL);
+        }
+        
+        // Parser tous les items
+        var items = std.ArrayListUnmanaged(Term){};
+        defer {
+            for (items.items) |it| it.deinit(self.allocator);
+            items.deinit(self.allocator);
+        }
+        
+        while (true) {
+            const item = try self.parseTerm(input, &p);
+            try items.append(self.allocator, item);
+            p = self.skipWhitespace(input, p);
+            if (p >= input.len) return ParseError.InvalidSyntax;
+            if (input[p] == ')') {
+                p += 1;
+                break;
+            }
+        }
+        
+        const first_id = self.next_blank_id;
+        self.next_blank_id += @intCast(items.items.len);
+        
+        for (items.items, 0..) |item, i| {
+            const cur_id = first_id + @as(u32, @intCast(i));
+            
+            // Triple : _:curId rdf:first item
+            {
+                const subj = try self.allocBlankTerm(cur_id);
+                errdefer subj.deinit(self.allocator);
+                const pred = try self.allocIriTerm(RDF_FIRST);
+                errdefer pred.deinit(self.allocator);
+                const obj = try self.cloneTerm(item);
+                errdefer obj.deinit(self.allocator);
+                try self.triples.append(self.allocator, .{
+                    .subject = subj,
+                    .predicate = pred,
+                    .object = obj,
+                });
+            }
+            
+            // Triple : _:curId rdf:rest (next | rdf:nil)
+            {
+                const subj = try self.allocBlankTerm(cur_id);
+                errdefer subj.deinit(self.allocator);
+                const pred = try self.allocIriTerm(RDF_REST);
+                errdefer pred.deinit(self.allocator);
+                const obj = if (i + 1 < items.items.len)
+                    try self.allocBlankTerm(cur_id + 1)
+                else
+                    try self.allocIriTerm(RDF_NIL);
+                errdefer obj.deinit(self.allocator);
+                try self.triples.append(self.allocator, .{
+                    .subject = subj,
+                    .predicate = pred,
+                    .object = obj,
+                });
+            }
+        }
+        
+        pos.* = p;
+        return self.allocBlankTerm(first_id);
+    }
+
     /// Duplique un Term (chaque triple possede ses propres slices).
     fn cloneTerm(self: *TurtleParser, t: Term) ParseError!Term {
         switch (t) {
@@ -249,6 +341,11 @@ pub const TurtleParser = struct {
 
     fn parseTerm(self: *TurtleParser, input: []const u8, pos: *usize) ParseError!Term {
         var p = pos.*;
+        
+        // Collection RDF : ( item1 item2 ... ) -> blank nodes chaines
+        if (p < input.len and input[p] == '(') {
+            return self.parseCollection(input, pos);
+        }
         
         // IRI complète <...>
         if (input[p] == '<') {
@@ -273,7 +370,8 @@ pub const TurtleParser = struct {
             p += 2;
             const start = p;
             while (p < input.len and !isWhitespace(input[p])
-                   and input[p] != '.' and input[p] != ';' and input[p] != ',') p += 1;
+                   and input[p] != '.' and input[p] != ';'
+                   and input[p] != ',' and input[p] != ')') p += 1;
             
             const label = try self.allocator.dupe(u8, input[start..p]);
             pos.* = p;
@@ -283,7 +381,8 @@ pub const TurtleParser = struct {
         // Préfixe ou IRI sans préfixe (ex: foaf:name ou <http://...>)
         const start = p;
         while (p < input.len and !isWhitespace(input[p])
-               and input[p] != '.' and input[p] != ';' and input[p] != ',') p += 1;
+               and input[p] != '.' and input[p] != ';'
+               and input[p] != ',' and input[p] != ')') p += 1;
         
         const token = input[start..p];
         if (token.len == 0) return ParseError.InvalidTerm;
