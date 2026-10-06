@@ -166,10 +166,11 @@ CAF et avec Prolog pour les faits a 0 argument).
 - `query features_parent Alice _` retourne `(query features_parent Alice <?>)` au lieu de `1`.
 - Zone : moteur kanren (`src/logic/kanren_expr.zig`).
 
-### Bug restant : REPL for sans parens
-- `for (x <- L) B` tape au REPL echoue (UnboundVariable), alors que
-  `(for (x <- L) B)` ou la meme ligne dans un fichier `.hvn` marche.
-- Zone : `heaven_expr.zig` wrapper "forme composee sans parentheses" (3143).
+### Corrige : REPL for sans parens
+- **Corrige le 2026-10-06** (commit `f20568a`). `for (x <- L) B` tape
+  au REPL n'etait pas detecte par le dispatch qui cherchait `(for `.
+- Fix : detection de `for ` en tete, wrapper en `(for ...)` avant
+  passage a `desugarFor`.
 
 ### Pas un bug : fact est reserve
 - `fact 0 = 1 ; fact n = ... ; fact 5` -> `✓ fact 5 (0 arg(s))`.
