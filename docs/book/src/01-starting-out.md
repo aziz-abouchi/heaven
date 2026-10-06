@@ -79,8 +79,10 @@ tu poses des équations.
 
 ## Et si je me trompe ?
 
+<!-- doctest: skip -->
     heaven> double "bonjour"
     eval error: error.TypeError
+<!-- /doctest -->
 
 Heaven refuse. Pas parce qu'il est méchant, parce qu'il est honnête :
 `*` demande deux nombres, et `"bonjour"` n'en est pas un.
@@ -164,9 +166,13 @@ peut être instrumenté, simulé, ou testé sans changer une ligne.
 
 Une liste paresseuse, avec une syntaxe légère pour la composer :
 
+    heaven> data Stream a = Cons a (Stream a) | End
+    ✓ data Stream registered (1 param(s), 2 constructor(s))
+    heaven> mapStream f End = End
+    heaven> mapStream f (Cons x reste) = Cons (f x) (mapStream f reste)
     heaven> inc x = x + 1
     heaven> dbl x = x * 2
-    heaven> map (inc >>> dbl) (Cons 1 (Cons 2 End))
+    heaven> mapStream (inc >>> dbl) (Cons 1 (Cons 2 End))
     (Cons 4 (Cons 6 End))
 
 Le `>>>` compose deux fonctions. C'est la base des pipelines

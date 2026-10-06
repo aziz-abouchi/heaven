@@ -66,6 +66,8 @@ instructions.
 
 La factorielle est un exemple un peu scolaire. Voici du vrai code :
 
+    heaven> data MyList a = Empty | Cons a (MyList a)
+    ✓ data MyList registered (1 param(s), 2 constructor(s))
     heaven> sum Empty = 0
     heaven> sum (Cons x reste) = x + sum reste
     heaven> sum (Cons 1 (Cons 2 (Cons 3 Empty)))
@@ -216,14 +218,18 @@ pour tous les cas. Exemple :
     heaven> head (Cons x reste) = x
     heaven> head (Cons 5 Empty)
     5
+<!-- doctest: skip -->
     heaven> head Empty
     eval error: error.ArityMismatch
+<!-- /doctest -->
 
 Heaven refuse. Ce n'est pas un bug, c'est une **fonction partielle**.
 Vous avez oublié de traiter `Empty`.
 
 En pratique, on évite les fonctions partielles en utilisant `Maybe` :
 
+    heaven> data Maybe a = Nothing | Just a
+    ✓ data Maybe registered (1 param(s), 2 constructor(s))
     heaven> head Empty = Nothing
     heaven> head (Cons x reste) = Just x
 

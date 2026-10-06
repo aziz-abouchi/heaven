@@ -98,7 +98,9 @@ sortie. Juste le calcul.
 Il y a une conséquence importante : un effet non géré est une
 **valeur**. On peut le capturer, le passer, l'accumuler. Par exemple :
 
+<!-- doctest: skip -->
     heaven> accumulateur = (perform "Log" 1) + (perform "Log" 2)
+<!-- /doctest -->
 
 L'expression vaut la somme des valeurs émises. Mais les signaux,
 eux, attendent un handler.

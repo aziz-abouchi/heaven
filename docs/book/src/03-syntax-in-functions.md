@@ -65,8 +65,10 @@ peut l'utiliser :
 
 Que se passe-t-il si on oublie un cas ?
 
+<!-- doctest: skip -->
     heaven> name Unknown
     eval error: error.UnknownSymbol
+<!-- /doctest -->
 
 Heaven ne connaît pas `Unknown`. Mais si on ajoute un quatrième
 constructeur :

@@ -17,6 +17,8 @@ entier en mémoire. On le décrit comme une *recette* : « si on me
 demande le premier élément, voilà ; si on me demande le reste, voilà
 comment le calculer ».
 
+    heaven> data Stream a = Cons a (Stream a) | End
+    ✓ data Stream registered (1 param(s), 2 constructor(s))
     heaven> Cons 1 (Cons 2 (Cons 3 End))
     (Cons 1 (Cons 2 (Cons 3 End)))
 

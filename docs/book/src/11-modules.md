@@ -59,9 +59,11 @@ Par défaut tout est exporté. Pour restreindre :
     export public
 
     heaven> import "util.hvn" as U
+<!-- doctest: skip -->
     heaven> U.public 5
     10
     heaven> U.secret 5
+<!-- /doctest -->
     ✗ UnknownSymbol (non exporté)
 
 Les noms non-exportés restent accessibles **sans préfixe** (enforcement

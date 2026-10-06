@@ -52,6 +52,7 @@ veut ajouter 10 ? C'est pénible.
     heaven> map f End = End
     heaven> map f (Cons x reste) = Cons (f x) (map f reste)
 
+    heaven> dbl x = x * 2
     heaven> map inc (Cons 1 (Cons 2 End))
     (Cons 2 (Cons 3 End))
     heaven> map dbl (Cons 1 (Cons 2 End))
