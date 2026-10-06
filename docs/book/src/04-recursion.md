@@ -38,6 +38,12 @@ rend 1. Sinon, il essaie la seconde, qui rappelle `fac` avec `n - 1`.
 Vous remarquez ? La deuxième clause s'appelle elle-même. C'est la
 récursion. La première clause est le **cas de base**.
 
+> **Note sur les noms réservés.** On utilise `fac` ici, pas `fact`.
+> `fact` est un mot-clé du pipeline logique (kanren) : au REPL,
+> `fact X` ajoute un fait à la base de connaissance et ne fait pas
+> un appel de fonction. La liste complète des mots réservés est
+> dans `A-syntaxe.md`.
+
 ## Ce qui se passe à l'exécution
 
 Déroulons `fac 3` à la main :
