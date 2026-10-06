@@ -1499,7 +1499,11 @@ pub const Heaven = struct {
                     while (i < ctor_str.len and depth > 0) : (i += 1) {
                         if (ctor_str[i] == '(') depth += 1 else if (ctor_str[i] == ')') depth -= 1;
                     }
-                    const arg_str = ctor_str[arg_start..i];
+                    const arg_raw = ctor_str[arg_start..i];
+                    // Resolution alias : `data D = C Age` traite Age
+                    // comme sa cible si c'est un alias.
+                    const arg_str = self.resolveAliasesInType(arg_raw) catch arg_raw;
+                    defer if (arg_str.ptr != arg_raw.ptr) self.allocator.free(@constCast(arg_str));
                     const arg_id = self.parseExpression(arg_str) catch
                         try self.store.sym(arg_str);
                     try arg_types.append(self.allocator, arg_id);
@@ -1509,7 +1513,10 @@ pub const Heaven = struct {
                         ctor_str[i] != ' ' and
                         ctor_str[i] != '\t') : (i += 1)
                     {}
-                    const arg_str = ctor_str[arg_start..i];
+                    const arg_raw = ctor_str[arg_start..i];
+                    // Resolution alias (idem).
+                    const arg_str = self.resolveAliasesInType(arg_raw) catch arg_raw;
+                    defer if (arg_str.ptr != arg_raw.ptr) self.allocator.free(@constCast(arg_str));
                     const arg_id = self.parseExpression(arg_str) catch
                         try self.store.sym(arg_str);
                     try arg_types.append(self.allocator, arg_id);
