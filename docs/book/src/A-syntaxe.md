@@ -208,6 +208,27 @@ Bloc interactif (REPL) :
     export foo                          -- marque un nom exporté
     strict on | off                     -- mode strict (opt-in)
 
+### Mots réservés
+
+Ces identifiants sont interceptés par le dispatch du REPL avant
+l'évaluation normale. Ils ne peuvent pas être utilisés comme noms
+de fonction ou de variable :
+
+| Catégorie | Mots-clés |
+|---|---|
+| Définitions | `data`, `sig`, `let`, `fn`, `type`, `theorem`, `prove` |
+| Modules | `module`, `import`, `export`, `strict` |
+| Effets | `perform`, `handle`, `bracket`, `local`, `catch` |
+| Preuves (tactiques) | `simplify`, `derive`, `integrate`, `solve`, `expand`, `plot` |
+| Logique (kanren) | `fact`, `query`, `rules`, `meta`, `?-` |
+| Acteurs | `spawn`, `tell`, `send`, `state`, `recv`, `let actor`, `let macro` |
+| Outils | `help`, `stats`, `theorems`, `green`, `latex`, `skill`, `ai` |
+| Tests | `test`, `assert_eq`, `assert_err` |
+| Divers | `diff lower` |
+
+**Cas notable** : `fact` est réservé par le pipeline kanren.
+Pour une factorielle, utilisez `fac` (voir chapitre 4).
+
 ### Logique (miniKanren)
 
     fact name arg1 arg2 ...             -- assert un fait
