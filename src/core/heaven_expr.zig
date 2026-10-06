@@ -2451,7 +2451,12 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         };
     }
     pub fn explain(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        return self.allocator.dupe(u8, src);
+        const cmds = self.ensureCommands() orelse
+            return self.allocator.dupe(u8, src);
+        return cmds.explain(src) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
     pub fn describeKB(self: *Heaven) HeavenError![]u8 {
         const cmds = self.ensureCommands() orelse
@@ -2625,12 +2630,20 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
     }
 
     pub fn evalSExpr(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        return self.allocator.dupe(u8, src);
+        const cmds = self.ensureCommands() orelse
+            return self.allocator.dupe(u8, src);
+        return cmds.evalSExpr(src) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
     pub fn define(self: *Heaven, name: []const u8, val: []const u8) HeavenError![]u8 {
-        _ = name;
-        _ = val;
-        return self.allocator.dupe(u8, "");
+        const cmds = self.ensureCommands() orelse
+            return std.fmt.allocPrint(self.allocator, "\u{2717} commands unavailable", .{});
+        return cmds.define(name, val) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
     pub fn addRewrite(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
         const lhs_id = self.parseExpression(lhs) catch
