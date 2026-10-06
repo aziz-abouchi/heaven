@@ -676,8 +676,17 @@ pub const Heaven = struct {
         }
 
         // ─── Désucrage des compréhensions (for) ───
-        if (std.mem.indexOf(u8, trimmed, "(for ") != null) {
-            if (try self.desugarFor(trimmed)) |ds| {
+        if (std.mem.indexOf(u8, trimmed, "(for ") != null or
+            std.mem.startsWith(u8, trimmed, "for "))
+        {
+            // v3c : normaliser `for ...` (sans parens externes) en
+            // `(for ...)` pour que desugarFor puisse le traiter.
+            const normalized: []const u8 = if (std.mem.startsWith(u8, trimmed, "for "))
+                try std.fmt.allocPrint(self.allocator, "({s})", .{trimmed})
+            else
+                try self.allocator.dupe(u8, trimmed);
+            defer self.allocator.free(normalized);
+            if (try self.desugarFor(normalized)) |ds| {
                 platform.dbg("[DS] {s}\n", .{ds});
                 defer self.allocator.free(ds);
                 const r = try self.eval(ds);
