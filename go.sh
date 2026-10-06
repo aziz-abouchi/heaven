@@ -26,6 +26,7 @@ zig build test $NETWORK_FLAG
 # 5b. Doc factuelle (README chiffres)
 if command -v python3 >/dev/null 2>&1 && [ -f scripts/docgen.py ]; then
     python3 scripts/docgen.py || echo "[go.sh] docgen echoue (non bloquant)"
+    python3 scripts/status_gen.py || echo "[go.sh] status_gen echoue (non bloquant)"
 fi
 
 # 6. Lancer

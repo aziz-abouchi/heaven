@@ -197,6 +197,7 @@ zig build test
 if command -v python3 >/dev/null 2>&1 && [ -f scripts/docgen.py ]; then
     echo "[FORGE] Mise a jour doc (docgen)..."
     python3 scripts/docgen.py || echo "[FORGE] docgen echoue (non bloquant)"
+    python3 scripts/status_gen.py || echo "[FORGE] status_gen echoue (non bloquant)"
 fi
 
 echo "[FORGE] Terminé. Lancer avec: zig build run -- <port>"

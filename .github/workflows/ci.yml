@@ -56,3 +56,6 @@ jobs:
 
       - name: Doctest book (warn-only, 6 residus connus)
         run: python3 scripts/doctest.py --warn-only
+
+      - name: Check STATUS.md freshness (status_gen --check)
+        run: python3 scripts/status_gen.py --check
