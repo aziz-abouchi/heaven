@@ -150,8 +150,9 @@ est reconnu par le parseur puis abaissé en un nœud HIR `DataDecl` contenant
 le nom du type, ses paramètres et ses constructeurs.
 
 Le champ `DataDecl.params` conserve les paramètres génériques au niveau HIR.
-La propagation complète dans l'élaboration et le runtime reste une étape
-suivante.
+La propagation est faite pour le REPL (`evalDataDecl`, commit `f213218`),
+Tree-sitter accepte `<a>`, et le corps des constructeurs
+(`Cons a (List<a>)`) est correct.
 
 
 ## Deux sortes de trous

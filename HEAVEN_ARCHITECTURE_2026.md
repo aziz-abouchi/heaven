@@ -1,5 +1,11 @@
 # Heaven Architecture 2026
 
+> **Statut : document de vision (2026).**
+> Décrit l'architecture cible. Pour l'état réel, voir `docs/STATUS.md`.
+> Certaines sections (expr, elab, maturité) ont évolué depuis la rédaction :
+> `heaven_expr.zig` fait ~4800 lignes, pas 583.
+
+
 ## Vision
 
 Heaven est un système de programmation, raisonnement, transformation et exécution distribué.
