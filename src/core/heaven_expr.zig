@@ -764,9 +764,14 @@ pub const Heaven = struct {
             const colon = std.mem.indexOfScalar(u8, rest, ':') orelse
                 return self.allocator.dupe(u8, "usage: sig <name> : <type>");
             const sname = std.mem.trim(u8, rest[0..colon], " \t");
-            const sty_str = std.mem.trim(u8, rest[colon + 1 ..], " \t");
-            if (sname.len == 0 or sty_str.len == 0)
+            const sty_raw = std.mem.trim(u8, rest[colon + 1 ..], " \t");
+            if (sname.len == 0 or sty_raw.len == 0)
                 return self.allocator.dupe(u8, "usage: sig <name> : <type>");
+
+            // Resolution des alias : `sig f : Nom -> Int` devient
+            // `String -> Int` avant parsing des domaines.
+            const sty_str = try self.resolveAliasesInType(sty_raw);
+            defer self.allocator.free(sty_str);
 
             var heads_buf = std.ArrayListUnmanaged(u8){};
             defer heads_buf.deinit(self.allocator);
@@ -3293,6 +3298,37 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         }
 
         return self.parseExpression(s);
+    }
+
+    /// Remplace dans `text` tous les identifiants qui sont des cles de
+    /// `type_aliases` par leur cible. Utilise par le `sig` pour resoudre
+    /// `sig f : Nom -> Int` en `sig f : String -> Int` avant le parsing
+    /// des domaines.
+    fn resolveAliasesInType(self: *Heaven, text: []const u8) ![]const u8 {
+        if (self.type_aliases.count() == 0) {
+            return self.allocator.dupe(u8, text);
+        }
+        var buf = std.ArrayListUnmanaged(u8){};
+        errdefer buf.deinit(self.allocator);
+        var i: usize = 0;
+        while (i < text.len) {
+            const c = text[i];
+            if (std.ascii.isAlphabetic(c) or c == '_') {
+                var j = i + 1;
+                while (j < text.len and (std.ascii.isAlphanumeric(text[j]) or text[j] == '_')) j += 1;
+                const word = text[i..j];
+                if (self.type_aliases.get(word)) |target| {
+                    try buf.appendSlice(self.allocator, target);
+                } else {
+                    try buf.appendSlice(self.allocator, word);
+                }
+                i = j;
+            } else {
+                try buf.append(self.allocator, c);
+                i += 1;
+            }
+        }
+        return buf.toOwnedSlice(self.allocator);
     }
 
     /// `type Nom = Cible` : enregistre un alias de type. La cible est
