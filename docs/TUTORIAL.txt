@@ -78,7 +78,7 @@ RESSOURCES
 ----------
 
 - docs/TRANSFORM.txt      : interface de transformation
-- docs/ARCHITECTURE.txt   : architecture technique
+- HEAVEN_ARCHITECTURE_2026.md : architecture (vision)
 - docs/HEAVEN_LANGUAGE.txt : syntaxe du langage
 
 EXEMPLE 4 : KNOWLEDGE ET RAISONNEMENT RDF

@@ -219,7 +219,7 @@ monde réel, sous le capot, modules, knowledge.
 - docs/ROADMAP.md — specs actionnables.
 - docs/spec/ — specs détaillées par sous-système (_tco_mutual.md,
 _concurrency.md, _continuations.md, _ontology.md, _bench.md, _serialize.md).
-- docs/ARCHITECTURE.txt — vue technique.
+- HEAVEN_ARCHITECTURE_2026.md — vue architecturale (document de vision).
 
 ---
 
