@@ -3311,7 +3311,9 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
     /// `type_aliases` par leur cible. Utilise par le `sig` pour resoudre
     /// `sig f : Nom -> Int` en `sig f : String -> Int` avant le parsing
     /// des domaines.
-    fn resolveAliasesInType(self: *Heaven, text: []const u8) ![]const u8 {
+    /// Un seul passage de substitution alias. Utilise par
+    /// `resolveAliasesInType` (qui boucle).
+    fn resolveAliasesOnce(self: *Heaven, text: []const u8) ![]const u8 {
         if (self.type_aliases.count() == 0) {
             return self.allocator.dupe(u8, text);
         }
@@ -3338,6 +3340,23 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         return buf.toOwnedSlice(self.allocator);
     }
 
+    /// Boucle `resolveAliasesOnce` jusqu'a point fixe (limite 10 pour
+    /// eviter les cycles). Permet `type A = B` + `type B = Int`.
+    fn resolveAliasesInType(self: *Heaven, text: []const u8) ![]const u8 {
+        var current: []const u8 = try self.allocator.dupe(u8, text);
+        var depth: u8 = 0;
+        while (depth < 10) : (depth += 1) {
+            const next = try self.resolveAliasesOnce(current);
+            if (std.mem.eql(u8, next, current)) {
+                self.allocator.free(@constCast(current));
+                return next;
+            }
+            self.allocator.free(@constCast(current));
+            current = next;
+        }
+        return current;
+    }
+
     /// `type Nom = Cible` : enregistre un alias de type. La cible est
     /// stockee en texte (peut etre un type primitif, une application,
     /// un autre alias). Pas de verification de validite.
@@ -3358,10 +3377,21 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
     }
 
     pub fn evalTypeExpr(self: *Heaven, src: []const u8) HeavenError![]u8 {
-        // 0. Resolution alias : si `src` est un alias connu, retourner
-        //    directement sa cible.
-        if (self.type_aliases.get(src)) |target| {
-            return self.allocator.dupe(u8, target);
+        // 0. Resolution alias chainee : A -> B -> Int doit donner Int.
+        //    Limite 10 pour eviter les cycles.
+        {
+            var current = src;
+            var depth: u8 = 0;
+            var resolved = false;
+            while (depth < 10) : (depth += 1) {
+                if (self.type_aliases.get(current)) |target| {
+                    current = target;
+                    resolved = true;
+                } else break;
+            }
+            if (resolved) {
+                return self.allocator.dupe(u8, current);
+            }
         }
         // 1. Parser puis LOWER → l'inféreur n'accepte que les 6 primitives
         //    (sinon typeOf renvoie error.ExtensionNotLowered, cf. types.zig:323)
