@@ -335,10 +335,10 @@ que le doctest lineaire ne reproduit pas. Acceptes tels quels :
 
 **Syntaxe supportee** : `@prefix`, triples `<s> <p> <o> .`, prefixes
 (`ex:Alice`), litteraux, blank nodes, `;` (predicats multiples),
-`,` (objets multiples), `a` (raccourci `rdf:type`).
+`,` (objets multiples), `a` (raccourci `rdf:type`), collections RDF
+(`( i1 i2 )` sucrees en `rdf:first`/`rdf:rest`/`rdf:nil`).
 
 **A tester / completer** :
-- Collections RDF (`( ... )`)
 - Reification (`<< s p o >>`)
 - Annotations `{| ... |}`
 - Litteraux multi-lignes (`"""..."""`)
