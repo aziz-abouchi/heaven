@@ -225,12 +225,15 @@ _concurrency.md, _continuations.md, _ontology.md, _bench.md, _serialize.md).
 
 ## Tests
 
-    zig build test              # tests unitaires Zig
-    zig build test-regression   # tests Heaven (core/test_suite.hvn)
-    zig build test-files        # tests/*.hvn (multi-fichiers)
+    zig build test              # tests unitaires Zig (<!-- DOCGEN:tests_zig -->381<!-- /DOCGEN -->)
+    zig build test-regression   # tests Heaven core (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN -->)
+    zig build test-files        # tests/*.hvn, <!-- DOCGEN:test_files_count -->9<!-- /DOCGEN --> fichiers (<!-- DOCGEN:test_files -->37/37<!-- /DOCGEN -->)
 
-380 tests Zig et 47 tests Heaven (fichiers `.hvn`) passent aujourd'hui
-(mesure 2026-10-06).
+<!-- DOCGEN:tests_zig -->381<!-- /DOCGEN --> tests Zig passent, ainsi que
+<!-- DOCGEN:tests_heaven -->135<!-- /DOCGEN --> tests Heaven
+(<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN --> via `test-regression`
++ <!-- DOCGEN:test_files -->37/37<!-- /DOCGEN --> via `test-files`).
+Mesure <!-- DOCGEN:date -->2026-10-06<!-- /DOCGEN -->.
 
 ---
 
