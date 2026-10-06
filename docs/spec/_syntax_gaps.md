@@ -171,10 +171,15 @@ CAF et avec Prolog pour les faits a 0 argument).
   `(for (x <- L) B)` ou la meme ligne dans un fichier `.hvn` marche.
 - Zone : `heaven_expr.zig` wrapper "forme composee sans parentheses" (3143).
 
-### Bug restant : fact 5 et les equations
-- `fact 0 = 1 ; fact n = n * fact (n - 1) ; fact 5` retourne
-  `✓ fact 5 (0 arg(s))` au lieu de `120`.
-- Zone : `defs.zig` (evalEquation) vs `parse.zig`.
+### Pas un bug : fact est reserve
+- `fact 0 = 1 ; fact n = ... ; fact 5` -> `✓ fact 5 (0 arg(s))`.
+- **Cause** : `fact` est intercepte par le pipeline kanren
+  (`evalFact`, `heaven_expr.zig:1017`). Une ligne `fact X` sans `= `
+  ajoute un fait au KB, elle ne fait pas un appel de fonction.
+- **Resolution** : le book `04-recursion.md` utilisait `fact`, corrige
+  en `fac` (utilise par le README). Aucune modification du code.
+- **A documenter** : la liste des mots reserves (`fact`, `query`,
+  `data`, `sig`, `theorem`, `prove`, `module`, `import`).
 
 ## Ecarts documentaires (non techniques)
 

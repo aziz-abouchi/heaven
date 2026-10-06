@@ -25,27 +25,27 @@ Prenons la factorielle, le classique. En mathématiques :
 
 En Heaven, avec les entiers natifs :
 
-    heaven> fact 0 = 1
-    ✓ clause enregistrée pour 'fact'
-    heaven> fact n = n * fact (n - 1)
-    ✓ clause enregistrée pour 'fact'
-    heaven> fact 5
+    heaven> fac 0 = 1
+    ✓ clause enregistrée pour 'fac'
+    heaven> fac n = n * fac (n - 1)
+    ✓ clause enregistrée pour 'fac'
+    heaven> fac 5
     120
 
 Heaven essaie la première clause. Si `n` vaut 0, elle s'applique et
-rend 1. Sinon, il essaie la seconde, qui rappelle `fact` avec `n - 1`.
+rend 1. Sinon, il essaie la seconde, qui rappelle `fac` avec `n - 1`.
 
 Vous remarquez ? La deuxième clause s'appelle elle-même. C'est la
 récursion. La première clause est le **cas de base**.
 
 ## Ce qui se passe à l'exécution
 
-Déroulons `fact 3` à la main :
+Déroulons `fac 3` à la main :
 
-    fact 3
-    = 3 * fact 2
-    = 3 * (2 * fact 1)
-    = 3 * (2 * (1 * fact 0))
+    fac 3
+    = 3 * fac 2
+    = 3 * (2 * fac 1)
+    = 3 * (2 * (1 * fac 0))
     = 3 * (2 * (1 * 1))
     = 3 * (2 * 1)
     = 3 * 2
@@ -106,21 +106,21 @@ le motif ?
 ## Le piège de la pile
 
 Récursion, c'est bien. Mais chaque appel consomme de la mémoire. Pour
-`fact 10000`, Heaven empile 10000 appels avant de commencer à
+`fac 10000`, Heaven empile 10000 appels avant de commencer à
 dépiler. La pile explose.
 
 C'est là que la **récursion terminale** entre en jeu. Une fonction est
 terminale si son appel récursif est la *dernière* chose qu'elle fait.
 Regardez :
 
-    heaven> fact n = n * fact (n - 1)
+    heaven> fac n = n * fac (n - 1)
 
-Ici, l'appel à `fact` n'est pas terminal : il y a une multiplication
+Ici, l'appel à `fac` n'est pas terminal : il y a une multiplication
 qui attend. Heaven doit empiler. Comparez avec :
 
-    heaven> factAux 0 acc = acc
-    heaven> factAux n acc = factAux (n - 1) (n * acc)
-    heaven> fact n = factAux n 1
+    heaven> facAux 0 acc = acc
+    heaven> facAux n acc = facAux (n - 1) (n * acc)
+    heaven> fac n = facAux n 1
 
 Cette fois, l'appel récursif est la dernière chose. Rien n'attend
 après. Heaven peut **réutiliser** le même cadre de pile au lieu d'en
