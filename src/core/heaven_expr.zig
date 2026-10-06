@@ -158,6 +158,14 @@ pub const Heaven = struct {
     strict_modules: bool = false,
     /// Noms cachés par le mode strict (accessible seulement via `M.x`).
     hidden_names: std.StringHashMapUnmanaged(void) = .{},
+    /// v3b : true pendant l'init (bootstrap + stdIO). Passe a false
+    /// a la sortie d'init. Distingue le prelude (ajouts silencieux,
+    /// cf std/list.hvn `take zero _ = nil`) du code user.
+    prelude_loading: bool = true,
+    /// v3b : noms redefinis par l'user au moins une fois. Purge les
+    /// clauses prelude UNE SEULE FOIS par nom ; les clauses suivantes
+    /// (multi-clause) s'appendent normalement.
+    user_redefined_names: std.StringHashMapUnmanaged(void) = .{},
     /// v2a : arité des constructeurs (nom → nombre d'args).
     ctor_arities: std.StringHashMapUnmanaged(u8) = .{},
     /// v2a : arité des fonctions déclarées via `sig name : ...`.
@@ -338,6 +346,10 @@ pub const Heaven = struct {
             platform.dbg("  - '{s}' ({d} clauses)\n", .{ e.key_ptr.*, e.value_ptr.num_clauses });
         }
 
+        // v3b : init terminee, on passe en mode "user". Les prochains
+        // noms redefinis purgeront leurs clauses prelude.
+        self.prelude_loading = false;
+
         return self;
     }
 
@@ -460,6 +472,11 @@ pub const Heaven = struct {
             while (it.next()) |k| self.allocator.free(k.*);
         }
         self.hidden_names.deinit(self.allocator);
+        {
+            var uit = self.user_redefined_names.keyIterator();
+            while (uit.next()) |k| self.allocator.free(k.*);
+        }
+        self.user_redefined_names.deinit(self.allocator);
         {
             var it = self.ctor_arities.keyIterator();
             while (it.next()) |k| self.allocator.free(k.*);
@@ -1977,6 +1994,23 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         // et on trace le nom nu dans hidden_names pour le bloquer au REPL.
         const in_strict_module = self.strict_modules and self.current_module != null;
         if (!in_strict_module) {
+            // v3b : purge au premier contact user avec un nom prelude.
+            // Ex : `take zero _ = nil` (core/std/list.hvn) masquait la
+            // clause user `take zero s = s`. On vide les clauses
+            // existantes une seule fois par nom ; les clauses suivantes
+            // (multi-clause) s'appendent normalement.
+            if (!self.prelude_loading) {
+                const owned = try self.allocator.dupe(u8, name);
+                const gop = try self.user_redefined_names.getOrPut(self.allocator, owned);
+                if (!gop.found_existing) {
+                    if (self.engine.fns.getPtr(name)) |def| {
+                        def.num_clauses = 0;
+                        def.ctor_arity = null;
+                    }
+                } else {
+                    self.allocator.free(owned);
+                }
+            }
             try self.registerClause(name, patterns.items, body_used);
             if (guard_id != null) self.setClauseGuard(name, guard_id);
             try self.setLastEqLhs(lhs);
