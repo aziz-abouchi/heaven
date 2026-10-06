@@ -1,0 +1,4 @@
+-- Fixture export : seul 'public' sera aliasé sous U.public
+secret x = x + 1
+public x = x * 2
+export public

@@ -4133,7 +4133,7 @@ test "import v0.5 — fn aliasé sous M.name + appel M.inc" {
         allocator.destroy(heaven);
     }
 
-    const r = try heaven.eval("import \"tests/import_test.hvn\" as M");
+    const r = try heaven.eval("import \"tests/imports/import_test.hvn\" as M");
     defer allocator.free(r);
     try std.testing.expect(std.mem.indexOf(u8, r, "import") != null);
     try std.testing.expect(std.mem.indexOf(u8, r, "as M") != null);
@@ -4158,7 +4158,7 @@ test "import v0.5 — nom déduit sans 'as'" {
         allocator.destroy(heaven);
     }
 
-    const r = try heaven.eval("import \"tests/import_test.hvn\"");
+    const r = try heaven.eval("import \"tests/imports/import_test.hvn\"");
     defer allocator.free(r);
     // Basename sans extension : "import_test"
     try std.testing.expect(std.mem.indexOf(u8, r, "import_test") != null);
@@ -4173,7 +4173,7 @@ test "module v1 — import transitif (parent → child)" {
         allocator.destroy(heaven);
     }
 
-    const r = try heaven.eval("import \"tests/trans_parent.hvn\" as P");
+    const r = try heaven.eval("import \"tests/imports/trans_parent.hvn\" as P");
     defer allocator.free(r);
     try std.testing.expect(std.mem.indexOf(u8, r, "import") != null);
 
@@ -4203,7 +4203,7 @@ test "module v1 — détection de cycle" {
         allocator.destroy(heaven);
     }
 
-    const r = try heaven.eval("import \"tests/experimental/cyc_a.hvn\" as A");
+    const r = try heaven.eval("import \"tests/imports/cyc_a.hvn\" as A");
     defer allocator.free(r);
     // Cycle détecté : la string d'erreur doit le mentionner
     try std.testing.expect(std.mem.indexOf(u8, r, "cycle") != null or
@@ -4264,7 +4264,7 @@ test "module v2a — export filtre les alias" {
         allocator.destroy(heaven);
     }
 
-    const r = try heaven.eval("import \"tests/exp_util.hvn\" as U");
+    const r = try heaven.eval("import \"tests/imports/exp_util.hvn\" as U");
     defer allocator.free(r);
     try std.testing.expect(std.mem.indexOf(u8, r, "import") != null);
 
@@ -4291,7 +4291,7 @@ test "module v2a — sans export, tout est aliasé (compat v0.5)" {
         allocator.destroy(heaven);
     }
 
-    const r = try heaven.eval("import \"tests/exp_noexport.hvn\" as N");
+    const r = try heaven.eval("import \"tests/imports/exp_noexport.hvn\" as N");
     defer allocator.free(r);
 
     try std.testing.expect(heaven.engine.fns.get("N.inc2") != null);
@@ -4306,11 +4306,11 @@ test "module v2b — import idempotent" {
         allocator.destroy(heaven);
     }
 
-    const r1 = try heaven.eval("import \"tests/exp_noexport.hvn\" as N");
+    const r1 = try heaven.eval("import \"tests/imports/exp_noexport.hvn\" as N");
     defer allocator.free(r1);
     try std.testing.expect(std.mem.indexOf(u8, r1, "✓ import") != null);
 
-    const r2 = try heaven.eval("import \"tests/exp_noexport.hvn\" as N");
+    const r2 = try heaven.eval("import \"tests/imports/exp_noexport.hvn\" as N");
     defer allocator.free(r2);
     try std.testing.expect(std.mem.indexOf(u8, r2, "déjà importé") != null);
 }
@@ -4753,4 +4753,22 @@ test "hole — hasUnresolvedHoles" {
     // Après raffinement, plus de trou non raffiné
     try heaven.refineHole(h_id, "42");
     try std.testing.expect(!heaven.hasUnresolvedHoles(expr_with_hole));
+}
+
+test "toutes les fixtures d'import existent" {
+    const fixtures = [_][]const u8{
+        "tests/imports/import_test.hvn",
+        "tests/imports/exp_util.hvn",
+        "tests/imports/exp_noexport.hvn",
+        "tests/imports/trans_parent.hvn",
+        "tests/imports/trans_child.hvn",
+        "tests/imports/cyc_a.hvn",
+        "tests/imports/cyc_b.hvn",
+    };
+    for (fixtures) |f| {
+        std.fs.cwd().access(f, .{}) catch |err| {
+            std.debug.print("Fixture d'import manquante : {s} ({})\n", .{ f, err });
+            return error.TestUnexpectedResult;
+        };
+    }
 }
