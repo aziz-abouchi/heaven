@@ -1,6 +1,6 @@
 # 📜 Spécification Formelle de la Grammaire Heaven (EBNF)
 
-Ce document définit la grammaire formelle du langage de programmation **Heaven**. Il est généré en miroir exact de `vendor/tree-sitter-heaven/grammar.js` et sert de référence unique pour le parser Zig, les outils de développement (LSP, formateurs) et la documentation.
+Ce document définit la grammaire formelle du langage de programmation **Heaven**. Il vise à refléter `vendor/tree-sitter-heaven/grammar.js`, mais peut diverger ponctuellement. En cas d'écart, **`grammar.js` est la source de vérité** — le présent document doit être corrigé pour s'y aligner. Il sert de référence pour le parser Zig, les outils de développement (LSP, formateurs) et la documentation.
 
 ## 1. Notation EBNF utilisée
 - `::=` : "est défini comme"
