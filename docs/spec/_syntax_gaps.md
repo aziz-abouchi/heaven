@@ -326,6 +326,22 @@ que le doctest lineaire ne reproduit pas. Acceptes tels quels :
 - Effort : ~2h pour etendre `resolveAliasesInType` a d'autres
   sites d'appel. Risque faible une fois le pattern valide.
 
+### Knowledge : Turtle fonctionnel
+
+**Implemente** (commit suivant) :
+- `:load <file.ttl>` charge via `triple_store.addTurtle` (TurtleParser).
+- `:triples` liste, `:triple-count` compte.
+- `:triple-query <subject-iri>` requete par sujet.
+
+**Syntaxe supportee** : `@prefix`, triples `<s> <p> <o> .`, prefixes
+(`ex:Alice`), litteraux, blank nodes.
+
+**A tester / completer** :
+- Triples avec plusieurs objets (`a p o1, o2 .`)
+- Collections RDF (`( ... )`)
+- Reification (`<< s p o >>`)
+- Requetes par predicat (`:triple-pred`) ou par objet.
+
 ## Priorite
 
 | Gap | Impact | Effort estime |
