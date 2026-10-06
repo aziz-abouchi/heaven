@@ -1,13 +1,76 @@
 # Prompt de continuité — Heaven session suivante
 
 ## HEAD
-11ca8f4 (main) — docs sync 2026-09-30 (STATUS/BACKENDS/CHANGELOG)
-Session : f31b2eb (fix mir+defs), 22de554 (_bench.md), 097a493 (fib.hvn)
+edb628f (main) — docs(spec): bug take masque par prelude corrige
 Tout poussé sur origin/main.
 
-## Tests
-Zig : 381/382 (1 skip test_mir_wat).
-HVN : ~95/95.
+## Tests (mesure 2026-10-06)
+
+    zig build test --summary all        →   380 tests Zig passent
+    heaven test tests/verify_book.hvn   →   43/43
+    heaven test tests/features_smoke.hvn →  43/44  (kanren query en echec)
+    heaven test tests/*.hvn             →   47 tests total (fichiers .hvn)
+
+Note : l'ancien chiffre "~95 HVN" etait surestime. Le count reel est
+le nombre de `test "..."` dans les fichiers `.hvn` (47).
+
+## Addendum -- session 2026-10-06
+
+Session de stabilisation. 14 commits pousses sur `origin/main`.
+Deux fixes techniques structurels, plus 6 corrections documentaires.
+
+### Fixes techniques
+
+1. **Generiques `<a>` cote REPL** (commit `f213218`).
+   `data List<a> = ...` enregistrait `"List<a>"` comme nom litteral
+   avec 0 param, silencieusement. Desormais : nom coupe a `<`,
+   params `<a>`, `<a, b>`, `<a : Type>` parses.
+   - `data List<a>` → 1 param
+   - `data Pair<a, b>` → 2 params
+   - `data Box<a : Type>` → 1 param
+   - `data MyList a` (espace) → 1 param (preserve)
+   - `data Vec (n : Nat)` (parens) → 1 param (preserve)
+   Le corps (`Cons a (List<a>)`) etait deja correct, verifie.
+
+2. **Purge des clauses prelude** (commit `2f914bd`).
+   `core/std/list.hvn` enregistre `take zero _ = nil` au demarrage.
+   La clause user `take zero s = s` s'ajoutait en queue et n'etait
+   jamais atteinte -> `nil`.
+   Fix : flag `prelude_loading` + set `user_redefined_names`. Au
+   premier enregistrement user d'un nom, purge des clauses existantes.
+   **`verify_book.hvn` passe de 41/43 a 43/43.**
+
+### Fixes documentaires
+
+- `README.md` : QTT = cadre cible (pas GC effectif) ; acteurs
+  sequentiels (pas distribues) ; tests 47 HVN (pas 95).
+- `docs/STATUS.md` : `lambda x -> body` supporte depuis `4e606c1`.
+- `GRAMMAR.md` : "miroir exact" → "vise a refleter, grammar.js fait foi".
+- `docs/spec/_syntax_gaps.md` : section "Ecarts documentaires" +
+  gap evalDataDecl + bug take resolu.
+
+### Bugs ouverts (voir _syntax_gaps.md)
+
+| Bug | Zone |
+|---|---|
+| `features_kanren_query` echoue | `src/logic/kanren_expr.zig` |
+| `fact 5` → `fact 5 (0 arg(s))` | `defs.zig` evalEquation |
+| REPL `for` sans parens | `heaven_expr.zig` wrapper |
+
+### Docs a auditer (Passe 2, post-stabilisation)
+
+- `HEAVEN_ARCHITECTURE_2026.md` (3 mois sans MAJ)
+- `HEAVEN.md` (11 lignes, 3 juin)
+- `docs/book/src/10-under-the-hood.md` (utilise `List<a>` en exemple)
+- `PROMPT_CONTINUITE.md` lui-meme (fait dans cet addendum)
+
+### Note sur la session 2026-10-05
+
+Les 6 fixes ci-dessus s'ajoutent a ceux de la session precedente
+(2026-10-05) : Gap 3 (`perform (S-expr)`), beta-reduction par
+substitution AST, kernel `shift`/`subst` court-circuit, clause
+0-pattern CAF, lambda etendu (`=>`, `(x)`, multi-params), `for...when`.
+Details dans `docs/spec/_syntax_gaps.md` section "Corriges recents".
 
 ## Ce qui a été fait cette session
 - QBE v1.2 opérationnel (compile + bench).
