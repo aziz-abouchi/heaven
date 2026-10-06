@@ -281,17 +281,18 @@ kanren (`src/logic/kanren_expr.zig`).
 - Aucun test : ni unitaire Zig, ni `.hvn`.
 - Usage reel : seul `:explain` (`cmdExplain`) interroge le KB Prolog.
 
-**Statut : expose au REPL (commit suivant).**
-- `:p-fact pred(arg1, arg2)` : ajoute un fait.
-- `?- pred(arg1, arg2)` : requete (goal).
-- `?- pred(arg1, X)` : requete avec variable (X reste lie).
+**Statut : expose au REPL, fonctionnel.**
+- `:p-fact pred(args)` : ajoute un fait.
+- `:p-rule head(args) :- b1, b2` : ajoute une regle Horn.
+- `?- pred(args)` : requete (goal).
+- `?- pred(args, X)` : requete avec variable, affiche `X = value`.
+- Backtracking : plusieurs solutions affichees ligne par ligne.
+- Dedup memoire : `PrologEngine.deinit` libere pred + args.
 
 **Limites restantes** :
-- Pas de regles (`:-`) chargees interactivement.
-- Pas de fichier `.pl` (Prolog) via `:load`.
+- Pas de recursion (profondeur max 30, cap 20 solutions).
+- Pas de fichier `.pl` via `:load`.
 - Backend reste Matrix (D9 futur).
-- `printClean` filtre trop agressivement : un goal avec variable
-  affiche `true` sans le binding. A ameliorer.
 
 **Chantier futur** : reecrire sur `Store` pour supprimer la
 dependance Matrix (D9).
