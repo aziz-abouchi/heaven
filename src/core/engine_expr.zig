@@ -809,6 +809,21 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     @memcpy(args_buf[0..args.len], args);
     const args_snap: []const Id = args_buf[0..args.len];
 
+    // ═══ KANREN QUERY — intercepte TOUT de suite ═══
+    // (query name arg1 _ ...) evalue en nombre de solutions.
+    //
+    // Note : on intercepte `query` mais PAS `fact`. `fact` est un
+    // nom de fonction plausible (voir tests/verify_book.hvn ou
+    // `fact 0 = 1` definit une fonction utilisateur). En revanche
+    // `query` n'est jamais un nom de fonction utilisateur — c'est
+    // deja le nom d'une commande top-level (`evalQuery`), donc
+    // l'intercepter au niveau evalMagic est sur.
+    if (std.mem.eql(u8, op, "query")) {
+        if (engine.vtable.kanren_query) |f| {
+            return f(engine.heaven_ctx, store, args_snap);
+        }
+        return error.UnknownSymbol;
+    }
     // ═══ 0. CONSTRUCTEURS ═══
     if (engine.fns.get(op)) |fn_def| {
         //platform.dbg("[ctor-branch] op='{s}' clauses={d} ctor_arity={?d} args_snap.len={d}\n", .{ op, fn_def.num_clauses, fn_def.ctor_arity, args_snap.len });
@@ -1324,16 +1339,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 }
             }
         }
-    }
-
-    // ═══ KANREN QUERY (form) ═══
-    // (query name arg1 _ ...) evalue en nombre de solutions.
-    // Voir Heaven.kanrenQueryHeavenExpr pour l'implementation.
-    if (std.mem.eql(u8, op, "query")) {
-        if (engine.vtable.kanren_query) |f| {
-            return f(engine.heaven_ctx, store, args_snap);
-        }
-        return error.UnknownSymbol;
     }
 
     return error.UnknownSymbol;
