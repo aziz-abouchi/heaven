@@ -33,31 +33,29 @@ def extract_facts():
     f["tests_zig"] = m.group(1) if m else "?"
     f["tests_zig_total"] = m.group(2) if m else "?"
 
-    # tests_heaven : tous les tests Heaven executables en CI =
-    #   core/test_suite.hvn (test-regression)
-    #   tests/*.hvn        (test-files)
-    # Les tests/experimental/*.hvn sont exclus (non executes par le CI).
-    n = 0
-    core = Path("core/test_suite.hvn")
-    if core.exists():
-        n += len(re.findall(r'test "', core.read_text()))
-    for hvn in Path("tests").glob("*.hvn"):
-        n += len(re.findall(r'test "', hvn.read_text()))
-    f["tests_heaven"] = str(n)
+    # tests_heaven : total des tests Heaven reellement executes par le CI
+    # = test-regression (core/test_suite.hvn) + test-files (tests/*.hvn)
+    # Ce n'est pas un compte de declarations `test "..."` mais de
+    # resultats "N passed" effectifs (assert_eq comptent aussi).
+    n_reg = 0
+    out = sh("zig", "build", "-Dnetwork=false", "test-regression")
+    for m in re.finditer(r"Total: (\d+) / (\d+)", out):
+        n_reg = int(m.group(1))
+    n_files = 0
+    out = sh("zig", "build", "-Dnetwork=false", "test-files")
+    totals = re.findall(r"Total: (\d+) / (\d+)", out)
+    if totals:
+        n_files = int(totals[-1][0])
+    f["tests_heaven"] = str(n_reg + n_files)
+    f["tests_heaven_regression"] = str(n_reg)
+    f["tests_heaven_files"] = str(n_files)
 
     # date
     f["date"] = date.today().isoformat()
 
-    # test-regression
-    out = sh("zig", "build", "-Dnetwork=false", "test-regression")
-    m = re.search(r"Total: (\d+) / (\d+)", out)
-    f["test_regression"] = f"{m.group(1)}/{m.group(2)}" if m else "?"
-
-    # test-files : plusieurs Totals (un par fichier), on prend le dernier
-    out = sh("zig", "build", "-Dnetwork=false", "test-files")
-    matches = re.findall(r"Total: (\d+) / (\d+)", out)
-    f["test_files"] = f"{matches[-1][0]}/{matches[-1][1]}" if matches else "?"
-    # nombre de fichiers .hvn dans tests/
+    # test-regression / test-files : valeurs string pour README
+    f["test_regression"] = f"{n_reg}/{n_reg}" if n_reg else "?"
+    f["test_files"] = f"{n_files}/{n_files}" if n_files else "?"
     f["test_files_count"] = str(len(list(Path("tests").glob("*.hvn"))))
 
     return f

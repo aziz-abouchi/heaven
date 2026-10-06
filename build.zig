@@ -1193,6 +1193,18 @@ pub fn build(b: *std.Build) void {
     // Rendre la synchronisation automatique lors de l'installation (y compris WASM)
     b.getInstallStep().dependOn(sync_step);
 
+    // Steps : docgen — regenere les valeurs factuelles dans README.
+    // Attention : 'doc' est deja pris (generate doc d'un .hvn), donc
+    // on utilise 'docgen' et 'docgen-check'.
+    // Voir PROMPT_CONTINUITE.md section "Convention doc".
+    const docgen_cmd = b.addSystemCommand(&.{ "python3", "scripts/docgen.py" });
+    const docgen_step = b.step("docgen", "Regenere les chiffres factuels du README (docgen.py)");
+    docgen_step.dependOn(&docgen_cmd.step);
+
+    const docgen_check_cmd = b.addSystemCommand(&.{ "python3", "scripts/docgen.py", "--check" });
+    const docgen_check_step = b.step("docgen-check", "Verifie que la doc est a jour (CI)");
+    docgen_check_step.dependOn(&docgen_check_cmd.step);
+
     b.installArtifact(exe);
 
     // ─── Tests ───

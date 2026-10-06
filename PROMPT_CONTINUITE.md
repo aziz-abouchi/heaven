@@ -1,5 +1,23 @@
 # Prompt de continuité — Heaven session suivante
 
+## Convention doc (IMPORTANT pour les sessions paralleles)
+
+Les chiffres factuels du `README.md` sont **generes** par
+`scripts/docgen.py`, pas edites a la main. Regle :
+
+- Toute modif d'un chiffre (tests, resultats, date) doit passer par
+  `zig build docgen` (equivalent `python3 scripts/docgen.py`).
+- Le CI verifie la fraicheur via `zig build docgen-check` — il **echoue**
+  si un chiffre est perime.
+- Les valeurs sont encadrees par des markers :
+  `<!-- DOCGEN:key -->valeur<!-- /DOCGEN -->`
+- Ne **jamais** editer une valeur entre markers a la main.
+- Si une session parallele a modifie du code qui change les tests,
+  faire `zig build docgen` avant de committer.
+
+Consequence : toute session qui modifie un chiffre a la main verra
+son commit rejete par le CI.
+
 ## HEAD
 edb628f (main) — docs(spec): bug take masque par prelude corrige
 Tout poussé sur origin/main.
