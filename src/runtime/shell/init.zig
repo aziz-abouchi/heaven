@@ -11,6 +11,7 @@ const heaven_lib = @import("../heaven.zig");
 const autofab_lib = @import("../autofab.zig");
 const prolog_lib = @import("../prolog.zig");
 const run_mod = @import("run.zig");
+const triple_store_lib = @import("triple_store");
 
 pub const Shell = struct {
     allocator: std.mem.Allocator,
@@ -25,6 +26,7 @@ pub const Shell = struct {
     green: *green_lib.GreenScheduler,
     proofs: *proof_lib.ProofEnv,
     skills: skill_lib.SkillRegistry,
+    triple_store: triple_store_lib.TripleStore,
     active_theorem: ?[]const u8 = null,
 
     pub fn init(alloc: std.mem.Allocator, m: *matrix_lib.Matrix, e: *heaven_lib.Engine, i: *universal_lib.UniversalIngestor, port: u16) Shell {
@@ -62,12 +64,15 @@ pub const Shell = struct {
                 p.* = proof_lib.ProofEnv.init(alloc);
                 break :blk p;
             },
+            .triple_store = triple_store_lib.TripleStore.init(alloc),
             .skills = skill_lib.SkillRegistry.init(alloc),
         };
     }
 
     pub fn deinit(self: *Shell) void {
         // Appeler deinit sur les objets qui allouent de la mémoire
+        self.prolog.deinit();
+        self.triple_store.deinit();
         self.heaven.deinit();
         self.meta.deinit();
         self.proofs.deinit();

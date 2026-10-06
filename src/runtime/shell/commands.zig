@@ -1621,6 +1621,52 @@ pub fn cmdTriples(self: *Shell) void {
     }
 }
 
+/// `:p-fact pred(arg1, arg2, ...)` : ajoute un fait a la base Prolog.
+pub fn cmdPrologFact(self: *Shell, input: []const u8) void {
+    const trimmed = std.mem.trim(u8, input, " \t");
+    if (trimmed.len == 0) {
+        platform.debug.print("Usage: :p-fact pred(arg1, arg2, ...)\n", .{});
+        return;
+    }
+    const paren_start = std.mem.indexOf(u8, trimmed, "(") orelse {
+        platform.debug.print("parse error: '(' attendu\n", .{});
+        return;
+    };
+    const paren_end = std.mem.lastIndexOf(u8, trimmed, ")") orelse {
+        platform.debug.print("parse error: ')' attendu\n", .{});
+        return;
+    };
+    if (paren_end <= paren_start) {
+        platform.debug.print("parse error: arguments vides\n", .{});
+        return;
+    }
+    const pred = std.mem.trim(u8, trimmed[0..paren_start], " \t");
+    if (pred.len == 0) {
+        platform.debug.print("parse error: predicat manquant\n", .{});
+        return;
+    }
+
+    const args_str = trimmed[paren_start + 1 .. paren_end];
+    var args: std.ArrayListUnmanaged([]const u8) = .{};
+    defer args.deinit(self.allocator);
+    var it = std.mem.tokenizeAny(u8, args_str, ",");
+    while (it.next()) |a| {
+        const trimmed_arg = std.mem.trim(u8, a, " \t");
+        if (trimmed_arg.len > 0) {
+            args.append(self.allocator, trimmed_arg) catch {
+                platform.debug.print("alloc error\n", .{});
+                return;
+            };
+        }
+    }
+
+    self.prolog.addFactDup(pred, args.items) catch {
+        platform.debug.print("add fact error\n", .{});
+        return;
+    };
+    platform.debug.print("\u{2713} p-fact {s}/{d}\n", .{ pred, args.items.len });
+}
+
 pub fn cmdTripleQuery(self: *Shell, input: []const u8) void {
     const subject_iri = std.mem.trim(u8, input, " \t");
     if (subject_iri.len == 0) {

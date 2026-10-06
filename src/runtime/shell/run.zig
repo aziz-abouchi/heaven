@@ -192,6 +192,29 @@ fn isCallToKnownFn(self: *Shell, line: []const u8) bool {
 }
 
 fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !bool {
+    // Commandes Prolog : `?- goal`
+    {
+        const trimmed = std.mem.trim(u8, line, " \t\r\n");
+        if (std.mem.startsWith(u8, trimmed, "?- ")) {
+            const goal_str = std.mem.trim(u8, trimmed["?- ".len..], " \t");
+            if (self.prolog.parseAtom(goal_str)) |atom| {
+                var solutions = self.prolog.solve(atom, self.allocator);
+                defer solutions.deinit(self.allocator);
+                if (solutions.items.len == 0) {
+                    platform.debug.print("false.\n", .{});
+                } else {
+                    for (solutions.items) |sub| {
+                        sub.printClean();
+                        platform.debug.print("\n", .{});
+                    }
+                }
+            } else {
+                platform.debug.print("parse error\n", .{});
+            }
+            return true;
+        }
+    }
+
     const had_colon = line[0] == ':';
     const rest_line = if (had_colon) std.mem.trim(u8, line[1..], " ") else line;
     if (rest_line.len < 1) return true;

@@ -6,6 +6,10 @@ pub const CommandTag = enum {
     stats,
     doc,
     load,
+    triples,
+    triple_count,
+    triple_query,
+    p_fact,
     cmd_type,
     infer,
     qtt,
@@ -81,7 +85,14 @@ pub const commands = [_]Command{
     .{ .name = "help", .tag = .help, .shortcut = "h", .description = "Cette aide", .method = "printHelp" },
     .{ .name = "stats", .tag = .stats, .shortcut = "s", .description = "Statistiques du moteur", .method = "cmdStats" },
     .{ .name = "doc", .tag = .doc, .description = "Documentation des primitives", .method = "cmdDoc" },
-    .{ .name = "load", .tag = .load, .description = "Charger un fichier .hvn", .method = "cmdLoad" },
+    .{ .name = "load", .tag = .load, .description = "Charger un fichier (.hvn, .ttl)", .method = "cmdLoad" },
+
+    // Knowledge (Turtle/RDF)
+    .{ .name = "triples", .tag = .triples, .shortcut = "ttl", .description = "Lister tous les triplets RDF", .method = "cmdTriples" },
+    .{ .name = "triple-count", .tag = .triple_count, .description = "Nombre de triplets chargés", .method = "cmdTripleCount" },
+    .{ .name = "triple-query", .tag = .triple_query, .description = "Requête par sujet", .method = "cmdTripleQuery" },
+    .{ .name = "p-fact", .tag = .p_fact, .description = "Ajouter un fait Prolog", .method = "cmdPrologFact" },
+
 
     // Logique & Types
     .{ .name = "type", .tag = .cmd_type, .shortcut = "t", .description = "Type d'une expression", .method = "cmdType" },

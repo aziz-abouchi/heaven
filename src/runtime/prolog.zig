@@ -103,8 +103,34 @@ pub const PrologEngine = struct {
     }
 
     fn parseFact(self: *PrologEngine, text: []const u8) void {
-        const atom = self.parseAtomStr(text) orelse return;
+        const atom_raw = self.parseAtomStr(text) orelse return;
+        // Dupliquer les strings (qui viennent de Matrix ou d'un buffer
+        // ephemere) pour pouvoir les liberer dans deinit().
+        const pred_copy = self.allocator.dupe(u8, atom_raw.pred) catch return;
+        var atom: PrologAtom = .{ .pred = pred_copy, .args = undefined, .arity = atom_raw.arity };
+        var i: usize = 0;
+        while (i < atom_raw.arity) : (i += 1) {
+            atom.args[i] = self.allocator.dupe(u8, atom_raw.args[i]) catch return;
+        }
+        while (i < 8) : (i += 1) atom.args[i] = "";
         self.clauses.append(self.allocator, .{ .head = atom, .body = undefined, .body_len = 0 }) catch {};
+    }
+
+    /// Libere toutes les clauses (pred + args). A appeler dans Shell.deinit.
+    pub fn deinit(self: *PrologEngine) void {
+        for (self.clauses.items) |clause| {
+            self.allocator.free(clause.head.pred);
+            for (clause.head.args[0..clause.head.arity]) |a| {
+                self.allocator.free(a);
+            }
+            for (clause.body[0..clause.body_len]) |b| {
+                self.allocator.free(b.pred);
+                for (b.args[0..b.arity]) |a| {
+                    self.allocator.free(a);
+                }
+            }
+        }
+        self.clauses.deinit(self.allocator);
     }
 
     fn parseRule(self: *PrologEngine, text: []const u8) void {
@@ -112,7 +138,16 @@ pub const PrologEngine = struct {
         const head_str = std.mem.trim(u8, text[0..sep], " ");
         const body_str = std.mem.trim(u8, text[sep + 2 ..], " ");
 
-        const head = self.parseAtomStr(head_str) orelse return;
+        const head_raw = self.parseAtomStr(head_str) orelse return;
+        const head_pred_copy = self.allocator.dupe(u8, head_raw.pred) catch return;
+        var head: PrologAtom = .{ .pred = head_pred_copy, .args = undefined, .arity = head_raw.arity };
+        {
+            var i: usize = 0;
+            while (i < head_raw.arity) : (i += 1) {
+                head.args[i] = self.allocator.dupe(u8, head_raw.args[i]) catch return;
+            }
+            while (i < 8) : (i += 1) head.args[i] = "";
+        }
         var clause: Clause = .{ .head = head, .body = undefined, .body_len = 0 };
 
         var rest_body = body_str;
@@ -132,7 +167,17 @@ pub const PrologEngine = struct {
                 rest_body = "";
             }
 
-            if (self.parseAtomStr(atom_str)) |atom| {
+            if (self.parseAtomStr(atom_str)) |atom_raw2| {
+                // Dupliquer les strings du body
+                const body_pred_copy = self.allocator.dupe(u8, atom_raw2.pred) catch break;
+                var atom: PrologAtom = .{ .pred = body_pred_copy, .args = undefined, .arity = atom_raw2.arity };
+                {
+                    var bi: usize = 0;
+                    while (bi < atom_raw2.arity) : (bi += 1) {
+                        atom.args[bi] = self.allocator.dupe(u8, atom_raw2.args[bi]) catch break;
+                    }
+                    while (bi < 8) : (bi += 1) atom.args[bi] = "";
+                }
                 if (clause.body_len < 8) {
                     clause.body[clause.body_len] = atom;
                     clause.body_len += 1;
@@ -166,6 +211,21 @@ pub const PrologEngine = struct {
         }
 
         return atom;
+    }
+
+    /// Variante de `addFact` qui duplique les strings (utile pour les
+    /// faits ajoutes interactivement, dont les slices peuvent etre
+    /// ephemeres).
+    pub fn addFactDup(self: *PrologEngine, pred: []const u8, args: []const []const u8) !void {
+        const pred_copy = try self.allocator.dupe(u8, pred);
+        errdefer self.allocator.free(pred_copy);
+        var atom: PrologAtom = .{ .pred = pred_copy, .args = undefined, .arity = @intCast(args.len) };
+        for (args, 0..) |a, i| {
+            atom.args[i] = try self.allocator.dupe(u8, a);
+        }
+        var i: usize = args.len;
+        while (i < 8) : (i += 1) atom.args[i] = "";
+        try self.clauses.append(self.allocator, .{ .head = atom, .body = undefined, .body_len = 0 });
     }
 
     pub fn addFact(self: *PrologEngine, pred: []const u8, args: []const []const u8) void {
