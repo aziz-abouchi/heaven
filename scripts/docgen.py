@@ -33,8 +33,14 @@ def extract_facts():
     f["tests_zig"] = m.group(1) if m else "?"
     f["tests_zig_total"] = m.group(2) if m else "?"
 
-    # tests_heaven : grep 'test "' dans tests/*.hvn
+    # tests_heaven : tous les tests Heaven executables en CI =
+    #   core/test_suite.hvn (test-regression)
+    #   tests/*.hvn        (test-files)
+    # Les tests/experimental/*.hvn sont exclus (non executes par le CI).
     n = 0
+    core = Path("core/test_suite.hvn")
+    if core.exists():
+        n += len(re.findall(r'test "', core.read_text()))
     for hvn in Path("tests").glob("*.hvn"):
         n += len(re.findall(r'test "', hvn.read_text()))
     f["tests_heaven"] = str(n)
@@ -47,10 +53,12 @@ def extract_facts():
     m = re.search(r"Total: (\d+) / (\d+)", out)
     f["test_regression"] = f"{m.group(1)}/{m.group(2)}" if m else "?"
 
-    # test-files
+    # test-files : plusieurs Totals (un par fichier), on prend le dernier
     out = sh("zig", "build", "-Dnetwork=false", "test-files")
-    m = re.search(r"Total: (\d+) / (\d+)", out)
-    f["test_files"] = f"{m.group(1)}/{m.group(2)}" if m else "?"
+    matches = re.findall(r"Total: (\d+) / (\d+)", out)
+    f["test_files"] = f"{matches[-1][0]}/{matches[-1][1]}" if matches else "?"
+    # nombre de fichiers .hvn dans tests/
+    f["test_files_count"] = str(len(list(Path("tests").glob("*.hvn"))))
 
     return f
 
