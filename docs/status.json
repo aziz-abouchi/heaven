@@ -1,0 +1,1023 @@
+{
+  "updated": "2026-10-06",
+  "sections": [
+    {
+      "level": 2,
+      "kind": "raw",
+      "title": "Progrès récents",
+      "content": "- **2026-10-05** : Stabilisation du pipeline syntax HIR pour les déclarations `data` génériques : Tree-sitter valide `data List<a> = Nil | Cons a (List<a>)`, tests `lower_test.zig` couvrent `Vec<n>` et `List<a>` récursif. Ajout du champ `DataDecl.params` dans l'AST HIR (initialisation du chemin children). Les paramètres génériques restent à propager dans l'elaboration et l'enregistrement runtime.\n- **2026-10-02** : Unification arithmétique v2f complète (AC, succ, mul, identités, symbole `zero`) et testée sur types dépendants (`Vec (n+m)`). Commande REPL `:norm` opérationnelle.\n- **2026-10-01** : Nettoyage massif du pipeline logique (~1500 lignes supprimées : term_bridge, typeo, evalo, legacy/).\n- **2026-10-01** : Stabilisation du build WASM (475 Ko en ReleaseSmall) et création du stub wasm32_wasi.zig."
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "noyau_core_ir",
+      "title": "Noyau (Core IR)",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "6 primitives",
+          "tier": "stable",
+          "proof": "`expr.zig::Primitive`",
+          "limit": "—"
+        },
+        {
+          "name": "`Node` (`payload/aux/span_a/span_b`)",
+          "tier": "stable",
+          "proof": "`expr.zig::Node`",
+          "limit": "—"
+        },
+        {
+          "name": "`nodeHash`",
+          "tier": "stable",
+          "proof": "`expr.zig` + 3 tests",
+          "limit": "—"
+        },
+        {
+          "name": "`structuralEql`",
+          "tier": "stable",
+          "proof": "`expr.zig` + 8 tests",
+          "limit": "—"
+        },
+        {
+          "name": "`lowerRec` idempotent",
+          "tier": "stable",
+          "proof": "`expr.zig` test `lowering is idempotent`",
+          "limit": "`hole`/`evar` non-primitifs → refusés par `assertCoreExpr`"
+        },
+        {
+          "name": "`Tag.evar` (métavariables internes)",
+          "tier": "stable",
+          "proof": "`expr.zig::mkEvar`, `isEvar` + 3 tests",
+          "limit": "utilisé par tactics v3.5"
+        },
+        {
+          "name": "Hash-consing EGraph",
+          "tier": "stable",
+          "proof": "`egraph.add` + tests",
+          "limit": "collision pas testée à grande échelle"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "parsing",
+      "title": "Parsing",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "Infixe (`+ - * / % ^ == != < > <= >=`)",
+          "tier": "stable",
+          "proof": "`nativeToSExpr` + tests",
+          "limit": "—"
+        },
+        {
+          "name": "S-expression `(f a b)`",
+          "tier": "stable",
+          "proof": "`parseSExpr` (quote-aware)",
+          "limit": "—"
+        },
+        {
+          "name": "`λx.body`, `\\x.body`",
+          "tier": "stable",
+          "proof": "2 tests Zig",
+          "limit": "—"
+        },
+        {
+          "name": "`λx => body`, `λx -> body`",
+          "tier": "stable",
+          "proof": "commit 4e606c1",
+          "limit": "—"
+        },
+        {
+          "name": "`λ(x, y) => body`",
+          "tier": "stable",
+          "proof": "commit 4e606c1",
+          "limit": "params entre parens"
+        },
+        {
+          "name": "`λx y z. body`",
+          "tier": "stable",
+          "proof": "commit 4e606c1",
+          "limit": "multi-params nus"
+        },
+        {
+          "name": "`module X`",
+          "tier": "partiel",
+          "proof": "`heaven_expr.zig::current_module`",
+          "limit": "v0 : theorem aliasé, fn/let à venir"
+        },
+        {
+          "name": "`import \"path\" as Name`",
+          "tier": "stable",
+          "proof": "`heaven_expr.zig::evalImport`",
+          "limit": "fn/let/theorem aliasés sous `Name.x`"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "types",
+      "title": "Types",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "HM inference (`lit`, `apply`, `sym`)",
+          "tier": "stable",
+          "proof": "`types.Infer` + 4 tests",
+          "limit": "—"
+        },
+        {
+          "name": "Arrow `a -> b` interne",
+          "tier": "stable",
+          "proof": "`Store.apply(sym(\"->\"), …)`",
+          "limit": "—"
+        },
+        {
+          "name": "Types paramétrés (`Maybe a`)",
+          "tier": "partiel",
+          "proof": "`evalDataDecl`",
+          "limit": "paramètre `a` ignoré à l'enregistrement"
+        },
+        {
+          "name": "Types dépendants (`Vec (succ n)`, `Vec (n+m)`)",
+          "tier": "stable",
+          "proof": "`evalDataDecl` + v2f (`unify_proof` + `simplifyStep`)",
+          "limit": "unification arithmétique complète (AC, succ, mul, identités, zero)"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "data_pattern_matching",
+      "title": "Data & Pattern matching",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "`data Name = C1 | C2 args`",
+          "tier": "stable",
+          "proof": "`evalDataDecl`",
+          "limit": "—"
+        },
+        {
+          "name": "`data Name a = ...`",
+          "tier": "partiel",
+          "proof": "enregistré",
+          "limit": "`a` ignoré"
+        },
+        {
+          "name": "`data Name (n : Nat) = ...`",
+          "tier": "stable",
+          "proof": "`type_registry.zig` + 5 tests v2c/v2d",
+          "limit": "1 param typé max (v0)"
+        },
+        {
+          "name": "Pattern matching multi-clause",
+          "tier": "stable",
+          "proof": "`evalEquation`",
+          "limit": "ordre linéaire d'essai"
+        },
+        {
+          "name": "Wildcard `_` en pattern",
+          "tier": "stable",
+          "proof": "test `let_many`",
+          "limit": "—"
+        },
+        {
+          "name": "Guards `| x > 0`",
+          "tier": "stable",
+          "proof": "tests/guards.hvn (17/17)",
+          "limit": "ordre linéaire ; otherwise ; == normalisé"
+        }
+      ]
+    },
+    {
+      "level": 3,
+      "kind": "table",
+      "id": "type_dep_v2_indexes_d_pendants",
+      "title": "Type-dep v2 (indexes dépendants)",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "`data Vec (n : Nat) = Nil | Cons a (Vec n)`",
+          "tier": "stable",
+          "proof": "test `type-dep v0`",
+          "limit": "—"
+        },
+        {
+          "name": "`sig f : (n : Nat) -> Vec (succ n) -> a`",
+          "tier": "stable",
+          "proof": "test `type-dep v2c`",
+          "limit": "—"
+        },
+        {
+          "name": "Vérif. structurelle patterns (arité, kind)",
+          "tier": "stable",
+          "proof": "`evalEquation` v2a/v2b/v2c",
+          "limit": "—"
+        },
+        {
+          "name": "Convention base/step (`Nil`↔zero, `Cons`↔succ)",
+          "tier": "stable",
+          "proof": "`ctorKind`/`domainKind`",
+          "limit": "—"
+        },
+        {
+          "name": "`ctor_results` (ctor → forme résultat)",
+          "tier": "stable",
+          "proof": "`evalDataDecl` v2d",
+          "limit": "arity>0 → `(succ _)` uniquement"
+        },
+        {
+          "name": "Unification `ctor_results[ctor]` ~ domaine",
+          "tier": "stable",
+          "proof": "`evalEquation` v2e (`unify_proof` + `holesToEvars`)",
+          "limit": "best-effort : échec ≠ rejet"
+        },
+        {
+          "name": "Instanciation RHS sous `subst_v2d`",
+          "tier": "stable",
+          "proof": "`registerClause(body_used)` (v2e)",
+          "limit": "no-op avant v2e : `_` = `Tag.hole`, non lié"
+        },
+        {
+          "name": "Unification vraie (`Vec (n + m)` modulo arithmétique)",
+          "tier": "stable",
+          "proof": "`unify_proof.zig` + `math.zig` (simplifyStep)",
+          "limit": "AC + succ + mul + identités + symbole zero + :norm REPL"
+        }
+      ],
+      "trailing_text": "**Note v2e (2026-09-25)** : un bug a été découvert en testant v2e —\n`_` est parsé en `Tag.hole`, et `unify_proof.unify` ne lie que les\n`Tag.evar`. Conséquence : `subst_v2d` restait **toujours vide** entre\nv2d et v2e (`body_used == body`, no-op silencieux non détecté par les\ntests v2d car le pattern matching engine liait les variables de pattern\nindépendamment). Fix v2e : `Heaven.holesToEvars` remplace les holes par\ndes evars frais avant `unify`. Le message de succès expose\ndésormais `(subst: N)` quand N > 0. **v2e reste préparatoire** :\naucun body réaliste n'est affecté aujourd'hui (le body est parsé\ndepuis une string utilisateur, jamais d'evar dedans)."
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "r_cursion_ordre_sup_rieur",
+      "title": "Récursion & ordre supérieur",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "Compréhensions `(for (x <- xs) [(when p)] e)`",
+          "tier": "partiel",
+          "proof": "tests/comprehensions.hvn 10/12",
+          "limit": "parseur de test λ : 2 échecs ; forme carrée = phase B"
+        },
+        {
+          "name": "Récursion simple",
+          "tier": "stable",
+          "proof": "`fact`, `add`",
+          "limit": "pas de TCO"
+        },
+        {
+          "name": "Récursion mutuelle",
+          "tier": "stable",
+          "proof": "`isEven`/`isOdd`",
+          "limit": "—"
+        },
+        {
+          "name": "Curryfication",
+          "tier": "stable",
+          "proof": "`Store.lambda` currifie",
+          "limit": "—"
+        },
+        {
+          "name": "`>>>` composition",
+          "tier": "stable",
+          "proof": "`evalMagic`",
+          "limit": "—"
+        },
+        {
+          "name": "`map`/`filter`/`take` sur Stream",
+          "tier": "stable",
+          "proof": "`core/stream.hvn`",
+          "limit": "ordre supérieur réparé (f8e9535) : symbole ET lambda en argument"
+        },
+        {
+          "name": "Paresse des streams",
+          "tier": "roadmap",
+          "proof": "—",
+          "limit": "—"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "qtt",
+      "title": "QTT",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "`let linear/erased/many x = … in …`",
+          "tier": "stable",
+          "proof": "`countSymUses` + tests",
+          "limit": "—"
+        },
+        {
+          "name": "Shadowing correct",
+          "tier": "stable",
+          "proof": "test `let_bind_shadowing_*`",
+          "limit": "—"
+        },
+        {
+          "name": "`LinearViolation`",
+          "tier": "stable",
+          "proof": "4 tests",
+          "limit": "—"
+        },
+        {
+          "name": "**Documentation QTT**",
+          "tier": "absent",
+          "proof": "—",
+          "limit": "**absent du book**"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "effets_alg_briques",
+      "title": "Effets algébriques",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "`perform \"Op\" v`",
+          "tier": "stable",
+          "proof": "`engine_expr`",
+          "limit": "one-shot"
+        },
+        {
+          "name": "`handle e h`",
+          "tier": "stable",
+          "proof": "test `effect_handle`",
+          "limit": "one-shot"
+        },
+        {
+          "name": "`green` profiler",
+          "tier": "stable",
+          "proof": "2 tests",
+          "limit": "—"
+        },
+        {
+          "name": "Multi-shot continuations",
+          "tier": "roadmap",
+          "proof": "—",
+          "limit": "—"
+        },
+        {
+          "name": "Handler IO par défaut",
+          "tier": "stable",
+          "proof": "`defaultIOHandler` (heaven_expr.zig)",
+          "limit": "—"
+        },
+        {
+          "name": "`readFile`, `writeFile`, `readLine`",
+          "tier": "stable",
+          "proof": "`core/io.hvn` + handler",
+          "limit": "—"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "io",
+      "title": "IO",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "`print` (REPL)",
+          "tier": "stable",
+          "proof": "démo manuelle",
+          "limit": "—"
+        },
+        {
+          "name": "`readFile` / `writeFile` / `readLine`",
+          "tier": "stable",
+          "proof": "démo manuelle",
+          "limit": "—"
+        },
+        {
+          "name": "`:io on/off/status`",
+          "tier": "stable",
+          "proof": "REPL",
+          "limit": "—"
+        },
+        {
+          "name": "Test automatisé IO",
+          "tier": "stable",
+          "proof": "`test \"io_print\"`",
+          "limit": "—"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "preuves",
+      "title": "Preuves",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "`theorem name : lhs = rhs`",
+          "tier": "stable",
+          "proof": "`evalTheorem`",
+          "limit": "seulement `lhs = rhs`"
+        },
+        {
+          "name": "`prove by eval`",
+          "tier": "stable",
+          "proof": "`verifyByEval`",
+          "limit": "—"
+        },
+        {
+          "name": "`prove by simplify`",
+          "tier": "stable",
+          "proof": "`verifyBySimplify` (fixpoint)",
+          "limit": "—"
+        },
+        {
+          "name": "perf `prove by simplify`",
+          "tier": "stable",
+          "proof": "t_distrib 1416ms -> 66ms (a0a8485/9c90969)",
+          "limit": "convergence structurelle du pipeline -- comparaison d'Id jamais valide sur arbres ré-alloués"
+        },
+        {
+          "name": "`prove by induction x`",
+          "tier": "partiel",
+          "proof": "`verifyByInduction`",
+          "limit": "**pas testé** en suite standard"
+        },
+        {
+          "name": "`prove by rewrite`",
+          "tier": "partiel",
+          "proof": "`verifyByRewrite`",
+          "limit": "dépend de `canonEqStr` (stub)"
+        },
+        {
+          "name": "`prove t by { ... }` (tactics)",
+          "tier": "stable",
+          "proof": "`runTacticsBlock`",
+          "limit": "simplify/refl/exact/induction/rewrite/apply/seq/try/repeat"
+        },
+        {
+          "name": "Kernel CIC",
+          "tier": "partiel",
+          "proof": "`kernel.zig` (~780 L)",
+          "limit": "structural OK, type-check limité"
+        },
+        {
+          "name": "Types quotients",
+          "tier": "absent",
+          "proof": "—",
+          "limit": "—"
+        },
+        {
+          "name": "Proof irrelevance",
+          "tier": "absent",
+          "proof": "—",
+          "limit": "—"
+        },
+        {
+          "name": "Skills (`:skill`)",
+          "tier": "stable",
+          "proof": "`skill.zig` + `ProofSession`",
+          "limit": "refactor v2 : `body: []const u8` unifié"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "holes",
+      "title": "Holes",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "`Tag.hole`",
+          "tier": "stable",
+          "proof": "`expr.zig:138`, `Store.hole`",
+          "limit": "—"
+        },
+        {
+          "name": "`_` → `hole(0)` (elab)",
+          "tier": "partiel",
+          "proof": "`elab.zig:104`",
+          "limit": "**même id 0 pour tous les trous**"
+        },
+        {
+          "name": "`?` → hole (cmdHole)",
+          "tier": "partiel",
+          "proof": "`commands.zig:686`",
+          "limit": "syntaxe arithmétique seulement"
+        },
+        {
+          "name": "`Subst.bind/walk`",
+          "tier": "stable",
+          "proof": "`kanren_expr.zig` + 2 tests",
+          "limit": "—"
+        },
+        {
+          "name": "Test `hole resolves type hole`",
+          "tier": "stable",
+          "proof": "`commands_full_test.zig:300`",
+          "limit": "résolution arithmétique simple"
+        },
+        {
+          "name": "Hole filler (Matrix)",
+          "tier": "stable",
+          "proof": "`inference/neural/synthesis.zig`",
+          "limit": "couche Matrix, pas Core"
+        },
+        {
+          "name": "But + contexte affichés",
+          "tier": "absent",
+          "proof": "—",
+          "limit": "—"
+        },
+        {
+          "name": "`:refine`",
+          "tier": "stable",
+          "proof": "`commands.zig::cmdRefine`",
+          "limit": "—"
+        },
+        {
+          "name": "**Syntaxe unifiée**",
+          "tier": "partiel",
+          "proof": "`_` (expressions), `?` (cmdHole)",
+          "limit": "2 syntaxes coexistent (compat)"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "acteurs",
+      "title": "Acteurs",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "`fn handler(state, msg) = …`",
+          "tier": "stable",
+          "proof": "test suite",
+          "limit": "—"
+        },
+        {
+          "name": "`let X = 0 with handler`",
+          "tier": "stable",
+          "proof": "test suite",
+          "limit": "—"
+        },
+        {
+          "name": "`send(X, msg)`",
+          "tier": "stable",
+          "proof": "test suite",
+          "limit": "acteur + handler ; séquentiel"
+        },
+        {
+          "name": "`state(X)`",
+          "tier": "stable",
+          "proof": "test suite",
+          "limit": "—"
+        },
+        {
+          "name": "Parallélisme réel",
+          "tier": "roadmap",
+          "proof": "—",
+          "limit": "pas de scheduler"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "runtime_io",
+      "title": "Runtime & IO",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "REPL natif",
+          "tier": "stable",
+          "proof": "`main.zig`",
+          "limit": "—"
+        },
+        {
+          "name": "Commandes vs équations",
+          "tier": "stable",
+          "proof": "`run.zig::hasTopLevelEqual`, `isCallToKnownFn`",
+          "limit": "les noms courts (`c`, `f`, `io`) restent utilisables"
+        },
+        {
+          "name": "REPL web WASM",
+          "tier": "stable",
+          "proof": "`vessel/public/`",
+          "limit": "—"
+        },
+        {
+          "name": "Serveur HTTP Vessel",
+          "tier": "partiel",
+          "proof": "`vessel/`",
+          "limit": "`/api/*` non implémenté"
+        },
+        {
+          "name": "WebRTC",
+          "tier": "partiel",
+          "proof": "`webrtc.zig` + stub",
+          "limit": "stub en prod"
+        },
+        {
+          "name": "TCC linké",
+          "tier": "partiel",
+          "proof": "`vendor/tcc`",
+          "limit": "présent, non utilisé"
+        },
+        {
+          "name": "ABI C (`extern fn`)",
+          "tier": "absent",
+          "proof": "—",
+          "limit": "**documenté ch9, absent**"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "biblioth_que_standard",
+      "title": "Bibliothèque standard",
+      "n_cols": 3,
+      "features": [
+        {
+          "name": "`core/std/bool.hvn`",
+          "tier": "partiel",
+          "proof": "clauses `not/and/or` OK ; `true`/`false` **sans corps**",
+          "limit": "—"
+        },
+        {
+          "name": "`core/std/list.hvn`",
+          "tier": "partiel",
+          "proof": "clauses OK ; `nil`/`cons` **sans corps**",
+          "limit": "—"
+        },
+        {
+          "name": "`core/std/option.hvn`",
+          "tier": "partiel",
+          "proof": "`none`/`some` **sans corps**",
+          "limit": "—"
+        },
+        {
+          "name": "`core/std/pair.hvn`",
+          "tier": "partiel",
+          "proof": "`pair` **sans corps**",
+          "limit": "—"
+        },
+        {
+          "name": "`core/std/result.hvn`",
+          "tier": "partiel",
+          "proof": "`ok`/`err` **sans corps**",
+          "limit": "—"
+        },
+        {
+          "name": "`core/stream.hvn`",
+          "tier": "stable",
+          "proof": "clauses complètes, testées",
+          "limit": "—"
+        },
+        {
+          "name": "`core/bootstrap.hvn`",
+          "tier": "partiel",
+          "proof": "`add`/`mul` OK ; signatures `theorem`/`prove` **sans corps**",
+          "limit": "—"
+        }
+      ],
+      "trailing_text": "**Note** : `module X` en tête est **inert** (no-op). Les `: Type` sans `=` sont des signatures non enregistrées. Le `std/` est en fait \"signatures + quelques clauses\"."
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "ontologie_2026_10_01",
+      "title": "Ontologie (2026-10-01)",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "`algo_catalog.zig` (ex-`ontology.zig`)",
+          "tier": "stable",
+          "proof": "3 tests `zig test`",
+          "limit": "composant a cote du Core, strings"
+        },
+        {
+          "name": "`ontology.zig` (squelette Phase 2)",
+          "tier": "partiel",
+          "proof": "3 tests `zig test`",
+          "limit": "non branche dans `build.zig`"
+        },
+        {
+          "name": "Trust levels (asserted/derived/certified)",
+          "tier": "stable",
+          "proof": "test `trust filtering`",
+          "limit": "-"
+        },
+        {
+          "name": "Provenance (source, source_id, timestamp)",
+          "tier": "stable",
+          "proof": "present sur chaque Concept/Relation",
+          "limit": "-"
+        },
+        {
+          "name": "Subsomption is-a",
+          "tier": "stable",
+          "proof": "test `isA reflexive and transitive`",
+          "limit": "parent unique, pas de DAG"
+        },
+        {
+          "name": "Relations typees (5 kinds)",
+          "tier": "partiel",
+          "proof": "enum defini, non teste",
+          "limit": "pas de verif de coherence"
+        },
+        {
+          "name": "Projection vers `expr.Store`",
+          "tier": "absent",
+          "proof": "-",
+          "limit": "Phase 3"
+        },
+        {
+          "name": "Emission SMT-LIB",
+          "tier": "absent",
+          "proof": "-",
+          "limit": "Phase 3"
+        },
+        {
+          "name": "Integration MPST",
+          "tier": "absent",
+          "proof": "-",
+          "limit": "Phase 4"
+        },
+        {
+          "name": "Commandes REPL (`:onto`)",
+          "tier": "absent",
+          "proof": "-",
+          "limit": "Phase 3+"
+        }
+      ],
+      "leading_text": "Voir `docs/spec/_ontology.md` pour les decisions actees.",
+      "trailing_text": "Phases : 1 faite (`c651fa9`), 2 ce commit, 3 et 4 planifiees."
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "knowledge_rdf_rdfs_2026_10_01",
+      "title": "Knowledge / RDF / RDFS (2026-10-01)",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "Ressources URI / blank / literal",
+          "tier": "stable",
+          "proof": "`src/knowledge/resource.zig`",
+          "limit": "RDF minimal"
+        },
+        {
+          "name": "Triples",
+          "tier": "stable",
+          "proof": "`src/knowledge/triple.zig`",
+          "limit": "pas de quad/context"
+        },
+        {
+          "name": "Assertions",
+          "tier": "stable",
+          "proof": "`src/knowledge/assertion.zig`",
+          "limit": "confidence low/medium/high"
+        },
+        {
+          "name": "Provenance",
+          "tier": "stable",
+          "proof": "tests KnowledgeStore",
+          "limit": "sources enumerees"
+        },
+        {
+          "name": "Status asserted/imported/derived/inferred/certified",
+          "tier": "stable",
+          "proof": "`assertion.zig`",
+          "limit": "enum ferme"
+        },
+        {
+          "name": "KnowledgeStore",
+          "tier": "stable",
+          "proof": "`src/knowledge/store.zig`",
+          "limit": "stockage lineaire POC"
+        },
+        {
+          "name": "Plusieurs provenances pour un meme triple",
+          "tier": "stable",
+          "proof": "test Store",
+          "limit": "pas de deduplication"
+        },
+        {
+          "name": "RDFS `subClassOf` transitif",
+          "tier": "stable",
+          "proof": "`src/knowledge/rdfs.zig`",
+          "limit": "seul fragment RDFS implemente"
+        },
+        {
+          "name": "Fermeture non destructive",
+          "tier": "stable",
+          "proof": "test RDFS",
+          "limit": "resultat separe du Store"
+        },
+        {
+          "name": "Reflexivite implicite",
+          "tier": "absent",
+          "proof": "test RDFS",
+          "limit": "`A -> A` non ajoute"
+        },
+        {
+          "name": "Turtle",
+          "tier": "roadmap",
+          "proof": "—",
+          "limit": "parseur a venir"
+        },
+        {
+          "name": "`rdf:type`, domain, range, subProperty",
+          "tier": "roadmap",
+          "proof": "—",
+          "limit": "hors POC"
+        },
+        {
+          "name": "OWL / SPARQL",
+          "tier": "roadmap",
+          "proof": "—",
+          "limit": "hors POC"
+        },
+        {
+          "name": "Lowering explicite Knowledge -> Expr",
+          "tier": "roadmap",
+          "proof": "—",
+          "limit": "contrat a definir par cas d'usage"
+        }
+      ],
+      "leading_text": "La couche Knowledge est distincte de `Expr` et ne constitue pas un\nsecond IR. Elle conserve ses propres identifiants (`KnowledgeId`) et\nn'est reliée a `Expr` que par des lowerings explicites."
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "backends_natifs_et_wasm_2026_09_30",
+      "title": "Backends natifs et WASM (2026-09-30)",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "Compilation QBE (M3)",
+          "tier": "stable",
+          "proof": "`compile-qbe <src> -o <bin>` ; fib(25) = 75025",
+          "limit": "sous-ensemble MIR (15 instr) ; TCO self-tail + mutuelle (fusion SCC 2+ membres) ; cross-compile `--target` (5 cibles) ; pas de strings/IO"
+        },
+        {
+          "name": "Compilation WASM (M2a/M2b)",
+          "tier": "stable",
+          "proof": "`compile-wasm <src> -o <wat>` ; wasmtime run",
+          "limit": "sous-ensemble MIR ; TCO self-tail + mutuelle (fusion SCC + `return_call` natif) ; flag `-W max-wasm-stack` plus requis"
+        },
+        {
+          "name": "Bench interprète",
+          "tier": "stable",
+          "proof": "`bench-interp <src> [N] [--loop M]`",
+          "limit": "in-process, pas de spawn"
+        },
+        {
+          "name": "Bench QBE",
+          "tier": "stable",
+          "proof": "`bench-qbe` ; wall/cpu/energy/temp/RSS",
+          "limit": "RAPL root-only par défaut (CVE-2020-8694)"
+        },
+        {
+          "name": "Bench WASM",
+          "tier": "stable",
+          "proof": "`bench-wasm` ; idem",
+          "limit": "bootstrap wasmtime ~5 ms amorti via `--loop`"
+        },
+        {
+          "name": "Profiler plateforme",
+          "tier": "stable",
+          "proof": "`platform/profiler_*.zig` ; `getChildrenUsage`, `readEnergyUj`, `readTempMc`",
+          "limit": "Linux : RAPL + thermal_zone ; macOS/Windows : stubs"
+        },
+        {
+          "name": "RAPL sans sudo",
+          "tier": "stable",
+          "proof": "`scripts/setup-rapl.sh` (Guix / NixOS / generique)",
+          "limit": "CVE-2020-8694 : lecture restreinte au root par defaut"
+        }
+      ],
+      "trailing_text": "Métriques mesurées : wall, cpu (RUSAGE_CHILDREN pour bench,\nRUSAGE_SELF pour interp), energy (RAPL package), temperature\n(thermal_zone0), RSS pic.\nRésultats de référence (`docs/spec/_bench.md`) :\n- `count_down 100000` : QBE **0.06 ms** / WASM 0.11 ms /\n  interprète 3500 ms.\n- `fib 25` : QBE **1.15 ms** / interprète 29 824 ms."
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "infrastructure",
+      "title": "Infrastructure",
+      "n_cols": 3,
+      "features": [
+        {
+          "name": "`zig build test`",
+          "tier": "stable",
+          "proof": "162 tests",
+          "limit": "—"
+        },
+        {
+          "name": "`zig build test-regression`",
+          "tier": "stable",
+          "proof": "77 tests Heaven",
+          "limit": "—"
+        },
+        {
+          "name": "`zig build test-files`",
+          "tier": "stable",
+          "proof": "`heaven --run-tests tests/`",
+          "limit": "—"
+        },
+        {
+          "name": "`heaven --run-test <file>`",
+          "tier": "stable",
+          "proof": "runner multi-lignes (parens + braces)",
+          "limit": "—"
+        },
+        {
+          "name": "`heaven --run-tests <dir>`",
+          "tier": "stable",
+          "proof": "itère sur les `*.hvn` d'un dossier",
+          "limit": "—"
+        },
+        {
+          "name": "Sync `test_suite.hvn` natif ↔ WASM",
+          "tier": "partiel",
+          "proof": "manuelle via `cp`",
+          "limit": "—"
+        },
+        {
+          "name": "Kernel CIC tests",
+          "tier": "stable",
+          "proof": "7 tests dans `kernel.zig`",
+          "limit": "—"
+        },
+        {
+          "name": "EGraph tests",
+          "tier": "stable",
+          "proof": "8 tests",
+          "limit": "—"
+        }
+      ],
+      "trailing_text": "---"
+    },
+    {
+      "level": 2,
+      "kind": "table",
+      "id": "concurrence_et_effets_2026_09_29",
+      "title": "Concurrence et effets (2026-09-29)",
+      "n_cols": 4,
+      "features": [
+        {
+          "name": "`spawn` / `tell` / `recv` (process)",
+          "tier": "stable",
+          "proof": "test_suite.hvn (3 tests)",
+          "limit": "prototype concurrence, mailbox FIFO, caller-driven"
+        },
+        {
+          "name": "`run(pid)` (drain mailbox)",
+          "tier": "stable",
+          "proof": "test_suite.hvn (2 tests)",
+          "limit": "—"
+        },
+        {
+          "name": "`bracket` / `local` / `catch`",
+          "tier": "stable",
+          "proof": "test_suite.hvn (5 tests)",
+          "limit": "syntaxe scoped, pas handle-rec"
+        },
+        {
+          "name": "`handle-rec` (reprise)",
+          "tier": "roadmap",
+          "proof": "—",
+          "limit": "nécessite continuations"
+        },
+        {
+          "name": "Scheduler préemptif",
+          "tier": "roadmap",
+          "proof": "—",
+          "limit": "C3 tranchée (budget + safepoints)"
+        },
+        {
+          "name": "Distribution",
+          "tier": "roadmap",
+          "proof": "—",
+          "limit": "C2 tranchée (Option D lazy copy)"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "kind": "raw",
+      "title": "Top priorités",
+      "content": "1. **Découper `heaven_expr.zig`** (RFC-0001) — extraire IO, imports, data, holes,\n   tactics. Le monolithe freine toute évolution (WASM, tests, onboarding,\n   éventuel merge avec astra-core).\n   → **✅ 5/5 complet** (2026-09-25) : `io_handler.zig`,\n   `expr_parser.zig`, `hole_runtime.zig`, `unify_proof.zig`,\n   `std_loader.zig`, `import.zig`. Monolithe 4367 → 4101 lignes.\n2. **Unifier le pipeline logique** — `kanren_expr` + `logic/*` + `prolog`\n   derrière une API `assertFact` / `query` + 2-3 commandes REPL.\n   → **Étape 1** ✅ 2026-09-25 : `fact` + `query` en langage\n   (kanren_expr, Store-based). Étapes 2-3 : `rule` (SLD simple),\n   `?-` (Prolog) + raccord shell.\n3. **README aligné sur STATUS** (✅ fait).\n4. ~~**Type-dep v2d**~~ ✅ 2026-09-24 · ~~**v2e/v2f**~~ ✅ 2026-10-01 (unification arithmetique complete : AC + succ + mul + identites)\n   (fix `holesToEvars` + exposition `subst_v2d`).\n   ✅ v2f terminé — unification vraie (`Vec (n + m)` modulo arithmétique).\n5. **Documenter QTT** dans le book.\n6. Remplir les `std/*.hvn` restants (`kernel.hvn`, signatures sans corps).\n7. ~~Sync auto `test_suite.hvn` (natif ↔ WASM).~~ [OK] (2026-10-01)\n\nChantiers identifiés le 2026-09-25 (pas encore planifiés) :\n\n8. ~~**Spec formelle du langage** (pour LLMs) — `docs/spec/heaven.md`.~~ [OK] (2026-10-01)\n   EBNF + sémantique des formes acceptées + erreurs canoniques.\n   Descriptif d'abord (WYSIWYG), section « écarts connus ».\n   5-7 sessions. Format : 1 fichier agrégé + `grammar.ebnf`\n   + `errors.md`. Validation : tester qu'un LLM génère du\n   code qui compile avec la spec seule en contexte.\n9. **Uniformiser `src/platform`** — `native.zig` +\n   `x86_64_linux.zig` + `x86_64_windows.zig` (~90 % identiques).\n   Cible : 1 fichier commun + dispatch OS aux points critiques.\n   1-2 sessions.\n10. **Fusion kernel CIC** — `src/core/kernel.zig` (853 l.,\n    TermPool) vs `src/kernel/*` (1727 l., AST). Cible :\n    `src/kernel/` source de vérité, `core/kernel.zig` thin\n    wrapper puis suppression. 2-3 sessions. Risque élevé\n    (`proof_core`, `wasm.zig`, `cli/repl`, `frontend/parser`).\n11. ~~**`readKey` → `platform`**~~ ✅ (2026-10-01) — sorti\n    `readKeyUnix`, les `VK_*` et `INPUT_RECORD` de\n    `interactive.zig` vers `platform.readKey()`. Cohérence\n    avec la règle platform. 1 session."
+    }
+  ]
+}

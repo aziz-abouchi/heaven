@@ -1,11 +1,9 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-10-02
+Dernière mise à jour : 2026-10-06
 
-Ce document est la **source de vérité** sur ce qui marche. Toute
-affirmation du book ou du README doit pointer vers une ligne de ce
-tableau. Si vous trouvez une divergence, corrigez le book, pas ce
-document (sauf erreur manifeste).
+Ce document est **genere** depuis `docs/status.json` par
+`scripts/status_gen.py`. Ne pas editer a la main.
 
 Légende :
 - ✅ **stable** — implémenté, testé, comportement fiable
@@ -21,8 +19,6 @@ Légende :
 - **2026-10-02** : Unification arithmétique v2f complète (AC, succ, mul, identités, symbole `zero`) et testée sur types dépendants (`Vec (n+m)`). Commande REPL `:norm` opérationnelle.
 - **2026-10-01** : Nettoyage massif du pipeline logique (~1500 lignes supprimées : term_bridge, typeo, evalo, legacy/).
 - **2026-10-01** : Stabilisation du build WASM (475 Ko en ReleaseSmall) et création du stub wasm32_wasi.zig.
-
----
 
 ## Noyau (Core IR)
 
@@ -55,7 +51,6 @@ Légende :
 |---|---|---|---|
 | HM inference (`lit`, `apply`, `sym`) | ✅ | `types.Infer` + 4 tests | — |
 | Arrow `a -> b` interne | ✅ | `Store.apply(sym("->"), …)` | — |
-||Affichage arrow | ✅ | `typeStr` | — |
 | Types paramétrés (`Maybe a`) | ⚠️ | `evalDataDecl` | paramètre `a` ignoré à l'enregistrement |
 | Types dépendants (`Vec (succ n)`, `Vec (n+m)`) | ✅ | `evalDataDecl` + v2f (`unify_proof` + `simplifyStep`) | unification arithmétique complète (AC, succ, mul, identités, zero) |
 
@@ -94,15 +89,11 @@ désormais `(subst: N)` quand N > 0. **v2e reste préparatoire** :
 aucun body réaliste n'est affecté aujourd'hui (le body est parsé
 depuis une string utilisateur, jamais d'evar dedans).
 
-
 ## Récursion & ordre supérieur
 
 | Élément | Statut | Preuve | Limitation |
 |---|---|---|---|
 | Compréhensions `(for (x <- xs) [(when p)] e)` | ⚠️ | tests/comprehensions.hvn 10/12 | parseur de test λ : 2 échecs ; forme carrée = phase B |
-
-| Élément | Statut | Preuve | Limitation |
-|---|---|---|---|
 | Récursion simple | ✅ | `fact`, `add` | pas de TCO |
 | Récursion mutuelle | ✅ | `isEven`/`isOdd` | — |
 | Curryfication | ✅ | `Store.lambda` currifie | — |
@@ -193,7 +184,7 @@ depuis une string utilisateur, jamais d'evar dedans).
 
 ## Bibliothèque standard
 
-| Module | Statut | Note |
+| Élément | Statut | Note |
 |---|---|---|
 | `core/std/bool.hvn` | ⚠️ | clauses `not/and/or` OK ; `true`/`false` **sans corps** |
 | `core/std/list.hvn` | ⚠️ | clauses OK ; `nil`/`cons` **sans corps** |
@@ -209,18 +200,18 @@ depuis une string utilisateur, jamais d'evar dedans).
 
 Voir `docs/spec/_ontology.md` pour les decisions actees.
 
-| Element | Statut | Preuve | Limitation |
+| Élément | Statut | Preuve | Limitation |
 |---|---|---|---|
-| `algo_catalog.zig` (ex-`ontology.zig`) | stable | 3 tests `zig test` | composant a cote du Core, strings |
-| `ontology.zig` (squelette Phase 2) | partiel | 3 tests `zig test` | non branche dans `build.zig` |
-| Trust levels (asserted/derived/certified) | stable | test `trust filtering` | - |
-| Provenance (source, source_id, timestamp) | stable | present sur chaque Concept/Relation | - |
-| Subsomption is-a | stable | test `isA reflexive and transitive` | parent unique, pas de DAG |
-| Relations typees (5 kinds) | partiel | enum defini, non teste | pas de verif de coherence |
-| Projection vers `expr.Store` | absent | - | Phase 3 |
-| Emission SMT-LIB | absent | - | Phase 3 |
-| Integration MPST | absent | - | Phase 4 |
-| Commandes REPL (`:onto`) | absent | - | Phase 3+ |
+| `algo_catalog.zig` (ex-`ontology.zig`) | ✅ | 3 tests `zig test` | composant a cote du Core, strings |
+| `ontology.zig` (squelette Phase 2) | ⚠️ | 3 tests `zig test` | non branche dans `build.zig` |
+| Trust levels (asserted/derived/certified) | ✅ | test `trust filtering` | - |
+| Provenance (source, source_id, timestamp) | ✅ | present sur chaque Concept/Relation | - |
+| Subsomption is-a | ✅ | test `isA reflexive and transitive` | parent unique, pas de DAG |
+| Relations typees (5 kinds) | ⚠️ | enum defini, non teste | pas de verif de coherence |
+| Projection vers `expr.Store` | ❌ | - | Phase 3 |
+| Emission SMT-LIB | ❌ | - | Phase 3 |
+| Integration MPST | ❌ | - | Phase 4 |
+| Commandes REPL (`:onto`) | ❌ | - | Phase 3+ |
 
 Phases : 1 faite (`c651fa9`), 2 ce commit, 3 et 4 planifiees.
 
@@ -230,18 +221,18 @@ La couche Knowledge est distincte de `Expr` et ne constitue pas un
 second IR. Elle conserve ses propres identifiants (`KnowledgeId`) et
 n'est reliée a `Expr` que par des lowerings explicites.
 
-| Element | Statut | Preuve | Limitation |
+| Élément | Statut | Preuve | Limitation |
 |---|---|---|---|
-| Ressources URI / blank / literal | stable | `src/knowledge/resource.zig` | RDF minimal |
-| Triples | stable | `src/knowledge/triple.zig` | pas de quad/context |
-| Assertions | stable | `src/knowledge/assertion.zig` | confidence low/medium/high |
-| Provenance | stable | tests KnowledgeStore | sources enumerees |
-| Status asserted/imported/derived/inferred/certified | stable | `assertion.zig` | enum ferme |
-| KnowledgeStore | stable | `src/knowledge/store.zig` | stockage lineaire POC |
-| Plusieurs provenances pour un meme triple | stable | test Store | pas de deduplication |
-| RDFS `subClassOf` transitif | stable POC | `src/knowledge/rdfs.zig` | seul fragment RDFS implemente |
-| Fermeture non destructive | stable POC | test RDFS | resultat separe du Store |
-| Reflexivite implicite | absent volontairement | test RDFS | `A -> A` non ajoute |
+| Ressources URI / blank / literal | ✅ | `src/knowledge/resource.zig` | RDF minimal |
+| Triples | ✅ | `src/knowledge/triple.zig` | pas de quad/context |
+| Assertions | ✅ | `src/knowledge/assertion.zig` | confidence low/medium/high |
+| Provenance | ✅ | tests KnowledgeStore | sources enumerees |
+| Status asserted/imported/derived/inferred/certified | ✅ | `assertion.zig` | enum ferme |
+| KnowledgeStore | ✅ | `src/knowledge/store.zig` | stockage lineaire POC |
+| Plusieurs provenances pour un meme triple | ✅ | test Store | pas de deduplication |
+| RDFS `subClassOf` transitif | ✅ | `src/knowledge/rdfs.zig` | seul fragment RDFS implemente |
+| Fermeture non destructive | ✅ | test RDFS | resultat separe du Store |
+| Reflexivite implicite | ❌ | test RDFS | `A -> A` non ajoute |
 | Turtle | 🚧 | — | parseur a venir |
 | `rdf:type`, domain, range, subProperty | 🚧 | — | hors POC |
 | OWL / SPARQL | 🚧 | — | hors POC |
@@ -262,7 +253,6 @@ n'est reliée a `Expr` que par des lowerings explicites.
 Métriques mesurées : wall, cpu (RUSAGE_CHILDREN pour bench,
 RUSAGE_SELF pour interp), energy (RAPL package), temperature
 (thermal_zone0), RSS pic.
-
 Résultats de référence (`docs/spec/_bench.md`) :
 - `count_down 100000` : QBE **0.06 ms** / WASM 0.11 ms /
   interprète 3500 ms.
