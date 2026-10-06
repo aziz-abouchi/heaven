@@ -40,6 +40,11 @@ Deux fixes techniques structurels, plus 6 corrections documentaires.
    premier enregistrement user d'un nom, purge des clauses existantes.
    **`verify_book.hvn` passe de 41/43 a 43/43.**
 
+3. **REPL `for` sans parens** (commit `f20568a`).
+   `for (x <- L) B` tape au REPL n'etait pas detecte par le dispatch
+   (qui cherchait `(for `). Fix : detection de `for ` en tete, wrapper
+   en `(for ...)` avant passage a `desugarFor`.
+
 ### Fixes documentaires
 
 - `README.md` : QTT = cadre cible (pas GC effectif) ; acteurs
