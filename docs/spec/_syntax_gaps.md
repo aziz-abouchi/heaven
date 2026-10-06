@@ -153,22 +153,14 @@ CAF et avec Prolog pour les faits a 0 argument).
 - Fix `heaven_expr.zig:1656` : `(filter (λx. P) L)`.
 - Commit `5652ce9`.
 
-### Bug restant : take masque par le prelude
-- `core/std/list.hvn` enregistre `take zero _ = nil` au demarrage.
-  Quand l'user redefinit `take zero s = s`, sa clause s'ajoute en
-  queue et la clause prelude matche en premier -> `nil`.
-- Repro : `take zero s = s` puis `take zero 42` -> `nil` au lieu de `42`.
-- Non-regression : `head`, `reverse`, `map`, `filter`, `foldl` sont
-  aussi dans `list.hvn` mais **sans clause zero en tete**, donc pas
-  touches.
-- Zone : `heaven_expr.zig` — `evalEquation` (~1943) ne purge pas les
-  clauses prelude. `std_loader.loadAll` (~26) charge `list.hvn` puis
-  `stream.hvn`.
-- Fix propose (patch pret, non applique) : ajouter `prelude_loading: bool`
-  (true pendant init) + `user_redefined_names` set. Au 1er enregistrement
-  user d'un nom, purger `num_clauses` + `ctor_arity`. Les clauses
-  suivantes (multi-clause) s'appendent normalement.
-- Debloque : `verify_book.hvn` 43/43 (2 echecs `take` + `reverse`).
+### Corrige : take masque par le prelude
+- **Corrige le 2026-10-06.** `core/std/list.hvn` enregistrait
+  `take zero _ = nil` au demarrage, masquant les clauses user
+  ajoutees plus tard.
+- Fix : flag `prelude_loading` (true pendant init, false apres) +
+  set `user_redefined_names`. Au premier enregistrement user d'un nom,
+  purge `num_clauses` + `ctor_arity` ; les clauses suivantes s'appendent.
+- Debloque : `verify_book.hvn` 43/43 (vs 41/43).
 
 ### Bug restant : kanren query
 - `query features_parent Alice _` retourne `(query features_parent Alice <?>)` au lieu de `1`.
