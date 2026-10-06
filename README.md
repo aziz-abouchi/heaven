@@ -1,13 +1,15 @@
 # Heaven
 
 Un langage de programmation où tout ce que vous affirmez peut être prouvé,
-où le code se compile en natif et en WASM, et où la mémoire est gérée par
-le type system — pas par un garbage collector.
+où le code se compile en natif et en WASM, et dont la direction
+architecturale vise une gestion mémoire pilotée par le type system
+(QTT) plutôt que par un garbage collector.
 
 Heaven n'est pas un langage de plus. C'est une tentative de faire tenir
 ensemble trois choses que les langages modernes séparent : la rigueur d'un
 assistant de preuve (Coq, Lean), la légèreté d'un REPL (Lisp, Python), et
-la réactivité d'un système d'acteurs distribué (Erlang).
+une base pour un système d'acteurs (Erlang) — aujourd'hui séquentiel,
+distribué à terme.
 
 ---
 
@@ -35,11 +37,12 @@ interprété (environ 19 500x). isEven 100000000 (100M récursions mutuelles)
 tourne sans stack overflow — TCO self-tail et mutuelle (fusion SCC) sur les
 deux backends.
 
-4. Zéro GC. La mémoire est pilotée par QTT (Quantitative Type Theory) :
-chaque variable porte une multiplicité (0 effacée, 1 linéaire, ω libre).
-Les ressources linéaires sont libérées à la consommation, les autres vivent
-dans l'arène de l'acteur. Pas de pause GC, pas de scanning, pas de collecte
-imprévisible.
+4. [TARGET] Vers zéro GC. QTT (Quantitative Type Theory) est implémenté :
+chaque variable porte une multiplicité (0 effacée, 1 linéaire, ω libre),
+les violations sont détectées à l'élaboration. La stratégie de gestion
+mémoire déterministe qui en découle (libération à la consommation, arène
+d'acteur, pas de scanning) est l'architecture cible — en cours
+d'implémentation.
 
 5. Multi-syntaxes métier. La notation par défaut ressemble à un mélange
 d'Idris (types dépendants, sig head : (n : Nat) -> Vec (succ n) -> a) et
@@ -221,7 +224,8 @@ _concurrency.md, _continuations.md, _ontology.md, _bench.md, _serialize.md).
     zig build test-regression   # tests Heaven (core/test_suite.hvn)
     zig build test-files        # tests/*.hvn (multi-fichiers)
 
-Plus de 380 tests Zig et 95 tests Heaven passent aujourd'hui.
+380 tests Zig et 47 tests Heaven (fichiers `.hvn`) passent aujourd'hui
+(mesure 2026-10-06).
 
 ---
 
