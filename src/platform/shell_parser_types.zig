@@ -14,6 +14,7 @@ pub const Language = enum {
     pie,
     c,
     zig,
+    turtle,
 
     pub fn fromString(s: []const u8) ?Language {
         const map = .{
@@ -21,6 +22,7 @@ pub const Language = enum {
             .{ "pie", Language.pie },
             .{ "c", Language.c },
             .{ "zig", Language.zig },
+            .{ "turtle", Language.turtle },
         };
         inline for (map) |entry| {
             if (std.mem.eql(u8, s, entry[0])) return entry[1];
@@ -34,6 +36,7 @@ pub const Language = enum {
             .{ ".pie", Language.pie },
             .{ ".c", Language.c },
             .{ ".zig", Language.zig },
+            .{ ".ttl", Language.turtle },
         };
         inline for (map) |entry| {
             if (std.mem.eql(u8, ext, entry[0])) return entry[1];
@@ -47,6 +50,7 @@ pub const Language = enum {
             .pie => "pie",
             .c => "c",
             .zig => "zig",
+            .turtle => "turtle",
         };
     }
 };

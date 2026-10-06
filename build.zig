@@ -793,12 +793,28 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const turtle_parser_mod = b.createModule(.{
+        .root_source_file = b.path("src/knowledge/turtle_parser.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const triple_store_mod = b.createModule(.{
+        .root_source_file = b.path("src/knowledge/triple_store.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "turtle_parser", .module = turtle_parser_mod },
+        },
+    });
+
     const agent_mod = b.addModule("agent", .{
         .root_source_file = b.path("src/runtime/agent/agent.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
             .{ .name = "platform", .module = platform_mod },
+            .{ .name = "triple_store", .module = triple_store_mod },
+            .{ .name = "turtle_parser", .module = turtle_parser_mod },
         },
     });
 
@@ -808,6 +824,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     platform_mod.addImport("shell_parser_types", shell_parser_types_mod);
+
+
 
     const shell_parser_mod = b.createModule(.{
         .root_source_file = b.path("src/parsing/shell_parser.zig"),
@@ -937,6 +955,8 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "bridge_expr", .module = bridge_mod },
             .{ .name = "shell_parser", .module = shell_parser_mod },
+            .{ .name = "triple_store", .module = triple_store_mod },
+            .{ .name = "turtle_parser", .module = turtle_parser_mod },
             .{ .name = "engine_expr", .module = engine_expr_mod },
             .{ .name = "codegen_expr_c", .module = codegen_expr_c_mod },
             .{ .name = "codegen_expr_js", .module = codegen_expr_js_mod },
@@ -1129,6 +1149,8 @@ pub fn build(b: *std.Build) void {
                     .{ .name = "lowering", .module = lowering_mod },
                     .{ .name = "matrix_lib", .module = matrix_mod },
                     .{ .name = "platform", .module = platform_mod },
+                    .{ .name = "triple_store", .module = triple_store_mod },
+                    .{ .name = "turtle_parser", .module = turtle_parser_mod },
                     .{ .name = "proof", .module = proof_mod },
                     .{ .name = "skill", .module = skill_mod },
                     .{ .name = "synthesis", .module = synthesis_mod },

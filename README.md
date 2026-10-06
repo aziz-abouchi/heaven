@@ -235,7 +235,7 @@ _concurrency.md, _continuations.md, _ontology.md, _bench.md, _serialize.md).
 
     zig build test              # tests unitaires Zig (<!-- DOCGEN:tests_zig -->381<!-- /DOCGEN -->)
     zig build test-regression   # tests Heaven core (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN -->)
-    zig build test-files        # tests/*.hvn, <!-- DOCGEN:test_files_count -->9<!-- /DOCGEN --> fichiers (<!-- DOCGEN:test_files -->37/37<!-- /DOCGEN -->)
+    zig build test-files        # tests/*.hvn, <!-- DOCGEN:test_files_count -->10<!-- /DOCGEN --> fichiers (<!-- DOCGEN:test_files -->37/37<!-- /DOCGEN -->)
 
 <!-- DOCGEN:tests_zig -->381<!-- /DOCGEN --> tests Zig passent, ainsi que
 <!-- DOCGEN:tests_heaven -->135<!-- /DOCGEN --> tests Heaven

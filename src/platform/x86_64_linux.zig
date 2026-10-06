@@ -333,6 +333,7 @@ pub const MultiParser = union(shell_parser_types.Language) {
     pie: shell_parser_types.TreeSitterParser(ts, tree_sitter_pie),
     c: shell_parser_types.TreeSitterParser(ts, tree_sitter_c),
     zig: shell_parser_types.TreeSitterParser(ts, tree_sitter_zig),
+    turtle: void,  // Pas de parser tree-sitter pour turtle, géré séparément
 
     pub fn init(alloc: std.mem.Allocator, lang: shell_parser_types.Language) shell_parser_types.ParseError!MultiParser {
         return switch (lang) {
@@ -340,24 +341,37 @@ pub const MultiParser = union(shell_parser_types.Language) {
             .pie => .{ .pie = try shell_parser_types.TreeSitterParser(ts, tree_sitter_pie).init(alloc) },
             .c => .{ .c = try shell_parser_types.TreeSitterParser(ts, tree_sitter_c).init(alloc) },
             .zig => .{ .zig = try shell_parser_types.TreeSitterParser(ts, tree_sitter_zig).init(alloc) },
+            .turtle => .{ .turtle = {} },  // Jamais utilisé, turtle est géré avant
         };
     }
 
     pub fn parse(self: *MultiParser, source: []const u8) shell_parser_types.ParseError!shell_parser_types.Matrix {
         return switch (self.*) {
-            inline else => |*p| p.parse(source),
+            .heaven => |*p| p.parse(source),
+            .pie => |*p| p.parse(source),
+            .c => |*p| p.parse(source),
+            .zig => |*p| p.parse(source),
+            .turtle => error.NotSupported,  // Turtle est géré séparément
         };
     }
 
     pub fn reset(self: *MultiParser) void {
         switch (self.*) {
-            inline else => |*p| p.reset(),
+            .heaven => |*p| p.reset(),
+            .pie => |*p| p.reset(),
+            .c => |*p| p.reset(),
+            .zig => |*p| p.reset(),
+            .turtle => {},  // Rien à faire
         }
     }
 
     pub fn deinit(self: *MultiParser) void {
         switch (self.*) {
-            inline else => |*p| p.deinit(),
+            .heaven => |*p| p.deinit(),
+            .pie => |*p| p.deinit(),
+            .c => |*p| p.deinit(),
+            .zig => |*p| p.deinit(),
+            .turtle => {},  // Rien à libérer
         }
     }
 };
