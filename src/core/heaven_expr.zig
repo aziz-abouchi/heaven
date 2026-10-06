@@ -150,6 +150,11 @@ pub const Heaven = struct {
     last_eq_lhs: ?[]const u8 = null,
     /// Registre des types de données (v0 #type-dep).
     type_registry: type_registry_mod.TypeRegistry,
+    /// Alias de type (`type Nom = String`). Clé = nom, valeur = cible
+    /// sous forme de texte. Resolution : dans `evalTypeExpr`, si `src`
+    /// est une clé, sa valeur est retournée. Pas de resolution profonde
+    /// (dans les signatures) pour l'instant — chantier.
+    type_aliases: std.StringHashMapUnmanaged([]const u8) = .{},
     /// Pile de modules en cours de chargement — détection de cycles.
     loading_modules: std.ArrayListUnmanaged([]const u8) = .{},
     /// v3a : mode strict opt-in. Quand actif, les définitions faites
@@ -528,6 +533,14 @@ pub const Heaven = struct {
         self.imported_files.deinit(self.allocator);
         self.kanren.deinit();
         self.type_registry.deinit();
+        {
+            var alias_it = self.type_aliases.iterator();
+            while (alias_it.next()) |e| {
+                self.allocator.free(e.key_ptr.*);
+                self.allocator.free(@constCast(e.value_ptr.*));
+            }
+        }
+        self.type_aliases.deinit(self.allocator);
         self.hole_state.deinit();
     }
 
@@ -656,6 +669,23 @@ pub const Heaven = struct {
         // tombent dans l'evaluator qui ne les connaît pas et renvoie l'entrée brute.
         if (std.mem.startsWith(u8, trimmed, "type ")) {
             const inner = std.mem.trim(u8, trimmed["type ".len..], " \t");
+            // Distinction : `type Nom = Cible` (alias) vs `type expr`
+            // (inference). Pour un alias, `Nom` doit etre un identifiant
+            // simple (pas d'espace, pas de parens).
+            if (std.mem.indexOf(u8, inner, " = ")) |eq_pos| {
+                const name = std.mem.trim(u8, inner[0..eq_pos], " \t");
+                const target = std.mem.trim(u8, inner[eq_pos + 3 ..], " \t");
+                var name_ok = name.len > 0;
+                for (name) |c| {
+                    if (!std.ascii.isAlphanumeric(c) and c != '_') {
+                        name_ok = false;
+                        break;
+                    }
+                }
+                if (name_ok and target.len > 0) {
+                    return self.evalTypeAlias(name, target);
+                }
+            }
             return self.evalTypeExpr(inner);
         }
         if (std.mem.startsWith(u8, trimmed, "green ")) {
@@ -3265,7 +3295,31 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         return self.parseExpression(s);
     }
 
+    /// `type Nom = Cible` : enregistre un alias de type. La cible est
+    /// stockee en texte (peut etre un type primitif, une application,
+    /// un autre alias). Pas de verification de validite.
+    fn evalTypeAlias(self: *Heaven, name: []const u8, target: []const u8) HeavenError![]u8 {
+        const key = try self.allocator.dupe(u8, name);
+        const val = try self.allocator.dupe(u8, target);
+        const gop = try self.type_aliases.getOrPut(self.allocator, key);
+        if (gop.found_existing) {
+            self.allocator.free(key);
+            self.allocator.free(@constCast(gop.value_ptr.*));
+        }
+        gop.value_ptr.* = val;
+        return std.fmt.allocPrint(
+            self.allocator,
+            "\u{2713} type {s} = {s}",
+            .{ name, target },
+        );
+    }
+
     pub fn evalTypeExpr(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        // 0. Resolution alias : si `src` est un alias connu, retourner
+        //    directement sa cible.
+        if (self.type_aliases.get(src)) |target| {
+            return self.allocator.dupe(u8, target);
+        }
         // 1. Parser puis LOWER → l'inféreur n'accepte que les 6 primitives
         //    (sinon typeOf renvoie error.ExtensionNotLowered, cf. types.zig:323)
         const raw = try self.parseExpression(src);
