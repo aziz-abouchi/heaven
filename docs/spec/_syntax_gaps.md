@@ -235,6 +235,21 @@ la doc et le code, releves le 2026-10-06.
 - Fix possible : soit migrer `codegen_c` vers Expr (chantier),
   soit retirer `:toc` du shell (10 min).
 
+### Cibles cross-compile : support reel
+
+| Cible | Etat | Raison |
+|---|---|---|
+| `x86_64-linux` | ✅ | cible native |
+| `x86_64-macos` | ✅ | POSIX compatible |
+| `wasm32-freestanding` | ✅ | routing vers wasm.zig |
+| `wasm32-wasi` | ⚠️ | meme code que freestanding (pas de libc WASI) |
+| `aarch64-macos` | ❌ | TCC arm64 incomplet + code Linux-only |
+| `x86_64-windows` | ❌ | TCC non compile sur Windows |
+
+Avant la dedup (commit precedent), `aarch64_macos.zig` existait
+mais etait byte-identique a `x86_64_linux.zig` (`posix.fork`,
+`/proc/self/exe`). La cible n'a donc **jamais compile** sur macOS.
+
 ## Priorite
 
 | Gap | Impact | Effort estime |

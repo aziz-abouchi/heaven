@@ -30,11 +30,21 @@ pub fn build(b: *std.Build) void {
     options.addOptionPath("qbe_path", .{ .cwd_relative = b.pathFromRoot("vendor/qbe-1.2/qbe") });
 
     // 2. Module platform
-    // Formate dynamiquement le chemin : ex. "src/platform/wasm32_wasi.zig" ou "src/platform/aarch64_macos.zig"
-    const platform_file = b.fmt("src/platform/{s}_{s}.zig", .{
-        @tagName(target.result.cpu.arch),
-        @tagName(target.result.os.tag),
-    });
+    // Note : plusieurs cibles partagent le meme fichier (voir docs/spec/_syntax_gaps.md).
+    // Cibles routees :
+    //   wasm32-*  -> wasm.zig          (freestanding ET wasi)
+    //   aarch64-* -> x86_64_linux.zig  (macOS, POSIX)
+    //   autres    -> <arch>_<os>.zig
+    const platform_file = blk: {
+        if (target.query.cpu_arch == .wasm32)
+            break :blk "src/platform/wasm.zig";
+        if (target.query.cpu_arch == .aarch64 and target.result.os.tag == .macos)
+            break :blk "src/platform/x86_64_linux.zig";
+        break :blk b.fmt("src/platform/{s}_{s}.zig", .{
+            @tagName(target.result.cpu.arch),
+            @tagName(target.result.os.tag),
+        });
+    };
 
     const platform_mod = b.createModule(.{
         .root_source_file = b.path(platform_file),
@@ -53,8 +63,12 @@ pub fn build(b: *std.Build) void {
         platform_mod.addIncludePath(b.path("vendor/tree-sitter-zig/src"));
     }
 
-    // ─── TCC : bibliothèque statique (uniquement sur Linux/macOS) ───
-    const tcc_lib = if (target.query.cpu_arch != .wasm32 and !isWindows(target)) blk: {
+    // ─── TCC : bibliothèque statique (uniquement x86_64 non-Windows) ───
+    // Note : le support arm64 de TCC (vendor/tcc/arm64-*.c) est
+    // incomplet et ne compile pas (ARM64_STP_X_PRE, etc. non definis).
+    // Voir docs/spec/_syntax_gaps.md.
+    const tcc_supported = target.query.cpu_arch == .x86_64 and !isWindows(target);
+    const tcc_lib = if (tcc_supported) blk: {
         const lib = b.addLibrary(.{
             .name = "tcc",
             .linkage = .static,
@@ -80,12 +94,9 @@ pub fn build(b: *std.Build) void {
         lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccrun.c"), .flags = cflags });
         lib.addCSourceFile(.{ .file = b.path("vendor/tcc/tccdbg.c"), .flags = cflags });
 
-        // Architecture : UNE SEULE (selon la cible)
-        if (arch == .aarch64) {
-            lib.addCSourceFile(.{ .file = b.path("vendor/tcc/arm64-gen.c"), .flags = cflags });
-            lib.addCSourceFile(.{ .file = b.path("vendor/tcc/arm64-link.c"), .flags = cflags });
-            lib.addCSourceFile(.{ .file = b.path("vendor/tcc/arm64-asm.c"), .flags = cflags });
-        } else if (arch == .x86_64) {
+        // Architecture : x86_64 uniquement (tcc_supported garantit
+        // deja arch == .x86_64, cf la condition plus haut).
+        if (arch == .x86_64) {
             lib.addCSourceFile(.{ .file = b.path("vendor/tcc/x86_64-gen.c"), .flags = cflags });
             lib.addCSourceFile(.{ .file = b.path("vendor/tcc/x86_64-link.c"), .flags = cflags });
             lib.addCSourceFile(.{ .file = b.path("vendor/tcc/i386-asm.c"), .flags = cflags });
