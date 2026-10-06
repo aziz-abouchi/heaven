@@ -209,14 +209,63 @@ par exemple sous la forme conceptuelle :
 Le reasoner pourra utiliser `sameAs` pour une requete sans effacer les
 faits originaux.
 
+## Charger du Turtle en pratique
+
+Depuis octobre 2026, un parser Turtle (`src/knowledge/turtle_parser.zig`)
+alimente un `TripleStore` global (`src/knowledge/triple_store.zig`).
+Syntaxe supportee :
+
+- `@prefix` : declaration de prefixes (`@prefix ex: <...> .`)
+- `<iri>` et `prefix:local` : IRI completes ou prefixees
+- `"litteral"`, `123`, `true`/`false` : litteraux types
+- `_:label` : blank nodes nommes
+- `;` : meme sujet, predicats multiples
+- `,` : plusieurs objets pour un meme predicat
+- `a` : raccourci pour `rdf:type`
+- `( i1 i2 )` : collections RDF (sucrees en `rdf:first`/`rdf:rest`)
+
+Commandes REPL :
+
+    :load fichier.ttl                    -- charge un document Turtle
+    :triple-count                        -- nombre de triplets charges
+    :triples                             -- liste tous les triplets
+    :triple-query <subject-iri>          -- tous les triplets d'un sujet
+
+Exemple :
+
+    @prefix foaf: <http://xmlns.com/foaf/0.1/> .
+    @prefix ex: <http://example.org/> .
+
+    ex:Alice a foaf:Person ;
+        foaf:name "Alice Dupont" ;
+        foaf:knows ex:Bob, ex:Charlie .
+
+Charge avec `:load family.ttl` puis interroge avec
+`:triple-query http://example.org/Alice`.
+
+## Charger du Prolog en pratique
+
+Un moteur Prolog (`src/runtime/prolog.zig`) est expose au REPL depuis
+octobre 2026 :
+
+    :p-fact parent(alice, bob)           -- ajoute un fait
+    :p-rule grandparent(X, Z) :- parent(X, Y), parent(Y, Z)
+                                         -- ajoute une regle Horn
+    ?- grandparent(alice, charlie)       -- requete
+    ?- parent(alice, X)                  -- requete avec variable
+
+Les variables commencent par une majuscule. Le backtracking retourne
+toutes les solutions (une par ligne).
+
+Limites actuelles : pas de recursion, pas de chargement de fichiers
+`.pl`. Le backend reste Matrix (D9 futur).
+
 ## Ce qui n'est pas encore la
 
 Le POC ne fournit pas encore :
 
-- de parser Turtle ;
 - de SPARQL ;
 - OWL ;
-- `rdf:type` ;
 - `rdfs:domain` ;
 - `rdfs:range` ;
 - `rdfs:subPropertyOf`.

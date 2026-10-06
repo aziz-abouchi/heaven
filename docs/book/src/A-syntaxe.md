@@ -237,7 +237,9 @@ Pour une factorielle, utilisez `fac` (voir chapitre 4).
 
 ### Logique (Prolog)
 
-    ?- goal                              -- requête Prolog
+    :p-fact pred(arg1, arg2)             -- ajoute un fait
+    :p-rule head(args) :- b1, b2         -- ajoute une regle Horn
+    ?- goal                              -- requete Prolog
 
 ### Agent IA
 
