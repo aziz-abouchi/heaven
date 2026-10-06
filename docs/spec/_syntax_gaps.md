@@ -250,6 +250,25 @@ Avant la dedup (commit precedent), `aarch64_macos.zig` existait
 mais etait byte-identique a `x86_64_linux.zig` (`posix.fork`,
 `/proc/self/exe`). La cible n'a donc **jamais compile** sur macOS.
 
+### Limitation : autofab/JIT est x86_64-only
+- `src/runtime/autofab.zig` utilise l'API JIT de libtcc
+  (`tcc_new`, `tcc_compile_string`, `tcc_relocate`, `tcc_add_symbol`,
+  `tcc_get_symbol`) pour compiler et executer du C en memoire.
+- TCC ne compile que sur x86_64-linux/macos. Sur les autres cibles,
+  `tcc_stub.c` retourne NULL -> `error.TccInitFailed`.
+- Autofab est utilise par : `main.zig`, `runtime/heaven.zig`
+  (5 sites), `shell/init.zig`, `vessel/bridge.zig`.
+- **Impact** : sur aarch64-macos, wasm32-*, x86_64-windows, les
+  commandes qui passent par autofab (forge/JIT) echouent
+  proprement. Le reste du langage fonctionne.
+
+### Chantier futur : remplacer TCC
+- Candidats JIT multi-plateforme : Cranelift (Apache 2.0, Rust),
+  libgccjit (GPL), LLVM ORC (Apache 2.0).
+- Contrainte : `tcc_add_symbol` (injection de symboles natifs) doit
+  avoir un equivalent. Les trois candidats le supportent.
+- Effort : 2-4 sessions. Pas urgent.
+
 ## Priorite
 
 | Gap | Impact | Effort estime |
