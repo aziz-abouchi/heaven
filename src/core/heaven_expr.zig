@@ -2443,18 +2443,31 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         return self.allocator.dupe(u8, src);
     }
     pub fn toLaTeXInline(self: *Heaven, id: Id) HeavenError![]u8 {
-        _ = id;
-        return self.allocator.dupe(u8, "");
+        const cmds = self.ensureCommands() orelse
+            return self.allocator.dupe(u8, "% LaTeX unavailable");
+        return cmds.toLaTeXInline(id) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
     pub fn explain(self: *Heaven, src: []const u8) HeavenError![]u8 {
         return self.allocator.dupe(u8, src);
     }
     pub fn describeKB(self: *Heaven) HeavenError![]u8 {
-        return self.allocator.dupe(u8, "KB: stub");
+        const cmds = self.ensureCommands() orelse
+            return self.allocator.dupe(u8, "KB: commands unavailable");
+        return cmds.describeKB() catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
     pub fn toC(self: *Heaven, ids: []const Id) HeavenError![]u8 {
-        _ = ids;
-        return self.allocator.dupe(u8, "// stub");
+        const cmds = self.ensureCommands() orelse
+            return self.allocator.dupe(u8, "// commands unavailable");
+        return cmds.toC(ids) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
     pub fn derive(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
         // Utiliser parseExpression (gère ^, *, +, -, /)
@@ -2570,9 +2583,12 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         return self.allocator.dupe(u8, "✗ commands unavailable");
     }
     pub fn substExpr(self: *Heaven, expression: []const u8, var_name: []const u8, val: []const u8) HeavenError![]u8 {
-        _ = var_name;
-        _ = val;
-        return self.allocator.dupe(u8, expression);
+        const cmds = self.ensureCommands() orelse
+            return self.allocator.dupe(u8, expression);
+        return cmds.substExpr(expression, var_name, val) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            else => error.EvaluationFailed,
+        };
     }
 
     pub fn listRules(self: *Heaven) HeavenError![]u8 {
@@ -2617,9 +2633,14 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         return self.allocator.dupe(u8, "");
     }
     pub fn addRewrite(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
-        _ = lhs;
-        _ = rhs;
-        return self.allocator.dupe(u8, "");
+        const lhs_id = self.parseExpression(lhs) catch
+            return std.fmt.allocPrint(self.allocator, "\u{2717} parse error lhs: {s}", .{lhs});
+        const rhs_id = self.parseExpression(rhs) catch
+            return std.fmt.allocPrint(self.allocator, "\u{2717} parse error rhs: {s}", .{rhs});
+        self.addRule(lhs_id, rhs_id) catch |err| {
+            return std.fmt.allocPrint(self.allocator, "\u{2717} addRule error: {}", .{err});
+        };
+        return std.fmt.allocPrint(self.allocator, "\u{2713} rewrite: {s} => {s}", .{ lhs, rhs });
     }
     pub fn evaluateExpr(self: *Heaven, id: Id) HeavenError!Id {
         if (platform.target.is_debug and id == 0xAAAAAAAA) {
