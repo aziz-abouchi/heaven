@@ -222,6 +222,19 @@ la doc et le code, releves le 2026-10-06.
 - **Tree-sitter** : accepte `<a>` depuis la regen du `.so`
   (`make` dans `vendor/tree-sitter-heaven/`).
 
+### Bug : codegen_c non migre -> :toc casse
+- `:toc <expr>` au REPL remonte `error.ArityMismatch`.
+- Cause : `codegen_c.generate` (src/codegen/c.zig) est un stub
+  `"/* codegen: not yet migrated to Expr */"`. Le vrai chemin
+  passe par `Commands.toC` -> `format_ops.toC` -> `codegen_c`,
+  qui attend des expressions pures mais recoit un `.bind`.
+- Avant le fix des stubs (commit precedent), `:toc` retournait
+  `"// stub"` — il ne marchait pas non plus, il mentait.
+- Impact : faible. Les backends utilisables sont QBE et WASM
+  (`compile-qbe`, `compile-wasm`). `:toc` est legacy.
+- Fix possible : soit migrer `codegen_c` vers Expr (chantier),
+  soit retirer `:toc` du shell (10 min).
+
 ## Priorite
 
 | Gap | Impact | Effort estime |
