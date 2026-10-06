@@ -184,6 +184,44 @@ CAF et avec Prolog pour les faits a 0 argument).
   `✓ fact 5 (0 arg(s))` au lieu de `120`.
 - Zone : `defs.zig` (evalEquation) vs `parse.zig`.
 
+## Ecarts documentaires (non techniques)
+
+Ces points ne sont pas des bugs du langage mais des divergences entre
+la doc et le code, releves le 2026-10-06.
+
+### README : honnetete factuelle
+- **Corrige** (commit `6d986c7`) :
+  - Accroche : QTT vise une strategie memoire sans GC, pas un GC effectif.
+  - Acteurs : sequentiels aujourd'hui, distribues a terme.
+  - Point 4 marque `[TARGET]`.
+  - Tests : 47 tests Heaven (fichiers `.hvn`), pas 95.
+
+### STATUS : lambda fleche
+- **Corrige** : `λx -> body`, `λ(x,y) =>`, `λx y z.` supportes depuis
+  `4e606c1` (la doc les donnait absents).
+
+### GRAMMAR.md : "miroir exact"
+- **Corrige** : le doc pretendait etre genere depuis `grammar.js`.
+  Ecrit a la main. Reformule : `grammar.js` fait foi.
+
+### Reste a auditer
+- `HEAVEN_ARCHITECTURE_2026.md` (3 mois sans MAJ)
+- `HEAVEN.md` (11 lignes, 3 juin)
+- `PROMPT_CONTINUITE.md` (16 KB, 2 oct. — pas resynchronise apres les
+  6 fixes du 2026-10-05)
+- `docs/book/src/10-under-the-hood.md` (utilise `data List<a>`, non
+  supporte par le REPL — voir Gap "evalDataDecl" ci-dessous)
+- `docs/book/src/02`, `03` : idem pour `List<a>`
+
+### Gap ouvert : evalDataDecl generiques `<a>`
+- **REPL** : `data List<a> = ...` enregistre `"List<a>"` littéral avec
+  0 param, **silencieusement**.
+- **Tree-sitter** : accepte `<a>` depuis la regen du `.so`
+  (`make` dans `vendor/tree-sitter-heaven/`).
+- **A faire** : parser `<a>` dans `evalDataDecl` (nom + params) et
+  propager les params dans `parseExpression` côté types d'arguments
+  (`Cons a (List<a>)`).
+
 ## Priorite
 
 | Gap | Impact | Effort estime |
