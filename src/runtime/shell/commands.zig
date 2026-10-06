@@ -1,5 +1,6 @@
 const std = @import("std");
 const Shell = @import("init.zig").Shell;
+const triple_store_lib = @import("triple_store");
 const session_lib = @import("../../runtime/session.zig");
 const eval = @import("eval.zig");
 const utils = @import("utils.zig");
@@ -133,8 +134,35 @@ pub fn cmdQuery(self: *Shell, name: []const u8) void {
     _ = name;
 }
 
-pub fn cmdLoad(self: *Shell, arg: ?[]const u8) void {
-    const path = arg orelse return;
+pub fn cmdLoad(self: *Shell, input: []const u8) void {
+    const path = std.mem.trim(u8, input, " \t");
+    if (path.len == 0) {
+        platform.debug.print("Usage: :load <file.hvn|file.ttl>\n", .{});
+        return;
+    }
+
+    // Détection des fichiers Turtle (.ttl)
+    const ext = platform.fs.path.extension(path);
+    if (std.mem.eql(u8, ext, ".ttl")) {
+        const file = platform.fs.cwd().openFile(path, .{}) catch {
+            platform.debug.print("error: cannot open {s}\n", .{path});
+            return;
+        };
+        defer file.close();
+        const ttl_content = file.readToEndAlloc(self.allocator, std.math.maxInt(usize)) catch {
+            platform.debug.print("error: cannot read {s}\n", .{path});
+            return;
+        };
+        defer self.allocator.free(ttl_content);
+        
+        const count = self.triple_store.addTurtle(ttl_content) catch {
+            platform.debug.print("error: parse failed for {s}\n", .{path});
+            return;
+        };
+        platform.debug.print("✓ loaded {d} triples from {s}\n", .{ count, path });
+        return;
+    }
+    
     self.ingestor.ingest(path, "") catch return;
     self.prolog.loaded = false;
 }
@@ -1226,6 +1254,15 @@ pub fn cmdParseFile(self: *Shell, path: []const u8) void {
     };
     defer self.allocator.free(content);
 
+    if (lang == .turtle) {
+        const count = self.triple_store.addTurtle(content) catch {
+            platform.debug.print("parse failed for {s}\n", .{path});
+            return;
+        };
+        platform.debug.print("✓ loaded {d} triples from {s}\n", .{count, path});
+        return;
+    }
+
     if (lang == .heaven) {
         const id = self.heaven.importExpr(content) catch {
             platform.debug.print("parse failed for {s}\n", .{path});
@@ -1252,6 +1289,7 @@ pub fn cmdParseFile(self: *Shell, path: []const u8) void {
         .zig => @import("mlcpd").FileMetadata.Language.c,
         .pie => @import("mlcpd").FileMetadata.Language.unknown,
         .heaven => unreachable,
+        .turtle => unreachable,  // Intercepté avant d'arriver ici
     };
     const heaven_id = universal.translate(&matrix, mlcpd_lang) catch {
         platform.debug.print("translation failed for {s}\n", .{@tagName(lang)});
@@ -1322,6 +1360,7 @@ pub fn cmdTranslateAndDump(self: *Shell, path: []const u8) void {
         .zig => @import("mlcpd").FileMetadata.Language.c,
         .pie => @import("mlcpd").FileMetadata.Language.unknown,
         .heaven => unreachable,
+        .turtle => unreachable,  // Intercepté avant d'arriver ici
     };
     const heaven_id = universal.translate(&matrix, mlcpd_lang) catch {
         platform.debug.print("translation failed for {s}\n", .{@tagName(lang)});
@@ -1374,6 +1413,13 @@ pub fn cmdParseFileWithLanguage(self: *Shell, path: []const u8) ![]u8 {
     };
     defer self.allocator.free(content);
 
+    if (lang == .turtle) {
+        const count = self.triple_store.addTurtle(content) catch {
+            return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{path});
+        };
+        return std.fmt.allocPrint(self.allocator, "✓ loaded {d} triples from {s}", .{count, path});
+    }
+
     if (lang == .heaven) {
         const id = self.heaven.importExpr(content) catch {
             return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{path});
@@ -1398,6 +1444,7 @@ pub fn cmdParseFileWithLanguage(self: *Shell, path: []const u8) ![]u8 {
         .zig => mlcpd_mod.FileMetadata.Language.c,
         .pie => mlcpd_mod.FileMetadata.Language.unknown,
         .heaven => unreachable,
+        .turtle => unreachable,  // Intercepté avant d'arriver ici
     };
 
     const heaven_id = universal.translate(&matrix, mlcpd_lang) catch {
@@ -1532,4 +1579,77 @@ pub fn cmdGreen(self: *Shell, input: []const u8) void {
     };
     defer self.allocator.free(result);
     platform.debug.print("{s}\n", .{result});
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Commandes REPL pour Knowledge (Turtle/RDF)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+pub fn cmdTripleCount(self: *Shell) void {
+    const count = self.triple_store.count();
+    platform.debug.print("TripleStore: {d} triplets chargés\n", .{count});
+}
+
+pub fn cmdTriples(self: *Shell) void {
+    const triples = self.triple_store.getAll();
+    if (triples.len == 0) {
+        platform.debug.print("(aucun triplet chargé)\n", .{});
+        return;
+    }
+    platform.debug.print("=== {d} triplets ===\n", .{triples.len});
+    for (triples, 0..) |triple, i| {
+        platform.debug.print("  [{d}] ", .{i});
+        switch (triple.subject) {
+            .iri => |iri| platform.debug.print("{s}", .{iri}),
+            .blank_node => |bn| platform.debug.print("_:{s}", .{bn}),
+            .literal => |lit| platform.debug.print("\"{s}\"", .{lit.value}),
+        }
+        platform.debug.print(" ", .{});
+        switch (triple.predicate) {
+            .iri => |iri| platform.debug.print("{s}", .{iri}),
+            .blank_node => |bn| platform.debug.print("_:{s}", .{bn}),
+            .literal => |lit| platform.debug.print("\"{s}\"", .{lit.value}),
+        }
+        platform.debug.print(" ", .{});
+        switch (triple.object) {
+            .iri => |iri| platform.debug.print("{s}", .{iri}),
+            .blank_node => |bn| platform.debug.print("_:{s}", .{bn}),
+            .literal => |lit| platform.debug.print("\"{s}\"", .{lit.value}),
+        }
+        platform.debug.print(" .\n", .{});
+    }
+}
+
+pub fn cmdTripleQuery(self: *Shell, input: []const u8) void {
+    const subject_iri = std.mem.trim(u8, input, " \t");
+    if (subject_iri.len == 0) {
+        platform.debug.print("Usage: :triple-query <subject-iri>\n", .{});
+        return;
+    }
+    const results = self.triple_store.queryBySubject(subject_iri) catch {
+        platform.debug.print("Erreur lors de la requête\n", .{});
+        return;
+    };
+    defer self.allocator.free(results);
+    
+    if (results.len == 0) {
+        platform.debug.print("(aucun triplet pour {s})\n", .{subject_iri});
+        return;
+    }
+    platform.debug.print("=== {d} triplets pour {s} ===\n", .{ results.len, subject_iri });
+    for (results) |triple| {
+        platform.debug.print("  ", .{});
+        switch (triple.predicate) {
+            .iri => |iri| platform.debug.print("{s}", .{iri}),
+            else => platform.debug.print("?", .{}),
+        }
+        platform.debug.print(" ", .{});
+        switch (triple.object) {
+            .iri => |iri| platform.debug.print("{s}", .{iri}),
+            .blank_node => |bn| platform.debug.print("_:{s}", .{bn}),
+            .literal => |lit| platform.debug.print("\"{s}\"", .{lit.value}),
+        }
+        platform.debug.print(" .\n", .{});
+    }
 }

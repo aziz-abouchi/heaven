@@ -272,17 +272,6 @@ fn processLine(self: *Shell, line: []const u8, history: *history_mod.History) !b
                 // On sortira par le haut
                 return false;
             } else if (comptime std.mem.eql(u8, cmd_def.name, "run*")) {
-            } else if (comptime std.mem.eql(u8, cmd_def.name, "load")) {
-                if (args.len > 0) {
-                    const result = commands.cmdLoadFile(self, args) catch |err| {
-                        platform.debug.print("Error loading file: {}\n", .{err});
-                        return true;
-                    };
-                    defer self.allocator.free(result);
-                    platform.debug.print("{s}\n", .{result});
-                } else {
-                    platform.debug.print("Usage: load <file.hvn>\n", .{});
-                }
             } else {
                 const func = @field(commands, cmd_def.method);
                 const info = @typeInfo(@TypeOf(func));
