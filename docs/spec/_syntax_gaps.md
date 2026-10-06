@@ -309,19 +309,22 @@ que le doctest lineaire ne reproduit pas. Acceptes tels quels :
 
 ### Feature : alias de type (`type Nom = Cible`)
 
-**Implemente** (commit ef743b0) :
-- `type Nom = Cible` enregistre un alias.
+**Implemente** :
+- `type Nom = Cible` enregistre un alias (commit ef743b0).
 - `type Nom` retourne la cible.
 - Redefinition : derniere gagne.
+- Resolution dans `sig` (commit suivant) : `sig f : Nom -> Int`
+  est enregistre comme `String -> Int`. Alias chaine (A->B->Int)
+  fonctionne par composition.
 
 **Non implemente (chantier)** :
-- Resolution **profonde** : un alias n'est pas substitue dans les
-  signatures (`f : Nom -> Int` reste `Nom`, pas `String -> Int`),
-  ni dans les arguments de type (`List<Nom>` reste tel quel).
+- Resolution dans les arguments de type composes (`List<Nom>`
+  reste `List<Nom>`) et dans les expressions.
+- Resolution dans `data` (`data D = C Nom` reste tel quel).
 - Verification que la cible est un type valide : `type X = bidule`
   est accepte.
-- Effort : ~2-3h pour une resolution profonde dans `parseExpression`
-  ou `TypeRegistry`. Risque de regression moyen.
+- Effort : ~2h pour etendre `resolveAliasesInType` a d'autres
+  sites d'appel. Risque faible une fois le pattern valide.
 
 ## Priorite
 
