@@ -42,8 +42,10 @@ Légende :
 |---|---|---|---|
 | Infixe (`+ - * / % ^ == != < > <= >=`) | ✅ | `nativeToSExpr` + tests | — |
 | S-expression `(f a b)` | ✅ | `parseSExpr` (quote-aware) | — |
-| `λx.body`, `\x.body`, `(λx.body)` | ✅ | 2 tests Zig | **le `.`**, pas `λx -> body` |
-| `λx -> body` (flèche) | ❌ | — | notation non supportée |
+| `λx.body`, `\x.body` | ✅ | 2 tests Zig | — |
+| `λx => body`, `λx -> body` | ✅ | commit 4e606c1 | — |
+| `λ(x, y) => body` | ✅ | commit 4e606c1 | params entre parens |
+| `λx y z. body` | ✅ | commit 4e606c1 | multi-params nus |
 | `module X` | ⚠️ | `heaven_expr.zig::current_module` | v0 : theorem aliasé, fn/let à venir |
 | `import "path" as Name` | ✅ | `heaven_expr.zig::evalImport` | fn/let/theorem aliasés sous `Name.x` |
 
