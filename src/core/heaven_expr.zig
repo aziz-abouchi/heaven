@@ -407,16 +407,23 @@ pub const Heaven = struct {
             .{ "Succ", "succ" },
         };
         for (aliases) |pair| {
-            if (self.engine.fns.getPtr(pair[1])) |def| {
+            // Snapshot des clauses AVANT registerClause : celui-ci fait
+            // getOrPut sur engine.fns, qui peut reallouer et invalider
+            // tout getPtr. On copie les patterns+bodies.
+            var snapshot: [16]engine_expr.FunctionClause = undefined;
+            var n: u8 = 0;
+            if (self.engine.fns.get(pair[1])) |def| {
+                n = def.num_clauses;
                 var i: u8 = 0;
-                while (i < def.num_clauses) : (i += 1) {
-                    const clause = def.clauses[i];
-                    self.registerClause(
-                        pair[0],
-                        clause.patterns[0..clause.num_patterns],
-                        clause.body,
-                    ) catch {};
-                }
+                while (i < n) : (i += 1) snapshot[i] = def.clauses[i];
+            }
+            var i: u8 = 0;
+            while (i < n) : (i += 1) {
+                self.registerClause(
+                    pair[0],
+                    snapshot[i].patterns[0..snapshot[i].num_patterns],
+                    snapshot[i].body,
+                ) catch {};
             }
         }
     }

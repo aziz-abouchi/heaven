@@ -1198,8 +1198,11 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (actor_node.tag != .lit) return error.ActorIdNotLiteral;
         const actor_id_lit = store.lits.items[actor_node.aux];
         if (actor_id_lit != .int) return error.ActorIdNotLiteral;
-        const actor_ptr = engine.actors.getPtr(@intCast(actor_id_lit.int)) orelse return error.ActorNotFound;
-        const handler_node = store.get(actor_ptr.handler);
+        const actor_id_u32: u32 = @intCast(actor_id_lit.int);
+        const actor_ptr0 = engine.actors.getPtr(actor_id_u32) orelse return error.ActorNotFound;
+        const handler_id = actor_ptr0.handler;
+        const state_id = actor_ptr0.state;
+        const handler_node = store.get(handler_id);
 
         if (handler_node.tag == .sym) {
             const handler_name = store.interner.resolve(handler_node.payload);
@@ -1217,15 +1220,17 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
                     if (clause.num_patterns >= 1) {
                         const p1 = store.get(clause.patterns[0]);
-                        if (p1.tag == .sym) try new_env.put(p1.payload, actor_ptr.state);
+                        if (p1.tag == .sym) try new_env.put(p1.payload, state_id);
                     }
                     if (clause.num_patterns >= 2) {
                         const p2 = store.get(clause.patterns[1]);
                         if (p2.tag == .sym) try new_env.put(p2.payload, msg_val);
                     }
                     const new_state = try evaluate(store, &new_env, engine, clause.body, depth + 1);
-                    // platform.dbg("[DEBUG SEND] handler evaluated to: {d}\n", .{new_state});
-                    actor_ptr.state = new_state;
+                    // Re-getPtr : evaluate peut creer des acteurs (HashMap realloc).
+                    if (engine.actors.getPtr(actor_id_u32)) |p2| {
+                        p2.state = new_state;
+                    }
                     // platform.dbg("[DEBUG SEND] actor state updated to: {d}\n", .{actor_ptr.state});
                     return new_state;
                 }
@@ -1237,8 +1242,8 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             while (it.next()) |entry| {
                 try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
             }
-            var current_handler = actor_ptr.handler;
-            const args_to_bind = [_]Id{ actor_ptr.state, msg_val };
+            var current_handler = handler_id;
+            const args_to_bind = [_]Id{ state_id, msg_val };
             for (args_to_bind) |arg_val| {
                 const h_node = store.get(current_handler);
                 if (h_node.tag == .lambda) {
@@ -1248,7 +1253,9 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 }
             }
             const new_state = try evaluate(store, &new_env, engine, current_handler, depth + 1);
-            actor_ptr.state = new_state;
+            if (engine.actors.getPtr(actor_id_u32)) |p2| {
+                p2.state = new_state;
+            }
             return new_state;
         }
         return error.HandlerFailed;
@@ -1322,10 +1329,11 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const pid_lit = store.lits.items[pid_node.aux];
         if (pid_lit != .int) return error.ActorIdNotLiteral;
 
-        const proc = engine.processes.getPtr(@intCast(pid_lit.int)) orelse
+        const pid_u32: u32 = @intCast(pid_lit.int);
+        const proc0 = engine.processes.getPtr(pid_u32) orelse
             return error.ProcessNotFound;
 
-        const handler_val = proc.handler orelse return error.HandlerFailed;
+        const handler_val = proc0.handler orelse return error.HandlerFailed;
         const handler_node = store.get(handler_val);
         if (handler_node.tag != .sym) return error.HandlerFailed;
         const handler_name = store.interner.resolve(handler_node.payload);
@@ -1333,10 +1341,14 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (fn_def.num_clauses == 0) return error.HandlerFailed;
         const clause = fn_def.clauses[0];
 
-        var current_state: expr.Id = proc.state orelse 0;
+        var current_state: expr.Id = proc0.state orelse 0;
 
-        while (proc.mailbox.items.len > 0) {
-            const msg_val = proc.mailbox.orderedRemove(0);
+        // Boucle : re-getPtr a chaque tour (evaluate peut creer des
+        // processes, reallouant le HashMap).
+        while (true) {
+            const proc_cur = engine.processes.getPtr(pid_u32) orelse return error.ProcessNotFound;
+            if (proc_cur.mailbox.items.len == 0) break;
+            const msg_val = proc_cur.mailbox.orderedRemove(0);
 
             var new_env = Env.init(engine.allocator);
             defer new_env.deinit();
@@ -1357,7 +1369,9 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             current_state = try evaluate(store, &new_env, engine, clause.body, depth + 1);
         }
 
-        proc.state = current_state;
+        if (engine.processes.getPtr(pid_u32)) |p3| {
+            p3.state = current_state;
+        }
         return current_state;
     }
 
