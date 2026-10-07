@@ -337,6 +337,11 @@ pub fn main() !void {
         if (try test_runner.runTestDir(allocator, args[2])) requested_exit = 1;
         return;
     }
+    if (std.mem.eql(u8, args[1], "--eval-file") and args.len >= 3) {
+        const test_runner = @import("runtime/test_runner.zig");
+        try test_runner.runEvalFile(allocator, args[2]);
+        return;
+    }
     if (std.mem.eql(u8, args[1], "test") and args.len >= 3) {
         const test_cmd = @import("commands/test_cmd.zig");
         try test_cmd.runTest(allocator, &.{args[2]});

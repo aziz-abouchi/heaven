@@ -209,6 +209,45 @@ pub fn runTestFile(allocator: std.mem.Allocator, path: []const u8) !bool {
 /// tout le run — vécu x3 : verify_book, test_factorial, M2b.)
 /// Limite connue : pas de timeout — un fichier qui HANG hangue
 /// toujours le run (amélioration future : Child + alarm).
+/// Evalue chaque ligne d'un fichier .hvn et affiche le resultat de
+/// la derniere expression. Contrairement a `runTestFile`, pas de
+/// blocs `test "..."` -- tout est evalue. Utilise par `heaven run`.
+pub fn runEvalFile(allocator: std.mem.Allocator, path: []const u8) !void {
+    var heaven = heaven_expr_mod.Heaven.init(allocator) catch @panic("Failed to init Heaven");
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+
+    const file = try platform.fs.cwd().openFile(path, .{});
+    defer file.close();
+    const stat = try file.stat();
+    const file_content = try allocator.alloc(u8, stat.size);
+    defer allocator.free(file_content);
+    _ = try file.readAll(file_content);
+
+    var statements: std.ArrayListUnmanaged([]const u8) = .{};
+    defer statements.deinit(allocator);
+    try splitStatements(allocator, file_content, &statements);
+
+    var last: []const u8 = "";
+    for (statements.items) |stmt| {
+        if (isSkippable(stmt)) continue;
+        const payload = std.mem.trim(u8, stmt, " \t\r\n");
+        if (payload.len == 0) continue;
+        const result = heaven.eval(payload) catch |err| {
+            platform.debug.print("error: {}\n", .{err});
+            continue;
+        };
+        if (last.len > 0) allocator.free(@constCast(last));
+        last = result;
+    }
+    if (last.len > 0) {
+        platform.debug.print("{s}\n", .{last});
+        allocator.free(@constCast(last));
+    }
+}
+
 pub fn runTestDir(allocator: std.mem.Allocator, dir_path: []const u8) !bool {
     var dir = try platform.fs.cwd().openDir(dir_path, .{ .iterate = true });
     defer dir.close();
