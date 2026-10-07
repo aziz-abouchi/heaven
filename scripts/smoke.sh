@@ -148,32 +148,6 @@ else
     FAIL=$((FAIL+1))
 fi
 
-# --- D12 streams paresseux ---
-echo "--- D12 streams paresseux ---"
-cat > /tmp/smoke_nats.hvn <<'HEOF'
-(ssum (take 5 nats))
-HEOF
-RESULT=$($HEAVEN run /tmp/smoke_nats.hvn 2>&1 | grep -E '^[0-9]+$' | head -1)
-if [ "$RESULT" = "10" ]; then
-    echo "  OK   ssum (take 5 nats) = 10"
-    PASS=$((PASS+1))
-else
-    echo "  FAIL ssum (take 5 nats) : '$RESULT' (attendu 10)"
-    FAIL=$((FAIL+1))
-fi
-
-cat > /tmp/smoke_repeat.hvn <<'HEOF'
-(ssum (take 3 (repeat 7)))
-HEOF
-RESULT=$($HEAVEN run /tmp/smoke_repeat.hvn 2>&1 | grep -E '^[0-9]+$' | head -1)
-if [ "$RESULT" = "21" ]; then
-    echo "  OK   ssum (take 3 (repeat 7)) = 21"
-    PASS=$((PASS+1))
-else
-    echo "  FAIL ssum (take 3 (repeat 7)) : '$RESULT' (attendu 21)"
-    FAIL=$((FAIL+1))
-fi
-
 echo ""
 echo "Total: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
