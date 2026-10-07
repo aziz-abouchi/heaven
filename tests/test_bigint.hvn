@@ -1,0 +1,16 @@
+-- tests/test_bigint.hvn -- BigInt v0 (D17)
+
+test "from_int / to_int roundtrip": (to_int (from_int 12345)) == 12345
+test "from_int 0 -> BZero": (to_int (from_int 0)) == 0
+test "badd petits": (to_int (badd (from_int 12) (from_int 34))) == 46
+test "badd carry chain": (to_int (badd (from_int 999) (from_int 1))) == 1000
+test "badd 9999999999 + 1": (to_int (badd (from_int 9999999999) (from_int 1))) == 10000000000
+test "bsub 100 - 99": (to_int (bsub (from_int 100) (from_int 99))) == 1
+test "bsub 10000000000 - 1": (to_int (bsub (from_int 10000000000) (from_int 1))) == 9999999999
+test "bcmp equal": (bcmp (from_int 12345) (from_int 12345)) == 0
+test "bcmp less": (bcmp (from_int 12345) (from_int 12346)) == (- 0 1)
+test "bcmp greater": (bcmp (from_int 99999) (from_int 12345)) == 1
+test "from_string 12345": (to_int (from_string "12345")) == 12345
+test "from_string leading zeros": (to_int (from_string "007")) == 7
+test "HUGE: 10^26 + 1 > 10^26": (bcmp (badd (from_string "99999999999999999999999999") (from_string "1")) (from_string "99999999999999999999999999")) == 1
+test "HUGE: 10^26 - 1 + 1 = 10^26": (bcmp (badd (bsub (from_string "100000000000000000000000000") (from_string "1")) (from_string "1")) (from_string "100000000000000000000000000")) == 0
