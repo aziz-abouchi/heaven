@@ -196,6 +196,9 @@ pub const Tag = enum(u8) {
     sigma,
     pair,
 
+    // === Extension: thunk (laziness, D12) ===
+    thunk,
+
     pub fn isPrimitive(self: Tag) bool {
         return switch (self) {
             .lit, .sym, .apply, .bind, .lambda, .relation => true,
@@ -755,6 +758,13 @@ pub const Store = struct {
 
     pub fn int(self: *Store, val: i64) !Id {
         return self.lit(.{ .int = val });
+    }
+
+    /// Cree un noeud thunk (laziness v0, D12).
+    /// `payload` contient l'Id de l'expression non-evaluee.
+    pub fn thunk(self: *Store, expr_id: Id) !Id {
+        return self.addNode(.{ .tag = .thunk, .payload = expr_id, .aux = 0,
+                                .span_a = Span.EMPTY, .span_b = Span.EMPTY });
     }
 
     pub fn float(self: *Store, val: f64) !Id {

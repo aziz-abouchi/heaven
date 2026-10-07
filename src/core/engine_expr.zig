@@ -60,6 +60,17 @@ pub const Env = struct {
     pub fn delete(self: *Env, s: Sym) void {
         _ = self.bindings.remove(s);
     }
+
+    /// Snapshot des bindings (laziness v0, D12).
+    pub fn clone(self: *const Env, allocator: Allocator) !Env {
+        var new_env = Env.init(allocator);
+        errdefer new_env.deinit();
+        var it = self.bindings.iterator();
+        while (it.next()) |entry| {
+            try new_env.bindings.put(allocator, entry.key_ptr.*, entry.value_ptr.*);
+        }
+        return new_env;
+    }
 };
 
 pub const EvalError = error{
@@ -189,6 +200,11 @@ pub const Process = struct {
     }
 };
 
+pub const ThunkState = struct {
+    env: *Env,
+    forced: ?Id = null,
+};
+
 pub const Engine = struct {
     allocator: std.mem.Allocator,
     store: *Store,
@@ -208,6 +224,8 @@ pub const Engine = struct {
     /// pas de préemption, pas de distribution. Juste la
     /// communication pure spawn/tell/recv.
     processes: std.AutoHashMapUnmanaged(u32, Process) = .{},
+    /// Table des thunks actifs (laziness v0, D12).
+    thunks: std.AutoHashMapUnmanaged(Id, ThunkState) = .{},
     next_process_id: u32 = 0,
     green_call_count: u32 = 0,
     green_mode: bool = false,
@@ -251,6 +269,13 @@ pub const Engine = struct {
     }
 
     pub fn deinit(self: *Engine) void {
+        // Cleanup thunks (D12)
+        var _thunk_it = self.thunks.iterator();
+        while (_thunk_it.next()) |entry| {
+            entry.value_ptr.env.deinit();
+            self.allocator.destroy(entry.value_ptr.env);
+        }
+        self.thunks.deinit(self.allocator);
         var it = self.fns.iterator();
         while (it.next()) |entry| {
             platform.dbg("[fns.deinit] freeing key='{s}' addr={d}\n", .{ entry.key_ptr.*, @intFromPtr(entry.key_ptr.*.ptr) });
@@ -593,6 +618,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 
     return switch (node.tag) {
         .lit => id,
+        .thunk => id,  // thunk non force = valeur (D12)
         .sym => {
             const name = store.interner.resolve(node.payload);
             if (isFrontendExtension(name)) return error.ExtensionNotLowered;
@@ -764,7 +790,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -840,6 +866,27 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             return f(engine.heaven_ctx, store, args_snap);
         }
         return error.UnknownSymbol;
+    }
+
+    // ═══ LAZY (D12) ═══
+    if (std.mem.eql(u8, op, "delay")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const thunk_id = try store.thunk(args_snap[0]);
+        const captured = try engine.allocator.create(Env);
+        captured.* = try env.clone(engine.allocator);
+        try engine.thunks.put(engine.allocator, thunk_id, .{ .env = captured });
+        return thunk_id;
+    }
+    if (std.mem.eql(u8, op, "force")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const arg = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const node = store.get(arg);
+        if (node.tag != .thunk) return arg;
+        const state = engine.thunks.getPtr(arg) orelse return arg;
+        if (state.forced) |v| return v;
+        const v = try evaluate(store, state.env, engine, node.payload, depth + 1);
+        state.forced = v;
+        return v;
     }
 
     // ═══ RAW SYSCALL — court-circuite Zig std (Path A) ═══

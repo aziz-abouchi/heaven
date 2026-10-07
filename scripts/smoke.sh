@@ -122,6 +122,32 @@ else
     FAIL=$((FAIL+1))
 fi
 
+# --- D12 laziness : delay/force ---
+echo "--- D12 laziness ---"
+cat > /tmp/smoke_lazy1.hvn <<'HEOF'
+(force (delay 42))
+HEOF
+RESULT=$($HEAVEN run /tmp/smoke_lazy1.hvn 2>&1 | grep -E '^[0-9]+$' | head -1)
+if [ "$RESULT" = "42" ]; then
+    echo "  OK   force (delay 42) = 42"
+    PASS=$((PASS+1))
+else
+    echo "  FAIL force (delay 42) : obtenu '$RESULT' (attendu 42)"
+    FAIL=$((FAIL+1))
+fi
+
+cat > /tmp/smoke_lazy2.hvn <<'HEOF'
+(force (delay (+ 1 2)))
+HEOF
+RESULT=$($HEAVEN run /tmp/smoke_lazy2.hvn 2>&1 | grep -E '^[0-9]+$' | head -1)
+if [ "$RESULT" = "3" ]; then
+    echo "  OK   force (delay (+ 1 2)) = 3"
+    PASS=$((PASS+1))
+else
+    echo "  FAIL force (delay (+ 1 2)) : obtenu '$RESULT' (attendu 3)"
+    FAIL=$((FAIL+1))
+fi
+
 echo ""
 echo "Total: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
