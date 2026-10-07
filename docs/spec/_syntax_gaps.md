@@ -353,6 +353,40 @@ que le doctest lineaire ne reproduit pas. Acceptes tels quels :
 - Requetes par predicat (`:triple-pred`) ou par objet.
 - Verification que les iris completes sont bien resolues (avec `<...>`).
 
+### Bug : import qualified (alias) casse les patterns
+
+Diagnostic 2026-10-08. Repro :
+
+    # /tmp/q2.hvn
+    data MyBool = MyTrue | MyFalse
+    myNot MyTrue = MyFalse
+    myNot MyFalse = MyTrue
+
+    # /tmp/q3.hvn
+    import "/tmp/q2.hvn" as Q
+    (Q.myNot Q.MyTrue)       # -> error.ArityMismatch
+
+**Cause** : quand l'import alias cree les clauses sous `Q.myNot`,
+les **patterns** restent unqualified (`MyTrue`). L'appel passe
+`Q.MyTrue`, donc `sym("MyTrue") != sym("Q.MyTrue")` dans le pattern
+match -> aucun matche.
+
+**Fonctionne** : import sans alias (`import 'lib/prelude.hvn'` puis
+`(not True)` -> `False`).
+
+**Fixes proposes (chantier)** :
+- **A** : helper `symMatches(store, a, b)` qui compare localement
+  si un seul cote est qualifie (derniere partie apres `.`). 30 lignes
+  dans `evalPattern`. Risque : collision inter-module (`A.X` et
+  `B.X` confondus).
+- **B** : reecrire les patterns a l'alias dans `evalEquation` :
+  `sym("MyTrue")` -> `sym("Q.MyTrue")`. Plus propre, mais touche
+  `evalEquation` (deja delicat).
+
+**Impact** : empeche les imports qualifies d'utiliser du pattern
+matching sur constructeurs. En pratique, import sans alias suffit
+pour la stdlib.
+
 ## Priorite
 
 | Gap | Impact | Effort estime |
