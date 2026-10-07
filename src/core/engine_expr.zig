@@ -205,14 +205,6 @@ pub const ThunkState = struct {
     forced: ?Id = null,
 };
 
-pub const OpenFile = struct {
-    /// Contenu complet du fichier (possede).
-    content: []u8,
-    /// Vues sur `content` decoupees par '\n' (possede).
-    lines: [][]u8,
-    /// Index de la prochaine ligne a lire.
-    pos: usize,
-};
 
 pub const Engine = struct {
     allocator: std.mem.Allocator,
@@ -247,8 +239,6 @@ pub const Engine = struct {
     /// Par defaut = maxInt (jamais suspendu) sauf via evalWithBudget.
     reductions: u64 = std.math.maxInt(u64),
     /// IO streaming (D13) : handles de fichiers ouverts.
-    open_files: std.AutoHashMapUnmanaged(u32, OpenFile) = .{},
-    next_file_id: u32 = 1,
     /// TCO : nom de la fonction courante (self-tail-call detection)
     tco_name: ?[]const u8 = null,
     /// TCO : buffer fixe pour args du self-tail-call (max 8)
@@ -281,13 +271,7 @@ pub const Engine = struct {
     }
 
     pub fn deinit(self: *Engine) void {
-        // IO streaming : cleanup des fichiers non consommes (D13).
-        var _fh_it = self.open_files.iterator();
-        while (_fh_it.next()) |kv| {
-            self.allocator.free(kv.value_ptr.lines);
-            self.allocator.free(kv.value_ptr.content);
-        }
-        self.open_files.deinit(self.allocator);
+
         // Cleanup thunks (D12)
         var _thunk_it = self.thunks.iterator();
         while (_thunk_it.next()) |entry| {
@@ -809,7 +793,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "open_file", "read_line", "close_file" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -871,6 +855,21 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     @memcpy(args_buf[0..args.len], args);
     const args_snap: []const Id = args_buf[0..args.len];
 
+    // ═══ LET (D15) : (let name val body) -- S-expr pur
+    // arg0 = symbole (le nom), arg1 = expression (valeur),
+    // arg2 = expression (corps avec name lie).
+    if (std.mem.eql(u8, op, "let")) {
+        if (args_snap.len != 3) return error.ArityMismatch;
+        const name_node = store.get(args_snap[0]);
+        if (name_node.tag != .sym) return error.TypeError;
+        const name_sym = name_node.payload;
+        const val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        try env.put(name_sym, val);
+        const result = try evaluate(store, env, engine, args_snap[2], depth + 1);
+        env.delete(name_sym);
+        return result;
+    }
+
     // ═══ KANREN QUERY — intercepte TOUT de suite ═══
     // (query name arg1 _ ...) evalue en nombre de solutions.
     //
@@ -908,64 +907,61 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return v;
     }
 
-    // ═══ IO STREAMING (D13) ═══
-    if (std.mem.eql(u8, op, "open_file")) {
+    // ═══ IO primitives fines (D14) ═══
+    // string_ptr : pointeur des bytes d'une string internee.
+    //              Renvoie l'adresse memoire du slice interne.
+    if (std.mem.eql(u8, op, "string_ptr")) {
         if (args_snap.len != 1) return error.ArityMismatch;
-        const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        const pn = store.get(pv);
-        if (pn.tag != .lit) return error.TypeError;
-        const pl = store.lits.items[pn.aux];
-        if (pl != .str) return error.TypeError;
-        const path = store.interner.resolve(pl.str);
-        const content = std.fs.cwd().readFileAlloc(engine.allocator, path, 1 << 26) catch return error.InvalidInput;
-        var lines_list = std.ArrayListUnmanaged([]u8){};
-        errdefer lines_list.deinit(engine.allocator);
-        var it = std.mem.splitScalar(u8, content, '\n');
-        while (it.next()) |line| {
-            try lines_list.append(engine.allocator, @constCast(line));
-        }
-        const lines = try lines_list.toOwnedSlice(engine.allocator);
-        const id = engine.next_file_id;
-        engine.next_file_id += 1;
-        try engine.open_files.put(engine.allocator, id, .{ .content = content, .lines = lines, .pos = 0 });
-        return try store.int(@intCast(id));
+        const sv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const sn = store.get(sv);
+        if (sn.tag != .lit) return error.TypeError;
+        const sl = store.lits.items[sn.aux];
+        if (sl != .str) return error.TypeError;
+        const str = store.interner.resolve(sl.str);
+        return try store.int(@intCast(@intFromPtr(str.ptr)));
     }
-    if (std.mem.eql(u8, op, "read_line")) {
+    // raw_alloc : allocation brute via mmap (Linux/Unix). Retourne
+    //             un pointeur. Utiliser raw_free pour liberer (TODO).
+    if (std.mem.eql(u8, op, "raw_alloc")) {
         if (args_snap.len != 1) return error.ArityMismatch;
-        const hv = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        const hn = store.get(hv);
-        if (hn.tag != .lit) return error.TypeError;
-        const hl = store.lits.items[hn.aux];
-        if (hl != .int) return error.TypeError;
-        const h_id: u32 = @intCast(hl.int);
-        const entry = engine.open_files.getPtr(h_id) orelse return error.InvalidInput;
-        if (entry.pos >= entry.lines.len) {
-            engine.allocator.free(entry.lines);
-            engine.allocator.free(entry.content);
-            _ = engine.open_files.remove(h_id);
-            const sym = try store.interner.intern("");
-            return try store.lit(.{ .str = sym });
-        }
-        const line = entry.lines[entry.pos];
-        entry.pos += 1;
-        const sym = try store.interner.intern(line);
+        const nv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const nn = store.get(nv);
+        if (nn.tag != .lit) return error.TypeError;
+        const nl = store.lits.items[nn.aux];
+        if (nl != .int) return error.TypeError;
+        const sz: usize = @intCast(nl.int);
+        const buf = engine.allocator.alloc(u8, sz) catch return error.OutOfMemory;
+        return try store.int(@intCast(@intFromPtr(buf.ptr)));
+    }
+    // target_os : renvoie "linux", "macos", "windows", "wasm".
+    if (std.mem.eql(u8, op, "target_os")) {
+        const tag = @import("builtin").os.tag;
+        const name = switch (tag) {
+            .linux => "linux",
+            .macos => "macos",
+            .windows => "windows",
+            else => "unknown",
+        };
+        const sym = try store.interner.intern(name);
         return try store.lit(.{ .str = sym });
     }
-    if (std.mem.eql(u8, op, "close_file")) {
-        if (args_snap.len != 1) return error.ArityMismatch;
-        const hv = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        const hn = store.get(hv);
-        if (hn.tag != .lit) return error.TypeError;
-        const hl = store.lits.items[hn.aux];
-        if (hl != .int) return error.TypeError;
-        const h_id: u32 = @intCast(hl.int);
-        if (engine.open_files.fetchRemove(h_id)) |kv| {
-            engine.allocator.free(kv.value.lines);
-            engine.allocator.free(kv.value.content);
-        }
+
+    if (std.mem.eql(u8, op, "raw_free")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const nv = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const pn = store.get(pv);
+        const nn = store.get(nv);
+        if (pn.tag != .lit or nn.tag != .lit) return error.TypeError;
+        const pl = store.lits.items[pn.aux];
+        const nl = store.lits.items[nn.aux];
+        if (pl != .int or nl != .int) return error.TypeError;
+        const addr: usize = @intCast(pl.int);
+        const sz: usize = @intCast(nl.int);
+        const buf: [*]u8 = @ptrFromInt(addr);
+        engine.allocator.free(buf[0..sz]);
         return try store.unitLit();
     }
-
     // ═══ RAW SYSCALL — court-circuite Zig std (Path A) ═══
     // (raw_syscall n a1 a2 a3) → syscall Linux, retourne le résultat en Int.
     // (raw_syscall6 n a1 a2 a3 a4 a5 a6) → variante 6 args.
