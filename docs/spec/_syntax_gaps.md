@@ -353,9 +353,9 @@ que le doctest lineaire ne reproduit pas. Acceptes tels quels :
 - Requetes par predicat (`:triple-pred`) ou par objet.
 - Verification que les iris completes sont bien resolues (avec `<...>`).
 
-### Bug : import qualified (alias) casse les patterns
+### Corrige : import qualified (alias) + patterns
 
-Diagnostic 2026-10-08. Repro :
+**Corrige le 2026-10-08** (commit `098f90c`). Repro originale :
 
     # /tmp/q2.hvn
     data MyBool = MyTrue | MyFalse
@@ -374,18 +374,20 @@ match -> aucun matche.
 **Fonctionne** : import sans alias (`import 'lib/prelude.hvn'` puis
 `(not True)` -> `False`).
 
-**Fixes proposes (chantier)** :
-- **A** : helper `symMatches(store, a, b)` qui compare localement
-  si un seul cote est qualifie (derniere partie apres `.`). 30 lignes
-  dans `evalPattern`. Risque : collision inter-module (`A.X` et
-  `B.X` confondus).
-- **B** : reecrire les patterns a l'alias dans `evalEquation` :
-  `sym("MyTrue")` -> `sym("Q.MyTrue")`. Plus propre, mais touche
-  `evalEquation` (deja delicat).
+**Fix applique** : helper `symMatchesPattern(store, a, b)` dans
+`engine_expr.zig` (avant `evalMagic`). Compare la partie locale
+apres le dernier `.` si un seul cote est qualifie.
 
-**Impact** : empeche les imports qualifies d'utiliser du pattern
-matching sur constructeurs. En pratique, import sans alias suffit
-pour la stdlib.
+**Limite connue** : `A.X` vs `B.X` (les deux qualifies, prefixes
+differents) restent refuses — c'est ambigu.
+
+**Impact** : les imports qualifies (`import ... as Q`) peuvent
+maintenant utiliser du pattern matching sur constructeurs 0-arity
+(`Q.myNot Q.MyTrue` fonctionne).
+
+**Reste a faire** : patterns **imbriques** (`Cons x xs` qualifie en
+`Q.Cons`) ne sont pas geres par ce fix — il faudrait un parcours
+recursif du pattern dans `evalPattern`. Chantier.
 
 ## Priorite
 
