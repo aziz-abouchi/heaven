@@ -38,29 +38,34 @@ fn splitStatements(
     content: []const u8,
     out: *std.ArrayListUnmanaged([]const u8),
 ) !void {
-    var start: usize = 0;
-    var brace_depth: usize = 0;
-    var in_str = false;
-    var i: usize = 0;
-    while (i <= content.len) : (i += 1) {
-        const at_eof = (i == content.len);
-        const c: u8 = if (at_eof) '\n' else content[i];
-        if (in_str) {
-            if (c == '"') in_str = false;
-            continue;
+    // Accumulation par indentation : une ligne non-indentee (colonne 0)
+    // commence un nouveau statement. Les lignes indentees sont des
+    // continuations (style Haskell/Python).
+    var buffer = std.ArrayListUnmanaged(u8){};
+    defer buffer.deinit(allocator);
+    var line_iter = std.mem.splitScalar(u8, content, '\n');
+    while (line_iter.next()) |line| {
+        const trimmed = std.mem.trim(u8, line, " \t\r");
+        if (trimmed.len == 0) continue;
+        if (trimmed[0] == '#') continue;
+        if (std.mem.startsWith(u8, trimmed, "--")) continue;
+        if (std.mem.startsWith(u8, trimmed, "//")) continue;
+        if (std.mem.startsWith(u8, trimmed, ";;")) continue;
+
+        const is_indented = line.len > 0 and (line[0] == ' ' or line[0] == '\t');
+
+        if (buffer.items.len > 0 and !is_indented) {
+            try out.append(allocator, try allocator.dupe(u8, buffer.items));
+            buffer.clearRetainingCapacity();
         }
-        switch (c) {
-            '"' => in_str = true,
-            '{' => brace_depth += 1,
-            '}' => if (brace_depth > 0) {
-                brace_depth -= 1;
-            },
-            '\n' => if (brace_depth == 0) {
-                try out.append(allocator, content[start..i]);
-                start = i + 1;
-            },
-            else => {},
+
+        if (buffer.items.len > 0) {
+            try buffer.append(allocator, ' ');
         }
+        try buffer.appendSlice(allocator, trimmed);
+    }
+    if (buffer.items.len > 0) {
+        try out.append(allocator, try allocator.dupe(u8, buffer.items));
     }
 }
 

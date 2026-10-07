@@ -56,54 +56,45 @@ pub fn loadOne(heaven: anytype, path: []const u8) void {
     // Accumulation multi-ligne : on joint les lignes tant que les
     // parentheses ne sont pas equilibrees. Permet les definitions
     // lisibles (let ... in sur plusieurs lignes).
+    // Accumulation par indentation : une ligne non-indentee (colonne 0)
+    // commence un nouveau statement. Toutes les lignes indentees qui
+    // suivent sont des continuations (style Haskell/Python).
     var accumulate_buffer = std.ArrayListUnmanaged(u8){};
     defer accumulate_buffer.deinit(heaven.allocator);
-    var depth: i32 = 0;
     var line_iter = std.mem.splitScalar(u8, source, '\n');
     while (line_iter.next()) |line| {
         const trimmed = std.mem.trim(u8, line, " \t\r");
-        if (trimmed.len == 0 and depth == 0) continue;
-        if (accumulate_buffer.items.len == 0) {
-            if (trimmed.len == 0) continue;
-            if (trimmed[0] == '#') continue;
-            if (std.mem.startsWith(u8, trimmed, "--")) continue;
-            if (std.mem.startsWith(u8, trimmed, "//")) continue;
-            if (std.mem.startsWith(u8, trimmed, ";;")) continue;
+        if (trimmed.len == 0) continue;
+        if (trimmed[0] == '#') continue;
+        if (std.mem.startsWith(u8, trimmed, "--")) continue;
+        if (std.mem.startsWith(u8, trimmed, "//")) continue;
+        if (std.mem.startsWith(u8, trimmed, ";;")) continue;
+
+        // Indentation : la ligne originale commence par un espace/tab.
+        const is_indented = line.len > 0 and (line[0] == ' ' or line[0] == '\t');
+
+        // Si le buffer est non vide et que la ligne n'est PAS indentee,
+        // c'est un nouveau statement : evaluer l'ancien.
+        if (accumulate_buffer.items.len > 0 and !is_indented) {
+            const result = heaven.eval(accumulate_buffer.items) catch |err| {
+                platform.dbg("[std_loader] {s} '{s}' failed: {}\n", .{ path, accumulate_buffer.items, err });
+                accumulate_buffer.clearRetainingCapacity();
+                continue;
+            };
+            heaven.allocator.free(result);
+            accumulate_buffer.clearRetainingCapacity();
         }
-        // Ajoute la ligne au buffer (avec espace si necessaire).
+
+        // Ajouter la ligne au buffer.
         if (accumulate_buffer.items.len > 0) {
             accumulate_buffer.append(heaven.allocator, ' ') catch continue;
         }
         accumulate_buffer.appendSlice(heaven.allocator, trimmed) catch continue;
-        // Compte les parentheses ouvrantes/fermantes dans cette ligne.
-        for (trimmed) |c| {
-            if (c == '(') depth += 1;
-            if (c == ')') depth -= 1;
-        }
-        // Si equilibre ET que le buffer ne finit pas par '=',
-        // evaluer le bloc accumule. La condition sur '=' permet
-        // d'attendre le body sur la ligne suivante.
-        if (depth <= 0) {
-            const buf_t = std.mem.trimRight(u8, accumulate_buffer.items, " \t\r");
-            const ends_with_eq = buf_t.len > 0 and buf_t[buf_t.len - 1] == '=';
-            if (!ends_with_eq) {
-                const block = accumulate_buffer.items;
-                const result = heaven.eval(block) catch |err| {
-                    platform.dbg("[std_loader] {s} '{s}' failed: {}\n", .{ path, block, err });
-                    accumulate_buffer.clearRetainingCapacity();
-                    depth = 0;
-                    continue;
-                };
-                heaven.allocator.free(result);
-                accumulate_buffer.clearRetainingCapacity();
-                depth = 0;
-            }
-        }
     }
-    // Reste eventuel (parens non equilibrees).
+    // Reste eventuel.
     if (accumulate_buffer.items.len > 0) {
         const result = heaven.eval(accumulate_buffer.items) catch |err| {
-            platform.dbg("[std_loader] {s} 'unterminated' failed: {}\n", .{ path, err });
+            platform.dbg("[std_loader] {s} 'final' failed: {}\n", .{ path, err });
             return;
         };
         heaven.allocator.free(result);

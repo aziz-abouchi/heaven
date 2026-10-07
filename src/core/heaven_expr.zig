@@ -1801,8 +1801,101 @@ pub const Heaven = struct {
 ///
 /// Corrige : `f n = f (- n 1)` -> parseExpression (tree-sitter)
 /// produit apply(apply(f, [-]), [n, 1]) au lieu de apply(f, [apply(-, [n, 1])]).
-fn parseBodySmart(self: *Heaven, rhs: []const u8) HeavenError!Id {
+/// Convertit `let x = v in body` en S-expr `(let x v body)`.
+/// Recurse sur body. Gere strings (ignorer '=' et ' in ' dedans).
+fn convertLetIn(self: *Heaven, src: []const u8) HeavenError![]u8 {
+    const trimmed = std.mem.trim(u8, src, " \t\r\n");
+    if (!std.mem.startsWith(u8, trimmed, "let ")) {
+        return self.allocator.dupe(u8, trimmed);
+    }
+    var eq_pos: ?usize = null;
+    var i: usize = 4;
+    while (i < trimmed.len) : (i += 1) {
+        const c = trimmed[i];
+        if (c == '"') {
+            i += 1;
+            while (i < trimmed.len and trimmed[i] != '"') : (i += 1) {
+                if (trimmed[i] == '\\' and i + 1 < trimmed.len) i += 1;
+            }
+            continue;
+        }
+        if (c == '=') {
+            const prev: u8 = if (i > 0) trimmed[i - 1] else 0;
+            const next: u8 = if (i + 1 < trimmed.len) trimmed[i + 1] else 0;
+            const is_cmp = prev == '=' or prev == '<' or prev == '>' or prev == '!';
+            if (!is_cmp and next != '=') {
+                eq_pos = i;
+                break;
+            }
+        }
+    }
+    const eq = eq_pos orelse return self.allocator.dupe(u8, trimmed);
+    const name = std.mem.trim(u8, trimmed[4..eq], " \t\r\n");
+    var in_pos: ?usize = null;
+    {
+        var depth: i32 = 0;
+        var j: usize = eq + 1;
+        while (j < trimmed.len) {
+            const c = trimmed[j];
+            if (c == '"') {
+                j += 1;
+                while (j < trimmed.len and trimmed[j] != '"') : (j += 1) {
+                    if (trimmed[j] == '\\' and j + 1 < trimmed.len) j += 1;
+                }
+                j += 1;
+                continue;
+            }
+            if (c == '(') depth += 1;
+            if (c == ')') depth -= 1;
+            // Chercher " in" suivi de whitespace ou fin de chaine.
+            // (le body peut suivre sur la ligne suivante : 'let x = 5 in\n  x')
+            if (depth == 0 and j + 3 <= trimmed.len and
+                std.mem.eql(u8, trimmed[j..j + 3], " in"))
+            {
+                const after = j + 3;
+                const is_boundary = after == trimmed.len or
+                    trimmed[after] == ' ' or trimmed[after] == '\t' or
+                    trimmed[after] == '\n' or trimmed[after] == '\r';
+                if (is_boundary) {
+                    in_pos = j;
+                    break;
+                }
+            }
+            j += 1;
+        }
+    }
+    const ip = in_pos orelse return self.allocator.dupe(u8, trimmed);
+    const val_raw = std.mem.trim(u8, trimmed[eq + 1 .. ip], " \t\r\n");
+    const rest_raw = std.mem.trim(u8, trimmed[ip + 3 ..], " \t\r\n");
+    const val_conv = try convertLetIn(self, val_raw);
+    defer self.allocator.free(val_conv);
+    const rest_conv = try convertLetIn(self, rest_raw);
+    defer self.allocator.free(rest_conv);
+    // Wrapper la valeur ET le rest si ce sont des applications multi-tokens.
+    const val_wrapped = if (val_conv.len > 0 and
+        (val_conv[0] == '(' or std.mem.indexOfScalar(u8, val_conv, ' ') == null))
+        try self.allocator.dupe(u8, val_conv)
+    else
+        try std.fmt.allocPrint(self.allocator, "({s})", .{val_conv});
+    defer self.allocator.free(val_wrapped);
+    const rest_wrapped = if (rest_conv.len > 0 and
+        (rest_conv[0] == '(' or std.mem.indexOfScalar(u8, rest_conv, ' ') == null))
+        try self.allocator.dupe(u8, rest_conv)
+    else
+        try std.fmt.allocPrint(self.allocator, "({s})", .{rest_conv});
+    defer self.allocator.free(rest_wrapped);
+    return std.fmt.allocPrint(self.allocator, "(let {s} {s} {s})", .{ name, val_wrapped, rest_wrapped });
+}
+
+fn parseBodySmart(self: *Heaven, rhs_raw: []const u8) HeavenError!Id {
+    const rhs = std.mem.trim(u8, rhs_raw, " \t\r\n");
     if (rhs.len == 0) return error.InvalidSyntax;
+    // Haskell-style : `let x = v in body` -> convertir en S-expr.
+    if (std.mem.startsWith(u8, rhs, "let ")) {
+        const converted = try convertLetIn(self, rhs);
+        defer self.allocator.free(converted);
+        return self.parseExpression(converted);
+    }
     // Si le body est deja un S-expr, parseExpression suffit (il
     // reconnait '(...)' au premier caractere).
     if (rhs[0] == '(') return self.parseExpression(rhs);
