@@ -504,3 +504,79 @@ demandait la syntaxe verbeuse `(let x = v in ...)`.
   (io_read fd buf 16)))`
 - Base pour `letrec`, `let*` (multi-bind) si besoin plus tard.
 
+
+## D16 — Serveur HTTP 100% Heaven (2026-10-07)
+
+**Constat** : apres D10 (syscalls), D14 (IO en Heaven) et D15 (`let`
+magic), tous les composants pour un serveur HTTP etaient en place. Le
+seul obstacle restant etait la **syntaxe du loader** : `std_loader.zig`
+evaluait ligne par ligne, forcant un style Lispy illisible.
+
+**Decision** :
+1. **Loader multi-ligne** : `std_loader.zig` accumule les lignes tant
+   que les parentheses ne sont pas equilibrees ET que le buffer ne
+   finit pas par `=`. Permet les definitions sur plusieurs lignes.
+2. **4 magics HTTP** : `peek_byte`, `poke_byte`, `memset`,
+   `string_length`. `decodeEscapes` dans `expr.zig` pour `\r\n`.
+3. **`core/http.hvn`** : `http_serve_once` (socket/bind/listen/accept/
+   write/close). Aucun magic supplementaire -- tout en Heaven au-dessus
+   de 13 primitives Zig.
+
+**Alternatives ecartees** :
+- Forker un mini-HTTP en Zig : contraire a la VISION.
+- Parser Haskell-style `let x = v in body` : chantier separe (~1 session).
+  S-expr multi-ligne suffit pour l'instant.
+
+**Debloque** :
+- `curl localhost:8080` -> `Hello from Heaven` (test E2E).
+- Socket TCP client, chat, autres serveurs.
+- Style lisible dans toute la stdlib (stream, io_stream, bigint).
+
+**Limites v0** : pas de parser HTTP (repond toujours la meme chose),
+pas de boucle (one-shot). Chantier v1 si besoin.
+
+**Tests** : `curl` verifie dans le commit `3c94929`.
+
+## D17 — BigInt v0 (2026-10-07)
+
+**Constat** : `i64` plafonne a ~9.2 * 10^18. Pour l'auto-hebergement
+(crypto, arithmetique de preuves, comptage) il faut de la precision
+arbitraire. Le langage offrait tous les outils (listes, pattern
+matching, recursion) depuis longtemps, mais la stdlib n'avait pas de
+BigInt.
+
+**Decision** : ecrire BigInt **en Heaven pur** (aucun magic
+supplementaire).
+
+Representation :
+    data BList = BNil | BCons Int BList
+    data BigInt = BZero | BPos BList | BNeg BList
+Digits 0..9, MSB-first. BNeg construit mais operations v0 positives.
+
+Operations v0 :
+- `from_int` / `to_int` (i64 <-> BigInt)
+- `from_string` (via `str_char` = `peek_byte (string_ptr s) i`)
+- `badd` / `bsub` (reverse + LSB-first + carry)
+- `bcmp` (par longueur puis element-wise)
+
+**Preuve** : `10^26 + 1 > 10^26`, `(10^26 - 1) + 1 == 10^26`.
+Depasse largement `i64`.
+
+**Alternatives ecartees** :
+- Linker libtommath : contraire a la VISION (auto-hebergement).
+- BigInt en Zig : meme probleme.
+- Base 2^32 (un digit par mot) : plus rapide mais necessite des
+  operations bit-a-bit absentes. Base 10 suffit pour v0.
+
+**Debloque** :
+- Calculs de precision arbitraire.
+- Base pour RSA, tests de primalite.
+- Etape vers l'auto-hebergement.
+
+**Limites v0** : BNeg construit mais non traite. Pas de `bmul`, `bdiv`,
+`bmod`, `bto_string`. Session 2 planifiee.
+
+**Tests** : `tests/test_bigint.hvn` (14 tests).
+
+**Note** : `bnull` retourne `boolean` (pas `int`) -- `if` exige un
+`.boolean`. Erreur frequente, cf `_syntax_gaps.md`.
