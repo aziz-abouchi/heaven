@@ -444,6 +444,50 @@ La boucle outer du matching est reduite a 8 lignes.
 sans helpers a wildcards. `examples/pure/rdf.hvn` simplifie en
 consequence.
 
+### Bug : continuation multi-ligne (equation)
+
+**Statut** : non resolu, documente 2026-10-08.
+
+Repro :
+
+    demoKb Demo =
+        Kcons (MkTriple (TIri IAlice) (TIri IKnows) (TIri IBob))
+        Knil
+
+**Comportement** : `UnknownSymbol` puis `ArityMismatch`. Le
+statement est coupe en deux apres le `=`.
+
+**Cause** : il y a **3 splitters independants** de statements qui
+ne gerent pas la continuation multi-ligne :
+- `test_runner.zig::splitStatements` (charge `--run-test`, `--eval-file`)
+- `import.zig::evalImport` (inline, boucle `splitScalar(u8, source, '\n')`)
+- Le REPL (`interactive.zig::readLine` lit ligne par ligne)
+
+**Tentatives de fix** :
+- **Indentation seule** (ligne suivante plus indentee) : faux
+  positifs sur les fichiers de test (`test "x": expr` suivi d'une
+  ligne indentee = un nouveau statement).
+- **Fin de ligne `=`** : gere le 1er saut mais pas les suivants
+  (`demoKb Demo =\n    Kcons ...\n    Knil` a 2 continuations).
+- **Indentation type Python** (stmt_indent vs next_indent) :
+  complexe, a introduit des regressions dans `import.zig`.
+
+**Workaround** : tout sur une ligne par equation. `examples/pure/rdf.hvn`
+est ecrit ainsi.
+
+**Vraie solution (chantier)** :
+- Factoriser un seul splitteur dans un module commun
+  (`src/core/split_stmt.zig`).
+- Regle complete : continuation si
+  - parens () non fermes, OU
+  - braces {} non fermes, OU
+  - la ligne precedente se termine par `=` (equation multi-ligne).
+- PAS d'heuristique d'indentation : elle casse les tests.
+- Tests : rejouer les 37 fichiers de `tests/` + `core/test_suite.hvn`
+  + `examples/pure/`.
+
+**Impact** : lisibilite des gros fichiers `.hvn` uniquement.
+
 ## Priorite
 
 | Gap | Impact | Effort estime |
