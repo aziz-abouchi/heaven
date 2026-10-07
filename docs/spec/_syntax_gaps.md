@@ -355,7 +355,7 @@ que le doctest lineaire ne reproduit pas. Acceptes tels quels :
 
 ### Corrige : import qualified (alias) + patterns
 
-**Corrige le 2026-10-08** (commit `098f90c`). Repro originale :
+**Corrige le 2026-10-08** (commits `098f90c` + `a3698a7`). Repro originale :
 
     # /tmp/q2.hvn
     data MyBool = MyTrue | MyFalse
@@ -385,9 +385,21 @@ differents) restent refuses — c'est ambigu.
 maintenant utiliser du pattern matching sur constructeurs 0-arity
 (`Q.myNot Q.MyTrue` fonctionne).
 
-**Reste a faire** : patterns **imbriques** (`Cons x xs` qualifie en
-`Q.Cons`) ne sont pas geres par ce fix — il faudrait un parcours
-recursif du pattern dans `evalPattern`. Chantier.
+**Fix complementaire (a3698a7)** : deux bugs distincts corriges
+en cascade :
+
+1. **Constructeurs non aliaser sous M.Ctor en mode normal**.
+   `evalDataDecl` n'enregistrait `M.ctor` qu'en `strict_module`.
+   Resultat : `import "x.hvn" as D` puis `D.Cons2` -> `UnknownSymbol`.
+   Fix : enregistrer aussi `M.Ctor` si `current_module != null`.
+
+2. **Patterns imbriques pas tolerants a la qualification**.
+   La branche `.apply` du pattern match comparait les tetes de ctor
+   avec `exprStructuralEq` strict. Fix : helper `patternArgMatches`
+   qui bascule sur `symMatchesPattern` si les deux sont des `sym`.
+
+**Test** : `import "deep2b.hvn" as D` puis
+`head3 (D.Cons2 42 D.Nil2)` -> `42`.
 
 ## Priorite
 
