@@ -1,0 +1,45 @@
+-- examples/pure/target.hvn
+--
+-- Modelise les cibles de compilation en Heaven pur. Utilise
+-- uniquement les features disponibles : data + equations
+-- multi-clauses + constructeurs 0-arity.
+
+-- Architectures supportees
+data Arch = X86_64 | ARM64 | WASM
+
+-- Systemes d'exploitation
+data OS = Linux | MacOS | Windows | WasiEnv
+
+-- Cible de compilation (paire Arch + OS)
+data Target = TargetEnv Arch OS
+
+-- Operations bas niveau (identifiees par un nom symbolique)
+data Op = OpWrite | OpRead | OpMmap | OpMunmap
+
+-- syscall_id : entraine (OS, Op) -> numero de syscall
+-- Linux x86_64
+syscall_id Linux OpWrite = 1
+syscall_id Linux OpRead = 0
+syscall_id Linux OpMmap = 9
+syscall_id Linux OpMunmap = 11
+
+-- macOS x86_64
+syscall_id MacOS OpWrite = 33554436
+syscall_id MacOS OpRead = 33554435
+syscall_id MacOS OpMmap = 33554621
+syscall_id MacOS OpMunmap = 33554625
+
+-- Windows : pas de syscall direct
+syscall_id Windows _ = -1
+
+-- WASI : pas de syscall numerique (utilise fd_write import WASM)
+syscall_id WasiEnv _ = -1
+
+-- Verifie qu'une cible est utilisable : WASM n'utilise pas les
+-- syscalls, WasiEnv passe par des imports WASM.
+is_native (TargetEnv _ Linux) = 1
+is_native (TargetEnv _ MacOS) = 1
+is_native (TargetEnv _ _) = 0
+
+-- Variante : syscall pour une cible complete
+target_syscall (TargetEnv _ os) op = syscall_id os op

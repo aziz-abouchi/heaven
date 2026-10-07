@@ -1,0 +1,8 @@
+-- examples/pure/demo.hvn
+--
+-- Utilisation de target.hvn via import qualified (alias).
+
+import "examples/pure/target.hvn" as T
+
+-- Un syscall sur Linux x86_64
+(T.syscall_id T.Linux T.OpWrite)
