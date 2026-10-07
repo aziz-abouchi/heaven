@@ -348,7 +348,76 @@ pub const Engine = struct {
         return null;
     }
 
-    pub fn evalFunction(self: *Engine, caller_env: *Env, name: []const u8, args: []const Id) EvalError!Id {
+        /// Pattern matching recursif : gere les patterns imbriques a
+    /// profondeur >= 2 en liant les variables dans `new_env`.
+    /// Retourne true si `pp` matche `aa`. Les variables liees sont
+    /// trackees dans `bound_syms`/`bound_count` pour le cleanup TCO.
+    fn matchPatternDeep(
+        self: *Engine,
+        store: *Store,
+        pp: Id,
+        aa: Id,
+        new_env: *Env,
+        bound_syms: *[8]Sym,
+        bound_count: *u8,
+    ) EvalError!bool {
+        const pp_node = store.get(pp);
+
+        // Wildcards
+        if (pp_node.tag == .hole or pp_node.tag == .evar) return true;
+
+        // Symboles : ctor (0-arity) ou variable
+        if (pp_node.tag == .sym) {
+            const pp_name = store.interner.resolve(pp_node.payload);
+            if (self.fns.get(pp_name)) |pfn| {
+                if (pfn.ctor_arity) |arity| {
+                    const aa_node = store.get(aa);
+                    if (arity == 0) {
+                        return aa_node.tag == .sym and
+                            symMatchesPattern(store, aa_node.payload, pp_node.payload);
+                    }
+                    return false;
+                }
+            }
+            // Variable : binder
+            try new_env.put(pp_node.payload, aa);
+            if (bound_count.* < 8) {
+                bound_syms[bound_count.*] = pp_node.payload;
+                bound_count.* += 1;
+            }
+            return true;
+        }
+
+        // Litteraux
+        if (pp_node.tag == .lit) {
+            const aa_node = store.get(aa);
+            if (aa_node.tag != .lit) return false;
+            return store.lits.items[pp_node.aux].eql(store.lits.items[aa_node.aux]);
+        }
+
+        // Application : recurse sur les args (la tete est un ctor)
+        if (pp_node.tag == .apply) {
+            const aa_node = store.get(aa);
+            if (aa_node.tag != .apply) return false;
+            const p_args = store.spanSliceConst(pp_node.span_a);
+            const a_args = store.spanSliceConst(aa_node.span_a);
+            if (p_args.len != a_args.len) return false;
+            for (p_args, a_args, 0..) |sub_pp, sub_aa, arg_idx| {
+                if (arg_idx == 0) {
+                    if (!patternArgMatches(store, sub_pp, sub_aa)) return false;
+                    continue;
+                }
+                if (!try self.matchPatternDeep(store, sub_pp, sub_aa, new_env, bound_syms, bound_count))
+                    return false;
+            }
+            return true;
+        }
+
+        // Par defaut : egalite structurelle
+        return pattern_mod.exprStructuralEq(store, pp, aa);
+    }
+
+pub fn evalFunction(self: *Engine, caller_env: *Env, name: []const u8, args: []const Id) EvalError!Id {
         const store = self.store;
         const fn_def = self.fns.get(name) orelse return error.UnknownSymbol;
         if (fn_def.num_clauses == 0) return error.UnknownSymbol;
@@ -404,94 +473,10 @@ pub const Engine = struct {
 
                 var matched = true;
                 for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
-                    if (std.mem.eql(u8, name, "id2")) {
-                        platform.dbg("[ho-dbg] clause id2 : num_patterns={d} current_args={d}\n", .{ clause.num_patterns, current_args_len });
-                    }
-                    const arg_val = current_args_buf[i]; // déjà évalué
-                    const p_node = store.get(p);
-
-                    if (p_node.tag == .hole or p_node.tag == .evar) {
-                        continue;
-                    }
-                    if (p_node.tag == .sym) {
-                        const p_name = store.interner.resolve(p_node.payload);
-                        if (self.fns.get(p_name)) |pfn| {
-                            if (pfn.ctor_arity) |arity| {
-                                const a_node = store.get(arg_val);
-                                if (arity == 0) {
-                                    if (a_node.tag != .sym or
-                                        !symMatchesPattern(store, a_node.payload, p_node.payload))
-                                    {
-                                        matched = false;
-                                        break;
-                                    }
-                                } else {
-                                    matched = false;
-                                    break;
-                                }
-                                continue;
-                            }
-                        }
-                        try new_env.put(p_node.payload, arg_val);
-                        if (std.mem.eql(u8, name, "id2")) {
-                            const bn = store.get(arg_val);
-                            platform.dbg("[ho-dbg] binding f <- tag={s}\n", .{@tagName(bn.tag)});
-                        }
-                if (bound_count < 8) {
-                    bound_syms[bound_count] = p_node.payload;
-                    bound_count += 1;
-                }
-                    } else if (p_node.tag == .lit) {
-                        const arg_node = store.get(arg_val);
-                        if (arg_node.tag != .lit or !store.lits.items[p_node.aux].eql(store.lits.items[arg_node.aux])) {
-                            matched = false;
-                            break;
-                        }
-                    } else if (p_node.tag == .apply) {
-                        const p_args = store.spanSliceConst(p_node.span_a);
-                        const a_node = store.get(arg_val);
-                        if (a_node.tag != .apply) {
-                            matched = false;
-                            break;
-                        }
-                        const a_args = store.spanSliceConst(a_node.span_a);
-                        if (p_args.len != a_args.len) {
-                            matched = false;
-                            break;
-                        }
-                        for (p_args, a_args, 0..) |pp, aa, arg_idx| {
-                            if (arg_idx == 0) {
-                                if (!patternArgMatches(store, pp, aa)) {
-                                    matched = false;
-                                    break;
-                                }
-                                continue;
-                            }
-                            const pp_node = store.get(pp);
-                            if (pp_node.tag == .hole or pp_node.tag == .evar) {
-                                continue;
-                            }
-                            if (pp_node.tag == .sym) {
-                                const pp_name = store.interner.resolve(pp_node.payload);
-                                if (self.fns.get(pp_name)) |sub_def| {
-                                    if (sub_def.ctor_arity != null) {
-                                        if (!patternArgMatches(store, pp, aa)) {
-                                            matched = false;
-                                            break;
-                                        }
-                                        continue;
-                                    }
-                                }
-                                try new_env.put(pp_node.payload, aa);
-                        if (bound_count < 8) {
-                            bound_syms[bound_count] = pp_node.payload;
-                            bound_count += 1;
-                        }
-                            } else if (!pattern_mod.exprStructuralEq(store, pp, aa)) {
-                                matched = false;
-                                break;
-                            }
-                        }
+                    const arg_val = current_args_buf[i];
+                    if (!try self.matchPatternDeep(store, p, arg_val, &new_env, &bound_syms, &bound_count)) {
+                        matched = false;
+                        break;
                     }
                 }
 
