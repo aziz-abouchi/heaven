@@ -236,3 +236,51 @@ opaque.
 
 **Skill** — suite de tactiques nommée (`algebra` = `simplify;
 reflexivity`). Appliquée par `skill <name>` sur le théorème actif.
+
+
+## Termes ajoutes 2026-10-07
+
+**magic symbol**
+: Symbole reconnu specialement par `evalMagic` (ex. `+`, `if`,
+  `delay`, `raw_syscall`, `let`). Traite comme une primitive
+  d'evaluation, pas comme une fonction utilisateur.
+
+**thunk**
+: Valeur qui represente un calcul differe (`Tag.thunk`). Cree par
+  `delay expr`, force par `force t`. Le resultat est memoize : un
+  thunk evalue une seule fois.
+
+**delay** / **force**
+: Magics de la laziness (D12). `delay expr` produit un thunk sans
+  evaluer `expr`. `force t` evalue le thunk et memoize.
+
+**Path A / Path B / Path C**
+: Trois chemins d'acces au systeme (D10).
+  - **Path A** : interpreteur, `raw_syscall` -> `std.os.linux`.
+  - **Path B** : compile, prefixe `@nom` -> `call $nom` (libc).
+  - **Path C** : freestanding, `HEAVEN_NO_LIBC=1` + stubs asm.
+
+**raw_syscall** / **raw_syscall6**
+: Magics qui executent un syscall Linux directement (Path A).
+  `(raw_syscall n a1 a2 a3)` pour 4 args, `raw_syscall6` pour 7.
+
+**freestanding**
+: Mode de compilation ou aucun runtime (ni libc, ni crt) n'est lie.
+  `HEAVEN_NO_LIBC=1` active ce mode pour QBE (Path C).
+
+**libc**
+: Bibliotheque standard C (glibc, musl). Fournit `write`, `read`,
+  `mmap`, etc. Path B l'utilise pour resoudre les `@nom`.
+
+**TCO** (Tail Call Optimization)
+: Reecriture des appels recursifs en position de queue en boucles.
+  Heaven supporte le self-tail-call et la TCO mutuelle (SCC 2+).
+
+**Store**
+: Structure de donnees centrale du noyau (`expr.Store`). Contient
+  les noeuds hash-conses, le pool d'arguments, l'interner de
+  symboles, les litteraux.
+
+**magic fin**
+: Magic dont l'implementation fait moins de 10 lignes de Zig.
+  Idee directrice de D14 : mechanisme en Zig, politique en Heaven.

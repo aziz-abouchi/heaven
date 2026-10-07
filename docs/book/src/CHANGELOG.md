@@ -1,5 +1,53 @@
 # Changements récents
 
+## 2026-10-07
+
+Session fondatrice : 10 decisions structurantes, 5 bugs, 3 features.
+
+### Syscalls et IO (D10, D14)
+
+- **D10** : trois chemins d'acces systeme opt-in.
+  - Path A (interpreteur) : `raw_syscall` / `raw_syscall6` -> Linux.
+  - Path B (compilé, libc) : prefixe `@nom` -> `call $nom` en QBE.
+  - Path C (freestanding) : `HEAVEN_NO_LIBC=1` + stubs asm + `_start` custom.
+- **D14** : IO en Heaven pur.
+  - 5 magics fins : `string_ptr`, `raw_alloc`, `raw_free`, `target_os`,
+    `raw_syscall`.
+  - `core/io_stream.hvn` : `io_open`, `io_read`, `io_close` en Heaven.
+  - Portable : redefinir 3 noms par OS (macos/windows).
+
+### Laziness et streams (D12)
+
+- **D12** : `Tag.thunk` + magics `delay` / `force` (memoization).
+- `core/stream.hvn` : streams paresseux (`stream_nats_from`, `stream_map`,
+  `stream_filter`, `stream_take`, `stream_iterate`).
+- Prefixe `stream_` : evite les collisions avec `core/std/list.hvn`.
+
+### Syntaxe (D15)
+
+- **D15** : `let` comme magic symbol -- `(let name val body)` evalue.
+
+### Fixes structurels
+
+- **Multi-clauses** : `parseBodySmart` (wrap + parseExpression) resout
+  `f (- n 1)` correctement. Debloque `fact`, streams paresseux.
+- **`evalCmp`** : ajout branches `.str` (eq/neq/lt/gt/le/ge) et
+  `.boolean`. Debloque les comparaisons de chaines.
+- **Guard `depth`** : `if (depth > 0) depth -= 1` sur `)` orpheline --
+  evite panic integer overflow.
+- **`evalFnDef`** : `addClause` au lieu de `put` (ecrasement des clauses).
+- **WASM** : guard `comptime builtin.os.tag == .linux` sur `raw_syscall`.
+
+### Tests
+
+- 12 tests additionnels : D12 (8 streams) + D14 (4 IO).
+- Smoke global : 16/16.
+- Bug latent identifie : `Store.getInt` lit `payload` au lieu de
+  `lits.items[aux]` (audit a faire).
+
+Voir `docs/DECISIONS.md` (D10-D15) et `docs/spec/_syntax_gaps.md`
+(quirks parser).
+
 ## 2026-10-05
 
 - Documentation mise à jour pour le pipeline HIR des déclarations `data` génériques.
