@@ -1,0 +1,22 @@
+-- core/io_stream.hvn — IO streaming en Heaven (D14)
+-- Linux x86_64. Prefixe io_ : evite les collisions.
+-- Chaque def sur UNE LIGNE (loader ligne-par-ligne).
+--
+-- Primitives : string_ptr (addr bytes d'une string), raw_alloc (buffer),
+-- raw_free (liberer), raw_syscall6 (openat/read/close).
+--
+-- Codes syscall Linux x86_64 : openat=257, read=0, close=3.
+-- Flags openat : O_RDONLY = 0. AT_FDCWD = -100 (ecrit (- 0 100),
+-- car -100 est tokenise en '-' + '100' par parseSExpr).
+
+-- Ouvre un fichier, retourne fd (>= 0) ou -errno (< 0).
+io_open path = (raw_syscall6 257 (- 0 100) (string_ptr path) 0 0 0 0)
+
+-- Lit jusqu'a n bytes dans buf (adresse). Retourne n ou -errno.
+io_read fd buf n = (raw_syscall6 0 fd buf n 0 0 0)
+
+-- Ferme un fd. Retourne 0 ou -errno.
+io_close fd = (raw_syscall6 3 fd 0 0 0 0 0)
+
+-- Detection OS.
+io_target = (target_os)
