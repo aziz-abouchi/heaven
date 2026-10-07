@@ -488,6 +488,55 @@ est ecrit ainsi.
 
 **Impact** : lisibilite des gros fichiers `.hvn` uniquement.
 
+### Bug : non-linear pattern matching
+
+**Statut** : non resolu, documente 2026-10-08.
+
+Repro :
+
+    findObjects _ _ Knil = Knil
+    findObjects s p (Kcons (MkTriple s p o) rest) = Kcons o (findObjects s p rest)
+    findObjects s p (Kcons _ rest) = findObjects s p rest
+
+**Comportement** : `error.ArityMismatch`. La 2e clause ne matche pas.
+
+**Cause** : `matchPatternDeep` traite chaque occurrence d'une variable
+comme un **nouveau binding**, sans verifier si elle a deja ete liee
+dans le meme pattern. Un pattern `(Kcons (MkTriple s p o) rest)` avec
+deux occurrences de `s` (au niveau `MkTriple` et dans la recursion)
+lie la 2e occurrence a une autre valeur.
+
+**Tentative** : ajouter un check `new_env.get(sym)` avant le binding.
+Probleme : `new_env` contient une **copie du `caller_env`** (fait ligne
+`new_env.put(entry.key_ptr.*, entry.value_ptr.*)` au debut du dispatch).
+Donc un pattern var qui a le meme nom qu'une variable du caller
+matcherait cette variable -> 5+ fichiers de tests cassent.
+
+**Vraie solution (chantier)** :
+- Tracker les bindings **du pattern courant uniquement**, pas dans
+  `new_env` global.
+- Utiliser une structure separee (map pattern-local ou liste) qui
+  survit aux recursions de `matchPatternDeep` mais est nettoyee a la
+  fin du match.
+- Interagir correctement avec TCO (chaque iteration reset les
+  bindings).
+- Ne PAS toucher `new_env` pour le tracking ; `new_env` reste le
+  mecanisme de dispatch.
+
+**Workaround** : eviter le non-linear matching. Exemple pour
+`findObjects` :
+
+    findObjects _ _ Knil = Knil
+    findObjects s p (Kcons t rest) =
+        consIfMatch (tripleMatches s p t) t (findObjects s p rest)
+    findObjects s p (Kcons _ rest) = findObjects s p rest
+
+Avec `tripleMatches` qui teste le triple (3 patterns a wildcards ou
+variables simples).
+
+**Impact** : requetes RDF naturelles impossibles. Mais contournable
+avec des helpers.
+
 ## Priorite
 
 | Gap | Impact | Effort estime |
