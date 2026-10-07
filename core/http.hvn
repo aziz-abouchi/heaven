@@ -1,0 +1,18 @@
+-- core/http.hvn -- serveur HTTP minimal (D16, Linux x86_64)
+-- Necessite les magics : raw_syscall6, string_ptr, string_length,
+-- raw_alloc, memset, poke_byte, io_write, io_close.
+-- Les defs sont sur UNE LIGNE (loader std_loader ligne-par-ligne).
+-- Note : pas de CAF. Toute "constante" est une fonction d'un parametre
+-- unit, sinon referencee par son nom elle retourne son symbole.
+
+-- sockaddr_in pour 0.0.0.0:8080 (31*256 + 144 = 8080).
+http_mk_sa_8080 u = (let buf (raw_alloc 16) (let _ (memset buf 0 16) (let _ (poke_byte buf 0 2) (let _ (poke_byte buf 2 31) (let _ (poke_byte buf 3 144) buf)))))
+
+-- Reponse HTTP 200 fixe.
+http_resp_hello u = "HTTP/1.1 200 OK\r\nContent-Length: 17\r\n\r\nHello from Heaven"
+
+-- Traite une connexion (accept, write, close).
+http_handle_one sock = (let cli (raw_syscall6 43 sock 0 0 0 0 0) (let resp (http_resp_hello unit) (let _ (io_write cli (string_ptr resp) (string_length resp)) (io_close cli))))
+
+-- Ouvre le socket, bind, listen, puis accept UNE fois.
+http_serve_once u = (let sock (raw_syscall6 41 2 1 0 0 0 0) (let sa (http_mk_sa_8080 unit) (let _ (raw_syscall6 49 sock sa 16 0 0 0) (let _ (raw_syscall6 50 sock 5 0 0 0 0) (http_handle_one sock)))))

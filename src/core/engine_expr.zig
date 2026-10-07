@@ -793,7 +793,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -861,8 +861,15 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     if (std.mem.eql(u8, op, "let")) {
         if (args_snap.len != 3) return error.ArityMismatch;
         const name_node = store.get(args_snap[0]);
-        if (name_node.tag != .sym) return error.TypeError;
-        const name_sym = name_node.payload;
+        var name_sym: Sym = undefined;
+        if (name_node.tag == .sym) {
+            name_sym = name_node.payload;
+        } else if (name_node.tag == .hole) {
+            // `let _ = ...` : nom jetable. Sym partage, jamais lu.
+            name_sym = try store.interner.intern("__let_hole");
+        } else {
+            return error.TypeError;
+        }
         const val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         try env.put(name_sym, val);
         const result = try evaluate(store, env, engine, args_snap[2], depth + 1);
@@ -968,6 +975,76 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const buf: [*]u8 = @ptrFromInt(addr);
         engine.allocator.free(buf[0..sz]);
         return try store.unitLit();
+    }
+    // ═══ HTTP primitives (D16) ═══
+    // peek_byte : lit 1 byte a l'adresse + offset.
+    if (std.mem.eql(u8, op, "peek_byte")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const ov = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const pn = store.get(pv);
+        const on = store.get(ov);
+        if (pn.tag != .lit or on.tag != .lit) return error.TypeError;
+        const pl = store.lits.items[pn.aux];
+        const ol = store.lits.items[on.aux];
+        if (pl != .int or ol != .int) return error.TypeError;
+        const addr: usize = @intCast(pl.int);
+        const off: usize = @intCast(ol.int);
+        const buf: [*]const u8 = @ptrFromInt(addr);
+        return try store.int(@intCast(buf[off]));
+    }
+    // poke_byte : ecrit 1 byte a l'adresse + offset.
+    if (std.mem.eql(u8, op, "poke_byte")) {
+        if (args_snap.len != 3) return error.ArityMismatch;
+        const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const ov = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const vv = try evaluate(store, env, engine, args_snap[2], depth + 1);
+        const pn = store.get(pv);
+        const on = store.get(ov);
+        const vn = store.get(vv);
+        if (pn.tag != .lit or on.tag != .lit or vn.tag != .lit) return error.TypeError;
+        const pl = store.lits.items[pn.aux];
+        const ol = store.lits.items[on.aux];
+        const vl = store.lits.items[vn.aux];
+        if (pl != .int or ol != .int or vl != .int) return error.TypeError;
+        const addr: usize = @intCast(pl.int);
+        const off: usize = @intCast(ol.int);
+        const val: u8 = @intCast(@as(u64, @bitCast(vl.int)) & 0xFF);
+        const buf: [*]u8 = @ptrFromInt(addr);
+        buf[off] = val;
+        return try store.unitLit();
+    }
+    // memset : remplit une zone.
+    if (std.mem.eql(u8, op, "memset")) {
+        if (args_snap.len != 3) return error.ArityMismatch;
+        const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const vv = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const lv = try evaluate(store, env, engine, args_snap[2], depth + 1);
+        const pn = store.get(pv);
+        const vn = store.get(vv);
+        const ln = store.get(lv);
+        if (pn.tag != .lit or vn.tag != .lit or ln.tag != .lit) return error.TypeError;
+        const pl = store.lits.items[pn.aux];
+        const vl = store.lits.items[vn.aux];
+        const ll = store.lits.items[ln.aux];
+        if (pl != .int or vl != .int or ll != .int) return error.TypeError;
+        const addr: usize = @intCast(pl.int);
+        const val: u8 = @intCast(@as(u64, @bitCast(vl.int)) & 0xFF);
+        const len: usize = @intCast(ll.int);
+        const buf: [*]u8 = @ptrFromInt(addr);
+        @memset(buf[0..len], val);
+        return try store.unitLit();
+    }
+
+    if (std.mem.eql(u8, op, "string_length")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const sv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const sn = store.get(sv);
+        if (sn.tag != .lit) return error.TypeError;
+        const sl = store.lits.items[sn.aux];
+        if (sl != .str) return error.TypeError;
+        const s = store.interner.resolve(sl.str);
+        return try store.int(@intCast(s.len));
     }
     // ═══ RAW SYSCALL — court-circuite Zig std (Path A) ═══
     // (raw_syscall n a1 a2 a3) → syscall Linux, retourne le résultat en Int.

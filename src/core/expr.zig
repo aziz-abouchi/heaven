@@ -504,6 +504,35 @@ pub fn toStringInfix(store: *const Store, id: Id, allocator: std.mem.Allocator) 
     return store.toString(id, allocator);
 }
 
+/// Decode les sequences d'echappement dans une string litterale :
+/// \n -> LF, \r -> CR, \t -> TAB, \\ -> backslash, \" -> quote, \0 -> NUL.
+/// Toute autre sequence \x reste inchangee (x litteral).
+pub fn decodeEscapes(allocator: std.mem.Allocator, src: []const u8) ![]u8 {
+    var out: std.ArrayListUnmanaged(u8) = .{};
+    errdefer out.deinit(allocator);
+    var i: usize = 0;
+    while (i < src.len) {
+        if (src[i] == '\\' and i + 1 < src.len) {
+            const c = src[i + 1];
+            const decoded: u8 = switch (c) {
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                '\\' => '\\',
+                '"' => '"',
+                '0' => 0,
+                else => c,
+            };
+            try out.append(allocator, decoded);
+            i += 2;
+        } else {
+            try out.append(allocator, src[i]);
+            i += 1;
+        }
+    }
+    return out.toOwnedSlice(allocator);
+}
+
 pub const Store = struct {
     allocator: Allocator,
     nodes: std.ArrayListUnmanaged(Node),

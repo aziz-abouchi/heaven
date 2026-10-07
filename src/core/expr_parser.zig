@@ -166,8 +166,10 @@ pub const ExprParser = struct {
 
             // Chaîne : "..."
             if (sexpr.len >= 2 and sexpr[0] == '"' and sexpr[sexpr.len - 1] == '"') {
-                const inner = sexpr[1 .. sexpr.len - 1];
-                const s = try self.store.interner.intern(inner);
+                const raw = sexpr[1 .. sexpr.len - 1];
+                const decoded = try expr.decodeEscapes(self.allocator, raw);
+                defer self.allocator.free(decoded);
+                const s = try self.store.interner.intern(decoded);
                 return self.store.lit(.{ .str = s });
             }
 

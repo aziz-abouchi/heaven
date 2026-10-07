@@ -100,8 +100,10 @@ pub const Parser = struct {
 
         // Chaîne de caractères (String)
         if (trimmed.len >= 2 and trimmed[0] == '"' and trimmed[trimmed.len - 1] == '"') {
-            const str_val = trimmed[1 .. trimmed.len - 1];
-            const sym = try self.store.interner.intern(str_val);
+            const raw = trimmed[1 .. trimmed.len - 1];
+            const decoded = try expr.decodeEscapes(self.allocator, raw);
+            defer self.allocator.free(decoded);
+            const sym = try self.store.interner.intern(decoded);
             return self.store.lit(.{ .str = sym });
         }
 

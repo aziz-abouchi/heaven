@@ -20,3 +20,6 @@ io_close fd = (raw_syscall6 3 fd 0 0 0 0 0)
 
 -- Detection OS.
 io_target = (target_os)
+
+-- Ecrit n bytes depuis buf (adresse) vers fd.
+io_write fd buf n = (raw_syscall6 1 fd buf n 0 0 0)
