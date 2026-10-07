@@ -94,6 +94,22 @@ else
     FAIL=$((FAIL+1))
 fi
 
+# --- D12 memoization ---
+echo "--- D12 memoization ---"
+cat > /tmp/smoke_memo.hvn <<'HEOF'
+twice t = (+ (force t) (force t))
+(twice (delay 99))
+HEOF
+RESULT=$($HEAVEN run /tmp/smoke_memo.hvn 2>&1 | grep -E '^[0-9]+$' | head -1)
+if [ "$RESULT" = "198" ]; then
+    echo "  OK   twice (delay 99) = 198"
+    PASS=$((PASS+1))
+else
+    echo "  FAIL twice (delay 99) : '$RESULT' (attendu 198)"
+    FAIL=$((FAIL+1))
+fi
+
+
 # --- D10 Path C : link freestanding (stubs + _start custom) ---
 echo "--- D10 Path C (HEAVEN_NO_LIBC=1) ---"
 cat > /tmp/smoke_boot.hvn <<'HEOF'
