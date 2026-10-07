@@ -616,3 +616,53 @@ Tests d'acceptation (smoke.sh, section D12 streams) :
 - `f 0 = 0 / f n = f (- n 1) / (f 3) = 0`
 
 Regressions couvertes : `fact 3 = 6`, smoke global 16/16.
+
+
+## Quirks parser (2026-10-07, session D14/D15)
+
+Trois limitations identifiees pendant D14/D15. **Non bloquantes**,
+mais elles penalisent l'ecriture naturelle.
+
+### 1. Litteraux negatifs
+
+    f (- 1)        -- OK : applique sub, echec runtime
+    (raw_syscall 257 -100 ...)  -- ECHEC : -100 tokenise en '-' + '100'
+
+Workaround : ecrire `(- 0 100)`. Cause : `parseSExpr` traite `-` comme
+un operateur separe, pas comme le signe d'un nombre.
+
+Fix envisage : dans `parseSExpr`, si un token commence par `-` et est
+suivi uniquement de chiffres, le traiter comme un int negatif.
+
+### 2. `(let x "string" x)` affiche verbatim
+
+    (let x 5 x)       -- OK : 5
+    (let x "hello" x) -- ECHO VERBATIM
+
+Cause probable : le parser infixe voit `"hello"` et le currifie
+incorrectement (meme bug que `f (- n 1)` avant `parseBodySmart`).
+
+Fix envisage : etendre `parseBodySmart` (ou `parseSExpr`) aux chaines
+en position d'argument direct.
+
+### 3. `let ... in` multi-lignes
+
+    read_all u =
+      let fd = io_open "f" in
+      let buf = raw_alloc 16 in
+      io_read fd buf 16
+
+Echoue. Workaround : tout sur UNE ligne, ou `(let name val body)`
+S-expr (D15).
+
+Cause : `parseBodySmart` traite le body comme une seule ligne. Un
+`let-in` sur plusieurs lignes n'est pas concatene.
+
+Fix envisage : joindre les lignes d'un body multi-ligne dans
+`evalEquation` avant d'appeler `parseBodySmart`.
+
+### Impact
+
+Ces trois quirks n'empechent **pas** D14/D15 de fonctionner, mais
+rendent le code utilisateur moins lisible. A traiter en session
+dediee (~1 session pour les 3).

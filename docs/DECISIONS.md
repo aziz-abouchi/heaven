@@ -434,3 +434,73 @@ memoization confirmée par `twice t = (+ (force t) (force t))` avec
 `twice (delay 99) = 198`.
 
 **Référence** : commit `fc2e20c`, `smoke.sh` section D12.
+
+## D14 — IO en Heaven (2026-10-07, suite de D13)
+
+**Constat** : D13 avait livre des magics stateful en Zig (`open_file`,
+`read_line`, `close_file`). Ce n'est pas aligne avec la VISION ("au max
+en Heaven"). 90% de la logique etait en Zig, 10% en Heaven.
+
+**Decision** : remplacer les 3 gros magics par 5 primitives **fines**
+(cadrage "policy + mechanism" : Zig fait le mecanisme, Heaven fait la
+politique).
+
+Primitives fines (~5 lignes chacune, dans `evalMagic`) :
+
+| Nom | Signature | Role |
+|---|---|---|
+| `string_ptr` | `String -> Int` | adresse des bytes d'une string internee |
+| `raw_alloc` | `Int -> Int` | buffer malloc-style |
+| `raw_free` | `Int Int -> Unit` | liberer |
+| `target_os` | `() -> String` | "linux"/"macos"/"windows" |
+| `raw_syscall` / `6` | (D10) | base de tout appel systeme |
+
+**Logique en Heaven** (`core/io_stream.hvn`, Linux x86_64) :
+
+    io_open path = (raw_syscall6 257 (- 0 100) (string_ptr path) 0 0 0 0)
+    io_read fd buf n = (raw_syscall6 0 fd buf n 0 0 0)
+    io_close fd = (raw_syscall6 3 fd 0 0 0 0 0)
+
+**Alternatives ecartees** :
+- Garder D13 (magics stateful) : 3 magics de 40 lignes, non portables.
+- `inline_qbe "syscall"` : QBE n'a pas d'asm inline (rejete D10).
+- Forker QBE : maintenir un patch divergent a chaque bump.
+
+**Debloque** :
+- Portable : ajouter `core/io_stream_macos.hvn` avec les memes noms.
+- Auditable : la politique IO est lisible en Heaven.
+- Testable : `io_open`/`io_read` utilisables en REPL sans recompiler.
+
+**Limites assumees** :
+- `raw_alloc` fuit : pas de GC, `raw_free` explicite.
+- `-100` doit s'ecrire `(- 0 100)` (voir D15 / quirks parser).
+- Pas de `peek_byte`/`poke_byte`/`string_concat` : vrai stream_file
+  (parse '\n') = etape 2, session suivante.
+
+**Tests valides** :
+- `io_open` inexistant -> `-2` (ENOENT), existant -> `4`
+- `(io_read (io_open "f") (raw_alloc 16) 16)` -> `6` bytes
+
+## D15 — `let` magic symbol (2026-10-07)
+
+**Constat** : `(let x 5 x)` etait affiche verbatim par le REPL. Le tag
+`.bind` existe (Haskell-style `let x = 5 in x`) mais la forme S-expr
+pure n'est pas evaluable. Impact : composer des expressions IO (D14)
+demandait la syntaxe verbeuse `(let x = v in ...)`.
+
+**Decision** : ajouter `let` a `isMagicSymbol`. Forme : `(let name val body)`.
+15 lignes dans `evalMagic` :
+- `arg0` : symbole (nom)
+- eval `arg1` -> valeur
+- `env.put(name, val)`
+- eval `arg2` -> resultat
+- `env.delete(name)`
+
+**Note** : les deux formes coexistent (Haskell-style `.bind` + S-expr
+`let` magic). Pas de deprecation.
+
+**Debloque** :
+- Syntaxe naturelle pour D14 : `(let fd (io_open "f") (let buf (raw_alloc 16)
+  (io_read fd buf 16)))`
+- Base pour `letrec`, `let*` (multi-bind) si besoin plus tard.
+
