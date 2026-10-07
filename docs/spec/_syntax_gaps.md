@@ -558,3 +558,40 @@ structures, et donc de `eval.hvn` et du serveur HTTP.
 | 3 | oui | oui (af6710b) |
 | Note 0-pattern | oui | n/a |
 
+
+## Bug multi-clauses et streams paresseux (2026-10-07)
+
+**Symptome** : les definitions multi-clauses echouent en `ArityMismatch`
+des qu'une clause a :
+- un **litteral** en pattern (`f 0 = 0`, `f 5 = 5`)
+- OU un constructeur en **deuxieme** position (`take_impl n End = End`)
+
+**Reproducteurs minimaux** :
+
+    -- echec : ArityMismatch
+    f 0 = 0
+    f n = f (- n 1)
+    (f 3)
+
+    -- echec : ArityMismatch
+    take_impl n End = End
+    take_impl n (Cons x rest) = Cons x (take_impl (- n 1) rest)
+    (take_impl 2 (Cons 1 (Cons 2 End)))
+
+**Ce qui marche** :
+- clauses avec constructeur en **premiere** position (`ssum End = 0`,
+  `ssum (Cons x rest) = ...`)
+- equations simples 1-clause (`g n = ...`)
+- `f 0 = 0` seul (1 clause)
+
+**Cause probable** : `defs.zig::evalEquation` compte mal les arguments
+quand la premiere clause a un pattern non-variable en position 2+.
+C'est le meme bug que `fact 5` -> `fact 5 (0 arg(s))` (documente
+le 2026-10-06, non resolu).
+
+**Impact** : D12 (laziness) est valide (`force`/`delay`, memoization),
+mais l'application aux **streams paresseux** est bloquee : les
+helpers `take`, `drop`, `map`, `filter` sur Stream utilisent des
+patterns multi-args.
+
+**Chantier separe** : corriger `defs.zig::evalEquation` (1-2 sessions).
