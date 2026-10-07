@@ -205,6 +205,15 @@ pub const ThunkState = struct {
     forced: ?Id = null,
 };
 
+pub const OpenFile = struct {
+    /// Contenu complet du fichier (possede).
+    content: []u8,
+    /// Vues sur `content` decoupees par '\n' (possede).
+    lines: [][]u8,
+    /// Index de la prochaine ligne a lire.
+    pos: usize,
+};
+
 pub const Engine = struct {
     allocator: std.mem.Allocator,
     store: *Store,
@@ -237,6 +246,9 @@ pub const Engine = struct {
     /// A 0 -> error.SuspendRequested (abort cooperatif).
     /// Par defaut = maxInt (jamais suspendu) sauf via evalWithBudget.
     reductions: u64 = std.math.maxInt(u64),
+    /// IO streaming (D13) : handles de fichiers ouverts.
+    open_files: std.AutoHashMapUnmanaged(u32, OpenFile) = .{},
+    next_file_id: u32 = 1,
     /// TCO : nom de la fonction courante (self-tail-call detection)
     tco_name: ?[]const u8 = null,
     /// TCO : buffer fixe pour args du self-tail-call (max 8)
@@ -269,6 +281,13 @@ pub const Engine = struct {
     }
 
     pub fn deinit(self: *Engine) void {
+        // IO streaming : cleanup des fichiers non consommes (D13).
+        var _fh_it = self.open_files.iterator();
+        while (_fh_it.next()) |kv| {
+            self.allocator.free(kv.value_ptr.lines);
+            self.allocator.free(kv.value_ptr.content);
+        }
+        self.open_files.deinit(self.allocator);
         // Cleanup thunks (D12)
         var _thunk_it = self.thunks.iterator();
         while (_thunk_it.next()) |entry| {
@@ -790,7 +809,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "open_file", "read_line", "close_file" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -889,6 +908,64 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return v;
     }
 
+    // ═══ IO STREAMING (D13) ═══
+    if (std.mem.eql(u8, op, "open_file")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const pn = store.get(pv);
+        if (pn.tag != .lit) return error.TypeError;
+        const pl = store.lits.items[pn.aux];
+        if (pl != .str) return error.TypeError;
+        const path = store.interner.resolve(pl.str);
+        const content = std.fs.cwd().readFileAlloc(engine.allocator, path, 1 << 26) catch return error.InvalidInput;
+        var lines_list = std.ArrayListUnmanaged([]u8){};
+        errdefer lines_list.deinit(engine.allocator);
+        var it = std.mem.splitScalar(u8, content, '\n');
+        while (it.next()) |line| {
+            try lines_list.append(engine.allocator, @constCast(line));
+        }
+        const lines = try lines_list.toOwnedSlice(engine.allocator);
+        const id = engine.next_file_id;
+        engine.next_file_id += 1;
+        try engine.open_files.put(engine.allocator, id, .{ .content = content, .lines = lines, .pos = 0 });
+        return try store.int(@intCast(id));
+    }
+    if (std.mem.eql(u8, op, "read_line")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const hv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const hn = store.get(hv);
+        if (hn.tag != .lit) return error.TypeError;
+        const hl = store.lits.items[hn.aux];
+        if (hl != .int) return error.TypeError;
+        const h_id: u32 = @intCast(hl.int);
+        const entry = engine.open_files.getPtr(h_id) orelse return error.InvalidInput;
+        if (entry.pos >= entry.lines.len) {
+            engine.allocator.free(entry.lines);
+            engine.allocator.free(entry.content);
+            _ = engine.open_files.remove(h_id);
+            const sym = try store.interner.intern("");
+            return try store.lit(.{ .str = sym });
+        }
+        const line = entry.lines[entry.pos];
+        entry.pos += 1;
+        const sym = try store.interner.intern(line);
+        return try store.lit(.{ .str = sym });
+    }
+    if (std.mem.eql(u8, op, "close_file")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const hv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const hn = store.get(hv);
+        if (hn.tag != .lit) return error.TypeError;
+        const hl = store.lits.items[hn.aux];
+        if (hl != .int) return error.TypeError;
+        const h_id: u32 = @intCast(hl.int);
+        if (engine.open_files.fetchRemove(h_id)) |kv| {
+            engine.allocator.free(kv.value.lines);
+            engine.allocator.free(kv.value.content);
+        }
+        return try store.unitLit();
+    }
+
     // ═══ RAW SYSCALL — court-circuite Zig std (Path A) ═══
     // (raw_syscall n a1 a2 a3) → syscall Linux, retourne le résultat en Int.
     // (raw_syscall6 n a1 a2 a3 a4 a5 a6) → variante 6 args.
@@ -897,6 +974,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // par @bitCast — ce qui accepte les valeurs "négatives" comme
     // fd = -1 (mmap, AT_FDCWD).
     if (std.mem.eql(u8, op, "raw_syscall")) {
+        if (comptime @import("builtin").os.tag != .linux) return error.UnknownSymbol;
         if (args_snap.len != 4) return error.ArityMismatch;
         var vals: [4]i64 = undefined;
         for (args_snap, 0..) |a, i| {
@@ -921,6 +999,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return try store.int(@bitCast(r));
     }
     if (std.mem.eql(u8, op, "raw_syscall6")) {
+        if (comptime @import("builtin").os.tag != .linux) return error.UnknownSymbol;
         if (args_snap.len != 7) return error.ArityMismatch;
         var vals: [7]i64 = undefined;
         for (args_snap, 0..) |a, i| {
@@ -1541,6 +1620,33 @@ fn evalCmp(store: *Store, a: Id, b: Id, op: CmpOp) EvalError!Id {
                 .gt => va > vb,
                 .le => va <= vb,
                 .ge => va >= vb,
+            },
+            else => return error.TypeError,
+        },
+        .str => |sa| switch (lb) {
+            .str => |sb| blk: {
+                // Les chaines sont internées : l'egalite des Sym suffit
+                // pour `eq` / `neq`. Pour l'ordre, on compare lexicographi-
+                // quement les bytes resolus.
+                const ra = store.interner.resolve(sa);
+                const rb = store.interner.resolve(sb);
+                const cmp = std.mem.order(u8, ra, rb);
+                break :blk switch (op) {
+                    .eq => sa == sb,
+                    .neq => sa != sb,
+                    .lt => cmp == .lt,
+                    .gt => cmp == .gt,
+                    .le => cmp != .gt,
+                    .ge => cmp != .lt,
+                };
+            },
+            else => return error.TypeError,
+        },
+        .boolean => |va| switch (lb) {
+            .boolean => |vb| switch (op) {
+                .eq => va == vb,
+                .neq => va != vb,
+                else => return error.TypeError,
             },
             else => return error.TypeError,
         },

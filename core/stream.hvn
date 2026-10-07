@@ -35,6 +35,15 @@ stream_drop n (Cons x rest) = stream_drop (- n 1) (force rest)
 stream_sum End = 0
 stream_sum (Cons x rest) = (+ x (stream_sum (force rest)))
 
-stream_nth zero (Cons x rest) = x
-stream_nth n (Cons x rest) = stream_nth (- n 1) (force rest)
 stream_nth n End = 0
+stream_nth n (Cons x rest) = (if (= n 0) x (stream_nth (- n 1) (force rest)))
+
+-- IO streaming (D13) : lire un fichier ligne par ligne.
+-- Chaque def sur UNE LIGNE. Pas de let-in (Haskell-style non supporte).
+-- read_line retourne "" a EOF (ferme automatiquement le handle).
+stream_file_emit line h = (Cons line (delay (stream_file_lines h)))
+stream_file_check line h = (if (= line "") End (stream_file_emit line h))
+stream_file_lines h = (stream_file_check (read_line h) h)
+stream_file path = (stream_file_lines (open_file path))
+stream_length End = 0
+stream_length (Cons x rest) = (+ 1 (stream_length (force rest)))
