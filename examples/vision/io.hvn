@@ -1,0 +1,31 @@
+module IO
+import "core/platform/sys.hvn" as Sys
+
+# Implementation de print en Heaven pur
+fn print_pure(msg: String) =
+	let fd = 1 in                   # 1 = stdout
+	let sys_write_num = 1 in        # Numéro du syscall write sur Linux x86_64
+	let ptr = get_string_ptr msg in # Adresse mémoire du texte
+	let len = string_length msg in  # Taille
+
+	# Appel de notre fonction de syscall définie en Heaven
+	sys.raw_syscall sys_write_num fd ptr len
+
+# On définit le handler d'effet directement en Heaven !
+# Lorsque le programme fait un 'perform "IO.Print" msg', le handler l'intercepte
+# et appelle le syscall brut de la plateforme.
+
+fn handle_io_print(msg) =
+	# 1 esr le descripteur de fichier pour stdout
+	Sys.sys_write 1 msg (string_length msg)
+
+# Un handler d'effet intercepte l'opération et appelle le syscall du fichier platform
+fn run_with_ip(program) =
+	handle program with
+	| "IO.Write" msg k =>
+		# On suppose que sys.hvn expose une fonction sys.write
+		let _ = Sys.sys_write 1 msg (string_length msg) in
+			k unit # On passe la main à la continuation 'k'
+
+# L'utilisateur appelle cette fonction
+fn print _str(msg) = perform "IO.Write" msg

@@ -1,0 +1,23 @@
+# core/platform/abi.hvn
+
+# Définition des architectures cibles
+data Arch = x86_64 | ARM64
+
+# Définition des registres sous de types inductifs
+data Register =
+	| RAX | RDI | RSI | RDX | R10 # Registres x86_64
+	| X0  | X1  | X2  | X3  | X8  # Registres ARM64
+
+# Fonction en Heaven qui retourne le bon registre d'argument selon l'architecture
+fn get_arg_register(arch: Arch, arg_index: Int) =
+	match arch with
+	| x86_64 =>
+		if (== arg_index 0) RDI
+		else if (== arg_index 1) RSI
+		else if (== arg_index 2) RDX
+		else R10
+	| ARM64 =>
+		if (== arg_index 0) X0
+		else if (== arg_index 1) X1
+		else if (== arg_index 2) X2
+		else X8

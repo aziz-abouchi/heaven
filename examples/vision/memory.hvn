@@ -1,0 +1,14 @@
+# lib/memory.hvn
+import "core/platform/sys.hvn" as Sys
+
+fn allocate_system_arena(size: Int) =
+	let sys_mmap_num = 9 in	# Numéro du syscall mmap
+
+	# Paramètres de mmap bruts passés au CPU de Heaven
+	# Addr=0, size, prot=3 (PROT_READ|PROT_WRITE), flags=34 (MAP_PRIVATE|MAP_ANONYMOUS), fd=-1, offset=0
+	let arena_ptr = Sys.raw_syscall6 sys_mmap_num 0 size 3 34 -1 0 in
+
+	# On encapsule ce pointeur brut dans un type linéaire d'Heaven
+	# Le compilateur saura (grâce à sa logique sémantique) détruire ce bloc
+	# sans avoir besoin d'un ramasse-miettes Zig.
+	ArenaState arena_ptr size 0

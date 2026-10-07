@@ -1,0 +1,16 @@
+# core/platform/syscall_table.hvn
+import "core/platform/target.hvn" as Target
+
+# Fonction retournant l'ID du syscall selon 'lOS
+fn get_syscall_id(os: Target.OS, operation: String) =
+	match is with
+	| Target.Linux =>
+		if (== operation "WRITE") 1
+		else if (== operation "MMAP") 9
+		else -1
+	| Target.MacOS =>
+		if (== operation "WRITE") 33554436     # ID macOS classique (0x2000004)
+		else if (== operation "MMAP") 33554621 # (0x20000C5)
+		else -1
+	| Target.Windows => -1 # Windows n'utilise pas l'interruption 'syscall' de cette façon
+	| Target.WasiEnv => -1 # Traité séparément via les instructions d'import WASM

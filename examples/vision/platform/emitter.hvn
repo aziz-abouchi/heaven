@@ -1,0 +1,40 @@
+# core/platform/emitter.hvn
+import "core/platform/target.hvn" as Target
+import "core/platform/syscall_table.hvn" as Table
+
+fn emit_io_operation(target: Target.Target, msg: String) =
+	match target with
+	| Target.TargetEnv Target.WASM Target.WasiEnv =>
+		# --- CAS WASM / WASI ---
+		# WASI n'utilise pas de registres. On écrit directement l'instruction
+		# d'appel d'un module importé (fd_write) au forma de l'IL QBE
+		inline_qbe "
+			# Dans l'IL QBE, un import WASM se mappe comme un appel de fonction externe
+			# %ptr_iovs définit l'adresse des pointeurs de chaînes dans la mémoire linéaire WASM
+			%res =w call $wasi_snapshot_preview1.fd_write(w 1, w %ptr_iovs, w 1, w %nwritten)
+			ret %res
+		"
+	| Target.TargetEnv Target.X86_64 Target.Linux =>
+		# --- CAS NATIF LINUX X86_64 ---
+		let sys_id = Table.get_syscall_id Target.Linux "WRITE" in
+		inline_qbe "
+			# Utilisation des registres spécifiques Linux x86_64 via l'Inline Asm QBE
+			# sys_id (1) va dans rax, stdout (1) dans rdi
+			%rax =l copy 1
+			%rdi =l copy 1
+			%rsi =l copy %msg    # Adresse du buffer
+			%rdx =l copy %len    # Longueur du buffer
+
+			# Déclenchement de l'interruption matérielle
+			syscall
+		"
+	| Target.TargetEnv Target.ARM64 Target.Linux =>
+		# --- CAS NATIF LINUX ARM64 ---
+		inline_qbe "
+			# Sous ARM64 Linux, le numéto de syscall va dans x8
+			%x8 =l copy 64    # 64 = sys_write sur ARM64 Linux
+			%x0 =l copy 1     # stdout
+			%x1 =l copy %msg
+			%x2 =l copy %len
+			svc #0
+		"

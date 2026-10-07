@@ -1,0 +1,10 @@
+# core/platform/target.hvn
+
+# 1. Extension des Architectures (Ajout de WASM)
+data Arch = X86_64 | ARM64 | WASM
+
+# 2. Ajout des Systèmes d'exploitation
+data OS = Linux | MacOS | Windows | WasiEnv
+
+# 3. Définition de la Cible de compilation (Paire Arch + OS)
+data Target = TargetEnv Arch OS

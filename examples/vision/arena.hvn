@@ -1,0 +1,15 @@
+module Arena
+
+# Structure d'une arène de mémoire
+# On utilise 'linear' pour garantir qu'on ne duplique pas l'arène par erreur
+data RuntimeArena = AllocationState (linear Int) (linear Int) # Pointeur actuel, Taille max
+
+# Allocation d'un bloc au sein de l'arène
+fn allocate_linear(linear arena, size) =
+	match arena with
+	| AllocationState ptr max =>
+		if (< (+ ptr size) max)
+			# On décale le pointeur vers l'avant (Bump allocation)
+			Pair (AllocationState (+ ptr size) max) ptr
+			# Gestion de l'erreur si l'arène est pleine
+			Pair (AllocationState ptr max) 0

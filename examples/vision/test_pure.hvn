@@ -1,0 +1,19 @@
+# Fichier : test_pure.hvn
+import "core/platform/emitter.hvn" as Emitter
+import "core/platform/target.hvn" as Target
+
+# 1. Définition de la cible (à changer selon le test voulu)
+# Pour tester en natif : Target.Targetenv Target.X84_64 Target.Linux
+# Pour tester en WASM : Target.Targetenv Target.WASM Target.WasiEnv
+let current_target = Target.Targetenv Target.X84_64 Target.Linux in
+
+# 2. Point d'entrée de notre programme autonome
+fn main() = (
+	let message = "Hello depuis Heaven pur (San l'aide de Zig) !\n" in
+
+	# Appel de notre émetteur de syscall / instructin de bas niveau
+	Emitter.emit_io_operation current_target message
+)
+
+# Exécution du point d'entrée
+(main)

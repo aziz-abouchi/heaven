@@ -1,0 +1,16 @@
+# core/platform/sys.hvn
+import "core/platform/abi.hvn" as ABI
+
+# On déclare une primitive qui parle directement à l'émetteur QBE du compilateur.
+# Le mot-clé 'inline_qbe' permet d'écrire du texte qui sera copié tel quel
+# dans le fichier .qbe final généré.
+
+fn raw_syscall(sys_num: Int, arg1: Int, arg2: Int) =
+	# On court-circuite Zig en écrivant l'interfaçage QBE Heaven
+	inline_qbe "
+		# Syntaxe de l'IL QBE pour injecter de l'assembleur brut (Inline Asm)
+		# On charge le numéro de syscall et le arguments selon la table ABI
+
+		%res =w call $emit_syscall(w %sys_num, w %arg1, w %arg2)
+		ret %res
+	"
