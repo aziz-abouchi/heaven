@@ -1,0 +1,19 @@
+-- lib/list.hvn
+
+-- Types auxiliaires (Option, Pair) si pas deja charges
+data Option a = None | Some a
+data Pair a b = MkPair a b
+
+-- pop : retourne (reste, tete). Sans annotation QTT (linear en
+-- argument n'est pas supporte ; on peut le forcer via let linear
+-- dans le contexte appelant).
+pop Nil = MkPair Nil None
+pop (Cons x xs) = MkPair xs (Some x)
+
+-- head : premiere element, ou None
+head Nil = None
+head (Cons x _) = Some x
+
+-- tail : reste de la liste, ou Nil
+tail Nil = Nil
+tail (Cons _ xs) = xs

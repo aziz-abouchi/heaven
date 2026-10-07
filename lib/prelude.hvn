@@ -1,17 +1,33 @@
--- Bibliothèque fondamentale Heaven
+-- Bibliotheque fondamentale Heaven
 
-data Bool = True | False
+-- Note : Bool, Nat, List sont charges au boot avec leurs
+-- constructeurs (True/False, Zero/Succ, Nil/Cons).
+-- Les re-declarer ici collisionne.
 
-data Nat = Zero | Succ Nat
+-- Operations sur les booleens (equations multi-clauses)
+not True = False
+not False = True
 
-data List a = Nil | Cons a (List a)
+and True True = True
+and True False = False
+and False True = False
+and False False = False
 
--- Égalité propositionnelle (IdType)
-data Eq (A : Type) (x : A) : A -> Type where
-  Refl : Eq A x x
+or True True = True
+or True False = True
+or False True = True
+or False False = False
 
--- Fonctions de base sur les booléens
-def not (b : Bool) : Bool =
-  match b with
-  | True -> False
-  | False -> True
+-- Operations sur les naturels
+plus Zero n = n
+plus (Succ m) n = Succ (plus m n)
+
+mult Zero n = Zero
+mult (Succ m) n = plus n (mult m n)
+
+-- Operations sur les listes
+length Nil = Zero
+length (Cons x xs) = Succ (length xs)
+
+append Nil ys = ys
+append (Cons x xs) ys = Cons x (append xs ys)
