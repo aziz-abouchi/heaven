@@ -378,3 +378,59 @@ qui n'existe pas.
 
 **Note** : ceci est une décision de cadrage, pas un engagement de
 livraison. Aucune de ces étapes n'est dans la roadmap courte.
+
+## D12 — Laziness (v0, 2026-10-07)
+
+**Constat** : `core/stream.hvn` est stable mais **strict** : chaque
+étape (`map`, `filter`, `take`) matérialise toute la collection.
+Impossible d'exprimer des pipelines infinis, des streams de taille
+inconnue, ou l'IO en streaming. Le préalable est une notion de
+*calcul différé* dans le noyau.
+
+**Décision** : introduire un tag `Tag.thunk` (extension, **pas**
+noyau — les 6 primitives restent 6) et deux magic symbols :
+
+- `delay expr` : crée un `thunk` qui capture l'expression et
+  un **snapshot de l'env** (`Env.clone`). Retourne l'Id du thunk
+  sans évaluer.
+- `force t` : si `t` est un thunk, évalue son expression dans l'env
+  capturé, **mémoïse** le résultat dans `Engine.thunks[t].forced`,
+  retourne la valeur. Idempotent.
+
+`evaluate(.thunk)` retourne l'Id du thunk (non forcé) — un thunk est
+une *valeur*, comme un `lambda`. Force est explicite.
+
+**Représentation** :
+- `Tag.thunk` dans `expr.zig` (extension, non-noyau).
+- `Store.thunk(expr_id)` : constructeur.
+- `Engine.thunks: AutoHashMapUnmanaged(Id, ThunkState)` avec
+  `ThunkState { env: *Env, forced: ?Id }`.
+- Cleanup dans `Engine.deinit` (les `Env` capturés sont libérés).
+
+**Alternatives écartées** :
+- Évaluation paresseuse par défaut (Haskell) : casserait tout le
+  pipeline strict actuel (TCO, effets, QTT) et rendrait le
+  debogage impossible.
+- Tag dans le noyau (7e primitive) : casse l'invariant fondateur.
+- Thunks sérialisables (`serialize.zig`) : chantier séparé,
+  débloqué par D7 mais non requis pour les streams.
+
+**Débloque** :
+- Streams paresseux (`Cons x (delay rest)`).
+- IO en streaming (`readChunk` → Stream paresseux).
+- Base pour les events (multi-shot handler + boucle select).
+
+**Limites assumées** :
+- Pas de QTT sur les thunks (une valeur forcée plusieurs fois
+  compte comme une seule occurrence).
+- Pas de thunk dans le code compilé (`mir_qbe.zig`, `mir_wat.zig`) —
+  c'est un mécanisme interpréteur uniquement pour l'instant.
+- Le REPL top-level n'évalue pas `(let t (delay X) ...)` : bug de
+  dispatch séparé (voir `_syntax_gaps.md`).
+- `delay`/`force` sont des magic symbols, pas des formes syntaxiques.
+
+**Validé** : `force (delay 42) = 42`, `force (delay (+ 1 2)) = 3`,
+memoization confirmée par `twice t = (+ (force t) (force t))` avec
+`twice (delay 99) = 198`.
+
+**Référence** : commit `fc2e20c`, `smoke.sh` section D12.
