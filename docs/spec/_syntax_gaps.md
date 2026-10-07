@@ -595,3 +595,24 @@ helpers `take`, `drop`, `map`, `filter` sur Stream utilisent des
 patterns multi-args.
 
 **Chantier separe** : corriger `defs.zig::evalEquation` (1-2 sessions).
+
+## Bug multi-clauses RESOLU (2026-10-07)
+
+Le bug decrit plus haut (`f 0 = 0` + `f n = ...` -> ArityMismatch) est
+corrige par le commit `1e7d1ba`. Cause racine : `evalEquation` utilisait
+`parseExpression` (tree-sitter) qui currifie `f (- n 1)` en
+`apply(apply(f, [-]), [n, 1])`. Fix : `parseBodySmart` detecte le style
+S-expr (symbole suivi d'un argument alphanum/paren) et entoure de
+parentheses avant parsing.
+
+Deux fixes connexes :
+- `defs.zig::evalFnDef` : `addClause` au lieu de `put` quand le nom
+  existe deja (evite l'ecrasement des clauses).
+- `engine_expr.zig::evalMagic` : guard `comptime builtin.os.tag == .linux`
+  pour `raw_syscall` (build wasm).
+
+Tests d'acceptation (smoke.sh, section D12 streams) :
+- `ssum (take 5 (nats_from 0)) = 10`
+- `f 0 = 0 / f n = f (- n 1) / (f 3) = 0`
+
+Regressions couvertes : `fact 3 = 6`, smoke global 16/16.
