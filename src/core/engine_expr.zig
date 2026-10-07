@@ -461,7 +461,7 @@ pub const Engine = struct {
                         }
                         for (p_args, a_args, 0..) |pp, aa, arg_idx| {
                             if (arg_idx == 0) {
-                                if (!pattern_mod.exprStructuralEq(store, pp, aa)) {
+                                if (!patternArgMatches(store, pp, aa)) {
                                     matched = false;
                                     break;
                                 }
@@ -475,7 +475,7 @@ pub const Engine = struct {
                                 const pp_name = store.interner.resolve(pp_node.payload);
                                 if (self.fns.get(pp_name)) |sub_def| {
                                     if (sub_def.ctor_arity != null) {
-                                        if (!pattern_mod.exprStructuralEq(store, pp, aa)) {
+                                        if (!patternArgMatches(store, pp, aa)) {
                                             matched = false;
                                             break;
                                         }
@@ -818,6 +818,18 @@ fn symMatchesPattern(store: *Store, a: Sym, b: Sym) bool {
     const a_local = if (a_dot) |d| an[d + 1 ..] else an;
     const b_local = if (b_dot) |d| bn[d + 1 ..] else bn;
     return std.mem.eql(u8, a_local, b_local);
+}
+
+/// Compare deux sous-termes d'un pattern : si les deux sont des
+/// symboles, tolere la qualification partielle (via symMatchesPattern) ;
+/// sinon, egalite structurelle.
+fn patternArgMatches(store: *Store, pp: Id, aa: Id) bool {
+    const pp_node = store.get(pp);
+    const aa_node = store.get(aa);
+    if (pp_node.tag == .sym and aa_node.tag == .sym) {
+        return symMatchesPattern(store, pp_node.payload, aa_node.payload);
+    }
+    return pattern_mod.exprStructuralEq(store, pp, aa);
 }
 
 fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {

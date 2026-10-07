@@ -1569,6 +1569,26 @@ pub const Heaven = struct {
                     gop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
                 }
                 gop.value_ptr.ctor_arity = arity;
+
+                // Aliaser aussi sous `M.Ctor` si on est dans un module.
+                // Sans ca, `import "..." as M` puis `M.Ctor` echoue en
+                // UnknownSymbol (les ctor etaient enregistres seulement
+                // sous leur nom nu).
+                if (self.current_module) |m| {
+                    const qualified = try std.fmt.allocPrint(
+                        self.allocator,
+                        "{s}.{s}",
+                        .{ m, ctor_name },
+                    );
+                    const qowned = qualified;
+                    const qgop = try self.engine.fns.getOrPut(self.allocator, qowned);
+                    if (qgop.found_existing) {
+                        self.allocator.free(qowned);
+                    } else {
+                        qgop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
+                    }
+                    qgop.value_ptr.ctor_arity = arity;
+                }
             }
 
             // v2a : peupler ctor_arities (nom → arité) — inconditionnel.
