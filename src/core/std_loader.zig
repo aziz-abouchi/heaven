@@ -23,6 +23,7 @@ pub const files = [_][]const u8{
     "core/stream.hvn",
     "core/io_stream.hvn",
     "core/http.hvn",
+    "core/bigint.hvn",
 };
 
 /// Charge tous les fichiers std dans le `heaven` fourni.
@@ -52,18 +53,58 @@ pub fn loadOne(heaven: anytype, path: []const u8) void {
         heaven.current_module = old_module;
     }
 
-    var lines = std.mem.splitScalar(u8, source, '\n');
-    while (lines.next()) |line| {
+    // Accumulation multi-ligne : on joint les lignes tant que les
+    // parentheses ne sont pas equilibrees. Permet les definitions
+    // lisibles (let ... in sur plusieurs lignes).
+    var accumulate_buffer = std.ArrayListUnmanaged(u8){};
+    defer accumulate_buffer.deinit(heaven.allocator);
+    var depth: i32 = 0;
+    var line_iter = std.mem.splitScalar(u8, source, '\n');
+    while (line_iter.next()) |line| {
         const trimmed = std.mem.trim(u8, line, " \t\r");
-        if (trimmed.len == 0) continue;
-        if (trimmed[0] == '#') continue;
-        if (std.mem.startsWith(u8, trimmed, "--")) continue;
-        if (std.mem.startsWith(u8, trimmed, "//")) continue;
-        if (std.mem.startsWith(u8, trimmed, ";;")) continue;
-
-        const result = heaven.eval(trimmed) catch |err| {
-            platform.dbg("[std_loader] {s} '{s}' failed: {}\n", .{ path, trimmed, err });
-            continue;
+        if (trimmed.len == 0 and depth == 0) continue;
+        if (accumulate_buffer.items.len == 0) {
+            if (trimmed.len == 0) continue;
+            if (trimmed[0] == '#') continue;
+            if (std.mem.startsWith(u8, trimmed, "--")) continue;
+            if (std.mem.startsWith(u8, trimmed, "//")) continue;
+            if (std.mem.startsWith(u8, trimmed, ";;")) continue;
+        }
+        // Ajoute la ligne au buffer (avec espace si necessaire).
+        if (accumulate_buffer.items.len > 0) {
+            accumulate_buffer.append(heaven.allocator, ' ') catch continue;
+        }
+        accumulate_buffer.appendSlice(heaven.allocator, trimmed) catch continue;
+        // Compte les parentheses ouvrantes/fermantes dans cette ligne.
+        for (trimmed) |c| {
+            if (c == '(') depth += 1;
+            if (c == ')') depth -= 1;
+        }
+        // Si equilibre ET que le buffer ne finit pas par '=',
+        // evaluer le bloc accumule. La condition sur '=' permet
+        // d'attendre le body sur la ligne suivante.
+        if (depth <= 0) {
+            const buf_t = std.mem.trimRight(u8, accumulate_buffer.items, " \t\r");
+            const ends_with_eq = buf_t.len > 0 and buf_t[buf_t.len - 1] == '=';
+            if (!ends_with_eq) {
+                const block = accumulate_buffer.items;
+                const result = heaven.eval(block) catch |err| {
+                    platform.dbg("[std_loader] {s} '{s}' failed: {}\n", .{ path, block, err });
+                    accumulate_buffer.clearRetainingCapacity();
+                    depth = 0;
+                    continue;
+                };
+                heaven.allocator.free(result);
+                accumulate_buffer.clearRetainingCapacity();
+                depth = 0;
+            }
+        }
+    }
+    // Reste eventuel (parens non equilibrees).
+    if (accumulate_buffer.items.len > 0) {
+        const result = heaven.eval(accumulate_buffer.items) catch |err| {
+            platform.dbg("[std_loader] {s} 'unterminated' failed: {}\n", .{ path, err });
+            return;
         };
         heaven.allocator.free(result);
     }
@@ -72,7 +113,7 @@ pub fn loadOne(heaven: anytype, path: []const u8) void {
 // ─── Tests ───
 
 test "std_loader — files contient les 6 entrées attendues" {
-    try std.testing.expectEqual(@as(usize, 9), files.len);
+    try std.testing.expectEqual(@as(usize, 10), files.len);
     try std.testing.expectEqualStrings("core/io.hvn", files[0]);
     try std.testing.expectEqualStrings("core/std/bool.hvn", files[1]);
     try std.testing.expectEqualStrings("core/std/result.hvn", files[5]);
