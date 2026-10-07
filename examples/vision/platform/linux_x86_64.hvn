@@ -1,6 +1,12 @@
-read fd buf len  = @syscall(0, fd, ptr_of buf, len)
-write fd buf len = @syscall(1, fd, ptr_of buf, len)
-open path flags  = @syscall(2, ptr_of path, flags, 0)
-close fd         = @syscall(3, fd)
-alloc size       = @syscall(9, 0, size, 3, 34, -1, 0) -- mmap (PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE)
-free ptr size    = @syscall(11, ptr, size)            -- munmap
+-- core/platform/linux_x86_64.hvn (syntaxe reelle, D10)
+-- Appels libc via le prefixe @nom (Path B).
+
+read fd buf len  = @read  fd buf len
+write fd buf len = @write fd buf len
+open path flags  = @open  path flags
+close fd         = @close fd
+alloc size       = @mmap  0 size 3 34 -1 0
+free ptr size    = @munmap ptr size
+
+-- Expression finale (racine pour compile-qbe).
+(write 1 0 0)

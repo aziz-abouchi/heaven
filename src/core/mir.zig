@@ -43,6 +43,7 @@ pub const Instr = union(enum) {
     load: struct { dest: Reg, sym: u32 },
     store: struct { sym: u32, src: Reg },
     call_user: struct { dest: Reg, name: u32, args: []const Reg },
+    extern_call: struct { dest: Reg, name: u32, args: []const Reg },
 };
 
 pub const BasicBlock = struct {
@@ -193,6 +194,11 @@ fn shiftInstr(allocator: std.mem.Allocator, inst: Instr, reg_off: u32, block_off
             for (c.args, 0..) |arg, i| args[i] = arg + reg_off;
             break :blk .{ .call_user = .{ .dest = c.dest + reg_off, .name = c.name, .args = args } };
         },
+        .extern_call => |c| blk: {
+            const args = try allocator.alloc(Reg, c.args.len);
+            for (c.args, 0..) |arg, i| args[i] = arg + reg_off;
+            break :blk .{ .extern_call = .{ .dest = c.dest + reg_off, .name = c.name, .args = args } };
+        },
         .phi => |p| blk: {
             const incoming = try allocator.alloc(PhiEntry, p.incoming.len);
             for (p.incoming, 0..) |in, i| incoming[i] = shiftPhiEntry(in, reg_off, block_off);
@@ -233,7 +239,10 @@ pub const MirFunction = struct {
                     const tg = &f.blocks.items[t];
                     var only_phi = true;
                     for (tg.instrs.items) |ins| {
-                        if (ins != .phi) { only_phi = false; break; }
+                        if (ins != .phi) {
+                            only_phi = false;
+                            break;
+                        }
                     }
                     if (only_phi and tg.terminator == .ret) return true;
                 },
@@ -352,7 +361,9 @@ pub const MirFunction = struct {
         errdefer wrapper.deinit();
 
         var max_r: u32 = 0;
-        for (def.param_regs) |r| if (r > max_r) { max_r = r; };
+        for (def.param_regs) |r| if (r > max_r) {
+            max_r = r;
+        };
         wrapper.next_value = max_r + 1;
 
         _ = try wrapper.newBlock();
@@ -399,7 +410,9 @@ pub const MirFunction = struct {
 
         var max_sym: u32 = 0;
         var it = self.fn_defs.keyIterator();
-        while (it.next()) |k| if (k.* > max_sym) { max_sym = k.*; };
+        while (it.next()) |k| if (k.* > max_sym) {
+            max_sym = k.*;
+        };
 
         var infos = try allocator.alloc(FusedPairInfo, pairs.len);
         errdefer allocator.free(infos);
@@ -488,7 +501,9 @@ pub const MirFunction = struct {
 
         var max_sym: u32 = 0;
         var it = self.fn_defs.keyIterator();
-        while (it.next()) |k| if (k.* > max_sym) { max_sym = k.*; };
+        while (it.next()) |k| if (k.* > max_sym) {
+            max_sym = k.*;
+        };
 
         var infos: std.ArrayListUnmanaged(FusedSccInfo) = .{};
         errdefer {
@@ -505,8 +520,14 @@ pub const MirFunction = struct {
             const K = def0.param_regs.len;
             var k_ok = true;
             for (scc) |m| {
-                const d = self.fn_defs.get(m) orelse { k_ok = false; break; };
-                if (d.param_regs.len != K) { k_ok = false; break; }
+                const d = self.fn_defs.get(m) orelse {
+                    k_ok = false;
+                    break;
+                };
+                if (d.param_regs.len != K) {
+                    k_ok = false;
+                    break;
+                }
             }
             if (!k_ok) continue;
 
@@ -622,6 +643,7 @@ pub const MirFunction = struct {
                 switch (inst) {
                     .phi => |ph| self.allocator.free(ph.incoming),
                     .call_user => |c| self.allocator.free(c.args),
+                    .extern_call => |c| self.allocator.free(c.args),
                     else => {},
                 }
             }
@@ -934,6 +956,25 @@ pub const MirFunction = struct {
                     }
                 }
 
+                // Appel externe : convention de nommage `@nom`.
+                // Résolu à l'édition de liens (libc, crt).
+                if (op_name.len > 0 and op_name[0] == '@') {
+                    var arg_regs = std.ArrayListUnmanaged(Id){};
+                    defer arg_regs.deinit(self.allocator);
+                    for (args) |arg| {
+                        const arg_reg = try self.compileExpr(store, arg, target_block, locals);
+                        try arg_regs.append(self.allocator, arg_reg);
+                    }
+                    const dest = self.newReg();
+                    const name_sym = func_node.payload;
+                    const arg_slice = try self.allocator.dupe(Id, arg_regs.items);
+                    errdefer self.allocator.free(arg_slice);
+                    try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                        .extern_call = .{ .dest = dest, .name = name_sym, .args = arg_slice },
+                    });
+                    return dest;
+                }
+
                 if (args.len == 2) {
                     const lhs = try self.compileExpr(store, args[0], target_block, locals);
                     const rhs = try self.compileExpr(store, args[1], target_block, locals);
@@ -1132,6 +1173,7 @@ pub const MirFunction = struct {
                         if (a.dest >= self.values.items.len) try self.values.resize(self.allocator, a.dest + 1);
                         self.values.items[a.dest] = if (self.values.items[a.lhs] == self.values.items[a.rhs]) 1 else 0;
                     },
+                    .extern_call => {},
                     .load => |ld| {
                         const val = global_vars.get(ld.sym) orelse return error.UndefinedVariable;
                         if (ld.dest >= self.values.items.len) try self.values.resize(self.allocator, ld.dest + 1);

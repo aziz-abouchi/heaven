@@ -80,13 +80,16 @@ pub fn emitQbeLoop(
         try w.writeAll("}\n");
     }
 
+    const no_libc = std.posix.getenv("HEAVEN_NO_LIBC") != null;
     try w.writeAll("function l $heaven_main() {\n");
     try emitBody(w, root, null, null);
     try w.writeAll("}\n");
 
     try w.writeAll("export function $main() {\n");
     try w.writeAll("@start\n");
-    if (loop_count <= 1) {
+    if (no_libc) {
+        try w.writeAll("    %r =l call $heaven_main()\n");
+    } else if (loop_count <= 1) {
         try w.writeAll("    %r =l call $heaven_main()\n");
         try w.writeAll("    %r2 =l call $printf(l $fmt, l %r)\n");
     } else {
@@ -104,9 +107,15 @@ pub fn emitQbeLoop(
         try w.writeAll("@loop_done\n");
         try w.writeAll("    %r2 =l call $printf(l $fmt, l %loop_r)\n");
     }
-    try w.writeAll("    ret\n");
+    if (no_libc) {
+        // NB : en mode no_libc le programme termine par un syscall
+        // exit() a l'interieur de heaven_main ; ret sans valeur suffit.
+        try w.writeAll("    ret\n");
+    } else {
+        try w.writeAll("    ret\n");
+    }
     try w.writeAll("}\n");
-    try w.writeAll("data $fmt = { b \"%ld\\n\", b 0 }\n");
+    if (!no_libc) try w.writeAll("data $fmt = { b \"%ld\\n\", b 0 }\n");
     return buf.toOwnedSlice(allocator);
 }
 
@@ -269,7 +278,7 @@ fn emitBody(w: anytype, f: *const MirFunction, param_regs: ?[]const Reg, cur_sym
             for (blk.instrs.items[0 .. blk.instrs.items.len - 1]) |inst| {
                 switch (inst) {
                     .phi => {},
-                    else => try emitInstr(w, inst, &tmp),
+                    else => try emitInstr(w, inst, &tmp, f.store),
                 }
             }
             for (c.args, 0..) |arg, k| {
@@ -281,14 +290,14 @@ fn emitBody(w: anytype, f: *const MirFunction, param_regs: ?[]const Reg, cur_sym
         for (blk.instrs.items) |inst| {
             switch (inst) {
                 .phi => {},
-                else => try emitInstr(w, inst, &tmp),
+                else => try emitInstr(w, inst, &tmp, f.store),
             }
         }
         try emitTerm(w, blk);
     }
 }
 
-fn emitInstr(w: anytype, inst: Instr, tmp: *Reg) !void {
+fn emitInstr(w: anytype, inst: Instr, tmp: *Reg, store: anytype) !void {
     switch (inst) {
         .const_int => |c| try w.print("    %r{d} =l copy {d}\n", .{ c.dest, c.value }),
         .add => |a| try w.print("    %r{d} =l add %r{d}, %r{d}\n", .{ a.dest, a.lhs, a.rhs }),
@@ -311,6 +320,16 @@ fn emitInstr(w: anytype, inst: Instr, tmp: *Reg) !void {
             // NB : vérification fn_defs dans emitQbe (vue globale) ;
             // ici émission seule. Cf. checkCallUsers.
             try w.print("    %r{d} =l call $f{d}(", .{ c.dest, c.name });
+            for (c.args, 0..) |arg, i| {
+                try w.print("{s}l %r{d}", .{ if (i > 0) ", " else "", arg });
+            }
+            try w.writeAll(")\n");
+        },
+        .extern_call => |c| {
+            const st = store orelse return error.NoStoreForExternCall;
+            const name_z = st.interner.resolve(c.name);
+            const name = if (name_z.len > 0 and name_z[0] == '@') name_z[1..] else name_z;
+            try w.print("    %r{d} =l call ${s}(", .{ c.dest, name });
             for (c.args, 0..) |arg, i| {
                 try w.print("{s}l %r{d}", .{ if (i > 0) ", " else "", arg });
             }

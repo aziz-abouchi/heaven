@@ -348,7 +348,7 @@ pub const Engine = struct {
         return null;
     }
 
-        /// Pattern matching recursif : gere les patterns imbriques a
+    /// Pattern matching recursif : gere les patterns imbriques a
     /// profondeur >= 2 en liant les variables dans `new_env`.
     /// Retourne true si `pp` matche `aa`. Les variables liees sont
     /// trackees dans `bound_syms`/`bound_count` pour le cleanup TCO.
@@ -417,7 +417,7 @@ pub const Engine = struct {
         return pattern_mod.exprStructuralEq(store, pp, aa);
     }
 
-pub fn evalFunction(self: *Engine, caller_env: *Env, name: []const u8, args: []const Id) EvalError!Id {
+    pub fn evalFunction(self: *Engine, caller_env: *Env, name: []const u8, args: []const Id) EvalError!Id {
         const store = self.store;
         const fn_def = self.fns.get(name) orelse return error.UnknownSymbol;
         if (fn_def.num_clauses == 0) return error.UnknownSymbol;
@@ -575,7 +575,6 @@ pub fn evalFunction(self: *Engine, caller_env: *Env, name: []const u8, args: []c
             return error.ArityMismatch;
         }
     }
-
 };
 
 /// Évaluateur à 6 branches (primitives fondamentales uniquement).
@@ -765,7 +764,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -842,6 +841,66 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         }
         return error.UnknownSymbol;
     }
+
+    // ═══ RAW SYSCALL — court-circuite Zig std (Path A) ═══
+    // (raw_syscall n a1 a2 a3) → syscall Linux, retourne le résultat en Int.
+    // (raw_syscall6 n a1 a2 a3 a4 a5 a6) → variante 6 args.
+    //
+    // Note : les args sont convertis en i64 (getInt), puis en usize
+    // par @bitCast — ce qui accepte les valeurs "négatives" comme
+    // fd = -1 (mmap, AT_FDCWD).
+    if (std.mem.eql(u8, op, "raw_syscall")) {
+        if (args_snap.len != 4) return error.ArityMismatch;
+        var vals: [4]i64 = undefined;
+        for (args_snap, 0..) |a, i| {
+            const ev = try evaluate(store, env, engine, a, depth + 1);
+            const node = store.get(ev);
+            if (node.tag != .lit) {
+                return error.TypeError;
+            }
+            const l = store.lits.items[node.aux];
+            if (l != .int) {
+                return error.TypeError;
+            }
+            vals[i] = l.int;
+        }
+        const n: std.os.linux.SYS = @enumFromInt(@as(u32, @intCast(vals[0])));
+        const r = std.os.linux.syscall3(
+            n,
+            @as(usize, @bitCast(vals[1])),
+            @as(usize, @bitCast(vals[2])),
+            @as(usize, @bitCast(vals[3])),
+        );
+        return try store.int(@bitCast(r));
+    }
+    if (std.mem.eql(u8, op, "raw_syscall6")) {
+        if (args_snap.len != 7) return error.ArityMismatch;
+        var vals: [7]i64 = undefined;
+        for (args_snap, 0..) |a, i| {
+            const ev = try evaluate(store, env, engine, a, depth + 1);
+            const node = store.get(ev);
+            if (node.tag != .lit) {
+                return error.TypeError;
+            }
+            const l = store.lits.items[node.aux];
+            if (l != .int) {
+                return error.TypeError;
+            }
+            vals[i] = l.int;
+        }
+        const n: std.os.linux.SYS = @enumFromInt(@as(u32, @intCast(vals[0])));
+        const r = std.os.linux.syscall6(
+            n,
+            @as(usize, @bitCast(vals[1])),
+            @as(usize, @bitCast(vals[2])),
+            @as(usize, @bitCast(vals[3])),
+            @as(usize, @bitCast(vals[4])),
+            @as(usize, @bitCast(vals[5])),
+            @as(usize, @bitCast(vals[6])),
+        );
+        return try store.int(@bitCast(r));
+    }
+
     // ═══ 0. CONSTRUCTEURS ═══
     if (engine.fns.get(op)) |fn_def| {
         //platform.dbg("[ctor-branch] op='{s}' clauses={d} ctor_arity={?d} args_snap.len={d}\n", .{ op, fn_def.num_clauses, fn_def.ctor_arity, args_snap.len });
@@ -1696,7 +1755,6 @@ test "safepoint : reductions restaurees apres evalWithBudget" {
     try std.testing.expectEqual(@as(u64, 42), engine.reductions);
 }
 
-
 // ═══════════════════════════════════════════════════════════════════
 // Tests : pattern matching (matchPatternDeep, symMatchesPattern)
 // ═══════════════════════════════════════════════════════════════════
@@ -1828,12 +1886,12 @@ test "pattern — ctor imbrique depth 2 avec wildcard" {
     const mk_sym = try fx.store.sym("Mk");
     const hole = try fx.store.hole(0);
     const leaf_sym = try fx.store.sym("Leaf");
-    const pat = try fx.store.apply(mk_sym, &.{hole, leaf_sym});
+    const pat = try fx.store.apply(mk_sym, &.{ hole, leaf_sym });
     const body = try fx.store.int(7);
     try fx.clause("f", &.{pat}, body);
 
     const v42 = try fx.store.int(42);
-    const arg = try fx.store.apply(mk_sym, &.{v42, leaf_sym});
+    const arg = try fx.store.apply(mk_sym, &.{ v42, leaf_sym });
     const result = try fx.engine.evalFunction(&fx.env, "f", &.{arg});
     try std.testing.expectEqual(body, result);
 }
@@ -1852,13 +1910,13 @@ test "pattern — ctor imbrique depth 3 avec variable" {
     const x_sym = try fx.store.sym("x");
     const hole = try fx.store.hole(0);
     const inner = try fx.store.apply(tiri_sym, &.{x_sym});
-    const pat = try fx.store.apply(cons_sym, &.{inner, hole});
+    const pat = try fx.store.apply(cons_sym, &.{ inner, hole });
     try fx.clause("f", &.{pat}, x_sym);
 
     const v42 = try fx.store.int(42);
     const inner_arg = try fx.store.apply(tiri_sym, &.{v42});
     const nil_arg = try fx.store.sym("Nil");
-    const arg = try fx.store.apply(cons_sym, &.{inner_arg, nil_arg});
+    const arg = try fx.store.apply(cons_sym, &.{ inner_arg, nil_arg });
     const result = try fx.engine.evalFunction(&fx.env, "f", &.{arg});
     try std.testing.expectEqual(v42, result);
 }
@@ -1880,4 +1938,3 @@ test "pattern — litteral" {
     const r2 = fx.engine.evalFunction(&fx.env, "is42", &.{v43});
     try std.testing.expectError(error.ArityMismatch, r2);
 }
-

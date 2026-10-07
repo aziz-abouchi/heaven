@@ -208,6 +208,11 @@ fn emitInstr(w: anytype, inst: Instr, fdefs: *const FnDefs) !void {
             }
             try w.writeAll("))\n");
         },
+        .extern_call => |_| {
+            // WASM n'a pas de libc ; un extern doit passer par WASI
+            // (import fd_write etc.). En attendant, trap explicite.
+            try w.writeAll("    unreachable\n");
+        },
         .phi, .jump, .branch, .ret => unreachable, // filtrés en amont
     }
 }
@@ -245,7 +250,12 @@ fn emitPhiStores(w: anytype, f: *const MirFunction, target: BlockId, pred: Block
                     }
                 }
             },
-            else => {},
+            .extern_call => |_| {
+            // WASM n'a pas de libc ; un extern doit passer par WASI
+            // (import fd_write etc.). En attendant, trap explicite.
+            try w.writeAll("    unreachable\n");
+        },
+        else => {},
         }
     }
 }

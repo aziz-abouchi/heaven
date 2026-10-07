@@ -73,13 +73,15 @@ fn isDefinition(trimmed: []const u8) bool {
     if (std.mem.startsWith(u8, trimmed, "data ")) return true;
     if (std.mem.startsWith(u8, trimmed, "theorem ")) return true;
     if (std.mem.startsWith(u8, trimmed, "actor ")) return true;
-    // Pattern `name(args) = body` ou `name(args) := body` : definition
-    // de fonction sans prefixe `fn`.
+    // Pattern `name args = body` (equations multi-clauses) OU
+    // `name(args) = body` : definition sans prefixe `fn`.
     const eq_idx = std.mem.indexOfScalar(u8, trimmed, '=') orelse return false;
-    const paren_idx = std.mem.indexOfScalar(u8, trimmed, '(') orelse return false;
-    if (paren_idx > eq_idx) return false;
     // Exclure les comparaisons (== , <= , >= , !=)
     if (eq_idx + 1 < trimmed.len and trimmed[eq_idx + 1] == '=') return false;
+    if (eq_idx > 0 and (trimmed[eq_idx - 1] == '<' or trimmed[eq_idx - 1] == '>' or trimmed[eq_idx - 1] == '!')) return false;
+    // LHS ne doit pas commencer par une parenthese (sinon = expression).
+    const lhs = std.mem.trimLeft(u8, trimmed[0..eq_idx], " \t");
+    if (lhs.len == 0 or lhs[0] == '(') return false;
     return true;
 }
 
@@ -185,7 +187,22 @@ pub fn runCompileQbe(
     }
 
     // 7. cc -> prog (natif seulement)
-    try runChild(alloc, &.{ "cc", "-no-pie", "prog.s", "-o", "prog" }, tmp_dir);
+    if (std.posix.getenv("HEAVEN_NO_LIBC") != null) {
+        // Mode freestanding : stubs asm + pas de libc.
+        const root = try std.fs.cwd().realpathAlloc(alloc, ".");
+        defer alloc.free(root);
+        const start_path = try std.fs.path.join(alloc, &.{ root, "src", "platform", "stubs", "start_amd64_linux.s" });
+        defer alloc.free(start_path);
+        const syscall_path = try std.fs.path.join(alloc, &.{ root, "src", "platform", "stubs", "syscall_amd64_linux.s" });
+        defer alloc.free(syscall_path);
+        try runChild(alloc, &.{
+            "cc", "-nostdlib", "-nostartfiles", "-no-pie",
+            "prog.s", start_path, syscall_path,
+            "-o", "prog",
+        }, tmp_dir);
+    } else {
+        try runChild(alloc, &.{ "cc", "-no-pie", "prog.s", "-o", "prog" }, tmp_dir);
+    }
 
     // 8. Copier prog vers out_path, puis rendre executable
     const bin = try tmp_dir.readFileAlloc(alloc, "prog", 32 * 1024 * 1024);

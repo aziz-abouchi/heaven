@@ -292,3 +292,89 @@ Les rapports LLM (IPFS, λ_sc, ontologies) sont utiles pour la
 direction mais doivent être **vérifiés ligne par ligne** avant
 d'être planifiés. Plusieurs prêtaient au code des propriétés
 qu'il n'a pas (sérialisable, distribué, typé).
+
+## D10 — Appels système et libc (Option A+B+C, 2026-10-07)
+
+**Constat** : les fichiers `examples/vision/platform/*.hvn` postulent
+des features absentes : `inline_qbe`, `@syscall(...)`, `@extern("c", ...)`,
+`ptr_of`. Aucune n'est dans le noyau 6 primitives ; QBE 1.2 n'a pas
+d'inline asm. Pourtant la chaîne `Heaven → MIR → QBE → cc → libc` est
+complète (le binaire `fib` importe `printf@GLIBC`).
+
+**Décision** : trois mécanismes coopératifs, opt-in.
+
+1. **Interpréteur (Path A)** — magic symbols `raw_syscall` (4 args) et
+   `raw_syscall6` (7 args). Implémentés dans `engine_expr.zig::evalMagic`
+   via `std.os.linux.syscall3` / `syscall6`. Retournent un `Int`.
+   Invariant noyau respecté : ce sont des magics, comme `+`, `if`, `query`.
+
+2. **Compilé, libc liée (Path B, défaut)** — préfixe `@nom` dans le
+   source Heaven. Le symbole devient `Instr.extern_call` dans MIR, émis
+   par QBE en `call $nom(...)`, résolu à l'édition de liens par libc.
+   Exemple : `write fd buf len = @write fd buf len`.
+
+3. **Compilé, freestanding (Path C, opt-in)** — variable d'environnement
+   `HEAVEN_NO_LIBC=1`. Le link passe par `cc -nostdlib -nostartfiles
+   -no-pie` avec :
+   - `src/platform/stubs/start_amd64_linux.s` : `_start` custom qui
+     appelle `main(argc, argv)`, puis `exit(code)` via syscall 60.
+   - `src/platform/stubs/syscall_amd64_linux.s` : stub
+     `heaven_syscall6(n, a1..a6)` (convention C).
+   L'émission QBE bascule en mode minimal : pas de `printf`, pas de
+   `data $fmt`, `ret` sans valeur dans `$main`.
+
+**Alternatives écartées** :
+- `inline_qbe "..."` : QBE 1.2 n'a pas d'inline asm ; forker
+  `vendor/qbe-1.2/` demanderait un patch à maintenir à chaque bump.
+- Nouvelle primitive dans le noyau 6 : casse l'invariant fondateur.
+- `_start` fourni par libc (`crt1.o`) : lie implicitement libc.
+
+**Débloque** :
+- `examples/vision/platform/linux_x86_64.hvn` réécrit en syntaxe réelle
+  (6 équations, compilable).
+- Bootstrap : un binaire Heaven sans aucune dépendance dynamique.
+- Base pour WASI (`fd_write` via imports, chemin séparé).
+
+**Limites assumées** :
+- Pas de types pointeur : les args sont des `Int` (suffisant pour
+  l'expérimentation, pas pour une API sûre).
+- Stubs amd64-linux uniquement (arm64 et darwin à faire).
+- `linear` en argument (QTT) et `@if` (conditionnel de compilation)
+  restent des chantiers séparés.
+- Le codegen continue d'utiliser `printf` en mode libc. Les benchmarks
+  et `bench-qbe` doivent rester en mode libc.
+
+**Référence** : `docs/spec/_syscalls.md` (à créer, session suivante).
+
+## D11 — Périmètre multi-plateforme de D10 (2026-10-07)
+
+**Constat** : D10 valide trois chemins (magic `raw_syscall`, préfixe `@nom`,
+mode `HEAVEN_NO_LIBC`) mais tous **amd64-linux uniquement**. Le backend
+QBE sait déjà émettre pour 5 cibles (`amd64_sysv`, `amd64_apple`, `arm64`,
+`arm64_apple`, `rv64`), mais les stubs syscall et les noms de symboles
+libc sont spécifiques.
+
+**Décision** : périmètre progressif, priorité décroissante :
+
+1. **arm64-linux Path B** (libc identique à amd64-linux, doit marcher
+   sans changement de code, juste un `cc` cross). 1 session de validation.
+2. **arm64-linux Path C** (stubs `_start` + `heaven_syscall6` à écrire).
+   1-2 sessions.
+3. **amd64-apple / arm64-apple Path B** (préfixe `_` sur les symboles
+   externes). ~2 h. Nécessite un `cc` cross ou une machine macOS.
+4. **Windows** : chantier séparé, *pas* freestanding. `mmap` → `VirtualAlloc`,
+   `write` → `WriteFile`, symboles dans `kernel32.dll` / `msvcrt.dll`.
+   Spec : `docs/spec/_platform.md` familles `io`, `fs`, `mem`.
+5. **WASI** : chemin entièrement différent (imports `fd_write`, etc.),
+   pas de syscall natif. Chantier séparé, session parallèle identifiée.
+
+**Non couvert** : aucun stub Windows freestanding (pas de syscall stable
+NT). Aucun support macOS freestanding à court terme. Aucune cross-cc
+automatisée dans `qbe_cmd.zig` pour l'instant.
+
+**Débloque** : rien immédiat. Fixe le périmètre pour éviter qu'une
+session parallèle ne réécrive les stubs en supposant une portabilité
+qui n'existe pas.
+
+**Note** : ceci est une décision de cadrage, pas un engagement de
+livraison. Aucune de ces étapes n'est dans la roadmap courte.

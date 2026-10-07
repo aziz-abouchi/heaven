@@ -65,6 +65,63 @@ else
     echo "--- WASM : wasmtime absent, skip ---"
 fi
 
+# --- D10 : extern_call via prefixe @nom ---
+echo "--- D10 extern_call ---"
+cat > /tmp/smoke_extern.hvn <<'HEOF'
+fn main() = (@write 1 0 0)
+main
+HEOF
+$HEAVEN compile-qbe /tmp/smoke_extern.hvn -o /tmp/smoke_extern_qbe >/dev/null 2>&1
+if nm -D /tmp/smoke_extern_qbe 2>/dev/null | grep -q "U write"; then
+    echo "  OK   QBE @write -> U write@GLIBC"
+    PASS=$((PASS+1))
+else
+    echo "  FAIL QBE @write absent de nm -D"
+    FAIL=$((FAIL+1))
+fi
+
+# --- D10 : raw_syscall (interpreteur) ---
+echo "--- D10 raw_syscall ---"
+cat > /tmp/smoke_getpid.hvn <<'HEOF'
+(+ 1000 (raw_syscall 39 0 0 0))
+HEOF
+RESULT=$($HEAVEN run /tmp/smoke_getpid.hvn 2>&1 | grep -E '^[0-9]+$' | head -1)
+if [ -n "$RESULT" ] && [ "$RESULT" -gt 1000 ]; then
+    echo "  OK   raw_syscall getpid = $RESULT"
+    PASS=$((PASS+1))
+else
+    echo "  FAIL raw_syscall : obtenu '$RESULT' (attendu > 1000)"
+    FAIL=$((FAIL+1))
+fi
+
+# --- D10 Path C : link freestanding (stubs + _start custom) ---
+echo "--- D10 Path C (HEAVEN_NO_LIBC=1) ---"
+cat > /tmp/smoke_boot.hvn <<'HEOF'
+(@heaven_syscall6 60 42 0 0 0 0 0)
+HEOF
+HEAVEN_NO_LIBC=1 $HEAVEN compile-qbe /tmp/smoke_boot.hvn -o /tmp/smoke_boot >/dev/null 2>&1
+if [ -x /tmp/smoke_boot ]; then
+    /tmp/smoke_boot
+    RC=$?
+    if [ "$RC" = "42" ]; then
+        echo "  OK   freestanding exit=42, statique"
+        PASS=$((PASS+1))
+    else
+        echo "  FAIL freestanding exit=$RC (attendu 42)"
+        FAIL=$((FAIL+1))
+    fi
+    if ldd /tmp/smoke_boot 2>&1 | grep -q "not a dynamic"; then
+        echo "  OK   ldd -> not a dynamic executable"
+        PASS=$((PASS+1))
+    else
+        echo "  FAIL ldd: dynamic linkage detectee"
+        FAIL=$((FAIL+1))
+    fi
+else
+    echo "  FAIL freestanding: binaire non produit"
+    FAIL=$((FAIL+1))
+fi
+
 echo ""
 echo "Total: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
