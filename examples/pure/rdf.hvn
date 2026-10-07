@@ -1,9 +1,7 @@
 -- examples/pure/rdf.hvn
 --
 -- Modelisation RDF en Heaven pur. Tout sur une ligne par equation.
--- Note : les patterns imbriques ne peuvent pas contenir de variable
--- a plus d'un niveau (bug du pattern matcher, voir _syntax_gaps.md).
--- On utilise donc des helpers a wildcards.
+-- Les patterns imbriques avec variables marchent (fix 2026-10-08).
 
 data Iri = IAlice | IBob | ICharlie | IKnows | IName | IAge
 data Term = TIri Iri | TLit Int
@@ -20,17 +18,10 @@ object (MkTriple _ _ o) = o
 size Knil = 0
 size (Kcons _ rest) = 1 + size rest
 
--- Test : sujet == IAlice (pattern profond SANS variable)
-subjectIsAlice (MkTriple (TIri IAlice) _ _) = 1
-subjectIsAlice _ = 0
-
--- Conserve t si flag=1, sinon retourne rest
-consIfAlice 1 t rest = Kcons t rest
-consIfAlice _ t rest = rest
-
--- Filtre : helper sur chaque element
+-- Filtre : sujet == IAlice (pattern imbrique avec variables p, o)
 filterAlice Knil = Knil
-filterAlice (Kcons t rest) = consIfAlice (subjectIsAlice t) t (filterAlice rest)
+filterAlice (Kcons (MkTriple (TIri IAlice) p o) rest) = Kcons (MkTriple (TIri IAlice) p o) (filterAlice rest)
+filterAlice (Kcons _ rest) = filterAlice rest
 
 -- Base de demo (3 triples)
 demoKb Demo = Kcons (MkTriple (TIri IAlice) (TIri IKnows) (TIri IBob)) (Kcons (MkTriple (TIri IBob) (TIri IKnows) (TIri ICharlie)) (Kcons (MkTriple (TIri IAlice) (TIri IAge) (TLit 30)) Knil))

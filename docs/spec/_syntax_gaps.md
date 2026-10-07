@@ -401,9 +401,10 @@ en cascade :
 **Test** : `import "deep2b.hvn" as D` puis
 `head3 (D.Cons2 42 D.Nil2)` -> `42`.
 
-### Bug : variables dans un pattern imbrique (depth >= 2)
+### Corrige : variables dans un pattern imbrique (depth >= 2)
 
-Repro :
+**Corrige le 2026-10-08** (commit `matchPatternDeep`). Repro
+originale :
 
     data Iri = IAlice | IKnows
     data Term = TIri Iri
@@ -426,18 +427,22 @@ les deux sont des `apply`, il tombe sur `exprStructuralEq` qui
 compare **litteralement** les args. Or le pattern contient `p` et `o`
 (variables), l'arg contient `IKnows` et `IBob` -> jamais egaux.
 
-**Fix (chantier)** : `patternArgMatches` doit recurser en pattern
-matching quand les deux sont des `apply` (comparer les tetes avec
-`symMatchesPattern`, puis les args recursivement, en liant les
-variables dans `new_env`). Necessite de remonter `new_env` dans le
-helper et de tracker les bindings pour le cleanup.
+**Fix applique** : `matchPatternDeep`, methode recursive de
+`Engine` qui bascule en pattern matching pour chaque sous-pattern
+(binder, ctor 0-arity, lit, apply). Recoit `new_env` +
+`bound_syms`/`bound_count` pour tracker les variables liees
+(cleanup TCO).
 
-**Workaround** : eviter les variables dans un pattern imbrique.
-Utiliser un helper a wildcards (`isAlice (MkTriple (TIri IAlice) _ _)`)
-puis passer la valeur en argument a une autre fonction.
+La boucle outer du matching est reduite a 8 lignes.
 
-**Impact** : code RDF/parsing moins concis (filtres doivent passer
-par 2 fonctions au lieu d'un pattern direct).
+**Test** :
+    extract (Kcons (MkTriple (TIri IAlice) p o) rest) = p
+    (extract (Kcons (MkTriple (TIri IAlice) (TIri IKnows) _) _))
+    -> (TIri IKnows)
+
+**Impact** : le code RDF/parsing peut ecrire des filtres directs
+sans helpers a wildcards. `examples/pure/rdf.hvn` simplifie en
+consequence.
 
 ## Priorite
 
