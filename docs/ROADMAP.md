@@ -1,7 +1,33 @@
 # Heaven — Roadmap & specs
 
-Ce document contient les specs des fonctionnalités **non implémentées**
-mais conçues. Chaque section est autonome et prête à être implémentée.
+Ce document contient les specs des fonctionnalites **non implementees**
+mais concues. Chaque section est autonome et prete a etre implementee.
+
+## Etat 2026-10-07 — decisions structurantes actees
+
+Session fondatrice : D10-D15. Voir `DECISIONS.md` pour le detail.
+
+### Ferme
+
+- **D10** — syscalls + libc + freestanding (3 chemins A/B/C).
+  Linux amd64. `raw_syscall`, `@nom`, `HEAVEN_NO_LIBC=1`.
+- **D11** — perimetre multi-plateforme (ordre : arm64-linux, apple, windows, wasi).
+- **D12** — laziness (`delay`/`force` + memoization).
+- **D14** — IO en Heaven (5 magics fins). `core/io_stream.hvn` (Linux x86_64).
+- **D15** — `let` magic symbol S-expr.
+
+### Pistes actives (ordre conseille)
+
+1. **D8 3a-3** — continuations delimitees (2-3 sessions).
+2. **D14 etape 2** — `peek_byte`/`poke_byte`/`string_concat` (1 session).
+3. **Audit `Store.getInt`** (30 min).
+4. **Panic DebugAllocator** (session a froid).
+5. **Quirks parser** (1 session).
+
+---
+
+## Specs plus anciennes (v0/v1 fermes, v2+ ouvertes)
+
 
 Ordre recommandé :
 1. `#type-dep` — types dépendants (v0 ✅, v1 en cours)

@@ -1,3 +1,87 @@
+## Addendum -- session 2026-10-07 (session fondatrice)
+
+**HEAD** : `26750bd` (main). Tout pousse sur origin.
+
+### Tests (mesure 2026-10-07)
+
+    zig build test --summary all         ->  388 tests Zig
+    heaven --run-test tests/test_stream_lazy.hvn   ->  8/8
+    heaven --run-test tests/test_io_stream.hvn     ->  4/4
+    bash scripts/smoke.sh                ->  16/16
+
+Note : `HEAVEN_NO_LEAK_CHECK=1` recommande pour eviter le panic
+DebugAllocator (bug preexistant, non resolu).
+
+### Decisions fermees cette session
+
+- **D10** -- syscalls et libc. 3 chemins : A (interpreteur, `raw_syscall`),
+  B (compilé libc, prefixe `@nom`), C (freestanding, `HEAVEN_NO_LIBC=1`).
+- **D11** -- perimetre multi-plateforme (amd64-linux seulement pour D10 ;
+  D11 fixe l'ordre arm64-linux / apple / windows / wasi).
+- **D12** -- laziness (`Tag.thunk` + magics `delay` / `force` + memoization).
+- **D14** -- IO en Heaven (5 magics fins : `string_ptr`, `raw_alloc`,
+  `raw_free`, `target_os`, `raw_syscall`).
+- **D15** -- `let` magic symbol S-expr `(let name val body)`.
+
+### Bugs resolus
+
+- **Multi-clauses** : `parseBodySmart` (wrap + parseExpression) dans
+  `evalEquation`. Debloque `f (- n 1)`, `fact`, streams paresseux.
+- **`force` dangling** : `engine.thunks.getPtr` + `evaluate` realloc.
+  Fix : re-getPtr apres evaluate.
+- **3 sites `getPtr` + evaluate** : actor send, run process, module alias.
+  Meme classe que `force`. Voir convention #20 ci-dessous.
+
+### Features utilisateur
+
+- Streams paresseux (`stream_nats_from`, `stream_map`, `stream_filter`,
+  `stream_take`, `stream_repeat`, `stream_iterate`).
+- IO en Heaven (`io_open`, `io_read`, `io_close` dans `core/io_stream.hvn`).
+- `let` S-expr comme expression normale.
+
+### Pistes actives (ordre conseille)
+
+1. **D8 3a-3** -- continuations delimitees (`captureCont` / `throwCont`).
+   `continuation.zig` a `PromptStack` seulement (pas de capture).
+   Debloque `handle-rec`, scheduler preemptif, events. 2-3 sessions.
+2. **D14 etape 2** -- `peek_byte`, `poke_byte`, `string_concat` ->
+   vrai `cat` en Heaven. 1 session.
+3. **Audit `Store.getInt`** -- lit `payload` au lieu de `lits.items[aux]`.
+   `grep -rn "getInt" src/` -- plusieurs sites potentiellement affectes. 30 min.
+4. **Panic DebugAllocator** -- "double-mapped pages". Contourne par
+   `HEAVEN_NO_LEAK_CHECK=1`. `git bisect` sur `egraph_rewriter.zig` ou
+   usage subtil de DebugAllocator. Session a froid.
+5. **Quirks parser** -- `-100`, strings dans `let`, `let ... in` multi-lignes.
+   Voir `_syntax_gaps.md` section "Quirks parser". 1 session.
+
+### Convention #20 -- getPtr + evaluate = danger
+
+Ne jamais garder un pointeur `HashMap.getPtr(key)` a travers un
+`evaluate()` recursif. `evaluate` peut ajouter des entrees a la meme
+HashMap (`thunks`, `actors`, `processes`, `fns`) -> realloc -> pointeur
+dangling. Capturer les valeurs scalaires avant, re-`getPtr` apres.
+Cas fixes : `force`, `actor send`, `run process`, `module alias`.
+Voir commit `26750bd`.
+
+### Ce qui reste a considerer (audit empirique)
+
+`engine_expr.zig:1182` -- `store.pool.items[...] = try evaluate(...)`.
+Probablement sur en Zig (RHS avant LHS), mais non verifie. Un test
+isole (tuple de 10 elements dont le 5e force une realloc du pool)
+confirmerait.
+
+### Autres fichiers a jour cette session
+
+- `docs/DECISIONS.md` : D10, D11, D12, D14, D15.
+- `docs/spec/_syntax_gaps.md` : bug multi-clauses resolu + quirks parser.
+- `docs/book/src/07-streams.md` : reecriture paresseuse.
+- `docs/book/src/B-erreurs.md` : 10 erreurs courantes documentees.
+- `docs/book/src/C-glossaire.md` : magic, thunk, Path A/B/C.
+- `docs/book/src/CHANGELOG.md` : entree 2026-10-07.
+- `docs/book/src/SUMMARY.md` : ordre corrige.
+
+---
+
 # Prompt de continuité — Heaven session suivante
 
 ## Convention doc (IMPORTANT pour les sessions paralleles)
