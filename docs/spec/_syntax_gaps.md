@@ -401,6 +401,44 @@ en cascade :
 **Test** : `import "deep2b.hvn" as D` puis
 `head3 (D.Cons2 42 D.Nil2)` -> `42`.
 
+### Bug : variables dans un pattern imbrique (depth >= 2)
+
+Repro :
+
+    data Iri = IAlice | IKnows
+    data Term = TIri Iri
+    data Triple = MkTriple Term Term Term
+    data Kb = Knil | Kcons Triple Kb
+
+    isAlice (MkTriple (TIri IAlice) _ _) = 1        -- OK (wildcards)
+    isAlice _ = 0
+
+    extract (Kcons (MkTriple (TIri IAlice) p o) rest) = p    -- KO
+    extract _ = 0
+
+    (extract (Kcons (MkTriple (TIri IAlice) (TIri IKnows) (TIri IAlice)) Knil))
+
+**Comportement** : `error.ArityMismatch`. La clause ne matche pas.
+
+**Cause** : dans `engine_expr.zig`, la branche `.apply` du pattern
+match utilise `patternArgMatches(pp, aa)` pour les sous-patterns. Si
+les deux sont des `apply`, il tombe sur `exprStructuralEq` qui
+compare **litteralement** les args. Or le pattern contient `p` et `o`
+(variables), l'arg contient `IKnows` et `IBob` -> jamais egaux.
+
+**Fix (chantier)** : `patternArgMatches` doit recurser en pattern
+matching quand les deux sont des `apply` (comparer les tetes avec
+`symMatchesPattern`, puis les args recursivement, en liant les
+variables dans `new_env`). Necessite de remonter `new_env` dans le
+helper et de tracker les bindings pour le cleanup.
+
+**Workaround** : eviter les variables dans un pattern imbrique.
+Utiliser un helper a wildcards (`isAlice (MkTriple (TIri IAlice) _ _)`)
+puis passer la valeur en argument a une autre fonction.
+
+**Impact** : code RDF/parsing moins concis (filtres doivent passer
+par 2 fonctions au lieu d'un pattern direct).
+
 ## Priorite
 
 | Gap | Impact | Effort estime |

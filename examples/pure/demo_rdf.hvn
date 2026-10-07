@@ -1,0 +1,8 @@
+-- examples/pure/demo_rdf.hvn
+--
+-- Utilisation de rdf.hvn via import qualified.
+
+import "examples/pure/rdf.hvn" as R
+
+-- Nombre de triples dans la base de demo
+(R.size (R.demoKb R.Demo))
