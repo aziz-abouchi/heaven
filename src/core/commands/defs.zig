@@ -14,6 +14,53 @@ const platform = @import("platform");
 const Store = expr.Store;
 const Id = expr.Id;
 
+/// Remplace les operateurs magiques courts (-, +, *, /, =, !=, <, >, <=, >=)
+/// par leur nom long (sub, add, mul, div, eq, neq, lt, gt, le, ge) **quand
+/// ils apparaissent immediatement apres '(' ou un espace dans un contexte
+/// S-expr**. Le runtime traite les deux formes identiquement (evalMagic).
+/// Corrige : `f (- n 1)` echoue car parseSExpr tokenize mal `-` seul.
+fn normalizeOps(allocator: std.mem.Allocator, src: []const u8) ![]u8 {
+    const pairs = [_][2][]const u8{
+        .{ "-", "sub" }, .{ "+", "add" }, .{ "*", "mul" }, .{ "/", "div" },
+        .{ "==", "eq" }, .{ "!=", "neq" }, .{ "<=", "le" }, .{ ">=", "ge" },
+        .{ "<", "lt" }, .{ ">", "gt" },
+    };
+    var out: std.ArrayListUnmanaged(u8) = .{};
+    errdefer out.deinit(allocator);
+    var i: usize = 0;
+    while (i < src.len) {
+        // Detecter '(' ou ' ' suivi d'un operateur
+        const at_boundary = (i == 0 or src[i - 1] == '(' or src[i - 1] == ' ');
+        if (at_boundary) {
+            var matched = false;
+            for (pairs) |pr| {
+                const short = pr[0];
+                if (i + short.len <= src.len and
+                    std.mem.eql(u8, src[i .. i + short.len], short))
+                {
+                    // Verifier que ce qui suit n'est pas un autre operateur
+                    // (pour != vs !, <= vs <, etc. — on prend le plus long)
+                    // On parcourt dans l'ordre : == != <= >= avant < >
+                    const after = i + short.len;
+                    // Ne pas matcher si c'est un nombre negatif (-5)
+                    const is_neg_num = short.len == 1 and short[0] == '-' and
+                        after < src.len and std.ascii.isDigit(src[after]);
+                    if (!is_neg_num) {
+                        try out.appendSlice(allocator, pr[1]);
+                        i += short.len;
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+            if (matched) continue;
+        }
+        try out.append(allocator, src[i]);
+        i += 1;
+    }
+    return out.toOwnedSlice(allocator);
+}
+
 pub fn define(cmds: anytype, name: []const u8, value_text: []const u8) anyerror![]u8 {
     const val_id = try cmds.bridge.importExpr(value_text);
     cmds.engine.fuel = 10_000;
@@ -224,10 +271,35 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
         // '>' (confondus avec des balises) et produit une structure
         // currifiee : apply(apply(<, ...), [n, 2]). parseSExpr produit
         // un arbre propre.
-        const body_id = if (rhs.len > 0 and rhs[0] == '(')
-            cmds.parser.parseSExpr(rhs) catch return cmds.allocator.dupe(u8, "parse error in body")
-        else
-            cmds.parseExpression(rhs) catch return cmds.allocator.dupe(u8, "parse error in body");
+        // Body : S-expr pur, S-expr-style (sym args...), ou infix.
+        // Detection : '('-debut OU symbole suivi d'un argument.
+        // Raison : parseExpression (tree-sitter) currifie f (- n 1) en
+        // apply(apply(f, [-]), [n, 1]). parseSExpr donne la structure
+        // correcte. Voir _syntax_gaps.md "bug multi-clauses".
+        var use_sexpr = rhs.len > 0 and rhs[0] == '(';
+        if (!use_sexpr and rhs.len > 1) {
+            var i: usize = 0;
+            while (i < rhs.len and (std.ascii.isAlphanumeric(rhs[i]) or rhs[i] == '_' or rhs[i] == '?' or rhs[i] == '.')) : (i += 1) {}
+            if (i > 0 and i < rhs.len and rhs[i] == ' ') {
+                var j = i;
+                while (j < rhs.len and rhs[j] == ' ') : (j += 1) {}
+                if (j < rhs.len) {
+                    const c = rhs[j];
+                    use_sexpr = std.ascii.isAlphanumeric(c) or c == '_' or c == '(' or c == '?';
+                }
+            }
+        }
+        const body_id = if (use_sexpr) blk: {
+            const wrapped = if (rhs[0] == '(')
+                try cmds.allocator.dupe(u8, rhs)
+            else
+                try std.fmt.allocPrint(cmds.allocator, "({s})", .{rhs});
+            defer cmds.allocator.free(wrapped);
+            const normalized = try normalizeOps(cmds.allocator, wrapped);
+
+            defer cmds.allocator.free(normalized);
+            break :blk cmds.parser.parseSExpr(normalized) catch return cmds.allocator.dupe(u8, "parse error in body");
+        } else cmds.parseExpression(rhs) catch return cmds.allocator.dupe(u8, "parse error in body");
         const lowered_body = try cmds.store.lowerRec(body_id);
 
         var def: engine_expr.FunctionDef = .{

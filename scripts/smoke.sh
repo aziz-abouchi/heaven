@@ -164,6 +164,27 @@ else
     FAIL=$((FAIL+1))
 fi
 
+# --- D12 streams paresseux ---
+echo "--- D12 streams paresseux ---"
+cat > /tmp/smoke_nats.hvn <<'HEOF'
+data Stream a = Cons a (Stream a) | End
+nats_from n = Cons n (delay (nats_from (+ n 1)))
+take_step n End = End
+take_step n (Cons x rest) = Cons x (take_impl (- n 1) (force rest))
+take_impl n s = if (= n 0) End (take_step n s)
+ssum End = 0
+ssum (Cons x rest) = (+ x (ssum (force rest)))
+(ssum (take_impl 5 (nats_from 0)))
+HEOF
+RESULT=$($HEAVEN run /tmp/smoke_nats.hvn 2>&1 | grep -E '^[0-9]+$' | head -1)
+if [ "$RESULT" = "10" ]; then
+    echo "  OK   ssum (take 5 nats) = 10"
+    PASS=$((PASS+1))
+else
+    echo "  FAIL ssum (take 5 nats) : '$RESULT' (attendu 10)"
+    FAIL=$((FAIL+1))
+fi
+
 echo ""
 echo "Total: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

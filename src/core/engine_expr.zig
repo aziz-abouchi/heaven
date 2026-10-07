@@ -889,9 +889,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return v;
     }
 
-    // ═══ RAW SYSCALL (Linux uniquement) ═══
-    if (comptime @import("builtin").os.tag == .linux) {
- — court-circuite Zig std (Path A) ═══
+    // ═══ RAW SYSCALL — court-circuite Zig std (Path A) ═══
     // (raw_syscall n a1 a2 a3) → syscall Linux, retourne le résultat en Int.
     // (raw_syscall6 n a1 a2 a3 a4 a5 a6) → variante 6 args.
     //
@@ -948,7 +946,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             @as(usize, @bitCast(vals[6])),
         );
         return try store.int(@bitCast(r));
-    }
     }
 
     // ═══ 0. CONSTRUCTEURS ═══

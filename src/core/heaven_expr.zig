@@ -1788,6 +1788,47 @@ pub const Heaven = struct {
         return result;
     }
 
+/// Parse un body d'equation. Si le rhs est un S-expr (`(f ...)` ou
+/// `f (- n 1)` : symbole suivi d'un argument non-operateur), utiliser
+/// parseSExpr apres normalisation des operateurs. Sinon parseExpression.
+///
+/// Corrige : `f n = f (- n 1)` -> parseExpression (tree-sitter)
+/// produit apply(apply(f, [-]), [n, 1]) au lieu de apply(f, [apply(-, [n, 1])]).
+fn parseBodySmart(self: *Heaven, rhs: []const u8) HeavenError!Id {
+    if (rhs.len == 0) return error.InvalidSyntax;
+    // Si le body est deja un S-expr, parseExpression suffit (il
+    // reconnait '(...)' au premier caractere).
+    if (rhs[0] == '(') return self.parseExpression(rhs);
+
+    // Detection du style `sym arg1 arg2...` : symbole alphanumerique
+    // suivi d'un espace puis d'un argument (alphanum, '_', '(').
+    // Cas typique : `f (- n 1)`.
+    var looks_like_application = false;
+    {
+        var i: usize = 0;
+        while (i < rhs.len and (std.ascii.isAlphanumeric(rhs[i]) or
+               rhs[i] == '_' or rhs[i] == '?' or rhs[i] == '.')) : (i += 1) {}
+        if (i > 0 and i < rhs.len and rhs[i] == ' ') {
+            var j = i;
+            while (j < rhs.len and rhs[j] == ' ') : (j += 1) {}
+            if (j < rhs.len) {
+                const c = rhs[j];
+                looks_like_application = std.ascii.isAlphanumeric(c) or
+                    c == '_' or c == '(' or c == '?';
+            }
+        }
+    }
+
+    if (!looks_like_application) return self.parseExpression(rhs);
+
+    // Entourer de parentheses et confier a parseExpression : il gere
+    // correctement les operateurs infix en contexte parenthese
+    // (verifie avec u2 : `f n = (f (- n 1))` marche).
+    const wrapped = try std.fmt.allocPrint(self.allocator, "({s})", .{rhs});
+    defer self.allocator.free(wrapped);
+    return self.parseExpression(wrapped);
+}
+
 fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
         // NB : setLastEqLhs est appelé en FIN de parcours (juste avant le
         // return de succès), PAS en tête -- la forme alignée lit
@@ -1873,7 +1914,7 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
             try patterns.append(self.allocator, id);
         }
 
-        const body = try self.parseExpression(rhs);
+        const body = try parseBodySmart(self, rhs);
         var guard_id: ?Id = null;
         if (guard_str) |gs_raw| {
             const gs = std.mem.trim(u8, gs_raw, " \t");
