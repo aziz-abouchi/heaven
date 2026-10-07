@@ -1154,7 +1154,7 @@ pub const Heaven = struct {
                 }
                 depth += 1;
             } else if (c == ')') {
-                depth -= 1;
+                if (depth > 0) depth -= 1;
                 if (depth == 0 and in_token) {
                     try tokens.append(self.allocator, trimmed[start .. i + 1]);
                     in_token = false;

@@ -37,3 +37,7 @@ stream_sum (Cons x rest) = (+ x (stream_sum (force rest)))
 
 stream_nth n End = 0
 stream_nth n (Cons x rest) = (if (= n 0) x (stream_nth (- n 1) (force rest)))
+
+-- Longueur d'un stream (fini).
+stream_length End = 0
+stream_length (Cons x rest) = (+ 1 (stream_length (force rest)))

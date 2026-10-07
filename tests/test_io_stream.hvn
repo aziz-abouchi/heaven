@@ -1,0 +1,12 @@
+-- tests/test_io_stream.hvn -- IO en Heaven (D14)
+-- Necessite un fichier ./heaven_test_io.txt avec "hello\n".
+-- Setup : bash scripts/setup_io_test.sh
+-- Lancer : heaven --run-test tests/test_io_stream.hvn
+
+test "target_os retourne linux": (target_os) == "linux"
+
+test "io_open inexistant -> -2 (ENOENT)": (io_open "no_such_file_heaven_xyz.txt") == (- 0 2)
+
+test "io_open existant -> fd positif": (> (io_open "heaven_test_io.txt") 0) == true
+
+test "io_read lit 6 bytes": (let fd (io_open "heaven_test_io.txt") (let buf (raw_alloc 16) (let n (io_read fd buf 16) (let _c (io_close fd) (let _f (raw_free buf 16) n))))) == 6

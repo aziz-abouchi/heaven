@@ -1,0 +1,18 @@
+-- tests/test_stream_lazy.hvn -- Streams paresseux (D12)
+-- Lancer avec : heaven --run-test tests/test_stream_lazy.hvn
+
+test "stream_take sur stream infini": (stream_length (stream_take 5 (stream_nats_from 0))) == 5
+
+test "stream_sum des 5 premiers naturels": (stream_sum (stream_take 5 (stream_nats_from 0))) == 10
+
+test "stream_map : carres des 4 premiers": (stream_sum (stream_take 4 (stream_map (lambda x -> (* x x)) (stream_nats_from 0)))) == 14
+
+test "stream_filter : pairs parmi les 5 premiers": (stream_length (stream_filter (lambda x -> (= (% x 2) 0)) (stream_take 5 (stream_nats_from 0)))) == 3
+
+test "stream_repeat : 3 fois 7 = 21": (stream_sum (stream_take 3 (stream_repeat 7))) == 21
+
+test "stream_nth : 3e element de nats = 3": (stream_nth 3 (stream_nats_from 0)) == 3
+
+test "stream_nth au-dela de End retourne 0": (stream_nth 5 (Cons 1 End)) == 0
+
+test "stream_iterate : ajouter 1 a chaque pas": (stream_nth 5 (stream_iterate (lambda x -> (+ x 1)) 0)) == 5
