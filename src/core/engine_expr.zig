@@ -1695,3 +1695,189 @@ test "safepoint : reductions restaurees apres evalWithBudget" {
     // Restaure a 42, pas a maxInt.
     try std.testing.expectEqual(@as(u64, 42), engine.reductions);
 }
+
+
+// ═══════════════════════════════════════════════════════════════════
+// Tests : pattern matching (matchPatternDeep, symMatchesPattern)
+// ═══════════════════════════════════════════════════════════════════
+
+const PatternFixture = struct {
+    allocator: std.mem.Allocator,
+    store: Store,
+    env: Env,
+    engine: Engine,
+
+    fn init(allocator: std.mem.Allocator) !*PatternFixture {
+        const self = try allocator.create(PatternFixture);
+        self.allocator = allocator;
+        self.store = Store.init(allocator);
+        self.env = Env.init(allocator);
+        self.engine = Engine.initTest(allocator, &self.store, &self.env);
+        return self;
+    }
+
+    fn deinit(self: *PatternFixture) void {
+        self.engine.deinit();
+        self.env.deinit();
+        self.store.deinit();
+        self.allocator.destroy(self);
+    }
+
+    /// Enregistre un constructeur (nom + arite). `matchPatternDeep`
+    /// utilise `ctor_arity` pour distinguer un ctor 0-arity d'une
+    /// variable.
+    fn ctor(self: *PatternFixture, name: []const u8, arity: u8) !void {
+        const key = try self.allocator.dupe(u8, name);
+        const gop = try self.engine.fns.getOrPut(self.allocator, key);
+        if (gop.found_existing) {
+            self.allocator.free(key);
+        } else {
+            gop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
+        }
+        gop.value_ptr.ctor_arity = arity;
+    }
+
+    /// Enregistre une clause `name patterns = body`.
+    fn clause(self: *PatternFixture, name: []const u8, patterns: []const Id, body: Id) !void {
+        const key = try self.allocator.dupe(u8, name);
+        const gop = try self.engine.fns.getOrPut(self.allocator, key);
+        if (gop.found_existing) {
+            self.allocator.free(key);
+        } else {
+            gop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
+        }
+        gop.value_ptr.addClause(patterns, body);
+    }
+};
+
+test "pattern — ctor 0-arity local" {
+    const allocator = std.testing.allocator;
+    var fx = try PatternFixture.init(allocator);
+    defer fx.deinit();
+
+    try fx.ctor("True", 0);
+    const p = try fx.store.sym("True");
+    try fx.clause("myId", &.{p}, p);
+
+    const arg = try fx.store.sym("True");
+    const result = try fx.engine.evalFunction(&fx.env, "myId", &.{arg});
+    try std.testing.expectEqual(p, result);
+}
+
+test "pattern — ctor 0-arity qualified matche unqualified" {
+    const allocator = std.testing.allocator;
+    var fx = try PatternFixture.init(allocator);
+    defer fx.deinit();
+
+    try fx.ctor("True", 0);
+    try fx.ctor("Q.True", 0);
+
+    // Clause : myId True = True (pattern unqualified)
+    const p = try fx.store.sym("True");
+    try fx.clause("myId", &.{p}, p);
+
+    // Appel avec Q.True (qualifie)
+    const arg = try fx.store.sym("Q.True");
+    const result = try fx.engine.evalFunction(&fx.env, "myId", &.{arg});
+    try std.testing.expectEqual(p, result);
+}
+
+test "pattern — ctor qualified A.X != B.X" {
+    const allocator = std.testing.allocator;
+    var fx = try PatternFixture.init(allocator);
+    defer fx.deinit();
+
+    try fx.ctor("A.X", 0);
+    try fx.ctor("B.X", 0);
+
+    const p = try fx.store.sym("A.X");
+    try fx.clause("myId", &.{p}, p);
+
+    // Appel avec B.X : doit echouer (symMatchesPattern refuse deux
+    // prefixes differents)
+    const arg = try fx.store.sym("B.X");
+    const r = fx.engine.evalFunction(&fx.env, "myId", &.{arg});
+    try std.testing.expectError(error.ArityMismatch, r);
+}
+
+test "pattern — ctor 1-arity avec variable" {
+    const allocator = std.testing.allocator;
+    var fx = try PatternFixture.init(allocator);
+    defer fx.deinit();
+
+    try fx.ctor("Box", 1);
+    const box_sym = try fx.store.sym("Box");
+    const x_sym = try fx.store.sym("x");
+    const pat = try fx.store.apply(box_sym, &.{x_sym});
+    try fx.clause("unbox", &.{pat}, x_sym);
+
+    const v42 = try fx.store.int(42);
+    const arg = try fx.store.apply(box_sym, &.{v42});
+    const result = try fx.engine.evalFunction(&fx.env, "unbox", &.{arg});
+    try std.testing.expectEqual(v42, result);
+}
+
+test "pattern — ctor imbrique depth 2 avec wildcard" {
+    const allocator = std.testing.allocator;
+    var fx = try PatternFixture.init(allocator);
+    defer fx.deinit();
+
+    try fx.ctor("Mk", 2);
+    try fx.ctor("Leaf", 0);
+
+    const mk_sym = try fx.store.sym("Mk");
+    const hole = try fx.store.hole(0);
+    const leaf_sym = try fx.store.sym("Leaf");
+    const pat = try fx.store.apply(mk_sym, &.{hole, leaf_sym});
+    const body = try fx.store.int(7);
+    try fx.clause("f", &.{pat}, body);
+
+    const v42 = try fx.store.int(42);
+    const arg = try fx.store.apply(mk_sym, &.{v42, leaf_sym});
+    const result = try fx.engine.evalFunction(&fx.env, "f", &.{arg});
+    try std.testing.expectEqual(body, result);
+}
+
+test "pattern — ctor imbrique depth 3 avec variable" {
+    const allocator = std.testing.allocator;
+    var fx = try PatternFixture.init(allocator);
+    defer fx.deinit();
+
+    try fx.ctor("Cons", 2);
+    try fx.ctor("Nil", 0);
+    try fx.ctor("TIri", 1);
+
+    const cons_sym = try fx.store.sym("Cons");
+    const tiri_sym = try fx.store.sym("TIri");
+    const x_sym = try fx.store.sym("x");
+    const hole = try fx.store.hole(0);
+    const inner = try fx.store.apply(tiri_sym, &.{x_sym});
+    const pat = try fx.store.apply(cons_sym, &.{inner, hole});
+    try fx.clause("f", &.{pat}, x_sym);
+
+    const v42 = try fx.store.int(42);
+    const inner_arg = try fx.store.apply(tiri_sym, &.{v42});
+    const nil_arg = try fx.store.sym("Nil");
+    const arg = try fx.store.apply(cons_sym, &.{inner_arg, nil_arg});
+    const result = try fx.engine.evalFunction(&fx.env, "f", &.{arg});
+    try std.testing.expectEqual(v42, result);
+}
+
+test "pattern — litteral" {
+    const allocator = std.testing.allocator;
+    var fx = try PatternFixture.init(allocator);
+    defer fx.deinit();
+
+    const p = try fx.store.int(42);
+    const body = try fx.store.int(1);
+    try fx.clause("is42", &.{p}, body);
+
+    const v42 = try fx.store.int(42);
+    const r1 = try fx.engine.evalFunction(&fx.env, "is42", &.{v42});
+    try std.testing.expectEqual(body, r1);
+
+    const v43 = try fx.store.int(43);
+    const r2 = fx.engine.evalFunction(&fx.env, "is42", &.{v43});
+    try std.testing.expectError(error.ArityMismatch, r2);
+}
+
