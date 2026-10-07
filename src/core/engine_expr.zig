@@ -900,10 +900,17 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const arg = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const node = store.get(arg);
         if (node.tag != .thunk) return arg;
-        const state = engine.thunks.getPtr(arg) orelse return arg;
-        if (state.forced) |v| return v;
-        const v = try evaluate(store, state.env, engine, node.payload, depth + 1);
-        state.forced = v;
+        const state0 = engine.thunks.getPtr(arg) orelse return arg;
+        if (state0.forced) |v| return v;
+        // Copier l'env AVANT l'evaluate recursif : le HashMap engine.thunks
+        // peut se reallouer pendant l'evaluation (ajout de thunks
+        // imbriques), invalidant state0. Meme pattern que pool.items.
+        const saved_env = state0.env;
+        const v = try evaluate(store, saved_env, engine, node.payload, depth + 1);
+        // Re-getPtr : le HashMap a pu etre realloue.
+        if (engine.thunks.getPtr(arg)) |state2| {
+            state2.forced = v;
+        }
         return v;
     }
 

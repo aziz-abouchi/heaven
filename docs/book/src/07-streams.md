@@ -1,189 +1,156 @@
 # Chapitre 7 — Streams
 
-> *« Une liste est finie. Un stream est une promesse. »*
-
-Un `Stream`, c'est une liste paresseuse. Elle peut être infinie, ou
-très longue, ou simplement inconnue à l'avance. On la décrit au fur et
-à mesure qu'on la consomme. C'est le modele qui sous-tend les pipelines de
-traitement et les flux de donnees.
+Un **stream** est une suite d'éléments. Tu en as déjà vu dans les
+chapitres précédents, sous forme de `Cons x rest | End`. Ce chapitre
+montre ce qui les rend vraiment utiles : leur **paresse**.
 
 ## La structure
 
     data Stream a = Cons a (Stream a) | End
 
-Identique à une liste chaînée. La différence n'est pas dans la
-structure, elle est dans l'**usage**. On ne construit pas un `Stream`
-entier en mémoire. On le décrit comme une *recette* : « si on me
-demande le premier élément, voilà ; si on me demande le reste, voilà
-comment le calculer ».
+Un stream est soit vide (`End`), soit un élément suivi d'un autre
+stream (`Cons x rest`). Rien de nouveau. La différence : dans un
+stream **paresseux**, `rest` n'est pas encore évalué.
 
-    heaven> data Stream a = Cons a (Stream a) | End
-    ✓ data Stream registered (1 param(s), 2 constructor(s))
-    heaven> Cons 1 (Cons 2 (Cons 3 End))
-    (Cons 1 (Cons 2 (Cons 3 End)))
+## delay et force
 
-Pour l'instant, ça ressemble à une liste. C'est normal. La paresse
-vient du fait qu'on ne force pas la suite tant qu'on ne la demande
-pas.
+Deux magics manipulent le calcul différé :
 
-## Les transformations de base
+    delay expr      -- capture expr sans l'evaluer
+    force t         -- evalue t (une seule fois, memoise)
 
-`map` applique une fonction à chaque élément :
+`delay` produit un **thunk** : une valeur qui représente un calcul
+en attente. `force` la déclenche. Le résultat est mémorisé : un
+thunk n'est calculé qu'une fois.
 
-    heaven> map f End = End
-    heaven> map f (Cons x reste) = Cons (f x) (map f reste)
+    let t = delay (+ 1 2) in
+    (+ (force t) (force t))   -- = 3 + 3 = 6, (+ 1 2) calcule une fois
 
-`filter` garde les éléments qui satisfont un prédicat :
+## Générer un stream infini
 
-    heaven> filter p End = End
-    heaven> filter p (Cons x reste) =
-      if (p x) (Cons x (filter p reste)) (filter p reste)
+    stream_nats_from n = Cons n (delay (stream_nats_from (+ n 1)))
 
-`take` rend les N premiers éléments :
+    (stream_take 5 (stream_nats_from 0))
+    -- (Cons 0 (Cons 1 (Cons 2 (Cons 3 (Cons 4 End)))))
 
-    heaven> take zero s = End
-    heaven> take (succ n) End = End
-    heaven> take (succ n) (Cons x reste) = Cons x (take n reste)
+La récursion ne s'arrête jamais dans `stream_nats_from`, mais elle
+n'est **pas exécutée** tant que personne ne `force` la queue. On
+peut écrire `stream_nats_from 0` sans exploser la pile.
 
-`drop` saute les N premiers :
+Autres générateurs :
 
-    heaven> drop zero s = s
-    heaven> drop (succ n) End = End
-    heaven> drop (succ n) (Cons x reste) = drop n reste
+    stream_repeat x         -- Cons x (Cons x (Cons x ...))
+    stream_iterate f x      -- x, f x, f (f x), ...
 
-`zip` combine deux streams en un stream de paires :
+## Consommer un stream
 
-    heaven> zip End s = End
-    heaven> zip s End = End
-    heaven> zip (Cons x rx) (Cons y ry) = Cons (Pair x y) (zip rx ry)
+`stream_take n s` limite à n éléments :
 
-## La composition avec >>>
+    (stream_take 5 (stream_nats_from 0))
+    -- 5 éléments, puis End
 
-Rappelez-vous du chapitre 5 : `>>>` compose deux fonctions. Sur les
-streams, c'est magique :
+`stream_nth n s` extrait le n-ième :
 
-    heaven> inc x = x + 1
-    heaven> stream = Cons 1 (Cons 2 (Cons 3 End))
-    heaven> take 2 (map inc stream)
-    (Cons 2 (Cons 3 End))
+    (stream_nth 3 (stream_nats_from 0))   -- 3
+    (stream_nth 5 (Cons 1 End))           -- 0 (au-delà de End)
 
-Mais avec `>>>`, on écrit :
+`stream_sum s` somme les éléments (sur un stream fini) :
 
-    heaven> pipeline = take 2 >>> map inc
-    heaven> pipeline stream
-    (Cons 2 (Cons 3 End))
+    (stream_sum (stream_take 5 (stream_nats_from 0)))   -- 10
+    (stream_sum (stream_take 3 (stream_repeat 7)))      -- 21
 
-`pipeline` est une fonction. Elle prend un stream, en garde 2, puis
-incrémente. Chaque etape est independante. C'est le principe des pipelines.
+`stream_length s` compte les éléments d'un stream fini :
 
-## Les compréhensions
+    (stream_length (stream_take 5 (stream_nats_from 0)))   -- 5
 
-Une transformation + un filtre en une seule forme -- la
-compréhension :
+## Transformations
 
-    (for (x <- xs) (* x 2))
-    (for (x <- xs) (when big) x)
+Les transformations sont **paresseuses** : elles ne calculent rien
+tant qu'aucun `force` ne l'exige.
 
-La première double chaque élément. La seconde ne garde que les
-éléments où `big` est vrai. C'est exactement :
+    stream_map f End = End
+    stream_map f (Cons x rest) = Cons (f x) (delay (stream_map f (force rest)))
 
-    (map (λx. (* x 2)) xs)
-    (map (λx. x) (filter (λx. (big x)) xs))
+    (stream_sum (stream_take 4 (stream_map (lambda x -> (* x x))
+                                          (stream_nats_from 0))))
+    -- 0 + 1 + 4 + 9 = 14
 
-Le `when` filtre AVANT l'expression (conception ROADMAP :
-filter puis map). La forme est du sucre : le désucrage vers
-`map`/`filter` se fait avant l'évaluation -- le pipeline
-standard s'applique, composition `>>>` comprise.
+`stream_filter` garde les éléments qui satisfont un prédicat :
 
-Plusieurs `when` et la forme carrée `[e | x <- xs, p]` : phase B
-(tranchages ROADMAP). Les générateurs multiples (produit
-croisé) : phase C avec le Stream paresseux.
+    (stream_length (stream_filter (lambda x -> (= (% x 2) 0))
+                                  (stream_take 5 (stream_nats_from 0))))
+    -- les pairs parmi 0..4 : 0, 2, 4 → 3
 
 ## Le pipeline complet
 
-Voici un exemple réaliste, inspiré d'un traitement de logs :
+C'est là que la paresse paie : on peut composer **map**, **filter**,
+**take**, **sum** sans jamais matérialiser d'intermédiaire.
 
-    heaven> isCritical x = x > 100
-    heaven> toAlert x = let _ = perform "Alert" x in x
-    heaven> pipeline = filter isCritical >>> take 3 >>> map toAlert
+    (stream_sum
+      (stream_take 1000
+        (stream_filter (lambda x -> (= (% x 2) 0))
+          (stream_map (lambda x -> (* x 10))
+            (stream_nats_from 1)))))
+    -- somme des 1000 premiers multiples de 20
 
-Décomposons :
-
-1. **`filter isCritical`** : garde les logs critiques.
-2. **`take 3`** : s'arrête après 3 éléments.
-3. **`map toAlert`** : émet une alerte pour chacun.
-
-On applique :
-
-    heaven> logs = Cons 50 (Cons 120 (Cons 90 (Cons 150 (Cons 200 End))))
-    heaven> pipeline logs
-    (Cons 120 (Cons 150 (Cons 200 End)))
-
-Les alertes sont émises (ou pas, selon le handler), mais le pipeline
-lui-même est pur.
+Chaque étape ne calcule que ce qui est demandé. Sur un stream
+**infini**, aucune étape ne bloque, parce qu'aucune ne demande la
+totalité.
 
 ## Pourquoi « paresseux » ?
 
-Vous vous demandez peut-être : « c'est juste une liste, non ? » La
-réponse : pas tout à fait.
+Compare avec une liste **stricte** (celle de `core/std/list.hvn`) :
 
-L'idée du paresseux, c'est qu'on ne calcule que ce dont on a besoin.
-Pour `take 3`, on n'a pas besoin de construire toute la liste — juste
-les 3 premiers éléments. Si la liste fait un milliard d'éléments,
-`take 3` n'en touche que 3.
+    -- Strict : calcule tous les éléments d'abord
+    -- Laziness : ne calcule qu'à la demande
 
-Heaven n'implémente pas encore cette optimisation à fond (les streams
-sont pour l'instant évalués strictement), mais la **structure** est
-prête. Le jour où on ajoute la paresse, le code existant fonctionnera
-tel quel.
+Un stream paresseux permet :
 
-## Les sous-streams (window)
+- **Streams infinis** (`stream_nats_from 0`).
+- **Pipelines** où chaque étape ne fait que ce qu'elle doit.
+- **Séparation** : la génération est infinie, la consommation
+  (via `take`, `nth`) borne.
 
-Un cas plus avancé : `window n` transforme un `Stream a` en
-`Stream (List a)`, où chaque élément est une fenêtre de `n` éléments
-consécutifs.
+## Différence avec `List`
 
-    window 3 (Cons 1 (Cons 2 (Cons 3 (Cons 4 End))))
-    -- devrait donner : (Cons (List 1 2 3) (Cons (List 2 3 4) End))
+`core/std/list.hvn` a ses propres `map`, `filter`, `take`, **stricts**.
+`core/stream.hvn` a les mêmes, **préfixés `stream_`** — pour éviter
+les collisions. Les deux coexistent :
 
-C'est utile pour les moyennes glissantes, les détections de motifs,
-etc. On ne l'a pas encore implémenté, mais c'est dans la feuille de
-route.
+| Type | Module | Style | Taille |
+|---|---|---|---|
+| `List a` | `core/std/list.hvn` | strict | finie |
+| `Stream a` | `core/stream.hvn` | paresseux | finie ou infinie |
 
-## Comparaison avec les listes
+Utiliser `stream_take` sur un stream fini marche exactement comme
+sur un stream infini — la différence n'apparaît que si on oublie
+`take`.
 
-| Liste | Stream |
-|---|---|
-| Finie | Peut être infinie |
-| Construite en entier | Construite à la demande |
-| `Nil` / `Cons` | `End` / `Cons` |
-| Évaluation stricte | Évaluation paresseuse (à venir) |
+## Limites connues
 
-En pratique, `Stream` est ce qu'on utilise pour tout ce qui vient
-d'ailleurs : fichiers, réseau, capteurs, événements. Une `List` est
-ce qu'on utilise pour des données qu'on contrôle entièrement.
+- **`delay` n'existe qu'à l'interpréteur**. Le code compilé (QBE,
+  WASM) n'a pas encore de thunks.
+- **Mémoization par Id**. Un thunk forcé garde sa valeur jusqu'à la
+  fin du programme. Pas de GC.
+- **`let` multi-lignes** : mettre le corps sur une seule ligne
+  (voir annexe B).
+- **Pattern `zero`** : les clauses `f zero = ...` ne matchent pas
+  les littéraux `0`, `1`, ... Utiliser `if (= n 0)` dans une
+  fonction auxiliaire.
 
-## Les pipelines en pratique
+## À retenir
 
-Voici la syntaxe complete d'un pipeline de traitement :
+- Un **stream paresseux** est une valeur, comme une liste, mais
+  dont la queue est un thunk.
+- `delay` crée, `force` déclenche (et mémorise).
+- On compose librement : `map`, `filter`, `take`, `sum`.
+- Les streams infinis sont utilisables tant qu'on les **borne**.
+- Les streams stricts (`List`) et paresseux (`Stream`) coexistent.
 
-    logPipeline = filter isCritical >>> map toAlert >>> window 100 >>> tap notify
+## Pour aller plus loin
 
-Chaque etape est une fonction. Le `>>>` les compose. Le resultat est
-une fonction qui prend un stream et rend un stream.
-
-Heaven implemente deja `filter`, `map`, `>>>`. Le jour ou `window`
-et `tap` (avec effets) seront ajoutes, on aura un pipeline de
-traitement complet dans le langage lui-meme.
-
-## Récapitulatif
-
-- Un `Stream` est une liste paresseuse : `Cons x reste | End`.
-- `map`, `filter`, `take`, `drop`, `zip` fonctionnent dessus.
-- `>>>` compose les transformations en pipelines.
-- La paresse n'est pas encore implémentée, mais la structure est prête.
-- `window` et les effets sur stream sont la prochaine étape.
-
-Au chapitre suivant, on quitte le monde des valeurs pour entrer dans
-celui des **théorèmes** : comment Heaven vérifie qu'une affirmation
-est vraie.
+- `tests/test_stream_lazy.hvn` : 8 tests qui couvrent tous les
+  exemples de ce chapitre.
+- `docs/DECISIONS.md` (D12) : décision de design de la laziness.
+- `docs/spec/_syntax_gaps.md` : quirks du parser rencontrés sur
+  les streams.

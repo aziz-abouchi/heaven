@@ -27,9 +27,8 @@ stream_take_impl n s = if (= n 0) End (stream_take_step n s)
 stream_take n s = stream_take_impl n s
 
 -- Drop
-stream_drop zero s = s
 stream_drop n End = End
-stream_drop n (Cons x rest) = stream_drop (- n 1) (force rest)
+stream_drop n (Cons x rest) = (if (= n 0) (Cons x rest) (stream_drop (- n 1) (force rest)))
 
 -- Utilitaires
 stream_sum End = 0
