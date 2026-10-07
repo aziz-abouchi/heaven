@@ -419,7 +419,9 @@ pub const Engine = struct {
                             if (pfn.ctor_arity) |arity| {
                                 const a_node = store.get(arg_val);
                                 if (arity == 0) {
-                                    if (a_node.tag != .sym or a_node.payload != p_node.payload) {
+                                    if (a_node.tag != .sym or
+                                        !symMatchesPattern(store, a_node.payload, p_node.payload))
+                                    {
                                         matched = false;
                                         break;
                                     }
@@ -797,6 +799,25 @@ fn isFrontendExtensionApply(name: []const u8) bool {
     if (std.mem.eql(u8, name, "unquote")) return true;
     if (std.mem.startsWith(u8, name, "Type_")) return true;
     return false;
+}
+
+/// Compare deux symboles en tolerant une qualification partielle :
+/// `MyTrue` matche `Q.MyTrue` (et inversement) si les noms locaux
+/// (partie apres le dernier '.') sont egaux.
+///
+/// Ne matche PAS si les deux sont qualifies avec des prefixes
+/// differents (`A.X` vs `B.X`) : ce cas est ambigu et reste refuse.
+fn symMatchesPattern(store: *Store, a: Sym, b: Sym) bool {
+    if (a == b) return true;
+    const an = store.interner.resolve(a);
+    const bn = store.interner.resolve(b);
+    const a_dot = std.mem.lastIndexOfScalar(u8, an, '.');
+    const b_dot = std.mem.lastIndexOfScalar(u8, bn, '.');
+    // Les deux qualifies ou les deux nus : egalite stricte requise.
+    if ((a_dot == null) == (b_dot == null)) return false;
+    const a_local = if (a_dot) |d| an[d + 1 ..] else an;
+    const b_local = if (b_dot) |d| bn[d + 1 ..] else bn;
+    return std.mem.eql(u8, a_local, b_local);
 }
 
 fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
