@@ -169,11 +169,17 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
         };
         def.clauses[0] = .{ .patterns = .{0} ** 8, .num_patterns = 0, .body = lowered_body };
 
-        const owned_name = try cmds.engine.allocator.dupe(u8, name);
-        platform.dbg("[fns.put] site=1 name='{s}' key_addr={d}\n", .{ name, @intFromPtr(owned_name.ptr) });
-        cmds.engine.fns.put(cmds.engine.allocator, owned_name, def) catch |err| {
-            return std.fmt.allocPrint(cmds.engine.allocator, "registration error: {s}", .{@errorName(err)});
-        };
+        // Si le nom existe deja, AJOUTER la clause au lieu de remplacer
+        // (bug multi-clauses : put ecrasait les clauses precedentes).
+        if (cmds.engine.fns.getPtr(name)) |existing| {
+            const clause = def.clauses[0];
+            existing.addClause(clause.patterns[0..clause.num_patterns], clause.body);
+        } else {
+            const owned_name = try cmds.engine.allocator.dupe(u8, name);
+            cmds.engine.fns.put(cmds.engine.allocator, owned_name, def) catch |err| {
+                return std.fmt.allocPrint(cmds.engine.allocator, "registration error: {s}", .{@errorName(err)});
+            };
+        }
 
         const name_sym = try cmds.store.interner.intern(name);
         const name_sym_id = try cmds.store.sym(name);
@@ -238,11 +244,16 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
             @memcpy(def.clauses[0].patterns[0..num_pats], pat_ids[0..num_pats]);
         }
 
-        const owned_name = try cmds.engine.allocator.dupe(u8, name);
-        platform.dbg("[fns.put] site=2 name='{s}' key_addr={d}\n", .{ name, @intFromPtr(owned_name.ptr) });
-        cmds.engine.fns.put(cmds.engine.allocator, owned_name, def) catch |err| {
-            return std.fmt.allocPrint(cmds.engine.allocator, "registration error: {s}", .{@errorName(err)});
-        };
+        // Si le nom existe deja, AJOUTER la clause au lieu de remplacer.
+        if (cmds.engine.fns.getPtr(name)) |existing| {
+            const clause = def.clauses[0];
+            existing.addClause(clause.patterns[0..clause.num_patterns], clause.body);
+        } else {
+            const owned_name = try cmds.engine.allocator.dupe(u8, name);
+            cmds.engine.fns.put(cmds.engine.allocator, owned_name, def) catch |err| {
+                return std.fmt.allocPrint(cmds.engine.allocator, "registration error: {s}", .{@errorName(err)});
+            };
+        }
 
         const name_sym = try cmds.store.interner.intern(name);
         const name_sym_id = try cmds.store.sym(name);
