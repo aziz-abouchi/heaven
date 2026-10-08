@@ -71,6 +71,9 @@ fn splitStatements(
 
 /// Retourne true si au moins un test a échoué.
 pub fn runTestFile(allocator: std.mem.Allocator, path: []const u8) !bool {
+    // D20-bis : snapshot temperature initiale.
+    const temp_start: ?i64 = platform.profiler.readTempMc(0);
+
     var heaven = heaven_expr_mod.Heaven.init(allocator) catch @panic("Failed to init Heaven");
     defer {
         heaven.deinit();
@@ -203,6 +206,16 @@ pub fn runTestFile(allocator: std.mem.Allocator, path: []const u8) !bool {
         avg_cpu_ms,                                          C_RESET,
     });
     platform.debug.print("  {s}peak mem:{s}  {d:>8} KB\n", .{ C_DIM, C_RESET, rss_kb });
+    if (temp_start) |ts| {
+        const te = platform.profiler.readTempMc(0) orelse ts;
+        const delta = te - ts;
+        platform.debug.print("  {s}temp:{s}      {d:.1} C -> {d:.1} C (delta {d:.1} C)\n", .{
+            C_DIM, C_RESET,
+            @as(f64, @floatFromInt(ts)) / 1000.0,
+            @as(f64, @floatFromInt(te)) / 1000.0,
+            @as(f64, @floatFromInt(delta)) / 1000.0,
+        });
+    }
 
     return failed > 0;
 }
