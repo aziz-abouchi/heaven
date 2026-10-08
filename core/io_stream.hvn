@@ -33,3 +33,13 @@ io_cat_path path =
   let _ = io_close fd in
   let _ = raw_free buf 4096 in
   n
+
+-- io_cat : copie path -> stdout, chunk par chunk (4096 bytes).
+io_cat_path path =
+  let fd = io_open path in
+  let buf = raw_alloc 4096 in
+  let n = io_read fd buf 4096 in
+  let _ = io_write 1 buf n in
+  let _ = io_close fd in
+  let _ = raw_free buf 4096 in
+  n

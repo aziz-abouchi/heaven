@@ -793,7 +793,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1046,6 +1046,37 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const s = store.interner.resolve(sl.str);
         return try store.int(@intCast(s.len));
     }
+    // ═══ string_concat + int_to_string (D17-2) ═══
+    if (std.mem.eql(u8, op, "string_concat")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const av = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const bv = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const an = store.get(av);
+        const bn = store.get(bv);
+        if (an.tag != .lit or bn.tag != .lit) return error.TypeError;
+        const al = store.lits.items[an.aux];
+        const bl = store.lits.items[bn.aux];
+        if (al != .str or bl != .str) return error.TypeError;
+        const a_s = store.interner.resolve(al.str);
+        const b_s = store.interner.resolve(bl.str);
+        const joined = try std.mem.concat(engine.allocator, u8, &.{ a_s, b_s });
+        defer engine.allocator.free(joined);
+        const sym = try store.interner.intern(joined);
+        return try store.lit(.{ .str = sym });
+    }
+    if (std.mem.eql(u8, op, "int_to_string")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const n = store.get(v);
+        if (n.tag != .lit) return error.TypeError;
+        const l = store.lits.items[n.aux];
+        if (l != .int) return error.TypeError;
+        const s = try std.fmt.allocPrint(engine.allocator, "{d}", .{l.int});
+        defer engine.allocator.free(s);
+        const sym = try store.interner.intern(s);
+        return try store.lit(.{ .str = sym });
+    }
+
     // ═══ RAW SYSCALL — court-circuite Zig std (Path A) ═══
     // (raw_syscall n a1 a2 a3) → syscall Linux, retourne le résultat en Int.
     // (raw_syscall6 n a1 a2 a3 a4 a5 a6) → variante 6 args.

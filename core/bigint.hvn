@@ -1,39 +1,26 @@
--- core/bigint.hvn (D17, session 1)
--- Representation : liste de digits 0..9, MSB-first.
--- BPos (BCons 1 (BCons 2 (BCons 3 BNil))) represente 123.
--- Liste vide = zero. BPos BNil interdit (utiliser BZero).
+-- core/bigint.hvn (D17-2 : signes, mul, divmod, to_string)
+-- Representation : digits 0..9, MSB-first. BZero | BPos list | BNeg list.
+-- Les listes ne portent pas de zero de tete (sauf BZero).
 
 data BList = BNil | BCons Int BList
 data BigInt = BZero | BPos BList | BNeg BList
 
--- ═══ Predicats ═══
 bnull BNil = true
 bnull (BCons x rest) = false
 
--- ═══ Longueur ═══
 blen BNil = 0
 blen (BCons x rest) = (+ 1 (blen rest))
 
--- ═══ Reverse ═══
 blrev_l BNil acc = acc
 blrev_l (BCons x rest) acc = (blrev_l rest (BCons x acc))
 blrev l = (blrev_l l BNil)
 
--- ═══ Strip leading zeros ═══
 bstrip BNil = BNil
-bstrip (BCons x rest) =
-  (if (= x 0)
-    (bstrip rest)
-    (BCons x rest))
+bstrip (BCons x rest) = (if (= x 0) (bstrip rest) (BCons x rest))
 
--- ═══ Int -> BList (MSB-first) ═══
-bl_of_int_l n acc =
-  (if (= n 0)
-    acc
-    (bl_of_int_l (/ n 10) (BCons (% n 10) acc)))
+bl_of_int_l n acc = (if (= n 0) acc (bl_of_int_l (/ n 10) (BCons (% n 10) acc)))
 bl_of_int n = (bl_of_int_l n BNil)
 
--- ═══ BList -> Int ═══
 bl_to_int_l BNil acc = acc
 bl_to_int_l (BCons d rest) acc = (bl_to_int_l rest (+ (* acc 10) d))
 bl_to_int l = (bl_to_int_l l 0)
@@ -45,75 +32,136 @@ to_int (BNeg l) = (- 0 (bl_to_int l))
 from_int n =
   (if (= n 0)
     BZero
-    (if (< n 0)
-      (BNeg (bl_of_int (- 0 n)))
-      (BPos (bl_of_int n))))
+    (if (< n 0) (BNeg (bl_of_int (- 0 n))) (BPos (bl_of_int n))))
 
--- ═══ String -> BList (MSB-first) ═══
-str_char s i = (peek_byte (string_ptr s) i)
-from_str_l s i len acc =
-  (if (= i len)
-    acc
-    (let d (- (str_char s i) 48)
-      (from_str_l s (+ i 1) len (BCons d acc))))
-from_string s =
-  (let l (blrev (from_str_l s 0 (string_length s) BNil))
-    (if (bnull l) BZero (BPos l)))
-
--- ═══ Addition BList : LSB-first avec carry ═══
-badd_lsb_l BNil BNil carry =
-  (if (= carry 0) BNil (BCons carry BNil))
+-- ═══ Addition BList ═══
+badd_lsb_l BNil BNil carry = (if (= carry 0) BNil (BCons carry BNil))
 badd_lsb_l BNil (BCons b br) carry =
-  (let s (+ b carry)
-    (BCons (% s 10) (badd_lsb_l BNil br (/ s 10))))
+  (let s (+ b carry) (BCons (% s 10) (badd_lsb_l BNil br (/ s 10))))
 badd_lsb_l (BCons a ar) BNil carry =
-  (let s (+ a carry)
-    (BCons (% s 10) (badd_lsb_l ar BNil (/ s 10))))
+  (let s (+ a carry) (BCons (% s 10) (badd_lsb_l ar BNil (/ s 10))))
 badd_lsb_l (BCons a ar) (BCons b br) carry =
-  (let s (+ (+ a b) carry)
-    (BCons (% s 10) (badd_lsb_l ar br (/ s 10))))
+  (let s (+ (+ a b) carry) (BCons (% s 10) (badd_lsb_l ar br (/ s 10))))
 badd_bl A B = (bstrip (blrev (badd_lsb_l (blrev A) (blrev B) 0)))
 
--- ═══ Soustraction BList (A >= B suppose) ═══
+-- ═══ Soustraction BList (A >= B) ═══
 bsub_lsb_l (BCons a ar) (BCons b br) borrow =
   (let d (- (- a b) borrow)
-    (if (< d 0)
-      (BCons (+ d 10) (bsub_lsb_l ar br 1))
-      (BCons d (bsub_lsb_l ar br 0))))
+    (if (< d 0) (BCons (+ d 10) (bsub_lsb_l ar br 1)) (BCons d (bsub_lsb_l ar br 0))))
 bsub_lsb_l (BCons a ar) BNil borrow =
   (let d (- a borrow)
-    (if (< d 0)
-      (BCons (+ d 10) (bsub_lsb_l ar BNil 1))
-      (BCons d (bsub_lsb_l ar BNil 0))))
+    (if (< d 0) (BCons (+ d 10) (bsub_lsb_l ar BNil 1)) (BCons d (bsub_lsb_l ar BNil 0))))
 bsub_lsb_l BNil BNil borrow = BNil
 bsub_bl A B = (bstrip (blrev (bsub_lsb_l (blrev A) (blrev B) 0)))
 
 -- ═══ Comparaison BList ═══
 bcmp_same BNil BNil = 0
 bcmp_same (BCons a ar) (BCons b br) =
-  (if (= a b)
-    (bcmp_same ar br)
-    (if (< a b) (- 0 1) 1))
+  (if (= a b) (bcmp_same ar br) (if (< a b) (- 0 1) 1))
 bcmp_bl A B =
   (let la (blen A)
     (let lb (blen B)
-      (if (= la lb)
-        (bcmp_same A B)
-        (if (< la lb) (- 0 1) 1))))
+      (if (= la lb) (bcmp_same A B) (if (< la lb) (- 0 1) 1))))
 
--- ═══ Operations BigInt (v0 : positif seulement) ═══
-badd BZero B = B
-badd A BZero = A
-badd (BPos A) (BPos B) =
-  (let r (badd_bl A B)
-    (if (bnull r) BZero (BPos r)))
+-- ═══ Multiplication BList ═══
+-- bshift_bl : A (MSB-first) x 10.
+bshift_bl A = (bstrip (blrev (BCons 0 (blrev A))))
+-- bmul_digit_lsb : LSB-first, multiplie par d (0..9) avec carry.
+bmul_digit_lsb BNil d carry = (if (= carry 0) BNil (BCons carry BNil))
+bmul_digit_lsb (BCons a ar) d carry =
+  (let p (+ (* a d) carry)
+    (BCons (% p 10) (bmul_digit_lsb ar d (/ p 10))))
+-- bmul_digit : A (MSB-first) x d -> MSB-first, digits 0..9.
+bmul_digit A d = (bstrip (blrev (bmul_digit_lsb (blrev A) d 0)))
+-- bmul_l : A LSB-first, B MSB-first -> MSB-first.
+bmul_l (BCons a ar) B = (badd_bl (bmul_digit B a) (bmul_l ar (bshift_bl B)))
+bmul_l BNil B = BNil
+-- bmul_bl : A, B MSB-first -> MSB-first.
+bmul_bl A B = (bstrip (bmul_l (blrev A) B))
 
-bsub A BZero = A
-bsub (BPos A) (BPos B) =
-  (let r (bsub_bl A B)
-    (if (bnull r) BZero (BPos r)))
+-- ═══ Signes pour badd/bsub/bmul ═══
+-- babs (valeur absolue d'un BigInt)
+babs BZero = BZero
+babs (BPos l) = (BPos l)
+babs (BNeg l) = (BPos l)
+
+-- bneg (oppose)
+bneg BZero = BZero
+bneg (BPos l) = (if (bnull l) BZero (BNeg l))
+bneg (BNeg l) = (if (bnull l) BZero (BPos l))
+
+-- bsign : -1, 0, 1
+bsign BZero = 0
+bsign (BPos _) = 1
+bsign (BNeg _) = (- 0 1)
+
+-- badd signe : A + B
+badd_signed (BPos A) (BPos B) =
+  (let r (badd_bl A B) (if (bnull r) BZero (BPos r)))
+badd_signed (BNeg A) (BNeg B) =
+  (let r (badd_bl A B) (if (bnull r) BZero (BNeg r)))
+badd_signed (BPos A) (BNeg B) =
+  (let c (bcmp_bl A B)
+    (if (= c 0) BZero
+      (if (> c 0)
+        (let r (bsub_bl A B) (if (bnull r) BZero (BPos r)))
+        (let r (bsub_bl B A) (if (bnull r) BZero (BNeg r))))))
+badd_signed (BNeg A) (BPos B) = (badd_signed (BPos B) (BNeg A))
+badd_signed BZero B = B
+badd_signed A BZero = A
+
+bsub_signed A B = (badd_signed A (bneg B))
+
+bmul_signed A B =
+  (let sa (bsign A) (let sb (bsign B)
+    (if (= sa 0) BZero (if (= sb 0) BZero
+      (let r (bmul_bl (babs_bl A) (babs_bl B))
+        (if (bnull r) BZero
+          (if (= (* sa sb) 1) (BPos r) (BNeg r))))))))
+babs_bl BZero = BNil
+babs_bl (BPos l) = l
+babs_bl (BNeg l) = l
+
+-- ═══ Division BList (A / B, B != 0), BList en MSB-first ═══
+-- Algo naif : on retire B autant de fois que possible. Lent mais correct.
+bsub_once A B = (bstrip (blrev (bsub_lsb_l (blrev A) (blrev B) 0)))
+bdivmod_bl_loop A B q r fuel =
+  (if (= fuel 0) (BCons q r)
+    (let c (bcmp_bl r B)
+      (if (< c 0)
+        (BCons q r)
+        (bdivmod_bl_loop A B (badd_bl q (BCons 1 BNil)) (bsub_once r B) (- fuel 1)))))
+bdivmod_bl A B = (bdivmod_bl_loop A B BNil A 1000)
+
+-- ═══ API BigInt ═══
+-- Attention : PAS d'alias 'badd = badd_signed' (0-aire). Un 0-aire
+-- n'est pas une fonction applicable ; il faut des patterns explicites.
+badd A B = (badd_signed A B)
+bsub A B = (bsub_signed A B)
+bmul A B = (bmul_signed A B)
+
+-- bto_string : concatenation de int_to_string(digit)
+bl_to_string BNil = ""
+bl_to_string (BCons d rest) = (string_concat (int_to_string d) (bl_to_string rest))
+bto_string BZero = "0"
+bto_string (BPos l) = (bl_to_string l)
+bto_string (BNeg l) = (string_concat "-" (bl_to_string l))
+
+from_string s =
+  (let l (blrev (from_str_l s 0 (string_length s) BNil))
+    (if (bnull l) BZero (BPos l)))
+str_char s i = (peek_byte (string_ptr s) i)
+from_str_l s i len acc =
+  (if (= i len) acc
+    (let d (- (str_char s i) 48)
+      (from_str_l s (+ i 1) len (BCons d acc))))
 
 bcmp BZero BZero = 0
 bcmp BZero (BPos _) = (- 0 1)
+bcmp BZero (BNeg _) = 1
 bcmp (BPos _) BZero = 1
+bcmp (BNeg _) BZero = (- 0 1)
+bcmp (BNeg _) (BPos _) = (- 0 1)
+bcmp (BPos _) (BNeg _) = 1
 bcmp (BPos A) (BPos B) = (bcmp_bl A B)
+bcmp (BNeg A) (BNeg B) = (- 0 (bcmp_bl A B))
