@@ -877,6 +877,43 @@ pub fn lowerExprToStore(
 
     if (std.mem.eql(u8, kind, "ERROR")) {
         const child_count = ts.ts_node_named_child_count(node);
+        if (child_count == 0) return LowerExprError.UnsupportedNode;
+
+        // Cas spécial : identifier suivi de pattern (appel de fonction isolé comme f(x))
+        if (child_count >= 2) {
+            const first = ts.ts_node_named_child(node, 0);
+            const second = ts.ts_node_named_child(node, 1);
+            const first_kind = std.mem.span(ts.ts_node_type(first));
+            const second_kind = std.mem.span(ts.ts_node_type(second));
+
+            if (std.mem.eql(u8, first_kind, "identifier") and std.mem.eql(u8, second_kind, "pattern")) {
+                const func_id = try lowerExprToStore(store, first, source);
+
+                var args = std.ArrayListUnmanaged(core.Id){};
+                defer args.deinit(store.allocator);
+
+                // Extraire les arguments du pattern (ignorer "(" et ")")
+                const pat_total = ts.ts_node_child_count(second);
+                var k: u32 = 0;
+                while (k < pat_total) : (k += 1) {
+                    const sub = ts.ts_node_child(second, k);
+                    const sub_kind = std.mem.span(ts.ts_node_type(sub));
+                    if (!std.mem.eql(u8, sub_kind, "(") and !std.mem.eql(u8, sub_kind, ")")) {
+                        const arg_id = try lowerExprToStore(store, sub, source);
+                        try args.append(store.allocator, arg_id);
+                    }
+                }
+
+                return store.apply(func_id, args.items) catch LowerExprError.OutOfMemory;
+            }
+        }
+
+        // Cas par défaut : prendre le premier enfant nommé
+        return lowerExprToStore(store, ts.ts_node_named_child(node, 0), source);
+    }
+
+    if (std.mem.eql(u8, kind, "pattern")) {
+        const child_count = ts.ts_node_named_child_count(node);
         if (child_count > 0) {
             return lowerExprToStore(store, ts.ts_node_named_child(node, 0), source);
         }
@@ -896,6 +933,26 @@ pub fn lowerExprToStore(
         return store.int(val) catch LowerExprError.OutOfMemory;
     }
 
+
+    if (std.mem.eql(u8, kind, "call") or std.mem.eql(u8, kind, "app_expr")) {
+        const n = ts.ts_node_named_child_count(node);
+        if (n == 0) return LowerExprError.UnsupportedNode;
+
+        const func_node = ts.ts_node_named_child(node, 0);
+        const func_id = try lowerExprToStore(store, func_node, source);
+
+        var args = std.ArrayListUnmanaged(core.Id){};
+        defer args.deinit(store.allocator);
+
+        var j: u32 = 1;
+        while (j < n) : (j += 1) {
+            const arg_node = ts.ts_node_named_child(node, j);
+            const arg_id = try lowerExprToStore(store, arg_node, source);
+            try args.append(store.allocator, arg_id);
+        }
+
+        return store.apply(func_id, args.items) catch LowerExprError.OutOfMemory;
+    }
     if (std.mem.eql(u8, kind, "binary")) {
         const lhs_node = ts.ts_node_child(node, 0);
         const op_node = ts.ts_node_child(node, 1);
@@ -934,6 +991,7 @@ pub fn lowerExprSource(
     const root = ts.ts_tree_root_node(tree);
     
     const n = ts.ts_node_named_child_count(root);
+
     if (n == 0) return LowerExprError.UnsupportedNode;
     
     const expr_node = ts.ts_node_named_child(root, 0);
