@@ -46,6 +46,14 @@ Session fondatrice : **8 decisions structurantes**, ~42 tests nouveaux.
 - `test_stream_lazy.hvn` (8), `test_io_stream.hvn` (4),
   `test_bigint.hvn` (14), smoke 16.
 
+### D8 3a-3-c-b -- Scheduler coopératif (2026-10-08)
+
+- 4 magics : `add_task`, `schedule`, `yield`, `task_state`.
+- Scheduler round-robin avec budget par tâche.
+- Modèle redémarrable (pas de reprise exacte, cf Voie B).
+- 3 tests dans `test_scheduler.hvn`.
+- Nouveau chapitre `14-concurrency.md`.
+
 ## 2026-10-05
 
 - Documentation mise à jour pour le pipeline HIR des déclarations `data` génériques.

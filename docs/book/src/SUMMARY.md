@@ -14,6 +14,7 @@
 - [Modules et imports](11-modules.md)
 - [Knowledge et raisonnement](12-knowledge.md)
 - [BigInt](13-bigint.md)
+- [Concurrence coopérative](14-concurrency.md)
 
 ---
 
