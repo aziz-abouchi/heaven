@@ -2003,8 +2003,13 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         // comme equations).
         {
             const magics_reserves = [_][]const u8{
-                "if", "let", "seq", "block", "tuple", "delay", "force",
-                "perform", "handle", "raw_syscall", "raw_syscall6",
+                // Note : `if`, `let`, `seq`, `block`, `tuple`, `delay`,
+                // `force`, `perform`, `handle` ne sont PAS dans cette liste :
+                // ils apparaissent legitimement dans des corps non-equations
+                // (let-in imbrique, perform/handle) et le parser les envoie
+                // parfois a evalEquation a cause d'un `=` dans la ligne
+                // (ex: `g x = if c (let y = ...) 0` a 3 `=`).
+                "raw_syscall", "raw_syscall6",
                 "string_ptr", "string_length", "string_concat",
                 "int_to_string", "peek_byte", "poke_byte",
                 "peek_int64", "poke_int64", "memset", "raw_alloc",
