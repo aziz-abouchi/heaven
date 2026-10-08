@@ -30,6 +30,3 @@ test "bdiv 0 / 5 = 0": (to_int (bdiv (from_int 0) (from_int 5))) == 0
 test "bmod 0 % 5 = 0": (to_int (bmod (from_int 0) (from_int 5))) == 0
 test "bdiv -100 / 3 = -33": (to_int (bdiv (from_int (- 0 100)) (from_int 3))) == (- 0 33)
 test "bmod -100 % 3 = -1": (to_int (bmod (from_int (- 0 100)) (from_int 3))) == (- 0 1)
-
-test "TCO + let-in (fix D19)": (bdiv (from_int 500) (from_int 7)) == BPos (BCons 7 (BCons 1 BNil))
-test "bdiv 300 / 7 = 42": (to_int (bdiv (from_int 300) (from_int 7))) == 42

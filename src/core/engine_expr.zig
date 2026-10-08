@@ -21,31 +21,7 @@ const TCO_BOUNCE: Id = std.math.maxInt(Id);
 fn collectTailSpine(store: *const Store, node_id: Id, fn_name: []const u8, out: *[64]Id, out_len: *u8) void {
     if (out_len.* >= 64) return;
     const node = store.get(node_id);
-    // Traverse .bind (let ... in ...) si present.
-    if (node.tag == .bind) {
-        const parts = store.spanSliceConst(node.span_a);
-        if (parts.len >= 2) {
-            collectTailSpine(store, parts[1], fn_name, out, out_len);
-        }
-        return;
-    }
     if (node.tag != .apply) return;
-
-    // Avant le check 'op == fn_name', regarder si l'op est le magic
-    // 'let' : dans ce cas, le body (dernier arg) est en queue.
-    {
-        const op_node_check = store.get(node.payload);
-        if (op_node_check.tag == .sym) {
-            const op_name_check = store.interner.resolve(op_node_check.payload);
-            if (std.mem.eql(u8, op_name_check, "let")) {
-                const let_args = store.applyArgs(node);
-                if (let_args.len == 3) {
-                    collectTailSpine(store, let_args[2], fn_name, out, out_len);
-                }
-                return;
-            }
-        }
-    }
     const op_node = store.get(node.payload);
     if (op_node.tag != .sym) return;
     const op_name = store.interner.resolve(op_node.payload);
@@ -272,12 +248,6 @@ pub const Engine = struct {
     tco_spine_buf: [64]Id = undefined,
     tco_spine_len: u8 = 0,
     max_recursion_depth: usize = 1000,
-    /// Base de pile (premier appel d'evaluate). Sert au stack-based guard.
-    stack_base: ?usize = null,
-    /// Marge de securite : si la pile descend de plus de cette valeur
-    /// depuis stack_base, on retourne RecursionLimitExceeded. 6 MB sur
-    /// les 8 MB par defaut Linux.
-    stack_limit_bytes: usize = 2 * 1024 * 1024,
     recursion_depth: usize = 0,
     heaven_ctx: *anyopaque,
     vtable: *const HeavenVTable,
@@ -476,19 +446,6 @@ pub const Engine = struct {
     }
 
     pub fn evalFunction(self: *Engine, caller_env: *Env, name: []const u8, args: []const Id) EvalError!Id {
-        // Stack-based guard : @frameAddress descend quand on empile.
-        // Place ici (pas dans evaluate) pour ne PAS casser le TCO :
-        // une fonction tail-recursive n'entre dans evalFunction qu'une
-        // seule fois en cas de bounce TCO.
-        const frame_addr: usize = @frameAddress();
-        if (self.stack_base) |base| {
-            if (frame_addr < base and base - frame_addr > self.stack_limit_bytes) {
-                return error.RecursionLimitExceeded;
-            }
-        } else {
-            self.stack_base = frame_addr;
-        }
-
         const store = self.store;
         const fn_def = self.fns.get(name) orelse return error.UnknownSymbol;
         if (fn_def.num_clauses == 0) return error.UnknownSymbol;
@@ -654,8 +611,6 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
     // Le `try` des 56 sites recursifs propage automatiquement.
     if (engine.reductions == 0) return error.SuspendRequested;
     engine.reductions -= 1;
-
-
 
     if (platform.target.is_debug and id == 0xAAAAAAAA) {
         @panic("poison Id at evaluate entry");
