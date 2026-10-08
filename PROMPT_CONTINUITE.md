@@ -78,14 +78,14 @@ Toujours vérifier par lecture + bisect, pas par confiance au prompt.
 
 - `lowerExprToStore` dans `src/syntax/lower.zig` abaisse directement les nœuds
   Tree-sitter vers `core.Expr.Store` (6 primitives).
-- Couvre actuellement : `identifier`, `int`, `binary`, et `call`/`app_expr` (en cours).
+- Couvre actuellement : `identifier`, `int`, `binary`, `call`/`app_expr` et `pattern` (VALIDÉ 2026-10-08).
 - Helper `lowerExprSource` encapsule le parsing Tree-sitter.
 - `build.zig` : dépendances `core` + `platform` ajoutées au module `syntax_lower`.
 
 **Décision D21** : `Expr.Store` devient l'unique IR intermédiaire.
 `UniversalIngestor` (Matrix/BobId) → `SurvivalTranspiler` (C) sera déprécié.
 
-**Prochaines étapes** : étendre à `let`, `lambda`, puis migration progressive.
+**Prochaines étapes** : étendre à `let` et `lambda` (dernière étape avant migration progressive).
 
 ---
 
@@ -224,3 +224,47 @@ Le repo est travaillé par plusieurs sessions simultanées. Règles :
 - `src/syntax/lower.zig` — pont Tree-sitter → Expr.Store (D21)
 - `tests/test_array.hvn`, `tests/test_string.hvn`, `tests/test_scheduler.hvn`,
   `tests/test_effects_rec.hvn`
+
+---
+
+## Chantier parser infixe — audit 2026-10-08
+
+### Ce qui marche déjà (ne pas toucher)
+
+- `f x y` en RHS, `a + b`, `if (cond) A B` mono-ligne
+- `let x = v in body` multi-ligne (D18)
+- `data T a b = ctor a b`
+- `if` infix mono-ligne : `filter f xs = if (f x) A B`
+
+### Ce qui manque (vrai périmètre, plus petit que prévu)
+
+1. `if cond A B` **multi-ligne** (branche A ou B sur plusieurs lignes)
+2. `if` avec `let-in` dans une branche (conséquence du #1)
+3. `if < a b A B` (opérateur préfixe sans parenthèses autour de cond)
+
+### Impact mesuré
+
+- 64 fichiers `.hvn`, 1732 lignes
+- 6 fichiers utilisent `(if ` Lisp (35 occurrences) :
+  hashmap 13, test_suite 6, string 6, array 4, effects_rec 3, scheduler 3
+- 2 fichiers utilisent déjà `if` infix mono-ligne (list.hvn, stream.hvn)
+- Rien sur le multi-ligne côté parser → c'est le **loader** qui accumule
+  (parenthèses équilibrées pour std_loader, brace_depth pour test_runner)
+
+### Où c'est parsé
+
+- `src/core/parse.zig:457` : forme S-expr `(if c A B)` num_parts == 4
+- `src/core/parse.zig:488` : forme infix (cond_str / then_str / else_str)
+- **Cible probable du fix** : parse.zig:488 (découpage infix)
+- `src/core/heaven_expr.zig:2006` : liste magics (garde anti-shadowing)
+
+### Brique prioritaire
+
+Rendre `if cond A B` multi-ligne fonctionnel.
+Effort : 1 session. Risque : faible (les tests mono-ligne passent déjà).
+
+### Méthode
+
+1. Test minimal qui échoue (voir Bloc B ci-dessous).
+2. Étendre parse.zig:488 pour accepter branche multi-ligne.
+3. Vérifier 98/98 + suites intactes. Commit.
