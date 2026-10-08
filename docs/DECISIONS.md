@@ -804,3 +804,42 @@ avec handle_rec et evalWithBudget.
 - Experimentations sur les effets concurrents.
 
 **Tests** : test_scheduler.hvn (3 tests).
+
+## D20 -- Recursion profonde : ReleaseFast par defaut (2026-10-08)
+
+**Constat** : `f 200` segfault en Debug. `bdiv > 400` segfault.
+Diagnostic initial : tree-walker recursif consomme ~40 KB par
+niveau utilisateur (accumulation de frames Zig).
+
+**Investigation** :
+- Debug : limite ~130 niveaux (frames non optimisees, bounds checks,
+  traces).
+- ReleaseFast : limite ~500-700 (4-5x mieux). Pas de changement de
+  code, juste le mode de compilation.
+- Tentative inline (evalBinary, evalUnary, evalCmp, isMagicSymbol) :
+  aucun gain. La frame d'evalMagic (1001 lignes, 30+ variables
+  locales) domine.
+- Tentative extraction du bloc handle_rec + scheduler (38 KB de code,
+  48 var/24 if) : casse car le bloc utilise des variables du scope
+  parent (`args`, `args_buf`). Refactor propre = 2-3 sessions.
+
+**Decision** : ReleaseFast par defaut pour le binaire natif
+(`build.sh`). WASM reste en ReleaseSmall (taille).
+
+**Resultat** :
+- `f 500` : OK
+- `bdiv 1000/7 = 142` : OK
+- `bmod 1000/7 = 6` : OK
+- Limite haute : ~500-700 niveaux utilisateur
+
+**Limitations restantes** (chantier futur, Voie B ou refactor) :
+- `f 1000` echoue.
+- `bdiv 10^26 / 7` echoue (27 digits, mais bdivmod_bl recursif).
+- Le tree-walker recursif atteindra toujours une limite finie sur 8 MB.
+
+**Vraie solution future** : tree-walker iteratif complet (state
+machine, 2-3 sessions) OU refactor de `evalMagic` en sous-fonctions
+(moins invasif, 1-2 sessions).
+
+**Tests** : 30/30 BigInt (avec bdiv/bmod 1000/7 remis).
+
