@@ -475,10 +475,27 @@ pub const ExprParser = struct {
             if (tokens.items.len < 3) return error.InvalidLambda;
             const body_str = tokens.items[tokens.items.len - 1];
             const body_id = try self.parseExpression(body_str);
-            const params = tokens.items[1 .. tokens.items.len - 1];
+            var params = tokens.items[1 .. tokens.items.len - 1];
+
+            // Collecter les parametres AVANT le separateur '->' ou '=>'.
+            // Sans ceci, (lambda v k -> body) ne capture que 'v' et
+            // laisse 'k' et '->' comme params residuels -> UnboundVariable
+            // sur 'k' dans le body.
+            var end: usize = params.len;
+            for (params, 0..) |p, i| {
+                if (std.mem.eql(u8, p, "->") or std.mem.eql(u8, p, "=>")) {
+                    end = i;
+                    break;
+                }
+            }
+            params = params[0..end];
             if (params.len == 0) return error.InvalidLambda;
-            const param_name = params[0];
-            const result = try self.store.lambdaNative(&.{param_name}, body_id);
+
+            var params_list: std.ArrayListUnmanaged([]const u8) = .{};
+            defer params_list.deinit(self.allocator);
+            for (params) |pname| try params_list.append(self.allocator, pname);
+
+            const result = try self.store.lambdaNative(params_list.items, body_id);
             platform.dbg("[parseSExpr] created lambda id = {d}\n", .{result});
             return result;
         }
