@@ -1,0 +1,35 @@
+-- core/std/array.hvn (Jalon 2, v0)
+-- Array mutable via raw_alloc. 8 bytes par element (i64).
+-- data Array = MkArray base_ptr length capacity
+
+data Array = MkArray Int Int Int
+
+array_new cap =
+  let bytes = (* cap 8) in
+  let ptr = (raw_alloc bytes) in
+  (MkArray ptr 0 cap)
+
+array_length (MkArray _ len _) = len
+array_capacity (MkArray _ _ cap) = cap
+array_ptr (MkArray ptr _ _) = ptr
+
+-- Helper : 0 <= i < len.
+array_in_range len i = (if (< i 0) false (< i len))
+
+array_get (MkArray ptr len _) i =
+  (if (array_in_range len i)
+    (peek_int64 ptr i)
+    0)
+
+-- Helper : ecrit puis retourne le nouvel Array.
+array_push_do ptr len cap v =
+  let _ = (poke_int64 ptr len v) in
+  (MkArray ptr (+ len 1) cap)
+
+array_push (MkArray ptr len cap) v =
+  (if (< len cap)
+    (array_push_do ptr len cap v)
+    (MkArray ptr len cap))
+
+array_free (MkArray ptr _ cap) =
+  (raw_free ptr (* cap 8))

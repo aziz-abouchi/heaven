@@ -817,7 +817,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1096,6 +1096,44 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             state2.forced = v;
         }
         return v;
+    }
+
+    // ═══ Array primitives (Jalon 2) ═══
+    // peek_int64 ptr off : lit 8 bytes a ptr + off*8.
+    if (std.mem.eql(u8, op, "peek_int64")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const ov = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const pn = store.get(pv);
+        const on = store.get(ov);
+        if (pn.tag != .lit or on.tag != .lit) return error.TypeError;
+        const pl = store.lits.items[pn.aux];
+        const ol = store.lits.items[on.aux];
+        if (pl != .int or ol != .int) return error.TypeError;
+        const addr: usize = @intCast(pl.int);
+        const off: usize = @intCast(ol.int);
+        const ptr: [*]const u64 = @ptrFromInt(addr);
+        return try store.int(@bitCast(ptr[off]));
+    }
+    // poke_int64 ptr off v : ecrit 8 bytes v a ptr + off*8.
+    if (std.mem.eql(u8, op, "poke_int64")) {
+        if (args_snap.len != 3) return error.ArityMismatch;
+        const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const ov = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const vv = try evaluate(store, env, engine, args_snap[2], depth + 1);
+        const pn = store.get(pv);
+        const on = store.get(ov);
+        const vn = store.get(vv);
+        if (pn.tag != .lit or on.tag != .lit or vn.tag != .lit) return error.TypeError;
+        const pl = store.lits.items[pn.aux];
+        const ol = store.lits.items[on.aux];
+        const vl = store.lits.items[vn.aux];
+        if (pl != .int or ol != .int or vl != .int) return error.TypeError;
+        const addr: usize = @intCast(pl.int);
+        const off: usize = @intCast(ol.int);
+        const ptr: [*]u64 = @ptrFromInt(addr);
+        ptr[off] = @bitCast(@as(i64, vl.int));
+        return try store.unitLit();
     }
 
     // ═══ IO primitives fines (D14) ═══

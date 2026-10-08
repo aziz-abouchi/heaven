@@ -773,3 +773,41 @@ Nomenclature confuse. **Proposition** : renommer `tell` en
 **Impact** : tests existants utilisent `tell`. Renommage casse
 `test_suite.hvn`. Chantier separe, non planifie.
 
+
+## Limites du parser infix (2026-10-08)
+
+Confirmees en ecrivant core/std/array.hvn. Heaven est **infix en
+surface, S-expr en coeur**. Le parser infix supporte :
+
+- `f x y` (application simple)
+- `a + b` (operateurs infixes)
+- `let x = v in body` (multi-ligne, D18)
+- `if (cond) then_branch else_branch` (parens autour de cond)
+
+**NE supporte PAS** (mais tolere en S-expr) :
+
+1. **Operateur prefixe sans parens dans `if`** :
+       if < i 0 A B   -- CASSE
+       if (< i 0) A B -- OK
+
+2. **`if` multi-ligne sans parens englobantes** :
+       if cond
+         A
+         B             -- CASSE
+       (if cond A B)   -- OK
+
+3. **`let-in` dans branche de `if` sans parens** :
+       if c
+         let _ = x in y
+         z             -- CASSE
+       (if c (let _ x y) z)  -- OK
+
+**Convention recommandee** dans la stdlib :
+- Toujours mettre `(cond)` entre parens
+- Utiliser des helpers nommes (`array_in_range`, `array_push_do`)
+  pour eviter le multi-ligne dans `if`
+- Ou revenir au S-expr pur si vraiment imbrique
+
+**Why** : le parser infix (`parseSExpr` sur le body) currifie les
+operateurs prefixes s'ils ne sont pas explicitement groupes par `()`.
+

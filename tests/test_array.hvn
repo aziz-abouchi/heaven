@@ -1,0 +1,16 @@
+-- tests/test_array.hvn (Jalon 2, v0)
+-- Array mutable en Heaven pur (au-dessus de peek_int64/poke_int64).
+
+test "new + length = 0": (let a (array_new 8) (array_length a)) == 0
+
+test "push + length = 1": (let a (array_new 8) (let b (array_push a 42) (array_length b))) == 1
+
+test "get apres push = 42": (let a (array_new 8) (let b (array_push a 42) (array_get b 0))) == 42
+
+test "get hors bornes = 0": (let a (array_new 8) (array_get a 0)) == 0
+
+test "capacity = 8": (let a (array_new 8) (array_capacity a)) == 8
+
+test "3 push + sum = 60": (let a0 (array_new 8) (let a1 (array_push a0 10) (let a2 (array_push a1 20) (let a3 (array_push a2 30) (+ (+ (array_get a3 0) (array_get a3 1)) (array_get a3 2)))))) == 60
+
+test "push depasse capacity : ignore": (let a (array_new 1) (let b (array_push a 1) (let c (array_push b 2) (array_length c)))) == 1
