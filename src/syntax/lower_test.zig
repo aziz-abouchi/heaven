@@ -1,4 +1,7 @@
 const std = @import("std");
+const platform = @import("platform");
+const ts = platform.ts;
+const syntax_lower = @import("syntax_lower");
 const testing = std.testing;
 
 const lower_mod = @import("syntax_lower");
@@ -233,3 +236,30 @@ test "syntax HIR — recursive generic data" {
         else => return error.TestExpectedEqual,
     }
 }
+
+test "pont expérimental : 'x + 1' vers Expr.Store" {
+    var store = syntax_lower.core.Store.init(std.testing.allocator);
+    defer store.deinit();
+
+    const source = "x + 1";
+    const parser = ts.ts_parser_new();
+    defer ts.ts_parser_delete(parser);
+    _ = ts.ts_parser_set_language(parser, platform.tree_sitter_heaven());
+    
+    const tree = ts.ts_parser_parse_string(parser, null, source.ptr, @intCast(source.len));
+    defer ts.ts_tree_delete(tree);
+    const root = ts.ts_tree_root_node(tree);
+    const expr_node = ts.ts_node_named_child(root, 0);
+
+    const expr_id = try syntax_lower.lowerExprToStore(&store, expr_node, source);
+
+    const expected_x = try store.sym("x");
+    const expected_1 = try store.int(1);
+    const expected_id = try store.binop("+", expected_x, expected_1);
+
+    try std.testing.expect(syntax_lower.core.structuralEql(&store, expr_id, expected_id));
+    try store.assertCoreExpr(expr_id);
+}
+
+
+

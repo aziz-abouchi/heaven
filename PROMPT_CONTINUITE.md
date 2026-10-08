@@ -759,3 +759,30 @@ travaille (`git status`, `git log`).
 
 Solution definitive au probleme `if`/`let-in` : indentation comme
 Python/Haskell. 1-2 sessions. Casse potentiellement des tests.
+
+## 2026-10-08 : Pont Tree-sitter → Expr.Store (Abandon progressif de Matrix)
+- **Constat** : `UniversalIngestor` produisait du `Matrix/BobId` pour `SurvivalTranspiler` (C), créant une séparation artificielle avec le cœur moderne (`Expr.Store` → `MIR` → `QBE/WASM`).
+- **Décision** : Ne pas créer de "Universal IR". Utiliser `src/syntax/lower.zig` comme point d'entrée unique pour abaisser directement vers `core.Expr.Store`.
+- **Action** : Ajout de `lowerExprToStore` dans `src/syntax/lower.zig` (pont expérimental). Gère actuellement `identifier`, `number`, `binary_expression`.
+- **Prochaines étapes** : Étendre le pont à `call`, `let`, et `lambda`, puis déprécier progressivement `UniversalIngestor`.
+
+## 2026-10-08 : Pont Tree-sitter → Expr.Store (Abandon progressif de Matrix)
+- **Constat** : `UniversalIngestor` produisait du `Matrix/BobId` pour `SurvivalTranspiler` (C), créant une séparation artificielle avec le cœur moderne (`Expr.Store` → `MIR` → `QBE/WASM`).
+- **Décision** : Ne pas créer de "Universal IR". Utiliser `src/syntax/lower.zig` comme point d'entrée unique pour abaisser directement vers `core.Expr.Store`.
+- **Action** : Ajout de `lowerExprToStore` dans `src/syntax/lower.zig` (pont expérimental). Gère actuellement `identifier`, `number`, `binary_expression`.
+- **Prochaines étapes** : Étendre le pont à `call`, `let`, et `lambda`, puis déprécier progressivement `UniversalIngestor`.
+
+## 2026-10-08 : Pont Tree-sitter -> Expr.Store (Abandon progressif de Matrix)
+- Constat : UniversalIngestor produisait du Matrix/BobId pour SurvivalTranspiler (C), créant une séparation artificielle avec le cœur moderne (Expr.Store -> MIR -> QBE/WASM).
+- Décision : Ne pas créer de "Universal IR". Utiliser src/syntax/lower.zig comme point d'entrée unique pour abaisser directement vers core.Expr.Store.
+- Action : Ajout de lowerExprToStore dans src/syntax/lower.zig (pont expérimental). Gère actuellement identifier, number, binary_expression.
+- Prochaines étapes : Étendre le pont à call, let, et lambda, puis déprécier progressivement UniversalIngestor.
+
+## 2026-10-08 : Pont Tree-sitter -> Expr.Store VALIDÉ pour 'x + 1'
+- Le pont expérimental `lowerExprToStore` dans `src/syntax/lower.zig` fonctionne maintenant pour :
+  - `identifier` (variables)
+  - `int` (littéraux entiers)
+  - `binary` (opérations binaires comme `x + 1`)
+- Nœuds gérés via index d'enfants (pas de noms de champs) : child(0)=lhs, child(1)=op, child(2)=rhs
+- Helper `lowerExprSource` encapsule le parsing Tree-sitter pour les callers
+- Prochaine étape : étendre à `call` (f(x)) et `let` (let x = 1 in x)

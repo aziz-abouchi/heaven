@@ -10,6 +10,7 @@ const ast = @import("syntax_ast");
 const platform = @import("platform");
 const builtin = @import("builtin");
 const ts = platform.ts;
+pub const core = @import("core");
 
 pub const LowerError = error{
     UnsupportedNode,
@@ -855,4 +856,86 @@ const parser = ts.ts_parser_new();
 
     var lowerer = Lowerer.init(allocator, source);
     return lowerer.lower(root);
+}
+
+// ═══════════════════════════════════════════════════
+// PONT EXPÉRIMENTAL : Tree-sitter → Expr.Store
+// ═══════════════════════════════════════════════════
+
+pub const LowerExprError = error{
+    UnsupportedNode,
+    InvalidLiteral,
+    OutOfMemory,
+};
+
+pub fn lowerExprToStore(
+    store: *core.Store,
+    node: ts.TSNode,
+    source: []const u8,
+) LowerExprError!core.Id {
+    const kind = std.mem.span(ts.ts_node_type(node));
+
+    if (std.mem.eql(u8, kind, "ERROR")) {
+        const child_count = ts.ts_node_named_child_count(node);
+        if (child_count > 0) {
+            return lowerExprToStore(store, ts.ts_node_named_child(node, 0), source);
+        }
+        return LowerExprError.UnsupportedNode;
+    }
+
+    if (std.mem.eql(u8, kind, "identifier")) {
+        const start = ts.ts_node_start_byte(node);
+        const end = ts.ts_node_end_byte(node);
+        return store.sym(source[start..end]) catch LowerExprError.OutOfMemory;
+    }
+
+    if (std.mem.eql(u8, kind, "int")) {
+        const start = ts.ts_node_start_byte(node);
+        const end = ts.ts_node_end_byte(node);
+        const val = std.fmt.parseInt(i64, source[start..end], 10) catch return LowerExprError.InvalidLiteral;
+        return store.int(val) catch LowerExprError.OutOfMemory;
+    }
+
+    if (std.mem.eql(u8, kind, "binary")) {
+        const lhs_node = ts.ts_node_child(node, 0);
+        const op_node = ts.ts_node_child(node, 1);
+        const rhs_node = ts.ts_node_child(node, 2);
+
+        if (ts.ts_node_is_null(lhs_node) or ts.ts_node_is_null(op_node) or ts.ts_node_is_null(rhs_node)) {
+            return LowerExprError.UnsupportedNode;
+        }
+
+        const left_id = try lowerExprToStore(store, lhs_node, source);
+        const right_id = try lowerExprToStore(store, rhs_node, source);
+        
+        const op_start = ts.ts_node_start_byte(op_node);
+        const op_end = ts.ts_node_end_byte(op_node);
+        const op_str = source[op_start..op_end];
+
+        return store.binop(op_str, left_id, right_id) catch LowerExprError.OutOfMemory;
+    }
+
+    return LowerExprError.UnsupportedNode;
+}
+
+/// Helper pratique : parse la source et abaisse directement la première expression trouvée.
+pub fn lowerExprSource(
+    store: *core.Store,
+    source: []const u8,
+) LowerExprError!core.Id {
+    if (platform.target.is_wasm) return LowerExprError.UnsupportedNode;
+    
+    const parser = ts.ts_parser_new();
+    defer ts.ts_parser_delete(parser);
+    _ = ts.ts_parser_set_language(parser, platform.tree_sitter_heaven());
+    
+    const tree = ts.ts_parser_parse_string(parser, null, source.ptr, @intCast(source.len));
+    defer ts.ts_tree_delete(tree);
+    const root = ts.ts_tree_root_node(tree);
+    
+    const n = ts.ts_node_named_child_count(root);
+    if (n == 0) return LowerExprError.UnsupportedNode;
+    
+    const expr_node = ts.ts_node_named_child(root, 0);
+    return lowerExprToStore(store, expr_node, source);
 }

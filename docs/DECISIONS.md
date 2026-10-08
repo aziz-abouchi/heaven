@@ -843,3 +843,21 @@ machine, 2-3 sessions) OU refactor de `evalMagic` en sous-fonctions
 
 **Tests** : 30/30 BigInt (avec bdiv/bmod 1000/7 remis).
 
+
+## D21 : Unification du Lowering vers Expr.Store (2026-10-08)
+- **Contexte** : Coexistence de deux pipelines : `UniversalIngestor` → `Matrix/BobId` → `SurvivalTranspiler` (C) ET `Tree-sitter` → `Expr.Store` → `MIR` → `QBE/WASM`.
+- **Problème** : Duplication de logique, maintenance de deux IRs, complexité accrue.
+- **Décision** : `Expr.Store` (Id = Expr = Value) devient l'unique IR intermédiaire. `src/syntax/lower.zig` est étendu pour abaisser directement vers `Expr.Store`. `Matrix` et `SurvivalTranspiler` seront progressivement dépréciés et déplacés vers `src/legacy/`.
+- **Critère de succès** : 100% des constructions syntaxiques de base (`binop`, `call`, `let`, `lambda`) passent par `lowerExprToStore` avec succès.
+
+## D21 : Unification du Lowering vers Expr.Store (2026-10-08)
+- **Contexte** : Coexistence de deux pipelines : `UniversalIngestor` → `Matrix/BobId` → `SurvivalTranspiler` (C) ET `Tree-sitter` → `Expr.Store` → `MIR` → `QBE/WASM`.
+- **Problème** : Duplication de logique, maintenance de deux IRs, complexité accrue.
+- **Décision** : `Expr.Store` (Id = Expr = Value) devient l'unique IR intermédiaire. `src/syntax/lower.zig` est étendu pour abaisser directement vers `Expr.Store`. `Matrix` et `SurvivalTranspiler` seront progressivement dépréciés et déplacés vers `src/legacy/`.
+- **Critère de succès** : 100% des constructions syntaxiques de base (`binop`, `call`, `let`, `lambda`) passent par `lowerExprToStore` avec succès.
+
+## D21 : Unification du Lowering vers Expr.Store (2026-10-08)
+- Contexte : Coexistence de deux pipelines : UniversalIngestor -> Matrix/BobId -> SurvivalTranspiler (C) ET Tree-sitter -> Expr.Store -> MIR -> QBE/WASM.
+- Problème : Duplication de logique, maintenance de deux IRs, complexité accrue.
+- Décision : Expr.Store (Id = Expr = Value) devient l'unique IR intermédiaire. src/syntax/lower.zig est étendu pour abaisser directement vers Expr.Store. Matrix et SurvivalTranspiler seront progressivement dépréciés et déplacés vers src/legacy/.
+- Critère de succès : 100% des constructions syntaxiques de base (binop, call, let, lambda) passent par lowerExprToStore avec succès.

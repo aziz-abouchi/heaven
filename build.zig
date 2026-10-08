@@ -218,7 +218,6 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-
     const hole_mod = b.addModule("hole", .{
         .root_source_file = b.path("src/core/hole.zig"),
         .target = target,
@@ -250,6 +249,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "syntax_ast", .module = syntax_ast_mod },
+            .{ .name = "core", .module = expr_mod },
             //.{ .name = "tree_sitter", .module = tree_sitter_mod },
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "syntax_ast", .module = syntax_ast_mod },
@@ -848,8 +848,6 @@ pub fn build(b: *std.Build) void {
     });
     platform_mod.addImport("shell_parser_types", shell_parser_types_mod);
 
-
-
     const shell_parser_mod = b.createModule(.{
         .root_source_file = b.path("src/parsing/shell_parser.zig"),
         .target = target,
@@ -1125,10 +1123,6 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-
-
-
-
     const codegen_c_legacy_mod = b.createModule(.{
         .root_source_file = b.path("src/codegen/c.zig"),
         .target = target,
@@ -1355,9 +1349,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     }) });
-
-
-
 
     const test_egraph = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/inference/eqsat/egraph.zig"),
@@ -1737,6 +1728,7 @@ pub fn build(b: *std.Build) void {
                 .optimize = optimize,
                 .imports = &.{
                     .{ .name = "syntax_lower", .module = syntax_lower_mod },
+                    .{ .name = "platform", .module = platform_mod },
                 },
             }),
         });

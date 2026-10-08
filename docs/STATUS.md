@@ -326,3 +326,13 @@ Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
     `readKeyUnix`, les `VK_*` et `INPUT_RECORD` de
     `interactive.zig` vers `platform.readKey()`. Cohérence
     avec la règle platform. 1 session.
+
+### 2026-10-08 : Pipeline de Lowering
+- En cours : Pont expérimental Tree-sitter -> Expr.Store via src/syntax/lower.zig (lowerExprToStore).
+- Stable : identifier, number, binary_expression sont abaissés directement en primitives Core (sym, lit, apply).
+- Roadmap : Extension à call, let, lambda. Dépréciation prévue de UniversalIngestor (Matrix/BobId).
+
+### 2026-10-08 : Pont Tree-sitter -> Expr.Store (VALIDÉ)
+- **Stable** : `lowerExprToStore` gère `identifier`, `int`, `binary` avec succès.
+- **Helper** : `lowerExprSource` encapsule le parsing pour usage externe.
+- **En cours** : Extension à `call` (f(x)) et `let` (let x = 1 in x).

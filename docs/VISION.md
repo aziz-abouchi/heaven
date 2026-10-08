@@ -263,3 +263,21 @@ posent.
 La vision n'est pas un plan. C'est un cap. Les decisions concretes
 sont dans DECISIONS, la progression dans STATUS, le travail imminent
 dans ROADMAP. VISION dit *pourquoi* on fait tout ca.
+
+### Invariant : Unicité de la Représentation (Mis à jour 2026-10-08)
+- `Id = Expr = Value`. Il n'existe qu'une seule représentation intermédiaire : `core.Expr.Store`.
+- Tout langage source (C, Rust, Python, JS, Zig, Heaven) doit être abaissé vers ce Store via `src/syntax/lower.zig`.
+- Tout backend (QBE, WASM, ASM) consomme ce Store via le MIR.
+- Les IRs intermédiaires historiques (`Matrix`, `BobId`) sont des reliques en cours de dépréciation active.
+
+### Invariant : Unicité de la Représentation (Mis à jour 2026-10-08)
+- `Id = Expr = Value`. Il n'existe qu'une seule représentation intermédiaire : `core.Expr.Store`.
+- Tout langage source (C, Rust, Python, JS, Zig, Heaven) doit être abaissé vers ce Store via `src/syntax/lower.zig`.
+- Tout backend (QBE, WASM, ASM) consomme ce Store via le MIR.
+- Les IRs intermédiaires historiques (`Matrix`, `BobId`) sont des reliques en cours de dépréciation active.
+
+### Invariant : Unicité de la Représentation (Mis à jour 2026-10-08)
+- Id = Expr = Value. Il n'existe qu'une seule représentation intermédiaire : core.Expr.Store.
+- Tout langage source (C, Rust, Python, JS, Zig, Heaven) doit être abaissé vers ce Store via src/syntax/lower.zig.
+- Tout backend (QBE, WASM, ASM) consomme ce Store via le MIR.
+- Les IRs intermédiaires historiques (Matrix, BobId) sont des reliques en cours de dépréciation active.

@@ -264,3 +264,6 @@ Toutes les commandes shell acceptent la forme `:cmd` ou `cmd`. Certaines ont un 
 4. **CAS en fonctions** — `(simplify e)` etc. canoniques. Compatibilité préfixe conservée 1 version.
 
 Chaque étape = un commit. Les tests `core/test_suite.hvn` doivent rester verts.
+
+### Note (2026-10-08)
+Le pipeline de compilation interne utilise désormais 'lowerExprToStore' comme point d'entrée canonique pour l'abaissement syntaxique.

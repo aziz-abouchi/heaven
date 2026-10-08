@@ -740,3 +740,24 @@ Apres validation du POC :
 - second IR specialise ;
 - backend direct depuis Knowledge.
 
+
+### Phase : Unification du Lowering (Q4 2026)
+- [x] Pont expérimental `lowerExprToStore` pour `x + 1`.
+- [ ] Étendre `lowerExprToStore` à `call` (ex: `f(x)`).
+- [ ] Étendre `lowerExprToStore` à `let` et `lambda`.
+- [ ] Déplacer `UniversalIngestor` et `SurvivalTranspiler` vers `src/legacy/`.
+- [ ] Supprimer toute dépendance résiduelle à `Matrix/BobId` dans le pipeline principal.
+
+### Phase : Unification du Lowering (Q4 2026)
+- [x] Pont expérimental `lowerExprToStore` pour `x + 1`.
+- [ ] Étendre `lowerExprToStore` à `call` (ex: `f(x)`).
+- [ ] Étendre `lowerExprToStore` à `let` et `lambda`.
+- [ ] Déplacer `UniversalIngestor` et `SurvivalTranspiler` vers `src/legacy/`.
+- [ ] Supprimer toute dépendance résiduelle à `Matrix/BobId` dans le pipeline principal.
+
+### Phase : Unification du Lowering (Q4 2026)
+- [x] Pont expérimental lowerExprToStore pour x + 1 (VALIDÉ 2026-10-08).
+- [ ] Étendre lowerExprToStore à call (ex: f(x)).
+- [ ] Étendre lowerExprToStore à let et lambda.
+- [ ] Déplacer UniversalIngestor et SurvivalTranspiler vers src/legacy/.
+- [ ] Supprimer toute dépendance résiduelle à Matrix/BobId dans le pipeline principal.

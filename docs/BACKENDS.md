@@ -125,3 +125,6 @@ explicite. Ce document est docs-only.
 README : « 39 tests unitaires » (réel : 175+), « MIR ~40 % »,
 `zig build wasm` inexistant (chemin réel : `bash build.sh`).
 STATUS.md : lignes TCO et kernel CIC à rafraîchir (d9d35ba, c620281).
+
+### Note (2026-10-08)
+Tous les backends (QBE, WASM) consomment désormais exclusivement le MIR généré depuis 'core.Expr.Store', rendant 'SurvivalTranspiler' (C) obsolète.

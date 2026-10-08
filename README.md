@@ -284,3 +284,7 @@ Apache 2.0
 ### Mise à jour Architecture (Oct 2026)
 - Le pipeline de lowering converge vers une unicité : `Tree-sitter` → `Expr.Store` → `MIR` → `Backends`.
 - Le module `src/syntax/lower.zig` est désormais le point d'entrée unique pour l'abaissement, remplaçant progressivement `UniversalIngestor` (Matrix).
+
+### Mise à jour Architecture (Oct 2026)
+- Le pipeline de lowering converge vers une unicité : Tree-sitter -> Expr.Store -> MIR -> Backends.
+- Le module src/syntax/lower.zig est désormais le point d'entrée unique pour l'abaissement, remplaçant progressivement UniversalIngestor (Matrix).
