@@ -186,7 +186,10 @@ zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
 cp zig-out/bin/heaven.wasm src/vessel/public/heaven.wasm
 
 echo "[FORGE] Compilation native..."
-zig build
+# D20 : ReleaseFast par defaut pour la recursion profonde.
+# Debug limitait f a ~130 niveaux (a cause des frames Debug non
+# optimisees). ReleaseFast monte a ~500-1000.
+zig build -Doptimize=ReleaseFast
 
 echo "[FORGE] Tests..."
 zig build test
