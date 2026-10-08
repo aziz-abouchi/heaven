@@ -38,11 +38,15 @@ fn splitStatements(
     content: []const u8,
     out: *std.ArrayListUnmanaged([]const u8),
 ) !void {
-    // Accumulation par indentation : une ligne non-indentee (colonne 0)
-    // commence un nouveau statement. Les lignes indentees sont des
-    // continuations (style Haskell/Python).
+    // Accumulation par indentation ET par profondeur d'accolades.
+    // Une ligne non-indentee (colonne 0) commence un nouveau statement,
+    // SAUF si on est dans un bloc `{ ... }` non ferme -- dans ce cas
+    // meme une ligne en colonne 0 (comme `}`) est une continuation.
+    // (Le comptage d'accolades est naif : pas de filtrage des strings
+    //  ou commentaires en milieu de ligne. Suffisant pour les tactiques.)
     var buffer = std.ArrayListUnmanaged(u8){};
     defer buffer.deinit(allocator);
+    var brace_depth: i32 = 0;
     var line_iter = std.mem.splitScalar(u8, content, '\n');
     while (line_iter.next()) |line| {
         const trimmed = std.mem.trim(u8, line, " \t\r");
@@ -53,8 +57,9 @@ fn splitStatements(
         if (std.mem.startsWith(u8, trimmed, ";;")) continue;
 
         const is_indented = line.len > 0 and (line[0] == ' ' or line[0] == '\t');
+        const in_block = brace_depth > 0;
 
-        if (buffer.items.len > 0 and !is_indented) {
+        if (buffer.items.len > 0 and !is_indented and !in_block) {
             try out.append(allocator, try allocator.dupe(u8, buffer.items));
             buffer.clearRetainingCapacity();
         }
@@ -63,6 +68,11 @@ fn splitStatements(
             try buffer.append(allocator, ' ');
         }
         try buffer.appendSlice(allocator, trimmed);
+
+        for (trimmed) |c| {
+            if (c == '{') brace_depth += 1;
+            if (c == '}') brace_depth -= 1;
+        }
     }
     if (buffer.items.len > 0) {
         try out.append(allocator, try allocator.dupe(u8, buffer.items));
