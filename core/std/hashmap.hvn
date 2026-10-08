@@ -1,0 +1,145 @@
+-- core/std/hashmap.hvn (Jalon 2, v0)
+-- HashMap Int -> Int via open addressing + linear probing.
+-- Layout : 3 i64 par slot [key, value, flag] (flag 0=vide, 1=occupe).
+-- Hash : k % cap. Probing : (i+1) % cap. Immutable (retourne nouvelle Map).
+
+data Map = MkMap Int Int Int
+
+map_length (MkMap _ len _) = len
+map_capacity (MkMap _ _ cap) = cap
+map_ptr (MkMap ptr _ _) = ptr
+
+-- zero_init : remplit n i64 a partir de ptr avec 0.
+map_zero_body ptr i n =
+  let _ = (poke_int64 ptr i 0) in
+  (map_zero ptr (+ i 1) n)
+
+map_zero ptr i n =
+  (if (< i n)
+    (map_zero_body ptr i n)
+    ptr)
+
+-- map_new cap : alloue cap*3 i64, zero-init, retourne MkMap ptr 0 cap.
+map_new cap =
+  let n = (* cap 3) in
+  let bytes = (* n 8) in
+  let ptr = (raw_alloc bytes) in
+  let _ = (map_zero ptr 0 n) in
+  (MkMap ptr 0 cap)
+
+-- ─── Lecture / ecriture de slot ───
+-- Slot i occupe les i64 [i*3, i*3+1, i*3+2] = [key, value, flag].
+map_slot_key ptr i = (peek_int64 ptr (* i 3))
+map_slot_value ptr i = (peek_int64 ptr (+ (* i 3) 1))
+map_slot_flag ptr i = (peek_int64 ptr (+ (* i 3) 2))
+
+map_slot_write ptr i k v =
+  let base = (* i 3) in
+  let _ = (poke_int64 ptr base k) in
+  let _ = (poke_int64 ptr (+ base 1) v) in
+  let _ = (poke_int64 ptr (+ base 2) 1) in
+  ptr
+
+-- ─── Lookup par probing lineaire ───
+-- 4 helpers nommes pour eviter if multi-ligne avec conditions imbriquees.
+map_get_next ptr k cap i count =
+  (map_get_helper ptr k cap (% (+ i 1) cap) (+ count 1))
+
+map_get_match ptr k cap i count =
+  (if (eq (map_slot_key ptr i) k)
+    (map_slot_value ptr i)
+    (map_get_next ptr k cap i count))
+
+map_get_check ptr k cap i count =
+  (if (eq (map_slot_flag ptr i) 0)
+    0
+    (map_get_match ptr k cap i count))
+
+map_get_helper ptr k cap i count =
+  (if (>= count cap)
+    0
+    (map_get_check ptr k cap i count))
+
+map_get (MkMap ptr _ cap) k =
+  (map_get_helper ptr k cap (% k cap) 0)
+
+-- ─── Insertion par probing lineaire ───
+-- On cherche soit le slot contenant deja k (update), soit un slot vide (insert).
+map_put_next ptr size k v cap i count =
+  (map_put_helper ptr size k v cap (% (+ i 1) cap) (+ count 1))
+
+map_put_match ptr size k v cap i count =
+  (if (eq (map_slot_key ptr i) k)
+    (MkMap (map_slot_write ptr i k v) size cap)
+    (map_put_next ptr size k v cap i count))
+
+map_put_free ptr size k v cap i =
+  (MkMap (map_slot_write ptr i k v) (+ size 1) cap)
+
+map_put_check ptr size k v cap i count =
+  (if (eq (map_slot_flag ptr i) 0)
+    (map_put_free ptr size k v cap i)
+    (map_put_match ptr size k v cap i count))
+
+map_put_helper ptr size k v cap i count =
+  (if (>= count cap)
+    (MkMap ptr size cap)
+    (map_put_check ptr size k v cap i count))
+
+-- map_put_no_grow : insertion sans resize.
+map_put_no_grow map k v =
+  (map_put_helper (map_ptr map) (map_length map) k v (map_capacity map) (% k (map_capacity map)) 0)
+
+-- ─── Resize automatique ───
+-- Load factor : on resize si size * 4 >= cap * 3 (0.75).
+map_should_grow size cap = (>= (* size 4) (* cap 3))
+
+-- Rehash : parcourt tous les slots de l'ancien ptr, reinsere dans new_map.
+map_rehash new_map old_ptr i cap =
+  (if (>= i cap)
+    new_map
+    (map_rehash_slot new_map old_ptr i cap))
+
+map_rehash_slot new_map old_ptr i cap =
+  (if (eq (map_slot_flag old_ptr i) 0)
+    (map_rehash new_map old_ptr (+ i 1) cap)
+    (map_rehash_insert new_map old_ptr i cap))
+
+map_rehash_insert new_map old_ptr i cap =
+  let nm = (map_put_no_grow new_map (map_slot_key old_ptr i) (map_slot_value old_ptr i)) in
+  (map_rehash nm old_ptr (+ i 1) cap)
+
+map_resize map =
+  let new_cap = (* (map_capacity map) 2) in
+  let new_map = (map_new new_cap) in
+  (map_rehash new_map (map_ptr map) 0 (map_capacity map))
+
+-- ─── map_put : resize conditionnel puis insertion ───
+map_put_do map k v = (map_put_no_grow map k v)
+
+map_put map k v =
+  (if (map_should_grow (map_length map) (map_capacity map))
+    (map_put_do (map_resize map) k v)
+    (map_put_do map k v))
+
+-- ─── map_has : presence d'une cle (independant de la valeur) ───
+map_has_next ptr k cap i count =
+  (map_has_helper ptr k cap (% (+ i 1) cap) (+ count 1))
+
+map_has_match ptr k cap i count =
+  (if (eq (map_slot_key ptr i) k)
+    1
+    (map_has_next ptr k cap i count))
+
+map_has_check ptr k cap i count =
+  (if (eq (map_slot_flag ptr i) 0)
+    0
+    (map_has_match ptr k cap i count))
+
+map_has_helper ptr k cap i count =
+  (if (>= count cap)
+    0
+    (map_has_check ptr k cap i count))
+
+map_has (MkMap ptr _ cap) k =
+  (map_has_helper ptr k cap (% k cap) 0)

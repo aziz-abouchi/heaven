@@ -1,0 +1,39 @@
+-- tests/test_hashmap.hvn (Jalon 2, v0)
+-- HashMap Int -> Int via open addressing.
+
+test "new : length = 0": (let m (map_new 8) (map_length m)) == 0
+
+test "new : capacity = 8": (let m (map_new 8) (map_capacity m)) == 8
+
+test "get sur map vide = 0": (let m (map_new 8) (map_get m 42)) == 0
+
+test "has sur map vide = 0": (let m (map_new 8) (map_has m 42)) == 0
+
+test "put 1 + length = 1": (let m (map_put (map_new 8) 1 10) (map_length m)) == 1
+
+test "put 1 + get = 10": (let m (map_put (map_new 8) 1 10) (map_get m 1)) == 10
+
+test "put 1 + has = 1": (let m (map_put (map_new 8) 1 10) (map_has m 1)) == 1
+
+test "put 2 cles distinctes + length = 2": (let m0 (map_new 8) (let m1 (map_put m0 1 10) (let m2 (map_put m1 2 20) (map_length m2)))) == 2
+
+test "put 2 + get cle 1 = 10": (let m0 (map_new 8) (let m1 (map_put m0 1 10) (let m2 (map_put m1 2 20) (map_get m2 1)))) == 10
+
+test "put 2 + get cle 2 = 20": (let m0 (map_new 8) (let m1 (map_put m0 1 10) (let m2 (map_put m1 2 20) (map_get m2 2)))) == 20
+
+test "put 2 + get cle absente = 0": (let m0 (map_new 8) (let m1 (map_put m0 1 10) (let m2 (map_put m1 2 20) (map_get m2 99)))) == 0
+
+-- ─── Cas avances ───
+test "overwrite : put meme cle 2x garde length = 1": (let m0 (map_new 8) (let m1 (map_put m0 5 100) (let m2 (map_put m1 5 200) (map_length m2)))) == 1
+
+test "overwrite : derniere valeur gagne": (let m0 (map_new 8) (let m1 (map_put m0 5 100) (let m2 (map_put m1 5 200) (map_get m2 5)))) == 200
+
+test "collision : cles 0 et 8 sur cap 8": (let m0 (map_new 8) (let m1 (map_put m0 0 10) (let m2 (map_put m1 8 80) (map_get m2 8)))) == 80
+
+test "collision : cle 0 intacte apres collision": (let m0 (map_new 8) (let m1 (map_put m0 0 10) (let m2 (map_put m1 8 80) (map_get m2 0)))) == 10
+
+test "resize : 7 cles distinctes sur cap 8 declenche resize": (let m0 (map_new 8) (let m1 (map_put m0 1 1) (let m2 (map_put m1 2 2) (let m3 (map_put m2 3 3) (let m4 (map_put m3 4 4) (let m5 (map_put m4 5 5) (let m6 (map_put m5 6 6) (let m7 (map_put m6 7 7) (map_length m7))))))))) == 7
+
+test "resize : capacity doublee apres 7 puts": (let m0 (map_new 8) (let m1 (map_put m0 1 1) (let m2 (map_put m1 2 2) (let m3 (map_put m2 3 3) (let m4 (map_put m3 4 4) (let m5 (map_put m4 5 5) (let m6 (map_put m5 6 6) (let m7 (map_put m6 7 7) (map_capacity m7))))))))) == 16
+
+test "resize : toutes les cles survivent": (let m0 (map_new 8) (let m1 (map_put m0 1 10) (let m2 (map_put m1 2 20) (let m3 (map_put m2 3 30) (let m4 (map_put m3 4 40) (let m5 (map_put m4 5 50) (let m6 (map_put m5 6 60) (let m7 (map_put m6 7 70) (map_get m7 4))))))))) == 40

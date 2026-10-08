@@ -26,6 +26,7 @@ pub const files = [_][]const u8{
     "core/bigint.hvn",
     "core/std/array.hvn",
     "core/std/string.hvn",
+    "core/std/hashmap.hvn",
 };
 
 /// Charge tous les fichiers std dans le `heaven` fourni.
