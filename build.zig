@@ -1409,6 +1409,8 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "pattern", .module = pattern_mod },
             .{ .name = "platform", .module = platform_mod },
+            .{ .name = "continuation", .module = continuation_mod },
+            .{ .name = "scheduler", .module = scheduler_mod },
         },
     }) });
 
