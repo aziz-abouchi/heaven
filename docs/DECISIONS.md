@@ -757,3 +757,50 @@ comme operateur infixe). Syntaxe finale : (handle_rec body handler init).
 
 **Tests** : 4/4 dans test_effects_rec.hvn (lambdas inline).
 
+
+## D8 3a-3-c-b -- Scheduler cooperatif (2026-10-08)
+
+**Contexte** : 3a-3-b a livre handle_rec (yield/resume via RecCtx).
+3a-3-c-a a branche Scheduler sur Engine. 3a-3-c-b livre les magics
+qui exposent le scheduler a Heaven.
+
+**Decision** : scheduler cooperatif via 4 magics.
+
+Syntaxe :
+    task_id = (add_task body_fn init_state)
+    (schedule budget_per_iteration)
+    (yield new_state)       -- dans body_fn
+    (task_state task_id)    -- lecture etat courant
+
+**Mecanique** :
+- `add_task` cree une entree dans engine.scheduler.tasks avec
+  body_fn + current_state.
+- `schedule` : boucle while. Choisit tache .ready via scheduler.next().
+  L'evalue via evalWithBudget. Si yield : maj current_state, tache
+  redevient .ready. Si done : current_state = resultat, .finished.
+- `yield` : Reutilise le RecCtx de handle_rec. Signale next_state +
+  k_signaled. Le scheduler capture puis remet en queue.
+- `task_state` : lookup task_id dans scheduler.tasks, evalue le Id
+  du current_state (bug initial : retournait le Id du Store).
+
+**Modele redemarrable** : quand budget epuise, la tache est re-mise
+.ready et reevaluee depuis le debut. Pas de reprise exacte. Coherent
+avec handle_rec et evalWithBudget.
+
+**Ce qui marche** (3 tests) :
+- 1 tache sans yield -> resultat final.
+- 1 tache avec yield 3x -> etat intermediaire puis final.
+- 2 taches entrelacees -> somme correcte.
+
+**Limitations v0** (chantier futur = Voie B complete) :
+- Pas de reprise exacte : une tache interrompue par budget repart
+  du debut. Acceptable pour du calcul pur, pas pour des effets.
+- Pas de priorites appliquees (policy .priority existe, pas utilisee).
+- Pas d'integration avec spawn/actor (modeles paralleles).
+
+**Debloque** :
+- Multitache cooperatif utilisable en Heaven.
+- Base pour le scheduler preemptif (C3, Voie B).
+- Experimentations sur les effets concurrents.
+
+**Tests** : test_scheduler.hvn (3 tests).
