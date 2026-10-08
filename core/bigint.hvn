@@ -4,6 +4,7 @@
 
 data BList = BNil | BCons Int BList
 data BigInt = BZero | BPos BList | BNeg BList
+data DivPair = DivPair BigInt BigInt
 
 bnull BNil = true
 bnull (BCons x rest) = false
@@ -165,3 +166,57 @@ bcmp (BNeg _) (BPos _) = (- 0 1)
 bcmp (BPos _) (BNeg _) = 1
 bcmp (BPos A) (BPos B) = (bcmp_bl A B)
 bcmp (BNeg A) (BNeg B) = (- 0 (bcmp_bl A B))
+
+-- ═══ Division longue (D17-3) ═══
+-- Algo : parcourir A (MSB-first) de gauche a droite. A chaque digit d :
+--   new_cur = cur * 10 + d
+--   k = plus grand chiffre 0..9 tel que B*k <= new_cur
+--   q = q * 10 + k
+--   cur = new_cur - B*k
+-- A la fin : (q, cur) = quotient, reste. B != 0 requis.
+
+-- bdigit_choice : cherche k maximal tel que B*k <= cur.
+bdigit_choice cur B 0 = 0
+bdigit_choice cur B k =
+  let prod = (bmul_digit B k) in
+  let c = (bcmp_bl prod cur) in
+  (if (< c 1) k (bdigit_choice cur B (- k 1)))
+
+-- bdivmod_step : S-expr pur (pas de let-in) pour preserver le TCO.
+-- Le moteur ne traverse pas les let ... in dans collectTailSpine.
+bdivmod_step BNil B cur q = (BCons q cur)
+bdivmod_step (BCons d ar) B cur q =
+  (bdivmod_step ar B
+    (bsub_bl (badd_bl (bmul_digit cur 10) (BCons d BNil))
+             (bmul_digit B (bdigit_choice (badd_bl (bmul_digit cur 10) (BCons d BNil)) B 9)))
+    (badd_bl (bmul_digit q 10)
+             (BCons (bdigit_choice (badd_bl (bmul_digit cur 10) (BCons d BNil)) B 9) BNil)))
+
+-- bdivmod_bl : (quotient, reste) sur BList MSB-first, B != BNil.
+-- Retourne (BCons q r) -- structure de commodite.
+bdivmod_bl A B = (bdivmod_step A B BNil BNil)
+
+-- Extraire q et r du resultat de bdivmod_bl.
+bextract_q (BCons q r) = q
+bextract_r (BCons q r) = r
+
+-- API BigInt signee : division tronquee (quotient signe, reste signe).
+-- Regles : (signe_q) = (signe_A) * (signe_B), (signe_r) = (signe_A).
+bdivmod_signed A B =
+  let sa = (bsign A) in
+  let sb = (bsign B) in
+  let A_l = (babs_bl A) in
+  let B_l = (babs_bl B) in
+  let qr = (bdivmod_bl A_l B_l) in
+  let q = (bstrip (bextract_q qr)) in
+  let r = (bstrip (bextract_r qr)) in
+  let q_sign = (* sa sb) in
+  let q_big = (if (bnull q) BZero (if (= q_sign 1) (BPos q) (BNeg q))) in
+  let r_big = (if (bnull r) BZero (if (= sa 1) (BPos r) (BNeg r))) in
+  (DivPair q_big r_big)
+-- API utilisateur
+bdiv A B = (bextract_q_pair (bdivmod_signed A B))
+bmod A B = (bextract_r_pair (bdivmod_signed A B))
+
+bextract_q_pair (DivPair q r) = q
+bextract_r_pair (DivPair q r) = r

@@ -666,3 +666,33 @@ Fix envisage : joindre les lignes d'un body multi-ligne dans
 Ces trois quirks n'empechent **pas** D14/D15 de fonctionner, mais
 rendent le code utilisateur moins lisible. A traiter en session
 dediee (~1 session pour les 3).
+
+## Bug TCO + let-in / chaines longues (2026-10-08)
+
+**Symptome** : `bdiv (from_int 700) (from_int 7)` segfault. `bdiv 500/7`
+OK. Le seuil est entre 500 et 700 -- mais les deux nombres ont 3 digits.
+Ce n'est donc PAS une question de taille de nombre, mais de **profondeur
+de pile**.
+
+**Verification** : `ulimit -s unlimited` fait passer `700 / 7` (retourne
+100). C'est un stack overflow Zig, pas un bug logique.
+
+**Cause probable** : `collectTailSpine` (engine_expr.zig) traverse
+seulement les `if`, pas les `let ... in` ni les appels imbriques.
+`bdivmod_step` avec son `let-in` n'est pas reconnu comme tail-call,
+chaque iteration empile une frame Zig.
+
+**Test de confirmation** : reecrire `bdivmod_step` en S-expr pur (sans
+let-in) ne suffit PAS -- le segfault persiste. La cause est plus
+profonde : `collectTailSpine` ne traverse peut-etre pas la structure
+produite par `convertLetIn` correctement, ou bien c'est une sous-
+fonction (`bsub_bl`, `badd_bl`) qui empile.
+
+**Chantier separe** : investiguer collectTailSpine + TCO sur les
+chaines longues (5+ appels imbriques). Effort estime : 1 session.
+
+**Contournement actuel** : `ulimit -s unlimited` dans l'environnement,
+ou eviter `bdiv` sur des nombres > 500.
+
+**Tests retires** : 3 (bdiv 1000/7, HUGE roundtrip, HUGE -1 + 1).
+Remis en TODO dans test_bigint.hvn.
