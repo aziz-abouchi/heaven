@@ -694,3 +694,40 @@ Le moteur ne dispatche pas un 0-aire. Il faut :
 - HUGE : `10^26 + 1 > 10^26`, `(10^26 - 1) + 1 = 10^26`
 
 **Limites v1** : pas de `bdivmod`, pas de `bmod`, pas de Karatsuba.
+
+## D19 — Stack guard + TCO sur let-in (2026-10-08, partiel)
+
+**Constat** : `bdiv` segfaultait au-dela de ~500. Diagnostic :
+`ulimit -s unlimited` faisait passer -> stack overflow, pas bug logique.
+
+**Deux fix** :
+
+1. **Stack-based guard** dans `evalFunction` (PAS `evaluate`) via
+   `@frameAddress()`. Marge 2 MB sur les 8 MB Linux par defaut.
+   Renvoie `RecursionLimitExceeded` au lieu de segfault. IMPORTANT :
+   place dans `evalFunction` (pas `evaluate`) -- sinon `@frameAddress`
+   casse le TCO de Zig.
+
+2. **`collectTailSpine`** traverse maintenant `.bind` (tag) et
+   `.apply` avec op `"let"` (magic). Debloque le TCO sur les fonctions
+   avec `let ... in` en position de queue.
+
+**Ce qui marche** :
+- `h 100000` (TCO + let-in) -> `0` (vs segfault).
+- `g 100000` (TCO pur) -> `0`.
+- `f 500` (non-TCO) -> `RecursionLimitExceeded` propre.
+
+**Ce qui reste casse (D20)** :
+- `bdiv` > 4 digits -> `RecursionLimitExceeded`. Une sous-fonction
+  chaine dans `bdivmod_step` empile trop. Chantier separe.
+- Test : `bdivmod_bl 5 digits / 7` -> erreur alors que
+  `bdigit_choice`, `bmul_digit`, `bsub_bl` marchent isolement.
+
+**Piege** : `@frameAddress()` dans `evaluate` (point chaud) casse le
+TCO Zig. Toujours le placer dans une fonction a frame unique par
+appel recursif -- `evalFunction` est le bon endroit.
+
+**Impact** : plus de segfault sauvage. Les programmes qui depassent
+la pile recoivent une erreur propre. Le TCO marche maintenant sur
+let-in -- la stdlib en beneficie.
+
