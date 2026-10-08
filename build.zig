@@ -297,11 +297,18 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const continuation_mod = b.createModule(.{
+        .root_source_file = b.path("src/core/continuation.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const engine_expr_mod = b.createModule(.{
         .root_source_file = b.path("src/core/engine_expr.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
+            .{ .name = "continuation", .module = continuation_mod },
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "pattern", .module = pattern_mod },

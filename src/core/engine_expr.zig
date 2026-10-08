@@ -8,6 +8,7 @@ const Id = expr.Id;
 const Sym = expr.Sym;
 const Tag = expr.Tag;
 const platform = @import("platform");
+const continuation = @import("continuation");
 
 const Span = expr.Span;
 
@@ -251,6 +252,8 @@ pub const Engine = struct {
     recursion_depth: usize = 0,
     heaven_ctx: *anyopaque,
     vtable: *const HeavenVTable,
+    /// Pile de frames pour continuations delimitees (D8 3a-3).
+    capture_stack: continuation.CaptureStack,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -267,6 +270,7 @@ pub const Engine = struct {
             .fuel = 100_000,
             .heaven_ctx = heaven_ctx,
             .vtable = vtable,
+            .capture_stack = continuation.CaptureStack.init(allocator),
         };
     }
 
@@ -293,6 +297,7 @@ pub const Engine = struct {
             while (proc_it.next()) |entry| entry.value_ptr.deinit(self.allocator);
         }
         self.processes.deinit(self.allocator);
+        self.capture_stack.deinit();
     }
 
     // Contexte factice pour les tests (ne sera jamais utilisé)
