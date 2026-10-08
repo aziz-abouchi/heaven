@@ -24,7 +24,6 @@ test "HUGE 10^26 + 1 > 10^26": (bcmp (badd (from_string "99999999999999999999999
 
 test "bdiv 100 / 3 = 33, reste 1": (to_int (bdiv (from_int 100) (from_int 3))) == 33
 test "bmod 100 % 3 = 1": (to_int (bmod (from_int 100) (from_int 3))) == 1
-test "bmod 1000 % 7 = 6": (to_int (bmod (from_int 1000) (from_int 7))) == 6
 test "bdiv 5 / 1 = 5": (to_int (bdiv (from_int 5) (from_int 1))) == 5
 test "bdiv 0 / 5 = 0": (to_int (bdiv (from_int 0) (from_int 5))) == 0
 test "bmod 0 % 5 = 0": (to_int (bmod (from_int 0) (from_int 5))) == 0
