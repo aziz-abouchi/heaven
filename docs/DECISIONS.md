@@ -619,3 +619,42 @@ lignes n'etait pas supportee -- le loader evaluait trop tot.
 
 **Tests** : 5, 11 (let-in 1-ligne, multi-ligne, imbrique), curl
 localhost:8080 -> Hello from Heaven.
+
+## D18 — Style Haskell multi-ligne (2026-10-07, suite de D16)
+
+**Constat** : apres D16 (multi-ligne S-expr), le style restait avec des
+parentheses imbriquees. La forme `let x = v in body` sur plusieurs
+lignes n'etait pas supportee -- le loader evaluait trop tot.
+
+**Decision** :
+
+1. **Accumulation par indentation** dans `std_loader.zig` et
+   `test_runner.zig::splitStatements` : une ligne non-indentee (colonne 0)
+   commence un nouveau statement ; les lignes indentees sont des
+   continuations. Style Haskell/Python.
+
+2. **`heaven_expr.zig::convertLetIn`** : conversion textuelle recursive
+   `let x = v in body` -> `(let x v body)`. La **valeur** ET le **rest**
+   sont wrappes dans des parens si multi-tokens. Cherche `' in'` suivi
+   de whitespace (espace, tab, newline) ou fin de chaine.
+
+**Alternatives ecartees** :
+- Parser Haskell complet : surdimensionne. La conversion textuelle suffit.
+- Analyse de lignes par parens uniquement : rate le cas ou le body suit
+  sur la ligne suivante sans parens.
+
+**Debloque** :
+- `http.hvn`, `bigint.hvn`, `io_cat` reecrits en style lisible.
+- Toute la stdlib future beneficie du meme style.
+
+**Exemple** :
+
+    http_serve_once unit =
+      let sock = raw_syscall6 41 2 1 0 0 0 0 in
+      let sa = http_mk_sa_8080 unit in
+      let _ = raw_syscall6 49 sock sa 16 0 0 0 in
+      let _ = raw_syscall6 50 sock 5 0 0 0 0 in
+      http_handle_one sock
+
+**Tests** : 5, 11 (let-in 1-ligne, multi-ligne, imbrique), curl
+localhost:8080 -> Hello from Heaven.
