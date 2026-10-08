@@ -738,3 +738,22 @@ scheduler. Le langage peut maintenant exprimer des effets qui
 **Piege** : (k x) exige que k soit un SYMBOLE binde (pas une lambda
 directe). Sinon evalMagic ne dispatche pas.
 
+
+## D8 3a-3-b (suite) -- fix lambda multi-args (2026-10-08)
+
+**Bug decouvert en implementant handle_rec** : le parser ne lisait
+qu'un seul parametre de lambda. (lambda v k -> body) capturait 'v',
+laissait 'k' et '->' comme params residuels -> UnboundVariable.
+
+**Fix** : parseSExpr collecte tous les tokens avant '->' ou '=>'.
+
+**Impact** :
+- handle_rec avec lambdas inline marche.
+- map/filter/foldl avec lambdas multi-args marchent.
+- Tout ordre-superieur debloque.
+
+**Suite** : renomme handle-rec -> handle_rec (le '-' est tokenise
+comme operateur infixe). Syntaxe finale : (handle_rec body handler init).
+
+**Tests** : 4/4 dans test_effects_rec.hvn (lambdas inline).
+
