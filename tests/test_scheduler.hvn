@@ -1,0 +1,19 @@
+-- tests/test_scheduler.hvn (D8 3a-3-c-b)
+-- Le scheduler coopere via yield. Les taches sont definies par
+-- add_task body init_state, puis schedule budget execute tout.
+
+test "1 tache sans yield -> resultat final": (let t (add_task (lambda s -> 42) 0)
+    (let _ (schedule 1000)
+      (task_state t))) == 42
+
+test "1 tache avec yield 3x -> etat intermediaire 3": (let body (lambda s -> (if (= s 3) 99 (yield (+ s 1))))
+    (let t (add_task body 0)
+      (let _ (schedule 1000)
+        (task_state t)))) == 99
+
+test "2 taches entrelacees": (let b1 (lambda s -> (if (= s 3) 99 (yield (+ s 1))))
+    (let b2 (lambda s -> (if (= s 5) 99 (yield (+ s 1))))
+      (let t1 (add_task b1 0)
+        (let t2 (add_task b2 0)
+          (let _ (schedule 1000)
+            (+ (task_state t1) (task_state t2))))))) == 198

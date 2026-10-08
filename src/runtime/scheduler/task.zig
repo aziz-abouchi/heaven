@@ -21,4 +21,12 @@ pub const Task = struct {
 
     cpu_budget_ns: ?Time = null,
     energy_budget_pj: ?u64 = null,
+
+    // ─── D8 3a-3-c : corps executables ───
+    /// Fonction `state -> valeur | (perform "yield")`.
+    body_fn: ?u64 = null,
+    /// Etat courant (mis a jour entre iterations).
+    current_state: ?u64 = null,
+    /// Etat capture par `yield` (consomme par le scheduler).
+    pending_state: ?u64 = null,
 };

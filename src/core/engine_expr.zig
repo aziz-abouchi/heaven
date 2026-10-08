@@ -270,6 +270,7 @@ pub const Engine = struct {
     rec_ctx: ?*RecCtx = null,
     /// Scheduler cooperatif (D8 3a-3-c).
     scheduler: scheduler_lib.Scheduler,
+    next_task_id: u64 = 1,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -816,7 +817,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -877,6 +878,112 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     if (args.len > 8) return error.ArityMismatch;
     @memcpy(args_buf[0..args.len], args);
     const args_snap: []const Id = args_buf[0..args.len];
+
+    if (std.mem.eql(u8, op, "task_state")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const tv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const tn = store.get(tv);
+        if (tn.tag != .lit) return error.TypeError;
+        const tl = store.lits.items[tn.aux];
+        if (tl != .int) return error.TypeError;
+        const tid: u64 = @intCast(tl.int);
+        for (engine.scheduler.tasks.items) |t| {
+            if (t.id == tid) {
+                // current_state est un Id du Store (pas un int brut).
+                // Il faut l'evaluer pour obtenir la valeur.
+                const state_id: Id = @intCast(t.current_state orelse 0);
+                return try evaluate(store, env, engine, state_id, depth + 1);
+            }
+        }
+        return error.InvalidInput;
+    }
+
+    // ═══ add_task + schedule + yield (D8 3a-3-c-b) ═══
+    // (add_task body_fn init_state) -> task_id
+    if (std.mem.eql(u8, op, "add_task")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const body_fn = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const init_state = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const task_id = engine.next_task_id;
+        engine.next_task_id += 1;
+        try engine.scheduler.add(.{
+            .id = task_id,
+            .body_fn = @intCast(body_fn),
+            .current_state = @intCast(init_state),
+            .state = .ready,
+        });
+        return try store.int(@intCast(task_id));
+    }
+
+    // (yield new_state) -> signale la suspension de la tache courante
+    if (std.mem.eql(u8, op, "yield")) {
+        const ctx = engine.rec_ctx orelse return error.HandlerFailed;
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const ns = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        ctx.next_state = ns;
+        ctx.k_signaled = true;
+        return try store.unitLit();
+    }
+
+    // (schedule budget) -> execute toutes les taches .ready (round-robin)
+    if (std.mem.eql(u8, op, "schedule")) {
+        const budget: u64 = if (args_snap.len >= 1) blk: {
+            const bv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+            const bn = store.get(bv);
+            if (bn.tag != .lit) return error.TypeError;
+            const bl = store.lits.items[bn.aux];
+            if (bl != .int) return error.TypeError;
+            break :blk @intCast(bl.int);
+        } else 10_000;
+
+        while (true) {
+            const task = engine.scheduler.next() orelse break;
+            task.state = .running;
+            const body_fn_id: Id = @intCast(task.body_fn orelse {
+                task.state = .cancelled;
+                continue;
+            });
+            const cur_state: Id = @intCast(task.current_state orelse 0);
+
+            // Construire un RecCtx pour capturer (yield new_state).
+            var ctx = RecCtx{
+                .body_fn = body_fn_id,
+                .handler = 0,
+                .state = cur_state,
+            };
+            const saved_ctx = engine.rec_ctx;
+            engine.rec_ctx = &ctx;
+            defer engine.rec_ctx = saved_ctx;
+
+            const call = store.apply(body_fn_id, &.{cur_state}) catch {
+                task.state = .cancelled;
+                continue;
+            };
+            const outcome = engine.evalWithBudget(call, budget) catch |err| {
+                if (err == error.SuspendRequested) {
+                    // Budget epuise : remettre en queue
+                    task.state = .ready;
+                    continue;
+                }
+                task.state = .cancelled;
+                continue;
+            };
+
+            if (ctx.k_signaled) {
+                // yield : nouvelle etat + remettre en queue
+                task.current_state = @intCast(ctx.next_state orelse cur_state);
+                task.state = .ready;
+            } else {
+                // Fin normale : stocker le resultat comme current_state.
+                switch (outcome) {
+                    .done => |result| task.current_state = @intCast(result),
+                    .suspended => {},
+                }
+                task.state = .finished;
+            }
+        }
+        return try store.unitLit();
+    }
 
     // ═══ handle-rec (D8 3a-3-b) ═══
     // (handle-rec body_fn handler init_state)
