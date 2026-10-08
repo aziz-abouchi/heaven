@@ -1,0 +1,50 @@
+-- core/std/string.hvn (Jalon 2)
+-- String utils via peek_byte + string_ptr + string_of_bytes.
+-- Tous les corps en S-expr parenthese (parser infix fragile).
+
+char_code c = (peek_byte (string_ptr c) 0)
+string_char_at s i = (peek_byte (string_ptr s) i)
+
+string_index_of_from s i c =
+  (if (= i (string_length s))
+    (- 0 1)
+    (if (= (string_char_at s i) c)
+      i
+      (string_index_of_from s (+ i 1) c)))
+
+string_index_of s c = (string_index_of_from s 0 c)
+
+string_starts_with_from s prefix i plen =
+  (if (= i plen)
+    true
+    (if (= (string_char_at s i) (string_char_at prefix i))
+      (string_starts_with_from s prefix (+ i 1) plen)
+      false))
+
+string_starts_with s prefix =
+  (if (> (string_length prefix) (string_length s))
+    false
+    (string_starts_with_from s prefix 0 (string_length prefix)))
+
+-- Copy : helpers separes pour eviter if multi-ligne avec let-in.
+string_copy_body src_ptr src_start dst_ptr i len =
+  let _ = (poke_byte dst_ptr i (peek_byte src_ptr (+ src_start i))) in
+  (string_copy_range src_ptr src_start dst_ptr (+ i 1) len)
+
+string_copy_range src_ptr src_start dst_ptr i len =
+  (if (< i len)
+    (string_copy_body src_ptr src_start dst_ptr i len)
+    dst_ptr)
+
+-- Substring : decompose pour eviter let-in multi-ligne.
+string_substring_do s start buf len =
+  let _ = (string_copy_range (string_ptr s) start buf 0 len) in
+  (string_substring_final buf len)
+
+string_substring_final buf len =
+  let result = (string_of_bytes buf len) in
+  let _ = (raw_free buf len) in
+  result
+
+string_substring s start len =
+  (string_substring_do s start (raw_alloc len) len)

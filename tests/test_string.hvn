@@ -1,0 +1,20 @@
+-- tests/test_string.hvn (Jalon 2)
+
+test "char_code 'a' = 97": (char_code "a") == 97
+test "char_code 'A' = 65": (char_code "A") == 65
+test "string_char_at 'hello' 0 = 104": (string_char_at "hello" 0) == 104
+test "string_char_at 'hello' 4 = 111": (string_char_at "hello" 4) == 111
+
+test "index_of 'hello' 'l' = 2": (string_index_of "hello" (char_code "l")) == 2
+test "index_of 'hello' 'z' = -1": (string_index_of "hello" (char_code "z")) == (- 0 1)
+test "index_of 'hello' 'o' = 4": (string_index_of "hello" (char_code "o")) == 4
+
+test "starts_with 'hello' 'he'": (string_starts_with "hello" "he") == true
+test "starts_with 'hello' 'lo'": (string_starts_with "hello" "lo") == false
+test "starts_with 'hello' 'hello'": (string_starts_with "hello" "hello") == true
+test "starts_with 'hi' 'hello'": (string_starts_with "hi" "hello") == false
+
+test "substring 'hello' 0 5 = 'hello'": (string_substring "hello" 0 5) == "hello"
+test "substring 'hello' 1 3 = 'ell'": (string_substring "hello" 1 3) == "ell"
+test "substring 'hello' 2 2 = 'll'": (string_substring "hello" 2 2) == "ll"
+test "substring 'hello' 4 1 = 'o'": (string_substring "hello" 4 1) == "o"

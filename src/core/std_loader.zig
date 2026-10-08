@@ -25,6 +25,7 @@ pub const files = [_][]const u8{
     "core/http.hvn",
     "core/bigint.hvn",
     "core/std/array.hvn",
+    "core/std/string.hvn",
 };
 
 /// Charge tous les fichiers std dans le `heaven` fourni.
@@ -105,7 +106,7 @@ pub fn loadOne(heaven: anytype, path: []const u8) void {
 // ─── Tests ───
 
 test "std_loader — files contient les 6 entrées attendues" {
-    try std.testing.expectEqual(@as(usize, 11), files.len);
+    try std.testing.expectEqual(@as(usize, 12), files.len);
     try std.testing.expectEqualStrings("core/io.hvn", files[0]);
     try std.testing.expectEqualStrings("core/std/bool.hvn", files[1]);
     try std.testing.expectEqualStrings("core/std/result.hvn", files[5]);

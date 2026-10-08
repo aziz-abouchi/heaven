@@ -817,7 +817,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1096,6 +1096,24 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             state2.forced = v;
         }
         return v;
+    }
+
+    // string_of_bytes ptr len : interne les bytes [ptr, ptr+len).
+    if (std.mem.eql(u8, op, "string_of_bytes")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const lv = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const pn = store.get(pv);
+        const ln = store.get(lv);
+        if (pn.tag != .lit or ln.tag != .lit) return error.TypeError;
+        const pl = store.lits.items[pn.aux];
+        const ll = store.lits.items[ln.aux];
+        if (pl != .int or ll != .int) return error.TypeError;
+        const addr: usize = @intCast(pl.int);
+        const len: usize = @intCast(ll.int);
+        const bytes: [*]const u8 = @ptrFromInt(addr);
+        const sym = try store.interner.intern(bytes[0..len]);
+        return try store.lit(.{ .str = sym });
     }
 
     // ═══ Array primitives (Jalon 2) ═══
@@ -1497,7 +1515,19 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     // ═══ 2. OPÉRATEURS MAGIQUES ═══
     if (std.mem.eql(u8, op, "if")) {
-        if (args_snap.len != 3) return error.ArityMismatch;
+        if (args_snap.len != 3) {
+            // Diagnostic : la cause la plus frequente est une branche
+            // multi-mot non parenthesee. Le parser S-expr splitte sur
+            // les espaces, donc `if c\n  let x = 5 in y\n  z`
+            // devient `if c let x = 5 in y z` (8 args).
+            platform.debug.print(
+                "[if] ArityMismatch : {d} args (attendu 3). "
+                ++ "Cause probable : branche multi-mot non parenthesee.\n"
+                ++ "  Exemple correct : if (cond) (let x v body) else_branch\n",
+                .{args_snap.len},
+            );
+            return error.ArityMismatch;
+        }
         const cond = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const cond_node = store.get(cond);
         if (cond_node.tag != .lit) return error.TypeError;

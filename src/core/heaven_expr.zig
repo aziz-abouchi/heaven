@@ -1997,6 +1997,31 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         if (tokens.items.len == 0) return error.InvalidSyntax;
 
         const name = tokens.items[0];
+        // REFUS shadowing magic : un nom reserve du noyau ne peut pas
+        // etre redefini comme fonction utilisateur (evite que `if`,
+        // `let`, `perform`, etc. soient accidentellement enregistres
+        // comme equations).
+        {
+            const magics_reserves = [_][]const u8{
+                "if", "let", "seq", "block", "tuple", "delay", "force",
+                "perform", "handle", "raw_syscall", "raw_syscall6",
+                "string_ptr", "string_length", "string_concat",
+                "int_to_string", "peek_byte", "poke_byte",
+                "peek_int64", "poke_int64", "memset", "raw_alloc",
+                "raw_free", "target_os", "string_of_bytes",
+                "handle_rec", "__handle_rec_k", "add_task", "schedule",
+                "yield", "task_state",
+            };
+            for (magics_reserves) |m| {
+                if (std.mem.eql(u8, name, m)) {
+                    return std.fmt.allocPrint(
+                        self.allocator,
+                        "\u{2717} '{s}' est reserve (magic). Choix d'un autre nom.",
+                        .{name},
+                    );
+                }
+            }
+        }
         var patterns = std.ArrayListUnmanaged(Id){};
         defer patterns.deinit(self.allocator);
 
