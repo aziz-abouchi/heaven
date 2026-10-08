@@ -694,3 +694,47 @@ Le moteur ne dispatche pas un 0-aire. Il faut :
 - HUGE : `10^26 + 1 > 10^26`, `(10^26 - 1) + 1 = 10^26`
 
 **Limites v1** : pas de `bdivmod`, pas de `bmod`, pas de Karatsuba.
+
+## D8 3a-3-b -- handle-rec operationnel (2026-10-08)
+
+**Constat** : la spec D8 demandait 3a-1 (prompts), 3a-2 (captureCont),
+3a-3 (branchement). Les deux premiers etaient faits (continuation.zig,
+9 tests). Le troisieme etait le blocage -- la pile Zig est deja
+depilee quand perform remonte au handle.
+
+**Decision** : handle-rec par replay avec etat (Voie pragmatique,
+pas Voie B complete).
+
+Primitive : (handle-rec body_fn handler init_state).
+- Boucle : state := init. body_fn(state) -> valeur finale OU
+  (perform op v) qui yield.
+- Handler (v, k) recoit la valeur yielded et un magic-symbole k.
+- Si handler appelle (k new_state) -> reboucle avec state = new_state.
+- Sinon -> retour.
+
+Implementation (~80 lignes, evalMagic) :
+- RecCtx dans Engine : context persistant.
+- perform : branche sur rec_ctx -> error.HandleRecYield.
+- __handle_rec_k : magic, capture next_state + k_signaled.
+- Dispatch env-bound : un symbole lie a un magic est route vers
+  evalMagic (indispensable pour (k x)).
+
+**Ce qui marche** (4 tests) :
+- countdown 5 -> 0 (5 iterations yield/resume)
+- sum jusqu'a 3 -> 3
+- handler sans k -> one-shot (retour direct)
+- 10 iterations -> 0
+
+**Ce qui reste (Voie B, 2-3 sessions)** :
+- Multi-shot general (backtracking, vrais generateurs).
+- Replay total : les sous-effets dans body_fn sont rejoues a chaque
+  iteration. Cout O(n^2) pour n iterations avec sous-effets.
+- Scheduler preemptif C3 : sur Voie B uniquement.
+
+**Impact** : debloque les boucles recursives via effet, prepare le
+scheduler. Le langage peut maintenant exprimer des effets qui
+"reviennent" (yield/resume).
+
+**Piege** : (k x) exige que k soit un SYMBOLE binde (pas une lambda
+directe). Sinon evalMagic ne dispatche pas.
+

@@ -1,21 +1,16 @@
 -- tests/test_effects_rec.hvn -- handle-rec (D8 3a-3-b)
 
-test "handle-rec countdown 5 -> 0": (handle-rec
-  (lambda s -> (if (= s 0) 0 (perform "tick" s)))
-  (lambda v k -> (if (= v 0) 0 (k (- v 1))))
-  5) == 0
+-- Equations nommees (dispatch OK)
+cb s = (if (= s 0) 0 (perform "tick" s))
+ch v k = (if (= v 0) 0 (k (- v 1)))
 
-test "handle-rec sum jusqu'a 3 -> 3": (handle-rec
-  (lambda s -> (if (= s 3) s (perform "next" s)))
-  (lambda v k -> (k (+ v 1)))
-  0) == 3
+sb s = (if (= s 3) s (perform "next" s))
+sh v k = (k (+ v 1))
 
-test "handle-rec handler sans k (one-shot)": (handle-rec
-  (lambda s -> (perform "once" s))
-  (lambda v k -> v)
-  42) == 42
+ob s = (perform "once" s)
+oh v k = v
 
-test "handle-rec 10 iterations": (handle-rec
-  (lambda s -> (if (= s 0) 0 (perform "dec" s)))
-  (lambda v k -> (k (- v 1)))
-  10) == 0
+test "handle-rec countdown 5 -> 0": (handle-rec cb ch 5) == 0
+test "handle-rec sum jusqu'a 3 -> 3": (handle-rec sb sh 0) == 3
+test "handle-rec handler sans k (one-shot)": (handle-rec ob oh 42) == 42
+test "handle-rec 10 iterations": (handle-rec cb ch 10) == 0
