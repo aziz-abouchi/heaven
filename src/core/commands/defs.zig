@@ -163,7 +163,8 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
         lhs = std.mem.trim(u8, lhs[0 .. lhs.len - 1], " ");
     }
 
-    if (std.mem.startsWith(u8, lhs, "fn ")) lhs = std.mem.trim(u8, lhs[3..], " ");
+    const is_fn_keyword = std.mem.startsWith(u8, lhs, "fn ");
+    if (is_fn_keyword) lhs = std.mem.trim(u8, lhs[3..], " ");
     if (std.mem.startsWith(u8, lhs, "let ")) lhs = std.mem.trim(u8, lhs[4..], " ");
 
     if (std.mem.startsWith(u8, rhs, "fn ") or std.mem.startsWith(u8, rhs, "fn(")) {
@@ -295,10 +296,7 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
             else
                 try std.fmt.allocPrint(cmds.allocator, "({s})", .{rhs});
             defer cmds.allocator.free(wrapped);
-            const normalized = try normalizeOps(cmds.allocator, wrapped);
-
-            defer cmds.allocator.free(normalized);
-            break :blk cmds.parser.parseSExpr(normalized) catch return cmds.allocator.dupe(u8, "parse error in body");
+            break :blk cmds.parser.parseSExpr(wrapped) catch return cmds.allocator.dupe(u8, "parse error in body");
         } else cmds.parseExpression(rhs) catch return cmds.allocator.dupe(u8, "parse error in body");
         const lowered_body = try cmds.store.lowerRec(body_id);
 
@@ -316,8 +314,14 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
             @memcpy(def.clauses[0].patterns[0..num_pats], pat_ids[0..num_pats]);
         }
 
-        // Si le nom existe deja, AJOUTER la clause au lieu de remplacer.
-        if (cmds.engine.fns.getPtr(name)) |existing| {
+        // `fn name(args) = body` REMPLACE la def (nouvelle version).
+        // `name args = body` (multi-clause) AJOUTE une clause.
+        if (is_fn_keyword) {
+            const owned_name = try cmds.engine.allocator.dupe(u8, name);
+            cmds.engine.fns.put(cmds.engine.allocator, owned_name, def) catch |err| {
+                return std.fmt.allocPrint(cmds.engine.allocator, "registration error: {s}", .{@errorName(err)});
+            };
+        } else if (cmds.engine.fns.getPtr(name)) |existing| {
             const clause = def.clauses[0];
             existing.addClause(clause.patterns[0..clause.num_patterns], clause.body);
         } else {
