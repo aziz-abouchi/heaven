@@ -297,6 +297,21 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const scheduler_task_mod = b.createModule(.{
+        .root_source_file = b.path("src/runtime/scheduler/task.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const scheduler_mod = b.createModule(.{
+        .root_source_file = b.path("src/runtime/scheduler/scheduler.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "scheduler_task", .module = scheduler_task_mod },
+        },
+    });
+
     const continuation_mod = b.createModule(.{
         .root_source_file = b.path("src/core/continuation.zig"),
         .target = target,
@@ -308,6 +323,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
+            .{ .name = "scheduler", .module = scheduler_mod },
             .{ .name = "continuation", .module = continuation_mod },
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "platform", .module = platform_mod },

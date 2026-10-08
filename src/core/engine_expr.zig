@@ -9,6 +9,7 @@ const Sym = expr.Sym;
 const Tag = expr.Tag;
 const platform = @import("platform");
 const continuation = @import("continuation");
+const scheduler_lib = @import("scheduler");
 
 const Span = expr.Span;
 
@@ -267,6 +268,8 @@ pub const Engine = struct {
     capture_stack: continuation.CaptureStack,
     /// Contexte handle-rec (D8 3a-3-b). null = pas de handle-rec en cours.
     rec_ctx: ?*RecCtx = null,
+    /// Scheduler cooperatif (D8 3a-3-c).
+    scheduler: scheduler_lib.Scheduler,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -284,6 +287,7 @@ pub const Engine = struct {
             .heaven_ctx = heaven_ctx,
             .vtable = vtable,
             .capture_stack = continuation.CaptureStack.init(allocator),
+            .scheduler = scheduler_lib.Scheduler.init(allocator),
         };
     }
 
@@ -311,6 +315,7 @@ pub const Engine = struct {
         }
         self.processes.deinit(self.allocator);
         self.capture_stack.deinit();
+        self.scheduler.deinit();
     }
 
     // Contexte factice pour les tests (ne sera jamais utilisé)
