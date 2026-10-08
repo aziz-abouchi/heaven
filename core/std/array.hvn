@@ -1,6 +1,5 @@
 -- core/std/array.hvn (Jalon 2, v0)
 -- Array mutable via raw_alloc. 8 bytes par element (i64).
--- data Array = MkArray base_ptr length capacity
 
 data Array = MkArray Int Int Int
 
@@ -13,23 +12,43 @@ array_length (MkArray _ len _) = len
 array_capacity (MkArray _ _ cap) = cap
 array_ptr (MkArray ptr _ _) = ptr
 
--- Helper : 0 <= i < len.
 array_in_range len i = (if (< i 0) false (< i len))
 
 array_get (MkArray ptr len _) i =
-  (if (array_in_range len i)
-    (peek_int64 ptr i)
-    0)
-
--- Helper : ecrit puis retourne le nouvel Array.
-array_push_do ptr len cap v =
-  let _ = (poke_int64 ptr len v) in
-  (MkArray ptr (+ len 1) cap)
-
-array_push (MkArray ptr len cap) v =
-  (if (< len cap)
-    (array_push_do ptr len cap v)
-    (MkArray ptr len cap))
+  (if (array_in_range len i) (peek_int64 ptr i) 0)
 
 array_free (MkArray ptr _ cap) =
   (raw_free ptr (* cap 8))
+
+-- Copie : body separe pour eviter if multi-ligne avec let.
+array_copy_body old_ptr new_ptr i len =
+  let _ = (poke_int64 new_ptr i (peek_int64 old_ptr i)) in
+  (array_copy old_ptr new_ptr (+ i 1) len)
+
+array_copy old_ptr new_ptr i len =
+  (if (< i len)
+    (array_copy_body old_ptr new_ptr i len)
+    new_ptr)
+
+-- Resize : alloue new_cap, copie len elements, free l'ancien.
+array_resize (MkArray old_ptr len old_cap) new_cap =
+  let new_bytes = (* new_cap 8) in
+  let new_ptr = (raw_alloc new_bytes) in
+  let _ = (array_copy old_ptr new_ptr 0 len) in
+  let _ = (raw_free old_ptr (* old_cap 8)) in
+  (MkArray new_ptr len new_cap)
+
+-- push_do : ecrit v en position len (assume len < cap).
+array_push_do (MkArray ptr len cap) v =
+  let _ = (poke_int64 ptr len v) in
+  (MkArray ptr (+ len 1) cap)
+
+-- push_fit : resize puis push_do.
+array_push_fit (MkArray ptr len cap) v =
+  (array_push_do (array_resize (MkArray ptr len cap) (* cap 2)) v)
+
+-- push : branchement via helpers (eviter if multi-ligne).
+array_push arr v =
+  (if (< (array_length arr) (array_capacity arr))
+    (array_push_do arr v)
+    (array_push_fit arr v))

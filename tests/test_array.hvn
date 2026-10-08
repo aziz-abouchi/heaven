@@ -13,4 +13,9 @@ test "capacity = 8": (let a (array_new 8) (array_capacity a)) == 8
 
 test "3 push + sum = 60": (let a0 (array_new 8) (let a1 (array_push a0 10) (let a2 (array_push a1 20) (let a3 (array_push a2 30) (+ (+ (array_get a3 0) (array_get a3 1)) (array_get a3 2)))))) == 60
 
-test "push depasse capacity : ignore": (let a (array_new 1) (let b (array_push a 1) (let c (array_push b 2) (array_length c)))) == 1
+test "push auto-resize au-dela de capacity": (let a (array_new 1) (let b (array_push a 1) (let c (array_push b 2) (array_length c)))) == 2
+
+test "resize : push depasse capacity augmente": (let a (array_new 2) (let b (array_push a 1) (let c (array_push b 2) (let d (array_push c 3) (array_length d))))) == 3
+test "resize : capacity doublee": (let a (array_new 2) (let b (array_push a 1) (let c (array_push b 2) (let d (array_push c 3) (array_capacity d))))) == 4
+test "resize : elements preserves": (let a (array_new 2) (let b (array_push a 10) (let c (array_push b 20) (let d (array_push c 30) (+ (+ (array_get d 0) (array_get d 1)) (array_get d 2)))))) == 60
+test "5 push : sum = 150": (let a0 (array_new 2) (let a1 (array_push a0 10) (let a2 (array_push a1 20) (let a3 (array_push a2 30) (let a4 (array_push a3 40) (let a5 (array_push a4 50) (+ (+ (+ (+ (array_get a5 0) (array_get a5 1)) (array_get a5 2)) (array_get a5 3)) (array_get a5 4)))))))) == 150
