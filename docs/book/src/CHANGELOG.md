@@ -1,5 +1,27 @@
 # Changements récents
 
+
+## 2026-10-08 (suite)
+
+### Jalon 2 -- Structures de donnees en Heaven
+
+- `core/std/array.hvn` : array mutable via raw_alloc. Push auto-resize.
+- `core/std/string.hvn` : substring, index_of, starts_with. 15 tests.
+- Magic `string_of_bytes(ptr, len)` pour construire une string depuis
+  un buffer.
+
+### Garde anti-shadowing
+
+Les magics (`if`, `let`, `perform`, ...) ne peuvent plus etre
+enregistres comme fonctions utilisateur. Message clair au lieu de
+shadowing silencieux.
+
+### Limites parser infix
+
+- `if` prefixe sans parens casse.
+- `if` multi-ligne avec `let-in` necessite des helpers nommes.
+- Documente dans `docs/spec/_syntax_gaps.md`.
+
 ## 2026-10-07
 
 Session fondatrice : **8 decisions structurantes**, ~42 tests nouveaux.

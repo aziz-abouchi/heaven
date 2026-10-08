@@ -715,3 +715,47 @@ travaille (`git status`, `git log`).
   DIFFERENTS (interpForAssert vs parseExpression) -- une forme
   peut passer dans l'un et pas dans l'autre. Toujours sonder
   les deux.
+
+## Addendum -- session 2026-10-08 (apres-midi)
+
+**HEAD** : `5046191`. Tout pousse sur origin.
+
+### Jalon 2 -- Structures de donnees (partiel)
+
+- `core/std/array.hvn` : array mutable via `raw_alloc`. `array_new`,
+  `array_length`, `array_get`, `array_push` (auto-resize x2),
+  `array_resize`. 11 tests.
+- `core/std/string.hvn` : `char_code`, `string_char_at`,
+  `string_index_of`, `string_starts_with`, `string_substring`.
+  15 tests. Nouveau magic `string_of_bytes(ptr, len)`.
+
+### Garde anti-shadowing
+
+`evalEquation` refuse maintenant les noms reserves (magics). Un
+`if` mal forme ne peut plus etre enregistre comme fonction.
+
+### Limites parser infix (documentees)
+
+- `if < a b A B` (prefixe sans parens) : casse.
+- `if` multi-ligne avec `let-in` dans une branche : casse.
+- `let-in` dans un `if` : necessite parens.
+
+**Workaround** : helpers nommes (voir `array_copy_body`,
+`string_copy_body`). Convention stricte documentee dans
+`_syntax_gaps.md`.
+
+### Tests (2026-10-08 apres-midi)
+
+    array :    11/11
+    string :   15/15
+    scheduler:  3/3
+    bigint :   30/30
+    effects :   4/4
+    stream :    8/8
+    io :        4/4
+    smoke :    16/16
+
+### Chantier futur D21 -- parser indentation-aware
+
+Solution definitive au probleme `if`/`let-in` : indentation comme
+Python/Haskell. 1-2 sessions. Casse potentiellement des tests.
