@@ -696,3 +696,59 @@ ou eviter `bdiv` sur des nombres > 500.
 
 **Tests retires** : 3 (bdiv 1000/7, HUGE roundtrip, HUGE -1 + 1).
 Remis en TODO dans test_bigint.hvn.
+
+## Bug lambda multi-args + inline (2026-10-08)
+
+Decouvert pendant D8 3a-3-b. Antérieur a D8, mais revele par
+handle-rec (qui doit passer des lambdas en argument).
+
+### Reproducteurs
+
+    -- A. lambda inline (non-liee) : ECHO ou ArityMismatch
+    ((lambda s -> (+ s 1)) 5)          -- ArityMismatch
+
+    -- B. lambda multi-args liee : UnboundVariable
+    f = (lambda v k -> (+ v k))
+    (f 3 4)                             -- UnboundVariable
+
+    -- C. lambda liee 1-arg : OK
+    f = (lambda s -> (+ s 1))
+    (f 5)                               -- 6
+
+    -- D. equations nommees (workaround)
+    f v k = (+ v k)
+    (f 3 4)                             -- 7
+
+### Cause probable
+
+1. **Lambda inline** : le parser produit `(apply (lambda ...) 5)` mais
+   la curryfication voit mal la structure. La lambda appliquee
+   directement sans nom lie n'est peut-etre pas beta-reduite correctement.
+
+2. **Lambda multi-args** : `(lambda v k -> ...)` produit une lambda
+   curryfiee `\v. \k. ...`, mais l'application `(f 3 4)` ne deroule
+   pas les deux niveaux. `k` reste unbound dans le corps.
+
+### Impact
+
+- `map`, `filter`, `foldl` avec lambdas explicites multi-args.
+- `handle-rec` (necessite de passer une lambda de handler en argument).
+- Tout ordre-superieur avec plusieurs arguments.
+
+### Workaround
+
+Utiliser des **equations nommees** au lieu de lambdas inline :
+
+    -- au lieu de :
+    (handle-rec (lambda s -> ...) (lambda v k -> ...) 0)
+
+    -- ecrire :
+    cb s = ...
+    ch v k = ...
+    (handle-rec cb ch 0)
+
+### Chantier separe
+
+Investigation : 1 session. Probablement un fix dans `evaluate(.apply)`
+pour mieux gerer les lambdas imbriquees / curryfiees.
+
