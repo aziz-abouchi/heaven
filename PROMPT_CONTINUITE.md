@@ -1,3 +1,97 @@
+## Addendum -- session 2026-10-08
+
+**HEAD** : `7a3b841`. Tout pousse sur origin.
+
+### Fix critique : parser lambda multi-args
+
+**Bug** : `(lambda v k -> body)` ne capturait que `v`. `k` et `->`
+restaient des params residuels -> UnboundVariable sur `k`.
+
+**Fix** : `parseSExpr` collecte tous les tokens avant `->` / `=>`
+(commit `921b7b9`).
+
+**Impact** : debloque map/filter/foldl avec lambdas multi-args,
+handle_rec avec lambdas inline, tout ordre-superieur.
+
+### D8 3a-3-b : handle_rec
+
+Premier handle_rec fonctionnel en Heaven (~80 lignes dans evalMagic).
+
+    (handle_rec body_fn handler init_state)
+    body_fn(state) -> valeur | (perform "op" v)
+    handler(v, k) -> si (k new_state) : reboucler
+
+4 tests dans `test_effects_rec.hvn`.
+
+### D8 3a-3-c-a/b : scheduler cooperatif
+
+4 magics : `add_task`, `schedule`, `yield`, `task_state`.
+
+    (add_task body init_state) -> task_id
+    (schedule budget)             -- round-robin jusqu'a fin
+    (yield new_state)             -- dans body
+    (task_state task_id) -> etat courant
+
+Modele **redemarrable** via evalWithBudget (pas de reprise exacte,
+cf limitation Voie B). 3 tests dans `test_scheduler.hvn`.
+
+### Bug D20 : stack overflow tree-walker
+
+**Symptome** : `f 500` (recursion non-TCO) segfault. `bdiv > 400`
+segfault. `f 200` segfault.
+
+**Diagnostic** : `ulimit -s unlimited` fait passer. Le tree-walker
+consomme ~40 KB par niveau utilisateur (accumulation de frames Zig).
+
+**Contournement** : `scripts/run-tests-with-stack.sh` (ulimit externe).
+`setrlimit` en Zig ne marche pas (hard limit kernel a 8192 KB).
+
+**Vraie solution** : tree-walker iteratif (chantier 2-3 sessions).
+
+**Tests retires** : 3 (bdiv 1000/7, 10^26 roundtrip, bmod 1000/7).
+Documente dans `_syntax_gaps.md` D20.
+
+### Nouvelles choses
+
+- `tests/test_scheduler.hvn` (3 tests)
+- `tests/test_effects_rec.hvn` (4 tests, lambdas inline)
+- `docs/book/src/14-concurrency.md` (chapitre scheduler)
+- `scripts/run-tests-with-stack.sh` (contournement D20)
+- Temperature dans le test-runner (start/end/delta)
+- Fix `build.zig` : `test_engine` importe `continuation` + `scheduler`
+
+### Tests (mesure 2026-10-08)
+
+    zig build test                    ->  389 tests Zig
+    test_scheduler.hvn                ->  3/3
+    test_effects_rec.hvn              ->  4/4
+    test_bigint.hvn                   ->  28/28
+    test_stream_lazy.hvn              ->  8/8
+    test_io_stream.hvn                ->  4/4
+    smoke.sh                          ->  16/16
+
+### Pistes actives (ordre conseille)
+
+1. **D20** -- tree-walker iteratif (2-3 sessions). Le bug de fond
+   qui limite toute recursion profonde.
+2. **D8 Voie B** -- continuations completes (2-3 sessions). Debloque
+   preemptif exact + multi-shot.
+3. **Jalon 2 auto-hebergement** -- structures de donnees en Heaven
+   (HashMap, Array). 2-3 sessions.
+4. **D8 3a-3-c-c** -- entrelacement reel (yield auto sur budget).
+   1 session.
+
+### Note : send vs tell
+
+Deux abstractions coexistent :
+- `send` = acteur (synchrone, retourne nouvel etat)
+- `tell` = process (asynchrone, mailbox)
+
+Nomenclature confuse. Renommer `tell` en `send_async` serait plus
+clair (chantier separe, non planifie).
+
+---
+
 ## Addendum -- session 2026-10-07 (fin)
 
 ### Nouvelles decisions

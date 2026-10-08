@@ -697,7 +697,11 @@ ou eviter `bdiv` sur des nombres > 500.
 **Tests retires** : 3 (bdiv 1000/7, HUGE roundtrip, HUGE -1 + 1).
 Remis en TODO dans test_bigint.hvn.
 
-## Bug lambda multi-args + inline (2026-10-08)
+## Bug lambda multi-args + inline (2026-10-08) -- RESOLU
+
+**RESOLU** (commit `921b7b9`) : `parseSExpr` collecte tous les
+tokens avant `->` / `=>`. Reproductions A3 et E1 marchent maintenant.
+
 
 Decouvert pendant D8 3a-3-b. Antérieur a D8, mais revele par
 handle-rec (qui doit passer des lambdas en argument).
@@ -751,4 +755,21 @@ Utiliser des **equations nommees** au lieu de lambdas inline :
 
 Investigation : 1 session. Probablement un fix dans `evaluate(.apply)`
 pour mieux gerer les lambdas imbriquees / curryfiees.
+
+
+
+## Nomenclature send vs tell (2026-10-08)
+
+Deux primitives concurrentes coexistent :
+
+- **`send(X, msg)`** : acteur (style Akka). Synchrone. Appelle le
+  handler immediatement, retourne le nouvel etat.
+- **`tell(pid, msg)`** : process (style Erlang `!`). Asynchrone.
+  Depose dans la mailbox, on verra plus tard.
+
+Nomenclature confuse. **Proposition** : renommer `tell` en
+`send_async` (ou `send_to_process`) pour clarifier.
+
+**Impact** : tests existants utilisent `tell`. Renommage casse
+`test_suite.hvn`. Chantier separe, non planifie.
 
