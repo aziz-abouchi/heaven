@@ -76,6 +76,7 @@ pub const Env = struct {
 
 pub const EvalError = error{
     SuspendRequested,
+    HandleRecYield,
     TypeError,
     ArityMismatch,
     DivisionByzero,
@@ -207,6 +208,16 @@ pub const ThunkState = struct {
 };
 
 
+/// Contexte de handle-rec : boucle body_fn(state) / handler(v, k).
+pub const RecCtx = struct {
+    body_fn: Id,
+    handler: Id,
+    state: Id,
+    next_state: ?Id = null,
+    pending_value: ?Id = null,
+    k_signaled: bool = false,
+};
+
 pub const Engine = struct {
     allocator: std.mem.Allocator,
     store: *Store,
@@ -254,6 +265,8 @@ pub const Engine = struct {
     vtable: *const HeavenVTable,
     /// Pile de frames pour continuations delimitees (D8 3a-3).
     capture_stack: continuation.CaptureStack,
+    /// Contexte handle-rec (D8 3a-3-b). null = pas de handle-rec en cours.
+    rec_ctx: ?*RecCtx = null,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -798,7 +811,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle-rec", "__handle_rec_k" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -859,6 +872,53 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     if (args.len > 8) return error.ArityMismatch;
     @memcpy(args_buf[0..args.len], args);
     const args_snap: []const Id = args_buf[0..args.len];
+
+    // ═══ handle-rec (D8 3a-3-b) ═══
+    // (handle-rec body_fn handler init_state)
+    // Boucle : state = init. body_fn(state) -> soit valeur finale,
+    // soit (perform ...) qui yield. handler(v, k). Si k appele avec
+    // new_state : reboucler avec state = new_state.
+    if (std.mem.eql(u8, op, "handle-rec")) {
+        if (args_snap.len != 3) return error.ArityMismatch;
+        var ctx = RecCtx{
+            .body_fn = args_snap[0],
+            .handler = args_snap[1],
+            .state = try evaluate(store, env, engine, args_snap[2], depth + 1),
+        };
+        const saved_ctx = engine.rec_ctx;
+        engine.rec_ctx = &ctx;
+        defer engine.rec_ctx = saved_ctx;
+
+        while (true) {
+            ctx.pending_value = null;
+            ctx.k_signaled = false;
+            const body_call = try store.apply(ctx.body_fn, &.{ctx.state});
+            const result = evaluate(store, env, engine, body_call, depth + 1) catch |err| {
+                if (err == error.HandleRecYield) {
+                    const val = ctx.pending_value orelse return error.HandlerFailed;
+                    const k_sym = try store.sym("__handle_rec_k");
+                    const handler_call = try store.apply(ctx.handler, &.{ val, k_sym });
+                    const res = try evaluate(store, env, engine, handler_call, depth + 1);
+                    if (ctx.k_signaled) {
+                        ctx.state = ctx.next_state orelse return error.HandlerFailed;
+                        continue;
+                    }
+                    return res;
+                }
+                return err;
+            };
+            return result;
+        }
+    }
+
+    if (std.mem.eql(u8, op, "__handle_rec_k")) {
+        const ctx = engine.rec_ctx orelse return error.HandlerFailed;
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const new_state = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        ctx.next_state = new_state;
+        ctx.k_signaled = true;
+        return try store.unitLit();
+    }
 
     // ═══ LET (D15) : (let name val body) -- S-expr pur
     // arg0 = symbole (le nom), arg1 = expression (valeur),
@@ -1170,6 +1230,17 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     if (store.interner.lookup(op)) |op_sym| {
         if (env.get(op_sym)) |bound| {
             const bound_node = store.get(bound);
+
+            // Cas 0 : symbole lié à un MAGIC (ex. k bindé à __handle_rec_k).
+            //   (k 0) -> evalMagic(__handle_rec_k, [0]).
+            //   Indispensable pour handle-rec : le handler reçoit k comme
+            //   un argument, qui est un symbole magic.
+            if (bound_node.tag == .sym) {
+                const target = store.interner.resolve(bound_node.payload);
+                if (isMagicSymbol(target)) {
+                    return evalMagic(store, env, engine, target, args, depth);
+                }
+            }
 
             // Cas 1 : symbole lié à un autre symbole de fonction connue
             //   map inc → f = inc_sym → dispatch vers evalFunction("inc")
@@ -1566,6 +1637,13 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     // ═══ 3. EFFETS ALGÉBRIQUES : perform et handle ═══
     if (std.mem.eql(u8, op, "perform")) {
+        // Mode handle-rec : yield au lieu d'executer le handler.
+        if (engine.rec_ctx) |ctx| {
+            if (args_snap.len < 2) return error.HandlerFailed;
+            const v = try evaluate(store, env, engine, args_snap[1], depth + 1);
+            ctx.pending_value = v;
+            return error.HandleRecYield;
+        }
         if (engine.green_mode) engine.green_call_count += 1;
 
         // 1. Toujours évaluer le dernier argument (exposé à un handle
