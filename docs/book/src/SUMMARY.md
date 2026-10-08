@@ -13,6 +13,7 @@
 - [Under the Hood](10-under-the-hood.md)
 - [Modules et imports](11-modules.md)
 - [Knowledge et raisonnement](12-knowledge.md)
+- [BigInt](13-bigint.md)
 
 ---
 

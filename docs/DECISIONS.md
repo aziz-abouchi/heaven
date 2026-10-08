@@ -658,3 +658,39 @@ lignes n'etait pas supportee -- le loader evaluait trop tot.
 
 **Tests** : 5, 11 (let-in 1-ligne, multi-ligne, imbrique), curl
 localhost:8080 -> Hello from Heaven.
+
+## D17 v1 — BigInt signe + mul + divmod (2026-10-07, session 2)
+
+**Constat** : D17 v0 couvrait badd/bsub/bcmp non signes. Pour un usage
+reel (RSA, test de primalite, comptage), il faut les signes et `bmul`.
+
+**Decision** : etendre `core/bigint.hvn` sans ajouter de magics
+supplementaires (juste `string_concat` et `int_to_string`).
+
+Ajouts :
+- `string_concat s1 s2` -> s1 ++ s2 (magic fin, ~10 lignes).
+- `int_to_string n` -> string (magic fin, ~10 lignes).
+- `BPos` / `BNeg` operationnels : `badd_signed`, `bsub_signed`,
+  `bmul_signed`, `babs`, `bneg`, `bsign`.
+- `bmul_bl` (BList) via digit par digit + `bshift_bl` (x10) + carry
+  correct (`bmul_digit_lsb` en LSB-first).
+- `bto_string` / `from_string` signes.
+
+**Piege documente** : `badd = badd_signed` (alias 0-aire) NE marche PAS.
+Le moteur ne dispatche pas un 0-aire. Il faut :
+    badd A B = (badd_signed A B)
+
+**Alternatives ecartees** :
+- Algorithmes de multiplication rapide (Karatsuba, Toom-Cook) : v2
+  si les perf deviennent un probleme. Digit-school suffit pour v1.
+- bdivmod (division euclidienne) : reporte en v2. Algo naif
+  (soustraction repetee) code mais lent ; sera remplace par la
+  division longue standard.
+
+**Preuve** : 22/22 tests. Inclut :
+- tous les signes (+ +, + -, - -, - +)
+- `bmul 123 x 456 = 56088`
+- `bto_string (from_int (- 0 7)) = "-7"`
+- HUGE : `10^26 + 1 > 10^26`, `(10^26 - 1) + 1 = 10^26`
+
+**Limites v1** : pas de `bdivmod`, pas de `bmod`, pas de Karatsuba.

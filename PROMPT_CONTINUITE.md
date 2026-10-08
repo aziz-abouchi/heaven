@@ -1,3 +1,38 @@
+## Addendum -- session 2026-10-07 (fin)
+
+### Nouvelles decisions
+
+- **D16** -- serveur HTTP 100% Heaven (curl -> Hello from Heaven).
+- **D17** -- BigInt v0 (badd, bsub, bcmp non signes).
+- **D17-2** -- BigInt v1 signe (BPos/BNeg, bmul, bto_string, from_string).
+  22/22 tests. `10^26` prouve.
+- **D18** -- style Haskell multi-ligne. Loader par indentation +
+  `let x = v in body` -> `(let x v body)`. Code lisible.
+
+### Nouveaux magics fins (total ~15)
+
+string_concat, int_to_string, peek_byte, poke_byte, memset,
+string_length, string_ptr, raw_alloc, raw_free, target_os,
+raw_syscall/6, delay, force, let.
+
+### Fichiers stdlib
+
+- `core/http.hvn` : serveur HTTP minimal (Linux x86_64).
+- `core/bigint.hvn` : BigInt signe, 22 tests.
+- `core/io_stream.hvn` : io_open/io_read/io_write/io_close/io_cat_path.
+
+### Pistes actives
+
+1. **bdivmod BigInt** (30 min) -- division euclidienne, debloque RSA.
+2. **D8 3a-3** (2-3 sessions) -- continuations delimitees, preemptif, events.
+3. **Vraies structures** -- HashMap, Array dynamique en Heaven.
+4. **Panic DebugAllocator** -- contourne par HEAVEN_NO_LEAK_CHECK=1.
+
+### Note : pas d'alias 0-aire
+
+`badd = badd_signed` NE marche PAS. Il faut `badd A B = (badd_signed A B)`.
+Un 0-aire n'est pas une fonction applicable. Documente dans D17 v1.
+
 ## Addendum -- session 2026-10-07 (session fondatrice)
 
 **HEAD** : `26750bd` (main). Tout pousse sur origin.
