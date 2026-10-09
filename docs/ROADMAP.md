@@ -744,14 +744,14 @@ Apres validation du POC :
 ### Phase : Unification du Lowering (Q4 2026)
 - [x] Pont expérimental `lowerExprToStore` pour `x + 1`.
 - [x] Étendre `lowerExprToStore` à `call` (ex: `f(x)`) et `pattern` (VALIDÉ 2026-10-08).
-- [ ] Étendre `lowerExprToStore` à `let` et `lambda`.
+- [x] Étendre `lowerExprToStore` à `let` (VALIDÉ 2026-10-09) et `lambda` (à faire).
 - [ ] Déplacer `UniversalIngestor` et `SurvivalTranspiler` vers `src/legacy/`.
 - [ ] Supprimer toute dépendance résiduelle à `Matrix/BobId` dans le pipeline principal.
 
 ### Phase : Unification du Lowering (Q4 2026)
 - [x] Pont expérimental `lowerExprToStore` pour `x + 1`.
 - [x] Étendre `lowerExprToStore` à `call` (ex: `f(x)`) et `pattern` (VALIDÉ 2026-10-08).
-- [ ] Étendre `lowerExprToStore` à `let` et `lambda`.
+- [x] Étendre `lowerExprToStore` à `let` (VALIDÉ 2026-10-09) et `lambda` (à faire).
 - [ ] Déplacer `UniversalIngestor` et `SurvivalTranspiler` vers `src/legacy/`.
 - [ ] Supprimer toute dépendance résiduelle à `Matrix/BobId` dans le pipeline principal.
 
