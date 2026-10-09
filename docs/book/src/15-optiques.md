@@ -16,9 +16,8 @@ changer, remonter :
 Sur un seul niveau, ça va. Sur cinq, ça devient illisible. Et chaque
 nouvelle forme de structure demande une nouvelle paire de fonctions.
 
-Les **optiques** formalisent cet accès. Ce chapitre présente l'idée,
-montre comment la littérature (Haskell) la réalise, puis explique
-pourquoi Heaven v0 ne peut pas encore l'implémenter.
+Les **optiques** formalisent cet accès. Ce chapitre les présente
+et les implémente en Heaven.
 
 ## L'idée : séparer lire de écrire
 
@@ -29,7 +28,7 @@ Une **lens** est un couple : un *getter* et un *setter*.
 
 Ces deux fonctions vivent ensemble. Un exemple pour `Pair` :
 
-    lens_fst = (pair fst set_fst)   -- conceptuellement
+    lens_fst = (pair fst set_fst)
 
 Une fois qu'on a une lens, on peut :
 
@@ -40,117 +39,140 @@ Une fois qu'on a une lens, on peut :
 Le point clé : le setter **préserve le reste**. On ne touche qu'un
 champ, tout le contexte autour survit intact.
 
-## La vraie promesse : la composition
+## Implémentation en Heaven
 
-En Haskell, deux lenses se composent en une seule avec l'opérateur
-`.`. Si `l1` cible `a` dans `s`, et `l2` cible `b` dans `a`, alors
-`l1 . l2` cible `b` dans `s`. C'est cette composition qui rend les
-optiques puissantes : on écrit une lens pour chaque champ, et on
-les combine à l'infini sans boilerplate.
+Le module `core/std/lens.hvn` fait 32 lignes. Le voici en entier :
 
-Un exemple Haskell :
+    module Lens
 
-    data Person = Person { name :: String, address :: Address }
-    data Address = Address { city :: String, zip :: Int }
+    lens get set = (pair get set)
 
-    cityOf :: Lens' Person String
-    cityOf = address . city
-
-    -- Utilisation
-    view cityOf person          -- "Paris"
-    set cityOf "Lyon" person    -- person avec ville changee
-
-Deux lenses (`address`, `city`), une composition, et on lit/ecrit au
-fond d'une structure sans ecrire une seule fonction de reconstruction.
-
-## Pourquoi Heaven v0 ne peut pas
-
-L'implémentation naturelle d'une lens en Heaven serait :
-
-    lens get set = pair get set
     view l s = (fst l) s
     set_via l v s = (snd l) v s
+    over l f s = (snd l) (f (view l s)) s
 
-On met les deux fonctions dans un `Pair`, et on les appelle quand
-on en a besoin. Simple. Élégant.
+    set_fst v p = (pair v (snd p))
+    set_snd v p = (pair (fst p) v)
 
-**Mais ça ne marche pas.** Test minimal :
+    lens_fst _ = (lens fst set_fst)
+    lens_snd _ = (lens snd set_snd)
+
+    get_pp_fst p = (fst (fst p))
+    set_pp_fst v p =
+      let inner = (fst p) in
+      (pair (pair v (snd inner)) (snd p))
+
+    lens_pp_fst _ = (lens get_pp_fst set_pp_fst)
+
+La construction `lens` met les deux fonctions dans un `Pair`. On
+peut ensuite lire, écrire, modifier sur `Pair` simple, et aussi
+sur `Pair` imbriqué. `view (lens_pp_fst 0) p` va chercher `(fst
+(fst p))` en une seule opération.
+
+Le module est enregistré dans `std_loader.zig`, donc les lenses
+sont disponibles partout sans `import` explicite.
+
+## Le bug qu'on a corrigé pour y arriver
+
+L'implémentation ci-dessus **ne marchait pas** avant. Ce code :
 
     g x = (+ x 1)
-    set_z v _ = v
-    mkl _ = (pair g set_z)
+    mkl _ = (pair g 0)
+    ((fst (mkl 0)) 5)
 
-    -- Ces appels echouent :
-    ((fst (mkl 0)) 5)       -- devrait etre 6
-    ((snd (mkl 0)) 100 0)   -- devrait etre 100
+devait rendre `6`. Il rendait autre chose. Pourtant, cette variante
+marchait :
 
-Le probleme : en Heaven v0, les **fonctions ne sont pas des valeurs
-first-class**. On peut les passer en argument (`map f xs` marche),
-mais on ne peut pas les *stocker* dans une structure de donnees et
-les récupérer plus tard. Quand on écrit `(pair g set_z)`, le `g` et
-le `set_z` sont des symboles, pas des closures. Les extraire du
-`Pair` avec `fst`/`snd` renvoie le symbole, pas une fonction
-appelable.
+    (let f (fst (mkl 0)) (f 5))
 
-C'est une limite de fond du runtime actuel : les fonctions sont
-enregistrées dans un `FunctionRegistry` nommé, pas dans le `Store`
-comme des valeurs. Les passer en argument marche par un chemin
-spécial (application directe), mais les stocker demanderait que
-`Expr.Value` inclue un cas « closure ».
+Le problème était un **bug du tree-walker**, pas de la sémantique.
+Quand on écrit `(apply expr args)`, l'évaluateur résout `expr`,
+puis reconstruit un noeud `apply` avec la valeur résolue et **les
+arguments d'origine** — y compris le premier argument qui était en
+fait `expr` lui-même. Résultat : le noeud reconstruit se croyait
+encore en position d'opérateur, et passait **deux** arguments à la
+fonction extraite au lieu d'un.
 
-## Le blocage précis
+Le fix tient en quelques lignes (commit `2810cc7`) : reconstruire
+le noeud avec **seulement** les arguments, sans l'opérateur
+d'origine. Ça a suffi à débloquer les fonctions stockées dans des
+structures.
 
-Résumé de ce qui manque pour que les optiques marchent :
+C'est un motif récurrent en informatique : les **fonctions comme
+valeurs** (first-class functions) sont si fondamentales qu'on les
+tient pour acquises. Quand elles manquent, on découvre le trou
+non pas en écrivant du code qui les utilise, mais en écrivant du
+code qui utilise *autre chose* — ici, une lens — qui **a besoin**
+de les utiliser en interne.
 
-- **Fonctions comme valeurs** : `Expr.Value` doit pouvoir contenir
-  une lambda ou une référence de fonction, pas seulement des
-  littéraux et des constructeurs.
-- **Application de valeurs-fonctions** : le tree-walker doit savoir
-  appliquer un `Id` qui pointe vers une closure, pas seulement un
-  symbole résolu dans le registre global.
-- **Composition générique** : une fois les deux points ci-dessus
-  réglés, `l1 . l2` devient une lens construite à la volée à partir
-  de deux autres. Sans ce dernier point, on peut avoir des lenses
-  mais pas de composition — donc l'intérêt diminue beaucoup.
+## Limitations v0
 
-Ces trois étapes sont un chantier **estimé à 2-3 sessions**.
-Il touche le cœur du runtime (`Expr.Value`, `evaluate`, `apply`),
-pas juste le parser. Ce n'est pas un ajout cosmétique.
+Le module `core/std/lens.hvn` couvre le strict minimum. Il reste
+des choses qu'on ne peut pas faire :
 
-## Pourquoi documenter une fonctionnalité qui n'existe pas ?
+- **Composition générique** : en Haskell, deux lenses se
+  composent en une seule avec l'opérateur `.` : `l1 . l2` cible
+  le champ de `l2` dans `l1`. En Heaven v0, il faut écrire chaque
+  composition à la main (`lens_pp_fst` ci-dessus). Pour aller plus
+  loin, il faudrait que les setters soient eux-mêmes
+  paramétrés par d'autres setters — ce qui demande des types plus
+  riches que ce que le système supporte.
 
-Parce que ce chapitre **définit un objectif**. Les optiques sont
-l'une des abstractions les plus utiles de l'écosystème fonctionnel.
-Elles résolvent un problème réel (accès imbriqué) avec une solution
-élégante (composition). Documenter ce qu'on ne peut pas encore faire
-**est aussi important que documenter ce qu'on peut faire** : ça
-oriente les prochains chantiers.
+- **Prisms et traversals** : une lens cible exactement un élément.
+  Un **prism** cible zéro ou un (utile pour `Maybe`, `Either`,
+  les sum types). Un **traversal** cible zéro ou plusieurs
+  (utile pour les listes, les arbres). Ces optiques existent en
+  Haskell (`lens` de Kmett) mais pas dans Heaven v0.
 
-En attendant, on écrit les setters à la main. C'est verbeux, mais
-correct. Et quand les fonctions first-class arriveront, tout ce code
-manuel pourra être remplacé par des lenses composées, sans casser
-l'API (les noms `view`/`set_via`/`over` sont stables).
+- **Pas de records** : sans champs nommés, toutes les lenses sont
+  des `fst`/`snd` ou des positions. Si Heaven ajoute un jour des
+  records, `lens_fst` deviendra `lens_name` et tout le reste
+  tiendra.
+
+Ces limitations sont de surface, pas de fond. Le motif est là.
+L'extension viendra quand les consommateurs apparaîtront.
+
+## Pourquoi c'est utile malgré tout
+
+Même sans composition générique, la lens apporte deux choses :
+
+1. **Un nom.** `view lens_snd p` dit ce qu'on fait. `(snd p)` dit
+   la même chose mais sans intention. Sur du code long, la
+   différence compte.
+
+2. **Un point d'extension.** Si demain on ajoute la composition ou
+   les records, tout le code qui utilise `view`/`set_via`/`over`
+   continuera de marcher. On n'aura changé que la **construction**
+   des lenses.
+
+C'est le principe des abstractions : l'interface tient, la
+représentation peut bouger.
 
 ## Pour aller plus loin
 
-- La bibliothèque **`lens`** de l'écosystème Haskell (Edward Kmett)
-  est la référence. Elle implémente non seulement les lenses mais
-  aussi les **prisms** (accès 0-ou-1), les **traversals** (accès
-  0-ou-plusieurs), et les **isos** (bijections).
-- L'article fondateur de **van Laarhoven** (2009) montre comment
-  encoder une lens comme un simple type de fonction, ce qui permet
-  la composition gratuite via `.`.
-- Les **profunctor optics** (Pickering, Gibbons, Wu 2017)
-  généralisent encore : toutes les optiques deviennent des
-  transformations de profoncteurs, unifiées et composables.
-- Le module `core/std/recursion.hvn` (chapitre 14) montre le même
-  esprit appliqué à un autre problème : séparer la structure du
-  parcours pour la réutiliser.
+- `core/std/lens.hvn` : le module (32 lignes).
+- `tests/test_lens.hvn` : 12 tests qui couvrent view/set/over, sur
+  `Pair` simple et `Pair` imbriqué, plus un test first-class
+  explicite.
+- Référence externe : la bibliothèque **`lens`** de l'écosystème
+  Haskell (Edward Kmett) implémente la composition générique, les
+  prisms, les traversals, et bien plus — le tout fondé sur une
+  théorie catégorique de l'accès (`van Laarhoven lenses`,
+  `profunctor optics`). Heaven s'en inspire, mais s'arrête à la
+  version minimale.
 
 ---
 
-Tu sais maintenant ce que sont les optiques, pourquoi elles sont
-utiles, et pourquoi Heaven n'y est pas encore. Il reste un chapitre
-avant la fin : **Under the Hood**. On ouvre le capot et on regarde
-comment tout ce qu'on a construit — types, preuves, effets, streams,
-schémas de récursion — **tient ensemble** au niveau du compilateur.
+Tu sais maintenant lire et écrire dans des structures imbriquées
+proprement, et tu as vu comment une limitation du runtime peut
+bloquer une abstraction entière — jusqu'à ce qu'un bug de dix
+lignes la débloque. C'est ça, un langage en construction : les
+concepts avancés ne sont pas toujours possibles tout de suite.
+
+Il reste un chapitre. On a construit beaucoup d'abstractions —
+types, preuves, effets, streams, schémas de récursion, optiques —
+et on a vu qu'elles se répondent. Mais **comment tout cela tient
+ensemble** au niveau du compilateur ? Le chapitre suivant ouvre le
+capot et regarde : le noyau à 6 primitives, le tree-walker, le
+compilateur, et pourquoi ces choix pèsent sur chaque décision du
+langage.
