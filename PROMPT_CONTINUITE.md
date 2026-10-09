@@ -305,6 +305,12 @@ Le repo est travaillé par plusieurs sessions simultanées. Règles :
    (`## 2026-10-08` × 3) ou des typos (`lover_` au lieu de `lower_`),
    c'est une signature de boucle. Vérifier `ps aux` et les timestamps
    (`ls -la --time-style=full-iso`) avant de patcher.
+5. `git commit` nu valide TOUT l'index — et l'index est PARTAGÉ : le `git mv`
+   / `git rm` d'une autre session s'y retrouve et file dans votre commit.
+   Committer TOUJOURS avec chemins : `git commit -m "..." -- f1 f2`, et
+   pré-vérifier par `git diff --cached --stat`.
+   (2 incidents le 2026-10-09 : git rm → docs(readme) élargi à tort ;
+   git mv book → embarqué dans 4b8c23e « map_del tombstones ».)
 
 ---
 
