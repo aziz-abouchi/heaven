@@ -355,3 +355,9 @@ Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
 **Prochaines étapes** :
 - Étendre à `lambda` pour compléter le chantier D21
 - Migrer progressivement les anciens chemins de parsing (Matrix/BobId)
+
+### 2026-10-09 : HashMap v1 Str→Int (Jalon 2)
+
+- **Stable** : smap_new/put/get/has/del/free — chaining, 39/39 (23 Int + 16 Str).
+- **Hash** : fnv1a borné, xor dérivé de band/bor — les magics bitstrings servent la stdlib.
+- **del sans tombstones** (unlink). Limite v1 : clés ASCII (string_length octets/chars à vérifier).

@@ -280,6 +280,10 @@ migration Matrix/BobId et tests d'intégration.
 **P0 partiel** : EBNF bitstrings dans GRAMMAR.md (`fd4ad4c`) —
 grammar.js + regen restent ouverts.
 
+**HashMap v1 : LANDÉ** — Str→Int, chaining, fnv1a-mod (xor dérivé de
+band/bor), del sans tombstones — 39/39, batterie verte. Le chantier
+Option B est entièrement clos (v0 durci le matin, v1 l'après-midi).
+
 **Incident doc** : une session a REMPLACÉ ce document au lieu de le
 mettre à jour. Restauré depuis `739b62b~1` + fusion. STATUS.md avait
 été édité sans `status_import` → json resynchronisé ce tour.
