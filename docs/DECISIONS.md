@@ -850,18 +850,6 @@ machine, 2-3 sessions) OU refactor de `evalMagic` en sous-fonctions
 - **Décision** : `Expr.Store` (Id = Expr = Value) devient l'unique IR intermédiaire. `src/syntax/lower.zig` est étendu pour abaisser directement vers `Expr.Store`. `Matrix` et `SurvivalTranspiler` seront progressivement dépréciés et déplacés vers `src/legacy/`.
 - **Critère de succès** : 100% des constructions syntaxiques de base (`binop`, `call`, `let`, `lambda`) passent par `lowerExprToStore` avec succès.
 
-## D21 : Unification du Lowering vers Expr.Store (2026-10-08)
-- **Contexte** : Coexistence de deux pipelines : `UniversalIngestor` → `Matrix/BobId` → `SurvivalTranspiler` (C) ET `Tree-sitter` → `Expr.Store` → `MIR` → `QBE/WASM`.
-- **Problème** : Duplication de logique, maintenance de deux IRs, complexité accrue.
-- **Décision** : `Expr.Store` (Id = Expr = Value) devient l'unique IR intermédiaire. `src/syntax/lower.zig` est étendu pour abaisser directement vers `Expr.Store`. `Matrix` et `SurvivalTranspiler` seront progressivement dépréciés et déplacés vers `src/legacy/`.
-- **Critère de succès** : 100% des constructions syntaxiques de base (`binop`, `call`, `let`, `lambda`) passent par `lowerExprToStore` avec succès.
-
-## D21 : Unification du Lowering vers Expr.Store (2026-10-08)
-- Contexte : Coexistence de deux pipelines : UniversalIngestor -> Matrix/BobId -> SurvivalTranspiler (C) ET Tree-sitter -> Expr.Store -> MIR -> QBE/WASM.
-- Problème : Duplication de logique, maintenance de deux IRs, complexité accrue.
-- Décision : Expr.Store (Id = Expr = Value) devient l'unique IR intermédiaire. src/syntax/lower.zig est étendu pour abaisser directement vers Expr.Store. Matrix et SurvivalTranspiler seront progressivement dépréciés et déplacés vers src/legacy/.
-- Critère de succès : 100% des constructions syntaxiques de base (binop, call, let, lambda) passent par lowerExprToStore avec succès.
-
 ## Décision technique 2026-10-09 : Gestion du quirk Tree-sitter pour `let ... in`
 
 **Contexte** : Lors de l'implémentation du pont Tree-sitter → Expr.Store pour `let x = 1 in x`, nous avons découvert que Tree-sitter groupe parfois la valeur et le mot-clé `in` dans un nœud `app_expr` (ex: `"1 in"`).

@@ -218,7 +218,7 @@ lit le MIR et émet son langage cible sans connaître Heaven.
 
 ## Documentation
 
-- docs/book/ — livre complet (12 chapitres + annexes) : démarrage, types,
+- docs/book/ — livre complet (18 chapitres + annexes) : démarrage, types,
 pattern matching, récursion, ordre supérieur, effets, streams, preuves,
 monde réel, sous le capot, modules, knowledge.
 - docs/VISION.md — vision long terme (pourquoi, direction, invariants).
@@ -233,11 +233,11 @@ _concurrency.md, _continuations.md, _ontology.md, _bench.md, _serialize.md).
 
 ## Tests
 
-    zig build test              # tests unitaires Zig (<!-- DOCGEN:tests_zig -->390<!-- /DOCGEN -->)
+    zig build test              # tests unitaires Zig (<!-- DOCGEN:tests_zig -->388<!-- /DOCGEN -->)
     zig build test-regression   # tests Heaven core (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN -->)
-    zig build test-files        # tests/*.hvn, <!-- DOCGEN:test_files_count -->19<!-- /DOCGEN --> fichiers (<!-- DOCGEN:test_files -->37/37<!-- /DOCGEN -->)
+    zig build test-files        # tests/*.hvn, <!-- DOCGEN:test_files_count -->26<!-- /DOCGEN --> fichiers (<!-- DOCGEN:test_files -->37/37<!-- /DOCGEN -->)
 
-<!-- DOCGEN:tests_zig -->390<!-- /DOCGEN --> tests Zig passent, ainsi que
+<!-- DOCGEN:tests_zig -->388<!-- /DOCGEN --> tests Zig passent, ainsi que
 <!-- DOCGEN:tests_heaven -->135<!-- /DOCGEN --> tests Heaven
 (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN --> via `test-regression`
 + <!-- DOCGEN:test_files -->37/37<!-- /DOCGEN --> via `test-files`).

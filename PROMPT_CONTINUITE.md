@@ -450,3 +450,59 @@ test actuel n'utilise ces formes, donc l'impact réel est faible. Chantier
 **Lexer hex livré** : commit `e5e84ce` (le lexer reconnaît `0x...` comme
 un seul token). Le parser ne le convertit pas encore — bloqué par ce bug.
 
+**RÉSOLU (2026-10-09 soir, commits `6fe55ec` + `0881c93`)** :
+
+Trois bugs cumulés corrigés :
+
+1. **Lexer** (`expr.zig`) : tokenise `0x...` en un seul token `.num`.
+2. **`parseFloat` C99** : acceptait `0x1` comme hex float → produisait
+   `.float=1`. Fix : check hex avant `parseFloat`, dans `parse.zig` ET
+   `expr_parser.zig`.
+3. **Cas trivial de `parseSExpr`** : un seul token devenait
+   `apply(sym(tok), [])`. Fix : déléguer à `parseExpression`.
+4. **Cas 1 de `parseSExpr`** : `(X)` sans args produisait
+   `apply(func_id, [])` fantôme. Fix : `if args.len == 0 return func_id`.
+
+Tests : `tests/test_parser_literals.hvn` (23/23).
+Non-régression : test_suite 98/98, bitstrings 28/28, recursion 22/22,
+lens 12/12, free 14/14.
+
+
+---
+
+## Session 2026-10-09 (soir) — série Kmett + first-class + hex
+
+**Série Kmett complète** (4 chapitres, 3 modules) :
+
+- **Ch14 — Schémas de récursion** : `core/std/recursion.hvn` (`cata`,
+  `ana`, `hylo`, `para`). 22/22 tests. Commit `8b24511` + `fe9de8c`.
+- **Ch15 — Optiques** : `core/std/lens.hvn` (lens = getter/setter).
+  12/12 tests. Commit `b11af7e` + `a093fa6`.
+- **Ch16 — Free monads** : `core/std/free.hvn` (AST interprétable).
+  14/14 tests. Commit `d0db939` + `f073634`.
+- **Ch17 — Catégories** : conceptuel. Commit `0572277`.
+
+**Fix runtime majeur — fonctions first-class** (`2810cc7`) :
+
+`((fst (pair g h)) 5)` échouait alors que `(let f (fst (pair g h)) (f 5))`
+marchait. Cause : reconstruction d'un `apply` avec `span_a` original
+(incluant op_id). 9 lignes dans `evaluate(.apply)`. Débloque optiques,
+free monads, DSLs.
+
+**Book réorganisation** (`1adb1af` + `52201a2` + séries) :
+
+- Changelog avant annexes (pas en préambule).
+- Under the Hood en dernier chapitre (18).
+- 8 transitions narratives ajoutées entre chapitres.
+- Total : 18 chapitres + 4 annexes + Changelog.
+
+**RFC-0002 bitstrings** (4 commits) : P1 destructuration (`216aff9`),
+P2 construction (`118e87d`), 4 magics bitwise (`d731622`), P0 partiel
+GRAMMAR.md (`fd4ad4c`). 28/28 tests. Tree-sitter différé (conflit GLR).
+
+**Fix parser (hex + parens)** : `6fe55ec` + `0881c93`.
+`tests/test_parser_literals.hvn` 23/23.
+
+**Suites (référence fin de session)** : test_suite 98/98 · bitstrings
+28/28 · recursion 22/22 · lens 12/12 · free 14/14 · parser_literals 23/23
+· hashmap 50/50 · lexer 14/14 (sessions parallèles).
