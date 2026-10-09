@@ -1,0 +1,34 @@
+-- tests/test_free.hvn (pilote Kmett-style v0)
+-- Free monad specialise : stack machine + logging.
+
+-- ─── Programmes de test ───
+-- p1 : Push 10, Push 20, Add → 30
+p1 _ = (Push 10 (Push 20 (Add (Pure 0))))
+
+-- p2 : Push 3, Push 4, Mul → 12
+p2 _ = (Push 3 (Push 4 (Mul (Pure 0))))
+
+-- p3 : Push 5, Log "start", Push 2, Add, Log "done" → 7
+p3 _ = (Push 5 (LogOp "start" (Push 2 (Add (LogOp "done" (Pure 0))))))
+
+-- p4 : programme vide (mais on empile 42 pour la valeur de retour)
+p4 _ = (Push 42 (Pure 0))
+
+-- ─── helper : compter les strings d'une liste ───
+length_str nil = 0
+length_str (cons _ xs) = (+ 1 (length_str xs))
+
+-- ─── Interpreteur stack ───
+test "run p1 (10+20) = 30":       (run_stack (p1 0)) == 30
+test "run p2 (3*4) = 12":         (run_stack (p2 0)) == 12
+test "run p3 (5+2) = 7":          (run_stack (p3 0)) == 7
+test "run p4 (pure 42) = 42":     (run_stack (p4 0)) == 42
+
+-- ─── Interpreteur log ───
+-- run_trace retourne la liste des logs, ordre inverse (dernier en tete)
+test "trace p1 (pas de logs)":    (length_str (run_trace (p1 0))) == 0
+test "trace p3, 2 logs":          (length_str (run_trace (p3 0))) == 2
+test "trace p3, premier = done":  (head (run_trace (p3 0))) == "done"
+test "trace p3, second = start":  (head (tail (run_trace (p3 0)))) == "start"
+
+

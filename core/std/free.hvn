@@ -1,0 +1,49 @@
+-- core/std/free.hvn (pilote Kmett-style v0)
+-- Free monad specialise : DSL de stack machine + logging.
+-- Chaque constructeur = une operation, la queue = la suite du programme.
+-- Plusieurs interpreteurs possibles sur le meme programme.
+
+module Free
+
+-- ─── Le type Free ───
+data Free
+  = Pure Int
+  | Push Int Free
+  | Add Free
+  | Mul Free
+  | LogOp Str Free
+
+-- ─── Constructeurs pratiques ───
+push n k = (Push n k)
+add k = (Add k)
+mul k = (Mul k)
+logop s k = (LogOp s k)
+
+-- ─── Interpreteur 1 : evaluation sur pile ───
+-- run_eval prog stack -> Int (resultat au sommet de pile)
+-- Add : depile a, b, empile (+ a b). Idem Mul.
+-- Pure = fin du programme. Le resultat est au sommet de la pile.
+-- Si la pile est vide (programme Pure 0 sans Push), on retourne 0.
+run_eval (Pure _) stack = (if (null stack) 0 (head stack))
+run_eval (Push n rest) stack = (run_eval rest (cons n stack))
+run_eval (Add rest) stack =
+  (run_eval rest (cons (+ (head stack) (head (tail stack)))
+                       (tail (tail stack))))
+run_eval (Mul rest) stack =
+  (run_eval rest (cons (* (head stack) (head (tail stack)))
+                       (tail (tail stack))))
+run_eval (LogOp _ rest) stack = (run_eval rest stack)
+
+-- run_stack : helper pour interpreter avec pile vide
+run_stack prog = (run_eval prog nil)
+
+-- ─── Interpreteur 2 : collecter les logs ───
+-- run_log prog acc -> List Str (ordre inverse)
+run_log (Pure _) acc = acc
+run_log (Push _ rest) acc = (run_log rest acc)
+run_log (Add rest) acc = (run_log rest acc)
+run_log (Mul rest) acc = (run_log rest acc)
+run_log (LogOp s rest) acc = (run_log rest (cons s acc))
+
+-- run_trace : helper, sans accumulateur initial
+run_trace prog = (run_log prog nil)
