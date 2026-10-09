@@ -1,5 +1,5 @@
--- core/http.hvn -- serveur HTTP minimal (D16, Linux x86_64)
--- Style let ... in Haskell (multi-ligne via loader).
+-- core/http.hvn -- serveur HTTP statique (D16, Linux x86_64)
+-- v2 : sert src/vessel/public/ en boucle, path extrait de la requete.
 
 http_mk_sa_8080 unit =
   let buf = raw_alloc 16 in
@@ -9,17 +9,72 @@ http_mk_sa_8080 unit =
   let _ = poke_byte buf 3 144 in
   buf
 
-http_resp_hello unit = "HTTP/1.1 200 OK\r\nContent-Length: 17\r\n\r\nHello from Heaven"
+-- 404 basique (avant serve_file qui l'utilise).
+http_404 unit =
+  "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\nnot found"
 
+-- Construit HTTP 200 + body.
+http_build_response body =
+  let len = (string_length body) in
+  let h1 = (string_concat "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " (int_to_string len)) in
+  let h2 = (string_concat h1 "\r\n\r\n") in
+  (string_concat h2 body)
+
+-- Lit un fd ouvert et envoie la reponse 200.
+http_serve_fd cli fd =
+  let buf = (raw_alloc 65536) in
+  let n = (io_read fd buf 65535) in
+  let _ = (io_close fd) in
+  let body = (string_of_bytes buf n) in
+  let resp = (http_build_response body) in
+  (io_write cli (string_ptr resp) (string_length resp))
+
+-- Sert src/vessel/public<path> ou 404.
+http_serve_file cli path =
+  let full = (string_concat "src/vessel/public" path) in
+  let fd = (io_open full) in
+  (if (< fd 0)
+    (io_write cli (string_ptr (http_404 unit)) 34)
+    (http_serve_fd cli fd))
+
+-- Lit la requete brute.
+http_read_request fd =
+  let buf = raw_alloc 4096 in
+  let n = io_read fd buf 4095 in
+  (string_of_bytes buf n)
+
+-- Extrait le path de "GET /path HTTP/1.1".
+-- string_index_of attend un CODE BYTE (32 = espace), pas une string.
+http_extract_path req =
+  let s1 = (string_index_of req 32) in
+  let rest = (string_substring req (+ s1 1) 500) in
+  let s2 = (string_index_of rest 32) in
+  (string_substring rest 0 s2)
+
+-- Si path se termine par "/" -> ajouter "index.html"
+-- Cas : "/" -> "/index.html", "/egraph-viz/" -> "/egraph-viz/index.html"
+http_normalize_path p =
+  let last = (peek_byte (string_ptr p) (- (string_length p) 1)) in
+  (if (eq last 47) (string_concat p "index.html") p)
+
+-- Accept + read + extract + serve + close.
 http_handle_one sock =
-  let cli = raw_syscall6 43 sock 0 0 0 0 0 in
-  let resp = http_resp_hello unit in
-  let _ = io_write cli (string_ptr resp) (string_length resp) in
-  io_close cli
+  let cli = (raw_syscall6 43 sock 0 0 0 0 0) in
+  let req = (http_read_request cli) in
+  let path_raw = (http_extract_path req) in
+  let path = (http_normalize_path path_raw) in
+  let _ = (http_serve_file cli path) in
+  (io_close cli)
 
-http_serve_once unit =
-  let sock = raw_syscall6 41 2 1 0 0 0 0 in
-  let sa = http_mk_sa_8080 unit in
-  let _ = raw_syscall6 49 sock sa 16 0 0 0 in
-  let _ = raw_syscall6 50 sock 5 0 0 0 0 in
-  http_handle_one sock
+-- Boucle infinie (TCO).
+http_serve_loop sock =
+  let _ = (http_handle_one sock) in
+  (http_serve_loop sock)
+
+-- Point d'entree.
+http_serve unit =
+  let sock = (raw_syscall6 41 2 1 0 0 0 0) in
+  let sa = (http_mk_sa_8080 unit) in
+  let _ = (raw_syscall6 49 sock sa 16 0 0 0) in
+  let _ = (raw_syscall6 50 sock 5 0 0 0 0) in
+  (http_serve_loop sock)
