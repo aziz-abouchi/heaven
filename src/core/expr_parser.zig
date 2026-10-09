@@ -536,6 +536,10 @@ pub const ExprParser = struct {
                     try args.append(self.allocator, try self.parseExpression(arg_tok));
                 }
             }
+            // Cas trivial : `(X)` sans argument = juste X.
+            // Sans ceci, ((1)) devient apply(int(1), []) qui ne s'evalue pas,
+            // et ((+ 1 2)) devient apply(int(3), []).
+            if (args.items.len == 0) return func_id;
             return self.store.apply(func_id, args.items);
         }
 

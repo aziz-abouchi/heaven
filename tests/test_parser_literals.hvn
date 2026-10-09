@@ -1,0 +1,38 @@
+-- tests/test_parser_literals.hvn
+-- Non-regression : litteraux et parentheses triviales.
+-- Decouvert le 2026-10-09 : (1) == 1 echouait, 0x1 == 1 echouait.
+
+-- ─── Entiers decimaux, controles ───
+test "1 == 1":           1 == 1
+test "255 == 255":       255 == 255
+test "42 == 42":         42 == 42
+
+-- ─── Entiers hexadecimaux ───
+test "0x0 == 0":         0x0 == 0
+test "0x1 == 1":         0x1 == 1
+test "0xff == 255":      0xff == 255
+test "0xFF == 255":      0xFF == 255
+test "0x10 == 16":       0x10 == 16
+test "0x0a == 10":       0x0a == 10
+
+-- ─── Hex dans une expression ───
+test "+ 0x1 0 == 1":     (+ 0x1 0) == 1
+test "+ 0x10 0x1 == 17": (+ 0x10 0x1) == 17
+test "* 0x2 0x3 == 6":   (* 0x2 0x3) == 6
+
+-- ─── Parentheses triviales ───
+test "(1) == 1":         (1) == 1
+test "((1)) == 1":       ((1)) == 1
+test "1 == (1)":         1 == (1)
+test "(255) == 255":     (255) == 255
+
+-- ─── Parens autour d'applications ───
+test "(+ 1 2) == 3":     (+ 1 2) == 3
+test "((+ 1 2)) == 3":   ((+ 1 2)) == 3
+test "(+ (1) 2) == 3":   (+ (1) 2) == 3
+test "(+ 1 (2)) == 3":   (+ 1 (2)) == 3
+
+-- ─── Parens autour d'hex ───
+test "(0x1) == 1":       (0x1) == 1
+test "((0xff)) == 255":  ((0xff)) == 255
+test "(0x1) == (1)":     (0x1) == (1)
