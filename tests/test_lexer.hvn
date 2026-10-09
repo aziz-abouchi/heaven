@@ -1,5 +1,5 @@
 -- tests/test_lexer.hvn (Jalon 3, phase A)
-import "lib/lexer.hvn" as L
+import "lib/heaven_parse.hvn" as L
 
 test "int simple": (L.toks_eq (L.lex "42") (L.TCons (L.TIntTok 42) L.TNil)) == true
 test "sym simple": (L.toks_eq (L.lex "fac") (L.TCons (L.TSymTok "fac") L.TNil)) == true

@@ -1,0 +1,129 @@
+-- lib/heaven_parse.hvn (Jalon 3, phases A+B — lexer + parser FUSIONNES)
+-- Motif de la fusion : bug moteur — l'import d'un fichier dont une clause
+-- a un pattern de constructeur 0-arg QUALIFIE en tete de plusieurs patterns
+-- fait sortir le process SILENCIEUSEMENT (exit 0, aucun message).
+-- References nues dans un meme module = contournement. Fossile documente.
+-- lib/lexer.hvn (Jalon 3, phase A — self-lex)
+-- Style UNE LIGNE par definition : le splitter d'import coupe au
+-- retour ligne (_syntax_gaps, continuation multi-ligne). La phase B
+-- (parser Heaven) supprimera cette contrainte par construction.
+-- v0 : pas d'echappement ; -5 = symbole ; ~500 tokens max (recursion).
+-- Primitives validees le 2026-10-09 : string_ptr, peek_byte,
+-- string_length, string_substring, string_of_bytes.
+
+data Tok = TIntTok Int | TSymTok Str | TStrTok Str | TLParen | TRParen
+data Toks = TNil | TCons Tok Toks
+
+lex_is_space b = (if (= b 32) true (if (= b 9) true (if (= b 10) true (= b 13))))
+lex_is_digit b = (if (< b 48) false (<= b 57))
+lex_is_symchar b = (if (lex_is_space b) false (if (= b 40) false (if (= b 41) false (if (= b 34) false true))))
+
+lex s = (lex_from s 0)
+lex_from s i = (if (>= i (string_length s)) TNil (lex_step s i (peek_byte (string_ptr s) i)))
+lex_step s i b = (if (lex_is_space b) (lex_from s (+ i 1)) (lex_nonspace s i b))
+lex_nonspace s i b = (if (= b 40) (TCons TLParen (lex_from s (+ i 1))) (if (= b 41) (TCons TRParen (lex_from s (+ i 1))) (lex_atom s i b)))
+lex_atom s i b = (if (= b 34) (lex_string s (+ i 1)) (if (lex_is_dashdash s i) (lex_comment s (+ i 2)) (if (lex_is_digit b) (lex_int s i) (lex_sym s i))))
+
+lex_is_dashdash s i = (if (= (peek_byte (string_ptr s) i) 45) (if (< (+ i 1) (string_length s)) (= (peek_byte (string_ptr s) (+ i 1)) 45) false) false)
+lex_comment s i = (if (>= i (string_length s)) TNil (if (= (peek_byte (string_ptr s) i) 10) (lex_from s (+ i 1)) (lex_comment s (+ i 1))))
+
+lex_int_end s i = (if (>= i (string_length s)) i (if (lex_is_digit (peek_byte (string_ptr s) i)) (lex_int_end s (+ i 1)) i))
+lex_int_val s i j acc = (if (>= i j) acc (lex_int_val s (+ i 1) j (+ (* acc 10) (- (peek_byte (string_ptr s) i) 48))))
+lex_int s i = (let j (lex_int_end s i) (TCons (TIntTok (lex_int_val s i j 0)) (lex_from s j)))
+
+lex_sym_end s i = (if (>= i (string_length s)) i (if (lex_is_symchar (peek_byte (string_ptr s) i)) (lex_sym_end s (+ i 1)) i))
+lex_sym s i = (let j (lex_sym_end s i) (TCons (TSymTok (string_substring s i (- j i))) (lex_from s j)))
+lex_str_end s i = (if (>= i (string_length s)) i (if (= (peek_byte (string_ptr s) i) 34) i (lex_str_end s (+ i 1))))
+lex_string s i = (let j (lex_str_end s i) (TCons (TStrTok (string_substring s i (- j i))) (lex_from s (+ j 1))))
+
+tok_eq (TIntTok a) (TIntTok b) = (= a b)
+tok_eq (TSymTok a) (TSymTok b) = (= a b)
+tok_eq (TStrTok a) (TStrTok b) = (= a b)
+tok_eq TLParen TLParen = true
+tok_eq TRParen TRParen = true
+tok_eq _ _ = false
+
+toks_eq TNil TNil = true
+toks_eq (TCons a ra) (TCons b rb) = (if (tok_eq a b) (toks_eq ra rb) false)
+toks_eq _ _ = false
+
+tok_count TNil = 0
+tok_count (TCons _ rest) = (+ 1 (tok_count rest))
+-- lib/parser.hvn (Jalon 3, phase B — self-parse)
+-- Tokens -> Expr (les primitives comme ADT). Style UNE LIGNE (import).
+-- v0 : params symboles seulement (patterns = B-v1). `if`/`=` sont des
+-- symboles ici — l'EVALUATEUR (phase C) donnera leur sens.
+
+
+data Expr = ELitI Int | ELitS Str | ESym Str | EApply Expr Expr | EBind Str Expr | ELambda Str Expr
+data PRes = POk Expr Toks | PErr Str
+data Exprs = ENil | ECons Expr Exprs
+data Strs = SNil | SCons Str Strs
+
+parse_one TNil = (PErr "fin de flux")
+parse_one (TCons t rest) = (parse_tok t rest)
+
+parse_tok (TIntTok n) rest = (POk (ELitI n) rest)
+parse_tok (TStrTok s) rest = (POk (ELitS s) rest)
+parse_tok (TSymTok s) rest = (POk (ESym s) rest)
+parse_tok TLParen rest = (parse_head rest)
+parse_tok TRParen rest = (PErr "RParen inattendu")
+
+parse_head ts = (let r (parse_one ts) (parse_head2 r))
+parse_head2 (PErr e) = (PErr e)
+parse_head2 (POk h ts) = (parse_args h ts)
+
+parse_args h ts = (let r (parse_arglist ts) (parse_args2 h r))
+parse_args2 h (PErr e) = (PErr e)
+parse_args2 h (POk as rest) = (POk (build_apply h as) rest)
+
+parse_arglist (TCons TRParen rest) = (POk ENil rest)
+parse_arglist ts = (let r (parse_one ts) (parse_arglist2 r))
+parse_arglist2 (PErr e) = (PErr e)
+parse_arglist2 (POk a ts) = (let r2 (parse_arglist ts) (parse_arglist3 a r2))
+parse_arglist3 a (PErr e) = (PErr e)
+parse_arglist3 a (POk as rest) = (POk (ECons a as) rest)
+
+build_apply f ENil = f
+build_apply f (ECons a rest) = (build_apply (EApply f a) rest)
+
+parse_top (TCons (TSymTok name) rest) = (def_scan name SNil rest)
+parse_top ts = (parse_one ts)
+
+tok_head TNil = TNil
+tok_head (TCons t _) = t
+tok_tail TNil = TNil
+tok_tail (TCons _ r) = r
+def_scan name params ts = (def_scan_eq name params (tok_head ts) (tok_tail ts))
+def_scan_eq name params t rest = (if (tok_eq t (TSymTok "=")) (def_body name params rest) (def_scan_sym name params t rest))
+def_scan_sym name params (TSymTok s) rest = (def_scan name (SCons s params) rest)
+def_scan_sym name params t rest = (PErr "param non-symbole patterns : B-v1")
+
+def_body name params ts = (let r (parse_one ts) (def_body2 name params r))
+def_body2 name params (PErr e) = (PErr e)
+def_body2 name params (POk body rest) = (POk (EBind name (lambda_wrap (strs_rev params SNil) body)) rest)
+
+strs_rev SNil acc = acc
+strs_rev (SCons s rest) acc = (strs_rev rest (SCons s acc))
+
+lambda_wrap SNil body = body
+lambda_wrap (SCons p rest) body = (ELambda p (lambda_wrap rest body))
+
+parse_file TNil = ENil
+parse_file ts = (let r (parse_top ts) (parse_file2 r))
+parse_file2 (PErr e) = ENil
+parse_file2 (POk e rest) = (ECons e (parse_file rest))
+
+expr_eq (ELitI a) (ELitI b) = (= a b)
+expr_eq (ELitS a) (ELitS b) = (= a b)
+expr_eq (ESym a) (ESym b) = (= a b)
+expr_eq (EApply f1 a1) (EApply f2 a2) = (if (expr_eq f1 f2) (expr_eq a1 a2) false)
+expr_eq (EBind n1 b1) (EBind n2 b2) = (if (= n1 n2) (expr_eq b1 b2) false)
+expr_eq (ELambda p1 b1) (ELambda p2 b2) = (if (= p1 p2) (expr_eq b1 b2) false)
+expr_eq _ _ = false
+
+pok_expr (POk e _) = e
+pok_expr (PErr e) = (ESym "PARSE_ERR")
+
+expr_count ENil = 0
+expr_count (ECons _ rest) = (+ 1 (expr_count rest))

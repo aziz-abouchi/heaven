@@ -1,17 +1,16 @@
 -- tests/test_parser.hvn (Jalon 3, phase B)
-import "lib/lexer.hvn" as LX
-import "lib/parser.hvn" as P
+import "lib/heaven_parse.hvn" as HP
 
-test "lit int": (P.expr_eq (P.pok_expr (P.parse_one (LX.lex "42"))) (P.ELitI 42)) == true
-test "sym": (P.expr_eq (P.pok_expr (P.parse_one (LX.lex "x"))) (P.ESym "x")) == true
-test "lit string": (let q (let b (raw_alloc 1) (let z (poke_byte b 0 34) (string_of_bytes b 1))) (P.expr_eq (P.pok_expr (P.parse_one (LX.lex (string_concat (string_concat q "ab") q)))) (P.ELitS "ab"))) == true
-test "sexpr curryfie": (P.expr_eq (P.pok_expr (P.parse_one (LX.lex "(f a b)"))) (P.EApply (P.EApply (P.ESym "f") (P.ESym "a")) (P.ESym "b"))) == true
-test "sexpr sans args": (P.expr_eq (P.pok_expr (P.parse_one (LX.lex "(f)"))) (P.ESym "f")) == true
-test "imbrique": (P.expr_eq (P.pok_expr (P.parse_one (LX.lex "(+ 1 (* 2 3))"))) (P.EApply (P.EApply (P.ESym "+") (P.ELitI 1)) (P.EApply (P.EApply (P.ESym "*") (P.ELitI 2)) (P.ELitI 3)))) == true
-test "def simple": (P.expr_eq (P.pok_expr (P.parse_top (LX.lex "fac n = (+ n 1)"))) (P.EBind "fac" (P.ELambda "n" (P.EApply (P.EApply (P.ESym "+") (P.ESym "n")) (P.ELitI 1))))) == true
-test "def deux params ordre": (P.expr_eq (P.pok_expr (P.parse_top (LX.lex "f x y = (+ x y)"))) (P.EBind "f" (P.ELambda "x" (P.ELambda "y" (P.EApply (P.EApply (P.ESym "+") (P.ESym "x")) (P.ESym "y")))))) == true
-test "def sans params": (P.expr_eq (P.pok_expr (P.parse_top (LX.lex "answer = 42"))) (P.EBind "answer" (P.ELitI 42))) == true
-test "erreur ) inattendu": (P.expr_eq (P.pok_expr (P.parse_one (LX.lex ")"))) (P.ESym "PARSE_ERR")) == true
-test "erreur fin de flux": (P.expr_eq (P.pok_expr (P.parse_one (LX.lex ""))) (P.ESym "PARSE_ERR")) == true
-test "fichier deux defs": (P.expr_count (P.parse_file (LX.lex "a = 1 b = 2"))) == 2
-test "LE canonique fac": (P.expr_eq (P.pok_expr (P.parse_top (LX.lex "fac n = (if (= n 0) 1 (* n (fac (- n 1))))"))) (P.EBind "fac" (P.ELambda "n" (P.EApply (P.EApply (P.EApply (P.ESym "if") (P.EApply (P.EApply (P.ESym "=") (P.ESym "n")) (P.ELitI 0))) (P.ELitI 1)) (P.EApply (P.EApply (P.ESym "*") (P.ESym "n")) (P.EApply (P.ESym "fac") (P.EApply (P.EApply (P.ESym "-") (P.ESym "n")) (P.ELitI 1)))))))) == true
+test "lit int": (HP.expr_eq (HP.pok_expr (HP.parse_one (HP.lex "42"))) (HP.ELitI 42)) == true
+test "sym": (HP.expr_eq (HP.pok_expr (HP.parse_one (HP.lex "x"))) (HP.ESym "x")) == true
+test "lit string": (let q (let b (raw_alloc 1) (let z (poke_byte b 0 34) (string_of_bytes b 1))) (HP.expr_eq (HP.pok_expr (HP.parse_one (HP.lex (string_concat (string_concat q "ab") q)))) (HP.ELitS "ab"))) == true
+test "sexpr curryfie": (HP.expr_eq (HP.pok_expr (HP.parse_one (HP.lex "(f a b)"))) (HP.EApply (HP.EApply (HP.ESym "f") (HP.ESym "a")) (HP.ESym "b"))) == true
+test "sexpr sans args": (HP.expr_eq (HP.pok_expr (HP.parse_one (HP.lex "(f)"))) (HP.ESym "f")) == true
+test "imbrique": (HP.expr_eq (HP.pok_expr (HP.parse_one (HP.lex "(+ 1 (* 2 3))"))) (HP.EApply (HP.EApply (HP.ESym "+") (HP.ELitI 1)) (HP.EApply (HP.EApply (HP.ESym "*") (HP.ELitI 2)) (HP.ELitI 3)))) == true
+test "def simple": (HP.expr_eq (HP.pok_expr (HP.parse_top (HP.lex "fac n = (+ n 1)"))) (HP.EBind "fac" (HP.ELambda "n" (HP.EApply (HP.EApply (HP.ESym "+") (HP.ESym "n")) (HP.ELitI 1))))) == true
+test "def deux params ordre": (HP.expr_eq (HP.pok_expr (HP.parse_top (HP.lex "f x y = (+ x y)"))) (HP.EBind "f" (HP.ELambda "x" (HP.ELambda "y" (HP.EApply (HP.EApply (HP.ESym "+") (HP.ESym "x")) (HP.ESym "y")))))) == true
+test "def sans params": (HP.expr_eq (HP.pok_expr (HP.parse_top (HP.lex "answer = 42"))) (HP.EBind "answer" (HP.ELitI 42))) == true
+test "erreur RParen": (let rp (let b (raw_alloc 1) (let z (poke_byte b 0 41) (string_of_bytes b 1))) (HP.expr_eq (HP.pok_expr (HP.parse_one (HP.lex rp))) (HP.ESym "PARSE_ERR"))) == true
+test "erreur fin de flux": (HP.expr_eq (HP.pok_expr (HP.parse_one (HP.lex ""))) (HP.ESym "PARSE_ERR")) == true
+test "fichier deux defs": (HP.expr_count (HP.parse_file (HP.lex "a = 1 b = 2"))) == 2
+test "LE canonique fac": (HP.expr_eq (HP.pok_expr (HP.parse_top (HP.lex "fac n = (if (= n 0) 1 (* n (fac (- n 1))))"))) (HP.EBind "fac" (HP.ELambda "n" (HP.EApply (HP.EApply (HP.EApply (HP.ESym "if") (HP.EApply (HP.EApply (HP.ESym "=") (HP.ESym "n")) (HP.ELitI 0))) (HP.ELitI 1)) (HP.EApply (HP.EApply (HP.ESym "*") (HP.ESym "n")) (HP.EApply (HP.ESym "fac") (HP.EApply (HP.EApply (HP.ESym "-") (HP.ESym "n")) (HP.ELitI 1)))))))) == true
