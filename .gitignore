@@ -67,3 +67,6 @@ docs/book/book/
 # Artefacts QBE (repertoire temporaire de compile-qbe)
 .zig-qbe-tmp/
 heaven_test_io.txt
+# hygiène 2026-10-09
+.backup_heaven/
+zig-pkg/
