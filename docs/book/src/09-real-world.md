@@ -56,6 +56,60 @@ Le serveur démarre sur un port dérivé (généralement `8080 + 2919 =
 C'est ce qui permet d'utiliser Heaven depuis un navigateur, sans rien
 installer.
 
+## Le serveur HTTP statique (natif)
+
+Vessel est ecrit en Zig et sert le REPL web. Mais Heaven peut aussi
+servir des fichiers **tout seul**, en 80 lignes de code. C'est le
+module `core/http.hvn`.
+
+    module Http
+
+    http_serve unit =
+      let sock = (raw_syscall6 41 2 1 0 0 0 0) in         -- socket
+      let _ = (http_sock_reuse sock) in                     -- SO_REUSEADDR
+      let sa = (http_mk_sa_8080 unit) in                    -- sockaddr_in
+      let _ = (raw_syscall6 49 sock sa 16 0 0 0) in         -- bind
+      let _ = (raw_syscall6 50 sock 5 0 0 0 0) in           -- listen
+      (http_serve_loop sock)                                -- accept loop
+
+Aucune magic nouvelle : le serveur utilise uniquement
+`raw_syscall6`, `io_read`, `io_write`, `io_open`, `string_concat`,
+`int_to_string`. Le tout est du **pur Heaven** — pas de Zig, pas de
+libc.
+
+**Lancer le serveur** :
+
+    $ ./zig-out/bin/heaven run serve.hvn
+    # attendre ~8 secondes (chargement des modules std)
+    # puis dans un autre terminal :
+    $ curl http://localhost:8080/egraph-viz/
+
+Le serveur sert `src/vessel/public<path>`. Les routes `/` et
+`/egraph-viz/` retournent `index.html` (normalisation automatique
+des repertoires).
+
+**Points cles de l'implementation** :
+
+- La requete `GET /path HTTP/1.1` est parsee avec `string_index_of`
+  sur l'espace (code 32).
+- Le path se terminant par `/` est normalise en ajoutant `index.html`.
+- Un fichier absent retourne un 404 minimal.
+- Le serveur tourne en **boucle infinie** via TCO (tail-call
+  optimization) : `http_serve_loop` s'appelle elle-meme apres chaque
+  connexion.
+- `SO_REUSEADDR` (via `setsockopt`) permet un redemarrage immediat —
+  sans lui, le port reste en TIME_WAIT 60 secondes apres un kill.
+
+**Limitations v0** :
+
+- Port 8080 hardcode.
+- Pas de `Content-Type` dynamique (toujours `text/html`).
+- Pas de keep-alive (une connexion = une requete).
+- Pas de route dynamique (`/api/...` non gere).
+
+C'est un serveur **minimal mais complet** : un fichier HTML, une
+viz D3.js, un `curl localhost:8080` — et tout fonctionne.
+
 ## Les acteurs
 
 Un **acteur** est un objet qui a un état et qui réagit aux messages.

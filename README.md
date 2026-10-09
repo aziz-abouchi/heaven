@@ -148,6 +148,17 @@ Preuves :
     ✓ theorem add_zero stated
 
     heaven> prove add_zero by { simplify }
+
+Servir des fichiers en HTTP (100% Heaven) :
+
+    $ ./zig-out/bin/heaven run serve.hvn
+    # attendre ~8 secondes (chargement des modules std)
+    # puis dans un autre terminal :
+    $ curl http://localhost:8080/egraph-viz/
+
+Le serveur est dans `core/http.hvn` (~80 lignes). Il utilise
+uniquement les magics IO natives (`raw_syscall6`, `io_read`,
+`io_write`) — pas de Zig, pas de libc.
     ✓ [add_zero] proved (tactics)
 
 Compilation native :

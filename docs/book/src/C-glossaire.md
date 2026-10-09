@@ -186,7 +186,10 @@ attendu.
 
 ## V
 
-**Vessel** — Serveur HTTP embarqué dans Heaven.
+**Vessel** — Serveur HTTP **en Zig** embarque dans le binaire Heaven.
+Sert le REPL web (WebAssembly + JS + endpoints API) sur le port
+10999. Voir aussi : **serveur HTTP statique natif** (`core/http.hvn`,
+100% Heaven, port 8080, fichiers statiques).
 
 
 ---

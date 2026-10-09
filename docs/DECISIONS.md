@@ -968,3 +968,43 @@ float).
 
 **Commits** : `e5e84ce` (lexer), `6fe55ec` (parser hex), `0881c93`
 (parens). Tests : `test_parser_literals.hvn` 23/23.
+
+---
+
+## D30 — Serveur HTTP statique natif en Heaven (2026-10-09)
+
+**Contexte** : D16 avait livre un serveur HTTP "hello world" (25
+lignes, reponse hardcodee). Il fallait le rendre reellement utile :
+servir des fichiers, parser la requete, boucler.
+
+**Decision** : implementer un serveur HTTP **statique** en Heaven pur
+(`core/http.hvn`, ~80 lignes). Aucune magic nouvelle, aucune
+dependance externe (pas de libc, pas de Zig, pas de Python).
+
+**Composants** :
+- `http_serve` : setup socket + boucle infinie (TCO).
+- `http_extract_path` : parse `GET /path HTTP/1.1` via `string_index_of`.
+- `http_normalize_path` : `/` → `/index.html` (repertoires).
+- `http_serve_file` : lit `src/vessel/public<path>`, 404 sinon.
+- `http_sock_reuse` : SO_REUSEADDR (evite TIME_WAIT 60s).
+
+**Syscalls utilises** : socket(41), accept(43), bind(49), listen(50),
+setsockopt(54), openat(257), read(0), write(1), close(3).
+
+**Deux serveurs coexistent** :
+- **Vessel** (Zig, port 10999) : REPL web + WASM + endpoints API.
+- **Serveur natif** (Heaven, port 8080) : fichiers statiques.
+Distinction documentee dans le glossaire (C-glossaire.md) et Ch9.
+
+**Limitations v0** :
+- Port 8080 hardcode.
+- Content-Type fixe (`text/html`).
+- Pas de keep-alive, pas de routes dynamiques.
+
+**Tests** : `tests/test_http.hvn` (13/13) pour les helpers purs.
+Le serveur complet est teste manuellement :
+`heaven run serve.hvn` puis `curl localhost:8080/egraph-viz/`.
+
+**Commits** : `a73e29f` (v2), `b8b9374` (tests), `9ae9df5` (SO_REUSEADDR).
+
+**Spec** : `docs/spec/_http.md`.

@@ -231,6 +231,29 @@ Toutes les commandes shell acceptent la forme `:cmd` ou `cmd`. Certaines ont un 
 
 ---
 
+### 2.5 Serveur HTTP statique
+
+Lancer un serveur HTTP qui sert `src/vessel/public/` :
+
+    $ ./zig-out/bin/heaven run serve.hvn
+
+Le serveur ecoute sur `localhost:8080` apres environ 8 secondes de
+demarrage (chargement des modules std). Il sert :
+
+- `/` et tout repertoire → `index.html`
+- `/egraph-viz/` → la viz D3.js de l'e-graph
+- `/xyz` → 404 si le fichier n'existe pas
+
+Test depuis un autre terminal :
+
+    $ curl http://localhost:8080/egraph-viz/
+
+**Implementation** : `core/http.hvn` (80 lignes, 100% Heaven, aucune
+magic nouvelle). Voir `docs/spec/_http.md`.
+
+**Note** : le port 8080 est hardcode. Pour un autre port, editer
+`http_mk_sa_8080` dans `core/http.hvn`.
+
 ## 3. Suppressions et renommages
 
 ### À supprimer
