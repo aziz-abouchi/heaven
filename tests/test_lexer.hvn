@@ -1,0 +1,16 @@
+-- tests/test_lexer.hvn (Jalon 3, phase A)
+import "lib/lexer.hvn" as L
+
+test "int simple": (L.toks_eq (L.lex "42") (L.TCons (L.TIntTok 42) L.TNil)) == true
+test "sym simple": (L.toks_eq (L.lex "fac") (L.TCons (L.TSymTok "fac") L.TNil)) == true
+test "parens": (L.toks_eq (L.lex "()") (L.TCons L.TLParen (L.TCons L.TRParen L.TNil))) == true
+test "sexpr": (L.toks_eq (L.lex "(fac 5)") (L.TCons L.TLParen (L.TCons (L.TSymTok "fac") (L.TCons (L.TIntTok 5) (L.TCons L.TRParen L.TNil))))) == true
+test "imbrique": (L.toks_eq (L.lex "((x))") (L.TCons L.TLParen (L.TCons L.TLParen (L.TCons (L.TSymTok "x") (L.TCons L.TRParen (L.TCons L.TRParen L.TNil)))))) == true
+test "espaces multiples": (L.toks_eq (L.lex "  ( +  1  2 ) ") (L.TCons L.TLParen (L.TCons (L.TSymTok "+") (L.TCons (L.TIntTok 1) (L.TCons (L.TIntTok 2) (L.TCons L.TRParen L.TNil)))))) == true
+test "tiret seul = symbole": (L.toks_eq (L.lex "(- 1 2)") (L.TCons L.TLParen (L.TCons (L.TSymTok "-") (L.TCons (L.TIntTok 1) (L.TCons (L.TIntTok 2) (L.TCons L.TRParen L.TNil)))))) == true
+test "fleche = symbole": (L.toks_eq (L.lex "->") (L.TCons (L.TSymTok "->") L.TNil)) == true
+test "commentaire jusqu'a la fin": (L.toks_eq (L.lex "-- rien du tout") L.TNil) == true
+test "chaine vide": (L.toks_eq (L.lex "") L.TNil) == true
+test "grand entier": (L.toks_eq (L.lex "16777619") (L.TCons (L.TIntTok 16777619) L.TNil)) == true
+test "string litterale": (let q (let b (raw_alloc 1) (let z (poke_byte b 0 34) (string_of_bytes b 1))) (L.toks_eq (L.lex (string_concat (string_concat q "abc") q)) (L.TCons (L.TStrTok "abc") L.TNil))) == true
+test "ligne stdlib (smap_hash_step)": (L.tok_count (L.lex "smap_hash_step h b = (mod (* (- (bor h b) (band h b)) 16777619) 1000000007)")) == 25
