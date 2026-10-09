@@ -817,7 +817,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "band", "bor", "shl", "shr" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1906,6 +1906,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     if (std.mem.eql(u8, op, "%") or std.mem.eql(u8, op, "mod")) return evalBinary(store, a, b, .mod);
     if (std.mem.eql(u8, op, "&") or std.mem.eql(u8, op, "and")) return evalBinary(store, a, b, .and_op);
     if (std.mem.eql(u8, op, "|") or std.mem.eql(u8, op, "or")) return evalBinary(store, a, b, .or_op);
+    if (std.mem.eql(u8, op, "band")) return evalBinary(store, a, b, .band_op);
+    if (std.mem.eql(u8, op, "bor"))  return evalBinary(store, a, b, .bor_op);
+    if (std.mem.eql(u8, op, "shl"))  return evalBinary(store, a, b, .shl_op);
+    if (std.mem.eql(u8, op, "shr"))  return evalBinary(store, a, b, .shr_op);
     if (std.mem.eql(u8, op, "=") or std.mem.eql(u8, op, "eq")) return evalCmp(store, a, b, .eq);
     if (std.mem.eql(u8, op, "!=") or std.mem.eql(u8, op, "neq")) return evalCmp(store, a, b, .neq);
     if (std.mem.eql(u8, op, "<") or std.mem.eql(u8, op, "lt")) return evalCmp(store, a, b, .lt);
@@ -1935,7 +1939,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     return error.UnknownSymbol;
 }
 
-const BinOp = enum { add, sub, mul, div, mod, and_op, or_op };
+const BinOp = enum { add, sub, mul, div, mod, and_op, or_op, band_op, bor_op, shl_op, shr_op };
 const CmpOp = enum { eq, neq, lt, gt, le, ge };
 
 fn evalBinary(store: *Store, a: Id, b: Id, op: BinOp) EvalError!Id {
@@ -1953,6 +1957,10 @@ fn evalBinary(store: *Store, a: Id, b: Id, op: BinOp) EvalError!Id {
                 .mul => .{ .int = va * vb },
                 .div => if (vb == 0) return error.DivisionByzero else .{ .int = @divTrunc(va, vb) },
                 .mod => if (vb == 0) return error.DivisionByzero else .{ .int = @mod(va, vb) },
+                .band_op => .{ .int = va & vb },
+                .bor_op  => .{ .int = va | vb },
+                .shl_op  => if (vb < 0 or vb >= 64) .{ .int = 0 } else .{ .int = va << @intCast(vb) },
+                .shr_op  => if (vb < 0 or vb >= 64) .{ .int = 0 } else .{ .int = va >> @intCast(vb) },
                 .and_op, .or_op => return error.TypeError,
             },
             else => return error.TypeError,
