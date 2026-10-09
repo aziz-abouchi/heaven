@@ -634,6 +634,11 @@ un operateur separe, pas comme le signe d'un nombre.
 Fix envisage : dans `parseSExpr`, si un token commence par `-` et est
 suivi uniquement de chiffres, le traiter comme un int negatif.
 
+**Re-validé le 2026-10-09** (session HashMap, probe P1-P4) : `(- 5)`
+produit une valeur fausse/instable ; `(- 0 5)` binaire fonctionne partout,
+y compris à travers map_put/map_get/map_has. Voir PROMPT_CONTINUITE,
+session 2026-10-09.
+
 ### 2. `(let x "string" x)` affiche verbatim
 
     (let x 5 x)       -- OK : 5
