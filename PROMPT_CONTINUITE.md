@@ -23,6 +23,7 @@
 
 - **`README.md`** et **`docs/STATUS.md`** sont **GÉNÉRÉS**. Ne jamais les éditer à la main.
 - Regen : `python3 scripts/docgen.py` et `python3 scripts/status_gen.py`
+- **`STATUS.md`** : seule exception outillée — on édite, puis TOUJOURS `python3 scripts/status_import.py` et on committe `status.json` avec. `status_gen.py` réécrit le fichier **entier** depuis le json : une section non importée est une section perdue au prochain build.
 - Le CI échoue si un chiffre est périmé (`--check`)
 - `PROMPT_CONTINUITE.md`, `docs/DECISIONS.md`, `docs/ROADMAP.md` sont manuels
 
