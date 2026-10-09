@@ -26,6 +26,7 @@ http_serve_fd cli fd =
   let n = (io_read fd buf 65535) in
   let _ = (io_close fd) in
   let body = (string_of_bytes buf n) in
+  let _ = (raw_free buf 65536) in
   let resp = (http_build_response body) in
   (io_write cli (string_ptr resp) (string_length resp))
 
@@ -41,7 +42,9 @@ http_serve_file cli path =
 http_read_request fd =
   let buf = raw_alloc 4096 in
   let n = io_read fd buf 4095 in
-  (string_of_bytes buf n)
+  let result = (string_of_bytes buf n) in
+  let _ = (raw_free buf 4096) in
+  result
 
 -- Extrait le path de "GET /path HTTP/1.1".
 -- string_index_of attend un CODE BYTE (32 = espace), pas une string.
