@@ -1,0 +1,42 @@
+-- tests/test_recursion.hvn (pilote Kmett-style v0)
+-- Schemas de recursion sur List : cata, ana, hylo, para.
+-- Note : les lambdas inline ne sont pas supportees dans ce contexte,
+-- donc on utilise des fonctions nommees.
+
+-- ─── Helpers nommes ───
+sum_f x acc = (+ x acc)
+length_f _ acc = (+ acc 1)
+product_f x acc = (* x acc)
+first_f x _ = x
+
+-- ana : genere [0..n-1]
+ana_test_f n = (if (< n 3) (some (pair n (+ n 1))) none)
+ana_none _ = none
+
+-- hylo : genere [0..4] et somme
+hylo_gen n = (if (< n 5) (some (pair n (+ n 1))) none)
+
+-- para : compte les elements (le 2e arg est la queue, ignore)
+para_count_f _ _ acc = (+ acc 1)
+para_sum_f x _ acc = (+ x acc)
+
+-- ─── cata : consommer une structure ───
+test "cata sum nil = 0":          (cata sum_f 0 nil) == 0
+test "cata sum [1,2,3] = 6":      (cata sum_f 0 (cons 1 (cons 2 (cons 3 nil)))) == 6
+test "cata length [1,2,3] = 3":   (cata length_f 0 (cons 1 (cons 2 (cons 3 nil)))) == 3
+test "cata product [2,3,4] = 24": (cata product_f 1 (cons 2 (cons 3 (cons 4 nil)))) == 24
+test "cata first [42,1,2] = 42":  (cata first_f 0 (cons 42 (cons 1 (cons 2 nil)))) == 42
+
+-- ─── ana : generer une structure ───
+test "ana genere 3 elements": (cata length_f 0 (ana ana_test_f 0)) == 3
+test "ana premier element = 0": (cata first_f 0 (ana ana_test_f 0)) == 0
+test "ana 0 element si none initial": (cata length_f 0 (ana ana_none 0)) == 0
+
+-- ─── hylo : ana + cata ───
+test "hylo sum 0..4 = 10": (hylo sum_f 0 hylo_gen 0) == 10
+test "hylo length 0..4 = 5": (hylo length_f 0 hylo_gen 0) == 5
+
+-- ─── para : acces a la sous-structure ───
+test "para count [1,2,3] = 3": (para para_count_f 0 (cons 1 (cons 2 (cons 3 nil)))) == 3
+test "para sum [1,2,3] = 6":   (para para_sum_f 0 (cons 1 (cons 2 (cons 3 nil)))) == 6
+test "para count nil = 0":     (para para_count_f 0 nil) == 0
