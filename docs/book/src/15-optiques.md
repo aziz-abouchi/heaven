@@ -169,10 +169,8 @@ bloquer une abstraction entière — jusqu'à ce qu'un bug de dix
 lignes la débloque. C'est ça, un langage en construction : les
 concepts avancés ne sont pas toujours possibles tout de suite.
 
-Il reste un chapitre. On a construit beaucoup d'abstractions —
-types, preuves, effets, streams, schémas de récursion, optiques —
-et on a vu qu'elles se répondent. Mais **comment tout cela tient
-ensemble** au niveau du compilateur ? Le chapitre suivant ouvre le
-capot et regarde : le noyau à 6 primitives, le tree-walker, le
-compilateur, et pourquoi ces choix pèsent sur chaque décision du
-langage.
+Il reste une autre abstraction de la même famille à explorer. Là
+où les optiques accèdent à des **données**, les free monads
+manipulent des **programmes**. Séparer le programme de son
+interprétation est un motif qui revient partout. C'est le sujet du
+prochain chapitre.

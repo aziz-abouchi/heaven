@@ -15,7 +15,8 @@
 - [Concurrence coopérative](13-concurrency.md)
 - [Schémas de récursion](14-recursion-schemes.md)
 - [Optiques](15-optiques.md)
-- [Under the Hood](16-under-the-hood.md)
+- [Free monads](16-free-monads.md)
+- [Under the Hood](17-under-the-hood.md)
 
 ---
 
