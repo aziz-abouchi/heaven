@@ -1023,7 +1023,7 @@
       "level": 3,
       "kind": "raw",
       "title": "2026-10-08 : Pipeline de Lowering (D21)",
-      "content": "- **Stable** : Pont Tree-sitter -> Expr.Store via `lowerExprToStore`.\n- **Nœuds gérés** : `identifier`, `int`, `binary`, `call`/`app_expr`, `pattern`.\n- **Helper** : `lowerExprSource` encapsule le parsing pour usage externe.\n- **Roadmap** : Extension à `let` et `lambda`, puis dépréciation de `UniversalIngestor` (Matrix/BobId).\n- **Stable** : `lowerExprToStore` gère `identifier`, `int`, `binary` avec succès.\n- **Helper** : `lowerExprSource` encapsule le parsing pour usage externe.\n- **En cours** : Extension à `call` (f(x)) et `let` (let x = 1 in x)."
+      "content": "- **Stable** : Pont Tree-sitter -> Expr.Store via `lowerExprToStore`.\n- **Nœuds gérés** : `identifier`, `int`, `binary`, `call`/`app_expr`, `pattern`.\n- **Helper** : `lowerExprSource` encapsule le parsing pour usage externe.\n- **Roadmap** : Extension à `let` et `lambda`, puis dépréciation de `UniversalIngestor` (Matrix/BobId)."
     }
   ]
 }

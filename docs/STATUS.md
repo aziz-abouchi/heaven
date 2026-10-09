@@ -333,6 +333,3 @@ Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
 - **Nœuds gérés** : `identifier`, `int`, `binary`, `call`/`app_expr`, `pattern`.
 - **Helper** : `lowerExprSource` encapsule le parsing pour usage externe.
 - **Roadmap** : Extension à `let` et `lambda`, puis dépréciation de `UniversalIngestor` (Matrix/BobId).
-- **Stable** : `lowerExprToStore` gère `identifier`, `int`, `binary` avec succès.
-- **Helper** : `lowerExprSource` encapsule le parsing pour usage externe.
-- **En cours** : Extension à `call` (f(x)) et `let` (let x = 1 in x).
