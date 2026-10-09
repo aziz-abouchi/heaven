@@ -1,0 +1,32 @@
+-- tests/test_http.hvn -- helpers HTTP purs (sans socket)
+
+-- ─── extract_path ───
+req1 unit = "GET /egraph-viz/ HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"
+req2 unit = "GET / HTTP/1.1\r\nHost: x\r\n\r\n"
+
+extract_path req =
+  let s1 = (string_index_of req 32) in
+  let rest = (string_substring req (+ s1 1) 500) in
+  let s2 = (string_index_of rest 32) in
+  (string_substring rest 0 s2)
+
+test "extract /egraph-viz/ (len 12)": (string_length (extract_path (req1 unit))) == 12
+test "extract / (len 1)": (string_length (extract_path (req2 unit))) == 1
+
+-- ─── normalize_path ───
+test "normalize / -> /index.html (11)": (string_length (http_normalize_path "/")) == 11
+test "normalize /foo/ -> /foo/index.html (15)": (string_length (http_normalize_path "/foo/")) == 15
+test "normalize /foo.html inchange (9)": (string_length (http_normalize_path "/foo.html")) == 9
+
+-- ─── 404 ───
+test "404 len = 54": (string_length (http_404 unit)) == 54
+
+-- ─── build_response ───
+-- Header: "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 3\r\n\r\n"
+-- = 15+2+23+2+16+1+4 = 63, + body "abc" = 66
+test "build_response abc len = 66": (string_length (http_build_response "abc")) == 66
+
+-- ─── mk_sa_8080 : byte 2 = 31, byte 3 = 144 ───
+test "sa port low = 144": (peek_byte (http_mk_sa_8080 unit) 2) == 31
+test "sa port high = 144": (peek_byte (http_mk_sa_8080 unit) 3) == 144
+test "sa family = 2": (peek_byte (http_mk_sa_8080 unit) 0) == 2
