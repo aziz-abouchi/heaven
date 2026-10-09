@@ -312,7 +312,7 @@ dernier le 2026-10-09 (hashmap CRUD complet, 50/50). La séquence dit : maintena
 
 | Phase | Contenu | Sessions |
 |---|---|---|
-| A. self-lex | octets → data Tok (state machine sur peek_byte) | 1–2 |
+| A. self-lex | ✅ landé le 2026-10-09 — lib/lexer.hvn, 13 tests. Style une-ligne (workaround splitter import). Deux quirks documentes rencontres et contournes en une session : splitter multi-ligne + clause 0-pattern | 1 |
 | B. self-parse | tokens → Expr (les 6 primitives comme ADT) | 2–4 |
 | C. évaluateur métacirculaire | eval : Env → Expr → Value (env = smap, closures = ADT) | 2–4 |
 | D. le moment bootstrap | un .hvn lit, parse et évalue un .hvn | livré par C |
