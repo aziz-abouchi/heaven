@@ -312,8 +312,8 @@ dernier le 2026-10-09 (hashmap CRUD complet, 50/50). La séquence dit : maintena
 
 | Phase | Contenu | Sessions |
 |---|---|---|
-| A. self-lex | ✅ landé le 2026-10-09 — lib/lexer.hvn, 13 tests. Style une-ligne (workaround splitter import). Deux quirks documentes rencontres et contournes en une session : splitter multi-ligne + clause 0-pattern | 1 |
-| B. self-parse | 🟡 v0 landé le 2026-10-09 — lib/parser.hvn, 13 tests (S-expr, defs sym, fac canonique). Restent : patterns, sucre | 1 |
+| A. self-lex | ✅ landé le 2026-10-09 — lib/heaven_parse.hvn (fusion), 13 tests. Style une-ligne (workaround splitter import). Deux quirks documentes rencontres et contournes en une session : splitter multi-ligne + clause 0-pattern | 1 |
+| B. self-parse | 🟡 v0 landé le 2026-10-09 — lib/heaven_parse.hvn (fusion), 14/14 (S-expr, defs sym, fac canonique). Restent : patterns, sucre | 1 |
 | C. évaluateur métacirculaire | eval : Env → Expr → Value (env = smap, closures = ADT) | 2–4 |
 | D. le moment bootstrap | un .hvn lit, parse et évalue un .hvn | livré par C |
 | E. différentiel | le parser Heaven passe les suites en se parsant ; le Zig reste l'arbitre | 1–2 |
