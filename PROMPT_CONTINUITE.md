@@ -503,6 +503,13 @@ GRAMMAR.md (`fd4ad4c`). 28/28 tests. Tree-sitter différé (conflit GLR).
 **Fix parser (hex + parens)** : `6fe55ec` + `0881c93`.
 `tests/test_parser_literals.hvn` 23/23.
 
+**Serveur HTTP statique v2** (`a73e29f`) : `core/http.hvn` sert
+`src/vessel/public/` en boucle (extract_path + normalize + 404).
+Tests : `test_http.hvn` 13/13. Permet `curl localhost:8080/egraph-viz/`.
+
+**Session Qwen terminée** (`9722735`) : `egraph_viz.zig` + module build
++ test. Fix API Zig 0.15.2 (ArrayListUnmanaged).
+
 **Suites (référence fin de session)** : test_suite 98/98 · bitstrings
 28/28 · recursion 22/22 · lens 12/12 · free 14/14 · parser_literals 23/23
-· hashmap 50/50 · lexer 14/14 (sessions parallèles).
+· http 13/13 · hashmap 50/50 · lexer 14/14 (sessions parallèles).

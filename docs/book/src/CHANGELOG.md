@@ -43,6 +43,23 @@ Corrigé dans `6fe55ec` + `0881c93`. `tests/test_parser_literals.hvn`
 - P0 partiel : EBNF dans `GRAMMAR.md`. Tree-sitter différé (conflit
   GLR irréductible).
 
+### Serveur HTTP statique (v2)
+
+`core/http.hvn` remplace le hello-world par un vrai serveur de
+fichiers statiques (~80 lignes) :
+
+- Lit la requête (`io_read` + `string_of_bytes`).
+- Extrait le path (`string_index_of` sur l'espace).
+- Normalise : path terminant par `/` → `index.html`.
+- Sert `src/vessel/public<path>` (`io_open` + `io_read`).
+- 404 si absent, boucle infinie via `http_serve_loop` (TCO).
+- Entrée : `http_serve unit`.
+
+Usage : `./zig-out/bin/heaven run serve.hvn` puis
+`curl http://localhost:8080/egraph-viz/`.
+
+Permet de voir la viz egraph-viz (Qwen) en local, 100% Heaven.
+
 ### Book -- réorganisation
 
 - Changelog avant les annexes (pas en préambule).
