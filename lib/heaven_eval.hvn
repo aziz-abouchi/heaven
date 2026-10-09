@@ -1,0 +1,60 @@
+-- lib/heaven_eval.hvn (Jalon 3, phase C — evaluateur metacirculaire)
+-- eval : Expr -> Env -> Value. Env = liste d'association PERSISTANTE
+-- (les closures capturent). Recursion par VRecClosure (auto-nommee).
+-- Style une ligne, patterns plats, zero litteral en pattern, zero
+-- parenthese en string — les quatre fossiles evites par construction.
+
+import "lib/heaven_parse.hvn" as HP
+
+data Value = VInt Int | VStr Str | VClosure Str Expr Env | VRecClosure Str Str Expr Env | VPrim Str | VPrim1 Str Int | VIf1 Expr | VIf2 Expr Expr | VErr Str
+data Env = EnvNil | EnvCons Str Value Env
+
+eval (HP.ELitI n) env = (VInt n)
+eval (HP.ELitS s) env = (VStr s)
+eval (HP.ESym s) env = (eval_sym s env)
+eval (HP.EApply f a) env = (eval_apply f a env)
+eval (HP.ELambda p b) env = (VClosure p b env)
+eval (HP.EBind n b) env = (eval_bind n b env)
+
+eval_sym s env = (if (= s "+") (VPrim "+") (if (= s "-") (VPrim "-") (if (= s "*") (VPrim "*") (if (= s "=") (VPrim "=") (if (= s "<") (VPrim "<") (env_lookup s env))))))
+
+env_lookup name EnvNil = (VErr "symbole non lie")
+env_lookup name (EnvCons n v rest) = (if (= n name) v (env_lookup name rest))
+
+eval_apply (HP.ESym s) a env = (if (= s "if") (VIf1 a) (eval_apply2 (eval_sym s env) a env))
+eval_apply f a env = (eval_apply2 (eval f env) a env)
+
+eval_apply2 (VIf1 c) a env = (VIf2 c a)
+eval_apply2 (VIf2 c t) a env = (eval_if (eval c env) t a env)
+eval_apply2 (VPrim op) a env = (eval_prim op a env)
+eval_apply2 (VPrim1 op x) a env = (prim_fin op x (eval a env))
+eval_apply2 (VClosure p b cenv) a env = (eval b (EnvCons p (eval a env) cenv))
+eval_apply2 (VRecClosure self p b cenv) a env = (eval b (EnvCons self (VRecClosure self p b cenv) (EnvCons p (eval a env) cenv)))
+eval_apply2 v a env = (VErr "application d'un non-calculable")
+
+eval_if cv t e env = (if (vint_is cv 1) (eval t env) (if (vint_is cv 0) (eval e env) (VErr "condition non booleenne")))
+vint_is (VInt x) y = (= x y)
+vint_is v y = false
+
+eval_prim op a env = (eval_prim2 op (eval a env))
+eval_prim2 op (VInt x) = (VPrim1 op x)
+eval_prim2 op v = (VErr "prim attend un entier")
+
+prim_fin op x (VInt y) = (if (= op "+") (VInt (+ x y)) (if (= op "-") (VInt (- x y)) (if (= op "*") (VInt (* x y)) (if (= op "=") (if (= x y) (VInt 1) (VInt 0)) (if (= op "<") (if (< x y) (VInt 1) (VInt 0)) (VErr "prim inconnue"))))))
+prim_fin op x v = (VErr "prim attend un entier")
+
+eval_bind n (HP.ELambda p b) env = (VRecClosure n p b env)
+eval_bind n b env = (eval b env)
+
+eval_file HP.ENil env = env
+eval_file (HP.ECons e rest) env = (eval_file rest (eval_top e env))
+eval_top (HP.EBind n b) env = (EnvCons n (eval_bind n b env) env)
+eval_top e env = (eval e env)
+
+run src = (eval_file (HP.parse_file (HP.lex src)) EnvNil)
+run_expr src expr = (eval (HP.pok_expr (HP.parse_one (HP.lex expr))) (run src))
+
+vint_of (VInt n) = n
+vint_of v = (- 0 1)
+vstr_of (VStr s) = s
+vstr_of v = ""

@@ -1,0 +1,15 @@
+-- tests/test_eval.hvn (Jalon 3, phase C)
+import "lib/heaven_eval.hvn" as E
+
+test "prim plus": (E.vint_of (E.run_expr "" "(+ 1 2)")) == 3
+test "prim moins": (E.vint_of (E.run_expr "" "(- 10 4)")) == 6
+test "prim fois": (E.vint_of (E.run_expr "" "(* 3 4)")) == 12
+test "if vrai": (E.vint_of (E.run_expr "" "(if (= 1 1) 42 99)")) == 42
+test "if faux": (E.vint_of (E.run_expr "" "(if (= 1 2) 42 99)")) == 99
+test "comparaison <": (E.vint_of (E.run_expr "" "(if (< 2 5) 7 8)")) == 7
+test "closure": (E.vint_of (E.run_expr "f x = (+ x 1)" "(f 5)")) == 6
+test "deux params": (E.vint_of (E.run_expr "g x y = (- x y)" "(g 10 4)")) == 6
+test "MOMENT D — fac": (E.vint_of (E.run_expr "fac n = (if (= n 0) 1 (* n (fac (- n 1))))" "(fac 5)")) == 120
+test "fac 6": (E.vint_of (E.run_expr "fac n = (if (= n 0) 1 (* n (fac (- n 1))))" "(fac 6)")) == 720
+test "symbole non lie": (E.vint_of (E.run_expr "" "zz")) == (- 0 1)
+test "string value": (let q (let b (raw_alloc 1) (let z (poke_byte b 0 34) (string_of_bytes b 1))) (E.vstr_of (E.run_expr "" (string_concat (string_concat q "ab") q)))) == "ab"
