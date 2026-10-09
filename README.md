@@ -233,15 +233,15 @@ _concurrency.md, _continuations.md, _ontology.md, _bench.md, _serialize.md).
 
 ## Tests
 
-    zig build test              # tests unitaires Zig (<!-- DOCGEN:tests_zig -->383<!-- /DOCGEN -->)
+    zig build test              # tests unitaires Zig (<!-- DOCGEN:tests_zig -->390<!-- /DOCGEN -->)
     zig build test-regression   # tests Heaven core (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN -->)
-    zig build test-files        # tests/*.hvn, <!-- DOCGEN:test_files_count -->17<!-- /DOCGEN --> fichiers (<!-- DOCGEN:test_files -->37/37<!-- /DOCGEN -->)
+    zig build test-files        # tests/*.hvn, <!-- DOCGEN:test_files_count -->19<!-- /DOCGEN --> fichiers (<!-- DOCGEN:test_files -->37/37<!-- /DOCGEN -->)
 
-<!-- DOCGEN:tests_zig -->383<!-- /DOCGEN --> tests Zig passent, ainsi que
+<!-- DOCGEN:tests_zig -->390<!-- /DOCGEN --> tests Zig passent, ainsi que
 <!-- DOCGEN:tests_heaven -->135<!-- /DOCGEN --> tests Heaven
 (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN --> via `test-regression`
 + <!-- DOCGEN:test_files -->37/37<!-- /DOCGEN --> via `test-files`).
-Mesure <!-- DOCGEN:date -->2026-10-08<!-- /DOCGEN -->.
+Mesure <!-- DOCGEN:date -->2026-10-09<!-- /DOCGEN -->.
 
 ---
 
@@ -276,15 +276,3 @@ Ce qui est planifié :
 ## Licence
 
 Apache 2.0
-
-### Mise à jour Architecture (Oct 2026)
-- Le pipeline de lowering converge vers une unicité : `Tree-sitter` → `Expr.Store` → `MIR` → `Backends`.
-- Le module `src/syntax/lower.zig` est désormais le point d'entrée unique pour l'abaissement, remplaçant progressivement `UniversalIngestor` (Matrix).
-
-### Mise à jour Architecture (Oct 2026)
-- Le pipeline de lowering converge vers une unicité : `Tree-sitter` → `Expr.Store` → `MIR` → `Backends`.
-- Le module `src/syntax/lower.zig` est désormais le point d'entrée unique pour l'abaissement, remplaçant progressivement `UniversalIngestor` (Matrix).
-
-### Mise à jour Architecture (Oct 2026)
-- Le pipeline de lowering converge vers une unicité : Tree-sitter -> Expr.Store -> MIR -> Backends.
-- Le module src/syntax/lower.zig est désormais le point d'entrée unique pour l'abaissement, remplaçant progressivement UniversalIngestor (Matrix).
