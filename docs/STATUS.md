@@ -361,3 +361,8 @@ Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
 - **Stable** : smap_new/put/get/has/del/free — chaining, 39/39 (23 Int + 16 Str).
 - **Hash** : fnv1a borné, xor dérivé de band/bor — les magics bitstrings servent la stdlib.
 - **del sans tombstones** (unlink). UTF-8 validé : string_length compte des octets.
+
+### 2026-10-09 : HashMap — map_del Int (tombstones)
+
+- **Stable** : map_del carte Int→Int — tombstones (flag 2), chaîne de sondage préservée, réutilisation au put, purge au rehash.
+- **50/50** — les deux cartes (Int et Str) ont le CRUD complet.
