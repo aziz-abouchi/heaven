@@ -16,7 +16,8 @@
 - [Schémas de récursion](14-recursion-schemes.md)
 - [Optiques](15-optiques.md)
 - [Free monads](16-free-monads.md)
-- [Under the Hood](17-under-the-hood.md)
+- [Catégories](17-categories.md)
+- [Under the Hood](18-under-the-hood.md)
 
 ---
 
