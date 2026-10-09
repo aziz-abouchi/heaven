@@ -95,8 +95,8 @@ chantier Voie B (continuations délimitées complètes).
 
 ---
 
-Treize chapitres plus tard, tu sais écrire, typer, prouver, exécuter,
-et faire coopérer. Il est temps d'**ouvrir le capot**. Le dernier
-chapitre montre comment tout cela tient ensemble : les 6 primitives
-du noyau, le tree-walker, le compilateur, et pourquoi ces choix
-pèsent sur chaque décision du langage.
+Tu sais maintenant faire coopérer plusieurs tâches. Mais tu sais
+aussi écrire des fonctions récursives — depuis le chapitre 4 — et
+tu as peut-être remarqué qu'elles se ressemblent toutes. Et si on
+pouvait **factoriser la récursion elle-même** ? C'est le sujet du
+prochain chapitre : les schémas de récursion.

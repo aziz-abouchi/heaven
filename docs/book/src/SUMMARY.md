@@ -13,7 +13,8 @@
 - [Knowledge et raisonnement](11-knowledge.md)
 - [BigInt](12-bigint.md)
 - [Concurrence coopérative](13-concurrency.md)
-- [Under the Hood](14-under-the-hood.md)
+- [Schémas de récursion](14-recursion-schemes.md)
+- [Under the Hood](15-under-the-hood.md)
 
 ---
 
