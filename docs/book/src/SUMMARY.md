@@ -1,6 +1,5 @@
 # Summary
 
-- [Changelog du langage](./CHANGELOG.md)
 - [Starting Out](01-starting-out.md)
 - [Believe the Type](02-believe-the-type.md)
 - [Syntax in Functions](03-syntax-in-functions.md)
@@ -10,11 +9,15 @@
 - [Streams](07-streams.md)
 - [Proofs and Theorems](08-proofs.md)
 - [Real World](09-real-world.md)
-- [Under the Hood](10-under-the-hood.md)
-- [Modules et imports](11-modules.md)
-- [Knowledge et raisonnement](12-knowledge.md)
-- [BigInt](13-bigint.md)
-- [Concurrence coopérative](14-concurrency.md)
+- [Modules et imports](10-modules.md)
+- [Knowledge et raisonnement](11-knowledge.md)
+- [BigInt](12-bigint.md)
+- [Concurrence coopérative](13-concurrency.md)
+- [Under the Hood](14-under-the-hood.md)
+
+---
+
+- [Changelog du langage](./CHANGELOG.md)
 
 ---
 
