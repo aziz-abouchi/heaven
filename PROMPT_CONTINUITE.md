@@ -282,7 +282,10 @@ grammar.js + regen restent ouverts.
 
 **HashMap v1 : LANDÉ** — Str→Int, chaining, fnv1a-mod (xor dérivé de
 band/bor), del sans tombstones — 39/39, batterie verte. Le chantier
-Option B est entièrement clos (v0 durci le matin, v1 l'après-midi).
+Option B est entièrement clos (v0 durci le matin, v1 l'après-midi). Le soir a ajouté :
+map_del tombstones (50/50 — CRUD complet sur les deux cartes), UTF-8 validé
+(string_length = octets), règle coordination 5 (commit par chemins —
+index partagé, 2 incidents), dédup ROADMAP (fossile de boucle).
 
 **Incident doc** : une session a REMPLACÉ ce document au lieu de le
 mettre à jour. Restauré depuis `739b62b~1` + fusion. STATUS.md avait
