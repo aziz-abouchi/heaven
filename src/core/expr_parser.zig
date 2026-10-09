@@ -41,9 +41,87 @@ pub const ExprParser = struct {
         return id;
     }
 
+    /// P2 : desugar `<<v1:s1, ..., vn:sn>>` en
+    /// `(bor (shl (band v1 m1) sh1) (bor ... (band vn mn)))`.
+    fn tryDesugarBitstring(self: *ExprParser, trimmed: []const u8) !?Id {
+        if (trimmed.len < 4) return null;
+
+        // Strip les parens externes si presents : (<<...>>)
+        var work = trimmed;
+        if (work[0] == '(' and work[work.len - 1] == ')') {
+            const inner_candidate = std.mem.trim(u8, work[1 .. work.len - 1], " \t");
+            if (std.mem.startsWith(u8, inner_candidate, "<<")) {
+                work = inner_candidate;
+            }
+        }
+
+        if (work.len < 4) return null;
+        if (!std.mem.startsWith(u8, work, "<<")) return null;
+        if (!std.mem.endsWith(u8, work, ">>")) return null;
+
+        const inner = work[2 .. work.len - 2];
+        if (inner.len == 0) return null;
+
+        var exprs: [16][]const u8 = undefined;
+        var sizes: [16]u32 = undefined;
+        var n: usize = 0;
+        var it = std.mem.splitScalar(u8, inner, ',');
+        while (it.next()) |seg| {
+            const s = std.mem.trim(u8, seg, " \t");
+            if (s.len == 0) continue;
+            const colon = std.mem.lastIndexOfScalar(u8, s, ':') orelse return null;
+            const estr = std.mem.trim(u8, s[0..colon], " \t");
+            var szstr = std.mem.trim(u8, s[colon + 1 ..], " \t");
+            if (std.mem.indexOfScalar(u8, szstr, '/')) |slash| szstr = szstr[0..slash];
+            szstr = std.mem.trim(u8, szstr, " \t");
+            const size = std.fmt.parseInt(u32, szstr, 10) catch return null;
+            if (size == 0 or size > 64) return null;
+            if (n >= 16) return null;
+            exprs[n] = estr;
+            sizes[n] = size;
+            n += 1;
+        }
+        if (n == 0) return null;
+
+        var shifts: [16]u32 = undefined;
+        var total: u32 = 0;
+        var i: usize = n;
+        while (i > 0) {
+            i -= 1;
+            shifts[i] = total;
+            total += sizes[i];
+        }
+
+        var terms: [16]Id = undefined;
+        for (exprs[0..n], 0..) |e, idx| {
+            const v_id = try self.parseExpression(e);
+            const sz = sizes[idx];
+            const mask: u64 = if (sz >= 64) ~@as(u64, 0) else (@as(u64, 1) << @intCast(sz)) - 1;
+            const mask_id = try self.store.int(@intCast(mask));
+            const banded = try self.store.binop("band", v_id, mask_id);
+            if (shifts[idx] == 0) {
+                terms[idx] = banded;
+            } else {
+                const shift_id = try self.store.int(@intCast(shifts[idx]));
+                terms[idx] = try self.store.binop("shl", banded, shift_id);
+            }
+        }
+
+        var result = terms[n - 1];
+        var j: usize = n - 1;
+        while (j > 0) {
+            j -= 1;
+            result = try self.store.binop("bor", terms[j], result);
+        }
+        return result;
+    }
+
     pub fn parseExpression(self: *ExprParser, input: []const u8) anyerror!Id {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return error.InvalidInput;
+
+        // P2 : construction bitstring <<v1:s1, ...>>.
+        if (try self.tryDesugarBitstring(trimmed)) |id| return id;
 
         // ─── Trou : `_` seul ───
         if (std.mem.eql(u8, trimmed, "_")) {

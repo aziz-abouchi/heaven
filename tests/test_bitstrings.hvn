@@ -26,3 +26,25 @@ test "bot 0x...78 = 0x78 = 120": (bot 305419896) == 120
 -- ─── Tout en wildcards sauf un au milieu ───
 mid <<_:16, x:8, _:8>> = x
 test "mid 0x..56.. = 0x56 = 86": (mid 305419896) == 86
+
+-- ═══════════════════════════════════════════════════════════════════
+-- P2 : construction <<v1:s1, ..., vn:sn>>
+-- ═══════════════════════════════════════════════════════════════════
+
+test "construction 0x45 = 69":       <<4:4, 5:4>> == 69
+test "construction 0x12 = 18":       <<1:4, 2:4>> == 18
+test "construction 1 segment":       <<5:8>> == 5
+test "construction 0xFF = 255":      <<15:4, 15:4>> == 255
+test "construction 4 segments":      <<1:1, 2:2, 3:3, 4:4>> == 820
+
+-- Roundtrip avec P1 (destructuration)
+ver <<v:4, _:28>> = v
+mkver v = <<v:4, 0:28>>
+test "roundtrip ver=4":  (ver (mkver 4)) == 4
+test "roundtrip ver=15": (ver (mkver 15)) == 15
+
+-- IPv4 header roundtrip
+ipv4 <<ver:4, ihl:4, _tos:8, _len:16>> = (bor (shl ver 4) ihl)
+mkv4 ver ihl = <<ver:4, ihl:4, 0:24>>
+test "ipv4 roundtrip 4,5":  (ipv4 (mkv4 4 5)) == 69
+test "ipv4 roundtrip 15,9": (ipv4 (mkv4 15 9)) == 249

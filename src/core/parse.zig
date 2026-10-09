@@ -45,9 +45,93 @@ pub const Parser = struct {
         return null;
     }
 
+    /// Desugar `<<v1:s1, ..., vn:sn>>` en chaine :
+    /// `(bor (shl (band v1 m1) sh1) (bor ... (band vn mn)))`.
+    /// Retourne null si pas un bitstring de construction.
+    fn tryDesugarBitstringExprStr(
+        allocator: std.mem.Allocator,
+        input: []const u8,
+    ) !?[]u8 {
+        const trimmed = std.mem.trim(u8, input, " \t");
+        if (trimmed.len < 4) return null;
+        if (!std.mem.startsWith(u8, trimmed, "<<")) return null;
+        if (!std.mem.endsWith(u8, trimmed, ">>")) return null;
+
+        const inner = trimmed[2 .. trimmed.len - 2];
+        if (inner.len == 0) return null;
+
+        var exprs: [16][]const u8 = undefined;
+        var sizes: [16]u32 = undefined;
+        var n: usize = 0;
+        var it = std.mem.splitScalar(u8, inner, ',');
+        while (it.next()) |seg| {
+            const s = std.mem.trim(u8, seg, " \t");
+            if (s.len == 0) continue;
+            const colon = std.mem.lastIndexOfScalar(u8, s, ':') orelse return null;
+            const estr = std.mem.trim(u8, s[0..colon], " \t");
+            var szstr = std.mem.trim(u8, s[colon + 1 ..], " \t");
+            if (std.mem.indexOfScalar(u8, szstr, '/')) |slash| szstr = szstr[0..slash];
+            szstr = std.mem.trim(u8, szstr, " \t");
+            const size = std.fmt.parseInt(u32, szstr, 10) catch return null;
+            if (size == 0 or size > 64) return null;
+            if (n >= 16) return null;
+            exprs[n] = estr;
+            sizes[n] = size;
+            n += 1;
+        }
+        if (n == 0) return null;
+
+        var shifts: [16]u32 = undefined;
+        var total: u32 = 0;
+        var i: usize = n;
+        while (i > 0) {
+            i -= 1;
+            shifts[i] = total;
+            total += sizes[i];
+        }
+
+        var buf = std.ArrayListUnmanaged(u8){};
+        errdefer buf.deinit(allocator);
+
+        // (bor (shl (band <v> <mask>) <shift>) (bor ...))
+        i = 0;
+        while (i + 1 < n) : (i += 1) {
+            try buf.appendSlice(allocator, "(bor ");
+        }
+        for (exprs[0..n], 0..) |e, idx| {
+            const sz = sizes[idx];
+            const mask: u64 = if (sz >= 64) ~@as(u64, 0) else (@as(u64, 1) << @intCast(sz)) - 1;
+            if (shifts[idx] == 0) {
+                const term = try std.fmt.allocPrint(allocator, "(band {s} {d})", .{ e, mask });
+                defer allocator.free(term);
+                try buf.appendSlice(allocator, term);
+            } else {
+                const term = try std.fmt.allocPrint(allocator, "(shl (band {s} {d}) {d})", .{ e, mask, shifts[idx] });
+                defer allocator.free(term);
+                try buf.appendSlice(allocator, term);
+            }
+            if (idx + 1 < n) {
+                try buf.appendSlice(allocator, " ");
+            }
+        }
+        // fermer les n-1 parens de bor
+        i = 0;
+        while (i + 1 < n) : (i += 1) {
+            try buf.append(allocator, ')');
+        }
+
+        return try buf.toOwnedSlice(allocator);
+    }
+
     pub fn parseSExpr(self: *Parser, input: []const u8) !Id {
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return self.store.unitLit();
+
+        // P2 : construction bitstring <<v1:s1, ...>> (rewrite en string).
+        if (try tryDesugarBitstringExprStr(self.allocator, trimmed)) |rw| {
+            defer self.allocator.free(rw);
+            return self.parseSExpr(rw);
+        }
 
         // === INTERCEPTION QUOTE / UNQUOTE ===
         if (std.mem.startsWith(u8, trimmed, "quote ") or std.mem.startsWith(u8, trimmed, "quote(")) {
