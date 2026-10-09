@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heaven — E-Graph Visualizer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'JetBrains Mono', monospace; 
+            background: #1a1a2e; 
+            color: #eee; 
+        }
+        #header {
+            padding: 1rem 2rem;
+            background: #16213e;
+            border-bottom: 2px solid #0f3460;
+        }
+        #header h1 { color: #e94560; }
+        #header .subtitle { color: #888; font-size: 0.9rem; }
+        #controls {
+            padding: 1rem 2rem;
+            background: #16213e;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            background: #e94560;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover { background: #c73e54; }
+        #graph { 
+            width: 100vw; 
+            height: calc(100vh - 120px); 
+        }
+        .node circle {
+            stroke: #e94560;
+            stroke-width: 2px;
+        }
+        .node text {
+            fill: #eee;
+            font-size: 12px;
+        }
+        .link {
+            stroke: #0f3460;
+            stroke-width: 1.5px;
+        }
+        .link.merge {
+            stroke: #e94560;
+            stroke-dasharray: 5,5;
+        }
+        .class-hull {
+            fill: rgba(233, 69, 96, 0.1);
+            stroke: #e94560;
+            stroke-width: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>E-Graph Visualizer</h1>
+        <div class="subtitle">Heaven Equality Saturation — Visualisation D3.js</div>
+    </div>
+    <div id="controls">
+        <button onclick="loadData()">🔄 Charger</button>
+        <button onclick="resetZoom()">🔍 Reset Zoom</button>
+        <span id="stats"></span>
+    </div>
+    <svg id="graph"></svg>
+
+    <script>
+        const width = window.innerWidth;
+        const height = window.innerHeight - 120;
+        
+        const svg = d3.select("#graph")
+            .attr("width", width)
+            .attr("height", height);
+        
+        const g = svg.append("g");
+        
+        // Zoom
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (event) => g.attr("transform", event.transform));
+        svg.call(zoom);
+        
+        function resetZoom() {
+            svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+        }
+        
+        async function loadData() {
+            try {
+                const response = await fetch('/api/egraph');
+                const data = await response.json();
+                renderGraph(data);
+                document.getElementById('stats').textContent = 
+                    `${data.classes.length} classes, ${data.nodes.length} nœuds, ${data.merges.length} fusions`;
+            } catch (e) {
+                console.error('Erreur:', e);
+                document.getElementById('stats').textContent = 'Erreur de chargement';
+            }
+        }
+        
+        function renderGraph(data) {
+            g.selectAll("*").remove();
+            
+            // Créer les nœuds avec positions
+            const nodes = data.nodes.map((n, i) => ({
+                ...n,
+                x: width / 2 + (Math.random() - 0.5) * 400,
+                y: height / 2 + (Math.random() - 0.5) * 400
+            }));
+            
+            // Créer les liens (merges)
+            const links = data.merges.map(m => ({
+                source: m.lhs,
+                target: m.rhs,
+                type: 'merge'
+            }));
+            
+            // Simulation de force
+            const simulation = d3.forceSimulation(nodes)
+                .force("link", d3.forceLink(links).id(d => d.id).distance(100))
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("center", d3.forceCenter(width / 2, height / 2));
+            
+            // Dessiner les liens
+            const link = g.append("g")
+                .selectAll("line")
+                .data(links)
+                .join("line")
+                .attr("class", d => `link ${d.type}`);
+            
+            // Dessiner les nœuds
+            const node = g.append("g")
+                .selectAll("g")
+                .data(nodes)
+                .join("g")
+                .attr("class", "node")
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+            
+            node.append("circle")
+                .attr("r", d => d.tag === 'sym' ? 20 : 12)
+                .attr("fill", d => {
+                    switch(d.tag) {
+                        case 'sym': return '#e94560';
+                        case 'int': return '#4ecca3';
+                        case 'apply': return '#3498db';
+                        case 'binop': return '#9b59b6';
+                        case 'lambda': return '#f39c12';
+                        default: return '#95a5a6';
+                    }
+                });
+            
+            node.append("text")
+                .attr("dy", -25)
+                .attr("text-anchor", "middle")
+                .text(d => d.name || `${d.tag}#${d.id}`);
+            
+            // Tooltip
+            node.append("title")
+                .text(d => `ID: ${d.id}\nTag: ${d.tag}${d.name ? '\nName: ' + d.name : ''}`);
+            
+            simulation.on("tick", () => {
+                link
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+                
+                node.attr("transform", d => `translate(${d.x},${d.y})`);
+            });
+        }
+        
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+        
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+        
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+        
+        // Charger au démarrage
+        loadData();
+    </script>
+</body>
+</html>

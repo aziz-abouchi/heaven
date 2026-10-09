@@ -1363,6 +1363,16 @@ pub fn build(b: *std.Build) void {
         },
     }) });
 
+    const egraph_viz_mod = b.createModule(.{
+        .root_source_file = b.path("src/inference/eqsat/egraph_viz.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "egraph", .module = egraph_mod },
+        },
+    });
+
     const test_profile_egraph = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/inference/eqsat/profile_egraph_test.zig"),
         .target = target,
@@ -1370,6 +1380,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "egraph", .module = egraph_mod },
+            .{ .name = "egraph_viz", .module = egraph_viz_mod },
             .{ .name = "abi", .module = abi_mod },
         },
     }) });

@@ -10,6 +10,7 @@
 
 const std = @import("std");
 const egraph_mod = @import("egraph");
+const egraph_viz = @import("egraph_viz");
 const abi = @import("abi");
 const expr = @import("expr");
 
@@ -131,4 +132,30 @@ test "boucle Metrics -> EGraph : null si aucune mesure fiable" {
         &annot, &tree, &candidates, .wall_time,
     );
     try std.testing.expectEqual(@as(?abi.profile_annotations.Best, null), best);
+}
+
+test "egraph_viz — export JSON" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+    var g = EGraph.init(&store, allocator);
+    defer g.deinit();
+
+    // Créer quelques expressions
+    const x = try store.sym("x");
+    const one = try store.int(1);
+    const add_expr = try store.binop("+", x, one);
+
+    const class_a = try g.add(add_expr);
+    const class_b = try g.add(x);
+    _ = try g.merge(class_a, class_b);
+
+    // Exporter en JSON
+    const json = try egraph_viz.exportToJson(&g, allocator);
+    defer allocator.free(json);
+
+    // Vérifier que le JSON contient les éléments attendus
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"classes\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"nodes\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"merges\"") != null);
 }
