@@ -225,6 +225,45 @@ fixtures dupliquées test_data/ ↔ fixtures/ · zig-pkg/ dupliqué.
 
 ---
 
+## Session 2026-10-09 (matin) — plomberie doc + HashMap durci (Jalon 2)
+
+**Plomberie doc** (poussée) : pipeline STATUS guéri — dé-dup, sync
+status.json, date dynamique, convention amendée : TOUTE édition de
+STATUS.md -> `status_import.py` + committer le json avec.
+
+**HashMap (Option B)** — `1808eff` :
+- Le v0 existait deja (`db53128`, Int->Int, open addressing) — vert mais
+  jamais intégré : l'option B du doc décrivait en fait la v1.
+- Durci : `map_hash` (cles negatives), clamp cap, `map_free`, resize
+  libere l'ancien buffer, commentaires honnêtes (mutable en place).
+- **23/23** + batterie intacte : 98/98 · 11/11 · 15/15 · 3/3 · 30/30 ·
+  4/4 · 4/4 · 8/8.
+- **v1 (prochaine étape)** : cles Str — fnv1a viable (xor derivable :
+  a xor b = (bor a b) - (band a b)) ou rolling 31h+c ; `map_del` (tombstones).
+
+**Gap relevé — moins unaire** : `(- 5)` produit une valeur fausse/instable
+(validé par probe P1-P4). Workaround : `(- 0 5)`. Fix future : 1 ligne
+dans evalMagic — à froid, engine_expr.zig en zone active.
+
+**Sessions parallèles (état 2026-10-09 midi)** :
+- D21 : lower.zig/lower_test.zig (let/lambda) — en vol.
+- Bitstrings : **P1 LANDÉ** (`216aff9` + `d731622` : les 4 opérateurs
+  band/bor/shl/shr). Suite probable sur parse.zig (P2 ?).
+- Terrain partagé : STATUS.md/status.json — git status avant édition.
+
+**Suites (référence)** : test_suite 98/98 · array 11/11 · string 15/15 ·
+scheduler 3/3 · bigint 30/30 · effects_rec 4/4 · io_stream 4/4 ·
+stream_lazy 8/8 · **hashmap 23/23** · zig build test 383.
+
+**Reste à faire (fin de session)** : ligne moins unaire dans
+docs/spec/_syntax_gaps.md · coche P1 dans RFC-0002.md (vérifier si la
+session bitstrings ne l'a pas déjà faite).
+
+**Méthode validée** : le probe P1-P4 a tranché en une exécution ce que
+deux tours de correctifs avaient embrouillé. Probes d'abord, fix ensuite.
+
+---
+
 ## Chantiers parallèles — coordination
 
 Le repo est travaillé par plusieurs sessions simultanées. Règles :
