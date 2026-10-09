@@ -1,7 +1,10 @@
 -- core/std/hashmap.hvn (Jalon 2, v0)
 -- HashMap Int -> Int via open addressing + linear probing.
 -- Layout : 3 i64 par slot [key, value, flag] (flag 0=vide, 1=occupe).
--- Hash : k % cap. Probing : (i+1) % cap. Immutable (retourne nouvelle Map).
+-- Hash : map_hash (normalise les cles negatives). Probing : (i+1) % cap.
+-- Mutable en place : put/resize retournent une vue MkMap ; le stockage
+-- ancien est libere au resize -- les vues anciennes deviennent invalides.
+-- map_free : a appeler une seule fois, sur la derniere vue.
 
 data Map = MkMap Int Int Int
 
@@ -21,11 +24,15 @@ map_zero ptr i n =
 
 -- map_new cap : alloue cap*3 i64, zero-init, retourne MkMap ptr 0 cap.
 map_new cap =
-  let n = (* cap 3) in
+  let c = (if (< cap 1) 1 cap) in
+  let n = (* c 3) in
   let bytes = (* n 8) in
   let ptr = (raw_alloc bytes) in
   let _ = (map_zero ptr 0 n) in
-  (MkMap ptr 0 cap)
+  (MkMap ptr 0 c)
+
+-- Liberation : symetrie avec array_free. Une seule fois, derniere vue.
+map_free (MkMap ptr _ cap) = (raw_free ptr (* (* cap 3) 8))
 
 -- ─── Lecture / ecriture de slot ───
 -- Slot i occupe les i64 [i*3, i*3+1, i*3+2] = [key, value, flag].
@@ -60,8 +67,11 @@ map_get_helper ptr k cap i count =
     0
     (map_get_check ptr k cap i count))
 
+-- Hash normalise : ramene toute cle (meme negative) dans [0, cap).
+map_hash k cap = (% (+ (% k cap) cap) cap)
+
 map_get (MkMap ptr _ cap) k =
-  (map_get_helper ptr k cap (% k cap) 0)
+  (map_get_helper ptr k cap (map_hash k cap) 0)
 
 -- ─── Insertion par probing lineaire ───
 -- On cherche soit le slot contenant deja k (update), soit un slot vide (insert).
@@ -88,7 +98,7 @@ map_put_helper ptr size k v cap i count =
 
 -- map_put_no_grow : insertion sans resize.
 map_put_no_grow map k v =
-  (map_put_helper (map_ptr map) (map_length map) k v (map_capacity map) (% k (map_capacity map)) 0)
+  (map_put_helper (map_ptr map) (map_length map) k v (map_capacity map) (map_hash k (map_capacity map)) 0)
 
 -- ─── Resize automatique ───
 -- Load factor : on resize si size * 4 >= cap * 3 (0.75).
@@ -112,7 +122,9 @@ map_rehash_insert new_map old_ptr i cap =
 map_resize map =
   let new_cap = (* (map_capacity map) 2) in
   let new_map = (map_new new_cap) in
-  (map_rehash new_map (map_ptr map) 0 (map_capacity map))
+  let rehashed = (map_rehash new_map (map_ptr map) 0 (map_capacity map)) in
+  let _ = (raw_free (map_ptr map) (* (* (map_capacity map) 3) 8)) in
+  rehashed
 
 -- ─── map_put : resize conditionnel puis insertion ───
 map_put_do map k v = (map_put_no_grow map k v)
@@ -142,4 +154,4 @@ map_has_helper ptr k cap i count =
     (map_has_check ptr k cap i count))
 
 map_has (MkMap ptr _ cap) k =
-  (map_has_helper ptr k cap (% k cap) 0)
+  (map_has_helper ptr k cap (map_hash k cap) 0)

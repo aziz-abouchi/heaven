@@ -37,3 +37,10 @@ test "resize : 7 cles distinctes sur cap 8 declenche resize": (let m0 (map_new 8
 test "resize : capacity doublee apres 7 puts": (let m0 (map_new 8) (let m1 (map_put m0 1 1) (let m2 (map_put m1 2 2) (let m3 (map_put m2 3 3) (let m4 (map_put m3 4 4) (let m5 (map_put m4 5 5) (let m6 (map_put m5 6 6) (let m7 (map_put m6 7 7) (map_capacity m7))))))))) == 16
 
 test "resize : toutes les cles survivent": (let m0 (map_new 8) (let m1 (map_put m0 1 10) (let m2 (map_put m1 2 20) (let m3 (map_put m2 3 30) (let m4 (map_put m3 4 40) (let m5 (map_put m4 5 50) (let m6 (map_put m5 6 60) (let m7 (map_put m6 7 70) (map_get m7 4))))))))) == 40
+
+-- ─── Edges (session 2026-10-09) ───
+test "cle negative : get": (let m (map_put (map_new 8) (- 0 5) 99) (map_get m (- 0 5))) == 99
+test "cle negative : has": (let m (map_put (map_new 8) (- 0 5) 99) (map_has m (- 0 5))) == 1
+test "cap 0 ne panique pas": (let m (map_put (map_new 0) 1 10) (map_get m 1)) == 10
+test "map_free s'execute": (let m (map_put (map_new 8) 1 10) (let z (map_free m) 1)) == 1
+test "map_free apres resize": (let m0 (map_new 2) (let m1 (map_put m0 1 10) (let m2 (map_put m1 2 20) (let z (map_free m2) 1)))) == 1
