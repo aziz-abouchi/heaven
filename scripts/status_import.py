@@ -8,6 +8,7 @@ Une section table peut avoir des lignes texte avant/apres le
 tableau ; elles sont ignorees (trailing_text).
 """
 import json
+from datetime import date
 import re
 from pathlib import Path
 
@@ -152,7 +153,7 @@ def main():
 
     flush()
 
-    data = {"updated": "2026-10-06", "sections": sections}
+    data = {"updated": date.today().isoformat(), "sections": sections}
     STATUS_JSON.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     n_t = sum(1 for s in sections if s["kind"] == "table")
     n_r = sum(1 for s in sections if s["kind"] == "raw")
