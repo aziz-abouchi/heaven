@@ -321,7 +321,8 @@ dernier le 2026-10-09 (hashmap CRUD complet, 50/50). La séquence dit : maintena
 
 **Notes** : interprété d'abord (lent mais correct), la vitesse vient de F.
 Un lexer Heaven fixe par construction le moins unaire et le hex.
-Le parser Zig ne disparaît qu'après E — il reste l'arbitre du différentiel.
+Le parser Zig ne disparaît qu'après E — il reste l'arbitre du différentiel. Les tests DIFF exigent `ulimit -s unlimited`
+(fossile TCO du soir — voir _syntax_gaps ; fix moteur : collectTailSpine).
 
 ---
 

@@ -850,3 +850,25 @@ variable : la `)` dans la string.
 **Workaround** : zéro parenthèse dans les strings ; pour TESTER `)`,
 construction par string_of_bytes (byte 41). **Localisation probable** :
 import.zig, scan de ligne avant parsing.
+
+## Bug : TCO de l'interpréteur n'engage pas pour les tail-calls à arguments calculés (2026-10-09, soir)
+
+Cinq itérations (Jalon 3, DIFF sur fichiers réels) :
+
+**Symptôme** : le lexing d'un fichier de ~800 tokens déborde la pile
+sous ulimit par défaut (8 Mo) ; ~250 tokens passent. Parser et évaluateur
+métacirculaires hors de cause (isolés par probe).
+
+**Testé et réputé** :
+- cycle mutuel ~10 fonctions : PAS de fusion SCC (précédent isEven/isOdd = 2)
+- let-ectomie (fossile bdiv) : aucun effet
+- effondrement en UNE fonction self-tail (si purs) : DÉBORDE ENCORE —
+  les arguments du tail-call contiennent des appels — confirme la
+  suspicion bdiv : « une sous-fonction empile »
+
+**Workaround officiel** : ulimit -s unlimited (précédent bdiv,
+scripts/run-tests-with-stack.sh). Les tests DIFF de test_parser.hvn
+l'exigent — le runner/CI doit le poser.
+
+**Fix moteur (à froid)** : élargir collectTailSpine — traverser les
+appels dans les arguments du tail-call (engine_expr.zig).
