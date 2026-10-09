@@ -748,3 +748,44 @@ Apres validation du POC :
 - [ ] Déplacer `UniversalIngestor` et `SurvivalTranspiler` vers `src/legacy/`.
 - [ ] Supprimer toute dépendance résiduelle à `Matrix/BobId` dans le pipeline principal.
 
+
+
+### Pilote Kmett -- optiques, recursion schemes, free monads (2026-10-09)
+
+**Objectif** : amener au langage une bibliothèque d'abstractions
+inspirées de l'écosystème Haskell (`lens`, `recursion-schemes`,
+`free`, `adjunctions` — Edward Kmett). Objectif pédagogique autant
+que technique : montrer que Heaven peut accueillir les notions
+avancées de la programmation fonctionnelle.
+
+**Livré v0 (2026-10-09 soir)** :
+
+- `core/std/recursion.hvn` : `cata`, `ana`, `hylo`, `para`. 22/22.
+- `core/std/lens.hvn` : optiques minimales. 12/12.
+- `core/std/free.hvn` : AST interprétable. 14/14.
+- Chapitres 14, 15, 16, 17 du book.
+- Fix first-class (`2810cc7`) : débloque les optiques.
+
+**Non livré (chantiers futurs)** :
+
+- **Composition générique de lens** : `lens_compose l1 l2` — nécessite
+  des types higher-rank.
+- **Vrai free monad** : `>>=` monadique, continuations valuées
+  (`Int -> Free`). Nécessite un type de retour réifié.
+- **Prisms et traversals** : accès 0-ou-1 et 0-ou-plusieurs.
+- **HKT + classes de types** : condition pour exprimer les catégories
+  réellement (foncteurs, monades, transformations naturelles).
+
+**Estimation** :
+
+| Chantier | Effort |
+|---|---|
+| Composition générique de lens | 1-2 sessions |
+| Vrai free monad | 2-3 sessions |
+| Prisms + traversals | 1-2 sessions |
+| HKT + classes de types | 3-5 sessions |
+
+**Note** : la stratégie « chapitre = code + doc » a été validée pour
+recursion schemes et optiques. Pour free monads, on a produit une
+version honnête mais partielle. Pour catégories, un chapitre
+conceptuel a été préféré à un bricolage qui trahirait l'idée.

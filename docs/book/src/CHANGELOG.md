@@ -1,6 +1,54 @@
 # Changements récents
 
 
+## 2026-10-09 (soir) -- Série Kmett + first-class + hex
+
+### Série Kmett -- 4 chapitres, 3 modules
+
+- **Ch14 -- Schémas de récursion** : `core/std/recursion.hvn`.
+  `cata` (consommer), `ana` (générer), `hylo` (les deux), `para`
+  (accès à la sous-structure). 22/22 tests.
+- **Ch15 -- Optiques** : `core/std/lens.hvn`. Une lens est un couple
+  `(getter, setter)`. `view`, `set_via`, `over`. 12/12 tests.
+- **Ch16 -- Free monads** : `core/std/free.hvn`. AST d'opérations
+  interprétable. Deux interpréteurs : `run_stack` (évaluation sur
+  pile) et `run_trace` (collecte des logs). 14/14 tests.
+- **Ch17 -- Catégories** : conceptuel. Foncteurs, monades,
+  adjonctions, Yoneda. Documente pourquoi Heaven v0 ne peut pas
+  (HKT, classes, quantification).
+
+### Fix runtime -- fonctions first-class (`2810cc7`)
+
+`((fst (pair g h)) 5)` échouait alors que `(let f (fst (pair g h))
+(f 5))` marchait. Cause : dans `evaluate(.apply)`, la reconstruction
+d'un `apply` gardait `span_a` avec l'opérateur original. 9 lignes.
+Débloque les optiques, free monads, DSLs.
+
+### Fix parser -- littéraux hex + parens triviales
+
+- `0xFF` était tokenisé en `0` + `xFF` (deux tokens), produisant
+  `(0 xFF)`.
+- `parseFloat` acceptait `0x1` comme hex float C99 → `.float=1`.
+- `(1) == 1` échouait (parens autour d'un atome produisaient un
+  `apply` fantôme).
+
+Corrigé dans `6fe55ec` + `0881c93`. `tests/test_parser_literals.hvn`
+(23/23). Deux bugs préexistants débusqués au passage.
+
+### RFC-0002 -- Bitstrings
+
+- 4 magics bitwise (`band`, `bor`, `shl`, `shr`).
+- P1 destructuration `<<x:4, y:8>>` -- 15/15.
+- P2 construction `<<4:4, 5:4>>` -- 28/28 cumulés.
+- P0 partiel : EBNF dans `GRAMMAR.md`. Tree-sitter différé (conflit
+  GLR irréductible).
+
+### Book -- réorganisation
+
+- Changelog avant les annexes (pas en préambule).
+- Under the Hood en dernier chapitre (18).
+- 8 transitions narratives ajoutées entre chapitres.
+
 ## 2026-10-08 (suite)
 
 ### Jalon 2 -- Structures de donnees en Heaven

@@ -12,9 +12,14 @@ détail précis.
 
 ## Nombres
 
-    42              -- entier
+    42              -- entier décimal
+    0xFF            -- entier hexadécimal (255)
+    0x10            -- hexadécimal (16)
     3.14            -- flottant
     -7              -- négatif (unaire)
+
+Le préfixe `0x` (ou `0X`) marque un littéral hexadécimal. Les chiffres
+`0-9`, `a-f`, `A-F` sont acceptés après le préfixe.
 
 Les nombres négatifs doivent être parenthésés en position d'argument :
 `(- 3)`, pas `- 3`.
@@ -79,6 +84,33 @@ plus lisible dans votre contexte.
     lambda x -> x + 1
 
 Les trois formes sont acceptées. Le `\` est l'ASCII-friendly.
+
+## Bitstrings
+
+Un **bitstring** décrit une séquence de bits comme une suite de
+segments `nom:taille`. Deux usages : destructuration (extraire des
+champs d'un entier) et construction (assembler des champs en entier).
+
+**Destructuration** — un pattern en position de paramètre :
+
+    version <<ver:4, _:28>> = ver
+    ipv4 <<ver:4, ihl:4, _tos:8, _len:16>> = (bor (shl ver 4) ihl)
+
+`ver:4` extrait les 4 bits de poids fort de l'entier, `_:28` ignore
+les 28 bits restants. Le désucrage se fait en `band`/`shr`/`shl`/`bor`.
+
+**Construction** — une expression qui assemble des champs :
+
+    <<4:4, 5:4>>          -- 0x45 = 69
+    mkv v = <<v:4, 0:28>> -- réinjecte v dans les 4 bits de poids fort
+
+**Contraintes v0** :
+- Alignement octet uniquement, taille totale ≤ 64 bits.
+- Pas d'endianness (`/little`, `/big`) — prévu v0.3.
+- Pas de `rest:bits` (dernier segment de longueur variable) — prévu v0.3.
+
+Référence : RFC-0002 (`RFC-0002.md`), chapitre 14-15 du book pour les
+cas d'usage (parsing de protocoles).
 
 ## let
 
