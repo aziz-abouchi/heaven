@@ -1776,6 +1776,14 @@ const Lexer = struct {
 
         if (std.ascii.isDigit(c)) {
             const start = self.pos;
+            // Hex : 0x... ou 0X... — lire tous les hex digits dans le meme token
+            if (c == '0' and self.pos + 1 < self.src.len
+                and (self.src[self.pos + 1] == 'x' or self.src[self.pos + 1] == 'X')) {
+                self.pos += 2;
+                while (self.pos < self.src.len and std.ascii.isHex(self.src[self.pos]))
+                    self.pos += 1;
+                return .{ .kind = .num, .text = self.src[start..self.pos] };
+            }
             while (self.pos < self.src.len and (std.ascii.isDigit(self.src[self.pos]) or self.src[self.pos] == '.'))
                 self.pos += 1;
             return .{ .kind = .num, .text = self.src[start..self.pos] };
