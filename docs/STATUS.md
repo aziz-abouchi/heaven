@@ -339,3 +339,19 @@ Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
 - **Stable** : map_new/get/put/has, resize auto (0.75), map_free — 23/23 tests, batterie intacte.
 - **Fix** : cles negatives (map_hash normalise), clamp cap >= 1, resize libere l'ancien buffer.
 - **Note** : moins unaire `(- 5)` non supporte (evalMagic) — workaround `(- 0 5)`, gap releve pour _syntax_gaps.md.
+
+## 2026-10-09 : Chantier D21 (Lowering) COMPLÉTÉ pour let
+
+**Statut** : ✅ Terminé  
+**Impact** : Le pont Tree-sitter → Expr.Store gère désormais les expressions `let ... in`
+
+**Changements** :
+- Ajout de la gestion du nœud `var_decl` dans `lowerExprToStore`
+- Contournement du quirk Tree-sitter où `1 in` est parsé comme `app_expr`
+- Ajout de la gestion de `simple_expr` pour descendre dans l'AST
+- `lowerExprSource` détecte `var_decl + body` et construit `bindSymWithBody`
+- Tests `'x + 1'` et `'let x = 1 in x'` validés et nettoyés
+
+**Prochaines étapes** :
+- Étendre à `lambda` pour compléter le chantier D21
+- Migrer progressivement les anciens chemins de parsing (Matrix/BobId)

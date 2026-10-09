@@ -861,3 +861,21 @@ machine, 2-3 sessions) OU refactor de `evalMagic` en sous-fonctions
 - Problème : Duplication de logique, maintenance de deux IRs, complexité accrue.
 - Décision : Expr.Store (Id = Expr = Value) devient l'unique IR intermédiaire. src/syntax/lower.zig est étendu pour abaisser directement vers Expr.Store. Matrix et SurvivalTranspiler seront progressivement dépréciés et déplacés vers src/legacy/.
 - Critère de succès : 100% des constructions syntaxiques de base (binop, call, let, lambda) passent par lowerExprToStore avec succès.
+
+## Décision technique 2026-10-09 : Gestion du quirk Tree-sitter pour `let ... in`
+
+**Contexte** : Lors de l'implémentation du pont Tree-sitter → Expr.Store pour `let x = 1 in x`, nous avons découvert que Tree-sitter groupe parfois la valeur et le mot-clé `in` dans un nœud `app_expr` (ex: `"1 in"`).
+
+**Décision** : Plutôt que de modifier la grammaire Tree-sitter, nous avons implémenté un contournement dans `lowerExprToStore` :
+- Détecter si le nœud `val` est un `app_expr` ou `call`
+- Si oui, prendre son premier enfant nommé comme valeur réelle
+- Sinon, utiliser le nœud tel quel
+
+**Justification** :
+- Minimise les changements à la grammaire
+- Isolé dans un seul bloc de code facile à maintenir
+- Peut être retiré si la grammaire est corrigée plus tard
+
+**Alternatives considérées** :
+1. Modifier `grammar.js` pour forcer un nœud séparé → Risque de casser d'autres tests
+2. Ignorer `let ... in` dans le pont → Inacceptable pour le chantier D21
