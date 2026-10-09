@@ -333,3 +333,9 @@ Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
 - **Nœuds gérés** : `identifier`, `int`, `binary`, `call`/`app_expr`, `pattern`.
 - **Helper** : `lowerExprSource` encapsule le parsing pour usage externe.
 - **Roadmap** : Extension à `let` et `lambda`, puis dépréciation de `UniversalIngestor` (Matrix/BobId).
+
+### 2026-10-09 : HashMap Int→Int — durcissement (Jalon 2)
+
+- **Stable** : map_new/get/put/has, resize auto (0.75), map_free — 23/23 tests, batterie intacte.
+- **Fix** : cles negatives (map_hash normalise), clamp cap >= 1, resize libere l'ancien buffer.
+- **Note** : moins unaire `(- 5)` non supporte (evalMagic) — workaround `(- 0 5)`, gap releve pour _syntax_gaps.md.

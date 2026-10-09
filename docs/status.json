@@ -1024,6 +1024,12 @@
       "kind": "raw",
       "title": "2026-10-08 : Pipeline de Lowering (D21)",
       "content": "- **Stable** : Pont Tree-sitter -> Expr.Store via `lowerExprToStore`.\n- **Nœuds gérés** : `identifier`, `int`, `binary`, `call`/`app_expr`, `pattern`.\n- **Helper** : `lowerExprSource` encapsule le parsing pour usage externe.\n- **Roadmap** : Extension à `let` et `lambda`, puis dépréciation de `UniversalIngestor` (Matrix/BobId)."
+    },
+    {
+      "level": 3,
+      "kind": "raw",
+      "title": "2026-10-09 : HashMap Int→Int — durcissement (Jalon 2)",
+      "content": "- **Stable** : map_new/get/put/has, resize auto (0.75), map_free — 23/23 tests, batterie intacte.\n- **Fix** : cles negatives (map_hash normalise), clamp cap >= 1, resize libere l'ancien buffer.\n- **Note** : moins unaire `(- 5)` non supporte (evalMagic) — workaround `(- 0 5)`, gap releve pour _syntax_gaps.md."
     }
   ]
 }
