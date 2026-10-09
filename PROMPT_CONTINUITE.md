@@ -255,9 +255,9 @@ dans evalMagic — à froid, engine_expr.zig en zone active.
 scheduler 3/3 · bigint 30/30 · effects_rec 4/4 · io_stream 4/4 ·
 stream_lazy 8/8 · **hashmap 23/23** · zig build test 383.
 
-**Reste à faire (fin de session)** : ligne moins unaire dans
-docs/spec/_syntax_gaps.md · coche P1 dans RFC-0002.md (vérifier si la
-session bitstrings ne l'a pas déjà faite).
+**Reste à faire** : néant — soldé en fin de session (le quirk négatifs
+était déjà documenté le 2026-10-07, annoté d'une re-validation ; P1 coché
+dans RFC-0002).
 
 **Méthode validée** : le probe P1-P4 a tranché en une exécution ce que
 deux tours de correctifs avaient embrouillé. Probes d'abord, fix ensuite.
