@@ -60,7 +60,9 @@ map_get_match ptr k cap i count =
 map_get_check ptr k cap i count =
   (if (eq (map_slot_flag ptr i) 0)
     0
-    (map_get_match ptr k cap i count))
+    (if (eq (map_slot_flag ptr i) 2)
+      (map_get_next ptr k cap i count)
+      (map_get_match ptr k cap i count)))
 
 map_get_helper ptr k cap i count =
   (if (>= count cap)
@@ -75,30 +77,46 @@ map_get (MkMap ptr _ cap) k =
 
 -- ─── Insertion par probing lineaire ───
 -- On cherche soit le slot contenant deja k (update), soit un slot vide (insert).
-map_put_next ptr size k v cap i count =
-  (map_put_helper ptr size k v cap (% (+ i 1) cap) (+ count 1))
+map_first_tomb t i = (if (< t 0) i t)
 
-map_put_match ptr size k v cap i count =
+map_put_next ptr size k v cap t i count =
+  (map_put_helper ptr size k v cap t (% (+ i 1) cap) (+ count 1))
+
+map_put_match ptr size k v cap t i count =
   (if (eq (map_slot_key ptr i) k)
     (MkMap (map_slot_write ptr i k v) size cap)
-    (map_put_next ptr size k v cap i count))
+    (map_put_next ptr size k v cap t i count))
 
-map_put_free ptr size k v cap i =
-  (MkMap (map_slot_write ptr i k v) (+ size 1) cap)
+-- Mur : s'installer dans la tombe memorisee s'il y en a une, sinon ici.
+-- Reutiliser une tombe n'incremente pas size (slot deja compte) :
+-- map_length reste exact apres des del.
+map_put_wall ptr size k v cap t i =
+  (if (< t 0)
+    (MkMap (map_slot_write ptr i k v) (+ size 1) cap)
+    (MkMap (map_slot_write ptr t k v) size cap))
 
-map_put_check ptr size k v cap i count =
+-- Tombe croisee : memoriser la premiere, continuer a chercher la cle.
+map_put_tomb ptr size k v cap t i count =
+  (map_put_helper ptr size k v cap (map_first_tomb t i) (% (+ i 1) cap) (+ count 1))
+
+map_put_check ptr size k v cap t i count =
   (if (eq (map_slot_flag ptr i) 0)
-    (map_put_free ptr size k v cap i)
-    (map_put_match ptr size k v cap i count))
+    (map_put_wall ptr size k v cap t i)
+    (if (eq (map_slot_flag ptr i) 2)
+      (map_put_tomb ptr size k v cap t i count)
+      (map_put_match ptr size k v cap t i count)))
 
-map_put_helper ptr size k v cap i count =
+-- Sondage epuise : table pleine de vivants+tombes ; la tombe est dans t.
+map_put_helper ptr size k v cap t i count =
   (if (>= count cap)
-    (MkMap ptr size cap)
-    (map_put_check ptr size k v cap i count))
+    (if (< t 0)
+      (MkMap ptr size cap)
+      (MkMap (map_slot_write ptr t k v) size cap))
+    (map_put_check ptr size k v cap t i count))
 
 -- map_put_no_grow : insertion sans resize.
 map_put_no_grow map k v =
-  (map_put_helper (map_ptr map) (map_length map) k v (map_capacity map) (map_hash k (map_capacity map)) 0)
+  (map_put_helper (map_ptr map) (map_length map) k v (map_capacity map) (- 0 1) (map_hash k (map_capacity map)) 0)
 
 -- ─── Resize automatique ───
 -- Load factor : on resize si size * 4 >= cap * 3 (0.75).
@@ -111,9 +129,9 @@ map_rehash new_map old_ptr i cap =
     (map_rehash_slot new_map old_ptr i cap))
 
 map_rehash_slot new_map old_ptr i cap =
-  (if (eq (map_slot_flag old_ptr i) 0)
-    (map_rehash new_map old_ptr (+ i 1) cap)
-    (map_rehash_insert new_map old_ptr i cap))
+  (if (eq (map_slot_flag old_ptr i) 1)
+    (map_rehash_insert new_map old_ptr i cap)
+    (map_rehash new_map old_ptr (+ i 1) cap))
 
 map_rehash_insert new_map old_ptr i cap =
   let nm = (map_put_no_grow new_map (map_slot_key old_ptr i) (map_slot_value old_ptr i)) in
@@ -146,7 +164,9 @@ map_has_match ptr k cap i count =
 map_has_check ptr k cap i count =
   (if (eq (map_slot_flag ptr i) 0)
     0
-    (map_has_match ptr k cap i count))
+    (if (eq (map_slot_flag ptr i) 2)
+      (map_has_next ptr k cap i count)
+      (map_has_match ptr k cap i count)))
 
 map_has_helper ptr k cap i count =
   (if (>= count cap)
@@ -155,6 +175,35 @@ map_has_helper ptr k cap i count =
 
 map_has (MkMap ptr _ cap) k =
   (map_has_helper ptr k cap (map_hash k cap) 0)
+
+-- ─── map_del : tombstones (flag 2) ───
+-- Une tombe n'est ni un mur ni un match. Retourne 1 si supprime, 0 sinon.
+map_del_next ptr k cap i count =
+  (map_del_helper ptr k cap (% (+ i 1) cap) (+ count 1))
+
+map_del_match ptr k cap i count =
+  (if (eq (map_slot_key ptr i) k)
+    (map_del_do ptr i)
+    (map_del_next ptr k cap i count))
+
+map_del_do ptr i =
+  let _ = (poke_int64 ptr (+ (* i 3) 2) 2) in
+  1
+
+map_del_check ptr k cap i count =
+  (if (eq (map_slot_flag ptr i) 0)
+    0
+    (if (eq (map_slot_flag ptr i) 2)
+      (map_del_next ptr k cap i count)
+      (map_del_match ptr k cap i count)))
+
+map_del_helper ptr k cap i count =
+  (if (>= count cap)
+    0
+    (map_del_check ptr k cap i count))
+
+map_del (MkMap ptr _ cap) k =
+  (map_del_helper ptr k cap (map_hash k cap) 0)
 
 -- ─────────────────────────────────────────────────────────
 -- v1 : HashMap Str -> Int (separate chaining)
