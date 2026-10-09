@@ -666,6 +666,11 @@ Cause : `parseBodySmart` traite le body comme une seule ligne. Un
 Fix envisage : joindre les lignes d'un body multi-ligne dans
 `evalEquation` avant d'appeler `parseBodySmart`.
 
+### 4. Litteraux hex (0xFF)
+
+Relevé par la session bitstrings (commit `216aff9`) : `0xFF` n'est pas
+supporté par le parser — bug séparé, non corrige.
+
 ### Impact
 
 Ces trois quirks n'empechent **pas** D14/D15 de fonctionner, mais
