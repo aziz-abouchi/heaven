@@ -414,3 +414,38 @@ Effort : 1 session. Risque : faible (les tests mono-ligne passent déjà).
 1. Test minimal qui échoue (voir Bloc B ci-dessous).
 2. Étendre parse.zig:488 pour accepter branche multi-ligne.
 3. Vérifier 98/98 + suites intactes. Commit.
+
+---
+
+## Chantier : bug de comparaison Lit (2026-10-09, découvert)
+
+**Symptôme** : `(1) == 1` échoue alors que `1 == 1` passe. Idem `0x1 == 1`.
+
+**Matrice établie** :
+- `1 == 1` ✅
+- `0x1 == 0x1` ✅
+- `(1) == 1` ❌
+- `((1)) == 1` ❌
+- `1 == (1)` ❌
+- `(+ 1 0) == 1` ✅
+- `(+ (1) 0) == 1` ❌
+- `(let x 1 x) == 1` ✅
+
+**Conclusion** : parenthéser un atome le transforme en quelque chose qui
+n'est plus un `lit(int)`. Le test framework affiche `(1)` au lieu de `1`.
+
+**Hypothèses testées (sans succès)** :
+- Dédupliquer `store.addLit` → aucun effet (rollback).
+- Fix parser trivial pour `(atome)` → déplace le bug (`((1))` reste cassé).
+
+**Piste restante** : `parseSExpr("1")` retourne probablement un
+`apply(sym("1"), [])` au lieu d'un `int(1)`. À vérifier par trace dans
+`src/core/parse.zig` (branche `num_parts == 1`).
+
+**Impact** : hex et parenthèses d'atomes ne marchent pas — mais aucun
+test actuel n'utilise ces formes, donc l'impact réel est faible. Chantier
+à froid (1-2h).
+
+**Lexer hex livré** : commit `e5e84ce` (le lexer reconnaît `0x...` comme
+un seul token). Le parser ne le convertit pas encore — bloqué par ce bug.
+
