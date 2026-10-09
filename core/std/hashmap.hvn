@@ -155,3 +155,152 @@ map_has_helper ptr k cap i count =
 
 map_has (MkMap ptr _ cap) k =
   (map_has_helper ptr k cap (map_hash k cap) 0)
+
+-- ─────────────────────────────────────────────────────────
+-- v1 : HashMap Str -> Int (separate chaining)
+-- Entree : slots i64 [next, hash, len, val, bytes...]
+-- Buckets : cap slots i64 (head_ptr, 0 = vide)
+-- del = unlink (pas de tombstones). Hash fnv1a borne (xor derive).
+-- Limite v1 : cles ASCII (string_length = octets ou chars ? a verifier)
+-- ─────────────────────────────────────────────────────────
+
+data SMap = MkSMap Int Int Int
+
+smap_ptr (MkSMap p _ _) = p
+smap_size (MkSMap _ n _) = n
+smap_cap (MkSMap _ _ c) = c
+
+smap_hash_step h b = (mod (* (- (bor h b) (band h b)) 16777619) 1000000007)
+
+smap_hash_from s i h =
+  (if (= i (string_length s))
+    h
+    (smap_hash_from s (+ i 1) (smap_hash_step h (peek_byte (string_ptr s) i))))
+
+smap_hash s = (smap_hash_from s 0 2166136261)
+
+smap_bucket m s = (peek_int64 (smap_ptr m) (mod (smap_hash s) (smap_cap m)))
+
+smap_e_next e = (peek_int64 e 0)
+smap_e_hash e = (peek_int64 e 1)
+smap_e_len e = (peek_int64 e 2)
+smap_e_val e = (peek_int64 e 3)
+smap_e_byte e i = (peek_int64 e (+ 4 i))
+
+smap_eq_from e sp n i =
+  (if (= i n)
+    true
+    (if (= (smap_e_byte e i) (peek_byte sp i))
+      (smap_eq_from e sp n (+ i 1))
+      false))
+
+smap_eq e s =
+  (if (= (smap_e_len e) (string_length s))
+    (smap_eq_from e (string_ptr s) (string_length s) 0)
+    false)
+
+smap_find e s =
+  (if (= e 0)
+    0
+    (if (smap_eq e s)
+      e
+      (smap_find (smap_e_next e) s)))
+
+smap_copy_do sp e i =
+  let _ = (poke_int64 e (+ 4 i) (peek_byte sp i)) in
+  (smap_copy sp e (+ i 1))
+
+smap_copy sp e i =
+  (if (= i (smap_e_len e))
+    e
+    (smap_copy_do sp e i))
+
+smap_new_entry s v =
+  let n = (string_length s) in
+  let e = (raw_alloc (* (+ 4 n) 8)) in
+  let _ = (poke_int64 e 0 0) in
+  let _ = (poke_int64 e 1 (smap_hash s)) in
+  let _ = (poke_int64 e 2 n) in
+  let _ = (poke_int64 e 3 v) in
+  (smap_copy (string_ptr s) e 0)
+
+smap_new cap =
+  let c = (if (< cap 1) 1 cap) in
+  let ptr = (raw_alloc (* c 8)) in
+  let _ = (map_zero ptr 0 c) in
+  (MkSMap ptr 0 c)
+
+smap_update m e v =
+  let _ = (poke_int64 e 3 v) in
+  m
+
+smap_insert m s v =
+  let b = (mod (smap_hash s) (smap_cap m)) in
+  let e = (smap_new_entry s v) in
+  let _ = (poke_int64 e 0 (peek_int64 (smap_ptr m) b)) in
+  let _ = (poke_int64 (smap_ptr m) b e) in
+  (MkSMap (smap_ptr m) (+ (smap_size m) 1) (smap_cap m))
+
+smap_put m s v =
+  let e = (smap_find (smap_bucket m s) s) in
+  (if (= e 0)
+    (smap_insert m s v)
+    (smap_update m e v))
+
+smap_get m s =
+  let e = (smap_find (smap_bucket m s) s) in
+  (if (= e 0)
+    0
+    (smap_e_val e))
+
+smap_has m s =
+  (if (= (smap_find (smap_bucket m s) s) 0)
+    0
+    1)
+
+smap_free_entry e = (raw_free e (* (+ 4 (smap_e_len e)) 8))
+
+smap_unlink_head m b e =
+  let _ = (poke_int64 (smap_ptr m) b (smap_e_next e)) in
+  let _ = (smap_free_entry e) in
+  1
+
+smap_unlink_mid prev e =
+  let _ = (poke_int64 prev 0 (smap_e_next e)) in
+  let _ = (smap_free_entry e) in
+  1
+
+smap_del_from m b e prev s =
+  (if (= e 0)
+    0
+    (if (smap_eq e s)
+      (if (= prev 0)
+        (smap_unlink_head m b e)
+        (smap_unlink_mid prev e))
+      (smap_del_from m b (smap_e_next e) e s)))
+
+smap_del m s =
+  (smap_del_from m (mod (smap_hash s) (smap_cap m)) (smap_bucket m s) 0 s)
+
+smap_free_chain e =
+  (if (= e 0)
+    0
+    (smap_free_chain_do e))
+
+smap_free_chain_do e =
+  let nxt = (smap_e_next e) in
+  let _ = (smap_free_entry e) in
+  (smap_free_chain nxt)
+
+smap_free_buckets m i =
+  (if (= i (smap_cap m))
+    0
+    (smap_free_buckets_do m i))
+
+smap_free_buckets_do m i =
+  let _ = (smap_free_chain (peek_int64 (smap_ptr m) i)) in
+  (smap_free_buckets m (+ i 1))
+
+smap_free m =
+  let _ = (smap_free_buckets m 0) in
+  (raw_free (smap_ptr m) (* (smap_cap m) 8))

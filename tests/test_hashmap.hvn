@@ -44,3 +44,21 @@ test "cle negative : has": (let m (map_put (map_new 8) (- 0 5) 99) (map_has m (-
 test "cap 0 ne panique pas": (let m (map_put (map_new 0) 1 10) (map_get m 1)) == 10
 test "map_free s'execute": (let m (map_put (map_new 8) 1 10) (let z (map_free m) 1)) == 1
 test "map_free apres resize": (let m0 (map_new 2) (let m1 (map_put m0 1 10) (let m2 (map_put m1 2 20) (let z (map_free m2) 1)))) == 1
+
+-- ─── v1 : Str -> Int (chaining) ───
+test "smap get absent = 0": (smap_get (smap_new 8) "zz") == 0
+test "smap put/get": (let m (smap_put (smap_new 8) "un" 1) (smap_get m "un")) == 1
+test "smap has present": (let m (smap_put (smap_new 8) "un" 1) (smap_has m "un")) == 1
+test "smap has absent": (smap_has (smap_new 8) "zz") == 0
+test "smap deux cles": (let m0 (smap_new 8) (let m1 (smap_put m0 "un" 1) (let m2 (smap_put m1 "deux" 2) (smap_get m2 "deux")))) == 2
+test "smap overwrite": (let m0 (smap_new 8) (let m1 (smap_put m0 "k" 10) (let m2 (smap_put m1 "k" 20) (smap_get m2 "k")))) == 20
+test "smap overwrite garde taille": (let m0 (smap_new 8) (let m1 (smap_put m0 "k" 10) (let m2 (smap_put m1 "k" 20) (smap_size m2)))) == 1
+test "smap chainage cap 1": (let m0 (smap_new 1) (let m1 (smap_put m0 "a" 1) (let m2 (smap_put m1 "b" 2) (let m3 (smap_put m2 "c" 3) (smap_get m3 "b"))))) == 2
+test "smap chainage toutes survivent": (let m0 (smap_new 1) (let m1 (smap_put m0 "a" 1) (let m2 (smap_put m1 "b" 2) (let m3 (smap_put m2 "c" 3) (+ (smap_get m3 "a") (+ (smap_get m3 "b") (smap_get m3 "c"))))))) == 6
+test "smap prefixes ab/abc": (let m0 (smap_new 8) (let m1 (smap_put m0 "ab" 1) (let m2 (smap_put m1 "abc" 2) (+ (smap_get m2 "ab") (smap_get m2 "abc"))))) == 3
+test "smap del tete": (let m0 (smap_new 1) (let m1 (smap_put m0 "a" 1) (let m2 (smap_put m1 "b" 2) (let d (smap_del m2 "b") (smap_get m2 "a"))))) == 1
+test "smap del milieu": (let m0 (smap_new 1) (let m1 (smap_put m0 "a" 1) (let m2 (smap_put m1 "b" 2) (let m3 (smap_put m2 "c" 3) (let d (smap_del m3 "b") (+ (smap_get m3 "a") (smap_get m3 "c"))))))) == 4
+test "smap del puis get = 0": (let m0 (smap_new 8) (let m1 (smap_put m0 "k" 5) (let d (smap_del m1 "k") (smap_get m1 "k")))) == 0
+test "smap del absent = 0": (smap_del (smap_new 8) "zz") == 0
+test "smap_free s'execute": (let m (smap_put (smap_new 8) "k" 1) (let z (smap_free m) 1)) == 1
+test "smap_free apres del": (let m0 (smap_new 1) (let m1 (smap_put m0 "a" 1) (let m2 (smap_put m1 "b" 2) (let d (smap_del m2 "a") (let z (smap_free m2) 1))))) == 1
