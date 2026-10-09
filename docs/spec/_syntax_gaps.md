@@ -821,3 +821,32 @@ surface, S-expr en coeur**. Le parser infix supporte :
 **Why** : le parser infix (`parseSExpr` sur le body) currifie les
 operateurs prefixes s'ils ne sont pas explicitement groupes par `()`.
 
+
+## Bug : littéral dans un pattern imbriqué → InvalidSyntax à l'import (2026-10-09)
+
+Repro : une clause comme `f name (Ctor (Ctor2 "=") rest) = ...` — un
+littéral (string ou int) à l'intérieur d'un constructeur dans le LHS.
+
+**Comportement** : error.InvalidSyntax, IMPRIMÉ (civilisé — à comparer
+au fossile précédent : exit silencieux). Les patterns imbriqués SANS
+littéral passent (TCons TRParen rest ✓, TCons (TSymTok s) rest ✓).
+
+**Workaround** : dispatch conditionnel — tok_head/tok_tail + tok_eq
+pour comparer, clauses plates uniquement.
+
+## Bug : string à parenthèses non équilibrées dans une ligne importée → sortie silencieuse (2026-10-09)
+
+Repro : une ligne importée contenant un littéral dont les parenthèses
+rendent le compte naïf NÉGATIF (ex : `(PErr ") x")`).
+
+**Comportement** : exit 0 SILENCIEUX — aucun message, aucun Total.
+Seule l'absence de sortie le trahit. Strings à parenthèses équilibrées :
+survivent. Sans parenthèses : aucun effet.
+
+**Bisect** (Jalon 3) : deux lignes de shape identique — l'une vit
+(`(parse_head rest)`), l'autre tue (`(PErr ") inattendu")`). Seule
+variable : la `)` dans la string.
+
+**Workaround** : zéro parenthèse dans les strings ; pour TESTER `)`,
+construction par string_of_bytes (byte 41). **Localisation probable** :
+import.zig, scan de ligne avant parsing.
