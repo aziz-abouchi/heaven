@@ -486,3 +486,16 @@ sont déjà intégrées dans les chapitres :
   `06-effects.md`, `09-real-world.md`.
 - QTT (`let linear/erased/many x = ... in ...`) — mention dans le
   book, à enrichir.
+
+## 2026-10-09 — Chantier D21 : Unification du Lowering (100% complété)
+
+### Pont Tree-sitter → Expr.Store
+- **Statut** : ✅ COMPLÉTÉ
+- **Nœuds supportés** : identifier, int, binary, call, pattern, simple_expr, var_decl, lambda
+- **Commits** : `440a002` (let ... in), commit lambda
+- **Impact** : Le pipeline principal peut désormais utiliser exclusivement le pont Tree-sitter pour toutes les primitives de base
+
+### Lambdas
+- Support du style classique : `\x. body`
+- Curryfication automatique pour multi-paramètres
+- Intégré dans : `03-syntax-in-functions.md` (à enrichir)
