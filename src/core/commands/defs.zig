@@ -153,9 +153,83 @@ pub fn parseLambdaShortcut(cmds: anytype, name: []const u8, expr_str: []const u8
     return evalFnDef(cmds, fn_def_str);
 }
 
+/// Desugar `f <<x:4, y:8>> = body` en
+/// `f __bs = let x = (band (shr __bs O) M) in ... in body`.
+/// Retourne null si pas de bitstring en LHS.
+fn tryDesugarBitstring(cmds: anytype, input: []const u8) !?[]u8 {
+    const eq_pos = std.mem.indexOfScalar(u8, input, '=') orelse return null;
+    if (eq_pos + 1 < input.len and input[eq_pos + 1] == '=') return null;
+    const lhs = input[0..eq_pos];
+    const open = std.mem.indexOf(u8, lhs, "<<") orelse return null;
+    const close_rel = std.mem.indexOf(u8, input[open + 2 ..], ">>") orelse return null;
+    const close = open + 2 + close_rel;
+
+    const name = std.mem.trim(u8, lhs[0..open], " \t");
+    if (name.len == 0) return null;
+    if (std.mem.indexOfScalar(u8, name, ' ') != null) return null;
+
+    const segments_str = input[open + 2 .. close];
+    const body = std.mem.trim(u8, input[eq_pos + 1 ..], " \t");
+    if (body.len == 0) return null;
+
+    var names: [16][]const u8 = undefined;
+    var sizes: [16]u32 = undefined;
+    var n: usize = 0;
+    var it = std.mem.splitScalar(u8, segments_str, ',');
+    while (it.next()) |seg| {
+        const s = std.mem.trim(u8, seg, " \t");
+        if (s.len == 0) continue;
+        const colon = std.mem.indexOfScalar(u8, s, ':') orelse return null;
+        const nstr = std.mem.trim(u8, s[0..colon], " \t");
+        var szstr = std.mem.trim(u8, s[colon + 1 ..], " \t");
+        if (std.mem.indexOfScalar(u8, szstr, '/')) |slash| szstr = szstr[0..slash];
+        szstr = std.mem.trim(u8, szstr, " \t");
+        const size = std.fmt.parseInt(u32, szstr, 10) catch return null;
+        if (size == 0 or size > 64) return null;
+        if (n >= 16) return null;
+        names[n] = nstr;
+        sizes[n] = size;
+        n += 1;
+    }
+    if (n == 0) return null;
+
+    var buf = std.ArrayListUnmanaged(u8){};
+    defer buf.deinit(cmds.allocator);
+    try buf.appendSlice(cmds.allocator, name);
+    try buf.appendSlice(cmds.allocator, " __bs = ");
+
+    var offsets: [16]u32 = undefined;
+    var total: u32 = 0;
+    var i: usize = n;
+    while (i > 0) {
+        i -= 1;
+        offsets[i] = total;
+        total += sizes[i];
+    }
+
+    for (names[0..n], 0..) |nm, idx| {
+        if (std.mem.eql(u8, nm, "_")) continue;
+        const sz = sizes[idx];
+        const mask: u64 = if (sz >= 64) ~@as(u64, 0) else (@as(u64, 1) << @intCast(sz)) - 1;
+        const let_str = try std.fmt.allocPrint(cmds.allocator,
+            "let {s} = (band (shr __bs {d}) {d}) in ",
+            .{ nm, offsets[idx], mask });
+        defer cmds.allocator.free(let_str);
+        try buf.appendSlice(cmds.allocator, let_str);
+    }
+    try buf.appendSlice(cmds.allocator, body);
+    return try buf.toOwnedSlice(cmds.allocator);
+}
+
 pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
     const eq_pos = std.mem.indexOfScalar(u8, input, '=') orelse return cmds.allocator.dupe(u8, "syntax error: missing '='");
     if (eq_pos + 1 < input.len and input[eq_pos + 1] == '=') return cmds.allocator.dupe(u8, "syntax error: use single '='");
+
+    // Desugar bitstring : f <<x:4, y:8>> = body
+    if (try tryDesugarBitstring(cmds, input)) |rewritten| {
+        defer cmds.allocator.free(rewritten);
+        return evalFnDef(cmds, rewritten);
+    }
     var lhs = std.mem.trim(u8, input[0..eq_pos], " ");
     const rhs = std.mem.trim(u8, input[eq_pos + 1 ..], " ");
 

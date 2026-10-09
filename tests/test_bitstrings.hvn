@@ -1,0 +1,28 @@
+-- tests/test_bitstrings.hvn (RFC-0002, P1)
+-- Destructuration bitstring alignee octet (Int <= 64 bits).
+
+-- ─── Cas simple : 1 segment + wildcard ───
+version <<ver:4, _:28>> = ver
+
+test "version 0xF0000000 = 15": (version 4026531840) == 15
+test "version 0x12345678 = 1":  (version 305419896) == 1
+test "version 0x00000000 = 0":  (version 0) == 0
+test "version 0xFFFFFFFF = 15": (version 4294967295) == 15
+
+-- ─── IPv4 header : 32 bits = version(4) + ihl(4) + tos(8) + len(16) ───
+ipv4 <<ver:4, ihl:4, _tos:8, _len:16>> = (bor (shl ver 4) ihl)
+
+test "ipv4 0x45... -> 0x45 = 69": (ipv4 1157627904) == 69
+test "ipv4 0x12... -> 0x12 = 18": (ipv4 305419896) == 18
+test "ipv4 0xF0... -> 0xF0 = 240": (ipv4 4026531840) == 240
+
+-- ─── Offsets : premier segment / dernier segment ───
+top <<hi:8, _:24>> = hi
+test "top 0x12... = 0x12 = 18": (top 305419896) == 18
+
+bot <<_:24, low:8>> = low
+test "bot 0x...78 = 0x78 = 120": (bot 305419896) == 120
+
+-- ─── Tout en wildcards sauf un au milieu ───
+mid <<_:16, x:8, _:8>> = x
+test "mid 0x..56.. = 0x56 = 86": (mid 305419896) == 86

@@ -610,6 +610,77 @@ pub const Heaven = struct {
         }
     }
 
+    /// Desugar `f <<x:4, y:8>> = body` en
+    /// `f __bs = let x = (band (shr __bs O) M) in ... in body`.
+    /// Retourne null si pas de bitstring en LHS.
+    fn tryDesugarBitstringStr(
+        allocator: std.mem.Allocator,
+        input: []const u8,
+    ) !?[]u8 {
+        const eq_pos = std.mem.indexOfScalar(u8, input, '=') orelse return null;
+        if (eq_pos + 1 < input.len and input[eq_pos + 1] == '=') return null;
+        const lhs = input[0..eq_pos];
+        const open = std.mem.indexOf(u8, lhs, "<<") orelse return null;
+        const close_rel = std.mem.indexOf(u8, input[open + 2 ..], ">>") orelse return null;
+        const close = open + 2 + close_rel;
+
+        const name = std.mem.trim(u8, lhs[0..open], " \t");
+        if (name.len == 0) return null;
+        if (std.mem.indexOfScalar(u8, name, ' ') != null) return null;
+
+        const segments_str = input[open + 2 .. close];
+        const body = std.mem.trim(u8, input[eq_pos + 1 ..], " \t");
+        if (body.len == 0) return null;
+
+        var names: [16][]const u8 = undefined;
+        var sizes: [16]u32 = undefined;
+        var n: usize = 0;
+        var it = std.mem.splitScalar(u8, segments_str, ',');
+        while (it.next()) |seg| {
+            const s = std.mem.trim(u8, seg, " \t");
+            if (s.len == 0) continue;
+            const colon = std.mem.indexOfScalar(u8, s, ':') orelse return null;
+            const nstr = std.mem.trim(u8, s[0..colon], " \t");
+            var szstr = std.mem.trim(u8, s[colon + 1 ..], " \t");
+            if (std.mem.indexOfScalar(u8, szstr, '/')) |slash| szstr = szstr[0..slash];
+            szstr = std.mem.trim(u8, szstr, " \t");
+            const size = std.fmt.parseInt(u32, szstr, 10) catch return null;
+            if (size == 0 or size > 64) return null;
+            if (n >= 16) return null;
+            names[n] = nstr;
+            sizes[n] = size;
+            n += 1;
+        }
+        if (n == 0) return null;
+
+        var buf = std.ArrayListUnmanaged(u8){};
+        defer buf.deinit(allocator);
+        try buf.appendSlice(allocator, name);
+        try buf.appendSlice(allocator, " __bs = ");
+
+        var offsets: [16]u32 = undefined;
+        var total: u32 = 0;
+        var i: usize = n;
+        while (i > 0) {
+            i -= 1;
+            offsets[i] = total;
+            total += sizes[i];
+        }
+
+        for (names[0..n], 0..) |nm, idx| {
+            if (std.mem.eql(u8, nm, "_")) continue;
+            const sz = sizes[idx];
+            const mask: u64 = if (sz >= 64) ~@as(u64, 0) else (@as(u64, 1) << @intCast(sz)) - 1;
+            const let_str = try std.fmt.allocPrint(allocator,
+                "let {s} = (band (shr __bs {d}) {d}) in ",
+                .{ nm, offsets[idx], mask });
+            defer allocator.free(let_str);
+            try buf.appendSlice(allocator, let_str);
+        }
+        try buf.appendSlice(allocator, body);
+        return try buf.toOwnedSlice(allocator);
+    }
+
     pub fn eval(self: *Heaven, src: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, src, " \t\n\r");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "");
@@ -1069,6 +1140,18 @@ pub const Heaven = struct {
         // ─── Déclaration de type : data Name params = C1 | C2 args | ... ───
         if (std.mem.startsWith(u8, trimmed, "data ")) {
             return self.evalDataDecl(trimmed["data ".len..]);
+        }
+
+        // ─── Desugar bitstring : f <<x:4, y:8>> = body ───
+        // Doit etre fait AVANT le split sur '=' car les ':' et ',' du
+        // bitstring faussent la tokenisation en patterns.
+        if (std.mem.indexOf(u8, trimmed, "<<") != null and
+            std.mem.indexOf(u8, trimmed, ">>") != null)
+        {
+            if (try tryDesugarBitstringStr(self.allocator, trimmed)) |rewritten| {
+                defer self.allocator.free(rewritten);
+                return self.eval(rewritten);
+            }
         }
 
         // ─── DÉFINITION DE FONCTION (syntaxe équationnelle) ───
