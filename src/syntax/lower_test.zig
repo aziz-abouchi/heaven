@@ -261,26 +261,15 @@ test "pont expérimental : 'x + 1' vers Expr.Store" {
     try store.assertCoreExpr(expr_id);
 }
 
-
-
-
-
-
-
-
-
-test "pont expérimental : 'f(x)' vers Expr.Store" {
+test "pont expérimental : 'let x = 1 in x' vers Expr.Store" {
     var store = syntax_lower.core.Store.init(std.testing.allocator);
     defer store.deinit();
-
-    const source = "f(x)";
+    const source = "let x = 1 in x";
     const expr_id = try syntax_lower.lowerExprSource(&store, source);
-
-    // Attendu : apply(sym("f"), [sym("x")])
-    const expected_f = try store.sym("f");
-    const expected_x = try store.sym("x");
-    const expected_id = try store.apply(expected_f, &.{expected_x});
-
+    const expected_x_sym = try store.interner.intern("x");
+    const expected_1 = try store.int(1);
+    const expected_body = try store.sym("x");
+    const expected_id = try store.bindSymWithBody(expected_x_sym, expected_1, expected_body);
     try std.testing.expect(syntax_lower.core.structuralEql(&store, expr_id, expected_id));
     try store.assertCoreExpr(expr_id);
 }

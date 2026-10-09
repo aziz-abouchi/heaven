@@ -920,6 +920,14 @@ pub fn lowerExprToStore(
         return LowerExprError.UnsupportedNode;
     }
 
+    if (std.mem.eql(u8, kind, "simple_expr")) {
+        const child_count = ts.ts_node_named_child_count(node);
+        if (child_count > 0) {
+            return lowerExprToStore(store, ts.ts_node_named_child(node, 0), source);
+        }
+        return LowerExprError.UnsupportedNode;
+    }
+
     if (std.mem.eql(u8, kind, "identifier")) {
         const start = ts.ts_node_start_byte(node);
         const end = ts.ts_node_end_byte(node);
@@ -972,6 +980,27 @@ pub fn lowerExprToStore(
         return store.binop(op_str, left_id, right_id) catch LowerExprError.OutOfMemory;
     }
 
+    if (std.mem.eql(u8, kind, "var_decl")) {
+        const n = ts.ts_node_named_child_count(node);
+        if (n < 2) return LowerExprError.UnsupportedNode;
+        const name_node = ts.ts_node_named_child(node, 0);
+        if (std.mem.eql(u8, std.mem.span(ts.ts_node_type(name_node)), "identifier") == false) return LowerExprError.UnsupportedNode;
+        const name_start = ts.ts_node_start_byte(name_node);
+        const name_end = ts.ts_node_end_byte(name_node);
+        const name_sym = store.interner.intern(source[name_start..name_end]) catch return LowerExprError.OutOfMemory;
+        
+        const val_node = ts.ts_node_named_child(node, 1);
+        const val_kind = std.mem.span(ts.ts_node_type(val_node));
+        var actual_val_node = val_node;
+        if (std.mem.eql(u8, val_kind, "app_expr") or std.mem.eql(u8, val_kind, "call")) {
+            if (ts.ts_node_named_child_count(val_node) > 0) {
+                actual_val_node = ts.ts_node_named_child(val_node, 0);
+            }
+        }
+        const val_id = try lowerExprToStore(store, actual_val_node, source);
+        return store.bindSym(name_sym, val_id) catch LowerExprError.OutOfMemory;
+    }
+
     return LowerExprError.UnsupportedNode;
 }
 
@@ -991,8 +1020,21 @@ pub fn lowerExprSource(
     const root = ts.ts_tree_root_node(tree);
     
     const n = ts.ts_node_named_child_count(root);
-
     if (n == 0) return LowerExprError.UnsupportedNode;
+    
+    // Cas spécial : let ... in body (var_decl suivi d'une expression)
+    if (n >= 2) {
+        const first = ts.ts_node_named_child(root, 0);
+        const first_kind = std.mem.span(ts.ts_node_type(first));
+        if (std.mem.eql(u8, first_kind, "var_decl")) {
+            const bind_id = try lowerExprToStore(store, first, source);
+            const body_id = try lowerExprToStore(store, ts.ts_node_named_child(root, 1), source);
+            const bind_node = store.get(bind_id);
+            const name_sym = bind_node.payload;
+            const val_id = store.pool.items[bind_node.span_a.start];
+            return store.bindSymWithBody(name_sym, val_id, body_id) catch LowerExprError.OutOfMemory;
+        }
+    }
     
     const expr_node = ts.ts_node_named_child(root, 0);
     return lowerExprToStore(store, expr_node, source);
