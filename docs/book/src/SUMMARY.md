@@ -14,7 +14,8 @@
 - [BigInt](12-bigint.md)
 - [Concurrence coopérative](13-concurrency.md)
 - [Schémas de récursion](14-recursion-schemes.md)
-- [Under the Hood](15-under-the-hood.md)
+- [Optiques](15-optiques.md)
+- [Under the Hood](16-under-the-hood.md)
 
 ---
 
