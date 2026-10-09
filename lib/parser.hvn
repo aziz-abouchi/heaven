@@ -1,0 +1,74 @@
+-- lib/parser.hvn (Jalon 3, phase B — self-parse)
+-- Tokens -> Expr (les primitives comme ADT). Style UNE LIGNE (import).
+-- v0 : params symboles seulement (patterns = B-v1). `if`/`=` sont des
+-- symboles ici — l'EVALUATEUR (phase C) donnera leur sens.
+
+import "lib/lexer.hvn" as LX
+
+data Expr = ELitI Int | ELitS Str | ESym Str | EApply Expr Expr | EBind Str Expr | ELambda Str Expr
+data PRes = POk Expr Toks | PErr Str
+data Exprs = ENil | ECons Expr Exprs
+data Strs = SNil | SCons Str Strs
+
+parse_one LX.TNil = (PErr "fin de flux")
+parse_one (LX.TCons t rest) = (parse_tok t rest)
+
+parse_tok (LX.TIntTok n) rest = (POk (ELitI n) rest)
+parse_tok (LX.TStrTok s) rest = (POk (ELitS s) rest)
+parse_tok (LX.TSymTok s) rest = (POk (ESym s) rest)
+parse_tok LX.TLParen rest = (parse_head rest)
+parse_tok LX.TRParen rest = (PErr ") inattendu")
+
+parse_head ts = (let r (parse_one ts) (parse_head2 r))
+parse_head2 (PErr e) = (PErr e)
+parse_head2 (POk h ts) = (parse_args h ts)
+
+parse_args h ts = (let r (parse_arglist ts) (parse_args2 h r))
+parse_args2 h (PErr e) = (PErr e)
+parse_args2 h (POk as rest) = (POk (build_apply h as) rest)
+
+parse_arglist (LX.TCons LX.TRParen rest) = (POk ENil rest)
+parse_arglist ts = (let r (parse_one ts) (parse_arglist2 r))
+parse_arglist2 (PErr e) = (PErr e)
+parse_arglist2 (POk a ts) = (let r2 (parse_arglist ts) (parse_arglist3 a r2))
+parse_arglist3 a (PErr e) = (PErr e)
+parse_arglist3 a (POk as rest) = (POk (ECons a as) rest)
+
+build_apply f ENil = f
+build_apply f (ECons a rest) = (build_apply (EApply f a) rest)
+
+parse_top (LX.TCons (LX.TSymTok name) rest) = (def_scan name SNil rest)
+parse_top ts = (parse_one ts)
+
+def_scan name params (LX.TCons (LX.TSymTok "=") rest) = (def_body name params rest)
+def_scan name params (LX.TCons (LX.TSymTok s) rest) = (def_scan name (SCons s params) rest)
+def_scan name params ts = (PErr "param non-symbole (patterns : B-v1)")
+
+def_body name params ts = (let r (parse_one ts) (def_body2 name params r))
+def_body2 name params (PErr e) = (PErr e)
+def_body2 name params (POk body rest) = (POk (EBind name (lambda_wrap (strs_rev params SNil) body)) rest)
+
+strs_rev SNil acc = acc
+strs_rev (SCons s rest) acc = (strs_rev rest (SCons s acc))
+
+lambda_wrap SNil body = body
+lambda_wrap (SCons p rest) body = (ELambda p (lambda_wrap rest body))
+
+parse_file LX.TNil = ENil
+parse_file ts = (let r (parse_top ts) (parse_file2 r))
+parse_file2 (PErr e) = ENil
+parse_file2 (POk e rest) = (ECons e (parse_file rest))
+
+expr_eq (ELitI a) (ELitI b) = (= a b)
+expr_eq (ELitS a) (ELitS b) = (= a b)
+expr_eq (ESym a) (ESym b) = (= a b)
+expr_eq (EApply f1 a1) (EApply f2 a2) = (if (expr_eq f1 f2) (expr_eq a1 a2) false)
+expr_eq (EBind n1 b1) (EBind n2 b2) = (if (= n1 n2) (expr_eq b1 b2) false)
+expr_eq (ELambda p1 b1) (ELambda p2 b2) = (if (= p1 p2) (expr_eq b1 b2) false)
+expr_eq _ _ = false
+
+pok_expr (POk e _) = e
+pok_expr (PErr e) = (ESym "PARSE_ERR")
+
+expr_count ENil = 0
+expr_count (ECons _ rest) = (+ 1 (expr_count rest))
