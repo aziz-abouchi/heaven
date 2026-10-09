@@ -160,13 +160,8 @@ ou `para`.
 ---
 
 Tu as maintenant quatre schémas qui éliminent le boilerplate
-récursif sur les listes. Il reste beaucoup à explorer dans cette
-direction — les **optiques** (modifier en profondeur dans des
-records imbriqués), les **monades libres** (construire des DSL par
-composition), la **théorie des catégories** (la structure derrière
-tout ça) — mais le chapitre suivant prend un virage différent.
-
-On a construit beaucoup d'abstractions. Il est temps de voir
-comment elles sont **implémentées** : le noyau à 6 primitives, le
-tree-walker, le compilateur, et les choix qui ont façonné tout ce
-que tu viens de lire. On ouvre le capot.
+récursif sur les listes. Un autre genre de boilerplate attend :
+l'accès aux structures imbriquées. Pour lire `(fst (fst p))`, on
+écrit une fonction de reconstruction à chaque fois — et ça devient
+vite pénible. Le prochain chapitre présente une réponse
+conceptuelle : les **optiques**, et en particulier les **lenses**.
