@@ -161,29 +161,66 @@ Toujours vérifier par lecture + bisect, pas par confiance au prompt.
 
 ---
 
-## Prochaine session — options
+## Passe de contradictions — session stratégie 2026-10-08
 
-**Option A : Continuer D21 (pont Tree-sitter)** (1-2 sessions, session parallèle)
+Convergences : frontière syscall = D10 · HTTP pur = D16 · pipeline = D21 ·
+Jalon 2 = prérequis des services purs · streams = D12 (D8 = park/backpressure).
 
-- Étendre `lowerExprToStore` à `let`, `lambda`, puis migrer `UniversalIngestor`.
-- Coordination avec la session parallèle en cours (elle a déjà `call` en WIP).
+Corrections au plan stratégique :
+1. README ×3 « Mise à jour Architecture » = signature d'agent en boucle.
+   Protocole : ps aux + timestamps AVANT patch. Contenu déjà couvert par D21
+   → suppression pure (README généré de toute façon).
+2. « Un chantier à la fois » → « un chantier PAR SESSION » (règles de
+   coordination multi-sessions ci-dessous).
+3. Bitstrings : RFC + grammar.js + parse.zig = zéro conflit ; pont
+   Tree-sitter (lower.zig) APRÈS land de D21.
+4. À trancher par lecture (méthode du doc, appliquée au doc) :
+   - hashmap.hvn + test_hashmap.hvn existent déjà alors que l'option B dit
+     « nouveau fichier » — stub ? boucle ?
+   - état réel de l'exhaustivité des patterns et de l'opacité des
+     constructeurs en modules v0 — mesurer avant de chiffrer l'incrément.
 
-**Option B : HashMap en Heaven** (1 session, session principale)
+## Prochaine session — options (v2)
 
-- S'appuie sur `array.hvn`.
-- Nécessite hash function (fnv1a simple, ~10 lignes) + buckets (array d'arrays).
-- Nouveau fichier `core/std/hashmap.hvn` + tests isolés.
-- Isolable, pas de risque sur l'existant. Recommandé pour la session principale.
+**Option B (recommandée, session principale)** : HashMap — trancher le
+point 4 par lecture d'abord. Si friction `if` multi-ligne : brique
+prioritaire de l'audit d'abord (parse.zig:488, 1 session, risque faible).
 
-**Option C : parser indentation-aware** (1-2 sessions)
+**Option A (inchangée, session parallèle)** : D21 → `let`/`lambda`.
+`lower.zig`/`lower_test.zig` occupés jusqu'à land.
 
-- Résout la racine du problème `if`/`let-in`.
-- Ambitieux, casse potentiellement des tests.
-- À faire à froid, pas en fin de session.
+**Option E (nouvelle, après land D21)** : bitstrings RFC-0002, impl en deux
+temps (parse.zig + grammar.js, puis pont Tree-sitter).
 
-**Option D : HashMap + Set + List imm** (2 sessions)
+## Arc stratégique (détail → docs/ROADMAP.md)
 
-- Continuer Jalon 2 en bloc. Set dérivé de HashMap, List immutable.
+Principe : le statique d'abord · D8 quand ses consommateurs existeront ·
+le Zig ne recule jamais.
+
+1. bitstrings (RFC-0002)
+2. incrément compilateur : filtrage dépendant sur indices + exhaustivité +
+   constructeurs privés (état réel à mesurer d'abord)
+3. édifice statique : caps (D22) · typestate (D23) · MPST-en-Heaven (D24)
+4. tranche IA : MCP vérifié + mandats ToolCap/Budget (D25) — mcp_server.zig existe
+5. D8 branchement : continuations × effets, QTT-aware (composer avec D19/D20)
+6. services purs : Jalon 2 (HashMap/Set/List) puis Bitcask + Datalog sur D10
+7. facette HTTP (D16) + demo day full-Heaven
+
+Métrique-cliquet : `zig_hors_sanctuaire` dans status.json — lignes Zig hors
+sanctuaire (platform/syscalls + moteur bootstrap). CI échoue si ça monte.
+
+Hygiène (à froid, ½ journée, après vérif ps aux) : .backup_heaven/ ·
+check_all.sh chemin QBE (vendor/qbe-1.2/qbe, pas vendor/qbe/obj/qbe) ·
+fixtures dupliquées test_data/ ↔ fixtures/ · zig-pkg/ dupliqué.
+
+## Décisions à enregistrer (proposition — DECISIONS.md reste manuel)
+
+| # | Contenu |
+|---|---|
+| D22 | Caps : permissions = valeurs linéaires QTT, raffinables, constructeurs privés |
+| D23 | Typestate : un type par état, transitions linéaires consommantes |
+| D24 | MPST en Heaven : Proto/Chan, bouts issus d'un global unique |
+| D25 | Position IA : notaire MCP vérifié + mandats ToolCap/Budget |
 
 ---
 
