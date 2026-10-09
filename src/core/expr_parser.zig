@@ -228,6 +228,13 @@ pub const ExprParser = struct {
                 defer self.allocator.free(owned);
                 return self.parseExpression(owned);
             }
+            // Hex : 0x... ou 0X... (avant parseFloat qui accepte aussi 0x comme float C99)
+            if (sexpr.len >= 3 and sexpr[0] == '0' and (sexpr[1] == 'x' or sexpr[1] == 'X')) {
+                if (std.fmt.parseInt(i64, sexpr[2..], 16)) |val| {
+                    return self.store.int(val);
+                } else |_| {}
+            }
+
             // Atome (nombre, identifiant, string) — interner duplique la chaîne ✓
             if (std.fmt.parseInt(i64, sexpr, 10)) |val| {
                 return self.store.int(val);
@@ -252,6 +259,13 @@ pub const ExprParser = struct {
             }
 
             return self.store.sym(sexpr);
+        }
+
+        // 0. Hexadecimal : 0x ou 0X
+        if (trimmed.len >= 3 and trimmed[0] == '0' and (trimmed[1] == 'x' or trimmed[1] == 'X')) {
+            if (std.fmt.parseInt(i64, trimmed[2..], 16)) |val| {
+                return self.store.int(val);
+            } else |_| {}
         }
 
         // 1. Entier
@@ -642,6 +656,15 @@ pub const ExprParser = struct {
                 // Représentation Core : bind(name, val, body)
                 return try self.store.bindSymWithBody(name_sym, val_id, b);
             }
+        }
+
+        // Cas trivial : un seul token sans structure S-expr.
+        // Sans ceci, `parseSExpr("1")` (venant de `(1)`) devient
+        // `apply(sym("1"), [])` au lieu d'un `int(1)` — bug de
+        // comparaison Lit : (1) == 1 echouait, idem (0xff) == 255.
+        // On delegue a parseExpression qui gere int/float/str/bool/sym.
+        if (tokens.items.len == 1) {
+            return self.parseExpression(first);
         }
 
         // Cas 3 : application normale

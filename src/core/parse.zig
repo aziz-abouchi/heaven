@@ -191,6 +191,11 @@ pub const Parser = struct {
             return self.store.lit(.{ .str = sym });
         }
 
+        // Hex : 0x... ou 0X...
+        if (trimmed.len >= 3 and trimmed[0] == '0' and (trimmed[1] == 'x' or trimmed[1] == 'X')) {
+            if (std.fmt.parseInt(i64, trimmed[2..], 16)) |v| return self.store.int(v) else |_| {}
+        }
+
         // Entier littéral
         if (std.fmt.parseInt(i64, trimmed, 10)) |v| return self.store.int(v) else |_| {}
 
