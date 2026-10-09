@@ -727,7 +727,15 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                     return evaluate(store, env, engine, reapplied, depth + 1);
                 }
 
-                const new_apply = try store.addNode(.{ .tag = .apply, .payload = evaled_op, .aux = 0, .span_a = node.span_a, .span_b = Span.EMPTY });
+                // Fix first-class : reconstruire l'apply avec SEULEMENT les
+                // vrais arguments (skip op_id). Sans ceci, span_a garde le
+                // op_id original, le test `all_args[0] == op_id` echoue, et
+                // args contient 2 arguments au lieu de 1.
+                const args_only = if (all_args.len > 1 and all_args[0] == op_id)
+                    all_args[1..]
+                else
+                    all_args;
+                const new_apply = try store.apply(evaled_op, args_only);
                 return evaluate(store, env, engine, new_apply, depth + 1);
             }
 
