@@ -65,6 +65,29 @@ BinaryExpr    ::= Expr "within" Expr
                 | Expr ">>=" Expr
                 | Expr ">>" Expr
 
+/* Bitstrings (RFC-0002) — sucre pur, abaisse en band/shl/shr/bor */
+BinaryExpr    ::= BinaryPattern | BinaryExprB
+
+BinaryPattern ::= "<<" Segment { "," Segment } ">>"
+Segment       ::= Identifier ":" Size [ Spec ]
+                | "_" ":" Size [ Spec ]
+Size          ::= Entier
+Spec          ::= "/" ( "bits" | "little" | "big" | "signed" | "unsigned" )
+
+BinaryExprB   ::= "<<" SegExpr { "," SegExpr } ">>"
+SegExpr       ::= Expr ":" Size [ Spec ]
+
+/* Note v0.2 : alignement octet uniquement, Int <= 64 bits.
+   Endianness et rest:bits = v0.3.
+   Desugar : f <<x:4>> = body  ->  f __bs = let x = (band (shr __bs 28) 15) in body
+             <<4:4, 5:4>>      ->  (bor (shl (band 4 15) 4) (band 5 15))
+
+   Note tree-sitter : `grammar.js` (vendor) ne supporte PAS `<<...>>` en
+   contexte ambigu (collision avec `<` `<` et struct literals). Le parser
+   Zig (parse.zig + expr_parser.zig) supporte la syntaxe completement.
+   Le support tree-sitter est differe — l'editeur peut afficher un
+   highlight incorrect, la compilation reste correcte. */
+
 ---
 
 ## 4. Déclarations Clés
