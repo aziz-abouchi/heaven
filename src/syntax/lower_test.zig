@@ -273,3 +273,19 @@ test "pont expérimental : 'let x = 1 in x' vers Expr.Store" {
     try std.testing.expect(syntax_lower.core.structuralEql(&store, expr_id, expected_id));
     try store.assertCoreExpr(expr_id);
 }
+
+test "lambda style classique" {
+    var store = syntax_lower.core.Store.init(std.testing.allocator);
+    defer store.deinit();
+
+    const source = "\\x. x + 1";
+    const expr_id = try syntax_lower.lowerExprSource(&store, source);
+
+    const x_id = try store.sym("x");
+    const one_id = try store.int(1);
+    const body_id = try store.binop("+", x_id, one_id);
+    const expected_id = try store.lambda(&.{"x"}, body_id);
+
+    try std.testing.expect(syntax_lower.core.structuralEql(&store, expr_id, expected_id));
+    try store.assertCoreExpr(expr_id);
+}

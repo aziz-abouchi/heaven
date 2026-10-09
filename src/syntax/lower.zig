@@ -1000,6 +1000,26 @@ pub fn lowerExprToStore(
         const val_id = try lowerExprToStore(store, actual_val_node, source);
         return store.bindSym(name_sym, val_id) catch LowerExprError.OutOfMemory;
     }
+    if (std.mem.eql(u8, kind, "lambda")) {
+        const n = ts.ts_node_named_child_count(node);
+        if (n < 2) return LowerExprError.UnsupportedNode;
+        
+        // Extraire le paramètre (child 0)
+        const param_node = ts.ts_node_named_child(node, 0);
+        if (std.mem.eql(u8, std.mem.span(ts.ts_node_type(param_node)), "identifier") == false) {
+            return LowerExprError.UnsupportedNode;
+        }
+        const param_start = ts.ts_node_start_byte(param_node);
+        const param_end = ts.ts_node_end_byte(param_node);
+        const param_str = source[param_start..param_end];
+        
+        // Extraire le body (child 1)
+        const body_node = ts.ts_node_named_child(node, 1);
+        const body_id = try lowerExprToStore(store, body_node, source);
+        
+        // Créer le lambda (curryfication automatique pour multi-paramètres)
+        return store.lambda(&.{param_str}, body_id) catch LowerExprError.OutOfMemory;
+    }
 
     return LowerExprError.UnsupportedNode;
 }
