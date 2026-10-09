@@ -14,3 +14,13 @@ test "erreur RParen": (let rp (let b (raw_alloc 1) (let z (poke_byte b 0 41) (st
 test "erreur fin de flux": (HP.expr_eq (HP.pok_expr (HP.parse_one (HP.lex ""))) (HP.ESym "PARSE_ERR")) == true
 test "fichier deux defs": (HP.expr_count (HP.parse_file (HP.lex "a = 1 b = 2"))) == 2
 test "LE canonique fac": (HP.expr_eq (HP.pok_expr (HP.parse_top (HP.lex "fac n = (if (= n 0) 1 (* n (fac (- n 1))))"))) (HP.EBind "fac" (HP.ELambda "n" (HP.EApply (HP.EApply (HP.EApply (HP.ESym "if") (HP.EApply (HP.EApply (HP.ESym "=") (HP.ESym "n")) (HP.ELitI 0))) (HP.ELitI 1)) (HP.EApply (HP.EApply (HP.ESym "*") (HP.ESym "n")) (HP.EApply (HP.ESym "fac") (HP.EApply (HP.EApply (HP.ESym "-") (HP.ESym "n")) (HP.ELitI 1)))))))) == true
+
+-- ─── B-v1 : test/import + le différentiel (readFile via D14 : io_open/io_read) ───
+read_file path = (let fd (io_open path) (let buf (raw_alloc 65536) (let n (io_read fd buf 65536) (let c (io_close fd) (string_of_bytes buf n)))))
+test "parse test-statement": (HP.expr_eq (HP.pok_expr (HP.parse_top (HP.TCons (HP.TSymTok "test") (HP.TCons (HP.TStrTok "x") (HP.TCons (HP.TSymTok ":") (HP.TCons HP.TLParen (HP.TCons (HP.TSymTok "+") (HP.TCons (HP.TIntTok 1) (HP.TCons (HP.TIntTok 2) (HP.TCons HP.TRParen (HP.TCons (HP.TSymTok "==") (HP.TCons (HP.TIntTok 3) HP.TNil)))))))))))) (HP.ETest "x" (HP.EApply (HP.EApply (HP.ESym "+") (HP.ELitI 1)) (HP.ELitI 2)) (HP.ELitI 3))) == true
+test "parse import": (HP.expr_eq (HP.pok_expr (HP.parse_top (HP.TCons (HP.TSymTok "import") (HP.TCons (HP.TStrTok "lib/x.hvn") (HP.TCons (HP.TSymTok "as") (HP.TCons (HP.TSymTok "X") HP.TNil)))))) (HP.EImport "lib/x.hvn" "X")) == true
+test "readFile marche": (> (string_length (read_file "tests/test_eval.hvn")) 50) == true
+test "DIFF test_eval — 13 formes": (HP.expr_count (HP.parse_file (HP.lex (read_file "tests/test_eval.hvn")))) == 13
+test "DIFF test_parser — 22 formes": (HP.expr_count (HP.parse_file (HP.lex (read_file "tests/test_parser.hvn")))) == 22
+test "DIFF test_lexer — 14 formes": (HP.expr_count (HP.parse_file (HP.lex (read_file "tests/test_lexer.hvn")))) == 14
+test "DIFF forme 1 = l'import": (HP.expr_eq (HP.expr_at (HP.parse_file (HP.lex (read_file "tests/test_eval.hvn"))) 0) (HP.EImport "lib/heaven_eval.hvn" "E")) == true

@@ -55,7 +55,7 @@ tok_count (TCons _ rest) = (+ 1 (tok_count rest))
 -- symboles ici — l'EVALUATEUR (phase C) donnera leur sens.
 
 
-data Expr = ELitI Int | ELitS Str | ESym Str | EApply Expr Expr | EBind Str Expr | ELambda Str Expr
+data Expr = ELitI Int | ELitS Str | ESym Str | EApply Expr Expr | EBind Str Expr | ELambda Str Expr | EImport Str Str | ETest Str Expr Expr
 data PRes = POk Expr Toks | PErr Str
 data Exprs = ENil | ECons Expr Exprs
 data Strs = SNil | SCons Str Strs
@@ -87,8 +87,28 @@ parse_arglist3 a (POk as rest) = (POk (ECons a as) rest)
 build_apply f ENil = f
 build_apply f (ECons a rest) = (build_apply (EApply f a) rest)
 
-parse_top (TCons (TSymTok name) rest) = (def_scan name SNil rest)
+parse_top (TCons (TSymTok name) rest) = (top_named name rest)
 parse_top ts = (parse_one ts)
+top_named name rest = (if (= name "test") (test_scan rest) (if (= name "import") (import_scan rest) (def_scan name SNil rest)))
+
+test_scan ts = (test_scan2 (tok_head ts) (tok_tail ts))
+test_scan2 (TStrTok name) rest = (test_colon name rest)
+test_scan2 t rest = (PErr "nom de test attendu")
+test_colon name ts = (if (tok_eq (tok_head ts) (TSymTok ":")) (test_body name (tok_tail ts)) (PErr "double-point attendu"))
+test_body name ts = (let r (parse_one ts) (test_body2 name r))
+test_body2 name (PErr e) = (PErr e)
+test_body2 name (POk body rest) = (if (tok_eq (tok_head rest) (TSymTok "==")) (test_val name body (tok_tail rest)) (PErr "double == attendu"))
+test_val name body ts = (let r (parse_one ts) (test_val2 name body r))
+test_val2 name body (PErr e) = (PErr e)
+test_val2 name body (POk expected rest) = (POk (ETest name body expected) rest)
+
+import_scan ts = (import_scan2 (tok_head ts) (tok_tail ts))
+import_scan2 (TStrTok path) rest = (import_as path rest)
+import_scan2 t rest = (PErr "chemin d'import attendu")
+import_as path ts = (if (tok_eq (tok_head ts) (TSymTok "as")) (import_alias path (tok_tail ts)) (PErr "as attendu"))
+import_alias path ts = (import_alias2 path (tok_head ts) (tok_tail ts))
+import_alias2 path (TSymTok alias) rest = (POk (EImport path alias) rest)
+import_alias2 path t rest = (PErr "alias attendu")
 
 tok_head TNil = TNil
 tok_head (TCons t _) = t
@@ -120,10 +140,14 @@ expr_eq (ESym a) (ESym b) = (= a b)
 expr_eq (EApply f1 a1) (EApply f2 a2) = (if (expr_eq f1 f2) (expr_eq a1 a2) false)
 expr_eq (EBind n1 b1) (EBind n2 b2) = (if (= n1 n2) (expr_eq b1 b2) false)
 expr_eq (ELambda p1 b1) (ELambda p2 b2) = (if (= p1 p2) (expr_eq b1 b2) false)
+expr_eq (EImport p1 a1) (EImport p2 a2) = (if (= p1 p2) (= a1 a2) false)
+expr_eq (ETest n1 b1 v1) (ETest n2 b2 v2) = (if (= n1 n2) (if (expr_eq b1 b2) (expr_eq v1 v2) false) false)
 expr_eq _ _ = false
 
 pok_expr (POk e _) = e
 pok_expr (PErr e) = (ESym "PARSE_ERR")
 
+expr_at ENil n = (ESym "HORS_LIMITE")
+expr_at (ECons e rest) n = (if (= n 0) e (expr_at rest (- n 1)))
 expr_count ENil = 0
 expr_count (ECons _ rest) = (+ 1 (expr_count rest))
