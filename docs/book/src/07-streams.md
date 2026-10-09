@@ -154,3 +154,10 @@ sur un stream infini — la différence n'apparaît que si on oublie
 - `docs/DECISIONS.md` (D12) : décision de design de la laziness.
 - `docs/spec/_syntax_gaps.md` : quirks du parser rencontrés sur
   les streams.
+
+---
+
+Un stream est paresseux : il ne calcule que ce qu'on lui demande.
+Cette paresse, c'est déjà une forme de **contrôle**. On peut faire
+mieux : **prouver** que ce contrôle est correct. C'est le sujet du
+prochain chapitre — les théorèmes et les preuves.

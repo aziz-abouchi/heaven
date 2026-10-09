@@ -306,3 +306,10 @@ C'est exactement la meme chose que :
 
 Une continuation doit suivre sa clause (ou une autre continuation)
 -- seule, elle est refusee avec une erreur propre.
+
+---
+
+Tu sais maintenant décrire la **forme** des données — par patterns,
+par gardes, par `data`. Il reste à les **parcourir**. Et en
+fonctionnel, parcourir se dit en un mot : récursion. C'est le sujet
+du prochain chapitre, et c'est le cœur battant du paradigme.

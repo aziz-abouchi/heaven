@@ -303,3 +303,10 @@ interne de compilation.
 - Les reasoners produisent des resultats separes du Store.
 - Le premier reasoner implemente `subClassOf` transitif.
 - Une connaissance ne devient du code que par lowering explicite.
+
+---
+
+Knowledge manipule des faits abstraits. Mais il existe un savoir plus
+terre-à-terre qui pousse les primitives du langage dans leurs
+retranchements : l'arithmétique qui ne tient pas dans 64 bits. Le
+prochain chapitre construit des **BigInt** en Heaven pur.

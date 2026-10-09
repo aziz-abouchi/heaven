@@ -92,3 +92,11 @@ chantier Voie B (continuations délimitées complètes).
   deux tâches entrelacées).
 - `docs/DECISIONS.md` D8 : la décision de design.
 - `docs/spec/_concurrency.md` : plan complet (C1-C5, Voie B).
+
+---
+
+Treize chapitres plus tard, tu sais écrire, typer, prouver, exécuter,
+et faire coopérer. Il est temps d'**ouvrir le capot**. Le dernier
+chapitre montre comment tout cela tient ensemble : les 6 primitives
+du noyau, le tree-walker, le compilateur, et pourquoi ces choix
+pèsent sur chaque décision du langage.

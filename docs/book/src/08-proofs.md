@@ -325,3 +325,10 @@ Le REPL expose `:hole` (liste) et `:refine <id> <expr>` :
     heaven> :hole
     ?0 : Int
       refined to: 42
+
+---
+
+Tu sais maintenant guider une preuve, raffiner un trou, faire confiance
+au noyau CIC. Mais un théorème vit dans un fichier — il faut encore
+l'**exécuter** dans le vrai monde. Le chapitre suivant ouvre la porte
+vers l'extérieur : fichiers, réseau, acteurs, appels C.

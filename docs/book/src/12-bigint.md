@@ -100,3 +100,11 @@ digits. Au-delà, il faudra Karatsuba.
 - `tests/test_bigint.hvn` : 22 tests qui couvrent tous les cas.
 - `docs/DECISIONS.md` D17 : décision de design.
 - Prochaine étape : `bdivmod` pour compléter (RSA, pgcd).
+
+---
+
+BigInt montre qu'on peut repousser les limites **des primitives** —
+un nombre ne s'arrête plus à 2⁶⁴. Il reste un domaine où les limites
+sont plus dures à casser : le **temps**. Le prochain chapitre parle
+de concurrence coopérative — plusieurs tâches qui avancent ensemble,
+sans verrous.

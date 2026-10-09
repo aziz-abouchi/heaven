@@ -99,3 +99,10 @@ Le mode non-strict est le défaut ; `strict off` le désactive.
   (`{ foo, bar }`).
 - Alias sous `M.x` supporté pour `fn`, `let` et `theorem`. Les
   constructeurs et les `data` ne sont pas encore aliasés.
+
+---
+
+Les modules découpent le **code**. Mais un programme ne manipule pas
+seulement du code : il manipule aussi du **savoir** — des faits, des
+règles, des assertions avec provenance. Comment représenter cela dans
+le même langage ? C'est le sujet de **Knowledge**.

@@ -207,8 +207,12 @@ On en reparle en detail au chapitre 8, avec les commandes
 
 ## Où aller ensuite
 
-- Chapitre 2 — on parle de **types** : ce que Heaven sait, et comment
-  il te le dit.
+Maintenant que tu sais écrire des fonctions et les appeler, une
+question se pose : qu'est-ce que le compilateur vérifie derrière ?
+La réponse, ce sont les **types** — pas une simple étiquette, mais
+un langage que Heaven parle pour te décrire ce que ton code fait.
+
+- Chapitre 2 — **types** : ce que Heaven sait, et comment il te le dit.
 - Chapitre 3 — **pattern matching**, constructions de données, `data`.
 - Chapitre 4 — **récursion**, le cœur du fonctionnel.
 
