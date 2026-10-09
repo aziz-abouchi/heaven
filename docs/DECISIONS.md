@@ -867,3 +867,104 @@ machine, 2-3 sessions) OU refactor de `evalMagic` en sous-fonctions
 **Alternatives considérées** :
 1. Modifier `grammar.js` pour forcer un nœud séparé → Risque de casser d'autres tests
 2. Ignorer `let ... in` dans le pont → Inacceptable pour le chantier D21
+
+---
+
+## D26 — Fonctions first-class : fix du reconstruct apply (2026-10-09)
+
+**Contexte** : en implémentant les optiques (D27), on découvre que
+`((fst (pair g h)) 5)` échoue alors que `(let f (fst (pair g h)) (f 5))`
+marche. Les fonctions n'étaient pas pleinement first-class.
+
+**Cause** : dans `evaluate(.apply)` (`engine_expr.zig`), la branche
+`op_node.tag != .sym` reconstruisait un nouveau nœud `apply` avec
+`payload = evaled_op` mais `span_a = node.span_a` (l'ancien span
+incluant `op_id`). Résultat : `all_args[0] == op_id` ne matchait plus,
+et `args` contenait 2 arguments au lieu d'1.
+
+**Décision** : extraire `args_only` explicitement (skip `op_id` si
+présent) et reconstruire via `store.apply(evaled_op, args_only)`.
+
+**Impact** : débloque les optiques, free monads, DSLs — toute
+structure contenant des fonctions comme valeurs.
+
+**Commit** : `2810cc7` (9 lignes).
+
+---
+
+## D27 — Optiques v0 : lens = couple (getter, setter) (2026-10-09)
+
+**Contexte** : suite de la série Kmett. Le chapitre 15 du book
+présente les optiques. La question : implémenter ou documenter ?
+
+**Décision** : implémenter v0 minimal — `core/std/lens.hvn` (32 lignes).
+Une lens est un couple `(get, set)` construit par `lens`. Opérations :
+`view`, `set_via`, `over`. Lenses pour `Pair` (fst, snd) + une lens
+profonde manuelle.
+
+**Limitations v0** :
+- Pas de composition générique (types higher-rank absents).
+- Pas de prism / traversal.
+- Pas de record (pas de champ nommé).
+
+**Justification** : la version minimale **fonctionne** et documente ses
+limites. Le motif est capté, l'API est stable (`view`/`set_via`/`over`).
+
+**Commit** : `b11af7e`. Tests : `test_lens.hvn` 12/12.
+
+---
+
+## D28 — Free monad AST interpretable v0 (2026-10-09)
+
+**Contexte** : suite Kmett, chapitre 16. La vraie free monad demande
+des HKT + continuations valuées.
+
+**Décision** : implémenter une version dégénérée —
+`core/std/free.hvn` (49 lignes). `data Free = Pure Int | Push | Add |
+Mul | LogOp` = AST d'opérations. Plusieurs interpréteurs
+(`run_stack` sur pile, `run_trace` collecte les logs).
+
+**Limitations v0** :
+- Pas de `>>=` (bind) monadique : `Pure` marque une position de pile,
+  pas une valeur de retour. Les continuations valuées (`Int -> Free`)
+  demanderaient des lambdas dans les continuations et un type de
+  retour réifié.
+- Le nom `bind` est **réservé** (6 primitives du noyau) — le nom
+  `chain` avait été tenté puis retiré pour cause d'incompatibilité
+  sémantique.
+
+**Justification** : l'idée (séparer programme/interprétation) est plus
+importante que la généralité. L'AST est utile, honnête sur ses limites.
+
+**Commit** : `d0db939`. Tests : `test_free.hvn` 14/14.
+
+---
+
+## D29 — Literals hex + parens triviales (parser, 2026-10-09)
+
+**Contexte** : en cherchant à fixer `0xFF`, on découvre un bug
+préexistant plus profond : `(1) == 1` échoue alors que `1 == 1` passe.
+
+**Trois bugs cumulés corrigés** :
+
+1. **Lexer** (`expr.zig`) : `0xff` était tokenisé en deux tokens
+   (`0` puis `xff`), produisant `(0 xff)` = `apply(0, [xff])`.
+   Fix : lire les hex digits dans le même token `.num`.
+
+2. **`parseFloat` C99** : acceptait `0x1` (syntaxe hex float C99),
+   produisant `.float=1`. Fix : check hex **avant** `parseFloat`, dans
+   `parse.zig` et `expr_parser.zig`.
+
+3. **Cas trivial de `parseSExpr`** : un seul token sans structure
+   devenait `apply(sym(tok), [])` au lieu d'un `int`/`str`/`bool`.
+   Fix : déléguer à `parseExpression`.
+
+4. **Cas 1 de `parseSExpr`** : `(X)` sans args produisait
+   `apply(func_id, [])` fantôme. Fix : `if args.len == 0 return func_id`.
+
+**Impact** : hex fonctionnel partout, parens triviales corrigées.
+**2 bugs préexistants débusqués** au passage (parens atome, hex vs
+float).
+
+**Commits** : `e5e84ce` (lexer), `6fe55ec` (parser hex), `0881c93`
+(parens). Tests : `test_parser_literals.hvn` 23/23.
