@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-07",
+  "updated": "2026-10-06",
   "sections": [
     {
       "level": 2,
@@ -1018,6 +1018,12 @@
       "kind": "raw",
       "title": "Top priorités",
       "content": "1. **Découper `heaven_expr.zig`** (RFC-0001) — extraire IO, imports, data, holes,\n   tactics. Le monolithe freine toute évolution (WASM, tests, onboarding,\n   éventuel merge avec astra-core).\n   → **✅ 5/5 complet** (2026-09-25) : `io_handler.zig`,\n   `expr_parser.zig`, `hole_runtime.zig`, `unify_proof.zig`,\n   `std_loader.zig`, `import.zig`. Monolithe 4367 → 4101 lignes.\n2. **Unifier le pipeline logique** — `kanren_expr` + `logic/*` + `prolog`\n   derrière une API `assertFact` / `query` + 2-3 commandes REPL.\n   → **Étape 1** ✅ 2026-09-25 : `fact` + `query` en langage\n   (kanren_expr, Store-based). Étapes 2-3 : `rule` (SLD simple),\n   `?-` (Prolog) + raccord shell.\n3. **README aligné sur STATUS** (✅ fait).\n4. ~~**Type-dep v2d**~~ ✅ 2026-09-24 · ~~**v2e/v2f**~~ ✅ 2026-10-01 (unification arithmetique complete : AC + succ + mul + identites)\n   (fix `holesToEvars` + exposition `subst_v2d`).\n   ✅ v2f terminé — unification vraie (`Vec (n + m)` modulo arithmétique).\n5. **Documenter QTT** dans le book.\n6. Remplir les `std/*.hvn` restants (`kernel.hvn`, signatures sans corps).\n7. ~~Sync auto `test_suite.hvn` (natif ↔ WASM).~~ [OK] (2026-10-01)\n\nChantiers identifiés le 2026-09-25 (pas encore planifiés) :\n\n8. ~~**Spec formelle du langage** (pour LLMs) — `docs/spec/heaven.md`.~~ [OK] (2026-10-01)\n   EBNF + sémantique des formes acceptées + erreurs canoniques.\n   Descriptif d'abord (WYSIWYG), section « écarts connus ».\n   5-7 sessions. Format : 1 fichier agrégé + `grammar.ebnf`\n   + `errors.md`. Validation : tester qu'un LLM génère du\n   code qui compile avec la spec seule en contexte.\n9. **Uniformiser `src/platform`** — `native.zig` +\n   `x86_64_linux.zig` + `x86_64_windows.zig` (~90 % identiques).\n   Cible : 1 fichier commun + dispatch OS aux points critiques.\n   1-2 sessions.\n10. **Fusion kernel CIC** — `src/core/kernel.zig` (853 l.,\n    TermPool) vs `src/kernel/*` (1727 l., AST). Cible :\n    `src/kernel/` source de vérité, `core/kernel.zig` thin\n    wrapper puis suppression. 2-3 sessions. Risque élevé\n    (`proof_core`, `wasm.zig`, `cli/repl`, `frontend/parser`).\n11. ~~**`readKey` → `platform`**~~ ✅ (2026-10-01) — sorti\n    `readKeyUnix`, les `VK_*` et `INPUT_RECORD` de\n    `interactive.zig` vers `platform.readKey()`. Cohérence\n    avec la règle platform. 1 session."
+    },
+    {
+      "level": 3,
+      "kind": "raw",
+      "title": "2026-10-08 : Pipeline de Lowering (D21)",
+      "content": "- **Stable** : Pont Tree-sitter -> Expr.Store via `lowerExprToStore`.\n- **Nœuds gérés** : `identifier`, `int`, `binary`, `call`/`app_expr`, `pattern`.\n- **Helper** : `lowerExprSource` encapsule le parsing pour usage externe.\n- **Roadmap** : Extension à `let` et `lambda`, puis dépréciation de `UniversalIngestor` (Matrix/BobId).\n- **Stable** : `lowerExprToStore` gère `identifier`, `int`, `binary` avec succès.\n- **Helper** : `lowerExprSource` encapsule le parsing pour usage externe.\n- **En cours** : Extension à `call` (f(x)) et `let` (let x = 1 in x)."
     }
   ]
 }
