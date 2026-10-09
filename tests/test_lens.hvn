@@ -1,0 +1,28 @@
+-- tests/test_lens.hvn (optiques v0)
+-- Lens = (getter, setter). Travaille sur Pair.
+
+-- Helpers nommes
+inc x = (+ x 1)
+
+-- Valeur de test : (pair (pair 1 2) 3)
+mk _ = (pair (pair 1 2) 3)
+
+-- ─── view ───
+-- mk = (pair (pair 1 2) 3)
+test "view fst = (pair 1 2)": (fst (view (lens_fst 0) (mk 0))) == 1
+test "view snd = 3":          (view (lens_snd 0) (mk 0)) == 3
+test "view pp_fst = 1":       (view (lens_pp_fst 0) (mk 0)) == 1
+
+-- ─── set_via ───
+test "set snd = 30": (view (lens_snd 0) (set_via (lens_snd 0) 30 (mk 0))) == 30
+test "set pp_fst = 99": (view (lens_pp_fst 0) (set_via (lens_pp_fst 0) 99 (mk 0))) == 99
+test "set pp_fst preserve snd": (view (lens_snd 0) (set_via (lens_pp_fst 0) 99 (mk 0))) == 3
+
+-- ─── over ───
+test "over snd inc = 4": (view (lens_snd 0) (over (lens_snd 0) inc (mk 0))) == 4
+test "over pp_fst inc = 2": (view (lens_pp_fst 0) (over (lens_pp_fst 0) inc (mk 0))) == 2
+test "over pp_fst preserve snd": (view (lens_snd 0) (over (lens_pp_fst 0) inc (mk 0))) == 3
+
+-- ─── Test first-class explicite ───
+test "lens fonctionne comme valeur":
+  (let l (lens_fst 0) (fst (view l (mk 0)))) == 1

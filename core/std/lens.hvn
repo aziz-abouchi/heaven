@@ -1,0 +1,32 @@
+-- core/std/lens.hvn (optiques v0 — debloque par fix first-class)
+-- Lens = couple (getter, setter). Composition manuelle.
+
+module Lens
+
+-- ─── Construction ───
+lens get set = (pair get set)
+
+-- ─── Operations de base ───
+view l s = (fst l) s
+set_via l v s = (snd l) v s
+-- over applique f a la VALEUR CIBLEE, pas au contenant.
+over l f s = (snd l) (f (view l s)) s
+
+-- ─── Lenses pour Pair ───
+set_fst v p = (pair v (snd p))
+set_snd v p = (pair (fst p) v)
+
+-- Note : binding top-level sans argument ne marche pas en v0,
+-- parametre ignore.
+lens_fst _ = (lens fst set_fst)
+lens_snd _ = (lens snd set_snd)
+
+-- ─── Lens profonde (Pair (Pair a b) c) ───
+-- v0 : composition manuelle. Chaque niveau supplementaire = une
+-- nouvelle paire de fonctions.
+get_pp_fst p = (fst (fst p))
+set_pp_fst v p =
+  let inner = (fst p) in
+  (pair (pair v (snd inner)) (snd p))
+
+lens_pp_fst _ = (lens get_pp_fst set_pp_fst)
