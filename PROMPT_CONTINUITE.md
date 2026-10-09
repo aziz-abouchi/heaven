@@ -188,7 +188,7 @@ Corrections au plan stratégique :
 
 ## Prochaine session — options (v2)
 
-**Option B (recommandée, session principale)** : HashMap — trancher le
+**Option B (exécutée le 2026-10-09 — 50/50, CRUD complet)** : HashMap — trancher le
 point 4 par lecture d'abord. Si friction `if` multi-ligne : brique
 prioritaire de l'audit d'abord (parse.zig:488, 1 session, risque faible).
 
@@ -293,6 +293,35 @@ mettre à jour. Restauré depuis `739b62b~1` + fusion. STATUS.md avait
 
 **Hygiène relevée** : ROADMAP.md contient une section dupliquée
 (« Phase : Unification du Lowering » ×2) — fossile, à dédupliquer à froid.
+
+---
+
+## Jalon 3 : self-parse — prochaine étape majeure (décidé le 2026-10-09)
+
+Le README l'appelle : « Auto-hébergement (BigInt, I/O, structures de
+données, **puis self-parse**) ». Les trois prérequis sont tombés — le
+dernier le 2026-10-09 (hashmap CRUD complet, 50/50). La séquence dit : maintenant.
+
+**Ce qui est prêt** (validé par les probes du jour) :
+- octets : readFile (D14) · string_ptr + peek_byte · string_of_bytes
+- environnement de l'évaluateur : la smap Str (CRUD complet) est le gabarit de l'env métacirculaire
+- patterns : un parser est une ana, un évaluateur une cata, « parse puis évalue » une hylo — cata/ana/hylo/para landés le 2026-10-09
+- ADT + matching imbriqué (matchPatternDeep, 2026-10-08) · TCO mutuel ✓
+
+**Phases** :
+
+| Phase | Contenu | Sessions |
+|---|---|---|
+| A. self-lex | octets → data Tok (state machine sur peek_byte) | 1–2 |
+| B. self-parse | tokens → Expr (les 6 primitives comme ADT) | 2–4 |
+| C. évaluateur métacirculaire | eval : Env → Expr → Value (env = smap, closures = ADT) | 2–4 |
+| D. le moment bootstrap | un .hvn lit, parse et évalue un .hvn | livré par C |
+| E. différentiel | le parser Heaven passe les suites en se parsant ; le Zig reste l'arbitre | 1–2 |
+| F. vitesse | MIR × ADT → compile-qbe compile le parser | chantier MIR |
+
+**Notes** : interprété d'abord (lent mais correct), la vitesse vient de F.
+Un lexer Heaven fixe par construction le moins unaire et le hex.
+Le parser Zig ne disparaît qu'après E — il reste l'arbitre du différentiel.
 
 ---
 
