@@ -314,7 +314,7 @@ dernier le 2026-10-09 (hashmap CRUD complet, 50/50). La séquence dit : maintena
 |---|---|---|
 | A. self-lex | ✅ landé le 2026-10-09 — lib/heaven_parse.hvn (fusion), 13 tests. Style une-ligne (workaround splitter import). Deux quirks documentes rencontres et contournes en une session : splitter multi-ligne + clause 0-pattern | 1 |
 | B. self-parse | 🟡 v0 landé le 2026-10-09 — lib/heaven_parse.hvn (fusion), 14/14 (S-expr, defs sym, fac canonique). Restent : patterns, sucre | 1 |
-| C. évaluateur métacirculaire | eval : Env → Expr → Value (env = smap, closures = ADT) | 2–4 |
+| C. évaluateur métacirculaire | ✅ v0 landé le 2026-10-09 — lib/heaven_eval.hvn, MOMENT D : run_expr parse ET évalue, fac 5 = 120. VRecClosure pour la récursion, if paresseux | 1 |
 | D. le moment bootstrap | un .hvn lit, parse et évalue un .hvn | livré par C |
 | E. différentiel | le parser Heaven passe les suites en se parsant ; le Zig reste l'arbitre | 1–2 |
 | F. vitesse | MIR × ADT → compile-qbe compile le parser | chantier MIR |
