@@ -1030,6 +1030,12 @@
       "kind": "raw",
       "title": "2026-10-09 : HashMap Int→Int — durcissement (Jalon 2)",
       "content": "- **Stable** : map_new/get/put/has, resize auto (0.75), map_free — 23/23 tests, batterie intacte.\n- **Fix** : cles negatives (map_hash normalise), clamp cap >= 1, resize libere l'ancien buffer.\n- **Note** : moins unaire `(- 5)` non supporte (evalMagic) — workaround `(- 0 5)`, gap releve pour _syntax_gaps.md."
+    },
+    {
+      "level": 2,
+      "kind": "raw",
+      "title": "2026-10-09 : Chantier D21 (Lowering) COMPLÉTÉ pour let",
+      "content": "**Statut** : ✅ Terminé  \n**Impact** : Le pont Tree-sitter → Expr.Store gère désormais les expressions `let ... in`\n\n**Changements** :\n- Ajout de la gestion du nœud `var_decl` dans `lowerExprToStore`\n- Contournement du quirk Tree-sitter où `1 in` est parsé comme `app_expr`\n- Ajout de la gestion de `simple_expr` pour descendre dans l'AST\n- `lowerExprSource` détecte `var_decl + body` et construit `bindSymWithBody`\n- Tests `'x + 1'` et `'let x = 1 in x'` validés et nettoyés\n\n**Prochaines étapes** :\n- Étendre à `lambda` pour compléter le chantier D21\n- Migrer progressivement les anciens chemins de parsing (Matrix/BobId)"
     }
   ]
 }
