@@ -360,4 +360,4 @@ Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
 
 - **Stable** : smap_new/put/get/has/del/free — chaining, 39/39 (23 Int + 16 Str).
 - **Hash** : fnv1a borné, xor dérivé de band/bor — les magics bitstrings servent la stdlib.
-- **del sans tombstones** (unlink). Limite v1 : clés ASCII (string_length octets/chars à vérifier).
+- **del sans tombstones** (unlink). UTF-8 validé : string_length compte des octets.

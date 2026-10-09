@@ -62,3 +62,8 @@ test "smap del puis get = 0": (let m0 (smap_new 8) (let m1 (smap_put m0 "k" 5) (
 test "smap del absent = 0": (smap_del (smap_new 8) "zz") == 0
 test "smap_free s'execute": (let m (smap_put (smap_new 8) "k" 1) (let z (smap_free m) 1)) == 1
 test "smap_free apres del": (let m0 (smap_new 1) (let m1 (smap_put m0 "a" 1) (let m2 (smap_put m1 "b" 2) (let d (smap_del m2 "a") (let z (smap_free m2) 1))))) == 1
+
+-- ─── UTF-8 (validé par probe, 2026-10-09) ───
+test "utf8 string_length = octets": (string_length "é") == 2
+test "utf8 smap 'éa' distinct": (let m0 (smap_new 8) (let m1 (smap_put m0 "éa" 1) (let m2 (smap_put m1 "éb" 2) (smap_get m2 "éa")))) == 1
+test "utf8 smap 'éb' = 2": (let m0 (smap_new 8) (let m1 (smap_put m0 "éa" 1) (let m2 (smap_put m1 "éb" 2) (smap_get m2 "éb")))) == 2

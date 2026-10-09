@@ -1041,7 +1041,7 @@
       "level": 3,
       "kind": "raw",
       "title": "2026-10-09 : HashMap v1 Str→Int (Jalon 2)",
-      "content": "- **Stable** : smap_new/put/get/has/del/free — chaining, 39/39 (23 Int + 16 Str).\n- **Hash** : fnv1a borné, xor dérivé de band/bor — les magics bitstrings servent la stdlib.\n- **del sans tombstones** (unlink). Limite v1 : clés ASCII (string_length octets/chars à vérifier)."
+      "content": "- **Stable** : smap_new/put/get/has/del/free — chaining, 39/39 (23 Int + 16 Str).\n- **Hash** : fnv1a borné, xor dérivé de band/bor — les magics bitstrings servent la stdlib.\n- **del sans tombstones** (unlink). UTF-8 validé : string_length compte des octets."
     }
   ]
 }

@@ -161,7 +161,7 @@ map_has (MkMap ptr _ cap) k =
 -- Entree : slots i64 [next, hash, len, val, bytes...]
 -- Buckets : cap slots i64 (head_ptr, 0 = vide)
 -- del = unlink (pas de tombstones). Hash fnv1a borne (xor derive).
--- Limite v1 : cles ASCII (string_length = octets ou chars ? a verifier)
+-- Cles UTF-8 valides : string_length compte des octets (probe 2026-10-09)
 -- ─────────────────────────────────────────────────────────
 
 data SMap = MkSMap Int Int Int
