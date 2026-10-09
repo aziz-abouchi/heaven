@@ -182,7 +182,7 @@ echo "── OUTILS ──"
 line "wasmtime présent"
 command -v wasmtime >/dev/null && ok || warn
 line "QBE vendé"
-[ -x vendor/qbe/obj/qbe ] && ok || warn
+[ -x vendor/qbe-1.2/qbe ] && ok || warn
 line "t_distrib perf (optionnel)"
 if [ "$QUICK" = "0" ]; then
   cat > /tmp/chk_perf.hvn <<'HVNEOF'
