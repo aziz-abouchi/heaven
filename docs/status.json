@@ -1048,6 +1048,12 @@
       "kind": "raw",
       "title": "2026-10-09 : HashMap — map_del Int (tombstones)",
       "content": "- **Stable** : map_del carte Int→Int — tombstones (flag 2), chaîne de sondage préservée, réutilisation au put, purge au rehash.\n- **50/50** — les deux cartes (Int et Str) ont le CRUD complet."
+    },
+    {
+      "level": 3,
+      "kind": "raw",
+      "title": "2026-10-09 : Jalon 3 v0 — le moment D (lex + parse + eval en Heaven)",
+      "content": "- **Stable** : lib/heaven_parse.hvn (fusion) + lib/heaven_eval.hvn — un .hvn lit, lex, parse et évalue un .hvn (fac 5 = 120, 13/13).\n- VRecClosure (récursion), if paresseux (VIf1/VIf2), prims curryfiés, env liste persistante.\n- Fossiles d'import du jour exhumés et contournés (voir _syntax_gaps) — condamnés par construction à la phase E."
     }
   ]
 }

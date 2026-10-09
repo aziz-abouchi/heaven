@@ -366,3 +366,9 @@ Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
 
 - **Stable** : map_del carte Int→Int — tombstones (flag 2), chaîne de sondage préservée, réutilisation au put, purge au rehash.
 - **50/50** — les deux cartes (Int et Str) ont le CRUD complet.
+
+### 2026-10-09 : Jalon 3 v0 — le moment D (lex + parse + eval en Heaven)
+
+- **Stable** : lib/heaven_parse.hvn (fusion) + lib/heaven_eval.hvn — un .hvn lit, lex, parse et évalue un .hvn (fac 5 = 120, 13/13).
+- VRecClosure (récursion), if paresseux (VIf1/VIf2), prims curryfiés, env liste persistante.
+- Fossiles d'import du jour exhumés et contournés (voir _syntax_gaps) — condamnés par construction à la phase E.
