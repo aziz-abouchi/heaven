@@ -342,7 +342,9 @@ Le repo est travaillé par plusieurs sessions simultanées. Règles :
    Committer TOUJOURS avec chemins : `git commit -m "..." -- f1 f2`, et
    pré-vérifier par `git diff --cached --stat`.
    (2 incidents le 2026-10-09 : git rm → docs(readme) élargi à tort ;
-   git mv book → embarqué dans 4b8c23e « map_del tombstones ».)
+   git mv book → embarqué dans 4b8c23e « map_del tombstones ».) (3e incident : fichiers NOUVEAUX — commit -- chemins
+   échoue tant qu'ils ne sont pas connus. Pour un nouveau fichier :
+   git add d'abord, PUIS commit par chemins.)
 
 ---
 
