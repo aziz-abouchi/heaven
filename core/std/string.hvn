@@ -28,15 +28,14 @@ string_starts_with s prefix =
 
 -- Copy en self-tail : le poke en ARGUMENT du tail-call
 -- (le bounce évalue les args avant le saut, preuve : countb 10000)
-string_copy_range src_ptr src_start dst_ptr i len =
+string_copy_range src_ptr src_start dst_ptr i len dummy =
   (if (< i len)
-    (string_copy_range src_ptr src_start dst_ptr (+ i 1) len)
-    (poke_byte dst_ptr i (peek_byte src_ptr (+ src_start i))))
+    (string_copy_range src_ptr src_start dst_ptr (+ i 1) len (poke_byte dst_ptr i (peek_byte src_ptr (+ src_start i))))
     dst_ptr)
 
 -- Substring (dédoublonné, une seule définition)
 string_substring_do s start buf len =
-  let _ = (string_copy_range (string_ptr s) start buf 0 len) in
+  let _ = (string_copy_range (string_ptr s) start buf 0 len 0) in
   (string_substring_final buf len)
 
 string_substring_final buf len =
