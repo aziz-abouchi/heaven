@@ -771,6 +771,7 @@ pub fn cost(store: *const Store, id: Id) u32 {
         .relation => 2,
         else => 1,
     };
+
     switch (node.tag) {
         .apply => {
             const args = node.span_a.slice(store.pool.items);
