@@ -663,11 +663,20 @@ pub const ExprParser = struct {
         }
 
         // Cas trivial : un seul token sans structure S-expr.
-        // Sans ceci, `parseSExpr("1")` (venant de `(1)`) devient
-        // `apply(sym("1"), [])` au lieu d'un `int(1)` — bug de
-        // comparaison Lit : (1) == 1 echouait, idem (0xff) == 255.
-        // On delegue a parseExpression qui gere int/float/str/bool/sym.
+        // Deux sous-cas :
+        //   - Litteral (1, 0xff, "hi", 3.14) -> valeur directe
+        //   - Identifiant (target_os, foo)   -> appel zero-arg
+        //     `(foo)` doit etre `apply(sym("foo"), [])` pour que les
+        //     magics (target_os, etc.) s'evaluent.
+        // Sans ceci, `(1) == 1` echouait (apply(int(1), []) non
+        // evaluable) et `(target_os)` restait un symbole nu.
         if (tokens.items.len == 1) {
+            const c0 = if (first.len > 0) first[0] else 0;
+            const is_ident = (c0 >= 'a' and c0 <= 'z') or
+                (c0 >= 'A' and c0 <= 'Z') or c0 == '_';
+            if (is_ident) {
+                return self.store.apply(try self.store.sym(first), &.{});
+            }
             return self.parseExpression(first);
         }
 
