@@ -11,6 +11,31 @@ length (cons _ xs) = succ (length xs)
 null nil = true
 null (cons _ _) = false
 
+-- ─── Egalite avec la liste vide ───
+-- isEmpty xs : alias lisible pour null.
+isEmpty xs = (null xs)
+
+-- ─── Singleton ───
+-- singleton x = [x] (liste a un element).
+singleton x = (cons x nil)
+
+-- ─── Dernier element ───
+-- last xs : le dernier element. Pas de clause pour nil
+-- (comme head).
+last (cons x nil) = x
+last (cons _ xs) = (last xs)
+
+-- ─── Tout sauf le dernier ───
+-- init xs : la liste privee de son dernier element.
+-- Pas de clause pour nil (comme tail).
+init (cons _ nil) = nil
+init (cons x xs) = (cons x (init xs))
+
+-- ─── Decomposer tete + queue ───
+-- uncons xs : Some (Pair x xs) si non vide, None sinon.
+uncons nil = none
+uncons (cons x xs) = (some (pair x xs))
+
 append nil ys = ys
 append (cons x xs) ys = cons x (append xs ys)
 

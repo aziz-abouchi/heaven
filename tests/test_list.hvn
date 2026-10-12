@@ -1,0 +1,35 @@
+-- tests/test_list.hvn
+-- Module List : fonctions de base + isEmpty, singleton, last,
+-- init, uncons.
+-- Inspire de maryamyriameliamurphies.js.
+
+-- ─── head / tail / length ───
+test "head":            (head (cons 1 (cons 2 nil))) == 1
+test "tail head":       (head (tail (cons 1 (cons 2 nil)))) == 2
+test "length nil":      (length nil) == zero
+test "length 3":        (length (cons 1 (cons 2 (cons 3 nil)))) == (succ (succ (succ zero)))
+
+-- ─── null / isEmpty ───
+test "null nil":        (null nil) == true
+test "null 1":          (null (cons 1 nil)) == false
+test "isEmpty nil":     (isEmpty nil) == true
+test "isEmpty 1":       (isEmpty (cons 1 nil)) == false
+
+-- ─── singleton ───
+test "singleton length": (length (singleton 42)) == (succ zero)
+test "singleton head":   (head (singleton 42)) == 42
+
+-- ─── last ───
+test "last 1":          (last (cons 42 nil)) == 42
+test "last 3":          (last (cons 1 (cons 2 (cons 3 nil)))) == 3
+
+-- ─── init ───
+test "init 1 element":  (length (init (cons 42 nil))) == zero
+test "init 3 length":   (length (init (cons 1 (cons 2 (cons 3 nil))))) == (succ (succ zero))
+test "init head":       (head (init (cons 1 (cons 2 (cons 3 nil))))) == 1
+test "init last":       (last (init (cons 1 (cons 2 (cons 3 nil))))) == 2
+
+-- ─── uncons ───
+test "uncons nil":      (is_none (uncons nil)) == true
+test "uncons head":     (fst (from_option (pair 0 nil) (uncons (cons 7 (cons 8 nil))))) == 7
+test "uncons tail":     (head (snd (from_option (pair 0 nil) (uncons (cons 7 (cons 8 nil)))))) == 8
