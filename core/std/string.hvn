@@ -26,17 +26,15 @@ string_starts_with s prefix =
     false
     (string_starts_with_from s prefix 0 (string_length prefix)))
 
--- Copy : helpers separes pour eviter if multi-ligne avec let-in.
-string_copy_body src_ptr src_start dst_ptr i len =
-  let _ = (poke_byte dst_ptr i (peek_byte src_ptr (+ src_start i))) in
-  (string_copy_range src_ptr src_start dst_ptr (+ i 1) len)
-
+-- Copy en self-tail : le poke en ARGUMENT du tail-call
+-- (le bounce évalue les args avant le saut, preuve : countb 10000)
 string_copy_range src_ptr src_start dst_ptr i len =
   (if (< i len)
-    (string_copy_body src_ptr src_start dst_ptr i len)
+    (string_copy_range src_ptr src_start dst_ptr (+ i 1) len)
+    (poke_byte dst_ptr i (peek_byte src_ptr (+ src_start i))))
     dst_ptr)
 
--- Substring : decompose pour eviter let-in multi-ligne.
+-- Substring (dédoublonné, une seule définition)
 string_substring_do s start buf len =
   let _ = (string_copy_range (string_ptr s) start buf 0 len) in
   (string_substring_final buf len)
@@ -48,3 +46,4 @@ string_substring_final buf len =
 
 string_substring s start len =
   (string_substring_do s start (raw_alloc len) len)
+
