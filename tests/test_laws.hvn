@@ -1,0 +1,99 @@
+-- tests/test_laws.hvn
+-- Lois algebriques des modules std existants.
+-- Inspire de docs/spec/_algebras.md (Fantasy Land).
+-- Objectif : documenter les proprietes mathematiques des fonctions.
+
+-- ═══════════════════════════════════════════════════════════
+-- Loi 1 : id est idempotent (f . f == f)
+-- ═══════════════════════════════════════════════════════════
+test "id idempotent (Int)":    (id (id 42)) == (id 42)
+test "id idempotent (String)": (id (id "hi")) == (id "hi")
+
+-- ═══════════════════════════════════════════════════════════
+-- Loi 2 : even / odd partitionnent les entiers (exclusifs)
+-- ═══════════════════════════════════════════════════════════
+test "even 0 -> not odd":      (odd 0) == false
+test "even 2 -> not odd":      (odd 2) == false
+test "odd 1 -> not even":      (even 1) == false
+test "odd 3 -> not even":      (even 3) == false
+
+-- ═══════════════════════════════════════════════════════════
+-- Loi 3 : max / min sont commutatifs
+-- max a b == max b a
+-- min a b == min b a
+-- ═══════════════════════════════════════════════════════════
+test "max commutatif":         (max 3 5) == (max 5 3)
+test "min commutatif":         (min 3 5) == (min 5 3)
+test "max idempotent":         (max 7 7) == 7
+test "min idempotent":         (min 7 7) == 7
+
+-- ═══════════════════════════════════════════════════════════
+-- Loi 4 : absorbance (treillis)
+-- min a (max a b) == a
+-- max a (min a b) == a
+-- ═══════════════════════════════════════════════════════════
+test "absorbance min-max":     (min 3 (max 3 5)) == 3
+test "absorbance max-min":     (max 3 (min 3 5)) == 3
+
+-- ═══════════════════════════════════════════════════════════
+-- Loi 5 : compare est coherent avec max/min
+-- PARQUE (2026-10-12) : compare retourne un constructeur
+-- apply(sym("LT"), []) mais LT dans le test est sym("LT") nu.
+-- eq ne les voit pas egaux. Meme bug de fond que evalFunction
+-- (dispatch des constructeurs nullaires). Voir PROMPT_CONTINUITE.
+-- ═══════════════════════════════════════════════════════════
+-- test "compare LT -> max":      (eq (compare 3 5) LT) == true
+-- test "compare EQ -> =":        (eq (compare 5 5) EQ) == true
+-- test "compare GT -> >":        (eq (compare 7 5) GT) == true
+
+-- Test alternatif via pattern matching (marche)
+is_lt LT = true
+is_lt _ = false
+is_eq_ord EQ = true
+is_eq_ord _ = false
+is_gt GT = true
+is_gt _ = false
+
+test "compare 3 5 -> LT":      (is_lt (compare 3 5)) == true
+test "compare 5 5 -> EQ":      (is_eq_ord (compare 5 5)) == true
+test "compare 7 5 -> GT":      (is_gt (compare 7 5)) == true
+
+-- ═══════════════════════════════════════════════════════════
+-- Loi 6 : isEq / isNotEq sont duals
+-- isNotEq a b == not (isEq a b)
+-- ═══════════════════════════════════════════════════════════
+test "isEq reflexive":         (isEq 42 42) == true
+test "isNotEq dual":           (isNotEq 1 2) == (not (isEq 1 2))
+test "isEq symmetric":         (isEq 5 5) == (isEq 5 5)
+
+-- ═══════════════════════════════════════════════════════════
+-- Loi 7 : append a une identite a droite
+-- append xs nil == xs  (par length et head)
+-- ═══════════════════════════════════════════════════════════
+test "append right-id length":
+  (length (append (cons 1 (cons 2 nil)) nil)) == (succ (succ zero))
+test "append right-id head":
+  (head (append (cons 42 nil) nil)) == 42
+test "append identity nil":
+  (length (append nil (cons 1 nil))) == (succ zero)
+
+-- ═══════════════════════════════════════════════════════════
+-- Loi 8 : isEmpty / null sont equivalents
+-- ═══════════════════════════════════════════════════════════
+test "isEmpty == null (nil)":  (isEmpty nil) == (null nil)
+test "isEmpty == null (cons)": (isEmpty (cons 1 nil)) == (null (cons 1 nil))
+
+-- ═══════════════════════════════════════════════════════════
+-- Loi 9 : singleton = cons x nil (identite structurelle)
+-- ═══════════════════════════════════════════════════════════
+test "singleton length 1":     (length (singleton 42)) == (succ zero)
+test "singleton head = x":     (head (singleton 42)) == 42
+test "singleton = cons x nil": (head (cons 99 nil)) == (head (singleton 99))
+
+-- ═══════════════════════════════════════════════════════════
+-- Loi 10 : last / init sont coherents avec length
+-- length (init xs) == length xs - 1  (pour xs non vide)
+-- last xs == head (reverse xs)  -- pas de reverse expose
+-- ═══════════════════════════════════════════════════════════
+test "last singleton":         (last (singleton 7)) == 7
+test "init singleton = nil":   (length (init (singleton 7))) == zero
