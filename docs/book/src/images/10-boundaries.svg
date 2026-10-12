@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300" font-family="Georgia, serif">
+  <rect width="500" height="300" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    La frontiere de module
+  </text>
+  <!-- Module A -->
+  <g>
+    <rect x="40" y="70" width="180" height="180" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="130" y="100" text-anchor="middle" font-size="12" fill="#7a3b3b" font-style="italic">Module A</text>
+    <!-- Public -->
+    <rect x="60" y="120" width="140" height="40" fill="#faf7f2" stroke="#7a3b3b" stroke-width="1.5"/>
+    <text x="130" y="145" text-anchor="middle" font-size="11" fill="#2c2c2c">foo (public)</text>
+    <!-- Prive -->
+    <rect x="60" y="175" width="140" height="40" fill="#fff" stroke="#2c2c2c" stroke-width="1" stroke-dasharray="3 3"/>
+    <text x="130" y="200" text-anchor="middle" font-size="11" fill="#888">baz (prive)</text>
+  </g>
+  <!-- Module B -->
+  <g>
+    <rect x="280" y="70" width="180" height="180" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="370" y="100" text-anchor="middle" font-size="12" fill="#7a3b3b" font-style="italic">Module B</text>
+    <text x="370" y="150" text-anchor="middle" font-size="11" fill="#2c2c2c">import A</text>
+    <text x="370" y="180" text-anchor="middle" font-size="11" fill="#2c2c2c">A.foo -- OK</text>
+    <text x="370" y="205" text-anchor="middle" font-size="11" fill="#888">A.baz -- refuse</text>
+  </g>
+  <!-- Fleche -->
+  <g>
+    <line x1="220" y1="140" x2="280" y2="140" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#ab)"/>
+  </g>
+  <defs>
+    <marker id="ab" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+  <text x="250" y="280" text-anchor="middle" font-size="10" fill="#666">
+    Ce qui est public traverse la frontiere. Ce qui est prive reste dedans.
+  </text>
+</svg>
