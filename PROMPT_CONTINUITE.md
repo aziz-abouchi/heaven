@@ -204,7 +204,8 @@ Principe : le statique d'abord · D8 quand ses consommateurs existeront ·
 le Zig ne recule jamais.
 
 1. bitstrings (RFC-0002)
-2. incrément compilateur : filtrage dépendant sur indices + exhaustivité +
+2. PARSER à pile explicite (le DIFF auto-référentiel meurt — maladie du lexer, version corpus)
+3. incrément compilateur : filtrage dépendant sur indices + exhaustivité +
    constructeurs privés (état réel à mesurer d'abord)
 3. édifice statique : caps (D22) · typestate (D23) · MPST-en-Heaven (D24)
 4. tranche IA : MCP vérifié + mandats ToolCap/Budget (D25) — mcp_server.zig existe

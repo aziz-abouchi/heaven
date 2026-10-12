@@ -893,3 +893,17 @@ l'exigent — le runner/CI doit le poser.
 
 **Fix moteur (à froid)** : élargir collectTailSpine — traverser les
 appels dans les arguments du tail-call (engine_expr.zig).
+
+## Bug : string_of_bytes grosses strings + raw_free → crash (2026-10-12 soir)
+
+Repro : (string_length (string_substring (read_file "un_fichier") 0 2000)) → segfault.
+Contre-épreuve : substring sur littérale "hello world" ✓. Piste : small-string
+optimization dans string_of_bytes (inline petites / heap grosses) + raw_free
+dans string_substring → use-after-free. Localisation : engine_expr.zig (magic).
+
+## Limitation : le cycle mutuel du parser + boot croissant (2026-10-12 soir)
+
+Le parser (parse_one/tok/head/args/arglist = cycle ~10 fns, spines vides,
+zéro bounce — cf. lexer bf22d08) tenait le DIFF test_parser de justesse ;
+l'épaississement du boot (std/list lot 2.3, etc.) a fait fondre la marge.
+Fix : parser itératif à pile explicite (en données, pas en frames).
