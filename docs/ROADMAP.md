@@ -789,3 +789,114 @@ avancées de la programmation fonctionnelle.
 recursion schemes et optiques. Pour free monads, on a produit une
 version honnête mais partielle. Pour catégories, un chapitre
 conceptuel a été préféré à un bricolage qui trahirait l'idée.
+
+
+---
+
+## V1 -- Fantasy Land pour Heaven
+
+**Statut** : roadmap
+**Spec** : `docs/spec/_algebras.md`
+**Reference** : https://github.com/fantasyland/fantasy-land
+
+**Objectif** : implementer les 24 algebres de Fantasy Land en
+Heaven, avec leurs lois, pour rendre les abstractions de haut
+niveau (foncteurs, monades, monoides) utilisables directement.
+
+### Ce qui manque (prerequis)
+
+Trois briques fondamentales :
+
+1. **HKT** (Higher-Kinded Types). Un parametre de type qui est
+   lui-meme un constructeur de type (`f a` ou `f` est une variable).
+   V0.5 a les bases (types en position d'argument, auto-evaluation
+   des constructeurs), mais pas l'unification bidirectionnelle.
+
+2. **Type classes**. Un mecanisme pour definir des contrats que
+   plusieurs types implementent :
+
+       class Functor f where
+         fmap : (a -> b) -> f a -> f b
+
+       instance Functor List where
+         fmap = map
+
+3. **Quantification universelle** (`forall`). Pour les
+   transformations naturelles et les signatures polymorphes :
+
+       forall a. F a -> G a
+
+### Phases d'implementation
+
+| Phase | Contenu | Effort |
+|---|---|---|
+| **V1-a** | HKT : unification bidirectionnelle + occur-check | 3-5 sessions |
+| **V1-b** | Type classes : syntaxe + resolution | 2-3 sessions |
+| **V1-c** | Algebres de base : Setoid, Semigroup, Monoid, Ord | 2-3 sessions |
+| **V1-d** | Functor, Apply, Applicative, Chain, Monad | 3-4 sessions |
+| **V1-e** | Foldable, Traversable | 2-3 sessions |
+| **V1-f** | Extend, Comonad, Bifunctor, Profunctor | 2-3 sessions |
+| **V1-g** | Tests des lois (`tests/test_laws.hvn`) | 1 session |
+
+**Total estime** : 15-22 sessions (30-45h).
+
+### Modules cibles
+
+Chaque algebre aura son module dans `core/std/` :
+
+- `core/std/setoid.hvn` — `equals`
+- `core/std/semigroup.hvn` — `concat`
+- `core/std/monoid.hvn` — `mempty`, `mconcat`
+- `core/std/ord.hvn` — `Ordering` (LT/EQ/GT), `compare`, `min`, `max`
+- `core/std/functor.hvn` — `fmap`
+- `core/std/applicative.hvn` — `pure`, `ap`
+- `core/std/monad.hvn` — `chain`, `join`
+- `core/std/foldable.hvn` — `fold`, `foldMap`
+- `core/std/traversable.hvn` — `traverse`
+
+Chaque fichier aura un en-tete citant Fantasy Land et
+`docs/spec/_algebras.md`.
+
+### Tests des lois
+
+Un fichier dedie `tests/test_laws.hvn` verifie que chaque
+instance respecte les lois de son algebre. Exemples :
+
+    -- Functor : identite
+    test "Functor List id": (fmap id (list 1 2 3)) == (list 1 2 3)
+
+    -- Monoid : identite a gauche
+    test "Monoid List left-id": (concat mempty (list 1 2 3)) == (list 1 2 3)
+
+    -- Setoid : reflexivite
+    test "Setoid Int refl": (equals 42 42) == true
+
+Les lois doivent **toutes** passer. Une instance qui ne les
+respecte pas n'est pas validee.
+
+### Dependances externes
+
+- **Fantasy Land** — https://github.com/fantasyland/fantasy-land
+- **`maryamyriameliamurphies.js`** — structure des modules
+  (https://github.com/sjsyrek/maryamyriameliamurphies.js)
+- **`lens`** (Kmett) — profunctor optics
+- **`free`** (Kmett) — free monads
+- **`adjunctions`** (Kmett) — adjonctions
+
+Voir `docs/book/src/F-references.md` pour la liste complete.
+
+### Lien avec le book
+
+Les algebres sont mentionnees dans :
+
+- **Ch2 (types)** — la notion d'« algebre » au sens de
+  Fantasy Land
+- **Ch5 (higher-order)** — Functor, lois de `map`
+- **Ch6 (effects)** — Monad, lois de `bind`
+- **Ch14 (recursion schemes)** — endofoncteurs implicites
+- **Ch15 (optiques)** — Profunctor
+- **Ch16 (free monads)** — Monad
+- **Ch17 (categories)** — cadre theorique complet
+
+Une fois V1 en place, ces chapitres pourront etre enrichis avec
+des exemples qui utilisent les type classes directement.
