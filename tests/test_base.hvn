@@ -1,0 +1,26 @@
+-- tests/test_base.hvn
+-- Module Base : id, constant, flip, until, even, odd.
+-- Inspire de maryamyriameliamurphies.js.
+
+-- ─── id ───
+test "id 42":        (id 42) == 42
+test "id hello":     (id "hello") == "hello"
+test "id true":      (id true) == true
+test "id (id 1)":    (id (id 1)) == 1
+
+-- ─── constant ───
+test "constant 1 2":    (constant 1 2) == 1
+test "constant 1 99":   (constant 1 99) == 1
+test "constant foo bar": (constant "foo" "bar") == "foo"
+
+-- ─── flip ───
+sub a b = (- a b)
+test "sub 5 3":       (sub 5 3) == 2
+test "flip sub 5 3":  (flip sub 5 3) == (0 - 2)
+
+-- ─── even / odd ───
+test "even 0":        (even 0) == true
+test "even 4":        (even 4) == true
+test "even 5":        (even 5) == false
+test "odd 3":         (odd 3) == true
+test "odd 4":         (odd 4) == false

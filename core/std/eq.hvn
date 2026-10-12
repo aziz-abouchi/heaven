@@ -1,0 +1,16 @@
+-- core/std/eq.hvn
+-- Egalite booleenne (Setoid au sens de Fantasy Land).
+-- Inspire par maryamyriameliamurphies.js (Steven J. Syrek).
+-- https://github.com/sjsyrek/maryamyriameliamurphies.js
+-- Voir docs/book/src/F-references.md et docs/spec/_algebras.md.
+
+module Eq
+
+-- ─── Egalite ───
+-- isEq a b : vrai si a == b.
+-- Wrapper autour de la primitive `eq` pour l'API Fantasy Land
+-- (`equals`).
+isEq a b = (eq a b)
+
+-- isNotEq a b : vrai si a /= b.
+isNotEq a b = (not (eq a b))

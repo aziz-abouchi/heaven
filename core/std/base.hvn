@@ -1,0 +1,38 @@
+-- core/std/base.hvn
+-- Fonctions de base : identite, constance, flip, iteration, parite.
+-- Inspire par maryamyriameliamurphies.js (Steven J. Syrek).
+-- https://github.com/sjsyrek/maryamyriameliamurphies.js
+-- Voir docs/book/src/F-references.md.
+
+module Base
+
+-- ─── Identite ───
+-- id x = x
+-- Retourne son argument inchange. Utile comme point de depart
+-- pour la composition et les lois des foncteurs (fmap id == id).
+id x = x
+
+-- ─── Constance ───
+-- constant x _ = x
+-- Ignore son second argument. Utile pour creer des fonctions
+-- qui retournent toujours la meme valeur.
+constant x _ = x
+
+-- ─── Flip ───
+-- flip f x y = f y x
+-- Inverse l'ordre des arguments d'une fonction binaire.
+flip f x y = (f y x)
+
+-- ─── Iteration ───
+-- until p f x : applique f jusqu'a ce que p soit vrai.
+-- until p f x = if (p x) then x else until p f (f x)
+-- Exemple : (until (
+. (> n 10)) (
+. (* n 2)) 1) -> 16
+until p f x = (if (p x) x (until p f (f x)))
+
+-- ─── Parite ───
+-- even n : vrai si n est pair.
+-- odd n  : vrai si n est impair.
+even n = (eq (mod n 2) 0)
+odd n = (not (even n))

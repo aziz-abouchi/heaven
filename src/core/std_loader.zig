@@ -30,6 +30,9 @@ pub const files = [_][]const u8{
     "core/std/recursion.hvn",
     "core/std/lens.hvn",
     "core/std/free.hvn",
+    "core/std/base.hvn",
+    "core/std/eq.hvn",
+    "core/std/ord.hvn",
 };
 
 /// Charge tous les fichiers std dans le `heaven` fourni.

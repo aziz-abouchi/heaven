@@ -1,0 +1,8 @@
+-- tests/test_eq.hvn
+-- Module Eq : isEq, isNotEq.
+
+test "isEq 1 1":        (isEq 1 1) == true
+test "isEq 1 2":        (isEq 1 2) == false
+test "isEq a a":        (isEq "a" "a") == true
+test "isNotEq 1 2":     (isNotEq 1 2) == true
+test "isNotEq 1 1":     (isNotEq 1 1) == false

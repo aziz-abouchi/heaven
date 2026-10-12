@@ -1,0 +1,36 @@
+-- core/std/ord.hvn
+-- Ordre total (Ord au sens de Fantasy Land).
+-- Inspire par maryamyriameliamurphies.js (Steven J. Syrek).
+-- https://github.com/sjsyrek/maryamyriameliamurphies.js
+-- Voir docs/book/src/F-references.md et docs/spec/_algebras.md.
+
+module Ord
+
+-- ─── Ordering ───
+-- Trois valeurs possibles pour comparer deux elements.
+data Ordering = LT | EQ | GT
+
+-- ─── Comparaison ───
+-- compare a b : retourne LT, EQ ou GT.
+-- Stipule que a < b -> LT, a == b -> EQ, a > b -> GT.
+compare a b = (if (< a b) LT (if (> a b) GT EQ))
+
+-- ─── Predicats derives ───
+-- lessThan a b : vrai si a < b.
+lessThan a b = (< a b)
+
+-- lessThanOrEqual a b : vrai si a <= b.
+lessThanOrEqual a b = (<= a b)
+
+-- greaterThan a b : vrai si a > b.
+greaterThan a b = (> a b)
+
+-- greaterThanOrEqual a b : vrai si a >= b.
+greaterThanOrEqual a b = (>= a b)
+
+-- ─── Min / Max ───
+-- max a b : retourne le plus grand des deux.
+max a b = (if (> a b) a b)
+
+-- min a b : retourne le plus petit des deux.
+min a b = (if (< a b) a b)

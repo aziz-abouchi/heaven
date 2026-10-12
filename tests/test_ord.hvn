@@ -1,0 +1,22 @@
+-- tests/test_ord.hvn
+-- Module Ord : Ordering, compare, min, max, predicats.
+
+-- ─── min / max ───
+test "max 3 5":         (max 3 5) == 5
+test "max 5 3":         (max 5 3) == 5
+test "max 5 5":         (max 5 5) == 5
+test "min 3 5":         (min 3 5) == 3
+test "min 5 3":         (min 5 3) == 3
+
+-- ─── Predicats ───
+test "lessThan 3 5":    (lessThan 3 5) == true
+test "lessThan 5 3":    (lessThan 5 3) == false
+test "lte 5 5":         (lessThanOrEqual 5 5) == true
+test "lte 3 5":         (lessThanOrEqual 3 5) == true
+test "greaterThan 5 3": (greaterThan 5 3) == true
+test "gte 5 5":         (greaterThanOrEqual 5 5) == true
+
+-- ─── compare : LT / EQ / GT ───
+test "compare 3 5 = LT": (compare 3 5) == LT
+test "compare 5 5 = EQ": (compare 5 5) == EQ
+test "compare 7 5 = GT": (compare 7 5) == GT
