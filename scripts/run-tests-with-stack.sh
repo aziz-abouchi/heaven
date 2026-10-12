@@ -8,7 +8,7 @@
 # utilisateur. Sur 8 MB, ~200 niveaux. Au-dela : segfault.
 # Ce script augmente la stack pour les cas qui depassent.
 
-ulimit -s unlimited 2>/dev/null || ulimit -s 65536
+ulimit -Ss unlimited 2>/dev/null || ulimit -Ss 65536
 
 cd "$(dirname "$0")/.." || exit 1
 

@@ -851,7 +851,20 @@ variable : la `)` dans la string.
 construction par string_of_bytes (byte 41). **Localisation probable** :
 import.zig, scan de ligne avant parsing.
 
-## Bug : TCO de l'interpréteur n'engage pas pour les tail-calls à arguments calculés (2026-10-09, soir)
+## Limitation : récursion non-terminale ~200 niveaux à pile 8 Mo (CORRECTION du 2026-10-12)
+
+L'entrée du 2026-10-09 soir accusait à tort « les tail-calls à arguments
+calculés ». Réfuté le 2026-10-12 par probe (10k itérations self-tail à
+argument calculé : ✓). Le save/restore TCO existait (engine_expr.zig:490).
+
+La vraie cause des morts du différentiel : **tok_count/parse sont des
+récursions NON-terminales** sur des listes longues (800 tokens) →
+limite D20 ~200 niveaux à 8 Mo. Le lexer (self-tail) était innocent.
+
+Workaround : pile (run-tests-with-stack.sh, corrigé en -Ss).
+Vraie fix : trampoline/itération des folds longs, ou pile au runner.
+
+## [ARCHIVÉ 2026-10-09 soir] TCO à arguments calculés — théorie réfutée
 
 Cinq itérations (Jalon 3, DIFF sur fichiers réels) :
 

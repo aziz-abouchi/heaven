@@ -342,6 +342,10 @@ Le repo est travaillé par plusieurs sessions simultanées. Règles :
    / `git rm` d'une autre session s'y retrouve et file dans votre commit.
    Committer TOUJOURS avec chemins : `git commit -m "..." -- f1 f2`, et
    pré-vérifier par `git diff --cached --stat`.
+6. Le binaire de test est TOUJOURS `-Doptimize=ReleaseFast` (D20). Un
+   `zig build` nu = Debug = frames ×4 = FAUX NÉGATIFS massifs (2026-10-12 :
+   4 suites mortes pour rien). Vérifier la taille : ~23 Mo = ReleaseFast,
+   ~83 Mo = Debug. Le triomphe du DebugAllocator de cette conversation.
    (2 incidents le 2026-10-09 : git rm → docs(readme) élargi à tort ;
    git mv book → embarqué dans 4b8c23e « map_del tombstones ».) (3e incident : fichiers NOUVEAUX — commit -- chemins
    échoue tant qu'ils ne sont pas connus. Pour un nouveau fichier :
