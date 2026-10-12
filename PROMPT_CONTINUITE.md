@@ -544,6 +544,27 @@ parametres correctement. Bizarrement, `hashmap.hvn`,
 tests -- donc le bug est peut-etre plus subtil (specifique aux
 constructeurs imbriques `Pair`/`Cons` ?).
 
+**Diagnostic affine (2026-10-12 apres-midi)** : le bug touche
+la **chaine d'applications sur lambdas imbriquees**, pas juste
+les multi-args. Manifestations observees :
+
+1. `mkpair x y = (Pair x y)` puis `(mkpair 1 2)` -> `(Pair x y)`
+   (variables non substituees).
+2. `curry f = (\a. (\b. (f (pair a b))))` puis `((curry g) 3 4)`
+   -> `(lambda b (f (pair (pair 3 4) b)))` -- le premier argument
+   `3` est lie a la **valeur totale** `(pair 3 4)`, pas a `a`.
+3. `zip` (2 listes) -> variables `x` et `y` du pattern restent
+   non liees.
+
+**Note positive** : `uncurry f (pair a b)` (1 parametre + lambda
+interne applique avec 2 args via let) **marche**. Le bug est
+specifiquement dans le **dispatch de la curryfication implicite**
+du moteur, pas dans la substitution elle-meme.
+
+**Tests parques** :
+- `tests/test_stream.hvn` : 2 tests zip
+- `tests/test_pair.hvn` : tests curry (parques en commentaire)
+
 **Tests parques** : 2 tests dans `test_stream.hvn` (zip).
 
 **Effort estime** : 1h - 1 session. Necessite de tracer
