@@ -96,3 +96,48 @@ any p (cons x xs) = (if (p x) true (any p xs))
 
 elem _ nil = false
 elem x (cons y ys) = if (= x y) true (elem x ys)
+
+-- ─── Interspersion ───
+-- intersperse sep [a, b, c] = [a, sep, b, sep, c].
+intersperse _ nil = nil
+intersperse sep (cons x rest) = (cons x (intersperse_tail sep rest))
+
+intersperse_tail _ nil = nil
+intersperse_tail sep rest = (cons sep (intersperse sep rest))
+
+-- ─── Replication ───
+-- replicate n x = [x, x, ..., x] (n fois).
+replicate zero _ = nil
+replicate (succ n) x = (cons x (replicate n x))
+
+-- ─── Suppression des doublons ───
+-- nub [1, 2, 1, 3, 2] = [1, 2, 3].
+nub nil = nil
+nub (cons x rest) = (cons x (nub (remove_all x rest)))
+
+remove_all _ nil = nil
+remove_all x (cons y rest) = (if (eq x y) (remove_all x rest) (cons y (remove_all x rest)))
+
+-- ─── Recherche dans une liste de paires ───
+-- lookup k [(k1, v1), (k2, v2)] = Some vi si k == ki, sinon None.
+lookup _ nil = none
+lookup k (cons p rest) =
+  let key = (fst p) in
+  let val = (snd p) in
+  (if (eq k key) (some val) (lookup k rest))
+
+-- ─── Index d'un element ───
+-- elemIndex x xs : Some i du premier i ou (xs[i] == x), None sinon.
+-- Note : on utilise les entiers litteraux (0, (+ i 1)) plutot que
+-- Peano (zero/succ) car le test framework compare avec des litteraux
+-- (bug de fond : zero != 0). Voir PROMPT_CONTINUITE.
+elemIndex x xs = (elemIndex_from x xs 0)
+
+elemIndex_from _ nil _ = none
+elemIndex_from x (cons y rest) i =
+  (if (eq x y) (some i) (elemIndex_from x rest (+ i 1)))
+
+-- ─── concatMap ───
+-- concatMap f xs = concat (map f xs).
+concat_map _ nil = nil
+concat_map f (cons x rest) = (append (f x) (concat_map f rest))

@@ -57,3 +57,34 @@ test "find 5":      (from_option 0 (find is5 (cons 1 (cons 5 (cons 3 nil))))) ==
 -- ─── any ───
 test "any gt0 [1,2]":  (any gt0 (cons 1 (cons 2 nil))) == true
 test "any nil":        (any gt0 nil) == false
+
+-- ─── Lot 2.3 : intersperse, replicate, nub, lookup, elemIndex, concat_map ───
+
+-- intersperse
+test "intersperse head":  (head (intersperse 0 (cons 1 (cons 2 (cons 3 nil))))) == 1
+test "intersperse len":   (length (intersperse 0 (cons 1 (cons 2 (cons 3 nil))))) == 5
+
+-- replicate
+test "replicate 3 len":   (length (replicate 3 42)) == 3
+test "replicate 0 len":   (length (replicate 0 42)) == 0
+test "replicate head":    (head (replicate 2 7)) == 7
+
+-- nub
+test "nub [1,1,2] len":   (length (nub (cons 1 (cons 1 (cons 2 nil))))) == 2
+test "nub [1,2,1] len":   (length (nub (cons 1 (cons 2 (cons 1 nil))))) == 2
+test "nub [1,2,3] len":   (length (nub (cons 1 (cons 2 (cons 3 nil))))) == 3
+
+-- lookup
+test "lookup 1":          (from_option 0 (lookup 1 (cons (pair 1 10) (cons (pair 2 20) nil)))) == 10
+test "lookup 2":          (from_option 0 (lookup 2 (cons (pair 1 10) (cons (pair 2 20) nil)))) == 20
+test "lookup absente":    (is_none (lookup 99 (cons (pair 1 10) nil))) == true
+
+-- elemIndex
+test "elemIndex 0":       (from_option 99 (elemIndex 1 (cons 1 (cons 2 nil)))) == 0
+test "elemIndex 1":       (from_option 99 (elemIndex 2 (cons 1 (cons 2 nil)))) == 1
+test "elemIndex absente": (is_none (elemIndex 99 (cons 1 (cons 2 nil)))) == true
+
+-- concat_map
+double x = (cons x (cons x nil))
+test "concat_map len":    (length (concat_map double (cons 1 (cons 2 nil)))) == 4
+test "concat_map head":   (head (concat_map double (cons 1 (cons 2 nil)))) == 1
