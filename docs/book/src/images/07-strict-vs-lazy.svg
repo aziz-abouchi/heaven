@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300" font-family="Georgia, serif">
+  <rect width="500" height="300" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Deux facons de calculer une suite
+  </text>
+  <!-- Strict (gauche) -->
+  <g>
+    <text x="130" y="70" text-anchor="middle" font-size="12" font-style="italic" fill="#7a3b3b">Strict</text>
+    <text x="130" y="90" text-anchor="middle" font-size="10" fill="#666">tout est calcule d'avance</text>
+    <rect x="40" y="110" width="180" height="40" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="130" y="135" text-anchor="middle" font-size="12" fill="#2c2c2c">[1, 2, 3, 4, 5, ...]</text>
+    <text x="130" y="175" text-anchor="middle" font-size="10" fill="#666">meme si on n'en veut que 3</text>
+    <text x="130" y="195" text-anchor="middle" font-size="10" fill="#7a3b3b">memoire : tout</text>
+  </g>
+  <!-- Laziness (droite) -->
+  <g>
+    <text x="370" y="70" text-anchor="middle" font-size="12" font-style="italic" fill="#7a3b3b">Paresseux</text>
+    <text x="370" y="90" text-anchor="middle" font-size="10" fill="#666">calcule sur demande</text>
+    <rect x="280" y="110" width="180" height="40" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="370" y="135" text-anchor="middle" font-size="12" fill="#2c2c2c">1 : ? : ? : ? : ...</text>
+    <text x="370" y="175" text-anchor="middle" font-size="10" fill="#666">seul le 1er est pret</text>
+    <text x="370" y="195" text-anchor="middle" font-size="10" fill="#7a3b3b">memoire : juste ce qu'il faut</text>
+  </g>
+  <text x="250" y="245" text-anchor="middle" font-size="11" fill="#2c2c2c" font-style="italic">
+    Le paresseux ne calcule que ce qu'on lui demande.
+  </text>
+  <text x="250" y="270" text-anchor="middle" font-size="10" fill="#666">
+    Les ? sont des thunks en attente.
+  </text>
+</svg>

@@ -1,163 +1,261 @@
-# Chapitre 7 — Streams
+# Chapitre 7 — Streams : calculer à la demande
+
+> *« La paresse est parfois une vertu : elle économise le travail
+> inutile. »*
+> — Anonyme
 
 Un **stream** est une suite d'éléments. Tu en as déjà vu dans les
 chapitres précédents, sous forme de `Cons x rest | End`. Ce chapitre
 montre ce qui les rend vraiment utiles : leur **paresse**.
 
-## La structure
+## 1. Deux façons de calculer une suite
 
-    data Stream a = Cons a (Stream a) | End
+![Strict vs paresseux](images/07-strict-vs-lazy.svg)
 
-Un stream est soit vide (`End`), soit un élément suivi d'un autre
-stream (`Cons x rest`). Rien de nouveau. La différence : dans un
-stream **paresseux**, `rest` n'est pas encore évalué.
+Imagine deux manières de calculer la suite des nombres :
 
-## delay et force
+**Version stricte** — on calcule *tout d'avance*. Si on demande les
+10 000 premiers entiers, on les calcule tous, on les stocke tous, on
+les rend tous. Même si on n'en veut que trois.
 
-Deux magics manipulent le calcul différé :
+**Version paresseuse** — on calcule *à la demande*. On prépare le
+premier élément, et un **plan** pour calculer les suivants. Si on ne
+demande que trois éléments, on n'en calcule que trois. Le reste
+attend.
+
+C'est comme la différence entre :
+
+- Écrire tous les chapitres d'un livre avant de le publier.
+- Publier le premier chapitre, et n'écrire le suivant que si quelqu'un
+  le demande.
+
+Heaven utilise la seconde approche pour les streams.
+
+Le philosophe et mathématicien Gottfried Wilhelm Leibniz (1646-1716)
+avait déjà remarqué quelque chose de similaire dans sa *Monadologie*
+(1714) : chaque monade contient virtuellement tout son avenir, mais
+ne l'**actualise** que si quelque chose l'y pousse. La paresse en
+programmation fonctionnelle suit cette idée : *les valeurs existent
+en puissance, elles s'actualisent en acte*.
+
+## 2. `delay` et `force` : capturer un calcul
+
+Comment retarde-t-on un calcul ? Avec deux magics : `delay` et
+`force`.
 
     delay expr      -- capture expr sans l'evaluer
     force t         -- evalue t (une seule fois, memoise)
 
+![delay / force](images/07-delay-force.svg)
+
 `delay` produit un **thunk** : une valeur qui représente un calcul
-en attente. `force` la déclenche. Le résultat est mémorisé : un
-thunk n'est calculé qu'une fois.
+en attente. `force` la déclenche. Le résultat est **mémorisé** : un
+thunk n'est calculé qu'une fois, même si on le force plusieurs fois.
 
-    let t = delay (+ 1 2) in
-    (+ (force t) (force t))   -- = 3 + 3 = 6, (+ 1 2) calcule une fois
+    heaven> let t = (delay (+ 1 2)) in
+              (+ (force t) (force t))
+    6
 
-## Générer un stream infini
+Déroulons :
 
-    stream_nats_from n = Cons n (delay (stream_nats_from (+ n 1)))
+- `delay (+ 1 2)` crée un thunk qui contient le calcul, pas son
+  résultat. Rien n'est encore calculé.
+- `(force t)` la première fois évalue `(+ 1 2)`, obtient 3, **stocke**
+  ce 3 dans le thunk.
+- `(force t)` la seconde fois voit que le thunk est déjà évalué, et
+  rend directement le 3 sans recalculer.
+- `(+ 3 3) = 6`.
 
-    (stream_take 5 (stream_nats_from 0))
-    -- (Cons 0 (Cons 1 (Cons 2 (Cons 3 (Cons 4 End)))))
+C'est le principe de la **memoization** : un calcul n'est jamais
+répété deux fois. Une forme de paresse **associée à la mémoire**.
 
-La récursion ne s'arrête jamais dans `stream_nats_from`, mais elle
-n'est **pas exécutée** tant que personne ne `force` la queue. On
-peut écrire `stream_nats_from 0` sans exploser la pile.
+## 3. Un stream paresseux
 
-Autres générateurs :
+Maintenant, appliquons la paresse aux streams. Un stream **strict**
+(`List`) est soit vide, soit un élément suivi d'un stream complet :
 
-    stream_repeat x         -- Cons x (Cons x (Cons x ...))
-    stream_iterate f x      -- x, f x, f (f x), ...
+    data List a = nil | cons a (List a)
 
-## Consommer un stream
+Un stream **paresseux** est soit vide, soit un élément suivi d'un
+**thunk** qui produira le reste :
 
-`stream_take n s` limite à n éléments :
+    heaven> data Stream a = Cons a (Stream a) | End
+    ✓ data Stream registered (2 constructors)
 
-    (stream_take 5 (stream_nats_from 0))
-    -- 5 éléments, puis End
+La différence est subtile : `(Stream a)` dans le second constructeur
+n'est pas évalué immédiatement. C'est un `delay` implicite.
 
-`stream_nth n s` extrait le n-ième :
+Voici un stream infini — la suite des entiers naturels :
 
-    (stream_nth 3 (stream_nats_from 0))   -- 3
-    (stream_nth 5 (Cons 1 End))           -- 0 (au-delà de End)
+    heaven> nat n = (Cons n (delay (nat (+ n 1))))
+    ✓ clause enregistrée pour 'nat'
 
-`stream_sum s` somme les éléments (sur un stream fini) :
+    heaven> nat 0
+    (Cons 0 (thunk ...))
 
-    (stream_sum (stream_take 5 (stream_nats_from 0)))   -- 10
-    (stream_sum (stream_take 3 (stream_repeat 7)))      -- 21
+`nat 0` ne calcule pas toute la suite. Il calcule le **premier**
+élément (0), et prépare un thunk qui calculera `nat 1` si on le
+force. La suite infinie est **représentée** en quelques octets.
 
-`stream_length s` compte les éléments d'un stream fini :
+C'est la beauté de la paresse : *l'infini devient fini*, tant qu'on
+ne le consomme pas tout.
 
-    (stream_length (stream_take 5 (stream_nats_from 0)))   -- 5
+## 4. Prendre ce dont on a besoin
 
-## Transformations
+Un stream infini ne se termine jamais, mais on peut en prendre un
+**préfixe fini** :
 
-Les transformations sont **paresseuses** : elles ne calculent rien
-tant qu'aucun `force` ne l'exige.
+    heaven> streamTake 0 _ = nil
+    ✓ clause enregistrée pour 'streamTake'
 
-    stream_map f End = End
-    stream_map f (Cons x rest) = Cons (f x) (delay (stream_map f (force rest)))
+    heaven> streamTake n (Cons x rest) =
+              (cons x (streamTake (- n 1) (force rest)))
+    ✓ clause enregistrée pour 'streamTake'
 
-    (stream_sum (stream_take 4 (stream_map (lambda x -> (* x x))
-                                          (stream_nats_from 0))))
-    -- 0 + 1 + 4 + 9 = 14
+    heaven> streamTake 3 (nat 0)
+    (cons 0 (cons 1 (cons 2 nil)))
 
-`stream_filter` garde les éléments qui satisfont un prédicat :
+![Prendre 3 d'un stream infini](images/07-infinite.svg)
 
-    (stream_length (stream_filter (lambda x -> (= (% x 2) 0))
-                                  (stream_take 5 (stream_nats_from 0))))
-    -- les pairs parmi 0..4 : 0, 2, 4 → 3
+Trois éléments, pas plus. Le reste du stream infini est
+**abandonné** : les thunks non forcés ne sont jamais calculés. On a
+calculé exactement ce dont on avait besoin.
 
-## Le pipeline complet
+C'est la grande leçon de la paresse : *on ne paie que pour ce qu'on
+consomme*. Le programme `nat` engendre l'infini, mais tant qu'on ne
+le force pas, rien ne se passe.
 
-C'est là que la paresse paie : on peut composer **map**, **filter**,
-**take**, **sum** sans jamais matérialiser d'intermédiaire.
+Wittgenstein aurait vu là une illustration de son « voir comme » :
+`nat 0` est à la fois *un stream infini* (vu de loin) et *le nombre
+0 suivi d'un plan* (vu de près). Le même objet, deux aspects.
 
-    (stream_sum
-      (stream_take 1000
-        (stream_filter (lambda x -> (= (% x 2) 0))
-          (stream_map (lambda x -> (* x 10))
-            (stream_nats_from 1)))))
-    -- somme des 1000 premiers multiples de 20
+*Vérifiable : les définitions `nat` et `streamTake` fonctionnent
+telles quelles dans le REPL.*
 
-Chaque étape ne calcule que ce qui est demandé. Sur un stream
-**infini**, aucune étape ne bloque, parce qu'aucune ne demande la
-totalité.
 
-## Pourquoi « paresseux » ?
+## 5. Composer : `map` sur un stream
 
-Compare avec une liste **stricte** (celle de `core/std/list.hvn`) :
+Les streams paresseux supportent les mêmes opérations que les listes
+— mais avec un avantage : elles ne calculent que ce dont on a besoin.
 
-    -- Strict : calcule tous les éléments d'abord
-    -- Laziness : ne calcule qu'à la demande
+    heaven> streamMap _ End = End
+    ✓ clause enregistrée pour 'streamMap'
 
-Un stream paresseux permet :
+    heaven> streamMap f (Cons x rest) =
+              (Cons (f x) (delay (streamMap f (force rest))))
+    ✓ clause enregistrée pour 'streamMap'
 
-- **Streams infinis** (`stream_nats_from 0`).
-- **Pipelines** où chaque étape ne fait que ce qu'elle doit.
-- **Séparation** : la génération est infinie, la consommation
-  (via `take`, `nth`) borne.
+Regardez la clause récursive. Elle applique `f` au premier élément,
+puis **retarde** l'application au reste. Le stream résultant est
+paresseux de bout en bout : rien n'est calculé à l'avance.
 
-## Différence avec `List`
+Prenons la suite des entiers, multipliés par 2 :
 
-`core/std/list.hvn` a ses propres `map`, `filter`, `take`, **stricts**.
-`core/stream.hvn` a les mêmes, **préfixés `stream_`** — pour éviter
-les collisions. Les deux coexistent :
+    heaven> double x = (* x 2)
+    ✓ clause enregistrée pour 'double'
 
-| Type | Module | Style | Taille |
-|---|---|---|---|
-| `List a` | `core/std/list.hvn` | strict | finie |
-| `Stream a` | `core/stream.hvn` | paresseux | finie ou infinie |
+    heaven> streamTake 3 (streamMap double (nat 0))
+    (cons 0 (cons 2 (cons 4 nil)))
 
-Utiliser `stream_take` sur un stream fini marche exactement comme
-sur un stream infini — la différence n'apparaît que si on oublie
-`take`.
+On a calculé :
 
-## Limites connues
+- `nat 0` = 0 (pour le premier élément)
+- `double 0` = 0
+- `nat 1` = 1 (forcé par le take suivant)
+- `double 1` = 2
+- `nat 2` = 2 (forcé par le take suivant)
+- `double 2` = 4
 
-- **`delay` n'existe qu'à l'interpréteur**. Le code compilé (QBE,
-  WASM) n'a pas encore de thunks.
-- **Mémoization par Id**. Un thunk forcé garde sa valeur jusqu'à la
-  fin du programme. Pas de GC.
-- **`let` multi-lignes** : mettre le corps sur une seule ligne
-  (voir annexe B).
-- **Pattern `zero`** : les clauses `f zero = ...` ne matchent pas
-  les littéraux `0`, `1`, ... Utiliser `if (= n 0)` dans une
-  fonction auxiliaire.
+Puis on s'est arrêté. On n'a **pas** calculé `nat 3`, `nat 4`, etc.
+Pourtant `nat` produit un stream infini. C'est la paresse qui rend
+cela possible.
 
-## À retenir
+## 6. Pipeline paresseux
 
-- Un **stream paresseux** est une valeur, comme une liste, mais
-  dont la queue est un thunk.
-- `delay` crée, `force` déclenche (et mémorise).
-- On compose librement : `map`, `filter`, `take`, `sum`.
-- Les streams infinis sont utilisables tant qu'on les **borne**.
-- Les streams stricts (`List`) et paresseux (`Stream`) coexistent.
+On peut chaîner plusieurs transformations :
 
-## Pour aller plus loin
+    process xs = (streamTake 5 (streamFilter even (streamMap inc xs)))
 
-- `tests/test_stream_lazy.hvn` : 8 tests qui couvrent tous les
-  exemples de ce chapitre.
-- `docs/DECISIONS.md` (D12) : décision de design de la laziness.
-- `docs/spec/_syntax_gaps.md` : quirks du parser rencontrés sur
-  les streams.
+Lisez de droite à gauche (ou de gauche à droite, peu importe dans ce
+contexte) :
 
----
+- On part d'un stream `xs`.
+- On ajoute 1 à chaque élément (`streamMap inc`).
+- On ne garde que les pairs (`streamFilter even`).
+- On prend les 5 premiers (`streamTake 5`).
 
-Un stream est paresseux : il ne calcule que ce qu'on lui demande.
-Cette paresse, c'est déjà une forme de **contrôle**. On peut faire
-mieux : **prouver** que ce contrôle est correct. C'est le sujet du
-prochain chapitre — les théorèmes et les preuves.
+Le stream résultant contient 5 éléments. Le pipeline entier **n'a
+calculé que les éléments nécessaires** pour en produire 5. Rien de
+plus.
+
+C'est différent d'une liste stricte. Sur une liste, chaque `map`,
+chaque `filter` produirait une **copie intermédiaire** de la liste
+entière. Sur un stream, chaque étape est un **pipeline** qui
+transmet les éléments un par un.
+
+C'est la même différence qu'entre :
+
+- **Strict** : `[1, 2, 3, 4, 5]` — une liste complète en mémoire.
+- **Paresseux** : `1 : ? : ? : ? : ...` — un élément, et un plan.
+
+Le paresseux gagne en mémoire et en flexibilité. Il perd parfois en
+performance brute (le coût du thunk). Le choix dépend du contexte.
+
+## 7. Pourquoi c'est puissant
+
+Trois raisons.
+
+**1. Infini maîtrisé.** On peut représenter l'infini sans le
+calculer. La suite des entiers, celle des nombres premiers, la suite
+de Fibonacci : toutes sont des streams infinis qu'on peut
+**consommer** par un préfixe, sans jamais matérialiser le tout.
+
+**2. Composition.** Une fonction comme `streamFilter even` s'applique
+à n'importe quel stream, fini ou infini. Elle ne se soucie pas de
+savoir si ce qui suit est `[1, 2]` ou l'infinité des nombres. Elle
+traite les éléments un par un, à la demande.
+
+**3. Économie.** On ne calcule que ce qu'on consomme. Un calcul
+partiel ne coûte que la part qu'on utilise. C'est une forme
+d'**optimisation automatique** : le programmeur n'a pas à trier ce
+qui est nécessaire de ce qui ne l'est pas. Le langage le fait pour
+lui.
+
+Leibniz, encore lui, aurait aimé. Sa *Monadologie* décrit des
+substances qui contiennent virtuellement tout leur avenir, mais ne
+l'actualisent que si quelque chose les y contraint. Un stream
+paresseux est une monade au sens de Leibniz : toute la suite est en
+lui, mais seul le présent est réalisé.
+
+## Ce qu'on a appris
+
+- Un **stream** est une suite d'éléments, potentiellement infinie.
+- Deux stratégies de calcul : **stricte** (tout d'avance) et
+  **paresseuse** (à la demande).
+- **`delay`** capture un calcul sans l'évaluer. **`force`** le
+  déclenche — une seule fois, avec **memoization**.
+- Un **stream paresseux** est soit vide, soit un élément suivi d'un
+  thunk qui produira le reste.
+- On peut représenter l'**infini** en quelques octets, tant qu'on ne
+  le consomme pas tout.
+- Les opérations `map` et `filter` se **composent** sur les streams
+  sans matérialiser d'intermédiaires.
+- La **paresse** est une forme d'optimisation automatique :
+  on ne paie que pour ce qu'on consomme.
+
+Wittgenstein aurait vu là un nouveau « voir comme » : un stream
+infini vu *comme* une suite totale (de loin), et vu *comme* un
+élément suivi d'un plan (de près). Deux aspects, un seul objet.
+
+Leibniz aurait ajouté : la paresse, c'est la différence entre *être
+en puissance* et *être en acte*. Un stream non forcé est une
+possibilité qui n'a pas encore été actualisée.
+
+Au chapitre suivant, on plonge dans les **preuves**. C'est le
+chapitre le plus ambitieux du livre : montrer que Heaven ne fait pas
+que *calculer* — il **vérifie**. Un programme peut être *prouvé*
+correct, pas seulement testé.
+
+*Vérifiable : les définitions `nat`, `streamTake`, `streamMap` et
+les exemples fonctionnent tels quels dans le REPL.*
+
