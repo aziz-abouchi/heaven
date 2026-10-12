@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Acteurs : un modele de concurrence sans verrous
+  </text>
+  <!-- Acteur 1 -->
+  <g>
+    <circle cx="120" cy="140" r="40" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="120" y="135" text-anchor="middle" font-size="11" fill="#7a3b3b" font-style="italic">acteur A</text>
+    <text x="120" y="152" text-anchor="middle" font-size="9" fill="#666">etat prive</text>
+    <text x="120" y="200" text-anchor="middle" font-size="9" fill="#666">boite aux lettres</text>
+    <rect x="90" y="210" width="60" height="25" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+  </g>
+  <!-- Acteur 2 -->
+  <g>
+    <circle cx="250" cy="140" r="40" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="250" y="135" text-anchor="middle" font-size="11" fill="#7a3b3b" font-style="italic">acteur B</text>
+    <text x="250" y="152" text-anchor="middle" font-size="9" fill="#666">etat prive</text>
+    <text x="250" y="200" text-anchor="middle" font-size="9" fill="#666">boite aux lettres</text>
+    <rect x="220" y="210" width="60" height="25" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+  </g>
+  <!-- Acteur 3 -->
+  <g>
+    <circle cx="380" cy="140" r="40" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="380" y="135" text-anchor="middle" font-size="11" fill="#7a3b3b" font-style="italic">acteur C</text>
+    <text x="380" y="152" text-anchor="middle" font-size="9" fill="#666">etat prive</text>
+    <text x="380" y="200" text-anchor="middle" font-size="9" fill="#666">boite aux lettres</text>
+    <rect x="350" y="210" width="60" height="25" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+  </g>
+  <!-- Fleches messages -->
+  <g fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#aa)">
+    <path d="M 160 130 Q 200 90 215 120"/>
+    <path d="M 285 120 Q 310 90 350 125"/>
+    <path d="M 340 165 Q 250 210 165 165"/>
+  </g>
+  <defs>
+    <marker id="aa" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+  <text x="250" y="280" text-anchor="middle" font-size="10" fill="#2c2c2c" font-style="italic">
+    Chaque acteur a un etat prive. Les messages sont asynchrones.
+  </text>
+  <text x="250" y="300" text-anchor="middle" font-size="10" fill="#666">
+    Pas de memoire partagee, pas de verrous.
+  </text>
+</svg>
