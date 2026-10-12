@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" font-family="Georgia, serif">
+  <rect width="500" height="260" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Deux manières de dire la même chose
+  </text>
+  <text x="60" y="90" font-size="13" fill="#7a3b3b" font-style="italic">Infixe</text>
+  <text x="60" y="115" font-size="11" fill="#666">l'opérateur est entre</text>
+  <rect x="60" y="140" width="180" height="50" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+  <text x="150" y="172" text-anchor="middle" font-size="22" fill="#2c2c2c">
+    1 <tspan fill="#7a3b3b" font-weight="bold">+</tspan> 2
+  </text>
+  <text x="290" y="90" font-size="13" fill="#7a3b3b" font-style="italic">Préfixe (Frege, 1879)</text>
+  <text x="290" y="115" font-size="11" fill="#666">l'opérateur est en tête</text>
+  <rect x="290" y="140" width="180" height="50" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+  <text x="380" y="172" text-anchor="middle" font-size="22" fill="#2c2c2c">
+    (<tspan fill="#7a3b3b" font-weight="bold">+</tspan> 1 2)
+  </text>
+  <text x="250" y="225" text-anchor="middle" font-size="12" fill="#666" font-style="italic">
+    Même résultat : 3
+  </text>
+  <text x="250" y="245" text-anchor="middle" font-size="11" fill="#2c2c2c">
+    « Le signe + est un concept, un objet incomplet qui attend ses arguments. »
+  </text>
+</svg>

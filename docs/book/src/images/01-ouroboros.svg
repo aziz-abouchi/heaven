@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" font-family="Georgia, serif">
+  <rect width="400" height="400" fill="#faf7f2"/>
+  <g transform="translate(200,200)">
+    <circle r="120" fill="none" stroke="#2c2c2c" stroke-width="14" stroke-dasharray="700 30" stroke-dashoffset="0"/>
+    <circle cx="120" cy="0" r="18" fill="#2c2c2c"/>
+    <circle cx="115" cy="-5" r="3" fill="#faf7f2"/>
+    <path d="M 140 -25 Q 130 -35 120 -30" fill="none" stroke="#7a3b3b" stroke-width="1.5"/>
+  </g>
+  <g font-size="12" fill="#2c2c2c">
+    <text x="200" y="45" text-anchor="middle" font-style="italic">
+      <tspan fill="#7a3b3b">fact 5</tspan> = 5 × <tspan fill="#7a3b3b">fact 4</tspan>
+    </text>
+    <text x="200" y="70" text-anchor="middle" font-style="italic" font-size="11" fill="#666">
+      fact 4 = 4 × fact 3
+    </text>
+    <text x="200" y="90" text-anchor="middle" font-size="11" fill="#666">
+      ...
+    </text>
+    <text x="200" y="345" text-anchor="middle" font-style="italic" font-size="11">
+      <tspan fill="#7a3b3b">fact 0</tspan> = 1 <tspan fill="#666">(cas de base)</tspan>
+    </text>
+  </g>
+  <text x="200" y="375" text-anchor="middle" font-size="13" font-style="italic" fill="#2c2c2c">
+    Une définition qui se mord la queue
+  </text>
+</svg>

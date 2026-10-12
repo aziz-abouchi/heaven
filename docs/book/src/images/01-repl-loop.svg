@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" font-family="Georgia, serif">
+  <rect width="400" height="400" fill="#faf7f2"/>
+  <circle cx="200" cy="200" r="130" fill="none" stroke="#2c2c2c" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <g font-size="13" fill="#2c2c2c" text-anchor="middle">
+    <circle cx="200" cy="70" r="32" fill="#faf7f2" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="200" y="68" font-style="italic">Read</text>
+    <text x="200" y="82" font-size="10" fill="#7a3b3b">lire</text>
+    <circle cx="330" cy="200" r="32" fill="#faf7f2" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="330" y="198" font-style="italic">Eval</text>
+    <text x="330" y="212" font-size="10" fill="#7a3b3b">évaluer</text>
+    <circle cx="200" cy="330" r="32" fill="#faf7f2" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="200" y="328" font-style="italic">Print</text>
+    <text x="200" y="342" font-size="10" fill="#7a3b3b">afficher</text>
+    <circle cx="70" cy="200" r="32" fill="#faf7f2" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="70" y="198" font-style="italic">Loop</text>
+    <text x="70" y="212" font-size="10" fill="#7a3b3b">recommencer</text>
+  </g>
+  <g fill="none" stroke="#7a3b3b" stroke-width="1.8" marker-end="url(#arrow)">
+    <path d="M 228 88 Q 290 130 308 175"/>
+    <path d="M 308 225 Q 290 270 228 312"/>
+    <path d="M 172 312 Q 110 270 92 225"/>
+    <path d="M 92 175 Q 110 130 172 88"/>
+  </g>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+  <text x="200" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    La boucle du dialogue
+  </text>
+</svg>
