@@ -1,102 +1,239 @@
-# Chapitre 14 — Concurrence coopérative
+# Chapitre 13 — Concurrence coopérative
+
+> *« La concurrence, c'est composer des processus indépendants.
+> Le parallélisme, c'est exécuter plusieurs choses en même temps. »*
+> — Rob Pike, *Concurrency is not Parallelism* (2012)
 
 Heaven fournit un **scheduler coopératif** dans le noyau. Plusieurs
 tâches partagent le thread principal, chacune cédant la main à des
-points explicites (`yield`).
+points explicites (`yield`). Ce chapitre montre comment cela
+fonctionne, et ce que ça change philosophiquement.
 
-## Le modèle
+## 1. Concurrence ≠ parallélisme
+
+![Coopératif vs préemptif](images/13-coop-vs-preempt.svg)
+
+Il faut distinguer deux choses que le langage courant confond :
+
+- Le **parallélisme** — plusieurs choses s'exécutent **en même
+  temps**, sur plusieurs cœurs ou processeurs.
+- La **concurrence** — plusieurs tâches progressent **en
+  interaction**, sans forcément tourner simultanément.
+
+Une seule personne peut gérer plusieurs tâches en alternance (répondre
+au téléphone, écrire un email, ranger son bureau). C'est de la
+concurrence — pas du parallélisme. Le programmeur Rob Pike (né en
+1956), co-créateur de Go, a popularisé cette distinction dans une
+conférence restée célèbre (2012).
+
+Heaven V0 fait de la **concurrence coopérative** : plusieurs tâches
+progressent dans un **seul thread**, chacune cédant la main
+explicitement.
+
+Deux modèles existent :
+
+- **Coopératif** — la tâche décide quand céder la main (`yield`).
+- **Préemptif** — le système interrompt la tâche à tout moment.
+
+Le modèle coopératif est plus simple à implémenter et à raisonner.
+Mais il exige la **coopération** de toutes les tâches : si une tâche
+ne rend jamais la main, tout s'arrête.
+
+## 2. Le scheduler
+
+![Trois tâches, un seul thread](images/13-scheduler.svg)
+
+Un **scheduler** (ordonnanceur) est le composant qui décide quelle
+tâche s'exécute à chaque instant. Le modèle de Heaven est minimal.
 
 Une **tâche** est une fonction `state -> résultat` qui peut céder la
-main. Sa signature :
+main :
 
-    body s = ...
-      si fini : retourne le résultat
-      sinon   : (yield new_state)
+    body s = ...      -- si fini, retourne le resultat
+                      -- sinon, cede avec (yield new_state)
 
-Le scheduler alterne entre les tâches à chaque `yield`.
+Le scheduler alterne entre les tâches à chaque `yield`. Quand une
+tâche ne cède plus, elle est terminée. Quand toutes sont terminées,
+le scheduler retourne.
 
-## Créer une tâche
+Trois primitives suffisent :
 
-    t = (add_task body init_state)
+- **`add_task body init_state`** — crée une tâche, retourne un
+  `task_id` (entier).
+- **`schedule budget`** — lance le scheduler. Chaque tâche s'exécute
+  avec un budget de `budget` réductions. Quand le budget est épuisé,
+  la tâche est remise en queue.
+- **`yield new_state`** — dans le corps d'une tâche, cède la main
+  avec un nouvel état.
+- **`task_state id`** — lit l'état courant d'une tâche.
 
-`add_task` retourne un **task_id** (entier). L'état initial est
-passé en second argument.
+Quatre magics, une seule idée : *coopérer explicitement*.
 
-## Exécuter les tâches
+## 3. Un exemple simple
 
-    (schedule budget)
+Comptons jusqu'à 5, en cédant la main à chaque étape :
 
-`schedule` boucle : pour chaque tâche prête, l'évalue avec un
-budget de `budget` réductions. Quand le budget est épuisé, la
-tâche est remise en queue. Quand toutes les tâches sont finies,
-`schedule` retourne.
+    heaven> body s = (if (eq s 5) s (yield (+ s 1)))
+    ✓ clause enregistrée pour 'body'
 
-## Exemple : compter jusqu'à 5
-
-    body s = (if (= s 5) s (yield (+ s 1)))
-    main u =
-      let t = (add_task body 0) in
+    heaven> main u =
+              let t = (add_task body 0) in
       let _ = (schedule 1000) in
       (task_state t)
+    ✓ clause enregistrée pour 'main'
 
-`task_state` lit l'état courant d'une tâche. Résultat : `5`.
+    heaven> main unit
+    5
 
-## Exemple : deux tâches entrelacées
+Déroulons :
 
-    b1 s = (if (= s 3) 99 (yield (+ s 1)))
-    b2 s = (if (= s 5) 99 (yield (+ s 1)))
-    main u =
-      let t1 = (add_task b1 0) in
+- `add_task body 0` crée une tâche avec l'état initial `0`.
+- `schedule 1000` lance le scheduler avec un budget de 1000
+  réductions.
+- La tâche `body` s'exécute. À chaque étape, elle vérifie `(eq s 5)`.
+  Si non, elle `yield` avec `(+ s 1)`.
+- Quand `s = 5`, la tâche retourne `5`.
+- `task_state t` lit l'état final.
+
+Le scheduler a alterné entre cette tâche (et d'autres éventuelles),
+en reprenant à chaque fois depuis l'état cédé. C'est une forme de
+**calcul interruptible** : chaque tâche peut être mise en pause et
+reprise, tant qu'elle sauvegarde son état dans le `yield`.
+
+L'idée est ancienne. Le mathématicien et logicien Stephen Kleene
+(1909-1994), dans ses travaux sur les fonctions récursives
+(1936), avait déjà formalisé la notion de **calcul par étapes**.
+Un calcul n'est pas un bloc — c'est une **suite d'états**, chacun
+dérivé du précédent. Le scheduler de Heaven suit cette intuition.
+
+## 4. Deux tâches entrelacées
+
+![Le yield comme cession](images/13-yield.svg)
+
+Voici un exemple plus intéressant : deux tâches qui alternent :
+
+    heaven> b1 s = (if (eq s 3) 99 (yield (+ s 1)))
+    ✓ clause enregistrée pour 'b1'
+
+    heaven> b2 s = (if (eq s 5) 99 (yield (+ s 1)))
+    ✓ clause enregistrée pour 'b2'
+
+    heaven> main u =
+              let t1 = (add_task b1 0) in
       let t2 = (add_task b2 0) in
       let _ = (schedule 1000) in
       (+ (task_state t1) (task_state t2))
+    ✓ clause enregistrée pour 'main'
 
-Résultat : `99 + 99 = 198`. Le scheduler a alterné entre les deux
-tâches : chaque `yield` a cédé la main à l'autre.
+    heaven> main unit
+    198
 
-## Combien de temps une tâche tourne-t-elle ?
+Résultat : `99 + 99 = 198`. Les deux tâches ont progressé en
+alternance : `t1` un cran, `t2` un cran, `t1` un cran, etc. Chacune
+s'est arrêtée à son propre cas de base (3 pour `t1`, 5 pour `t2`).
 
-`schedule` prend un **budget de réductions**. Chaque appel à
-`evaluate` décrémente le compteur. À 0, la tâche est suspendue.
+Le scheduler ne connaît rien du **sens** des tâches. Il ne sait pas
+que `b1` compte jusqu'à 3 et `b2` jusqu'à 5. Il applique une règle
+mécanique : *prendre la prochaine tâche prête, l'exécuter un moment,
+la remettre en queue*. La sémantique émerge de l'interaction — pas
+d'un contrôle central.
 
-Un budget de 1000 signifie : "laisse la tâche faire ~1000 appels
-d'évaluation avant de redonner la main". Utile pour borner les
-tâches qui font du calcul lourd sans `yield`.
+C'est exactement ce que le sociologue et économiste **Friedrich
+Hayek** (1899-1992) appelait l'**ordre spontané** : un système
+complexe peut émerger de règles locales simples, sans plan
+centralisé. Le scheduler est un tel ordre.
 
-## Modèle coopératif, pas préemptif
+## 5. Le modèle redémarrable
 
-Le scheduler **n'interrompt pas** une tâche arbitrairement. Deux
-cas de cession :
+Un point technique important : le scheduler de Heaven V0 est
+**redémarrable**. Quand le budget d'une tâche est épuisé, la tâche
+n'est **pas** reprise exactement là où elle s'était arrêtée — elle
+repart de son état initial, en rejouant les étapes déjà effectuées.
 
-1. **`yield` explicite** dans la tâche.
-2. **Budget épuisé** → la tâche est relancée depuis le début à la
-   prochaine itération (modèle *redémarrable*).
+C'est une **limitation** du modèle. La reprise exacte demanderait des
+**continuations délimitées** (D8), qui capturent la pile entière au
+moment de la suspension. C'est un chantier de plusieurs sessions
+(2-3), documenté dans `docs/ROADMAP.md`.
 
-Ce n'est donc pas du **vrai** multitâche préemptif : une tâche qui
-ne fait aucun `yield` et dépasse son budget redémarre. Pour du
-préemptif exact, il faudrait capturer la pile Zig — c'est le
-chantier Voie B (continuations délimitées complètes).
+Pourquoi c'est acceptable ? Parce que les tâches d'un calcul pur
+sont **déterministes** : rejouer les étapes donne le même résultat.
+Tant qu'on ne fait pas d'effets de bord (écrire un fichier, envoyer
+un message), le redémarrage est transparent.
 
-## Limites v0
+Cette distinction recoupe une question philosophique classique : la
+**persistance de l'identité**. Qu'est-ce qui fait qu'une tâche
+reprise est la même que la tâche suspendue ? Le philosophe Derek
+Parfit (1942-2024), dans *Reasons and Persons* (1984), soutient que
+l'identité personnelle n'est pas une substance mais une **continuité
+psychologique**. Un calcul qui reprend à partir du même état est
+**le même calcul** — même s'il est réexécuté.
 
-- **Redémarrage, pas reprise** : si le budget épuise une tâche,
-  elle recommence depuis son état initial au prochain tour.
-- **Pas de priorités** : la structure `Policy` existe (`.priority`,
-  `.edf`) mais n'est pas encore utilisée par `schedule`.
-- **Pas d'intégration avec `spawn`/acteurs** : deux modèles
-  concurrents qui coexistent.
+## 6. Ce qui reste fragile en V0
 
-## Pour aller plus loin
+Le scheduler coopératif est **livré**, mais minimal. Ce qui marche :
 
-- `tests/test_scheduler.hvn` : 3 tests (sans yield, avec yield,
-  deux tâches entrelacées).
-- `docs/DECISIONS.md` D8 : la décision de design.
-- `docs/spec/_concurrency.md` : plan complet (C1-C5, Voie B).
+- `add_task`, `schedule`, `yield`, `task_state` (4 magics).
+- Tâches sans `yield` (exécution directe).
+- Tâches avec `yield` multiple (état intermédiaire).
+- Tâches entrelacées (alternance coopérative).
 
----
+Ce qui **ne marche pas encore** :
 
-Tu sais maintenant faire coopérer plusieurs tâches. Mais tu sais
-aussi écrire des fonctions récursives — depuis le chapitre 4 — et
-tu as peut-être remarqué qu'elles se ressemblent toutes. Et si on
-pouvait **factoriser la récursion elle-même** ? C'est le sujet du
-prochain chapitre : les schémas de récursion.
+- **Reprise exacte** — les tâches redémarrent au lieu de reprendre.
+  Acceptable pour du calcul pur, pas pour des effets.
+- **Priorités** — la structure `Policy` (`.priority`, `.edf`)
+  existe, mais n'est pas utilisée par `schedule`.
+- **Intégration avec les acteurs** — `spawn`/`tell`/`recv`
+  (chapitre 9) et le scheduler sont deux modèles qui coexistent
+  sans se parler.
+- **Préemption** — pas d'interruption automatique. Une tâche qui ne
+  cède jamais bloque tout.
+
+Le modèle coopératif est un **choix philosophique** : on préfère la
+simplicité de raisonnement à la robustesse automatique. Une tâche mal
+écrite casse le système — mais on peut **prouver** qu'une tâche
+coopérative se termine. C'est un compromis entre confiance et
+contrôle.
+
+Le sociologue allemand **Niklas Luhmann** (1927-1998) aurait reconnu
+ce modèle. Dans *Systèmes sociaux* (1984), il décrit les systèmes
+sociaux comme des ensembles d'opérations qui **se reproduisent**
+par elles-mêmes : chaque communication en engendre une autre, sans
+plan central. Le scheduler coopératif est un tel système — chaque
+`yield` produit la prochaine étape, sans qu'une intelligence centrale
+ne supervise.
+
+## Ce qu'on a appris
+
+- **Concurrence** ≠ **parallélisme** (Rob Pike, 2012). La première
+  est une composition logique, la seconde une exécution simultanée.
+- Heaven V0 utilise un scheduler **coopératif** : les tâches cèdent
+  la main explicitement (`yield`).
+- Quatre magics suffisent : `add_task`, `schedule`, `yield`,
+  `task_state`.
+- Le modèle est **redémarrable** : les tâches repartent de leur état
+  initial après un budget épuisé (limitation V0).
+- Le **calcul par étapes** (Kleene, 1936) est un état, pas un bloc.
+- L'**ordre spontané** (Hayek) émerge de règles locales.
+- La **continuité psychologique** (Parfit, 1984) éclaire la reprise
+  d'une tâche.
+- Les **systèmes autopoïétiques** (Luhmann, 1984) se reproduisent
+  par leurs propres opérations.
+- En V0 : pas de reprise exacte, pas de priorité, pas de
+  préemption. Chantiers documentés.
+
+Wittgenstein aurait vu dans la tâche coopérative une illustration
+de son « jeu de langage » : chaque tâche joue son jeu, en respectant
+la règle commune du `yield`. L'émergence d'un calcul collectif n'est
+pas planifiée — elle **suit les règles**.
+
+Au chapitre suivant, on aborde un sujet plus méta : les **schémas
+de récursion**. On a déjà vu la récursion au chapitre 4. Maintenant,
+on va la **formaliser** — la transformer en une famille de
+fonctions génériques (`cata`, `ana`, `hylo`, `para`) qui capturent
+toutes les formes de récursion en quelques lignes.
+
+*Vérifiable : les exemples `add_task`, `schedule`, `yield`,
+`task_state` fonctionnent tels quels dans le REPL.
+`tests/test_scheduler.hvn` (3/3) confirme.*
+

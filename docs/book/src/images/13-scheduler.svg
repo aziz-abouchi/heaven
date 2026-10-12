@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Trois taches, un seul thread
+  </text>
+  <!-- Thread unique -->
+  <g>
+    <rect x="180" y="60" width="140" height="40" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="250" y="85" text-anchor="middle" font-size="12" fill="#7a3b3b" font-style="italic">Thread principal</text>
+  </g>
+  <!-- File de taches -->
+  <g>
+    <rect x="60" y="130" width="100" height="60" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="110" y="160" text-anchor="middle" font-size="11" fill="#2c2c2c">tache 1</text>
+    <text x="110" y="178" text-anchor="middle" font-size="9" fill="#666">ready</text>
+
+    <rect x="200" y="130" width="100" height="60" fill="#c0d8e8" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="250" y="160" text-anchor="middle" font-size="11" fill="#2c2c2c">tache 2</text>
+    <text x="250" y="178" text-anchor="middle" font-size="9" fill="#666">ready</text>
+
+    <rect x="340" y="130" width="100" height="60" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="390" y="160" text-anchor="middle" font-size="11" fill="#2c2c2c">tache 3</text>
+    <text x="390" y="178" text-anchor="middle" font-size="9" fill="#666">ready</text>
+  </g>
+  <!-- Fleches depuis le thread -->
+  <g fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#as)">
+    <path d="M 220 100 L 130 128"/>
+    <path d="M 250 100 L 250 128"/>
+    <path d="M 280 100 L 370 128"/>
+  </g>
+  <defs>
+    <marker id="as" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+  <!-- Explication -->
+  <text x="250" y="230" text-anchor="middle" font-size="11" fill="#2c2c2c">
+    Le scheduler choisit une tache .ready, l'evalue un moment,
+  </text>
+  <text x="250" y="250" text-anchor="middle" font-size="11" fill="#2c2c2c">
+    puis passe a la suivante.
+  </text>
+  <text x="250" y="285" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+    Pas de parallelisme : une tache active a la fois.
+  </text>
+</svg>
