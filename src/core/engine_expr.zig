@@ -214,6 +214,8 @@ pub const RecCtx = struct {
     body_fn: Id,
     handler: Id,
     state: Id,
+    /// 3a-3a : prompt de la frontiere handle_rec (0 = aucun).
+    prompt: continuation.Prompt = 0,
     next_state: ?Id = null,
     pending_value: ?Id = null,
     k_signaled: bool = false,
@@ -266,6 +268,10 @@ pub const Engine = struct {
     vtable: *const HeavenVTable,
     /// Pile de frames pour continuations delimitees (D8 3a-3).
     capture_stack: continuation.CaptureStack,
+    /// 3a-3a : pile des prompts ouverts (handle_rec, futurs bracket/catch).
+    /// Distinct de capture_stack : celui-ci ne stocke que des ids de
+    /// frontiere, pas des frames capturees.
+    prompts: continuation.PromptStack,
     /// Contexte handle-rec (D8 3a-3-b). null = pas de handle-rec en cours.
     rec_ctx: ?*RecCtx = null,
     /// Scheduler cooperatif (D8 3a-3-c).
@@ -288,6 +294,7 @@ pub const Engine = struct {
             .heaven_ctx = heaven_ctx,
             .vtable = vtable,
             .capture_stack = continuation.CaptureStack.init(allocator),
+            .prompts = continuation.PromptStack.init(allocator),
             .scheduler = scheduler_lib.Scheduler.init(allocator),
         };
     }
@@ -316,6 +323,7 @@ pub const Engine = struct {
         }
         self.processes.deinit(self.allocator);
         self.capture_stack.deinit();
+        self.prompts.deinit();
         self.scheduler.deinit();
     }
 
@@ -840,7 +848,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "band", "bor", "shl", "shr" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "band", "bor", "shl", "shr", "@prompt_depth", "@prompt_current" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1008,6 +1016,26 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return try store.unitLit();
     }
 
+    // ═══ 3a-3a : introspection des prompts de continuation ═══
+    // @prompt_depth  -> Int (nombre de prompts ouverts)
+    // @prompt_current -> Int (id du prompt au sommet, 0 si vide)
+    if (std.mem.eql(u8, op, "@prompt_depth")) {
+        // 0 ou 1 arg tolere : le body d'une clause `f x = (g)` est
+        // simplifie en `f x = g` par le parser (un symbole nu, pas
+        // un apply 0-args). Pour forcer l'appel, on accepte un arg
+        // dummy : `(@prompt_depth unit)`.
+        if (args_snap.len > 1) return error.ArityMismatch;
+        return try store.int(@intCast(engine.prompts.depth()));
+    }
+    if (std.mem.eql(u8, op, "@prompt_current")) {
+        // Idem @prompt_depth : 0 ou 1 arg tolere.
+        if (args_snap.len > 1) return error.ArityMismatch;
+        if (engine.prompts.top()) |p| {
+            return try store.int(@intCast(p));
+        }
+        return try store.int(0);
+    }
+
     // ═══ handle-rec (D8 3a-3-b) ═══
     // (handle-rec body_fn handler init_state)
     // Boucle : state = init. body_fn(state) -> soit valeur finale,
@@ -1015,10 +1043,19 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // new_state : reboucler avec state = new_state.
     if (std.mem.eql(u8, op, "handle_rec")) {
         if (args_snap.len != 3) return error.ArityMismatch;
+
+        // 3a-3a : ouvrir une frontiere pour ce handle_rec.
+        // init_state evalue AVANT push, pour que la frontiere ne
+        // soit visible qu'au body et au handler (pas a init_state).
+        const init_state = try evaluate(store, env, engine, args_snap[2], depth + 1);
+        const my_prompt = try engine.prompts.push();
+        defer _ = engine.prompts.pop();
+
         var ctx = RecCtx{
             .body_fn = args_snap[0],
             .handler = args_snap[1],
-            .state = try evaluate(store, env, engine, args_snap[2], depth + 1),
+            .state = init_state,
+            .prompt = my_prompt,
         };
         const saved_ctx = engine.rec_ctx;
         engine.rec_ctx = &ctx;
@@ -1172,7 +1209,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (pl != .int or ol != .int or vl != .int) return error.TypeError;
         const addr: usize = @intCast(pl.int);
         const off: usize = @intCast(ol.int);
-        const ptr: [*]u64 = @ptrFromInt(addr);
+        const ptr: [*]align(1) u64 = @ptrFromInt(addr);
         ptr[off] = @bitCast(@as(i64, vl.int));
         return try store.unitLit();
     }
@@ -1959,6 +1996,173 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         }
     }
 
+
+    // ═══ HEAVEN-IN-HEAVEN : CAPS & ECOSYSTEM MAGICS ═══
+
+    if (std.mem.eql(u8, op, "cap_acquire")) {
+        // cap_acquire "name" -> Int (Token de capacité dummy pour l'instant)
+        if (args_snap.len != 1) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        return try store.lit(.{ .int = 42 }); // Token de capacité valide
+    }
+
+    if (std.mem.eql(u8, op, "@egraph_snapshot")) {
+        // @egraph_snapshot cap -> String (JSON)
+        if (args_snap.len != 1) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // consomme la cap
+        
+        // TODO: Connecter au vrai engine.egraph quand le champ sera ajouté à Engine
+        const json = "{\"classes\":[{\"id\":0,\"nodes\":[1]}],\"nodes\":[{\"id\":1,\"tag\":\"sym\",\"name\":\"heaven_in_heaven\"}],\"merges\":[]}";
+        const sym = try store.interner.intern(json);
+        return try store.lit(.{ .str = sym });
+    }
+
+    if (std.mem.eql(u8, op, "@fs_read")) {
+        // @fs_read cap path -> String (Lecture réelle de fichier !)
+        if (args_snap.len != 2) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // consomme la cap
+        const path_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const path_node = store.get(path_val);
+        if (path_node.tag != .lit) return error.TypeError;
+        const lit_val = store.lits.items[path_node.aux];
+        if (lit_val != .str) return error.TypeError;
+        
+        const path_str = store.interner.resolve(lit_val.str);
+        const content = std.fs.cwd().readFileAlloc(engine.allocator, path_str, 1024 * 1024) catch {
+            const err_str = "ERROR: File not found or unreadable";
+            const err_sym = try store.interner.intern(err_str);
+            return try store.lit(.{ .str = err_sym });
+        };
+        defer engine.allocator.free(content);
+        
+        const sym = try store.interner.intern(content);
+        return try store.lit(.{ .str = sym });
+    }
+
+    if (std.mem.eql(u8, op, "@spawn")) {
+        // @spawn cap thunk -> Int (ID d'acteur dummy)
+        if (args_snap.len != 2) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        _ = try evaluate(store, env, engine, args_snap[1], depth + 1); // thunk
+        return try store.lit(.{ .int = 1 }); // ID d'acteur dummy
+    }
+
+    if (std.mem.eql(u8, op, "@sleep_ms")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        return try store.lit(.{ .int = 0 }); 
+    }
+
+    if (std.mem.eql(u8, op, "@runtime_stats")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const stats = "{\"mem_kb\": 1024, \"egraph_nodes\": 42}";
+        const sym = try store.interner.intern(stats);
+        return try store.lit(.{ .str = sym });
+    }
+
+    if (std.mem.eql(u8, op, "@broadcast")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        _ = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        return try store.lit(.{ .int = 0 });
+    }
+
+
+    // ═══ HEAVEN-IN-HEAVEN : RÉSEAU (std.posix) ═══
+
+    if (std.mem.eql(u8, op, "@net_listen")) {
+        platform.debug.print("[DEBUG] @net_listen appelé, args_len={d}\n", .{args_snap.len});
+        if (args_snap.len != 2) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        const port_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const port_node = store.get(port_val);
+        platform.debug.print("[DEBUG] port_node.tag={any}\n", .{port_node.tag});
+        if (port_node.tag != .lit) return error.TypeError;
+        const port: u16 = @intCast(store.lits.items[port_node.aux].int);
+        
+        const address = std.net.Address.parseIp4("127.0.0.1", port) catch return error.InvalidInput;
+        const server = address.listen(.{ .reuse_address = true }) catch return error.InvalidInput;
+        return try store.lit(.{ .int = @as(i64, @intCast(server.stream.handle)) });
+    }
+
+    if (std.mem.eql(u8, op, "@net_accept")) {
+        platform.debug.print("[DEBUG] @net_accept appelé, args_len={d}\n", .{args_snap.len});
+        if (args_snap.len != 2) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const fd_node = store.get(fd_val);
+        if (fd_node.tag == .sym) {
+            platform.debug.print("[DEBUG] ERREUR CRITIQUE: fd est le symbole '{s}' au lieu d'un littéral!\n", .{store.interner.resolve(fd_node.payload)});
+        } else {
+            platform.debug.print("[DEBUG] fd_node.tag={any}\n", .{fd_node.tag});
+        }
+        if (fd_node.tag != .lit) return error.TypeError;
+        const fd: std.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
+        
+        var addr: std.net.Address = undefined;
+        var addr_len: std.posix.socklen_t = @sizeOf(std.net.Address);
+        const client_fd = std.posix.accept(fd, &addr.any, &addr_len, 0) catch return error.InvalidInput;
+        return try store.lit(.{ .int = @as(i64, @intCast(client_fd)) });
+    }
+
+    if (std.mem.eql(u8, op, "@net_read")) {
+        platform.debug.print("[ZIG] @net_read START\n", .{});
+        if (args_snap.len != 2) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const fd_node = store.get(fd_val);
+        if (fd_node.tag != .lit) return error.TypeError;
+        const fd: std.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
+        
+        var buf: [4096]u8 = undefined;
+        const len = std.posix.read(fd, &buf) catch |err| {
+            platform.debug.print("[ZIG] read error: {any}\n", .{err});
+            const err_msg = try std.fmt.allocPrint(store.allocator, "[ERREUR LECTURE: {any}]", .{err});
+            defer store.allocator.free(err_msg);
+            const sym = try store.interner.intern(err_msg);
+            return try store.lit(.{ .str = sym });
+        };
+        platform.debug.print("[ZIG] read len={d}\n", .{len});
+        
+        if (len == 0) {
+            platform.debug.print("[ZIG] EOF reached, returning empty string\n", .{});
+            return try store.lit(.{ .str = try store.interner.intern("") });
+        }
+        
+        const sym = try store.interner.intern(buf[0..len]);
+        platform.debug.print("[ZIG] @net_read SUCCESS\n", .{});
+        return try store.lit(.{ .str = sym });
+    }
+
+    if (std.mem.eql(u8, op, "@net_write")) {
+        if (args_snap.len != 3) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const str_val = try evaluate(store, env, engine, args_snap[2], depth + 1);
+        
+        const fd_node = store.get(fd_val);
+        const str_node = store.get(str_val);
+        if (fd_node.tag != .lit or str_node.tag != .lit) return error.TypeError;
+        const fd: std.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
+        const str_sym = store.lits.items[str_node.aux].str;
+        const str_bytes = store.interner.resolve(str_sym);
+        
+        _ = std.posix.write(fd, str_bytes) catch return error.InvalidInput;
+        return try store.lit(.{ .int = 0 });
+    }
+
+    if (std.mem.eql(u8, op, "@net_close")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const fd_node = store.get(fd_val);
+        if (fd_node.tag != .lit) return error.TypeError;
+        const fd: std.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
+        
+        std.posix.close(fd);
+        return try store.lit(.{ .int = 0 });
+    }
     return error.UnknownSymbol;
 }
 

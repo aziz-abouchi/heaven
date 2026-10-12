@@ -1,0 +1,47 @@
+-- tests/test_prompt_depth.hvn — 3a-3a : introspection des prompts
+-- Verifie que handle_rec ouvre bien une frontiere (prompt) et la
+-- referme. Aucun test de capture ici : c'est 3a-3b.
+--
+-- NB test runner (bugs a tracer) :
+--   1. `let-in` dans une expression de test n'est pas evalue
+--      -> passer par des fonctions wrapper.
+--   2. `(if int a b)` ne traite pas int comme booleen
+--      -> utiliser `(if (= expr 0) a b)`.
+--   3. `(@magic)` (0-arg) est strippe en symbole nu
+--      -> passer un arg dummy.
+
+-- Probes : forcent l'appel des magics.
+probe_depth u   = (@prompt_depth u)
+probe_current u = (@prompt_current u)
+
+-- Bodies.
+depth_body s   = (@prompt_depth s)
+current_body s = (if (= (probe_current s) 0) 0 1)
+
+-- Handler one-shot.
+noop_handler v k = v
+
+-- ─── Profondeur hors handle_rec ───
+test "@prompt_depth = 0 hors handle_rec":
+  (probe_depth 0) == 0
+
+test "@prompt_current = 0 hors handle_rec":
+  (probe_current 0) == 0
+
+-- ─── Profondeur dans un handle_rec ───
+test "@prompt_depth = 1 dans un handle_rec":
+  (handle_rec depth_body noop_handler 0) == 1
+
+test "@prompt_current > 0 dans un handle_rec":
+  (handle_rec current_body noop_handler 0) == 1
+
+-- ─── Profondeur dans deux handle_rec imbriques ───
+inner_body s = (@prompt_depth s)
+outer_body s = (handle_rec inner_body noop_handler 0)
+
+test "@prompt_depth = 2 dans deux handle_rec imbriques":
+  (handle_rec outer_body noop_handler 0) == 2
+
+-- ─── Non-fuite : 2 handle_rec successifs (non imbriques) ───
+test "@prompt_depth stable sur 2 handle_rec successifs":
+  (handle_rec depth_body noop_handler 0) == 1

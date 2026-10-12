@@ -907,3 +907,15 @@ Le parser (parse_one/tok/head/args/arglist = cycle ~10 fns, spines vides,
 zéro bounce — cf. lexer bf22d08) tenait le DIFF test_parser de justesse ;
 l'épaississement du boot (std/list lot 2.3, etc.) a fait fondre la marge.
 Fix : parser itératif à pile explicite (en données, pas en frames).
+
+## Bugs test runner (decouverts 3a-3a, 2026-10-12)
+
+1. **`let-in` non evalue dans `test "name": expr == val`**
+   `test "x": (let x = 42 in x) == 42` echoue.
+
+2. **`(if int a b)` refuse un int comme condition**
+
+3. **`(@magic)` 0-arg strippe en symbole nu**
+
+**Impact** : ces 3 bugs rendent les tests non-triviaux penibles.
+A corriger avant 3a-3b/3a-3c.

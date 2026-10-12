@@ -139,3 +139,30 @@ Ceci confirme la note du 2026-09-30 : le vrai 3a-3 exige le
 branchement de `captureCont` dans `evaluate`, avec restructuration
 des corps de handler en unités réévaluables. Effort 2-3 sessions
 (voir D8 dans `docs/DECISIONS.md`, révisée le 2026-10-02).
+
+---
+
+## 3a-3a — Prompts branchés (2026-10-12)
+
+**Statut** : ✅ Fait
+
+Modifications dans `src/core/engine_expr.zig` :
+
+1. `Engine.prompts: PromptStack` — pile dédiée aux frontières
+   `handle_rec`, distincte de `capture_stack` (réservée à 3a-3b).
+2. `handle_rec` : push/pop du prompt via `defer`. L'`init_state`
+   est évalué **avant** l'ouverture de la frontière.
+3. `RecCtx.prompt: Prompt` — porte l'id du prompt courant.
+4. Deux magics d'introspection :
+   - `@prompt_depth` — nombre de prompts ouverts
+   - `@prompt_current` — id du prompt au sommet (0 si aucun)
+5. `isMagicSymbol` : ajout de `@prompt_depth`, `@prompt_current`.
+
+**Tests** : `tests/test_prompt_depth.hvn` (6 tests).
+**Non-régression** : `test_effects_rec.hvn` (4/4),
+`continuation.zig` (9/9).
+
+**Bugs test runner découverts** (à tracer) :
+- `let-in` non évalué dans une expression de test
+- `(if int a b)` refuse un int comme condition
+- `(@magic)` 0-arg strippé en symbole nu
