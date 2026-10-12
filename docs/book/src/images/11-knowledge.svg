@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300" font-family="Georgia, serif">
+  <rect width="500" height="300" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Trois formes de connaissance
+  </text>
+  <!-- Fait -->
+  <g>
+    <rect x="40" y="70" width="120" height="160" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="100" y="100" text-anchor="middle" font-size="12" font-style="italic" fill="#7a3b3b">Fait</text>
+    <text x="100" y="135" text-anchor="middle" font-size="10" fill="#2c2c2c">Socrate</text>
+    <text x="100" y="155" text-anchor="middle" font-size="10" fill="#2c2c2c">est un</text>
+    <text x="100" y="175" text-anchor="middle" font-size="10" fill="#2c2c2c">homme</text>
+    <text x="100" y="210" text-anchor="middle" font-size="9" fill="#666">(donnee)</text>
+  </g>
+  <!-- Regle -->
+  <g>
+    <rect x="190" y="70" width="120" height="160" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="250" y="100" text-anchor="middle" font-size="12" font-style="italic" fill="#7a3b3b">Regle</text>
+    <text x="250" y="135" text-anchor="middle" font-size="10" fill="#2c2c2c">si X est un</text>
+    <text x="250" y="155" text-anchor="middle" font-size="10" fill="#2c2c2c">homme,</text>
+    <text x="250" y="175" text-anchor="middle" font-size="10" fill="#2c2c2c">alors X est</text>
+    <text x="250" y="195" text-anchor="middle" font-size="10" fill="#2c2c2c">mortel</text>
+    <text x="250" y="220" text-anchor="middle" font-size="9" fill="#666">(implication)</text>
+  </g>
+  <!-- Assertion -->
+  <g>
+    <rect x="340" y="70" width="120" height="160" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="400" y="100" text-anchor="middle" font-size="12" font-style="italic" fill="#7a3b3b">Assertion</text>
+    <text x="400" y="135" text-anchor="middle" font-size="10" fill="#2c2c2c">source :</text>
+    <text x="400" y="155" text-anchor="middle" font-size="10" fill="#2c2c2c">Aristote</text>
+    <text x="400" y="175" text-anchor="middle" font-size="10" fill="#2c2c2c">confiance :</text>
+    <text x="400" y="195" text-anchor="middle" font-size="10" fill="#2c2c2c">haute</text>
+    <text x="400" y="220" text-anchor="middle" font-size="9" fill="#666">(provenance)</text>
+  </g>
+  <text x="250" y="265" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+    Un raisonneur combine les trois pour produire de nouvelles connaissances.
+  </text>
+</svg>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" font-family="Georgia, serif">
+  <rect width="500" height="260" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Transitivite : A sous-classe de B, B sous-classe de C
+  </text>
+  <!-- Trois boites -->
+  <g>
+    <rect x="60" y="90" width="100" height="60" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="110" y="125" text-anchor="middle" font-size="14" fill="#2c2c2c" font-style="italic">A</text>
+    <text x="110" y="170" text-anchor="middle" font-size="10" fill="#666">(Chien)</text>
+  </g>
+  <g>
+    <rect x="200" y="90" width="100" height="60" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="250" y="125" text-anchor="middle" font-size="14" fill="#2c2c2c" font-style="italic">B</text>
+    <text x="250" y="170" text-anchor="middle" font-size="10" fill="#666">(Mammifere)</text>
+  </g>
+  <g>
+    <rect x="340" y="90" width="100" height="60" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="390" y="125" text-anchor="middle" font-size="14" fill="#2c2c2c" font-style="italic">C</text>
+    <text x="390" y="170" text-anchor="middle" font-size="10" fill="#666">(Animal)</text>
+  </g>
+  <!-- Fleches donnees -->
+  <g fill="none" stroke="#2c2c2c" stroke-width="1.5" marker-end="url(#ak)">
+    <path d="M 160 120 L 198 120"/>
+    <path d="M 300 120 L 338 120"/>
+  </g>
+  <!-- Fleche deduite -->
+  <g fill="none" stroke="#7a3b3b" stroke-width="2" stroke-dasharray="6 3" marker-end="url(#ak2)">
+    <path d="M 110 90 Q 250 40 390 90"/>
+  </g>
+  <defs>
+    <marker id="ak" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#2c2c2c"/>
+    </marker>
+    <marker id="ak2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+  <!-- Légende -->
+  <text x="110" y="205" text-anchor="middle" font-size="10" fill="#2c2c2c">donnee</text>
+  <text x="250" y="205" text-anchor="middle" font-size="10" fill="#2c2c2c">donnee</text>
+  <text x="250" y="240" text-anchor="middle" font-size="10" fill="#7a3b3b" font-style="italic">deduite : A sous-classe de C</text>
+</svg>

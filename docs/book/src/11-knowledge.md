@@ -1,18 +1,20 @@
-# Chapitre 12 - Knowledge : raisonner sur le monde
+# Chapitre 11 — Knowledge : raisonner sur le monde
 
-Jusqu'ici, Heaven manipule principalement des programmes, des valeurs et
-des preuves.
+> *« Nous ne connaissons pas le monde, nous connaissons seulement
+> des propositions sur le monde. »*
+> — Karl Popper, *La Connaissance objective* (1972)
 
-Mais un systeme distribue ou un outil de raisonnement doit aussi pouvoir
-representer des connaissances provenant de sources differentes.
+Jusqu'ici, Heaven manipule principalement des programmes, des
+valeurs et des preuves. Mais un système distribué, un outil de
+raisonnement, ou une base de données doit aussi pouvoir représenter
+des **connaissances** provenant de sources différentes.
 
-Heaven possede pour cela une couche **Knowledge**.
+Heaven possède pour cela une couche **Knowledge**. Elle est
+volontairement séparée de `Expr` (le noyau compilable).
 
-Elle est volontairement separee de `Expr`.
+## 1. Une connaissance n'est pas un programme
 
-## Une connaissance n'est pas un programme
-
-Le Core de Heaven utilise `Expr` comme IR compilable unique :
+Le noyau de Heaven utilise `Expr` comme IR compilable unique :
 
     source
       |
@@ -35,278 +37,206 @@ Knowledge suit une autre voie :
           v
        reasoner
 
-Une connaissance ne devient pas automatiquement du code.
+Une connaissance **ne devient pas** automatiquement du code. Si une
+connaissance doit finalement participer à un calcul, un **lowering
+explicite** pourra la transformer en `Expr`. Mais ce n'est pas
+automatique.
 
-Si une connaissance doit finalement participer a un calcul, un lowering
-explicite pourra la transformer en `Expr`.
+Cette séparation évite de transformer chaque domaine de
+raisonnement en nouvel IR. C'est une décision de design qui a un
+nom : *garder le noyau petit, et les extensions explicites*.
 
-Cette separation evite de transformer chaque domaine de raisonnement en
-nouvel IR.
+Le philosophe autrichien Karl Popper (1902-1994) proposait de
+distinguer **trois mondes** :
 
-## Les ressources
+- **Monde 1** — les objets physiques (le caillou, l'arbre).
+- **Monde 2** — les états mentaux (ma perception de l'arbre).
+- **Monde 3** — les contenus objectifs de la pensée (la théorie
+  scientifique sur l'arbre, la proposition « l'arbre est un
+  chêne »).
 
-Une ressource peut etre identifiee par une URI :
+Knowledge appartient au **monde 3** : des contenus objectifs, avec
+leurs relations, indépendamment de qui les pense. `Expr` est du
+monde 1 : du code qu'on peut exécuter, compiler, manipuler.
 
-    http://example.org/A
+La séparation est philosophique : *ce qu'on sait* n'est pas *ce
+qu'on exécute*. Confondre les deux, c'est croire que toute
+connaissance est un programme. C'est faux.
 
-ou etre un blank node.
+## 2. Fait, règle, assertion
 
-Les valeurs textuelles ou numeriques sont representees comme des
-literals.
+![Trois formes de connaissance](images/11-knowledge.svg)
 
-Dans l'implementation actuelle, ces concepts sont representes par :
+Le module `Knowledge` distingue trois sortes de contenus.
 
-    Resource.uri
-    Resource.blank
-    Literal
-    Node
+**Les faits** — des énoncés simples, sans condition. Par exemple :
+« Socrate est un homme ».
 
-dans `src/knowledge/resource.zig`.
+**Les règles** — des implications conditionnelles. Par exemple :
+« Si X est un homme, alors X est mortel ».
 
-## Les triples
+**Les assertions** — des faits ou règles **attribués** à une source,
+avec un degré de confiance. Par exemple : « Aristote affirme que
+Socrate est un homme », avec une confiance élevée.
 
-La forme fondamentale de RDF est le triple :
+La distinction est essentielle. Un fait peut être vrai ou faux. Une
+assertion est la **prétention** qu'un fait est vrai, attribuée à
+quelqu'un. C'est la même distinction qu'en épistémologie : une
+croyance vraie n'est pas encore un savoir — il faut pouvoir la
+**justifier** (Platon, *Ménon*, chapitre 8).
 
-    sujet  predicat  objet
+Une ressource est identifiée par une **URI** (Uniform Resource
+Identifier) :
 
-Par exemple :
+    http://example.org/Socrate
+    http://example.org/homme
+    http://example.org/mortel
 
-    A  subClassOf  B
+Les URI viennent du Web sémantique (Berners-Lee, 2001). L'idée : au
+lieu de donner des noms locaux, on donne des **noms globaux** qui
+peuvent être partagés entre systèmes. C'est une extension de la
+logique de Peano : *au lieu de nommer les objets par convention,
+on les nomme par identité mondiale*.
 
-Un triple est une donnee. Il ne modifie pas `Expr.Store`.
+## 3. Le premier raisonneur
 
-Le type correspondant est `Triple` dans
-`src/knowledge/triple.zig`.
+![Transitivité : A sous-classe de B, B sous-classe de C](images/11-reasoning.svg)
 
-## Une assertion porte son histoire
+Un **raisonneur** (reasoner) combine les faits et les règles pour
+produire de **nouvelles connaissances**. Heaven en a un, minimal
+mais réel : le raisonneur de **subsomption** (*subClassOf*
+transitif).
 
-Deux sources peuvent affirmer exactement le meme triple.
+La règle :
 
-Heaven ne les fusionne pas automatiquement.
+    Si A ⊑ B et B ⊑ C, alors A ⊑ C.
 
-Une assertion contient notamment :
+Lisez `⊑` comme « est une sous-classe de ». Un exemple :
 
-- le triple ;
-- son `status` ;
-- sa `provenance` ;
-- une `confidence` optionnelle.
+    Chien ⊑ Mammifere
+    Mammifere ⊑ Animal
+    ------------------
+    Chien ⊑ Animal      (deduit)
 
-Les statuts actuels sont :
+Le raisonneur applique cette règle par **chaînage** : il suit les
+liens de subsomption jusqu'à ce qu'il n'y ait plus rien à déduire.
+C'est l'ancêtre des moteurs d'inférence modernes (Datalog, Prolog)
+et du RDFS (Resource Description Framework Schema, W3C 2004).
 
-    asserted
-    imported
-    derived
-    inferred
-    certified
+Aristote avait déjà formalisé cette idée dans les *Premiers
+Analytiques* : le **syllogisme** Barbara (« Tous les hommes sont
+mortels ; Socrate est un homme ; donc Socrate est mortel »). Le
+raisonneur de Heaven en est une version calculable.
 
-La provenance indique notamment la source et son identifiant.
+## 4. Confiance et provenance
 
-Cela permet de distinguer :
+Un raisonneur qui produit de nouvelles connaissances doit pouvoir
+dire **d'où** elles viennent, et **à quel point** on y croit.
 
-    source A affirme X
+Heaven attache à chaque assertion :
+
+- Une **provenance** — la source qui l'a produite (utilisateur,
+  fichier, raisonneur, URL).
+- Un **statut** — asserté, déduit, ou inféré.
+- Une **confiance** — un score entre 0 et 1.
+
+Ces trois attributs permettent de distinguer :
+
+- Une connaissance **directement observée** (confiance 1.0).
+- Une connaissance **déduite** par une règle fiable (confiance 0.9).
+- Une connaissance **spéculative** (confiance 0.3).
+
+Le sociologue des sciences Bruno Latour (né en 1947) a montré, dans
+*La Science en action* (1987), que la science est un **réseau de
+traductions** : chaque fait est relié à d'autres par des chaînes de
+justifications. La provenance dans Heaven est un tel réseau, réduit
+à sa forme minimale.
+
+## 5. Le lowering vers Expr
+
+![Comment une connaissance devient du code](images/11-lowering.svg)
+
+Une connaissance peut devenir du code — mais **seulement si on le
+demande explicitement**. Le passage de `Knowledge` à `Expr` s'appelle
+un **lowering**.
+
+    knowledge : Socrate est un homme
+                  |
+                  v
+    expr : apply(sym("est_un_homme"), [sym("Socrate")])
+
+Le lowering n'est pas automatique. C'est un **choix**, fait par
+l'utilisateur ou par une passe explicite. Cela évite qu'une
+connaissance devienne du code par accident, ou que deux
+connaissances contradictoires produisent du code incohérent.
+
+Cette décision suit le principe de **séparation des préoccupations**
+(Dijkstra, 1974). Un système qui fait plusieurs choses doit les
+séparer en couches, chacune avec ses propres règles. Knowledge et
+Expr sont deux couches. Le lowering est le pont — explicite, mince,
+contrôlé.
+
+## 6. Ce qui reste fragile en V0
+
+Le module `Knowledge` est un **POC** (proof of concept). Ce qui
+marche :
+
+- Stockage de faits et d'assertions avec provenance.
+- Le raisonneur de subsomption transitive.
+- Le lowering explicite vers `Expr`.
+
+Ce qui est **hors périmètre** en V0 :
+
+- **OWL** (Web Ontology Language) complet.
+- **SPARQL** (langage de requête RDF).
+- La **fusion implicite** via `sameAs` (équivalence).
+- Un **second IR spécialisé** — Knowledge reste séparé d'Expr.
+- Les raisonneurs avancés (description logics, contraintes).
+
+Ces limites sont documentées dans `docs/ROADMAP.md`. Le module
+Knowledge est volontairement minimal : il **fait** ce qu'il fait,
+sans prétendre à plus.
+
+Le philosophe Willard Van Orman Quine (1908-2000), dans *Le Mot et
+la chose* (1960), parlait de la **toile de croyances** : nos
+connaissances forment un réseau dont les bords touchent l'expérience,
+mais dont le centre est fait de conventions. Le module Knowledge est
+une telle toile — un réseau de faits, de règles, et de sources, où
+les bords sont les assertions directes, et le centre les déductions.
+
+## Ce qu'on a appris
+
+- Une **connaissance** n'est pas un programme. Elle vit dans un
+  module séparé (`Knowledge`), pas dans `Expr`.
+- Popper (*La Connaissance objective*, 1972) distingue trois
+  mondes. Knowledge est du **monde 3**.
+- Trois formes : **fait**, **règle**, **assertion**. Une assertion
+  est un fait attribué à une source, avec confiance.
+- Les **URI** donnent des noms globaux (Berners-Lee, Web sémantique).
+- Le **raisonneur** de subsomption transitive déduit `A ⊑ C` depuis
+  `A ⊑ B` et `B ⊑ C` (Aristote, syllogisme Barbara).
+- La **provenance** et la **confiance** distinguent les
+  connaissances directes des déduites.
+- Le **lowering** vers `Expr` est **explicite**, pas automatique
+  (Dijkstra, séparation des préoccupations).
+- En V0, Knowledge est un **POC** minimal : pas d'OWL, pas de
+  SPARQL, pas de fusion automatique.
+
+Wittgenstein aurait vu dans Knowledge une application de son
+« voir comme » : un fait vu comme *énoncé* (à propos du monde) et
+vu comme *assertion* (attribué à une source). Deux aspects d'un
+même contenu objectif.
+
+Quine aurait ajouté : la toile de croyances ne s'arrête jamais. Il
+y a toujours une assertion de plus à rattacher, une règle à
+affiner, une source à questionner.
+
+Au chapitre suivant, on continue dans le monde pratique : les
+**BigInt**. Comment représenter des nombres arbitrairement grands
+dans un langage qui n'a que des entiers 64 bits ? La réponse :
+construire une structure de données récursive qui les simule.
+
+*Vérifiable : les faits, règles et assertions de ce chapitre
+fonctionnent tels quels dans le REPL (voir `core/knowledge.hvn` et
+les tests associés).*
 
-de :
-
-    le reasoner a infere X
-
-ou :
-
-    une preuve certifie X
-
-Ces informations ne sont pas interchangeables.
-
-## Le KnowledgeStore
-
-Le `KnowledgeStore` conserve les assertions.
-
-Il accepte plusieurs assertions portant sur le meme triple. Par exemple,
-une assertion importee depuis une base externe et une assertion saisie
-par l'utilisateur peuvent coexister.
-
-Le Store ne deduplique donc pas silencieusement les connaissances.
-
-C'est un choix important : perdre la provenance en dedupliquant serait
-perdre une partie de la semantique de la connaissance.
-
-## Premier reasoner : RDFS
-
-Le premier POC implemente une seule regle RDFS :
-
-    subClassOf est transitive.
-
-Supposons :
-
-    A subClassOf B
-    B subClassOf C
-
-Le reasoner peut produire :
-
-    A subClassOf C
-
-Cette nouvelle assertion est marquee :
-
-    status = inferred
-
-Le Store original n'est pas modifie.
-
-La fermeture est donc conceptuellement :
-
-    Store source
-        |
-        v
-      Reasoner
-        |
-        v
-    Assertions inferees
-
-et non :
-
-    Store source -> Store modifie
-
-## Pas de reflexivite implicite
-
-Si le Store contient :
-
-    A subClassOf B
-
-le reasoner ne produit pas automatiquement :
-
-    A subClassOf A
-
-La fermeture actuelle ne fabrique pas cette reflexivite.
-
-Ce comportement est volontaire et teste.
-
-## Pourquoi `KnowledgeId != Expr.Id` ?
-
-Les deux systemes ont des identifiants numeriques, mais ils representent
-des choses differentes.
-
-    KnowledgeId
-        -> ressource Knowledge
-
-    Expr.Id
-        -> noeud du Core Store
-
-Ils restent donc incompatibles au niveau de l'API.
-
-Cette contrainte empeche une conversion accidentelle entre connaissance
-et programme.
-
-## Et `sameAs` ?
-
-Une relation `sameAs` signifie qu'une source affirme une equivalence.
-
-Elle ne provoque pas une fusion destructive.
-
-On conserve l'assertion originale avec sa provenance.
-
-Une eventuelle operation de fusion sera une decision explicite distincte,
-par exemple sous la forme conceptuelle :
-
-    mergeAs(A, B)
-
-Le reasoner pourra utiliser `sameAs` pour une requete sans effacer les
-faits originaux.
-
-## Charger du Turtle en pratique
-
-Depuis octobre 2026, un parser Turtle (`src/knowledge/turtle_parser.zig`)
-alimente un `TripleStore` global (`src/knowledge/triple_store.zig`).
-Syntaxe supportee :
-
-- `@prefix` : declaration de prefixes (`@prefix ex: <...> .`)
-- `<iri>` et `prefix:local` : IRI completes ou prefixees
-- `"litteral"`, `123`, `true`/`false` : litteraux types
-- `_:label` : blank nodes nommes
-- `;` : meme sujet, predicats multiples
-- `,` : plusieurs objets pour un meme predicat
-- `a` : raccourci pour `rdf:type`
-- `( i1 i2 )` : collections RDF (sucrees en `rdf:first`/`rdf:rest`)
-
-Commandes REPL :
-
-    :load fichier.ttl                    -- charge un document Turtle
-    :triple-count                        -- nombre de triplets charges
-    :triples                             -- liste tous les triplets
-    :triple-query <subject-iri>          -- tous les triplets d'un sujet
-
-Exemple :
-
-    @prefix foaf: <http://xmlns.com/foaf/0.1/> .
-    @prefix ex: <http://example.org/> .
-
-    ex:Alice a foaf:Person ;
-        foaf:name "Alice Dupont" ;
-        foaf:knows ex:Bob, ex:Charlie .
-
-Charge avec `:load family.ttl` puis interroge avec
-`:triple-query http://example.org/Alice`.
-
-## Charger du Prolog en pratique
-
-Un moteur Prolog (`src/runtime/prolog.zig`) est expose au REPL depuis
-octobre 2026 :
-
-    :p-fact parent(alice, bob)           -- ajoute un fait
-    :p-rule grandparent(X, Z) :- parent(X, Y), parent(Y, Z)
-                                         -- ajoute une regle Horn
-    ?- grandparent(alice, charlie)       -- requete
-    ?- parent(alice, X)                  -- requete avec variable
-
-Les variables commencent par une majuscule. Le backtracking retourne
-toutes les solutions (une par ligne).
-
-Limites actuelles : pas de recursion, pas de chargement de fichiers
-`.pl`. Le backend reste Matrix (D9 futur).
-
-## Ce qui n'est pas encore la
-
-Le POC ne fournit pas encore :
-
-- de SPARQL ;
-- OWL ;
-- `rdfs:domain` ;
-- `rdfs:range` ;
-- `rdfs:subPropertyOf`.
-
-Ces extensions seront ajoutees seulement apres specification de leur
-contrat.
-
-## Vers le langage Heaven
-
-La couche Knowledge est actuellement une bibliotheque/runtime en Zig.
-
-Il ne faut donc pas inventer une syntaxe Heaven pour RDF avant que cette
-syntaxe soit implementee.
-
-Le principe futur reste :
-
-    connaissance
-         |
-         | lowering explicite
-         v
-        Expr
-         |
-         v
-       calcul
-
-Ainsi Knowledge enrichit Heaven sans introduire un deuxieme langage
-interne de compilation.
-
-## A retenir
-
-- Knowledge represente des connaissances, pas des programmes.
-- `Expr` reste l'IR compilable unique.
-- `KnowledgeId` est distinct de `Expr.Id`.
-- Les assertions conservent provenance, statut et confiance.
-- Les reasoners produisent des resultats separes du Store.
-- Le premier reasoner implemente `subClassOf` transitif.
-- Une connaissance ne devient du code que par lowering explicite.
-
----
-
-Knowledge manipule des faits abstraits. Mais il existe un savoir plus
-terre-à-terre qui pousse les primitives du langage dans leurs
-retranchements : l'arithmétique qui ne tient pas dans 64 bits. Le
-prochain chapitre construit des **BigInt** en Heaven pur.
