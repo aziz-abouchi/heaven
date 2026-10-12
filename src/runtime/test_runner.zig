@@ -59,12 +59,23 @@ fn splitStatements(
         const is_indented = line.len > 0 and (line[0] == ' ' or line[0] == '\t');
         const in_block = brace_depth > 0;
 
-        if (buffer.items.len > 0 and !is_indented and !in_block) {
+        // Une ligne indentee commencant par '|' est une continuation de
+        // clause (garde alignee). Elle doit devenir un statement a part
+        // entiere pour que heaven_expr.zig la reconnaisse -- sinon le
+        // buffer la joint a la clause precedente, et la branche
+        // `trimmed[0] == '|'` (qui utilise last_eq_lhs) n'est jamais
+        // atteinte.
+        const is_clause_continuation = is_indented and
+            trimmed.len > 0 and trimmed[0] == '|';
+
+        if (buffer.items.len > 0 and (!is_indented or is_clause_continuation) and !in_block) {
             try out.append(allocator, try allocator.dupe(u8, buffer.items));
             buffer.clearRetainingCapacity();
         }
 
-        if (buffer.items.len > 0) {
+        // Ne pas joindre une continuation de clause a la ligne precedente :
+        // on veut qu'elle soit un statement separe (commencant par '|').
+        if (buffer.items.len > 0 and !is_clause_continuation) {
             try buffer.append(allocator, ' ');
         }
         try buffer.appendSlice(allocator, trimmed);
