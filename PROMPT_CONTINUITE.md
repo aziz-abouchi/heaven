@@ -517,3 +517,46 @@ Tests : `test_http.hvn` 13/13. Permet `curl localhost:8080/egraph-viz/`.
 **Suites (référence fin de session)** : test_suite 98/98 · bitstrings
 28/28 · recursion 22/22 · lens 12/12 · free 14/14 · parser_literals 23/23
 · http 13/13 · hashmap 50/50 · lexer 14/14 (sessions parallèles).
+
+
+---
+
+## Bug ouvert : substitution multi-args dans evalFunction (2026-10-12)
+
+**Symptome** : `mkpair x y = (Pair x y)` retourne `(Pair x y)` au
+lieu de `(Pair 1 2)`. Les variables du pattern ne sont pas liees.
+
+**Test minimal** :
+
+    id x = x                    -- OK (1 param)
+    mkpair x y = (Pair x y)     -- KO (2 params)
+    (mkpair 1 2) -> (Pair x y)  -- attendu (Pair 1 2)
+
+**Localisation** : la substitution `substSym` n'est appelee qu'a
+un endroit dans `engine_expr.zig` (ligne 717, lambda). Les
+fonctions enregistrees (`mkpair`) passent par un autre chemin
+(`evalFunction`) qui gere la substitution des patterns
+differemment. C'est ce chemin qui est buggue.
+
+**Impact** : les fonctions a 2+ arguments ne lient pas leurs
+parametres correctement. Bizarrement, `hashmap.hvn`,
+`lens.hvn`, `recursion.hvn`, `free.hvn` passent tous leurs
+tests -- donc le bug est peut-etre plus subtil (specifique aux
+constructeurs imbriques `Pair`/`Cons` ?).
+
+**Tests parques** : 2 tests dans `test_stream.hvn` (zip).
+
+**Effort estime** : 1h - 1 session. Necessite de tracer
+`evalFunction` et de comprendre comment les patterns sont lies
+aux arguments.
+
+**Chantier a froid**, pas a faire en fin de session.
+
+**Commits de la session 2026-10-12 (matin)** :
+
+- `77e497a` fuite CI splitStatements
+- `e4cbc04` HKT minimal V0.5
+- `7f024a0` build casse egraph.zig
+- `b007413` guards alignes separees
+- `c3b81ef` identifiants triviaux -> apply zero-arg
+- `5f319b3` tests zip parques
