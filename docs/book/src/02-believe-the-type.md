@@ -1,215 +1,254 @@
-# Chapitre 2 — Believe the Type
+# Chapitre 2 — Types et catégories
 
-> *« Un type, c'est une promesse qu'on se fait à soi-même et qu'on
-> tient. »*
+> *« Les catégories ne sont pas des choses — ce sont des manières
+> de classer les choses. »*
+> — Aristote, *Catégories*
 
-Au chapitre précédent, on a vu Heaven refuser `double "bonjour"`. On
-a dit « parce que `*` demande deux nombres ». Maintenant on va voir
-pourquoi, et ce que Heaven sait vraiment.
+Au chapitre précédent, on a vu Heaven refuser `double "bonjour"` et
+on a dit : « parce que `*` demande deux nombres ». Maintenant on va
+voir pourquoi, et ce que Heaven sait vraiment.
 
-## Le REPL te dit tout
+## 1. Ce qu'on dit d'une chose
 
-Dans le REPL, demande à Heaven le type d'une expression :
+Aristote, dans les *Catégories*, distingue dix manières de dire
+« ce que c'est » qu'une chose : substance, quantité, qualité,
+relation, lieu, temps, position, avoir, action, passion. Ces dix
+catégories ne sont pas des choses — ce sont des **manières de
+classer** les choses. Des grilles pour penser.
 
-    heaven> type 42
+Quand tu dis « Socrate est un homme », tu dis *ce qu'il est*
+(substance). Quand tu dis « il mesure 1m70 », tu dis *combien*
+(quantité). Ces deux phrases ne disent pas la même chose *de la
+même manière*. Les catégories d'Aristote sont là pour rendre ces
+distinctions explicites.
+
+Un **type**, dans un langage de programmation, joue le même rôle
+que les catégories d'Aristote. Il dit *comment* on peut parler
+d'une valeur — pas ce qu'elle est en soi. C'est une **grille de
+lecture**, pas une essence cachée.
+
+    heaven> :type 42
     Int
-    heaven> type 3.14
-    Float
-    heaven> type "bonjour"
+
+    heaven> :type "bonjour"
     String
-    heaven> type true
+
+`42` est un `Int` (un entier). `"bonjour"` est un `String` (une
+suite de caractères). Le type est l'étiquette que le langage
+attache à chaque valeur.
+
+## 2. Quatre manières d'être une valeur
+
+![Les quatre types de base](images/02-types-base.svg)
+
+Heaven a quatre types de base — quatre manières de classer les
+valeurs :
+
+    heaven> :type 42
+    Int
+
+    heaven> :type 3.14
+    Float
+
+    heaven> :type "bonjour"
+    String
+
+    heaven> :type true
     Bool
 
-Simple. Une valeur a un type. `42` est un `Int`, `"bonjour"` est un
-`String`, `true` est un `Bool`.
+    heaven> :type ()
+    Unit
 
-Tu peux aussi demander le type d'une fonction :
+- **Int** — un nombre entier (positif, négatif, ou zéro).
+- **Float** — un nombre à virgule flottante (pour les calculs
+  approchés).
+- **String** — une suite de caractères.
+- **Bool** — un booléen : `true` ou `false`.
+- **Unit** — la valeur unique qui ne porte aucune information.
+  Elle s'écrit `()` et se prononce « unit ».
+
+Ces cinq types (dont on dit souvent quatre, car `Unit` est à part)
+sont **de base** : on ne les définit pas, on les utilise. Tout le
+reste — listes, options, paires, arbres, ce que tu voudras — se
+construit à partir d'eux.
+
+Note : `:type ()` et `:type Float` fonctionnent dans le REPL. Il
+n'y a pas de type `Float` littéral ici, mais un calcul comme
+`(/ 3 2)` en produit.
+
+## 3. Le langage devine : l'inférence
+
+Quand tu écris `42`, Heaven sait que c'est un `Int` sans que tu le
+lui dises. C'est ce qu'on appelle l'**inférence de type**.
+
+Regarde :
 
     heaven> inc x = x + 1
     ✓ clause enregistrée pour 'inc'
-    heaven> type inc
+
+    heaven> :type inc
     Int -> Int
 
-`inc : Int -> Int`. La flèche se lit « vers ». Ça veut dire : prends
-un `Int`, rends un `Int`.
+Tu n'as écrit *aucun type* dans la définition. Pas une seule fois
+le mot `Int`. Pourtant, Heaven a déduit que `inc` prend un `Int`
+et rend un `Int`. Comment ?
 
-## Les types sont des inventions
+Parce que `+` est une fonction qui, appliquée à deux `Int`, rend un
+`Int`. Et `1` est un `Int`. Donc `x + 1` est un `Int`. Donc `inc x`
+est un `Int`. Donc `inc` prend un `Int` et rend un `Int`.
 
-D'où viennent `Int`, `Float`, `String`, `Bool`, `Unit` ? Ce sont des
-types **de base**. Heaven en a quelques-uns. On ne les définit pas,
-on les utilise.
+Cette déduction se fait **sans que tu aies à l'écrire**. C'est un
+des apports majeurs de Haskell et de ses successeurs (dont Idris,
+Agda, et Heaven). Le langage **devine** le type le plus général qui
+convient.
 
-`Unit` mérite une mention. C'est le type qui ne contient **qu'une
-seule valeur**. On l'écrit `()`. À quoi ça sert ? À dire « cette
-fonction ne renvoie rien d'intéressant, mais elle renvoie quelque
-chose ». Tu rencontreras `Unit` partout dans les fonctions qui
-*font* quelque chose plutôt que de *calculer* quelque chose.
+Frege, à la fin du XIXᵉ siècle, parlait déjà de cela : une
+expression a un **sens** (Sinn) — ce qu'elle signifie — et une
+**référence** (Bedeutung) — l'objet qu'elle désigne. Un type, en
+programmation, joue le rôle du sens : il dit *comment* on peut
+utiliser une valeur, avant même de savoir *quelle* valeur c'est.
+On y reviendra à la section 5.
 
-## Ce qui se passe sous le capot
+## 4. Types paramétrés : les places vides
 
-`type` n'est pas magique. Heaven **infère** le type de l'expression :
-il la parcourt, applique des règles, et te donne le résultat. Il ne
-te demande pas de l'écrire. C'est l'**inférence de types**.
+![Types paramétrés](images/02-parametric.svg)
 
-Compare avec C :
+Voici une liste :
 
-    int inc(int x) { return x + 1; }
+    heaven> cons 1 (cons 2 nil)
+    cons 1 (cons 2 nil)
 
-Tu écris `int` deux fois. En Heaven :
+C'est une liste de deux entiers. Comment en écrire le type ?
 
-    inc x = x + 1
+    heaven> :type (cons 1 nil)
+    List Int
 
-Rien. Heaven a compris.
+    heaven> :type (cons 1 (cons 2 nil))
+    List Int
 
-Compare avec Python :
+`List Int` se lit « liste d'Int ». Mais il existe aussi des listes
+de `String`, de `Bool`, de n'importe quoi :
 
-    def inc(x):
-        return x + 1
+    heaven> :type (cons "a" (cons "b" nil))
+    List String
 
-Python te laisse faire, et tu découvriras à l'exécution que `inc("a")`
-est une erreur. Heaven t'avertit **avant** l'exécution, à la première
-analyse. Le compromis : Heaven est plus strict, Python est plus
-permissif.
+Le type `List` n'est **pas complet** tout seul. Il attend un autre
+type — un type **paramètre**. On note `List a` où `a` est la place
+vide. Quand on remplit la place avec `Int`, on obtient `List Int`.
+Quand on la remplit avec `String`, on obtient `List String`.
 
-## Quand Heaven ne sait pas
+Trois exemples courants en Heaven :
 
-Il y a un cas où Heaven refuse de deviner :
+- **`List a`** — une liste (un nombre variable d'éléments).
+- **`Option a`** — une valeur qui peut être absente (`none` ou
+  `some x`).
+- **`Pair a b`** — deux valeurs ensemble (`pair x y`), chacune
+  pouvant être d'un type différent.
 
-    heaven> λx.x
-    -> ?
+Aristote, encore : quand tu dis « trois », tu ne dis pas *quelle
+chose est trois*, tu dis *combien* — la place vide de la substance.
+Un type paramétré comme `List a` est pareil : `List` dit la *forme*
+(une liste), `a` dit la *matière* (ce qu'il y a dedans). Les deux
+se remplissent séparément.
 
-Traduit : « une fonction d'un type vers un autre, mais je ne sais pas
-lesquels ». Le `?` signifie **type inconnu**. Heaven ne peut pas
-inventer. C'est un peu frustrant, mais c'est honnête.
+*Vérifiable : les `:type` et les exemples ci-dessus fonctionnent
+tels quels dans le REPL.*
 
-Si tu veux, tu peux *guider* Heaven :
 
-    heaven> type ((λx.x) 42)
-    Int
+## 5. Sens et référence
 
-Ici, on applique l'identité à `42`, donc le résultat est `Int`. Heaven
-a déduit.
+![Le triangle de Frege](images/02-sinn-bedeutung.svg)
 
-## Types paramétrés
+Gottlob Frege, dans un article célèbre de 1892 (« Über Sinn und
+Bedeutung »), propose une distinction qui va nous aider à
+comprendre les types.
 
-Les types comme `Int` sont simples. Heaven en a de plus riches :
+Il prend l'exemple de deux expressions :
 
-    heaven> data Maybe a = None | Some a
-    ✓ data type registered (2 constructors)
-    heaven> type Some 42
-    Maybe Int
+- **« l'étoile du matin »**
+- **« l'étoile du soir »**
 
-`Maybe a` prend **un paramètre** : le `a`. C'est un type **générique**.
-`Maybe Int`, `Maybe String`, `Maybe (Maybe Bool)` sont tous des types
-différents, tous construits sur le même moule.
+Ces deux expressions **désignent le même objet** : la planète
+Vénus. Mais elles ont un **sens** différent. L'une dit *quand* on
+la voit (le matin), l'autre dit *quand* (le soir). Deux sens, une
+seule référence.
 
-L'intérêt ? Écris une fois, utilise partout :
+Frege en tire une distinction :
 
-    heaven> map f None = None
-    heaven> map f (Some x) = Some (f x)
+- Le **sens** (Sinn) — la manière de présenter l'objet.
+- La **référence** (Bedeutung) — l'objet lui-même.
 
-`map` fonctionne pour n'importe quel `Maybe a`, quel que soit `a`.
-C'est ce qu'on appelle le **polymorphisme paramétrique**. Tu n'as pas
-besoin de définir `map_Maybe_Int`, `map_Maybe_String`, etc.
+En programmation, cette distinction éclaire la différence entre
+types et valeurs. Deux expressions peuvent avoir **la même valeur**
+sans avoir **le même type** :
 
-## Les streams
+    heaven> 42
+    42
 
-Un exemple concret de type paramétré qu'on va utiliser souvent :
+    heaven> (+ 40 2)
+    42
 
-    heaven> data Stream a = Cons a (Stream a) | End
-    ✓ data type registered (2 constructors)
-
-Un `Stream Int`, `Stream String`, `Stream (Stream Bool)` — c'est
-toujours la même structure, elle change juste de contenu.
-
-On verra tout au chapitre 7. Pour l'instant, note que `Stream` prend
-`a` et construit un type.
-
-## État actuel des types paramétrés
-
-Depuis octobre 2026, le pipeline syntaxique HIR reconnaît les paramètres génériques des déclarations `data` :
-
-```heaven
-data List<a> = Nil | Cons a (List<a>)
-```
-
-Les paramètres sont conservés dans l'AST HIR via `DataDecl.params`. La propagation complète vers l'élaboration et l'enregistrement runtime reste une étape en cours.
-
-
-## Ce que ça change
-
-Tu te dis peut-être : « pourquoi tout ce cérémonial ? Python marche
-très bien sans types. » Trois choses :
-
-**1. Les erreurs remontent tôt.** `double "bonjour"` échoue au moment
-où tu tapes, pas à 2h du matin en production.
-
-**2. Le code se documente.** `map : (a -> b) -> List a -> List b` te
-dit tout. `def map(f, xs):` ne dit rien.
-
-**3. On peut raisonner.** C'est là que ça devient intéressant. Si tu
-sais que `add : Int -> Int -> Int`, tu peux affirmer :
-
-    theorem add_zero : x + 0 = x
-
-et Heaven **vérifiera** que ton théorème est bien typé. Un système de
-types solide rend la preuve possible.
-
-## Un mot sur les types dépendants
-
-Il y a plus fort que les types paramétrés : les types **dépendants**.
-Un type peut dépendre d'**une valeur**. Par exemple :
-
-    Vector : Nat -> Type
-
-`Vector n` est le type des vecteurs de longueur exactement `n`. Un
-`Vector 3` a exactement 3 éléments. Un `Vector 5` en a 5. Le type
-*lui-même* garantit la longueur — pas besoin d'un check à l'exécution.
-
-C'est ce que font les assistants de preuve comme Coq ou Agda. Heaven
-les supporte via son noyau CIC (Calcul des Constructions
-Inductives), qu'on verra au chapitre 8.
-
-Pour l'instant, retiens : **Heaven peut exprimer qu'un type dépend
-d'une valeur**. C'est ce qui permet les théorèmes comme
-`add_zero`, et c'est rare parmi les langages.
-
-## Axiomes, holes, et le reste
-
-Trois mots que tu croiseras bientôt :
-
-**Axiome**. Une affirmation qu'on accepte sans preuve. Tu peux en
-déclarer :
-
-    axiom is_commutative : forall (a b : Int). a + b = b + a
-
-Heaven ne le prouvera pas. Il l'enregistrera comme vérité de base. À
-utiliser avec parcimonie.
-
-**Hole**. Un trou dans ton programme, qui **demande de l'aide au
-système**. Tu écris :
-
-    f x = ? + 1
-
-et le système te dit le type attendu et le contexte. C'est du
-**type-driven development** — voir chapitre 8. Rien à voir avec un
-`undefined` : ce n'est pas un placeholder, c'est une question.
-
-**Signature**. Pour déclarer explicitement un type :
-
-    inc : Int -> Int
-    inc x = x + 1
-
-Heaven vérifiera que l'implémentation correspond. C'est redondant avec
-l'inférence, mais utile pour la documentation et les erreurs.
-
-## En résumé
-
-- Heaven **infère** les types — tu ne les écris pas d'habitude.
-- Les types **de base** : `Int`, `Float`, `String`, `Bool`, `Unit`.
-- Les types **paramétrés** : `Maybe a`, `Stream a`, etc.
-- Les types **dépendants** : plus fort, on y viendra.
-- `type <expr>` te dit tout dans le REPL.
-
-Au chapitre suivant, on plonge dans le **pattern matching** : comment
-écrire des fonctions qui prennent vraiment de la donnée structurée.
+Les deux évaluent à `42`. Mais l'une est un `Int` direct, l'autre
+est le résultat d'une opération. Le type reste `Int` — mais la
+manière de le construire diffère. C'est exactement ce que Frege
+appelait le sens.
+
+Un autre exemple : `42` et `6 × 7` désignent le même nombre (la
+référence), mais présentent le nombre différemment (le sens). Le
+langage peut les distinguer si nécessaire — par exemple pour
+prouver qu'ils sont égaux. C'est l'objet du chapitre 8.
+
+Dans Heaven, les types sont notre **sens** principal : ils disent
+comment présenter une valeur, avant même de savoir ce que la
+valeur vaut. Frege avait vu cela en 1892.
+
+## 6. Vers les types dépendants
+
+Il y a une dernière idée, plus avancée, qu'on annonce ici : les
+**types dépendants**. Ce sont des types qui **dépendent d'une
+valeur**.
+
+Exemple : le type `Vec n a` désigne un vecteur (une liste de
+longueur fixe) contenant `n` éléments de type `a`. `Vec 3 Int`
+est un vecteur de trois entiers. `Vec 5 String` est un vecteur de
+cinq chaînes. Le type **contient** le nombre `n`.
+
+C'est très puissant. On peut écrire une fonction `head : Vec
+(succ n) a -> a` qui prend un vecteur **non vide** — le type
+garantit qu'on ne peut pas l'appeler sur un vecteur vide. Pas
+besoin de vérification à l'exécution : le type l'interdit.
+
+Aristote aurait aimé. Sa distinction entre les catégories
+(substance, quantité, relation) devient, dans un type dépendant,
+une **structure interne** au type lui-même. Le type porte sa
+propre substance.
+
+Heaven supporte partiellement les types dépendants en V0 (via
+`sig`, `data`, `Vec`). On en verra le détail au chapitre 8
+(« Preuves et théorèmes »). Pour l'instant, retiens qu'un type
+peut contenir une valeur, et que cette idée vient de la logique
+de Frege, Russell et Martin-Löf.
+
+## Ce qu'on a appris
+
+- Un **type** est une catégorie (Aristote) : une manière de
+  classer les valeurs, pas une essence cachée.
+- Heaven a **cinq types de base** : `Int`, `Float`, `String`,
+  `Bool`, `Unit`.
+- Le langage **infère** les types : `inc x = x + 1` donne
+  `Int -> Int` sans qu'on ait rien écrit.
+- Les **types paramétrés** (`List a`, `Option a`, `Pair a b`)
+  ont des places vides qu'on remplit plus tard.
+- Frege distinguait **sens** (Sinn) et **référence**
+  (Bedeutung) : deux expressions peuvent désigner la même chose
+  par des chemins différents.
+- Les **types dépendants** (`Vec n a`) portent une valeur dans
+  leur structure.
+
+Au chapitre suivant, on plonge dans le **pattern matching** :
+comment écrire des fonctions qui prennent vraiment de la donnée
+structurée, et comment la forme des arguments décide de leur
+comportement.
+
+*Vérifiable : tous les exemples `:type` et les constructions
+montrées fonctionnent tels quels dans le REPL.*

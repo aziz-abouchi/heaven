@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 280" font-family="Georgia, serif">
+  <rect width="500" height="280" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Un type qui attend un autre type
+  </text>
+  <!-- List a -->
+  <g>
+    <text x="100" y="80" text-anchor="middle" font-size="16" font-style="italic" fill="#2c2c2c">
+      List <tspan fill="#7a3b3b">a</tspan>
+    </text>
+    <text x="100" y="105" text-anchor="middle" font-size="10" fill="#666">une liste de ...</text>
+    <rect x="40" y="125" width="120" height="60" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="100" y="160" text-anchor="middle" font-size="13" fill="#2c2c2c">cons 1 (cons 2 nil)</text>
+  </g>
+  <!-- Option a -->
+  <g>
+    <text x="250" y="80" text-anchor="middle" font-size="16" font-style="italic" fill="#2c2c2c">
+      Option <tspan fill="#7a3b3b">a</tspan>
+    </text>
+    <text x="250" y="105" text-anchor="middle" font-size="10" fill="#666">peut-être une valeur</text>
+    <rect x="190" y="125" width="120" height="60" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="250" y="160" text-anchor="middle" font-size="13" fill="#2c2c2c">some 42 / none</text>
+  </g>
+  <!-- Pair a b -->
+  <g>
+    <text x="400" y="80" text-anchor="middle" font-size="16" font-style="italic" fill="#2c2c2c">
+      Pair <tspan fill="#7a3b3b">a b</tspan>
+    </text>
+    <text x="400" y="105" text-anchor="middle" font-size="10" fill="#666">deux valeurs ensemble</text>
+    <rect x="340" y="125" width="120" height="60" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="400" y="160" text-anchor="middle" font-size="13" fill="#2c2c2c">pair 1 "un"</text>
+  </g>
+  <!-- Annotation -->
+  <text x="250" y="230" text-anchor="middle" font-size="11" font-style="italic" fill="#7a3b3b">
+    a, b : des places vides qu'on remplira plus tard
+  </text>
+  <text x="250" y="255" text-anchor="middle" font-size="10" fill="#666">
+    (List Int), (Option String), (Pair Int Int)
+  </text>
+</svg>
