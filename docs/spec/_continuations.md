@@ -166,3 +166,43 @@ Modifications dans `src/core/engine_expr.zig` :
 - `let-in` non évalué dans une expression de test
 - `(if int a b)` refuse un int comme condition
 - `(@magic)` 0-arg strippé en symbole nu
+
+---
+
+## 3a-3b — Migration HandleRecYield → SuspendRequested (2026-10-12)
+
+**Statut** : ✅ Fait
+
+Le mécanisme d'exception Zig dédiée (`error.HandleRecYield`) est
+remplacé par un signalement non-exceptionnel via
+`error.SuspendRequested` (déjà présent pour le budget de reductions)
++ un champ `engine.pending_capture: ?PendingCapture`.
+
+Modifications dans `src/core/engine_expr.zig` :
+
+1. **Nouveaux types** :
+   - `CaptureKind = enum { perform, resume_from_k }`
+   - `PendingCapture = struct { kind, handler, value, new_state, prompt }`
+
+2. **Engine** : champ `pending_capture: ?PendingCapture = null`.
+
+3. **`perform`** : au lieu de `return error.HandleRecYield`, pose
+   `pending_capture = .{ .kind = .perform, .handler, .value, .prompt }`
+   et remonte via `error.SuspendRequested`.
+
+4. **`handle_rec`** : boucle discriminée par prompt. Attrape
+   `SuspendRequested`, vérifie que `pending_capture.prompt == my_prompt`,
+   traite selon `kind` (perform → handler / resume_from_k → reboucler).
+   Les captures pour d'autres prompts sont **propagées**.
+
+5. **`__handle_rec_k`** : au lieu de `ctx.k_signaled = true`, pose
+   `pending_capture = .{ .kind = .resume_from_k, .new_state, .prompt }`.
+
+**Non-régression** : `test_effects_rec.hvn` 4/4 sans modification,
+`test_prompt_depth.hvn` 13/13, `continuation.zig` 9/9.
+
+**Dette restante** (3a-3b.3) : `HandleRecYield` toujours dans
+`EvalError`, `RecCtx.{pending_value, k_signaled, next_state}` toujours
+présents (utilisés par le scheduler, ligne 954-955 + 1003-1005).
+
+**Suite** : 3a-3b.4 (test nested), 3a-3c (magics @capture/@throw).

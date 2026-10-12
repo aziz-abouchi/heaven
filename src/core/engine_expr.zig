@@ -209,6 +209,32 @@ pub const ThunkState = struct {
 };
 
 
+/// 3a-3b : nature d'une capture en vol qui remonte vers handle_rec.
+pub const CaptureKind = enum {
+    /// `perform` a capture : le handle_rec doit invoquer son handler.
+    perform,
+    /// `__handle_rec_k` a capture : le handle_rec doit reboucler avec
+    /// un nouvel etat. (Note : `resume` est un mot-cle Zig, on
+    /// utilise `resume_from_k`.)
+    resume_from_k,
+};
+
+/// 3a-3b : capture en vol. Remplace `error.HandleRecYield` par un
+/// signalement non-exceptionnel via SuspendRequested. Un handle_rec
+/// dont le prompt matche traite la capture ; un handle_rec etranger
+/// propage l'erreur.
+pub const PendingCapture = struct {
+    kind: CaptureKind,
+    /// Id du handler a invoquer (kind = perform uniquement).
+    handler: Id = 0,
+    /// Valeur produite par perform (kind = perform uniquement).
+    value: Id = 0,
+    /// Nouvel etat a reprendre (kind = resume uniquement).
+    new_state: Id = 0,
+    /// Prompt de la frontiere cible.
+    prompt: continuation.Prompt,
+};
+
 /// Contexte de handle-rec : boucle body_fn(state) / handler(v, k).
 pub const RecCtx = struct {
     body_fn: Id,
@@ -274,6 +300,9 @@ pub const Engine = struct {
     prompts: continuation.PromptStack,
     /// Contexte handle-rec (D8 3a-3-b). null = pas de handle-rec en cours.
     rec_ctx: ?*RecCtx = null,
+    /// 3a-3b : capture en vol (perform ou resume). Distinct de
+    /// reductions==0 (SuspendRequested de budget).
+    pending_capture: ?PendingCapture = null,
     /// Scheduler cooperatif (D8 3a-3-c).
     scheduler: scheduler_lib.Scheduler,
     next_task_id: u64 = 1,
@@ -1061,35 +1090,52 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         engine.rec_ctx = &ctx;
         defer engine.rec_ctx = saved_ctx;
 
+        // 3a-3b : boucle sur capture (perform -> handler) et
+        // reprise (handler appelle k -> reboucler). Pas d'exception
+        // dediee : on discrimine via pending_capture + prompt.
         while (true) {
-            ctx.pending_value = null;
-            ctx.k_signaled = false;
             const body_call = try store.apply(ctx.body_fn, &.{ctx.state});
-            const result = evaluate(store, env, engine, body_call, depth + 1) catch |err| {
-                if (err == error.HandleRecYield) {
-                    const val = ctx.pending_value orelse return error.HandlerFailed;
-                    const k_sym = try store.sym("__handle_rec_k");
-                    const handler_call = try store.apply(ctx.handler, &.{ val, k_sym });
-                    const res = try evaluate(store, env, engine, handler_call, depth + 1);
-                    if (ctx.k_signaled) {
-                        ctx.state = ctx.next_state orelse return error.HandlerFailed;
-                        continue;
-                    }
-                    return res;
-                }
-                return err;
+            const body_result = evaluate(store, env, engine, body_call, depth + 1) catch |err| {
+                if (err != error.SuspendRequested) return err;
+                const cap = engine.pending_capture orelse return err;
+                if (cap.prompt != my_prompt) return err;
+                if (cap.kind != .perform) return err;
+                engine.pending_capture = null;
+
+                // Invoquer le handler avec (value, k_sym).
+                const k_sym = try store.sym("__handle_rec_k");
+                const handler_call = try store.apply(cap.handler, &.{ cap.value, k_sym });
+                const handler_result = evaluate(store, env, engine, handler_call, depth + 1) catch |herr| {
+                    if (herr != error.SuspendRequested) return herr;
+                    const cap2 = engine.pending_capture orelse return herr;
+                    if (cap2.prompt != my_prompt) return herr;
+                    if (cap2.kind != .resume_from_k) return herr;
+                    engine.pending_capture = null;
+                    ctx.state = cap2.new_state;
+                    continue;  // reboucler
+                };
+                // Handler a termine normalement (one-shot) : retour.
+                return handler_result;
             };
-            return result;
+            // Body a termine sans capture : retour direct.
+            return body_result;
         }
     }
 
     if (std.mem.eql(u8, op, "__handle_rec_k")) {
+        // 3a-3b : `k` n'est plus un marqueur, c'est un throwCont
+        // vers la frontiere handle_rec. Pose une capture resume et
+        // remonte via SuspendRequested. Le handle_rec matche par
+        // prompt reprend sa boucle avec le nouvel etat.
         const ctx = engine.rec_ctx orelse return error.HandlerFailed;
         if (args_snap.len != 1) return error.ArityMismatch;
         const new_state = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        ctx.next_state = new_state;
-        ctx.k_signaled = true;
-        return try store.unitLit();
+        engine.pending_capture = PendingCapture{
+            .kind = .resume_from_k,
+            .new_state = new_state,
+            .prompt = ctx.prompt,
+        };
+        return error.SuspendRequested;
     }
 
     // ═══ LET (D15) : (let name val body) -- S-expr pur
@@ -1877,12 +1923,20 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     // ═══ 3. EFFETS ALGÉBRIQUES : perform et handle ═══
     if (std.mem.eql(u8, op, "perform")) {
-        // Mode handle-rec : yield au lieu d'executer le handler.
+        // Mode handle-rec : capture au lieu d'executer le handler.
+        // 3a-3b : pose une capture en vol et remonte via
+        // SuspendRequested. Le handle_rec dont le prompt matche
+        // traite la capture ; les autres propagent.
         if (engine.rec_ctx) |ctx| {
             if (args_snap.len < 2) return error.HandlerFailed;
             const v = try evaluate(store, env, engine, args_snap[1], depth + 1);
-            ctx.pending_value = v;
-            return error.HandleRecYield;
+            engine.pending_capture = PendingCapture{
+                .kind = .perform,
+                .handler = ctx.handler,
+                .value = v,
+                .prompt = ctx.prompt,
+            };
+            return error.SuspendRequested;
         }
         if (engine.green_mode) engine.green_call_count += 1;
 
@@ -2134,6 +2188,47 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         platform.debug.print("[ZIG] @net_read SUCCESS\n", .{});
         return try store.lit(.{ .str = sym });
     }
+
+    if (std.mem.eql(u8, op, "@net_http_respond")) {
+        platform.debug.print("[ZIG] @net_http_respond START\n", .{});
+        if (args_snap.len != 3) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        const port_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const port_node = store.get(port_val);
+        if (port_node.tag != .lit) return error.TypeError;
+        const port: u16 = @intCast(store.lits.items[port_node.aux].int);
+        
+        const response_val = try evaluate(store, env, engine, args_snap[2], depth + 1);
+        const response_node = store.get(response_val);
+        if (response_node.tag != .lit) return error.TypeError;
+        const response_str = store.interner.resolve(store.lits.items[response_node.aux].str);
+
+        const address = std.net.Address.parseIp4("127.0.0.1", port) catch return error.InvalidInput;
+        var server = address.listen(.{ .reuse_address = true }) catch return error.InvalidInput;
+        platform.debug.print("[ZIG] Listening on port {d}\n", .{port});
+        
+        var client = server.accept() catch return error.InvalidInput;
+        platform.debug.print("[ZIG] Client accepted\n", .{});
+        
+        var buf: [4096]u8 = undefined;
+        const len = client.stream.read(&buf) catch |err| {
+            platform.debug.print("[ZIG] read error: {any}\n", .{err});
+            client.stream.close();
+            return error.InvalidInput;
+        };
+        platform.debug.print("[ZIG] Read {d} bytes\n", .{len});
+        
+        const request_str = try std.fmt.allocPrint(store.allocator, "{s}", .{buf[0..len]});
+        defer store.allocator.free(request_str);
+        const req_sym = try store.interner.intern(request_str);
+        
+        _ = client.stream.write(response_str) catch return error.InvalidInput;
+        client.stream.close();
+        platform.debug.print("[ZIG] @net_http_respond SUCCESS\n", .{});
+        
+        return try store.lit(.{ .str = req_sym });
+    }
+
 
     if (std.mem.eql(u8, op, "@net_write")) {
         if (args_snap.len != 3) return error.ArityMismatch;
