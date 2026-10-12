@@ -113,7 +113,13 @@ pub fn runTestFile(allocator: std.mem.Allocator, path: []const u8) !bool {
     var total_cpu_ns: u64 = 0;
 
     var statements: std.ArrayListUnmanaged([]const u8) = .{};
-    defer statements.deinit(allocator);
+    defer {
+        // Chaque statement est un dupe independant (alloue dans
+        // splitStatements). Il faut les liberer AVANT le tableau
+        // lui-meme, sinon le GPA de CI signale des fuites.
+        for (statements.items) |stmt| allocator.free(stmt);
+        statements.deinit(allocator);
+    }
     try splitStatements(allocator, file_content, &statements);
 
     for (statements.items) |stmt| {
@@ -255,7 +261,13 @@ pub fn runEvalFile(allocator: std.mem.Allocator, path: []const u8) !void {
     _ = try file.readAll(file_content);
 
     var statements: std.ArrayListUnmanaged([]const u8) = .{};
-    defer statements.deinit(allocator);
+    defer {
+        // Chaque statement est un dupe independant (alloue dans
+        // splitStatements). Il faut les liberer AVANT le tableau
+        // lui-meme, sinon le GPA de CI signale des fuites.
+        for (statements.items) |stmt| allocator.free(stmt);
+        statements.deinit(allocator);
+    }
     try splitStatements(allocator, file_content, &statements);
 
     var last: []const u8 = "";
