@@ -1,5 +1,6 @@
 # Summary
 
+- [Pourquoi Heaven ?](00-pourquoi-heaven.md)
 - [Starting Out](01-starting-out.md)
 - [Believe the Type](02-believe-the-type.md)
 - [Syntax in Functions](03-syntax-in-functions.md)

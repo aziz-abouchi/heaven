@@ -1,3 +1,8 @@
+> *Ce chapitre suppose que tu sais déjà ce qu'est un programme, une
+> fonction, ou un REPL. Si ce n'est pas le cas, lis d'abord le
+> chapitre 0 (« Pourquoi Heaven ? »), qui introduit ces notions sans
+> code et donne un glossaire de tous les termes techniques.*
+
 # Chapitre 1 — Starting Out
 
 > *« Un langage où l'on peut prouver ce qu'on affirme ne devrait pas
