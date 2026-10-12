@@ -268,3 +268,36 @@ Modifications dans `src/core/engine_expr.zig` :
 est maintenant **opérationnel pour handle_rec et le scheduler**.
 
 **Suite** : 3a-3c (magics @capture/@throw, débloque préemptif C3).
+
+---
+
+## 3a-3c — Magics @prompt / @throw (2026-10-12)
+
+**Statut** : ✅ Fait
+
+Continuations délimitées utilisables depuis Heaven. One-shot.
+
+**Syntaxe** :
+- `(@prompt (lambda k -> body))` : ouvre une frontière, passe un
+  token `k` au body. Retourne le résultat du body, ou la valeur
+  throwée si le body fait `(@throw k v)`.
+- `(@throw k v)` : invalide le token `k` (one-shot), remonte vers
+  son `@prompt` avec la valeur `v`.
+
+**Modifications** :
+1. `CaptureKind.throw_to_prompt` — nouveau variant.
+2. `CaptureRecord { prompt, env }` — one-shot, indexé par token u32.
+3. `Engine.captures: AutoHashMapUnmanaged(u32, CaptureRecord)` +
+   `next_capture_id`.
+4. Magics `@prompt` / `@throw` dans `evalMagic`.
+5. `EvalError.InvalidCapture` — token inconnu/expiré.
+6. `isMagicSymbol` étendu.
+
+**Tests** : `tests/test_continuations.hvn` (5 tests).
+**Non-régression** : 4/4 + 18/18 + 3/3 + 13/13 + 15/15 = **53/53**.
+
+**Limites V0** :
+- One-shot : le token est invalide après usage. Multi-shot demande
+  clonage env + store (complexe).
+- Pas de `@prompt` avec valeur de retour typée (le résultat reste
+  un Id Store).

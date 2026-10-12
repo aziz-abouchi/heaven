@@ -1,0 +1,34 @@
+-- tests/test_continuations.hvn — 3a-3c : @prompt / @throw
+
+-- Body sans throw.
+id_body k = 42
+run_id u = (@prompt (lambda k -> (id_body k)))
+
+test "@prompt sans throw : retourne le resultat du body":
+  (run_id 0) == 42
+
+-- Body qui throw.
+throw_body k = (@throw k 99)
+run_throw u = (@prompt (lambda k -> (throw_body k)))
+
+test "@prompt avec throw : retourne la valeur throwée":
+  (run_throw 0) == 99
+
+-- Branchement.
+cond_body k s = (if (= s 0) 42 (@throw k 99))
+run_cond0 u = (@prompt (lambda k -> (cond_body k 0)))
+run_cond1 u = (@prompt (lambda k -> (cond_body k 1)))
+
+test "@prompt : branche normale":
+  (run_cond0 0) == 42
+
+test "@prompt : branche throw":
+  (run_cond1 0) == 99
+
+-- Imbrication.
+inner_throw k = (@throw k 22)
+outer_body k = (@prompt (lambda k2 -> (inner_throw k2)))
+run_nested u = (@prompt (lambda k -> (outer_body k)))
+
+test "@prompt imbriques : inner throw reste sur inner":
+  (run_nested 0) == 22

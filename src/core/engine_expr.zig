@@ -77,6 +77,7 @@ pub const Env = struct {
 
 pub const EvalError = error{
     SuspendRequested,
+    InvalidCapture,
     TypeError,
     ArityMismatch,
     DivisionByzero,
@@ -219,6 +220,9 @@ pub const CaptureKind = enum {
     /// 3a-3b.5 : `yield` a capture : le scheduler doit requeue la
     /// tache avec un nouvel etat.
     yield_task,
+    /// 3a-3c : `@throw` a capture : le `@prompt` cible doit
+    /// retourner la valeur throwée.
+    throw_to_prompt,
 };
 
 /// 3a-3b : capture en vol. Remplace l'ancien error.HandleRecYield
@@ -236,6 +240,14 @@ pub const PendingCapture = struct {
     new_state: Id = 0,
     /// Prompt de la frontiere cible.
     prompt: continuation.Prompt,
+};
+
+/// 3a-3c : record d'une capture ouverte par `@prompt`. One-shot :
+/// invalide apres usage. Le token (u32) est l'index dans
+/// engine.captures.
+pub const CaptureRecord = struct {
+    prompt: continuation.Prompt,
+    env: *Env,
 };
 
 /// Contexte de handle-rec : boucle body_fn(state) / handler(v, k).
@@ -303,6 +315,10 @@ pub const Engine = struct {
     /// 3a-3b : capture en vol (perform ou resume). Distinct de
     /// reductions==0 (SuspendRequested de budget).
     pending_capture: ?PendingCapture = null,
+    /// 3a-3c : table des captures ouvertes par `@prompt`.
+    /// Token (Int/u32) -> CaptureRecord. One-shot.
+    captures: std.AutoHashMapUnmanaged(u32, CaptureRecord) = .{},
+    next_capture_id: u32 = 0,
     /// Scheduler cooperatif (D8 3a-3-c).
     scheduler: scheduler_lib.Scheduler,
     next_task_id: u64 = 1,
@@ -877,7 +893,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "band", "bor", "shl", "shr", "@prompt_depth", "@prompt_current" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "band", "bor", "shl", "shr", "@prompt_depth", "@prompt_current", "@prompt", "@throw" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1071,6 +1087,73 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             return try store.int(@intCast(p));
         }
         return try store.int(0);
+    }
+
+    // ═══ 3a-3c : @prompt / @throw (continuations delimitees) ═══
+    // (@prompt (lambda k -> body)) : ouvre une frontiere, passe un
+    // token k au body. Si le body termine normalement, retourne son
+    // resultat. Si le body fait (@throw k v), retourne v.
+    if (std.mem.eql(u8, op, "@prompt")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+
+        // Evaluer la lambda (retourne son Id).
+        const body_fn = try evaluate(store, env, engine, args_snap[0], depth + 1);
+
+        // Ouvrir un prompt et creer un token one-shot.
+        const my_prompt = try engine.prompts.push();
+        defer _ = engine.prompts.pop();
+
+        const token = engine.next_capture_id;
+        engine.next_capture_id += 1;
+
+        const env_clone = try engine.allocator.create(Env);
+        env_clone.* = try env.clone(engine.allocator);
+        try engine.captures.put(engine.allocator, token, .{
+            .prompt = my_prompt,
+            .env = env_clone,
+        });
+        defer {
+            if (engine.captures.fetchRemove(token)) |kv| {
+                kv.value.env.deinit();
+                engine.allocator.destroy(kv.value.env);
+            }
+        }
+
+        // Appeler la lambda avec le token.
+        const token_id = try store.int(@intCast(token));
+        const body_call = try store.apply(body_fn, &.{token_id});
+
+        const result = evaluate(store, env, engine, body_call, depth + 1) catch |err| {
+            if (err != error.SuspendRequested) return err;
+            const cap = engine.pending_capture orelse return err;
+            if (cap.prompt != my_prompt) return err;
+            if (cap.kind != .throw_to_prompt) return err;
+            engine.pending_capture = null;
+            return cap.value;
+        };
+        return result;
+    }
+
+    // (@throw k v) : invalide le token k, remonte vers son @prompt
+    // avec la valeur v.
+    if (std.mem.eql(u8, op, "@throw")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const k_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const k_node = store.get(k_val);
+        if (k_node.tag != .lit) return error.TypeError;
+        const k_lit = store.lits.items[k_node.aux];
+        if (k_lit != .int) return error.TypeError;
+        const token: u32 = @intCast(k_lit.int);
+
+        const record = engine.captures.get(token) orelse return error.InvalidCapture;
+        const v = try evaluate(store, env, engine, args_snap[1], depth + 1);
+
+        engine.pending_capture = PendingCapture{
+            .kind = .throw_to_prompt,
+            .value = v,
+            .prompt = record.prompt,
+        };
+        return error.SuspendRequested;
     }
 
     // ═══ handle-rec (D8 3a-3-b) ═══
@@ -2217,6 +2300,17 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         platform.debug.print("[ZIG] @net_read SUCCESS\n", .{});
         return try store.lit(.{ .str = sym });
     }
+
+    if (std.mem.eql(u8, op, "@go")) {
+        platform.debug.print("[ZIG] @go START (len={d})\n", .{op.len});
+        if (args_snap.len != 3) {
+            platform.debug.print("[ZIG] @go ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
+            return error.ArityMismatch;
+        }
+        platform.debug.print("[ZIG] @go SUCCESS!\n", .{});
+        return try store.lit(.{ .str = try store.interner.intern("SUCCESS_FROM_ZIG") });
+    }
+
 
     if (std.mem.eql(u8, op, "@net_http_respond")) {
         platform.debug.print("[ZIG] @net_http_respond START\n", .{});
