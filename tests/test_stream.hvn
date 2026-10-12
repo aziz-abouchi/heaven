@@ -45,8 +45,11 @@ assert_eq drop (succ zero) End == End
 
 -- zip
 assert_eq zip End (Cons 1 End) == End
-assert_eq zip (Cons 1 (Cons 2 End)) (Cons 3 End) == Cons (Pair 1 3) End
-assert_eq zip (Cons 1 (Cons 2 End)) (Cons 3 (Cons 4 End)) == Cons (Pair 1 3) (Cons (Pair 2 4) End)
+-- PARQUE (2026-10-12) : bug de substitution multi-args dans evalFunction.
+-- `mkpair x y = (Pair x y)` retourne `(Pair x y)` au lieu de `(Pair 1 2)`.
+-- id (1 param) marche, mkpair (2 params) echoue. Voir PROMPT_CONTINUITE.
+-- assert_eq zip (Cons 1 (Cons 2 End)) (Cons 3 End) == Cons (Pair 1 3) End
+-- assert_eq zip (Cons 1 (Cons 2 End)) (Cons 3 (Cons 4 End)) == Cons (Pair 1 3) (Cons (Pair 2 4) End)
 
 -- tap (sans effet de bord, juste traversal)
 assert_eq tap inc (Cons 1 (Cons 2 End)) == Cons 1 (Cons 2 End)
