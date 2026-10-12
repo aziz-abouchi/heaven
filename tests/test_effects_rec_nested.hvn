@@ -1,0 +1,67 @@
+-- tests/test_effects_rec_nested.hvn — 3a-3b.4 : handle_rec imbriques
+-- Preuve que les captures sont discriminees par prompt et non par
+-- un seul slot ad-hoc (saved_ctx).
+--
+-- Scenario :
+--   1. outer_body(1) -> (perform "outer-tick" 1)
+--      -> capture.outer -> outer_handler -> k(0)
+--      -> outer resume avec state=0
+--   2. outer_body(0) -> (handle_rec inner_body inner_handler 1)
+--      a) inner_body(1) -> (perform "inner-tick" 1)
+--         -> capture.inner -> inner_handler -> k(0)
+--         -> inner resume avec state=0
+--      b) inner_body(0) -> 99 (cas de base)
+--   3. outer_body retourne 99
+--
+-- Si les captures etaient melangees, inner recevrait la capture de
+-- outer (ou inversement), et le resultat serait faux.
+
+-- --- Handle_rec interne ---
+inner_body s = (if (= s 0) 99 (perform "inner-tick" s))
+inner_handler v k = (k 0)
+
+-- --- Handle_rec externe ---
+outer_body s =
+  (if (= s 0)
+    (handle_rec inner_body inner_handler 1)
+    (perform "outer-tick" s))
+outer_handler v k = (k 0)
+
+-- --- Wrapper (let-in ne marche pas dans test runner) ---
+run_outer u = (handle_rec outer_body outer_handler 1)
+
+-- --- Test 1 : nested seul ---
+test "handle_rec imbriques : outer + inner yield chacun":
+  (run_outer 0) == 99
+
+-- --- Test 2 : inner seul (sans outer) ---
+run_inner u = (handle_rec inner_body inner_handler 1)
+
+test "handle_rec inner seul retourne 99":
+  (run_inner 0) == 99
+
+-- --- Test 3 : outer seul (sans inner, cas de base) ---
+outer_only_body s =
+  (if (= s 0) 42 (perform "tick" s))
+outer_only_handler v k = (k 0)
+run_outer_only u = (handle_rec outer_only_body outer_only_handler 1)
+
+test "handle_rec outer seul retourne 42":
+  (run_outer_only 0) == 42
+
+-- --- Test 4 : nested avec valeurs distinctes (anti-melange) ---
+-- Inner retourne 100+state pour bien distinguer des etats externes.
+inner_body_b s = (if (= s 0) 100 (perform "inner-b" s))
+inner_handler_b v k = (k 0)
+
+-- Outer retourne 200+state.
+outer_body_b s =
+  (if (= s 0)
+    (+ 200 (handle_rec inner_body_b inner_handler_b 1))
+    (perform "outer-b" s))
+outer_handler_b v k = (k 0)
+
+run_outer_b u = (handle_rec outer_body_b outer_handler_b 1)
+
+test "nested : distinction des valeurs (200 + 100 = 300)":
+  (run_outer_b 0) == 300
