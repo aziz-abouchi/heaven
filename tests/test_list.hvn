@@ -33,3 +33,27 @@ test "init last":       (last (init (cons 1 (cons 2 (cons 3 nil))))) == 2
 test "uncons nil":      (is_none (uncons nil)) == true
 test "uncons head":     (fst (from_option (pair 0 nil) (uncons (cons 7 (cons 8 nil))))) == 7
 test "uncons tail":     (head (snd (from_option (pair 0 nil) (uncons (cons 7 (cons 8 nil)))))) == 8
+
+-- ─── takeWhile ───
+lt5 x = (< x 5)
+test "takeWhile lt5 [1,2,3,6,4]": (length (takeWhile lt5 (cons 1 (cons 2 (cons 3 (cons 6 (cons 4 nil))))))) == (succ (succ (succ zero)))
+test "takeWhile vide":            (length (takeWhile lt5 nil)) == zero
+
+-- ─── dropWhile ───
+test "dropWhile lt5 [1,2,3,6,4]": (head (dropWhile lt5 (cons 1 (cons 2 (cons 3 (cons 6 (cons 4 nil))))))) == 6
+test "dropWhile vide":            (length (dropWhile lt5 nil)) == zero
+
+-- ─── splitAt ───
+test "splitAt 0":        (length (fst (splitAt zero (cons 1 (cons 2 nil))))) == zero
+test "splitAt 1 first":  (head (fst (splitAt (succ zero) (cons 1 (cons 2 nil))))) == 1
+test "splitAt 1 second": (head (snd (splitAt (succ zero) (cons 1 (cons 2 nil))))) == 2
+
+-- ─── find ───
+gt0 x = (> x 0)
+is5 x = (eq x 5)
+test "find nil":    (is_none (find gt0 nil)) == true
+test "find 5":      (from_option 0 (find is5 (cons 1 (cons 5 (cons 3 nil))))) == 5
+
+-- ─── any ───
+test "any gt0 [1,2]":  (any gt0 (cons 1 (cons 2 nil))) == true
+test "any nil":        (any gt0 nil) == false

@@ -66,5 +66,33 @@ drop _ nil = nil
 drop zero xs = xs
 drop (succ n) (cons _ xs) = drop n xs
 
+-- ─── Prise / rejet avec predicat ───
+-- takeWhile p xs : prend tant que (p x) est vrai.
+takeWhile _ nil = nil
+takeWhile p (cons x xs) = (if (p x) (cons x (takeWhile p xs)) nil)
+
+-- dropWhile p xs : jette tant que (p x) est vrai.
+dropWhile _ nil = nil
+dropWhile p (cons x xs) = (if (p x) (dropWhile p xs) (cons x xs))
+
+-- ─── Decoupe a une position ───
+-- splitAt n xs : Pair (List a, List a) -- les n premiers, le reste.
+splitAt zero xs = (pair nil xs)
+splitAt _ nil = (pair nil nil)
+splitAt (succ n) (cons x xs) = (splitAt_cons n x xs)
+
+splitAt_cons n x xs =
+  let rest = (splitAt n xs) in
+  (pair (cons x (fst rest)) (snd rest))
+
+-- ─── Recherche ───
+-- find p xs : Some x du premier x ou (p x) est vrai, None sinon.
+find _ nil = none
+find p (cons x xs) = (if (p x) (some x) (find p xs))
+
+-- any p xs : vrai si au moins un element satisfait p.
+any _ nil = false
+any p (cons x xs) = (if (p x) true (any p xs))
+
 elem _ nil = false
 elem x (cons y ys) = if (= x y) true (elem x ys)
