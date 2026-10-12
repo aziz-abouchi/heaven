@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 200" font-family="Georgia, serif">
+  <rect width="500" height="200" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Un pipeline se lit de gauche a droite
+  </text>
+  <!-- Fleche centrale -->
+  <line x1="40" y1="110" x2="460" y2="110" stroke="#2c2c2c" stroke-width="1.5" marker-end="url(#a4)"/>
+  <!-- Etapes -->
+  <g font-size="11" text-anchor="middle">
+    <circle cx="80" cy="110" r="18" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="80" y="115" fill="#7a3b3b" font-style="italic">inc</text>
+    <circle cx="180" cy="110" r="18" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="180" y="115" fill="#7a3b3b" font-style="italic">dbl</text>
+    <circle cx="280" cy="110" r="18" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="280" y="115" fill="#7a3b3b" font-style="italic">inc</text>
+    <circle cx="380" cy="110" r="18" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="380" y="115" fill="#7a3b3b" font-style="italic">sum</text>
+  </g>
+  <!-- Input / Output -->
+  <text x="30" y="115" text-anchor="end" font-size="12" fill="#2c2c2c">[1,2,3]</text>
+  <text x="470" y="115" text-anchor="start" font-size="12" fill="#2c2c2c">21</text>
+  <defs>
+    <marker id="a4" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#2c2c2c"/>
+    </marker>
+  </defs>
+  <text x="250" y="170" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+    Chaque etape est une fonction. Le pipeline est leur composition.
+  </text>
+</svg>

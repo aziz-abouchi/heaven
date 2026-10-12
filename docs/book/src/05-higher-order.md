@@ -1,197 +1,292 @@
-# Chapitre 5 — Higher-Order Functions
+# Chapitre 5 — Fonctions d'ordre supérieur
 
-> *« Une fonction qui prend une fonction est une fonction qui comprend
-> ce que vous voulez vraiment dire. »*
+> *« Un concept de second ordre est un concept dont l'argument
+> est lui-même un concept. »*
+> — Gottlob Frege, *Fonction et concept* (1891)
 
 Jusqu'ici, on a passé des nombres et des listes à nos fonctions. Mais
 en fonctionnel, on peut aussi passer des **fonctions** elles-mêmes.
 C'est ce qu'on appelle les fonctions d'ordre supérieur, et c'est là
 que le style devient vraiment concis.
 
-## Une fonction, c'est une valeur
+## 1. Une fonction, c'est une valeur
 
-Rappelez-vous le chapitre 2 :
+Frege, à la fin du XIXᵉ siècle, avait déjà distingué deux niveaux :
+
+- Un **concept de premier ordre** prend un objet et rend une valeur
+  de vérité. Exemple : « être rouge ».
+- Un **concept de second ordre** prend un *concept* en argument.
+  Exemple : « être un concept que Socrate satisfait ».
+
+Cette hiérarchie — concepts de concepts — est l'ancêtre direct des
+**fonctions d'ordre supérieur** en programmation.
+
+En Heaven, cette idée est prise au pied de la lettre. Une fonction
+peut être passée à une autre fonction :
+
+    heaven> apply f x = f x
+    ✓ clause enregistrée pour 'apply'
 
     heaven> inc x = x + 1
     ✓ clause enregistrée pour 'inc'
-    heaven> type inc
-    Int -> Int
 
-`inc` est une fonction. Mais c'est aussi une **valeur**. On peut la
-passer à une autre fonction :
-
-    heaven> apply f x = f x
     heaven> apply inc 5
     6
 
-`applique` prend deux arguments : une fonction `f` et une valeur `x`,
-et rend `f x`. On dit que `applique` est d'**ordre supérieur** parce
+`apply` prend deux arguments : une fonction `f` et une valeur `x`,
+et rend `f x`. On dit que `apply` est d'**ordre supérieur** parce
 qu'elle prend une fonction en argument.
 
 C'est aussi simple que ça. Une fonction qui prend une fonction est
 une fonction d'ordre supérieur. Voilà toute la définition.
 
-## map : transformer chaque élément
+## 2. `map` : transformer chaque élément
 
-Prenons une liste :
+![Les trois opérations sur une même liste](images/05-map-filter-fold.svg)
 
-    heaven> data Stream a = Cons a (Stream a) | End
-    heaven> maListe = Cons 1 (Cons 2 (Cons 3 End))
+Prenons une liste. En Heaven, on l'écrit avec les constructeurs
+`nil` et `cons` :
 
-On veut doubler chaque élément. On pourrait écrire :
+    heaven> maListe = (cons 1 (cons 2 (cons 3 (cons 4 nil))))
 
-    heaven> doubleAll End = End
-    heaven> doubleAll (Cons x reste) = Cons (x * 2) (doubleAll reste)
+Comment ajouter 1 à **chaque** élément ? On écrit une fonction
+récursive :
 
-Ça marche. Mais si on veut tripler, il faut tout réécrire. Et si on
-veut ajouter 10 ? C'est pénible.
+    heaven> map _ nil = nil
+    ✓ clause enregistrée pour 'map'
 
-`map` résout ça. Elle prend une fonction et l'applique à chaque
-élément :
+    heaven> map f (cons x xs) = (cons (f x) (map f xs))
+    ✓ clause enregistrée pour 'map'
 
-    heaven> map f End = End
-    heaven> map f (Cons x reste) = Cons (f x) (map f reste)
+    heaven> map inc maListe
+    (cons 2 (cons 3 (cons 4 (cons 5 nil))))
 
-    heaven> dbl x = x * 2
-    heaven> map inc (Cons 1 (Cons 2 End))
-    (Cons 2 (Cons 3 End))
-    heaven> map dbl (Cons 1 (Cons 2 End))
-    (Cons 2 (Cons 4 End))
+`map` applique `f` à chaque élément. Elle est déjà dans
+`core/std/list.hvn` (chargée au boot). C'est une fonction d'ordre
+supérieur : son premier argument `f` est une fonction.
 
-`map` est *générique* : elle ne sait pas ce que fait `f`, et elle n'a
-pas besoin de le savoir. Elle traverse la liste, applique `f`, et
-reconstruit. C'est ça, l'abstraction.
+Trois lignes de définition. Le reste suit la structure de la liste.
 
-## filter : garder ce qui compte
+## 3. `filter` : garder ceux qui satisfont
 
-`filter` prend un **prédicat** (une fonction qui rend `true` ou
-`false`) et ne garde que les éléments qui passent :
+`filter` ne transforme pas les éléments : elle les **sélectionne**.
+Ceux qui satisfont un prédicat sont gardés ; les autres sont jetés.
 
-    heaven> filter p End = End
-    heaven> filter p (Cons x reste) = if (p x) (Cons x (filter p reste)) (filter p reste)
+    heaven> filter _ nil = nil
+    ✓ clause enregistrée pour 'filter'
 
-    heaven> isBig x = x > 1
-    heaven> filter isBig (Cons 1 (Cons 2 (Cons 3 End)))
-    (Cons 2 (Cons 3 End))
+    heaven> filter p (cons x xs) =
+              if (p x)
+                 (cons x (filter p xs))
+                 (filter p xs)
+    ✓ clause enregistrée pour 'filter'
 
-Encore une fois, `filter` ne sait pas ce que `isBig` teste. Elle
-appelle, regarde le résultat, décide.
+    heaven> filter even maListe
+    (cons 2 (cons 4 nil))
 
-## fold : résumer une liste en une valeur
+Le prédicat `p` est une fonction qui rend un `Bool`. `even` rend
+`true` si son argument est pair. Donc `filter even maListe` garde
+les nombres pairs.
 
-`map` transforme, `filter` sélectionne. `fold` **résume**. Elle prend
-une fonction binaire, une valeur initiale, et une liste :
+Récursivement : soit la tête satisfait `p`, auquel cas on la garde
+et on filtre le reste ; soit elle ne satisfait pas, auquel cas on
+filtre juste le reste. Deux cas, une seule ligne par cas.
 
-    heaven> fold f acc End = acc
-    heaven> fold f acc (Cons x reste) = fold f (f acc x) reste
+## 4. `fold` : résumer en une valeur
 
-Avec elle, on peut écrire `somme` en une ligne :
+`map` transforme, `filter` sélectionne. `fold` — aussi appelé
+`reduce` — **résume** une liste en une seule valeur. C'est le
+couteau suisse des opérations sur les listes.
 
-    heaven> sum xs = fold add 0 xs
-    heaven> sum (Cons 1 (Cons 2 (Cons 3 End)))
-    6
+    heaven> foldl _ acc nil = acc
+    ✓ clause enregistrée pour 'foldl'
 
-Ou `longueur` :
+    heaven> foldl f acc (cons x xs) = foldl f (f acc x) xs
+    ✓ clause enregistrée pour 'foldl'
 
-    heaven> length xs = fold (\acc x = acc + 1) 0 xs
+Le premier argument `f` combine l'accumulateur `acc` et l'élément
+`x`. Le second argument est la valeur de départ. Le troisième, la
+liste.
 
-(On reviendra sur cette syntaxe de lambda raccourcie — pour l'instant,
-retenez que `fold` est l'outil universel pour réduire une liste.)
+Exemple : la somme d'une liste.
 
-## Composition avec >>>
+    heaven> add a b = a + b
+    ✓ clause enregistrée pour 'add'
 
-Vous avez déjà rencontré `>>>` au chapitre 1. C'est l'opérateur de
-**composition** : `f >>> g` crée une nouvelle fonction qui applique
-`f` puis `g`.
+    heaven> foldl add 0 maListe
+    10
+
+Déroulons pas à pas :
+
+- `foldl add 0 (cons 1 (cons 2 (cons 3 (cons 4 nil))))`
+- `foldl add (add 0 1) (cons 2 (cons 3 (cons 4 nil)))`
+- `foldl add (add 1 2) (cons 3 (cons 4 nil))`
+- `foldl add (add 3 3) (cons 4 nil)`
+- `foldl add (add 6 4) nil`
+- `add 6 4`
+- `10`
+
+`foldl` signifie *fold left* : on accumule de la gauche vers la
+droite. Il existe aussi `foldr` (*fold right*) qui accumule dans
+l'autre sens. Sur une liste finie, ils donnent souvent le même
+résultat — mais pas toujours. On reviendra à cette distinction au
+chapitre 14 (schémas de récursion).
+
+En philosophie, `foldl` correspond à la notion de **synthèse** :
+composer plusieurs éléments en un tout. Le terme est de Kant
+(*Critique de la raison pure*) : la synthèse du divers par
+l'entendement. Une liste `[1, 2, 3, 4]` devient le nombre `10` par
+application successive de l'addition. Rien de magique, tout de
+structure.
+
+*Vérifiable : les définitions `apply`, `map`, `filter`, `foldl`
+et les exemples fonctionnent tels quels dans le REPL.*
+
+
+## 5. Composition : `f >>> g`
+
+![La composition](images/05-composition.svg)
+
+Passer une fonction en argument est une chose. **Combiner** deux
+fonctions en est une autre. C'est ce qu'on appelle la
+**composition**.
+
+En mathématiques, la composition se note `f ∘ g` : appliquer `g`,
+puis `f`. En Heaven, on écrit `f >>> g` — même idée, lecture de
+gauche à droite :
 
     heaven> inc x = x + 1
+    ✓ clause enregistrée pour 'inc'
+
     heaven> dbl x = x * 2
-    heaven> incPuisDbl = inc >>> dbl
-    heaven> incPuisDbl 3
+    ✓ clause enregistrée pour 'dbl'
+
+    heaven> (inc >>> dbl) 3
     8
 
-Déroulons : `inc 3 = 4`, puis `dbl 4 = 8`. La composition rend une
-**fonction**, pas un résultat. C'est pour ça qu'on peut la passer à
-`map` :
+Déroulons :
 
-    heaven> map (inc >>> dbl) (Cons 1 (Cons 2 End))
-    (Cons 4 (Cons 6 End))
+- `inc 3 = 4`
+- `dbl 4 = 8`
+- Donc `(inc >>> dbl) 3 = 8`
 
-Chaque élément est incrémenté puis doublé. `1` devient `4`, `2` devient
-`6`. En une ligne.
+L'opérateur `>>>` prend deux fonctions et rend une **nouvelle
+fonction**. Cette nouvelle fonction est d'ordre supérieur par
+construction — elle *est* une composition.
 
-## Pourquoi c'est puissant
+La composition est **associative** :
 
-Regardez la différence entre ces deux programmes :
+    (f >>> g) >>> h = f >>> (g >>> h)
 
-Sans ordre supérieur :
+C'est-à-dire : peu importe qu'on gagne à gauche ou à droite, le
+résultat est le même. Cette loi est une des fondations de la
+programmation fonctionnelle — elle vient de la **théorie des
+catégories** (chapitre 17).
 
-    doublerPuisFiltrer End = End
-    doublerPuisFiltrer (Cons x reste) =
-      if (x * 2 > 2) (Cons (x * 2) (doublerPuisFiltrer reste)) (doublerPuisFiltrer reste)
+Wittgenstein aurait dit : composer `f` et `g`, c'est voir la
+fonction résultante *comme* un seul objet, sans se soucier des
+étapes intermédiaires. Une lecture nouvelle, plus compacte.
 
-Avec :
+## 6. Pipeline : lire de gauche à droite
 
-    doublerPuisFiltrer xs = filter isBig (map dbl xs)
+![Un pipeline](images/05-pipeline.svg)
 
-Le second est plus court, plus lisible, et surtout : chaque morceau
-est réutilisable. `map dbl` marche sur n'importe quelle liste. `filter
-isBig` aussi. On les assemble, on obtient une nouvelle fonction.
+Une fois qu'on a `>>>`, on peut chaîner plusieurs opérations en un
+**pipeline** :
 
-C'est ça, la programmation fonctionnelle. Vous ne dites pas *comment*
-parcourir la liste, vous dites *ce que* vous voulez faire. Le
-parcours, c'est l'affaire de `map`, `filter`, `fold`.
+    process xs = ((filter even) >>> (map inc) >>> (foldl add 0)) xs
 
-## Les pipelines
+Lisez de gauche à droite : garde les pairs, ajoute 1 à chacun, puis
+somme. Chaque étape est une fonction. Le pipeline est leur
+composition.
 
-Dans le monde réel, on assemble beaucoup de transformations :
+L'intérêt du style pipeline : **on sépare le quoi du comment**.
+`(filter even)`, c'est le *quoi* — ne garder que les pairs. Le
+`xs` final, c'est le *comment* — appliqué à cette liste-là. On peut
+définir le pipeline une fois, l'appliquer à mille listes.
 
-    heaven> pipeline = filter isBig >>> map inc >>> map dbl
-    heaven> pipeline (Cons 1 (Cons 2 (Cons 3 End)))
-    (Cons 6 (Cons 8 End))
+C'est une idée ancienne. Les chaînes de production fordiennes,
+popularisées au début du XXᵉ siècle, reposent sur le même principe :
+une suite d'opérations simples, chacune indépendante, appliquées à
+un flux d'entrée. La programmation fonctionnelle n'a rien inventé —
+elle a formalisé.
 
-`pipeline` est une fonction comme une autre. Elle filtre, puis
-incrémente, puis double. Chaque étape est indépendante. On peut
-réordonner, tester, remplacer.
+## 7. Curryfication : Schönfinkel et Curry
 
-C'est la base des pipelines qu'on verra en detail au chapitre 7.
+Il reste une dernière idée, plus subtile. En Heaven, une fonction
+à plusieurs arguments peut être **appliquée partiellement** :
 
-## La curryfication
+    heaven> add a b = a + b
+    ✓ clause enregistrée pour 'add'
 
-Un dernier concept, un peu subtil. Regardez :
+    heaven> add 1 2
+    3
 
-    heaven> ajoute x y = x + y
-    heaven> ajoute 3 4
-    7
+    heaven> addOne = (add 1)
+    ✓ clause enregistrée pour 'addOne'
 
-Mais aussi :
+    heaven> addOne 5
+    6
 
-    heaven> ajoute3 = ajoute 3
-    heaven> ajoute3 4
-    7
+`add 1` ne renvoie pas une erreur « il manque un argument ». Il
+renvoie une **nouvelle fonction** qui attend encore son second
+argument. On dit que la fonction est **curryfiée** — du nom du
+logicien Haskell Curry (1900-1982).
 
-Comment ça marche ? Heaven voit que `ajoute` prend **deux** arguments,
-mais on ne lui en donne qu'**un**. Il rend une fonction qui attend le
-second. C'est ce qu'on appelle la **curryfication**.
+En réalité, l'idée vient de Moses Schönfinkel, qui l'a publiée en
+1924, avant même la thèse de Church. Curry l'a popularisée dans les
+années 1930 en développant le **lambda-calcul**, le formalisme qui
+sert aujourd'hui de modèle à tous les langages fonctionnels.
 
-Pratiquement : `ajoute 3` est une fonction `Int -> Int`. On peut la
-passer à `map` :
+La curryfication est profonde : elle dit qu'une fonction à deux
+arguments **est** une fonction à un argument qui rend une fonction.
+`add : Int -> Int -> Int` : prend un `Int`, rend une fonction
+`Int -> Int`. La flèche `->` est **associative à droite** :
+`a -> b -> c` se lit `a -> (b -> c)`.
 
-    heaven> map (ajoute 3) (Cons 1 (Cons 2 End))
-    (Cons 4 (Cons 5 End))
+Ce qui permet :
 
-C'est la même chose que `ajoute 3` appliqué à chaque élément. Pas
-besoin d'une lambda.
+    heaven> apply (add 1) 5
+    6
 
-## Récapitulatif
+    heaven> apply (add 10) 32
+    42
 
-- Une fonction qui prend une fonction est d'**ordre supérieur**.
-- `map` transforme, `filter` sélectionne, `fold` résume.
-- `>>>` compose deux fonctions.
-- Les pipelines assemblent plusieurs étapes.
-- La **curryfication** permet de passer des fonctions partiellement
-  appliquées.
+On peut passer une fonction partiellement appliquée à `apply`, à
+`map`, à `filter` — à tout ce qui attend une fonction. C'est ce qui
+rend le style concis : au lieu d'écrire `\x. x + 1`, on écrit
+simplement `(add 1)`. Deux caractères contre cinq.
 
-Au chapitre suivant, on parle d'**effets algébriques** : comment
-écrire du code qui fait des choses (lire, écrire, logger) sans
-polluer le reste du programme.
+## Ce qu'on a appris
+
+- Une **fonction d'ordre supérieur** prend une fonction en argument
+  (Frege, concepts de second ordre).
+- **`map`** transforme chaque élément d'une liste par une fonction.
+- **`filter`** sélectionne les éléments qui satisfont un prédicat.
+- **`fold`** résume une liste en une seule valeur (synthèse
+  kantienne).
+- La **composition** `f >>> g` combine deux fonctions en une seule,
+  et elle est associative.
+- Un **pipeline** chaîne plusieurs étapes, séparant le *quoi* du
+  *comment*.
+- La **curryfication** (Schönfinkel 1924, Curry 1930) permet
+  d'appliquer partiellement une fonction. `add 1` est une fonction
+  qui attend son second argument.
+- La flèche `->` est **associative à droite** : `a -> b -> c` se
+  lit `a -> (b -> c)`.
+
+Wittgenstein, encore lui, aurait aimé ce chapitre. Une fonction
+d'ordre supérieur, c'est une fonction qui **voit** une autre
+fonction — non comme un objet opaque, mais comme une **règle
+manipulable**. Composer `f` et `g`, c'est voir la règle de `f`
+appliquée à celle de `g`, sans se soucier des valeurs concrètes.
+Une abstraction sur les règles elles-mêmes.
+
+Au chapitre suivant, on aborde une question qui hante la
+programmation depuis les années 1960 : comment faire des effets
+(lire, écrire, logger) sans polluer un langage qui se veut pur ?
+La réponse de Heaven s'appelle les **effets algébriques**.
+
+*Vérifiable : les définitions et exemples de composition, pipeline
+et curryfication fonctionnent tels quels dans le REPL.*
+
