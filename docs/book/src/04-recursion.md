@@ -1,4 +1,4 @@
-# Chapitre 4 — Hello, Recursion!
+# Chapitre 4 — Récursion : l'infini à partir du fini
 
 > *« Pour comprendre la récursion, il faut d'abord comprendre la
 > récursion. »*
@@ -7,11 +7,42 @@
 
 La récursion est partout en programmation fonctionnelle. Pas parce
 qu'elle est élégante (elle l'est), pas parce qu'elle est rapide (pas
-toujours), mais parce qu'elle *correspond à la structure des données*.
-Une liste est soit vide, soit un élément suivi d'une liste. Une
-fonction qui traite une liste doit traiter ces deux cas. C'est tout.
+toujours), mais parce qu'elle *correspond à la structure des
+données*. Une liste est soit vide, soit un élément suivi d'une liste.
+Une fonction qui traite une liste doit traiter ces deux cas. C'est
+tout.
 
-## Le cas de base et le cas récursif
+## 1. L'infini à partir du fini
+
+![Les axiomes de Peano](images/04-peano.svg)
+
+En 1889, Giuseppe Peano publie ses *Arithmetices principia*, un petit
+livre qui va fonder l'arithmétique sur une base logique minimale.
+Son idée : au lieu de *postuler* l'existence des nombres (1, 2, 3…),
+on la **construit** à partir de rien.
+
+Deux règles suffisent :
+
+- **`Zero`** est un nombre.
+- Si `n` est un nombre, **`Succ n`** en est un autre.
+
+C'est tout. À partir de ces deux règles, on engendre l'infini :
+`Zero` (0), `Succ Zero` (1), `Succ (Succ Zero)` (2), et ainsi de
+suite. L'infini émerge du fini, sans postulat supplémentaire.
+
+Richard Dedekind, deux ans plus tôt (1888), avait formalisé la même
+idée dans *Was sind und was sollen die Zahlen?*. Cette construction
+est **récursive** : chaque nombre est défini en termes du précédent.
+
+En Heaven, ces deux règles s'écrivent :
+
+    heaven> data Nat = Zero | Succ Nat
+    ✓ data Nat registered (2 constructors)
+
+Deux constructeurs, une seule ligne. Tout le reste suivra par
+récursion.
+
+## 2. Cas de base et cas récursif
 
 Toute fonction récursive a deux parties :
 
@@ -27,8 +58,10 @@ En Heaven, avec les entiers natifs :
 
     heaven> fac 0 = 1
     ✓ clause enregistrée pour 'fac'
+
     heaven> fac n = n * fac (n - 1)
     ✓ clause enregistrée pour 'fac'
+
     heaven> fac 5
     120
 
@@ -38,218 +71,211 @@ rend 1. Sinon, il essaie la seconde, qui rappelle `fac` avec `n - 1`.
 Vous remarquez ? La deuxième clause s'appelle elle-même. C'est la
 récursion. La première clause est le **cas de base**.
 
-> **Note sur les noms réservés.** On utilise `fac` ici, pas `fact`.
-> `fact` est un mot-clé du pipeline logique (kanren) : au REPL,
-> `fact X` ajoute un fait à la base de connaissance et ne fait pas
-> un appel de fonction. La liste complète des mots réservés est
-> dans `A-syntaxe.md`.
+Sans le cas de base, la fonction ne s'arrête jamais. C'est le
+problème que Wittgenstein soulevait dans les *Investigations
+philosophiques* (§185-§242) : une règle ne contient pas en
+elle-même les conditions de son arrêt. C'est **l'application** de
+la règle — l'acte de suivre une règle — qui introduit la
+terminaison.
 
-## Ce qui se passe à l'exécution
+Un programme récursif doit **dire** quand il s'arrête. Sinon il ne
+s'arrête pas.
 
-Déroulons `fac 3` à la main :
+## 3. Récursion structurelle
 
-    fac 3
-    = 3 * fac 2
-    = 3 * (2 * fac 1)
-    = 3 * (2 * (1 * fac 0))
-    = 3 * (2 * (1 * 1))
-    = 3 * (2 * 1)
-    = 3 * 2
-    = 6
+La récursion n'est pas qu'une technique. C'est une **manière de
+voir** les données. Prenons `length` :
 
-Heaven empile les appels jusqu'à atteindre le cas de base, puis
-dépile en multipliant. C'est exactement ce que fait votre processeur,
-sauf que Heaven le fait avec des **équations**, pas avec des
-instructions.
+    heaven> length nil = 0
+    ✓ clause enregistrée pour 'length'
 
-## Récursion sur les listes
+    heaven> length (cons _ xs) = 1 + (length xs)
+    ✓ clause enregistrée pour 'length'
 
-La factorielle est un exemple un peu scolaire. Voici du vrai code :
+Deux clauses, une par **forme** de liste. La fonction suit la
+structure de la donnée :
 
-    heaven> data MyList a = Empty | Cons a (MyList a)
-    ✓ data MyList registered (1 param(s), 2 constructor(s))
-    heaven> sum Empty = 0
-    heaven> sum (Cons x reste) = x + sum reste
-    heaven> sum (Cons 1 (Cons 2 (Cons 3 Empty)))
-    6
+- `nil` est vide → cas de base.
+- `cons x xs` a un élément de tête → un + la longueur du reste.
 
-Deux clauses. La première dit : « si la liste est vide, la somme est
-zéro ». La seconde : « si la liste commence par `x` et continue par
-`reste`, la somme est `x + somme reste` ».
+On appelle cela une **récursion structurelle** : elle ne tourne pas
+dans le vide, elle **consomme** la structure. Chaque appel réduit
+la liste d'un cran. À la fin, la liste est vide, et la fonction
+s'arrête.
 
-Regardez la structure. Le cas de base correspond à `Empty`. Le cas
-récursif correspond à `Cons x reste`. Ce n'est pas un hasard : la
-fonction a la **même forme** que le type.
+C'est différent d'une boucle `while` qui tourne jusqu'à ce qu'une
+condition devienne fausse. Ici, c'est la **forme de la donnée**
+qui dicte la forme de la fonction. Pas de compteur externe, pas de
+variable de contrôle. La terminaison est **garantie** par la
+structure.
 
-C'est le principe fondamental. Quand vous écrivez une fonction sur un
-type de données, vous écrivez une clause par constructeur. Le cas
-récursif appelle la fonction sur les sous-parties. C'est presque
-mécanique.
+Frege avait vu cela : une fonction récursive sur `Nat` mesure la
+structure de Peano. Une fonction récursive sur `List` mesure la
+structure de la liste. La récursion **compte** la donnée, et c'est
+ce compte qui la termine.
 
-## Quelques fonctions classiques
+## 4. Récursion terminale : ne pas empiler
 
-La longueur :
+![La pile d'appels](images/04-stack.svg)
 
-    heaven> length Empty = 0
-    heaven> length (Cons x reste) = 1 + length reste
+Regardez la pile d'appels pour `fact 4`. Chaque appel à `fact`
+**empile** un niveau. Le niveau 4 attend le résultat du niveau 3,
+qui attend le niveau 2, qui attend le niveau 1, qui attend le
+niveau 0 (cas de base). Puis tout se **dépile** en multipliant.
 
-L'inverse :
+C'est joli, mais ça coûte de la mémoire. Pour `fact 1000`, on
+empile 1000 niveaux. Pour `fact 100000`, on déborde la pile
+(*stack overflow*).
 
-    heaven> reverse xs = reverseAux xs Empty
-    heaven> reverseAux Empty acc = acc
-    heaven> reverseAux (Cons x reste) acc = reverseAux reste (Cons x acc)
+La **récursion terminale** évite ce problème. Une fonction
+récursive est dite *terminale* si l'appel récursif est la
+**dernière** opération de la fonction — rien à faire après, aucun
+travail en attente. Dans ce cas, la pile n'a pas besoin de croître :
+on peut « remplacer » le cadre courant par le suivant.
 
-Cette version utilise un **accumulateur** : un argument supplémentaire
-qui porte le résultat partiel. On verra pourquoi à la fin de ce
-chapitre.
-
-La concaténation :
-
-    heaven> concat Empty ys = ys
-    heaven> concat (Cons x xs) ys = Cons x (concat xs ys)
-
-Trois fonctions, trois fois la même structure. Vous commencez à voir
-le motif ?
-
-## Le piège de la pile
-
-Récursion, c'est bien. Mais chaque appel consomme de la mémoire. Pour
-`fac 10000`, Heaven empile 10000 appels avant de commencer à
-dépiler. La pile explose.
-
-C'est là que la **récursion terminale** entre en jeu. Une fonction est
-terminale si son appel récursif est la *dernière* chose qu'elle fait.
-Regardez :
-
-    heaven> fac n = n * fac (n - 1)
-
-Ici, l'appel à `fac` n'est pas terminal : il y a une multiplication
-qui attend. Heaven doit empiler. Comparez avec :
+Réécrivons `fac` en version terminale avec un **accumulateur** :
 
     heaven> facAux 0 acc = acc
+    ✓ clause enregistrée pour 'facAux'
+
     heaven> facAux n acc = facAux (n - 1) (n * acc)
+    ✓ clause enregistrée pour 'facAux'
+
     heaven> fac n = facAux n 1
+    ✓ clause enregistrée pour 'fac'
 
-Cette fois, l'appel récursif est la dernière chose. Rien n'attend
-après. Heaven peut **réutiliser** le même cadre de pile au lieu d'en
-empiler un nouveau. C'est ce qu'on appelle l'**optimisation d'appel
-terminal**.
+    heaven> fac 5
+    120
 
-Heaven applique cette optimisation dans ses backends compiles,
-sur deux formes :
+Cette fois, l'appel récursif `facAux (n - 1) (n * acc)` est la
+**dernière** chose que la fonction fait. Rien n'est en attente.
+La pile **ne grandit pas**. `fac 100000` fonctionne — ou plutôt
+fonctionnerait si les entiers natifs ne débordaient pas.
 
-1. **Self-tail-calls** (une fonction qui s'appelle elle-meme en
-   position terminale). Transforme en boucle, valable sur QBE
-   et WASM. `count_down 10000000` passe sans exploser la pile.
+C'est la découverte centrale de la programmation fonctionnelle des
+années 1970 : **la récursion terminale peut remplacer la boucle**.
+Un langage qui optimise la récursion terminale (TCO, *Tail Call
+Optimization*) peut écrire toutes ses boucles comme des fonctions
+récursives sans coût.
 
-2. **Recursion mutuelle** (deux fonctions qui s'appellent l'une
-   l'autre en position terminale, comme `isEven` et `isOdd`).
-   Sur WASM, via l'instruction native `return_call`. Sur QBE,
-   par fusion des deux fonctions en une seule avec un tag de
-   dispatch. `isEven 100000000` passe sur les deux backends.
+Heaven supporte partiellement la TCO en V0. Pour les cas simples
+(comme `facAux`), l'optimisation fonctionne. Pour les cas complexes
+(arguments calculés, récursion mutuelle), elle reste incomplète —
+un chantier ouvert, documenté dans `docs/ROADMAP.md`.
 
-Les autres formes (cycles de trois fonctions ou plus, appels
-non-tail) ne sont pas encore couvertes. Il faut ecrire vos
-fonctions comme si la TCO etait partout. C'est une discipline,
-pas une contrainte.
+*Vérifiable : les définitions `fac`, `facAux` et `length`
+fonctionnent telles quelles dans le REPL.*
 
-## La récursion mutuelle
 
-Parfois deux fonctions s'appellent l'une l'autre. Par exemple, une
-fonction qui vérifie si un nombre est pair, et une autre s'il est
-impair :
+## 5. La tour de Hanoi
+
+![La tour de Hanoi](images/04-hanoi.svg)
+
+La tour de Hanoi est un puzzle inventé par le mathématicien français
+Édouard Lucas en 1883. Trois tiges, `n` disques de tailles
+différentes, et une règle : on ne peut poser un disque que sur un
+disque plus grand. Le but : déplacer toute la pile d'une tige à une
+autre.
+
+La solution est **récursive**, et elle est d'une élégance rare :
+
+    heaven> hanoi 0 from to via = nil
+    ✓ clause enregistrée pour 'hanoi'
+
+    heaven> hanoi n from to via =
+              append (hanoi (- n 1) from via to)
+                     (cons (pair from to)
+                           (hanoi (- n 1) via to from))
+    ✓ clause enregistrée pour 'hanoi'
+
+Trois idées, en une définition :
+
+1. Si `n = 0`, rien à faire.
+2. Sinon : déplacer `n - 1` disques de `from` vers `via`, en
+   utilisant `to` comme intermédiaire.
+3. Déplacer le plus grand disque de `from` vers `to`.
+4. Redéplacer `n - 1` disques de `via` vers `to`, en utilisant
+   `from` comme intermédiaire.
+
+Chaque appel à `hanoi (- n 1)` fait exactement la même chose, sur un
+problème plus petit. La **récursion** divise le problème en
+sous-problèmes identiques, mais plus petits. C'est la stratégie
+*diviser pour régner* — *divide et impera* — déjà décrite par
+Machiavel, mais formalisée pour l'algorithmique au XXᵉ siècle.
+
+Combien de mouvements faut-il ? Pour `n` disques, la réponse est
+`2^n - 1`. C'est exponentiel : pour 64 disques (la légende dit que
+des moines bouddhistes déplacent une telle tour depuis la nuit des
+temps), il faudrait environ 585 milliards d'années. La fin du monde
+attend.
+
+## 6. Récursion mutuelle
+
+Parfois, deux fonctions se définissent l'une par l'autre :
 
     heaven> isEven 0 = true
+    ✓ clause enregistrée pour 'isEven'
+
     heaven> isEven n = isOdd (n - 1)
+    ✓ clause enregistrée pour 'isEven'
+
     heaven> isOdd 0 = false
+    ✓ clause enregistrée pour 'isOdd'
+
     heaven> isOdd n = isEven (n - 1)
+    ✓ clause enregistrée pour 'isOdd'
 
-    heaven> isEven 4
-    true
-    heaven> isOdd 4
-    false
+`isEven` appelle `isOdd`, qui appelle `isEven`, etc. Aucune des
+deux ne peut être définie seule. Elles forment un **cercle**.
 
-C'est la **récursion mutuelle**. Heaven n'a aucun problème avec ça :
-les deux fonctions sont dans le même espace de noms, chacune peut
-appeler l'autre.
+Cette forme est appelée **récursion mutuelle**. Elle est moins
+fréquente que la récursion simple, mais elle apparaît naturellement
+quand on modélise des systèmes d'états qui alternent (pair/impair,
+ouvert/fermé, actif/inactif). Le compilateur accepte ce cercle : il
+n'exige pas qu'une fonction soit définie avant d'être utilisée,
+juste qu'elle le soit **avant d'être appelée**.
 
-## La récursion sur les arbres
+Heaven supporte la récursion mutuelle en V0, mais avec une limite :
+la **TCO mutuelle** (l'optimisation qui évite l'empilement entre
+deux fonctions qui s'appellent) n'est pas complète. Pour de petites
+valeurs, ça marche. Pour de grandes, ça déborde la pile. C'est un
+chantier ouvert, comme la TCO simple.
 
-Les listes sont linéaires. Les arbres ont deux branches. Prenons :
+## 7. Ce qu'on a appris
 
-    heaven> data Tree a = Leaf | Node (Tree a) a (Tree a)
+- **L'infini à partir du fini** (Peano, Dedekind) : deux règles
+  suffisent à engendrer tous les entiers naturels.
+- Une fonction récursive a toujours un **cas de base** et un
+  **cas récursif**.
+- La **récursivité structurelle** suit la forme de la donnée :
+  chaque appel consomme un cran de structure.
+- La **récursion terminale** place l'appel récursif en dernière
+  position, ce qui évite d'empiler.
+- **TCO** (*Tail Call Optimization*) transforme la récursion
+  terminale en boucle sans coût mémoire.
+- **La tour de Hanoi** illustre la stratégie *diviser pour régner* :
+  un problème récursif se résout en sous-problèmes identiques plus
+  petits.
+- La **récursion mutuelle** autorise deux fonctions à se définir
+  l'une par l'autre.
 
-Un arbre est soit une feuille, soit un nœud avec un sous-arbre gauche,
-une valeur, et un sous-arbre droit.
+La récursion n'est pas qu'une technique. C'est une **manière de
+penser** les données et les problèmes. Une liste, un arbre, un
+entier naturel : tous ont une structure récursive. Une fonction qui
+les traite peut refléter cette structure, et gagner en clarté ce
+qu'elle perd en immédiateté.
 
-Compter les nœuds :
+Wittgenstein, encore lui, aurait dit : « la forme de la solution
+est la forme du problème ». Une liste récursive appelle une fonction
+récursive. Une tour de Hanoi récursive appelle une solution
+récursive. Rien de plus, rien de moins.
 
-    heaven> size Leaf = 0
-    heaven> size (Node g x d) = 1 + size g + size d
+Au chapitre suivant, on généralise : que se passe-t-il quand on
+passe des **fonctions** elles-mêmes en argument ? C'est le monde des
+**fonctions d'ordre supérieur** — `map`, `filter`, `fold`, `>>>` —
+et c'est là que le code fonctionnel devient vraiment concis.
 
-La fonction a deux clauses, comme le type a deux constructeurs. Le
-cas récursif appelle la fonction sur les deux sous-arbres. C'est
-encore le même principe.
+*Vérifiable : les définitions `hanoi`, `isEven`, `isOdd`
+fonctionnent telles quelles dans le REPL (sauf la TCO mutuelle
+pour de très grandes valeurs).*
 
-## Récursion et preuves
-
-Les fonctions récursives ont une propriété : elles **terminent**.
-C'est important en Heaven parce que le noyau de preuve doit pouvoir
-vérifier ça. Une fonction qui ne termine pas n'est pas une fonction
-mathématique, c'est un calcul qui tourne.
-
-Heaven ne vous demande pas de prouver la terminaison à chaque fois,
-mais il utilise le même schéma que vous : les types de données
-récursifs sont **bien fondés** (on ne peut pas les construire à
-l'infini), et les fonctions récursives sur ces types terminent
-naturellement.
-
-C'est pour ça que le pattern matching est si important. Une fonction
-qui matche chaque constructeur et rappelle sur les sous-parties
-*termine toujours*. Une fonction qui se rappelle avec un argument plus
-grand peut ne jamais terminer. Heaven ne fera pas la différence à la
-compilation, mais la discipline compte.
-
-## Le piège du pattern matching partiel
-
-Souvenez-vous du chapitre 3 : une fonction peut ne pas avoir de clause
-pour tous les cas. Exemple :
-
-    heaven> head (Cons x reste) = x
-    heaven> head (Cons 5 Empty)
-    5
-<!-- doctest: skip -->
-    heaven> head Empty
-    eval error: error.ArityMismatch
-<!-- /doctest -->
-
-Heaven refuse. Ce n'est pas un bug, c'est une **fonction partielle**.
-Vous avez oublié de traiter `Empty`.
-
-En pratique, on évite les fonctions partielles en utilisant `Maybe` :
-
-    heaven> data Maybe a = Nothing | Just a
-    ✓ data Maybe registered (1 param(s), 2 constructor(s))
-    heaven> head Empty = Nothing
-    heaven> head (Cons x reste) = Just x
-
-Cette fois, `head Empty` rend `Nothing`, ce qui est explicite. Le
-programme ne plante pas, il dit « pas de résultat ».
-
-On verra les types dépendants plus tard, qui permettent d'exprimer
-« cette fonction ne peut être appelée que sur une liste non vide ».
-Pour l'instant, `Maybe` est votre ami.
-
-## Récapitulatif
-
-- Une fonction récursive a un **cas de base** et un **cas récursif**.
-- La structure de la fonction correspond à la structure du type.
-- La **récursion terminale** économise la pile.
-- La **récursion mutuelle** est permise.
-- Les arbres se traitent comme les listes, avec deux appels.
-- Une fonction **partielle** échoue sur les cas non traités. Utilisez
-  `Maybe` pour être explicite.
-
-Au chapitre suivant, on parle de **fonctions d'ordre supérieur** :
-`map`, `filter`, et la composition `>>>`. C'est là que le code
-fonctionnel devient vraiment concis.
