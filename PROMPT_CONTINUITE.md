@@ -582,3 +582,102 @@ aux arguments.
 - `b007413` guards alignes separees
 - `c3b81ef` identifiants triviaux -> apply zero-arg
 - `5f319b3` tests zip parques
+
+
+---
+
+## Session 2026-10-12 (lundi) -- refonte book non-dev + modules std
+
+**Contexte** : retour d'un lecteur non-developpeur qui avait
+abandonne la lecture a « REPL » (trop d'acronymes non expliques).
+Decision : reecrire les premiers chapitres pour un public
+philosophique/litteraire, avec tous les exemples en Heaven reel.
+
+### Chapitres reecrits (7)
+
+- **Ch0 — Pourquoi Heaven ?** : Wittgenstein (jeux de langage),
+  Platon (opinion vraie vs savoir), Boileau, Foucault, Yoneda.
+  Glossaire non-technique de 20 termes.
+- **Ch1 — Commencer : qu'est-ce qu'un calcul ?** : Wittgenstein,
+  Platon (maieutique), Frege (Begriffsschrift, 1879).
+- **Ch2 — Types et categories** : Aristote (Categories), Frege
+  (Sinn und Bedeutung, 1892).
+- **Ch3 — Voir comme : le pattern matching** : Wittgenstein
+  (canard-lapin), Aristote (diaeresis, Seconds Analytiques).
+- **Ch4 — Recursion : l'infini a partir du fini** : Peano (1889),
+  Dedekind (1888), Edouard Lucas (Hanoi, 1883).
+- **Ch5 — Fonctions d'ordre superieur** : Frege (concepts de 2e
+  ordre), Schonfinkel (1924), Curry (1930), Kant (synthese).
+- **Ch6 — Effets algebriques** : Austin (performatifs, 1955),
+  Moggi (1989), Wadler (1992).
+
+**21 illustrations SVG** creees dans `docs/book/src/images/`
+(style sobre : creme, encre, bordeaux).
+
+### Modules std enrichis (inspires maryamyriameliamurphies.js)
+
+- `core/std/base.hvn` : id, constant, flip, until, even, odd (15 tests)
+- `core/std/eq.hvn` : isEq, isNotEq (5 tests)
+- `core/std/ord.hvn` : Ordering, compare, min, max, predicats (14 tests)
+- `core/std/list.hvn` : +10 fonctions (isEmpty, singleton, last,
+  init, uncons, takeWhile, dropWhile, splitAt, find, any, intersperse,
+  replicate, nub, lookup, elemIndex, concat_map) -- 50 tests
+- `core/std/option.hvn` : +7 fonctions (is_just, from_just,
+  maybeToList, listToMaybe, catMaybes, mapMaybe) -- 16 tests
+- `core/std/pair.hvn` : curry (parque), uncurry, swap (7 tests)
+- `tests/test_laws.hvn` : 10 lois algebriques (34 tests)
+
+Chaque module cite sa source en en-tete (maryamyriameliamurphies.js
++ Fantasy Land). Voir `docs/book/src/F-references.md` (40+ sources)
+et `docs/spec/_algebras.md` (24 algebres Fantasy Land).
+
+### Fix CI + HKT V0.5
+
+- **`77e497a`** : fuite CI `splitStatements` (dupes non liberes).
+- **`7f024a0`** : build casse `egraph.zig` (parasite colle par une
+  session parallele).
+- **`b007413`** : guards alignes -- les lignes `| ...` indentees
+  deviennent des statements separes. +15 tests recuperes.
+- **`c3b81ef`** : identifiants triviaux -> `apply(sym(id), [])`
+  (magics zero-arg comme `target_os`).
+- **`e4cbc04`** : HKT V0.5 -- les constructeurs de type connus
+  (`List`, `Maybe`, `Pair`, etc.) sont reconnus comme univers.
+  `tests/test_hkt.hvn` (15/15).
+
+### Bug ouvert -- `evalFunction`
+
+**Substitution multi-args + curryfication imbriquee** : `mkpair x y =
+(Pair x y)` retourne `(Pair x y)`. `curry f a b` lie le premier
+argument a la valeur totale `(pair a b)`. `compare a b == LT` echoue
+(constructeurs nullaires != sym nu).
+
+**Tests parques** : 2 zip (`test_stream.hvn`), 2 curry
+(`test_pair.hvn`), 3 compare (`test_laws.hvn`, contournes par
+pattern matching).
+
+**Effort estime** : 1h - 1 session a froid. Documente dans la section
+« Bug ouvert : substitution multi-args dans evalFunction » ci-dessus.
+
+### Commits de la session (lundi 12 octobre)
+
+Environ 25 commits. Voir `git log --since="2026-10-12"`.
+
+### Sessions paralleles (lundi)
+
+Active sur : serveur HTTP alternatif (`core/http_server.hvn`,
+`serve.hvn`, `serve_minimal.hvn`), IDE (`ide.hvn`), stdlib
+(`stdlib/`), std/string.hvn (fixes `46f7786`, `fe9d891`).
+**Ne pas toucher** tant qu'elles travaillent.
+
+### Friction relevee
+
+Le `book` etait oriente developpeur. La refonte des 7 premiers
+chapitres resout cela. Reste a faire : Ch7 (Streams), Ch8 (Proofs),
+Ch9 (Real World), etc. -- pour un public mixte (developpeurs et
+non-developpeurs).
+
+### Prochaines options
+
+1. **Ch7 Streams** (~45 min + 3 SVG) : continuer la refonte.
+2. **Bug evalFunction** (1h+, a froid) : le bug le plus profond.
+3. **Endpoints HTTP manquants** (1 session) : `/api/egraph` pour la viz.
