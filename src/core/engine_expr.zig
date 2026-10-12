@@ -216,6 +216,9 @@ pub const CaptureKind = enum {
     /// un nouvel etat. (Note : `resume` est un mot-cle Zig, on
     /// utilise `resume_from_k`.)
     resume_from_k,
+    /// 3a-3b.5 : `yield` a capture : le scheduler doit requeue la
+    /// tache avec un nouvel etat.
+    yield_task,
 };
 
 /// 3a-3b : capture en vol. Remplace l'ancien error.HandleRecYield
@@ -242,13 +245,6 @@ pub const RecCtx = struct {
     state: Id,
     /// 3a-3a : prompt de la frontiere handle_rec (0 = aucun).
     prompt: continuation.Prompt = 0,
-    /// 3a-3b.3 : `next_state`/`k_signaled` ne sont plus utilises par
-    /// handle_rec (qui passe par `engine.pending_capture`). Ils
-    /// restent necessaires au scheduler (`yield`/`schedule`) tant
-    /// que celui-ci n'utilise pas `pending_capture`. Dette 3a-3b.5 :
-    /// migrer le scheduler et supprimer ces deux champs.
-    next_state: ?Id = null,
-    k_signaled: bool = false,
 };
 
 pub const Engine = struct {
@@ -980,13 +976,21 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     // (yield new_state) -> signale la suspension de la tache courante
+    // 3a-3b.5 : on pose une pending_capture de kind yield_task et on
+    // remonte via SuspendRequested. Le scheduler discrimine apres
+    // l'appel via engine.pending_capture.
     if (std.mem.eql(u8, op, "yield")) {
-        const ctx = engine.rec_ctx orelse return error.HandlerFailed;
         if (args_snap.len != 1) return error.ArityMismatch;
         const ns = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        ctx.next_state = ns;
-        ctx.k_signaled = true;
-        return try store.unitLit();
+        engine.pending_capture = PendingCapture{
+            .kind = .yield_task,
+            .new_state = ns,
+            // prompt = 0 : le scheduler ne travaille pas avec des
+            // prompts, il ne doit pas etre confondu avec un
+            // handle_rec externe.
+            .prompt = 0,
+        };
+        return error.SuspendRequested;
     }
 
     // (schedule budget) -> execute toutes les taches .ready (round-robin)
@@ -1009,41 +1013,41 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             });
             const cur_state: Id = @intCast(task.current_state orelse 0);
 
-            // Construire un RecCtx pour capturer (yield new_state).
-            var ctx = RecCtx{
-                .body_fn = body_fn_id,
-                .handler = 0,
-                .state = cur_state,
-            };
-            const saved_ctx = engine.rec_ctx;
-            engine.rec_ctx = &ctx;
-            defer engine.rec_ctx = saved_ctx;
-
             const call = store.apply(body_fn_id, &.{cur_state}) catch {
                 task.state = .cancelled;
                 continue;
             };
-            const outcome = engine.evalWithBudget(call, budget) catch |err| {
-                if (err == error.SuspendRequested) {
-                    // Budget epuise : remettre en queue
-                    task.state = .ready;
-                    continue;
-                }
+            const outcome = engine.evalWithBudget(call, budget) catch {
                 task.state = .cancelled;
                 continue;
             };
 
-            if (ctx.k_signaled) {
-                // yield : nouvelle etat + remettre en queue
-                task.current_state = @intCast(ctx.next_state orelse cur_state);
-                task.state = .ready;
-            } else {
-                // Fin normale : stocker le resultat comme current_state.
-                switch (outcome) {
-                    .done => |result| task.current_state = @intCast(result),
-                    .suspended => {},
-                }
-                task.state = .finished;
+            // 3a-3b.5 : discriminer yield vs budget epuise via
+            // pending_capture. evalWithBudget a deja converti
+            // SuspendRequested en .suspended, donc on regarde
+            // pending_capture pour savoir *pourquoi* on a suspendu.
+            switch (outcome) {
+                .done => |result| {
+                    task.current_state = @intCast(result);
+                    task.state = .finished;
+                },
+                .suspended => {
+                    if (engine.pending_capture) |cap| {
+                        if (cap.kind == .yield_task) {
+                            engine.pending_capture = null;
+                            task.current_state = @intCast(cap.new_state);
+                            task.state = .ready;
+                        } else {
+                            // Inattendu : perform/resume ne devraient
+                            // pas fuiter jusqu'ici. Reset + requeue.
+                            engine.pending_capture = null;
+                            task.state = .ready;
+                        }
+                    } else {
+                        // Budget epuise : etat inchange, requeue.
+                        task.state = .ready;
+                    }
+                },
             }
         }
         return try store.unitLit();

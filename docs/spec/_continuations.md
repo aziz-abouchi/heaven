@@ -231,3 +231,40 @@ Purge du code mort issu de la migration 3a-3b :
 - 3a-3b.5 : migrer le scheduler sur `pending_capture` puis
   supprimer `RecCtx.{next_state, k_signaled}`.
 - 3a-3c : exposer `@capture`/`@throw` comme magics Heaven.
+
+---
+
+## 3a-3b.5 — Scheduler sur pending_capture (2026-10-12)
+
+**Statut** : ✅ Fait
+
+Le scheduler coopératif utilise maintenant le même mécanisme que
+`handle_rec` : `pending_capture` + `SuspendRequested`. Plus de
+`RecCtx` ad-hoc, plus de champs `next_state`/`k_signaled`.
+
+Modifications dans `src/core/engine_expr.zig` :
+
+1. **`CaptureKind.yield_task`** — nouveau variant pour signaler un
+   yield de tâche (vs perform/resume_from_k pour handle_rec).
+
+2. **`yield`** : pose `pending_capture = .{kind=.yield_task, .new_state, .prompt=0}`
+   et remonte via `SuspendRequested`. Ne dépend plus de
+   `engine.rec_ctx`.
+
+3. **Scheduler** : ne crée plus de `RecCtx`. Après
+   `evalWithBudget`, discrimine via `engine.pending_capture` :
+   - `yield_task` → requeue avec nouvel état
+   - autre kind (inattendu) → reset + requeue
+   - null + `.suspended` → budget épuisé, requeue avec état inchangé
+
+4. **`RecCtx`** : réduit à `{body_fn, handler, state, prompt}` —
+   supprimés : `next_state`, `k_signaled`.
+
+**Non-régression** : 4/4 + 13/13 + **3/3** (scheduler) + 18/18
+= **38/38**.
+
+**Bénéfice** : un seul mécanisme de suspension dans tout le noyau.
+`_continuations.md` Option B (delimited continuations style OCaml 5)
+est maintenant **opérationnel pour handle_rec et le scheduler**.
+
+**Suite** : 3a-3c (magics @capture/@throw, débloque préemptif C3).
