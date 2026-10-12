@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    bind : la composition monadique manquante
+  </text>
+
+  <!-- Programme 1 -->
+  <g>
+    <rect x="30" y="70" width="140" height="60" fill="#c0d8e8" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="100" y="95" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">p : Free</text>
+    <text x="100" y="115" text-anchor="middle" font-size="9" fill="#666" font-style="italic">un programme</text>
+  </g>
+
+  <!-- Operateur >>= -->
+  <g>
+    <text x="210" y="105" text-anchor="middle" font-size="20" fill="#7a3b3b" font-family="monospace">&gt;&gt;=</text>
+  </g>
+
+  <!-- Continuation -->
+  <g>
+    <rect x="270" y="70" width="200" height="60" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="370" y="95" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">k : Int -&gt; Free</text>
+    <text x="370" y="115" text-anchor="middle" font-size="9" fill="#666" font-style="italic">la suite, fonction du resultat</text>
+  </g>
+
+  <!-- Resultat -->
+  <g>
+    <path d="M 250 140 L 250 175" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr16c)"/>
+  </g>
+
+  <g>
+    <rect x="120" y="180" width="260" height="55" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="250" y="205" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">p &gt;&gt;= k : Free</text>
+    <text x="250" y="223" text-anchor="middle" font-size="9" fill="#666" font-style="italic">un nouveau programme compose</text>
+  </g>
+
+  <!-- Pourquoi ca manque en V0 -->
+  <g>
+    <rect x="50" y="255" width="400" height="55" fill="#faf7f2" stroke="#7a3b3b" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="250" y="277" text-anchor="middle" font-size="10" fill="#2c2c2c">
+      En V0, Pure x est un marqueur de position, pas une valeur de retour.
+    </text>
+    <text x="250" y="295" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+      Sans continuations valuees, bind reste hors de portee.
+    </text>
+  </g>
+
+  <defs>
+    <marker id="arr16c" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+</svg>

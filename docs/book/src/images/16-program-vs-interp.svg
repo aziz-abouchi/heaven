@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Un programme, deux lectures
+  </text>
+
+  <!-- Programme au centre -->
+  <g>
+    <rect x="170" y="60" width="160" height="70" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="250" y="85" text-anchor="middle" font-size="13" fill="#2c2c2c" font-family="monospace">p3</text>
+    <text x="250" y="105" text-anchor="middle" font-size="10" fill="#666" font-family="monospace">Push 5, Log start,</text>
+    <text x="250" y="120" text-anchor="middle" font-size="10" fill="#666" font-family="monospace">Push 2, Add, Log done</text>
+  </g>
+
+  <!-- Fleches divergentes -->
+  <g>
+    <path d="M 220 130 L 100 180" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr16b)"/>
+    <text x="150" y="160" font-size="10" fill="#7a3b3b" font-style="italic">run_stack</text>
+    <path d="M 280 130 L 400 180" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr16b)"/>
+    <text x="350" y="160" font-size="10" fill="#7a3b3b" font-style="italic">run_trace</text>
+  </g>
+
+  <!-- Resultat 1 -->
+  <g>
+    <rect x="30" y="185" width="140" height="60" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="100" y="210" text-anchor="middle" font-size="11" fill="#2c2c2c" font-family="monospace">run_stack p3</text>
+    <text x="100" y="232" text-anchor="middle" font-size="16" fill="#7a3b3b" font-family="monospace">7</text>
+  </g>
+
+  <!-- Resultat 2 -->
+  <g>
+    <rect x="330" y="185" width="140" height="60" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="400" y="210" text-anchor="middle" font-size="11" fill="#2c2c2c" font-family="monospace">run_trace p3</text>
+    <text x="400" y="232" text-anchor="middle" font-size="11" fill="#7a3b3b" font-family="monospace">["done", "start"]</text>
+  </g>
+
+  <!-- Note -->
+  <text x="250" y="280" text-anchor="middle" font-size="11" fill="#2c2c2c">
+    Meme texte, sens differents.
+  </text>
+  <text x="250" y="302" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+    Barthes (1968) : un texte n'a pas un sens, il a des lectures.
+  </text>
+
+  <defs>
+    <marker id="arr16b" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+</svg>
