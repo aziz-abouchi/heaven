@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Diviser pour définir
+  </text>
+  <!-- Racine -->
+  <g>
+    <rect x="200" y="60" width="100" height="30" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="250" y="80" text-anchor="middle" font-size="11" fill="#2c2c2c">signe x</text>
+  </g>
+  <!-- Branches -->
+  <g>
+    <path d="M 230 90 L 130 130" fill="none" stroke="#2c2c2c" stroke-width="1"/>
+    <path d="M 250 90 L 250 130" fill="none" stroke="#2c2c2c" stroke-width="1"/>
+    <path d="M 270 90 L 370 130" fill="none" stroke="#2c2c2c" stroke-width="1"/>
+  </g>
+  <!-- 3 branches -->
+  <g>
+    <rect x="60" y="130" width="140" height="30" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="130" y="150" text-anchor="middle" font-size="10" fill="#7a3b3b">x &lt; 0</text>
+    <rect x="180" y="130" width="140" height="30" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="250" y="150" text-anchor="middle" font-size="10" fill="#7a3b3b">x == 0</text>
+    <rect x="300" y="130" width="140" height="30" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="370" y="150" text-anchor="middle" font-size="10" fill="#7a3b3b">otherwise</text>
+  </g>
+  <!-- Fleches descendants -->
+  <g>
+    <path d="M 130 160 L 130 200" fill="none" stroke="#2c2c2c" stroke-width="1"/>
+    <path d="M 250 160 L 250 200" fill="none" stroke="#2c2c2c" stroke-width="1"/>
+    <path d="M 370 160 L 370 200" fill="none" stroke="#2c2c2c" stroke-width="1"/>
+  </g>
+  <!-- Resultats -->
+  <g>
+    <rect x="60" y="200" width="140" height="30" fill="#faf7f2" stroke="#7a3b3b" stroke-width="1"/>
+    <text x="130" y="220" text-anchor="middle" font-size="11" fill="#2c2c2c">-1</text>
+    <rect x="180" y="200" width="140" height="30" fill="#faf7f2" stroke="#7a3b3b" stroke-width="1"/>
+    <text x="250" y="220" text-anchor="middle" font-size="11" fill="#2c2c2c">0</text>
+    <rect x="300" y="200" width="140" height="30" fill="#faf7f2" stroke="#7a3b3b" stroke-width="1"/>
+    <text x="370" y="220" text-anchor="middle" font-size="11" fill="#2c2c2c">1</text>
+  </g>
+  <!-- Phrase -->
+  <text x="250" y="270" text-anchor="middle" font-size="11" fill="#666" font-style="italic">
+    « La définition par division (diaeresis) : séparer le genre en espèces. »
+  </text>
+  <text x="250" y="295" text-anchor="middle" font-size="10" fill="#2c2c2c">— Aristote, Seconds Analytiques</text>
+</svg>

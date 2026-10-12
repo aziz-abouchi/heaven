@@ -1,315 +1,229 @@
-# Chapitre 3 — Syntax in Functions
+# Chapitre 3 — Voir comme : le pattern matching
 
-> *« Une fonction qui ne prend qu'une seule forme de donnée est une
-> fonction qui n'a rien vu du monde. »*
+> *« Ne pas penser, mais regarder. »*
+> — Ludwig Wittgenstein, *Investigations philosophiques*, §66
 
 Au chapitre précédent, on a vu que Heaven infère les types. Maintenant
 on va voir comment écrire des fonctions qui prennent *vraiment* de la
 donnée structurée, et pas seulement des nombres.
 
-## Retour sur le pattern matching
+## 1. Voir comme
 
-Vous avez déjà vu ceci :
+![Deux aspects d'une même liste](images/03-shapes.svg)
 
-    heaven> add zero n = n
-    ✓ clause enregistrée pour 'add'
-    heaven> add (succ n) m = succ (add n m)
-    ✓ clause enregistrée pour 'add'
+Regarde une liste. Que vois-tu ?
 
-Deux équations. La première dit : « si le premier argument est `zero`,
-rends le second ». La seconde dit : « si le premier argument est
-`succ n`, rends `succ (add n m)` ». Heaven essaie dans l'ordre. C'est
-le **filtrage par motif** (*pattern matching*).
+Si tu la vois comme une **chose vide** ou comme **un élément suivi
+d'un reste**, ce ne sont pas deux listes différentes. C'est la même
+liste, vue sous deux aspects. Comme le canard-lapin de Wittgenstein :
+une seule figure, deux lectures.
 
-On peut utiliser plusieurs motifs dans la même clause :
+![Le canard-lapin](images/03-duck-rabbit.svg)
 
-    heaven> pairUp x y = (x, y)
+Wittgenstein, dans les *Investigations philosophiques* (II, xi),
+utilise cette figure pour montrer quelque chose de profond : voir
+n'est pas recevoir passivement une image. C'est **organiser**
+activement ce qu'on voit. « Je vois quelque chose **comme** quelque
+chose. »
 
-Mais le filtrage par motif devient vraiment intéressant quand on
-définit ses propres types de données.
+Le **pattern matching**, c'est exactement cela. C'est l'art de
+définir une fonction en disant : « si tu vois la donnée *comme ceci*,
+fais cela ; si tu la vois *comme cela*, fais autre chose. »
 
-## Définir ses propres types
+## 2. Les deux formes d'une liste
 
-Le mot-clé est `data`. Prenons le plus simple : un type qui vaut soit
-une chose, soit une autre.
+En Heaven, une liste a deux constructeurs :
+
+- `nil` — la liste vide.
+- `cons x xs` — un élément `x` suivi d'une liste `xs`.
+
+On peut définir une fonction qui distingue ces deux formes :
+
+    heaven> head (cons x _) = x
+    ✓ clause enregistrée pour 'head'
+
+    heaven> head (cons 1 (cons 2 nil))
+    1
+
+La définition dit : « si tu vois la donnée comme `cons x _`, rends
+`x` ». Le `_` est un **joker** : il signifie « peu importe ». On ne
+veut pas savoir ce qu'il y a dans le reste de la liste, seulement
+l'élément de tête.
+
+Que se passe-t-il si on appelle `head nil` ? Heaven refuse — on n'a
+pas défini ce cas. C'est une erreur, et elle est **utile** : elle
+nous dit que la fonction n'est pas définie pour cette forme. On
+pourrait ajouter une clause :
+
+    heaven> head nil = 0
+    ✓ clause enregistrée pour 'head'
+
+Maintenant `head nil` rend `0`. Mais ce `0` est arbitraire. Est-ce
+vraiment ce qu'on veut ? Peut-être que la bonne réponse est
+d'utiliser `Option` (chapitre 2) pour dire honnêtement : « il n'y a
+pas de tête ».
+
+## 3. Définir ses propres formes
+
+Le pattern matching devient vraiment intéressant quand on définit
+ses propres types de données. Le mot-clé est `data`.
+
+Prenons le plus simple : un type qui vaut soit une chose, soit une
+autre.
 
     heaven> data Color = Red | Green | Blue
-    ✓ data type registered (3 constructors)
+    ✓ data Color registered (3 constructors)
 
 `Color` est un type. `Red`, `Green`, `Blue` sont ses trois
 **constructeurs**. On les utilise comme n'importe quelle valeur :
 
     heaven> Red
     Red
-    heaven> type Red
-    Color
 
-Vous voyez ? `Red` n'est pas un mot réservé. C'est une valeur
-ordinaire, du type `Color`.
+On peut écrire une fonction qui les distingue :
 
-## Le filtrage par motif sur nos types
+    heaven> colorName Red = "rouge"
+    ✓ clause enregistrée pour 'colorName'
 
-Écrivons une fonction qui traduit une couleur en français :
-
-    heaven> name Red = "rouge"
-    heaven> name Green = "vert"
-    heaven> name Blue = "bleu"
-
-Trois clauses. Une par constructeur. Heaven essaie dans l'ordre. On
-peut l'utiliser :
-
-    heaven> name Green
-    "vert"
-    heaven> name Blue
+    heaven> colorName Blue
     "bleu"
 
-Que se passe-t-il si on oublie un cas ?
+Mais on peut faire plus intéressant : des types **récursifs**, qui
+se contiennent eux-mêmes. Les entiers naturels de Peano :
 
-<!-- doctest: skip -->
-    heaven> name Unknown
-    eval error: error.UnknownSymbol
-<!-- /doctest -->
+    heaven> data Nat = Zero | Succ Nat
+    ✓ data Nat registered (2 constructors)
 
-Heaven ne connaît pas `Unknown`. Mais si on ajoute un quatrième
-constructeur :
+`Nat` a deux constructeurs : `Zero` (l'entier 0) et `Succ n` (le
+successeur de `n`). `Succ Zero` est 1, `Succ (Succ Zero)` est 2,
+et ainsi de suite.
 
-    heaven> data Color = Red | Green | Blue | Yellow
+On peut alors définir l'addition :
 
-puis qu'on essaie `nom Jaune`, Heaven n'a pas de clause pour `Jaune`.
-Il retourne... rien. La fonction est **partielle**. On y reviendra.
+    heaven> add Zero n = n
+    ✓ clause enregistrée pour 'add'
 
-## Des types avec contenu
+    heaven> add (Succ m) n = Succ (add m n)
+    ✓ clause enregistrée pour 'add'
 
-Les constructeurs simples, c'est bien. Mais la vraie puissance vient
-des constructeurs qui prennent des arguments :
+Deux clauses :
 
-    heaven> data Maybe a = Nothing | Just a
-    ✓ data type registered (2 constructors)
+- Si le premier argument est `Zero`, rends le second.
+- Si le premier argument est `Succ m`, rends `Succ (add m n)`.
 
-`Just` prend un argument. `Nothing` n'en prend aucun. On peut écrire :
+Cette définition est **récursive** : `add` s'appelle elle-même dans
+sa propre définition. C'est la structure même de l'addition de
+Peano, publiée en 1889 dans ses *Arithmetices principia*.
 
-    heaven> Just 42
-    (Just 42)
-    heaven> type Just 42
-    Maybe Int
-    heaven> Nothing
-    Nothing
+Giuseppe Peano voulait **fonder l'arithmétique** sur une base
+logique minimale : un élément de départ (`Zero`) et une opération
+de succession (`Succ`). Tout le reste — addition, multiplication,
+ordre — se dérive par récursion. Sa construction est toujours
+enseignée aujourd'hui. Heaven l'accepte telle quelle.
 
-Le filtrage par motif peut extraire le contenu :
+*Vérifiable : les définitions `data Color` et `data Nat` ainsi que
+les fonctions `colorName` et `add` fonctionnent dans le REPL.*
 
-    heaven> fromMaybe Nothing default = default
-    heaven> fromMaybe (Just x) default = x
 
-Si on a un `Just`, on rend le contenu. Sinon, on rend la valeur par
-défaut.
+## 4. Diviser pour définir : les gardes
 
-    heaven> fromMaybe (Just 42) 0
-    42
-    heaven> fromMaybe Nothing 0
-    0
+![La division en cas](images/03-guards.svg)
 
+Aristote, dans les *Seconds Analytiques*, décrit une méthode pour
+définir : la **division** (*diaeresis*). Pour définir un concept,
+on sépare son genre en espèces, puis chaque espèce en sous-espèces,
+et ainsi de suite. Par exemple : « animal » se divise en
+« raisonnable » et « non raisonnable ». « Raisonnable » donne
+« humain ».
 
-## Les constructeurs récursifs
+Le pattern matching généralise cette méthode. Au lieu de distinguer
+par la **forme** du constructeur (`Zero` ou `Succ`), on peut
+distinguer par une **condition** — une garde.
 
-Le vrai intérêt de `data`, c'est la récursion. Prenons une liste
-chaînée minimale :
+Reprenons `signe` :
 
-    heaven> data Liste a = Vide | Cellule a (Liste a)
-    ✓ data type registered (2 constructors)
+    heaven> signe x | x < 0 = 0 - 1
+                    | x == 0 = 0
+                    | otherwise = 1
 
-`Vide` est la liste vide. `Cellule x reste` est une cellule qui
-contient `x` et pointe vers `reste`. On peut construire :
+Trois cas, séparés par des `|`. Chaque `|` introduit une garde (une
+condition). Heaven essaie **dans l'ordre** :
 
-    heaven> Cellule 1 (Cellule 2 (Cellule 3 Vide))
-    (Cellule 1 (Cellule 2 (Cellule 3 Vide)))
+- Si `x < 0`, rends `-1`.
+- Sinon, si `x == 0`, rends `0`.
+- Sinon (cas par défaut), rends `1`.
 
-Et écrire une fonction qui calcule la longueur :
+`otherwise` est un cas par défaut : il est toujours vrai. C'est
+l'équivalent du « reste » dans une division exhaustive.
 
-    heaven> length Vide = 0
-    heaven> length (Cellule x reste) = 1 + length reste
+L'**ordre compte**. `signe 5` tombe dans la troisième garde. Si on
+avait mis `otherwise` en premier, il aurait capté tous les cas et
+les autres gardes n'auraient jamais été atteintes. La division
+d'Aristote doit être **exhaustive et sans recouvrement**, sinon on
+ne définit rien.
 
-    heaven> length (Cellule 1 (Cellule 2 (Cellule 3 Vide)))
-    3
+C'est une leçon philosophique autant que technique : *définir
+proprement, c'est partitionner correctement*. Si les cas se
+recouvrent, la définition est ambiguë. S'ils ne couvrent pas tout,
+elle est incomplète.
 
-C'est ça, le cœur du fonctionnel. Un type qui se contient lui-même,
-une fonction qui se rappelle elle-même.
+## 5. Récursivité structurelle
 
-## Une liste un peu plus riche
+Le pattern matching et la récursion vont ensemble. Voyons pourquoi.
 
-Le langage a déjà une notion de liste avec `Nil` et `Cons`. Mais
-définissons-la nous-mêmes pour comprendre :
+    heaven> length nil = 0
+    ✓ clause enregistrée pour 'length'
 
-    heaven> data MyList a = Empty | Cons a (MyList a)
+    heaven> length (cons _ xs) = 1 + (length xs)
+    ✓ clause enregistrée pour 'length'
 
-C'est la même structure que `Liste`, juste avec d'autres noms. Le nom
-n'a pas d'importance, la *forme* en a.
+Deux clauses :
 
-    heaven> sum Empty = 0
-    heaven> sum (Cons x reste) = x + sum reste
+- Si la liste est vide, la longueur est 0.
+- Si la liste a un élément de tête et un reste `xs`, la longueur
+  est 1 + la longueur de `xs`.
 
-    heaven> sum (Cons 1 (Cons 2 (Cons 3 Empty)))
-    6
+La fonction `length` **suit la structure de la donnée**. La liste
+est définie par deux cas (`nil` ou `cons x xs`), et `length` les
+traite en miroir. On dit que la récursion est **structurelle** :
+elle ne tourne pas dans le vide, elle **consomme** la structure.
 
-## Le pattern matching imbriqué
+Frege, à la fin du XIXᵉ siècle, avait déjà vu que les fonctions
+récursives sur les entiers naturels suivaient la structure de
+Peano. `add (Succ m) n = Succ (add m n)` : chaque étape réduit le
+premier argument de `Succ`, jusqu'à ce qu'il soit `Zero`. La
+récursion **mesure** la structure.
+
+Cette idée sera formalisée au XXᵉ siècle par la théorie des
+**schémas de récursion** (catamorphismes et anamorphismes), que
+nous verrons au chapitre 14. Pour l'instant, retiens ceci : *une
+bonne fonction récursive dit sa structure en même temps qu'elle
+calcule*.
+
+Wittgenstein, encore lui, aurait aimé : « ne pas penser, mais
+regarder » — la forme de la fonction reflète la forme de la donnée.
+Rien à comprendre, tout à voir.
+
+## Ce qu'on a appris
+
+- **Voir comme** (Wittgenstein) : une même donnée peut être lue
+  sous plusieurs aspects. Le pattern matching est cette capacité
+  de lecture.
+- Les **deux formes** d'une liste : `nil` (vide) et `cons x xs`
+  (élément + reste).
+- On définit ses propres **types de données** avec `data`, en
+  nommant ses constructeurs.
+- Les types **récursifs** (`Nat = Zero | Succ Nat`) engendrent
+  l'infini à partir du fini, comme l'arithmétique de Peano.
+- Les **gardes** (`| x < 0 = ...`) divisent un cas en sous-cas,
+  comme la *diaeresis* d'Aristote.
+- La **récursivité structurelle** suit la forme de la donnée :
+  la fonction reflète la structure.
+
+Au chapitre suivant, on creusera la **récursion** proprement : ses
+formes, ses pièges (la pile, la terminaison), et comment elle
+exprime l'infini à partir du fini.
+
+*Vérifiable : les définitions `signe` et `length` fonctionnent
+telles quelles dans le REPL.*
 
-On peut imbriquer les motifs. Par exemple, écrire `head` qui rend le
-premier élément d'une liste, ou `Empty` si elle est vide :
-
-    heaven> head (Cons x reste) = x
-    heaven> head Empty = Empty
-
-Mais ce n'est pas très utile : `head Fin` rend `Empty`, et `head` est
-censée rendre un élément. Le problème, c'est qu'on ne peut pas
-toujours garantir qu'une liste n'est pas vide. On verra comment
-exprimer ça avec les types au chapitre 8 (types dépendants), mais pour
-l'instant, acceptons l'imperfection.
-
-## Les alias de type (roadmap)
-
-Un alias de type est un nom court pour un type long :
-
-    heaven> type Nom = String
-    ✓ type Nom = String
-    heaven> type Nom
-    Nom : String
-
-L'alias ne cree pas un nouveau type, juste un synonyme. Utile pour la
-lisibilite, pas pour la surete.
-
-La commande `type` sert aussi a **afficher le type d'une expression**
-(inference) :
-
-    heaven> type 42
-    42 : Int
-
-Distinction : `type X = Y` declare un alias, `type expr` infere le
-type de l'expression.
-
-## Récapitulatif
-
-- **`data`** définit un type avec ses constructeurs.
-- Les constructeurs peuvent prendre des arguments.
-- Le **filtrage par motif** dans les équations sélectionne la bonne
-  clause.
-- Les **gardes** ajoutent des conditions.
-- On peut définir des types **récursifs** (`Liste`, `Stream`, etc.).
-- Un type avec plusieurs cas **sans clause pour tous les cas** est dit
-  *partiel*. Heaven ne le signale pas encore, mais c'est un point à
-  garder en tête.
-
-Au chapitre suivant, on plonge dans la **récursion** : comment écrire
-des fonctions qui se rappellent elles-mêmes sans se perdre, et
-pourquoi c'est le cœur du paradigme fonctionnel.
-
-
----
-
-## Types paramétrés
-
-Depuis octobre 2026, le pipeline syntaxique HIR couvre aussi les déclarations `data` génériques avec paramètres non typés :
-
-```heaven
-data List<a> = Nil | Cons a (List<a>)
-```
-
-Cette forme est reconnue par Tree-sitter et abaissée dans l'AST HIR (`DataDecl.params`).
-
-Limitation actuelle : les paramètres génériques doivent encore être propagés dans l'élaboration et l'enregistrement runtime.
-
-## Types dépendants (surface)
-
-Depuis septembre 2026, `data` accepte des **paramètres typés** :
-
-    heaven> data Vec (n : Nat) = Nil | Cons a (Vec n)
-    ✓ data Vec registered (1 param(s), 2 constructor(s))
-
-`Vec` est indexé par une valeur (`n : Nat`), pas seulement par un
-type. C'est la base des types dépendants.
-
-### Signatures
-
-Une fonction sur `Vec` se déclare avec une **signature** :
-
-    heaven> sig head : (n : Nat) -> Vec (succ n) -> a
-    ✓ sig head : 2 arg(s)
-
-`head` prend un `Nat` (paramètre explicite) et une `Vec (succ n)`
-— `succ` garantit qu'elle est non-vide — et retourne un élément `a`.
-
-### Vérification structurelle
-
-Quand tu écris des clauses, Heaven vérifie trois choses :
-
-1. **Arité**. `head` attend 2 patterns. `head Nil = ...` est refusé.
-
-2. **Kind**. `Cons` appartient à `Vec`, pas à `Nat`. Une clause
-   `head (Cons x _) _ = x` est refusée (le 1er arg doit être `Nat`).
-
-3. **Compatibilité base/step**. `Nil` est le constructeur *base*
-   (`Vec zero`), `Cons` est *step* (`Vec (succ k)`). Une clause
-   `head _ Nil` est refusée car `Nil : Vec zero` ne peut pas matcher
-   `Vec (succ n)`.
-
-    heaven> head _ Nil = 42
-    ✗ pattern 2 : Nil incompatible avec le domaine 'Vec (succ n)'
-
-    heaven> head _ (Cons x _) = x
-    ✓ clause enregistrée pour 'head'
-
-C'est la vérification v2c (2026-09-23). L'unification vraie
-d'indexes (`Vec (n + m)`, liaison `n := k`) est fait depuis v2f
-(2026-10-02).
-
-## Les gardes
-
-Parfois un pattern seul ne suffit pas a choisir une clause. Tu veux
-dire : "si l'argument a cette forme ET qu'il satisfait une
-condition". C'est une **garde**.
-
-    clamp x | x < 0 = 0
-    clamp x | x > 9 = 9
-    clamp x | otherwise = x
-
-La barre verticale `|` separe les patterns de la condition. Heaven
-matche d'abord le pattern, puis evalue la garde. Si elle rend
-false, il essaie la clause suivante -- exactement comme si le
-pattern n'avait pas matche.
-
-1. **Les captures sont visibles** dans la garde. Le `x` de `x < 0`
-   est le `x` capture par le pattern.
-2. **L'ordre compte.** Premiere garde vraie gagne, comme pour les
-   patterns : essai de haut en bas.
-3. **otherwise** est un alias vers true -- la clause par defaut,
-   a mettre en dernier.
-4. **== fonctionne** en garde :
-
-       signe x | x < 0 = 0 - 1
-       signe x | x == 0 = 0
-       signe x | otherwise = 1
-
-## La forme alignee
-
-Quand plusieurs gardes se suivent, repeter le nom et le pattern a
-chaque ligne devient verbeux. Une ligne qui commence par `|`
-continue la clause precedente -- memes nom et patterns, nouvelle
-garde :
-
-    classifie x | x < 0 = 0 - 1
-                | x == 0 = 0
-                | otherwise = 1
-
-C'est exactement la meme chose que :
-
-    classifie x | x < 0 = 0 - 1
-    classifie x | x == 0 = 0
-    classifie x | otherwise = 1
-
-Une continuation doit suivre sa clause (ou une autre continuation)
--- seule, elle est refusee avec une erreur propre.
-
----
-
-Tu sais maintenant décrire la **forme** des données — par patterns,
-par gardes, par `data`. Il reste à les **parcourir**. Et en
-fonctionnel, parcourir se dit en un mot : récursion. C'est le sujet
-du prochain chapitre, et c'est le cœur battant du paradigme.
