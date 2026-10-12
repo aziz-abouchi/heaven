@@ -66,7 +66,7 @@ test "intersperse len":   (length (intersperse 0 (cons 1 (cons 2 (cons 3 nil))))
 
 -- replicate
 test "replicate 3 len":   (length (replicate 3 42)) == 3
-test "replicate 0 len":   (length (replicate 0 42)) == 0
+test "replicate 0 len":   (length (replicate 0 42)) == zero
 test "replicate head":    (head (replicate 2 7)) == 7
 
 -- nub
