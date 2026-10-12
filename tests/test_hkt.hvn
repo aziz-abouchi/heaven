@@ -1,0 +1,30 @@
+-- tests/test_hkt.hvn — HKT minimal (V0.5)
+-- Constructeurs de type en position d'argument.
+-- Note : utilise cons (list variadique n'existe pas en V0).
+
+-- ─── Signature avec type variable en tete ───
+sig id_t : (a : Type) -> a -> a
+id_t a x = x
+
+test "id_t Int":        (id_t Int 42) == 42
+test "id_t String":     (id_t String "hello") == "hello"
+test "id_t (List Int)": (id_t (List Int) 42) == 42
+
+-- ─── Signature HKT : f a en tete ───
+sig wrap : (f : Type) -> (a : Type) -> f a -> f a
+wrap f a x = x
+
+test "wrap List Int":   (wrap List Int (cons 1 (cons 2 nil))) == (cons 1 (cons 2 nil))
+test "wrap Maybe Int":  (wrap Maybe Int 42) == 42
+
+-- ─── Signature avec type compose dans le domaine ───
+sig f_list : (a : Type) -> List a -> Int
+f_list a _ = 0
+
+test "f_list Int":      (f_list Int (cons 1 (cons 2 nil))) == 0
+
+-- ─── Type constructors en argument ───
+id_ignore a x = x
+
+test "ignore (List Int) 42":    (id_ignore (List Int) 42) == 42
+test "ignore (Pair Int Int) p": (id_ignore (Pair Int Int) (pair 1 2)) == (pair 1 2)

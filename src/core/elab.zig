@@ -878,6 +878,21 @@ pub const TypeChecker = struct {
                 const j = (try self.inferSortOrNull(ctx, args[1])) orelse return TypeError.NotAFunction;
                 return try self.getUniverse(@max(i, j));
             }
+
+            // Constructeurs de type connus : (List a), (Maybe a), etc.
+            // Une application de ces constructeurs est un TYPE, pas une
+            // valeur. Elle appartient a l'univers Type (niveau 1).
+            // Sans ceci, inferApply essaie inferType("List") qui
+            // renvoie UnboundVariable, et (List Int) echoue.
+            const KNOWN_TYPE_CTORS = [_][]const u8{
+                "List", "Maybe", "Option", "Pair", "Result",
+                "Stream", "Array", "Vec",
+            };
+            for (KNOWN_TYPE_CTORS) |ctor| {
+                if (std.mem.eql(u8, func_name, ctor)) {
+                    return try self.getUniverse(1);
+                }
+            }
         }
 
         const func_type = try self.inferType(ctx, apply_node.payload);

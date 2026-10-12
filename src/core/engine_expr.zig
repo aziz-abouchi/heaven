@@ -767,6 +767,21 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                     }
                 }
             }
+            // Constructeurs de type : (List a), (Maybe a), (Pair a b), etc.
+            // Ce ne sont PAS des valeurs executables. Ce sont des annotations
+            // de type. Au runtime, on les evalue a eux-memes (nœud opaque),
+            // pour qu'ils puissent etre passes comme arguments sans erreur.
+            // Sans ceci, evaluer (List Int) -> evalMagic("List") -> UnknownSymbol.
+            const KNOWN_TYPE_CTORS = [_][]const u8{
+                "List", "Maybe", "Option", "Pair", "Result",
+                "Stream", "Array", "Vec",
+            };
+            for (KNOWN_TYPE_CTORS) |ctor| {
+                if (std.mem.eql(u8, op_name, ctor)) {
+                    return id;  // auto-evaluation : le nœud reste tel quel
+                }
+            }
+
             return try evalMagic(store, env, engine, op_name, args, depth);
         },
         .bind => {
