@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Les six primitives du noyau
+  </text>
+
+  <!-- Noyau central -->
+  <g>
+    <circle cx="250" cy="160" r="55" fill="#fff" stroke="#7a3b3b" stroke-width="2"/>
+    <text x="250" y="155" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">6</text>
+    <text x="250" y="173" text-anchor="middle" font-size="11" fill="#7a3b3b" font-style="italic">primitives</text>
+  </g>
+
+  <!-- lit -->
+  <g>
+    <rect x="40" y="70" width="90" height="35" fill="#c0d8e8" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="85" y="93" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">lit</text>
+  </g>
+  <path d="M 130 90 L 205 135" fill="none" stroke="#7a3b3b" stroke-width="1.5"/>
+
+  <!-- sym -->
+  <g>
+    <rect x="370" y="70" width="90" height="35" fill="#c0d8e8" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="415" y="93" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">sym</text>
+  </g>
+  <path d="M 370 90 L 295 135" fill="none" stroke="#7a3b3b" stroke-width="1.5"/>
+
+  <!-- apply -->
+  <g>
+    <rect x="20" y="145" width="90" height="35" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="65" y="168" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">apply</text>
+  </g>
+  <path d="M 110 162 L 190 162" fill="none" stroke="#7a3b3b" stroke-width="1.5"/>
+
+  <!-- bind -->
+  <g>
+    <rect x="390" y="145" width="90" height="35" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="435" y="168" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">bind</text>
+  </g>
+  <path d="M 390 162 L 310 162" fill="none" stroke="#7a3b3b" stroke-width="1.5"/>
+
+  <!-- lambda -->
+  <g>
+    <rect x="40" y="215" width="90" height="35" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="85" y="238" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">lambda</text>
+  </g>
+  <path d="M 130 232 L 205 185" fill="none" stroke="#7a3b3b" stroke-width="1.5"/>
+
+  <!-- relation -->
+  <g>
+    <rect x="370" y="215" width="90" height="35" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="415" y="238" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">relation</text>
+  </g>
+  <path d="M 370 232 L 295 185" fill="none" stroke="#7a3b3b" stroke-width="1.5"/>
+
+  <!-- Note -->
+  <text x="250" y="295" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+    Tout le reste (if, let, +, listes, types) se desucre vers ces six formes.
+  </text>
+</svg>

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Le Store : noeuds et pool d'arguments
+  </text>
+
+  <!-- Noeuds -->
+  <text x="100" y="65" text-anchor="middle" font-size="11" fill="#2c2c2c" font-style="italic">Store (tableau de noeuds)</text>
+  <g>
+    <rect x="20" y="80" width="160" height="35" fill="#c0d8e8" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="30" y="102" font-size="10" fill="#2c2c2c" font-family="monospace">Id=0</text>
+    <text x="80" y="102" font-size="10" fill="#2c2c2c" font-family="monospace">lit(42)</text>
+  </g>
+  <g>
+    <rect x="20" y="120" width="160" height="35" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="30" y="142" font-size="10" fill="#2c2c2c" font-family="monospace">Id=1</text>
+    <text x="80" y="142" font-size="10" fill="#2c2c2c" font-family="monospace">sym(+)</text>
+  </g>
+  <g>
+    <rect x="20" y="160" width="160" height="35" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="30" y="182" font-size="10" fill="#2c2c2c" font-family="monospace">Id=2</text>
+    <text x="80" y="182" font-size="10" fill="#2c2c2c" font-family="monospace">apply(sym(+),</text>
+    <text x="80" y="195" font-size="10" fill="#2c2c2c" font-family="monospace">      span=0..2)</text>
+  </g>
+
+  <!-- Fleche vers pool -->
+  <g>
+    <path d="M 180 177 L 260 177" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr18)"/>
+    <text x="220" y="168" text-anchor="middle" font-size="10" fill="#7a3b3b" font-style="italic">span_a</text>
+  </g>
+
+  <!-- Pool -->
+  <text x="380" y="65" text-anchor="middle" font-size="11" fill="#2c2c2c" font-style="italic">Pool (arguments)</text>
+  <g>
+    <rect x="280" y="80" width="200" height="35" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="380" y="102" text-anchor="middle" font-size="10" fill="#2c2c2c" font-family="monospace">[0] = Id(42)</text>
+  </g>
+  <g>
+    <rect x="280" y="120" width="200" height="35" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="380" y="142" text-anchor="middle" font-size="10" fill="#2c2c2c" font-family="monospace">[1] = Id(3)</text>
+  </g>
+  <g>
+    <rect x="280" y="160" width="200" height="35" fill="#fff" stroke="#2c2c2c" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="380" y="182" text-anchor="middle" font-size="10" fill="#666" font-family="monospace">...</text>
+  </g>
+
+  <!-- Warn -->
+  <g>
+    <rect x="30" y="230" width="440" height="70" fill="#faf7f2" stroke="#7a3b3b" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="250" y="252" text-anchor="middle" font-size="10" fill="#2c2c2c">
+      Piege : si le pool est realloue pendant qu'on tient une slice,
+    </text>
+    <text x="250" y="270" text-anchor="middle" font-size="10" fill="#2c2c2c">
+      la slice devient dangling. Poison 0xAAAAAAAA dans un Id.
+    </text>
+    <text x="250" y="290" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+      Parade : snapshotArgs avant tout appel qui peut reallouer.
+    </text>
+  </g>
+
+  <defs>
+    <marker id="arr18" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+</svg>
