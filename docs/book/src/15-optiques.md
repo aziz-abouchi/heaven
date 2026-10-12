@@ -1,7 +1,9 @@
 # Chapitre 15 — Optiques : lire et écrire en profondeur
 
-> *« Un champ, c'est un nom qui sait lire et écrire. Une optique,
-> c'est la même idée, mais composable. »*
+> *« Une lentille ne change pas ce qu'elle voit. Elle décide
+> seulement ce qui, depuis elle, devient visible. »*
+> — à la manière d'Erik Meijer, Maarten Fokkinga et Ross Paterson,
+> *Functional Programming with Bananas, **Lenses**, Envelopes and Barbed Wire* (1991)
 
 Au chapitre 14, on a factorisé la **récursion**. Il reste un autre
 genre de boilerplate dans nos programmes : l'accès aux structures
@@ -17,45 +19,84 @@ Sur un seul niveau, ça va. Sur cinq, ça devient illisible. Et chaque
 nouvelle forme de structure demande une nouvelle paire de fonctions.
 
 Les **optiques** formalisent cet accès. Ce chapitre les présente
-et les implémente en Heaven.
+et les implémente en Heaven — avec les penseurs qui les ont pensées.
 
-## L'idée : séparer lire de écrire
+## 1. Le problème : accéder, c'est déjà interpréter
+
+En 1945, le philosophe **Maurice Merleau-Ponty** (1908-1961) publie
+la *Phénoménologie de la perception*. Son argument central : on ne
+perçoit jamais un objet « en soi », on le perçoit toujours **depuis
+un point de vue**. Voir une maison, c'est voir une façade — pas
+toutes les façades à la fois. La perception est *orientée*, et
+cette orientation n'est pas un défaut : elle est la condition même
+de l'accès.
+
+Accéder à un champ dans une structure imbriquée, c'est exactement
+ça. `(fst (fst p))` n'est pas neutre : c'est un **chemin** dans un
+espace de positions. Et comme pour Merleau-Ponty, ce chemin est
+corrélé à un **geste de modification**. Si je vise le `fst` du
+`fst`, je peux le changer ; et changer demande de **préserver tout
+le reste** — la façade qu'on ne regarde pas.
+
+Les optiques font de cette idée un objet de première classe.
+
+## 2. get et set — la lens comme couple
+
+![Une source s, une cible a, deux flèches](images/15-get-set.svg)
 
 Une **lens** est un couple : un *getter* et un *setter*.
 
     get : s -> a          -- extrait la valeur cible
     set : a -> s -> s     -- remplace la valeur, rend la source modifiée
 
-Ces deux fonctions vivent ensemble. Un exemple pour `Pair` :
+Le mathématicien **David Spivak** (né en 1978), connu pour son
+travail sur les bases de données catégoriques, a montré en 2016
+(*A Categorical Reconstruction of Lenses*) que ce couple n'est pas
+arbitraire : c'est un **morphisme dans une catégorie précise**, et
+cette structure explique *pourquoi* les lenses se composent. Le
+getter et le setter ne sont pas deux fonctions indépendantes
+rangées ensemble — ils obéissent à des lois (lois « put-get »,
+« get-put », « put-put »). En V0, on les tient à la main ; en V1,
+elles pourraient être vérifiées.
 
-    lens_fst = (pair fst set_fst)
-
-Une fois qu'on a une lens, on peut :
-
-- **Lire** : `view l s` applique le getter.
-- **Écrire** : `set_via l v s` applique le setter.
-- **Modifier** : `over l f s` combine les deux.
-
-Le point clé : le setter **préserve le reste**. On ne touche qu'un
-champ, tout le contexte autour survit intact.
-
-## Implémentation en Heaven
-
-Le module `core/std/lens.hvn` fait 32 lignes. Le voici en entier :
-
-    module Lens
+En Heaven, on construit une lens avec `lens` :
 
     lens get set = (pair get set)
+
+Et on l'utilise via trois opérations :
 
     view l s = (fst l) s
     set_via l v s = (snd l) v s
     over l f s = (snd l) (f (view l s)) s
 
-    set_fst v p = (pair v (snd p))
-    set_snd v p = (pair (fst p) v)
+- `view` lit la cible.
+- `set_via` la remplace par une valeur donnée.
+- `over` la modifie par une fonction.
 
-    lens_fst _ = (lens fst set_fst)
-    lens_snd _ = (lens snd set_snd)
+Le point clé : le setter **préserve le reste**. On ne touche qu'un
+champ, tout le contexte autour survit intact — c'est exactement
+ce que le test `set pp_fst preserve snd` vérifie : après avoir
+changé `pp_fst` de 1 à 99, `snd` vaut toujours 3.
+
+L'exemple le plus simple, en REPL :
+
+    heaven> view (lens_snd 0) (mk 0)
+    3
+    heaven> view (lens_snd 0) (set_via (lens_snd 0) 30 (mk 0))
+    30
+    heaven> view (lens_snd 0) (over (lens_snd 0) inc (mk 0))
+    4
+
+## 3. Composition — la promesse non tenue de V0
+
+![Composition de deux lenses](images/15-compose.svg)
+
+En Haskell, deux lenses se composent avec l'opérateur `.`. Si
+`l1` cible `a` dans `s`, et `l2` cible `b` dans `a`, alors `l1 . l2`
+cible `b` dans `s`. Un seul chemin, une seule opération.
+
+En Heaven V0, cette composition **n'existe pas**. Il faut écrire
+chaque composition à la main :
 
     get_pp_fst p = (fst (fst p))
     set_pp_fst v p =
@@ -64,17 +105,25 @@ Le module `core/std/lens.hvn` fait 32 lignes. Le voici en entier :
 
     lens_pp_fst _ = (lens get_pp_fst set_pp_fst)
 
-La construction `lens` met les deux fonctions dans un `Pair`. On
-peut ensuite lire, écrire, modifier sur `Pair` simple, et aussi
-sur `Pair` imbriqué. `view (lens_pp_fst 0) p` va chercher `(fst
-(fst p))` en une seule opération.
+La raison est profonde : pour composer génériquement, il faut que
+le setter de `l1` soit *lui-même* paramétré par un autre setter.
+C'est l'encodage de **Twan van Laarhoven** (2009), popularisé par
+**Oleg Kiselyov** : une lens n'est plus un couple `(get, set)` mais
+une fonction unique qui prend une fonction de modification et rend
+une fonction de modification sur la structure externe.
 
-Le module est enregistré dans `std_loader.zig`, donc les lenses
-sont disponibles partout sans `import` explicite.
+    type Lens s a = forall f. Functor f => (a -> f a) -> (s -> f s)
 
-## Le bug qu'on a corrigé pour y arriver
+Cette signature ne peut pas s'écrire en Heaven V0 — il faut des
+types paramétrés, des classes de foncteurs, et l'égalité
+extensionnelle qu'on n'a pas encore. V0 reste à `(get, set)`.
+C'est une limitation de **fond**, pas de surface : elle disparaîtra
+quand le système de types s'enrichira.
 
-L'implémentation ci-dessus **ne marchait pas** avant. Ce code :
+## 4. Le bug qui a débloqué tout ça
+
+L'implémentation de `lens.hvn` **ne marchait pas** avant un fix
+précis. Ce code :
 
     g x = (+ x 1)
     mkl _ = (pair g 0)
@@ -85,81 +134,96 @@ marchait :
 
     (let f (fst (mkl 0)) (f 5))
 
-Le problème était un **bug du tree-walker**, pas de la sémantique.
-Quand on écrit `(apply expr args)`, l'évaluateur résout `expr`,
-puis reconstruit un noeud `apply` avec la valeur résolue et **les
-arguments d'origine** — y compris le premier argument qui était en
-fait `expr` lui-même. Résultat : le noeud reconstruit se croyait
-encore en position d'opérateur, et passait **deux** arguments à la
-fonction extraite au lieu d'un.
+Le problème était dans le tree-walker, pas dans la sémantique.
+Quand on écrit `(apply expr args)`, l'évaluateur résolvait `expr`,
+puis reconstruisait un nœud `apply` avec la valeur résolue **et**
+les arguments d'origine — dont le premier argument qui *était*
+`expr`. Résultat : le nœud reconstruit se croyait encore en
+position d'opérateur, et passait **deux** arguments à la fonction
+extraite au lieu d'un.
 
 Le fix tient en quelques lignes (commit `2810cc7`) : reconstruire
-le noeud avec **seulement** les arguments, sans l'opérateur
+le nœud avec **seulement** les arguments, sans l'opérateur
 d'origine. Ça a suffi à débloquer les fonctions stockées dans des
 structures.
 
-C'est un motif récurrent en informatique : les **fonctions comme
-valeurs** (first-class functions) sont si fondamentales qu'on les
-tient pour acquises. Quand elles manquent, on découvre le trou
-non pas en écrivant du code qui les utilise, mais en écrivant du
-code qui utilise *autre chose* — ici, une lens — qui **a besoin**
-de les utiliser en interne.
+C'est le point de **Christopher Strachey** (1916-1975), dans ses
+*Fundamental Concepts in Programming Languages* (1967, publiés
+tardivement en 2000). Strachey a introduit la distinction entre
+les valeurs dites **first-class** (qu'on peut passer, retourner,
+stocker) et les autres. Les fonctions en Heaven V0 sont *presque*
+first-class — un seul `apply` mal reconstruit suffit à les
+rétrograder. La leçon : quand un langage prétend qu'une valeur est
+first-class, il faut pouvoir la mettre **n'importe où**, y compris
+dans un champ de `Pair`. La lens a été le test qui a révélé que ce
+n'était pas encore vrai.
 
-## Limitations v0
+## 5. Ce qui reste fragile en V0
 
-Le module `core/std/lens.hvn` couvre le strict minimum. Il reste
-des choses qu'on ne peut pas faire :
+Le module `core/std/lens.hvn` (32 lignes) couvre le strict minimum.
+Trois limites à connaître, qu'on retrouve dans la bibliothèque
+**`lens`** d'**Edward Kmett** (né en 1970) — la référence Haskell,
+qui implémente tout ce qu'on n'a pas :
 
-- **Composition générique** : en Haskell, deux lenses se
-  composent en une seule avec l'opérateur `.` : `l1 . l2` cible
-  le champ de `l2` dans `l1`. En Heaven v0, il faut écrire chaque
-  composition à la main (`lens_pp_fst` ci-dessus). Pour aller plus
-  loin, il faudrait que les setters soient eux-mêmes
-  paramétrés par d'autres setters — ce qui demande des types plus
-  riches que ce que le système supporte.
+- **Composition générique absente** : pas d'opérateur `.` entre
+  lenses. Chaque niveau supplémentaire demande une nouvelle paire
+  de fonctions à écrire à la main. Kmett résout ça par l'encodage
+  van Laarhoven, indisponible en V0.
 
-- **Prisms et traversals** : une lens cible exactement un élément.
-  Un **prism** cible zéro ou un (utile pour `Maybe`, `Either`,
-  les sum types). Un **traversal** cible zéro ou plusieurs
-  (utile pour les listes, les arbres). Ces optiques existent en
-  Haskell (`lens` de Kmett) mais pas dans Heaven v0.
+- **Prisms et traversals absents** : une lens cible **exactement
+  un** élément. Un **prism** cible zéro ou un (utile pour `Maybe`,
+  `Either`, les sum types). Un **traversal** cible zéro ou
+  plusieurs (listes, arbres). Ces optiques sont des variations du
+  même motif — la bibliothèque Kmett les unifie sous
+  `profunctor optics`. V0 s'arrête à la lens.
 
 - **Pas de records** : sans champs nommés, toutes les lenses sont
   des `fst`/`snd` ou des positions. Si Heaven ajoute un jour des
-  records, `lens_fst` deviendra `lens_name` et tout le reste
-  tiendra.
+  records, `lens_fst` deviendra `lens_name`, et tout le reste
+  tiendra sans modification.
 
-Ces limitations sont de surface, pas de fond. Le motif est là.
-L'extension viendra quand les consommateurs apparaîtront.
+Ces limitations sont de surface pour deux d'entre elles (composition,
+records), de fond pour l'autre (prisms/traversals demandent un
+système de types plus riche).
 
-## Pourquoi c'est utile malgré tout
+## 6. Pourquoi ça vaut quand même
 
-Même sans composition générique, la lens apporte deux choses :
+Même sans composition générique, une lens apporte deux choses —
+et c'est **Ludwig Wittgenstein** (1889-1951) qui en donne la
+formule la plus juste dans les *Recherches philosophiques* (1953) :
+*« Les limites de mon langage sont les limites de mon monde. »*
+Une lens, c'est un **mot nouveau** dans le vocabulaire du
+programme.
 
 1. **Un nom.** `view lens_snd p` dit ce qu'on fait. `(snd p)` dit
    la même chose mais sans intention. Sur du code long, la
-   différence compte.
+   différence n'est pas cosmétique — c'est la différence entre un
+   programme qui parle et un programme qui calcule.
 
-2. **Un point d'extension.** Si demain on ajoute la composition ou
-   les records, tout le code qui utilise `view`/`set_via`/`over`
-   continuera de marcher. On n'aura changé que la **construction**
-   des lenses.
+2. **Un point d'extension.** Si demain on ajoute la composition
+   générique ou les records, tout le code qui utilise
+   `view`/`set_via`/`over` continuera de marcher. On n'aura changé
+   que la **construction** des lenses, pas leur usage. C'est
+   exactement le principe des abstractions bien posées :
+   l'interface tient, la représentation bouge.
 
-C'est le principe des abstractions : l'interface tient, la
-représentation peut bouger.
+C'est le même mouvement qu'au chapitre 14 : Simon nous a dit qu'un
+système complexe se construit par sous-ensembles stables. Une lens
+est un sous-ensemble stable du code d'accès.
 
 ## Pour aller plus loin
 
 - `core/std/lens.hvn` : le module (32 lignes).
-- `tests/test_lens.hvn` : 12 tests qui couvrent view/set/over, sur
-  `Pair` simple et `Pair` imbriqué, plus un test first-class
-  explicite.
-- Référence externe : la bibliothèque **`lens`** de l'écosystème
-  Haskell (Edward Kmett) implémente la composition générique, les
-  prisms, les traversals, et bien plus — le tout fondé sur une
-  théorie catégorique de l'accès (`van Laarhoven lenses`,
-  `profunctor optics`). Heaven s'en inspire, mais s'arrête à la
-  version minimale.
+- `tests/test_lens.hvn` : **12 tests** qui couvrent `view`/`set_via`/
+  `over`, sur `Pair` simple et `Pair` imbriqué, plus un test
+  first-class explicite — tous verts, exécution en moins de 10 ms.
+- Référence externe : la bibliothèque **`lens`** d'Edward Kmett
+  implémente composition générique, prisms, traversals, et bien
+  plus — le tout fondé sur une théorie catégorique de l'accès
+  (`van Laarhoven lenses`, `profunctor optics`). Heaven s'en
+  inspire, mais s'arrête à la version minimale.
+- Sur la théorie : David Spivak, *A Categorical Reconstruction of
+  Lenses* (2016) — pourquoi `get`/`set` obéissent à des lois.
 
 ---
 
@@ -167,7 +231,9 @@ Tu sais maintenant lire et écrire dans des structures imbriquées
 proprement, et tu as vu comment une limitation du runtime peut
 bloquer une abstraction entière — jusqu'à ce qu'un bug de dix
 lignes la débloque. C'est ça, un langage en construction : les
-concepts avancés ne sont pas toujours possibles tout de suite.
+concepts avancés ne sont pas toujours possibles tout de suite, mais
+ils laissent des traces — un nom, une interface, un test qui
+échoue.
 
 Il reste une autre abstraction de la même famille à explorer. Là
 où les optiques accèdent à des **données**, les free monads

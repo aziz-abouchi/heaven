@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Une source s, une cible a, deux fleches
+  </text>
+
+  <!-- Source -->
+  <g>
+    <rect x="60" y="80" width="140" height="60" fill="#c0d8e8" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="130" y="105" text-anchor="middle" font-size="13" fill="#2c2c2c" font-family="monospace">s</text>
+    <text x="130" y="125" text-anchor="middle" font-size="10" fill="#666" font-style="italic">la structure</text>
+  </g>
+
+  <!-- Cible -->
+  <g>
+    <rect x="300" y="80" width="140" height="60" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="370" y="105" text-anchor="middle" font-size="13" fill="#2c2c2c" font-family="monospace">a</text>
+    <text x="370" y="125" text-anchor="middle" font-size="10" fill="#666" font-style="italic">la cible</text>
+  </g>
+
+  <!-- get arrow -->
+  <g>
+    <path d="M 200 95 L 295 95" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr15)"/>
+    <text x="247" y="85" text-anchor="middle" font-size="11" fill="#7a3b3b" font-family="monospace">get</text>
+  </g>
+
+  <!-- set arrow -->
+  <g>
+    <path d="M 295 130 L 200 130" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr15)"/>
+    <text x="247" y="148" text-anchor="middle" font-size="11" fill="#7a3b3b" font-family="monospace">set v</text>
+  </g>
+
+  <!-- Equation -->
+  <g>
+    <rect x="60" y="190" width="380" height="90" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="250" y="215" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">
+      lens_fst = (pair fst set_fst)
+    </text>
+    <text x="250" y="240" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">
+      view (lens_fst 0) (pair 1 2)   --&gt;  1
+    </text>
+    <text x="250" y="265" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">
+      view (lens_snd 0) (set_via (lens_snd 0) 9 (pair 1 2))  --&gt;  9
+    </text>
+  </g>
+
+  <defs>
+    <marker id="arr15" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+</svg>
