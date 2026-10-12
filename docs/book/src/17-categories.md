@@ -1,7 +1,8 @@
 # Chapitre 17 — Catégories : la structure derrière tout
 
-> *« Les catégories sont une manière de voir les mathématiques
-> entières comme l'étude d'une seule idée : la composition. »*
+> *« Je n'ai pas inventé les catégories pour étudier les foncteurs ;
+> je les ai inventées pour étudier les transformations naturelles. »*
+> — Saunders Mac Lane, entretien avec Gian-Carlo Rota (1997)
 
 On a passé trois chapitres à construire des abstractions : schémas
 de récursion, optiques, free monads. Elles se ressemblent. Toutes
@@ -17,11 +18,40 @@ Haskell, les monades, et les bibliothèques d'Edward Kmett.
 
 Ce chapitre présente les idées de base : catégories, foncteurs,
 monades, adjonctions, Yoneda. C'est un chapitre **conceptuel** —
-Heaven v0 n'a pas le système de types nécessaire pour implémenter
-ces notions directement. Mais elles éclairent tout ce qu'on a vu
-avant.
+Heaven V0 n'a pas le système de types nécessaire pour implémenter
+ces notions directement, et il n'y a donc **ni code, ni test** ici.
+Mais ces idées éclairent tout ce qu'on a vu avant.
 
-## Une catégorie, en 3 définitions
+## 1. La composition comme question première
+
+![Une categorie : objets, fleches, identites](images/17-category.svg)
+
+En 1781, **Emmanuel Kant** (1724-1804) publie la *Critique de la
+raison pure*. Il y distingue deux espèces de catégories : celles
+d'**Aristote** (qu'on a vues au chapitre 2) — des *genres de
+l'être*, des grilles ontologiques — et les siennes, les *catégories
+de l'entendement* : les formes **a priori** que l'esprit impose à
+toute expérience possible (substance, causalité, unité, pluralité,
+etc.). La différence est importante : pour Kant, une catégorie
+n'est pas une classe de choses dans le monde ; c'est une **manière
+de structurer** ce qui nous apparaît.
+
+Les catégories mathématiques, inventées bien plus tard, sont
+exactement du côté de Kant : ce ne sont pas des classes d'objets,
+mais des **manières de regarder** des structures. Ce qui importe
+n'est pas *ce que sont* les objets, mais *comment ils se
+composent*.
+
+En 1945, **Samuel Eilenberg** (1913-1998) et **Saunders Mac Lane**
+(1909-2005) publient *General Theory of Natural Equivalences*. Ils
+ne cherchent pas à fonder une nouvelle branche des mathématiques :
+ils veulent clarifier des calculs en topologie algébrique. Ce
+qu'ils découvrent, c'est qu'une même structure — objets, flèches,
+composition — sous-tend des situations apparemment sans rapport.
+Ils l'appellent *catégorie* en hommage à Kant et Aristote, et
+posent les deux lois qui la définissent.
+
+## 2. Objets et flèches — la définition minimale
 
 Une **catégorie** est :
 
@@ -38,9 +68,13 @@ Plus deux lois :
 - **Identité** : `id ∘ f = f` et `f ∘ id = f`.
 
 C'est tout. Une catégorie, c'est juste des objets, des flèches, une
-composition, et une identité. Le reste suit.
+composition, et une identité. Le reste suit. Comme le dit Mac Lane
+dans une formule restée célèbre : *« la théorie des catégories,
+c'est l'étude de la composition »* — et cette phrase dit exactement
+pourquoi la notion a envahi la programmation fonctionnelle : parce
+que programmer, c'est composer.
 
-## Exemples de catégories
+## 3. Exemples : la même structure partout
 
 **La catégorie `Set`.** Les objets sont les ensembles, les
 morphismes sont les fonctions. La composition est la composition
@@ -55,16 +89,23 @@ identité sur `A`.
 propositions logiques, les morphismes sont des preuves d'implication.
 `A → B` signifie « `A` implique `B` ». La composition est le
 modus ponens : de `A → B` et `B → C`, on déduit `A → C`. C'est la
-**correspondance de Curry-Howard**.
+**correspondance de Curry-Howard**, la même qui relie types et
+preuves au chapitre 8.
 
 **Un monoïde comme catégorie.** Une catégorie à un seul objet,
 dont les morphismes sont les éléments d'un monoïde. La composition
 est l'opération du monoïde. L'identité est l'élément neutre.
 
 Ces exemples montrent la force de la notion : elle **abstrait** des
-situations apparemment différentes sous un même formalisme.
+situations apparemment différentes sous un même formalisme. C'est
+le geste même de la pensée catégorique — et, en un sens, le geste
+que **Hermann Weyl** (1885-1955) appelait déjà de ses vœux dans
+*Philosophie des mathématiques* (1927) : voir les mathématiques
+comme l'étude de **structures**, non d'objets isolés.
 
-## Foncteurs : la composition entre catégories
+## 4. Foncteurs — ce qui préserve la structure
+
+![Un foncteur entre deux categories](images/17-functor.svg)
 
 Un **foncteur** est une transformation entre catégories. Il envoie :
 
@@ -88,7 +129,14 @@ En Haskell, `Functor` est une classe de types qui a une méthode
 Pour `Maybe`, `fmap` applique la fonction si la valeur est `Just`,
 sinon retourne `Nothing`.
 
-## Monades : un foncteur avec deux lois de plus
+Un foncteur n'ajoute rien : il **transporte**. C'est cette
+transparence qui en fait l'outil générique de transformation entre
+structures. On retrouve ce geste partout où un même calcul se
+transpose d'un contexte à un autre.
+
+## 5. Monades et adjonctions — les structures qui produisent
+
+![Adjonction et transformation naturelle](images/17-natural.svg)
 
 Une **monade** est un endofoncteur (un foncteur `M` d'une catégorie
 vers elle-même) muni de deux transformations naturelles :
@@ -97,11 +145,16 @@ vers elle-même) muni de deux transformations naturelles :
   monade.
 - **`join`** (ou `>>=`) : `M (M a) → M a`. Aplatit deux couches.
 
-En Haskell :
-
-    class Monad m where
-        return :: a -> m a
-        (>>=)  :: m a -> (a -> m b) -> m b
+Le nom vient du philosophe **Gottfried Wilhelm Leibniz**
+(1646-1716), qui publie en 1714 la *Monadologie* : pour lui, toute
+réalité est composée de **monades**, des substances simples,
+sans parties, chacune reflétant l'univers tout entier depuis son
+point de vue. La monade mathématique n'a rien à voir — elle a été
+nommée ainsi par analogie formelle, pour sa simplicité
+irréductible et son auto-composition. Mais l'hommage est parlant :
+là où la monade de Leibniz est *une substance qui contient tout le
+monde*, la monade mathématique est *une structure qui contient
+tout un effet*.
 
 On retrouve `return` dans `ret x = (Pure x)` du chapitre précédent.
 Le `>>=` est cette fameuse opération qui chaîne deux programmes
@@ -112,7 +165,7 @@ Les lois des monades (identité à gauche, à droite, associativité)
 sont exactement les lois d'une catégorie, transposées à l'aide du
 foncteur `M`.
 
-## Adjonctions : le concept unificateur
+## 6. Adjonctions — le concept unificateur
 
 Une **adjonction** est une paire de foncteurs `F : C → D` et
 `G : D → C` tels que... la définition complète demande vingt
@@ -135,9 +188,13 @@ plupart des structures utiles :
 
 L'adjonction est le **motif** derrière presque toutes les
 constructions abstraites. Si on devait garder une seule idée de
-la théorie des catégories, ce serait celle-là.
+la théorie des catégories, ce serait celle-là. C'est ce que
+**William Lawvere** (1937-2023) a tenté de formaliser dans les
+années 1960, en proposant la théorie des catégories comme
+*fondement* alternatif des mathématiques — rivalisant avec la
+théorie des ensembles.
 
-## Yoneda : le lemme central
+## 7. Yoneda — identité et relations
 
 Le **lemme de Yoneda** dit (dans sa version courte) :
 
@@ -151,25 +208,33 @@ En Haskell, ça donne :
 
 L'idée : au lieu de stocker une valeur `a` dans un conteneur
 `F a`, on stocke la **fonction** qui sait quoi faire avec cette
-valeur. C'est un changement de point de vue qui peut à la fois
-**optimiser** (fusion automatique de `fmap`) et **unifier** (toutes
-les structures sont des « façons de répondre à une question »).
+valeur.
 
-Le lemme de Yoneda est partout : dans les encodages de Church,
-dans les transforms de données, dans les parseurs. On peut le
-voir comme une version catégorique du vieux dicton « dis-moi ce
-que tu fais, je te dirai qui tu es ».
+C'est formulé par **Nobuo Yoneda** (1930-1996) en 1954, dans un
+contexte technique de topologie algébrique. Mais la formule a une
+portée philosophique qui dépasse de loin son origine : elle dit
+qu'**un objet n'est rien d'autre que l'ensemble de ses relations**.
+On retrouve là une intuition que Leibniz déjà formulait avec son
+principe d'identité des indiscernables : deux choses qui se
+comportent identiquement dans tous les contextes *sont* la même
+chose. Le Yoneda formalise ce principe, en montrant qu'il est
+constructif — on peut *reconstruire* l'objet à partir de ses
+relations.
 
-## Pourquoi Heaven v0 ne peut pas (encore)
+Ce lemme est partout : dans les encodages de Church, dans les
+transforms de données, dans les parseurs. « Dis-moi ce que tu
+fais, je te dirai qui tu es. »
+
+## 8. Pourquoi Heaven V0 ne peut pas (encore)
 
 Toutes ces notions supposent un **système de types riche** que
-Heaven n'a pas en v0. Décrivons les blocages précis.
+Heaven n'a pas en V0. Décrivons les blocages précis.
 
 **1. Pas de higher-kinded types (HKT).** Une monade `M` est un
 *foncteur*, c'est-à-dire un **constructeur de type** : `M a` est un
 type pour chaque type `a`. En Haskell, on peut écrire `Functor f`
 où `f` est un paramètre de type — c'est ce qu'on appelle un type
-higher-kinded. Heaven v0 n'a pas ça : les `data` sont monomorphes
+higher-kinded. Heaven V0 n'a pas ça : les `data` sont monomorphes
 ou paramétrés mais on ne peut pas abstraire sur le constructeur
 lui-même.
 
@@ -190,31 +255,16 @@ du foncteur d'opérations vers une monade cible. Sans quantification
 universelle, on ne peut pas exprimer ça.
 
 **Verdict** : la théorie des catégories est **le cadre** dans lequel
-toutes les abstractions qu'on a vues prennent sens. Mais Heaven v0
+toutes les abstractions qu'on a vues prennent sens. Mais Heaven V0
 n'a pas les primitives de types nécessaires pour les exprimer
 directement. On peut seulement les **utiliser** au cas par cas, comme
-on a fait pour `cata`, `lens`, `free`.
+on a fait pour `cata`, `lens`, `free`. C'est ce que le mathématicien
+et informaticien **Bartosz Milewski** (né en 1967), auteur de
+*Category Theory for Programmers*, appelle le passage « du cas
+particulier au motif » — un passage qui demande des outils que V0
+n'a pas encore.
 
-## Le chemin vers les catégories
-
-Pour que Heaven puisse un jour exprimer ces notions, il faudrait
-probablement :
-
-1. **Higher-kinded types** : permettre à un paramètre de type d'être
-   lui-même un constructeur (`f a`).
-2. **Classes de types** (ou *traits* / *interfaces*) : définir des
-   contrats que plusieurs types implémentent.
-3. **Quantification universelle** : `forall a. ...` dans les
-   signatures.
-4. **Éventuellement** : types dépendants (pour certains usages
-   avancés).
-
-C'est un chantier de plusieurs sessions, qui touche le noyau du
-système de types (`types.zig`, `elab.zig`, `expr.zig`). Ça dépasse
-le cadre du pilote Kmett, mais c'est une direction cohérente pour la
-suite.
-
-## Ce qu'on peut faire sans catégories explicites
+## 9. Ce qu'on peut faire sans catégories explicites
 
 Même sans le formalisme, l'**esprit** catégorique est présent dans
 tout ce qu'on a fait :
@@ -227,12 +277,10 @@ tout ce qu'on a fait :
   oubli, une adjonction classique.
 
 Ce qu'on ne peut pas faire, c'est **écrire** la théorie une fois
-pour toutes. On l'instancie à chaque cas.
-
-C'est un peu comme la différence entre un langage dynamique où on
-écrit `map` pour chaque type, et un langage statique où on écrit
-`Functor f => fmap` une seule fois. Heaven v0 est dans le premier
-cas.
+pour toutes. On l'instancie à chaque cas. C'est un peu comme la
+différence entre un langage dynamique où on écrit `map` pour chaque
+type, et un langage statique où on écrit `Functor f => fmap` une
+seule fois. Heaven V0 est dans le premier cas.
 
 ## Pourquoi documenter une théorie qu'on ne peut pas implémenter
 
@@ -243,7 +291,7 @@ Parce que la théorie **éclaire** tout ce qu'on a vu :
    même motif catégorique.
 2. **Elle oriente.** Si Heaven veut un jour exprimer ces notions
    directement, ce chapitre donne la feuille de route : HKT,
-   classes de types, quantification.
+   classes de types, quantification universelle.
 3. **Elle prépare.** Les bibliothèques modernes d'effets
    (`polysemy`, `fused-effects`, `mtl`) reposent sur ces
    abstractions. Comprendre les catégories, c'est comprendre la
@@ -256,11 +304,14 @@ qu'un bricolage qui trahit l'idée**.
 
 ## Pour aller plus loin
 
-- *Categories for the Working Mathematician* (Saunders Mac Lane) —
-  la référence historique.
-- *Category Theory for Programmers* (Bartosz Milewski) — accessible,
-  avec des exemples en Haskell. **Fortement recommandé** comme
-  point d'entrée.
+- *Categories for the Working Mathematician* (Saunders Mac Lane,
+  1971) — la référence historique.
+- *Category Theory for Programmers* (Bartosz Milewski, 2017-2019)
+  — accessible, avec des exemples en Haskell. **Fortement
+  recommandé** comme point d'entrée.
+- *Theorems for Free!* (Philip Wadler, 1989) — comment la
+  paramétricité des types donne des théorèmes gratuits, un
+  résultat directement inspiré de Yoneda.
 - La bibliothèque **`lens`** d'Edward Kmett — un cas d'école : sa
   théorie repose sur les profunctors et l'adjonction.
 - La bibliothèque **`free`** — implémente la monade libre comme
