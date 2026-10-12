@@ -77,7 +77,6 @@ pub const Env = struct {
 
 pub const EvalError = error{
     SuspendRequested,
-    HandleRecYield,
     TypeError,
     ArityMismatch,
     DivisionByzero,
@@ -219,8 +218,9 @@ pub const CaptureKind = enum {
     resume_from_k,
 };
 
-/// 3a-3b : capture en vol. Remplace `error.HandleRecYield` par un
-/// signalement non-exceptionnel via SuspendRequested. Un handle_rec
+/// 3a-3b : capture en vol. Remplace l'ancien error.HandleRecYield
+/// (supprime en 3a-3b.3) par un signalement non-exceptionnel via
+/// SuspendRequested. Un handle_rec
 /// dont le prompt matche traite la capture ; un handle_rec etranger
 /// propage l'erreur.
 pub const PendingCapture = struct {
@@ -242,8 +242,12 @@ pub const RecCtx = struct {
     state: Id,
     /// 3a-3a : prompt de la frontiere handle_rec (0 = aucun).
     prompt: continuation.Prompt = 0,
+    /// 3a-3b.3 : `next_state`/`k_signaled` ne sont plus utilises par
+    /// handle_rec (qui passe par `engine.pending_capture`). Ils
+    /// restent necessaires au scheduler (`yield`/`schedule`) tant
+    /// que celui-ci n'utilise pas `pending_capture`. Dette 3a-3b.5 :
+    /// migrer le scheduler et supprimer ces deux champs.
     next_state: ?Id = null,
-    pending_value: ?Id = null,
     k_signaled: bool = false,
 };
 
@@ -1071,7 +1075,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // soit (perform ...) qui yield. handler(v, k). Si k appele avec
     // new_state : reboucler avec state = new_state.
     if (std.mem.eql(u8, op, "handle_rec")) {
-        if (args_snap.len != 3) return error.ArityMismatch;
+        if (args_snap.len != 3) {
+            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
+            return error.ArityMismatch;
+        }
 
         // 3a-3a : ouvrir une frontiere pour ce handle_rec.
         // init_state evalue AVANT push, pour que la frontiere ne
@@ -1142,7 +1149,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // arg0 = symbole (le nom), arg1 = expression (valeur),
     // arg2 = expression (corps avec name lie).
     if (std.mem.eql(u8, op, "let")) {
-        if (args_snap.len != 3) return error.ArityMismatch;
+        if (args_snap.len != 3) {
+            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
+            return error.ArityMismatch;
+        }
         const name_node = store.get(args_snap[0]);
         var name_sym: Sym = undefined;
         if (name_node.tag == .sym) {
@@ -1241,7 +1251,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
     // poke_int64 ptr off v : ecrit 8 bytes v a ptr + off*8.
     if (std.mem.eql(u8, op, "poke_int64")) {
-        if (args_snap.len != 3) return error.ArityMismatch;
+        if (args_snap.len != 3) {
+            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
+            return error.ArityMismatch;
+        }
         const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const ov = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const vv = try evaluate(store, env, engine, args_snap[2], depth + 1);
@@ -1334,7 +1347,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
     // poke_byte : ecrit 1 byte a l'adresse + offset.
     if (std.mem.eql(u8, op, "poke_byte")) {
-        if (args_snap.len != 3) return error.ArityMismatch;
+        if (args_snap.len != 3) {
+            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
+            return error.ArityMismatch;
+        }
         const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const ov = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const vv = try evaluate(store, env, engine, args_snap[2], depth + 1);
@@ -1355,7 +1371,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
     // memset : remplit une zone.
     if (std.mem.eql(u8, op, "memset")) {
-        if (args_snap.len != 3) return error.ArityMismatch;
+        if (args_snap.len != 3) {
+            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
+            return error.ArityMismatch;
+        }
         const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const vv = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const lv = try evaluate(store, env, engine, args_snap[2], depth + 1);
@@ -1855,7 +1874,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         // Évalue setup, body, teardown dans l'ordre. Retourne le
         // résultat de body. Si teardown échoue, l'erreur remonte
         // (le résultat de body est perdu).
-        if (args_snap.len != 3) return error.ArityMismatch;
+        if (args_snap.len != 3) {
+            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
+            return error.ArityMismatch;
+        }
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const body_result = try evaluate(store, env, engine, args_snap[1], depth + 1);
         _ = try evaluate(store, env, engine, args_snap[2], depth + 1);
@@ -1866,7 +1888,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         // local(name, val, body) → bind name := val, évalue body,
         // restaure le binding précédent (ou retire si absent).
         // `name` est un string lit ("x") ou un sym nu.
-        if (args_snap.len != 3) return error.ArityMismatch;
+        if (args_snap.len != 3) {
+            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
+            return error.ArityMismatch;
+        }
         const name_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const bound_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
 
@@ -2191,7 +2216,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     if (std.mem.eql(u8, op, "@net_http_respond")) {
         platform.debug.print("[ZIG] @net_http_respond START\n", .{});
-        if (args_snap.len != 3) return error.ArityMismatch;
+        if (args_snap.len != 3) {
+            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
+            return error.ArityMismatch;
+        }
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
         const port_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const port_node = store.get(port_val);
@@ -2231,7 +2259,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
 
     if (std.mem.eql(u8, op, "@net_write")) {
-        if (args_snap.len != 3) return error.ArityMismatch;
+        if (args_snap.len != 3) {
+            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
+            return error.ArityMismatch;
+        }
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const str_val = try evaluate(store, env, engine, args_snap[2], depth + 1);

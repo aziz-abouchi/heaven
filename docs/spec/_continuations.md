@@ -206,3 +206,28 @@ Modifications dans `src/core/engine_expr.zig` :
 présents (utilisés par le scheduler, ligne 954-955 + 1003-1005).
 
 **Suite** : 3a-3b.4 (test nested), 3a-3c (magics @capture/@throw).
+
+---
+
+## 3a-3b.3 — Cleanup dead code (2026-10-12)
+
+**Statut** : ✅ Fait
+
+Purge du code mort issu de la migration 3a-3b :
+
+1. **`EvalError.HandleRecYield` supprimé** — plus utilisé nulle part
+   après la migration vers `pending_capture` + `SuspendRequested`.
+
+2. **`RecCtx.pending_value` supprimé** — champ mort, remplacé par
+   `PendingCapture.value`.
+
+3. **`RecCtx.{next_state, k_signaled}` conservés** — toujours
+   utilisés par le scheduler (`yield`/`schedule`), qui n'utilise
+   pas encore `pending_capture`. Documenté comme dette 3a-3b.5.
+
+**Non-régression** : 4/4 + 13/13 + 3/3 + 18/18 = **38/38**.
+
+**Dette restante** :
+- 3a-3b.5 : migrer le scheduler sur `pending_capture` puis
+  supprimer `RecCtx.{next_state, k_signaled}`.
+- 3a-3c : exposer `@capture`/`@throw` comme magics Heaven.
