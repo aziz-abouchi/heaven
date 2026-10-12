@@ -1,0 +1,27 @@
+-- tests/test_pair.hvn
+-- Module Pair : + curry, uncurry, swap.
+
+-- ─── fst / snd ───
+test "fst":           (fst (pair 1 2)) == 1
+test "snd":           (snd (pair 1 2)) == 2
+
+-- ─── swap ───
+test "swap fst":      (fst (swap (pair 1 2))) == 2
+test "swap snd":      (snd (swap (pair 1 2))) == 1
+
+-- ─── uncurry ───
+sum2 a b = (+ a b)
+test "uncurry sum2 (3, 4) = 7":  (uncurry sum2 (pair 3 4)) == 7
+test "uncurry sum2 (5, 6) = 11": (uncurry sum2 (pair 5 6)) == 11
+
+-- ─── curry : PARQUE ───
+-- BLOQUE PAR BUG evalFunction (2026-10-12) :
+-- `((curry f) a b)` insere un __curry_0 au lieu d'appliquer la
+-- lambda deux fois. Meme cause que mkpair / zip (substitution
+-- multi-args). Voir PROMPT_CONTINUITE.md.
+-- Aucun test direct possible tant que le bug n'est pas fixe.
+
+-- Contournement documente : ecrire le curry manuellement
+--   apply2 f a b = (f a b)
+-- ou appeler directement avec un Pair :
+--   (curry pair_sum (pair 3 4)) -- pour uncurry en fait

@@ -4,3 +4,22 @@ data Pair a b = pair a b
 
 fst (pair x _) = x
 snd (pair _ y) = y
+
+-- ─── Curryfication ───
+-- curry f : transforme ((a, b) -> c) en a -> b -> c.
+-- Note V0 : on ecrit les lambdas explicitement car la curryfication
+-- implicite de Heaven ne gere pas correctement les fonctions a 3+
+-- params (bug evalFunction, voir PROMPT_CONTINUITE).
+curry f = (\a. (\b. (f (pair a b))))
+
+-- uncurry f : transforme (a -> b -> c) en (a, b) -> c.
+-- Note V0 : appel direct f (fst p) (snd p) peut produire une
+-- partielle. On utilise deux let pour forcer l'evaluation.
+uncurry f p =
+  let a = (fst p) in
+  let b = (snd p) in
+  (f a b)
+
+-- ─── Swap ───
+-- swap p : echange les deux elements du pair.
+swap (pair x y) = (pair y x)

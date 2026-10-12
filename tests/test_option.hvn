@@ -1,0 +1,32 @@
+-- tests/test_option.hvn
+-- Module Option : + is_just, from_just, catMaybes, mapMaybe, etc.
+
+-- ─── is_just / is_nothing ───
+test "is_just (some 1)":    (is_just (some 1)) == true
+test "is_just none":        (is_just none) == false
+test "is_nothing none":     (is_nothing none) == true
+test "is_nothing (some 1)": (is_nothing (some 1)) == false
+
+-- ─── from_just ───
+test "from_just (some 42)": (from_just (some 42)) == 42
+test "from_just none":      (from_just none) == 0
+
+-- ─── maybeToList / listToMaybe ───
+test "maybeToList (some 5)": (length (maybeToList (some 5))) == (succ zero)
+test "maybeToList none":     (length (maybeToList none)) == zero
+test "listToMaybe []":       (is_none (listToMaybe nil)) == true
+test "listToMaybe [7]":      (from_option 0 (listToMaybe (cons 7 (cons 8 nil)))) == 7
+
+-- ─── catMaybes ───
+test "catMaybes vide":         (length (catMaybes nil)) == zero
+test "catMaybes [some 1, none, some 3]":
+  (length (catMaybes (cons (some 1) (cons none (cons (some 3) nil))))) == (succ (succ zero))
+test "catMaybes [some 1, none, some 3] head":
+  (head (catMaybes (cons (some 1) (cons none (cons (some 3) nil))))) == 1
+
+-- ─── mapMaybe ───
+pos x = (if (> x 0) (some x) none)
+test "mapMaybe pos [-1, 2, -3, 4] len":
+  (length (mapMaybe pos (cons (0 - 1) (cons 2 (cons (0 - 3) (cons 4 nil)))))) == (succ (succ zero))
+test "mapMaybe pos [-1, 2, -3, 4] head":
+  (head (mapMaybe pos (cons (0 - 1) (cons 2 (cons (0 - 3) (cons 4 nil)))))) == 2

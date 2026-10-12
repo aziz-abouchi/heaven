@@ -22,3 +22,41 @@ from_option _ (some x) = x
 
 default_option none x = some x
 default_option (some x) _ = some x
+
+-- ─── Alias lisibles ───
+-- is_just / is_nothing : memes que is_some / is_none.
+is_just (some _) = true
+is_just none = false
+
+is_nothing none = true
+is_nothing (some _) = false
+
+-- ─── Extraction directe ───
+-- from_just : extrait la valeur. Si none, retourne 0 (convention
+-- V0 pour eviter les exceptions).
+from_just none = 0
+from_just (some x) = x
+
+-- ─── Conversions Option <-> List ───
+-- maybeToList (Some x) = [x], maybeToList None = []
+maybeToList none = nil
+maybeToList (some x) = (cons x nil)
+
+-- listToMaybe [] = None, listToMaybe [x, ...] = Some x
+listToMaybe nil = none
+listToMaybe (cons x _) = (some x)
+
+-- ─── Traitement de listes d'Option ───
+-- catMaybes : ne garde que les Some.
+catMaybes nil = nil
+catMaybes (cons opt rest) = (catMaybes_step opt rest)
+
+catMaybes_step none rest = (catMaybes rest)
+catMaybes_step (some x) rest = (cons x (catMaybes rest))
+
+-- mapMaybe f xs : applique f (a -> Option b) et garde les Some.
+mapMaybe _ nil = nil
+mapMaybe f (cons x rest) = (mapMaybe_step (f x) f rest)
+
+mapMaybe_step none f rest = (mapMaybe f rest)
+mapMaybe_step (some y) f rest = (cons y (mapMaybe f rest))
