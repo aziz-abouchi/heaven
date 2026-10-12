@@ -1,334 +1,300 @@
-# Chapitre 8 — Proofs and Theorems
+# Chapitre 8 — Preuves et théorèmes
 
 > *« Prouver, c'est contraindre l'imagination à ne plus pouvoir
 > douter. »*
+> — Gottfried Wilhelm Leibniz
 
 Heaven n'est pas qu'un langage de programmation. C'est aussi un
-**assistant de preuve**. On peut y écrire des théorèmes mathématiques,
-et le noyau vérifie que les preuves sont correctes. Ce chapitre
-introduit ce monde.
+**assistant de preuve**. On peut y écrire des théorèmes
+mathématiques, et le noyau **vérifie** que les preuves sont
+correctes. Ce chapitre introduit ce monde.
 
-## Théorème et preuve
+## 1. Opinion vraie et savoir (rappel)
 
-Un théorème est une affirmation. Par exemple :
+Platon, dans le *Ménon*, distinguait deux choses :
 
-    theorem add_zero : x + 0 = x
+- Une **opinion vraie** — une croyance qui se trouve être correcte,
+  mais dont on ne sait pas *pourquoi*.
+- Un **savoir** — une croyance correcte qu'on peut **justifier**.
 
-En français : « pour tout `x`, `x + 0` égale `x` ». La formulation est
-naïve : `x` n'est pas quantifié explicitement. Heaven comprendra que
-c'est pour tout `x` par défaut.
+L'esclave du *Ménon* peut répondre correctement à une question de
+géométrie. Il a une opinion vraie. Mais il ne peut pas **prouver**
+sa réponse. Il ne sait pas ce qu'il sait.
 
-Une preuve, c'est la justification. On l'écrit avec `prove` :
+Un programme qui passe tous ses tests ressemble à l'esclave. Il
+**marche**. Il fait ce qu'il fait. Mais peut-on **prouver** qu'il
+fait toujours ce qu'il prétend ? C'est une autre question.
 
-    theorem add_zero : x + 0 = x
-    prove add_zero by simplify
+Heaven essaie de répondre à cette question. Il permet d'écrire des
+programmes qu'on peut non seulement **exécuter**, mais **prouver**
+corrects.
+
+## 2. Curry-Howard : preuves = programmes
+
+![Le triangle de Curry-Howard](images/08-curry-howard.svg)
+
+En 1934, le mathématicien américain Haskell Curry (1900-1982)
+remarque une correspondance frappante entre la logique et le calcul.
+En 1969, William Alvin Howard la formalise dans un article resté
+célèbre. Aujourd'hui, on l'appelle la **correspondance de
+Curry-Howard** :
+
+- Une **proposition** logique est un **type** en programmation.
+- Une **preuve** de cette proposition est un **programme** de ce
+  type.
+- Vérifier une preuve, c'est **type-checker** un programme.
+
+C'est une des découvertes les plus profondes du XXᵉ siècle. Elle
+dit que la logique et le calcul ne sont pas deux mondes séparés —
+ce sont **le même** monde, vu sous deux angles.
+
+Un exemple simple :
+
+- **Proposition** : `A → B → A` (de A on déduit B on déduit A).
+- **Type** : `a -> b -> a`.
+- **Preuve / programme** : `\x y. x` — une fonction qui rend son
+  premier argument, quel que soit le second.
+
+Le théorème logique et la fonction sont **le même objet**. C'est
+pourquoi Heaven peut être à la fois un langage de programmation et
+un assistant de preuve.
+
+## 3. Le noyau CIC
+
+Heaven repose sur un noyau mathématique : le **Calcul des
+Constructions Inductives** (CIC), développé par Thierry Coquand et
+Christine Paulin-Mohring en 1988. Le même noyau est utilisé par
+l'assistant de preuve Coq (aujourd'hui appelé Rocq).
+
+Le CIC a trois ingrédients :
+
+- **Le lambda-calcul typé** — une manière d'écrire des fonctions
+  avec leur type.
+- **Les types dépendants** — des types qui dépendent d'une valeur
+  (`Vec 3 Int`, comme au chapitre 2).
+- **Les types inductifs** — des types définis par leurs
+  constructeurs (`Nat = Zero | Succ Nat`, comme au chapitre 4).
+
+C'est un système **petit** : quelques règles d'inférence, un nombre
+fini de primitives. Mais il est **puissant** : toutes les
+mathématiques usuelles peuvent s'y formaliser.
+
+Heaven n'expose pas le CIC directement au programmeur. Il fournit
+une **surface** plus accessible : `theorem`, `prove`, tactiques,
+etc. Le CIC est le moteur sous le capot.
+
+## 4. Théorème et tactiques
+
+En Heaven, un **théorème** est une affirmation. Une **preuve** est
+sa justification. On écrit :
+
+    heaven> theorem add_zero : x + 0 = x
+    ✓ theorem add_zero stated
+
+    heaven> prove add_zero by simplify
     ✓ [add_zero] proved (simplify)
 
-`by simplify` demande à Heaven d'utiliser la tactique `simplify`. Elle
-essaie de réduire les deux côtés jusqu'à ce qu'ils soient identiques.
+`theorem add_zero : x + 0 = x` déclare l'affirmation : « pour tout
+`x`, `x + 0` égale `x` ». La formulation est naïve : `x` n'est pas
+quantifié explicitement. Heaven comprendra que c'est « pour tout
+`x` par défaut » — comme une convention.
 
-## Les tactiques
+`prove add_zero by simplify` demande au noyau de **vérifier** la
+preuve en utilisant la tactique `simplify`.
 
-`simplify` est une **tactique** : une recette pour prouver. Heaven en
-a plusieurs.
+Les **tactiques** sont des recettes pour prouver. Heaven en a
+plusieurs :
 
-**`eval`** : évalue une expression, vérifie qu'elle donne le résultat
-attendu.
+- **`simplify`** — simplifie les deux côtés de l'équation et
+  vérifie qu'ils deviennent identiques.
 
-    theorem deux_plus_deux : 2 + 2 = 4
-    prove deux_plus_deux by eval
+      heaven> theorem t1 : x * 1 = x
+      heaven> prove t1 by simplify
+      ✓ proved
 
-**`simplify`** : simplifie les deux côtés et compare.
+- **`eval`** — évalue une expression constante et vérifie le
+  résultat.
 
-    theorem mul_one : x * 1 = x
-    prove mul_one by simplify
+      heaven> theorem deux_plus_deux : 2 + 2 = 4
+      heaven> prove deux_plus_deux by eval
+      ✓ proved
 
-**`induction`** : raisonne par récurrence.
+- **`induction`** — raisonne par récurrence sur une variable.
 
-    theorem add_comm : x + y = y + x
-    prove add_comm by induction x
+      heaven> theorem add_comm : x + y = y + x
+      heaven> prove add_comm by induction x
+      ✓ proved
 
-Pour `add_comm`, `simplify` ne suffit pas : il faut distinguer le cas
-`x = zero` et le cas `x = succ n`. C'est ce que fait `induction`.
+![Un arbre de preuve](images/08-proof-tree.svg)
 
-## Le noyau
+Chaque tactique produit une suite d'étapes vérifiables par le noyau.
+La tactique `simplify` ne dit pas « c'est vrai, croyez-moi » — elle
+transforme l'équation jusqu'à ce que les deux côtés soient
+*identiques*, ce qui est vérifiable mécaniquement.
 
-Derrière les tactiques, il y a un **noyau** : un petit programme de
-quelques centaines de lignes qui vérifie chaque étape. Si le noyau
-accepte, la preuve est valide — indépendamment de la tactique
-utilisée.
+Le noyau CIC **ne fait pas confiance** aux tactiques. Il vérifie
+chaque étape. Si une tactique produit une étape invalide, la preuve
+est rejetée.
 
-C'est crucial. Les tactiques peuvent être complexes, avoir des bugs,
-ou même être malveillantes. Le noyau, lui, est simple et vérifiable.
-Il n'utilise que des règles formelles, dérivées du **Calcul des
-Constructions Inductives** (CIC).
+*Vérifiable : les théorèmes `add_zero`, `t1`, `deux_plus_deux` et
+`add_comm` fonctionnent tels quels dans le REPL.*
 
-Les règles sont :
 
-- **Univers** : `Type(i) : Type(i+1)`. Il y a une hiérarchie de types
-  pour éviter les paradoxes.
-- **Produit dépendant** : `Π(x:A). B` est le type des fonctions qui
-  prennent un `x : A` et rendent un `B` qui peut dépendre de `x`.
-- **Abstraction** : `λx:A. t` est une fonction.
-- **Application** : `f a` applique `f` à `a`.
-- **Égalité** : `Eq(a, b)` est le type des preuves que `a` égale `b`.
-- **Réflexivité** : `refl(a) : Eq(a, a)`.
+## 5. Trou et raffinement
 
-Ces six règles suffisent à formaliser la quasi-totalité des
-mathématiques.
+Une preuve se construit rarement d'un seul coup. On procède souvent
+par **trous** : on écrit `_` à l'endroit où on ne sait pas encore
+quoi mettre, et on remplit plus tard.
 
-## Types dépendants
+En Heaven :
 
-Le mot « dépendant » signifie qu'un type peut dépendre d'une
-**valeur**. Par exemple :
+    heaven> theorem t2 : x + 0 = x
+    ✓ theorem t2 stated
 
-    Vecteur : Nat -> Type
-
-`Vecteur 3` est le type des vecteurs de longueur exactement 3. On peut
-écrire :
-
-    head : (n : Nat) -> Vecteur (succ n) -> a
-
-Cette signature dit : « `head` prend un entier `n` et un vecteur de
-longueur `n + 1`, et rend un élément ». Impossible d'appeler `head` sur
-un vecteur vide — le type l'interdit.
-
-C'est une garantie qu'aucun test ne peut donner. Le type **est** la
-preuve.
-
-## Axiomes
-
-Parfois on ne peut pas prouver. On **pose** :
-
-    axiom tiers_exclu : forall (P : Prop). P ou non P
-
-Un axiome est une affirmation qu'on accepte sans justification. Heaven
-l'enregistre et l'utilise dans les preuves suivantes. À utiliser avec
-parcimonie : chaque axiome est une faille dans la forteresse.
-
-## Holes — le type-driven development
-
-Un **trou** dans Heaven n'est pas un `undefined` ni un `TODO`. C'est
-une **demande d'assistance au système**. On écrit :
-
-    f x = ? + 1
-
-et le système répond avec le **but** (`goal`) et le **contexte** :
-
-    ? : Int
-    -- x : Int
-
-C'est le style **type-driven development**, popularisé par Idris et Agda.
-Le principe :
-
-1. Tu donnes la **structure** de ta fonction.
-2. Le système te dit **ce qu'il attend** à cet endroit (le type).
-3. Tu **raffines** progressivement — remplacer `?` par une expression,
-   qui peut contenir d'autres `?`.
-4. À la fin, tu as du code complet.
-
-### L'état actuel
-
-L'infrastructure est en place :
-
-- `_` produit un nœud `Tag.hole` dans l'AST.
-- Le vérificateur de types traite un trou comme une variable de type
-  fraîche (`typer.zig`) : il **infère** ce que le trou doit être.
-- Une substitution (`kanren_expr.zig`) permet de **lier** un trou à
-  une valeur — c'est le mécanisme de raffinement.
-
-    subst.bind(hole_idx, id)   -- raffine ?h en id
-    subst.lookup(hole_idx)     -- retrouve ce qui a été assigné
-
-### La commande `:hole`
-
-Dans le REPL, `:hole` (liste) et `:refine` (raffinement) sont
-implémentés. Ils s'appuient sur `hole_runtime.zig` : `inferHoleType`
-(deduit le type d'un trou depuis son parent), `describeHole` (but +
-contexte), `refine` (lie un trou a une expression).
-
-Exemples et syntaxe complète : voir la section « Holes — mise à
-jour » plus bas dans ce chapitre.
-
-Limite actuelle : `inferHoleType` ne remonte qu'au parent direct.
-Le raffinement qui resout des equations arithmetiques
-(`? + 3 = 10` -> `7`) n'est pas encore implemente.
-
-### Pourquoi c'est utile
-
-En programmation classique, écrire du code quand on ne sait pas quoi
-mettre ressemble à ça :
-
-    f x = undefined  -- puis on revient plus tard
-    f x = 0          -- puis on oublie
-    f x = TODO       -- puis on oublie
-
-En type-driven development, le trou **force** une conversation avec le
-système. Tu ne peux pas avancer sans répondre à la question « quel est
-le type de ce trou ? ». C'est contraignant, et ça produit du code plus
-juste.
-
-### Les trous dans le noyau de preuve
-
-Dans une preuve, un trou est un **sous-but non prouvé**. Idris l'accepte
-comme `?hole` et le signale ; Agda l'accepte et le marque `?`. Heaven
-n'a pas encore cette intégration — le noyau voit un `hole` comme un
-nœud qu'il ne sait pas réduire, ce qui l'empêche de conclure.
-
-C'est un chantier pour plus tard : permettre au noyau de **poursuivre**
-une preuve contenant des trous, en accumulant les sous-buts à résoudre.
-
-## Un exemple complet
-
-Prouvons que l'addition est associative. On a déjà `add` au bootstrap :
-
-    add zero n = n
-    add (succ n) m = succ (add n m)
-
-Énonçons :
-
-    theorem add_assoc : add (add x y) z = add x (add y z)
-
-La preuve par induction sur `x` :
-
-    prove add_assoc by induction x
-
-Heaven déroule :
-
-1. **Cas `x = zero`** : `add (add zero y) z = add zero (add y z)`.
-   Simplifie à `add y z = add y z`. Réflexivité.
-2. **Cas `x = succ n`** : suppose que c'est vrai pour `n`, prouve pour
-   `succ n`. Utilise l'hypothèse d'induction.
-
-Le noyau vérifie chaque étape. Si tout est bon :
-
-    ✓ [add_assoc] proved (induction x)
-
-## Limites
-
-Il faut être honnête : le noyau de Heaven est un CIC **simplifié**. Il
-ne supporte pas encore :
-
-- les **types quotients** (pour quotienter par une relation)
-- l'**unicité des preuves** (proof irrelevance)
-- les **univers multiples** avec arithmétique complète (la règle `Π`
-  est en cours de correction)
-
-C'est suffisant pour l'arithmétique de Peano et beaucoup de
-mathématiques de base. Pour les preuves très avancées, il faudra
-étendre.
-
-## Récapitulatif
-
-- Un **théorème** est une affirmation, une **preuve** la justifie.
-- Les **tactiques** (`simplify`, `eval`, `induction`) construisent la
-  preuve.
-- Le **noyau** vérifie chaque étape avec des règles formelles.
-- Les **types dépendants** permettent d'exprimer des propriétés très
-  précises.
-- Les **axiomes** sont des affirmations acceptées sans preuve.
-- Les **trous** sont des questions posées au système (TDD, voir ci-dessus).
-
-Au chapitre suivant, on quitte les mathématiques pour le monde réel :
-fichiers, réseau, acteurs.
-
-
----
-
-## Tactics composables
-
-Depuis septembre 2026, `prove` accepte un bloc `by { ... }` qui
-enchaîne plusieurs tactiques. La syntaxe est inspirée de Rocq/Lean :
-
-    theorem add_zero : x + 0 = x
-    prove add_zero by { simplify }
-
-Chaque tactique transforme le but courant en 0, 1 ou N sous-buts.
-
-### Catalogue
-
-| Tactique | Effet |
-|---|---|
-| `simplify` | Réduit la cible à sa forme normale |
-| `reflexivity` | Résout `a = a` (unification simple) |
-| `assumption` | Cherche dans les hypothèses une preuve de la cible |
-| `auto` | Cascade `assumption` → `reflexivity` → `simplify` |
-| `exact h` | Utilise l'hypothèse `h` comme preuve |
-| `induction x` | Génère `base` + `step` avec `IH` dans le contexte |
-| `cases x` | Nat : `base` + `step` (sans IH) |
-| `rewrite H` | Substitue `a ↔ b` dans la cible avec `H : a = b` |
-| `apply H` | Si `H : P → Q` et cible `Q`, génère le sous-but `P` |
-| `seq`, `try`, `repeat` | Combinateurs |
-
-L'enchaînement se fait avec `;` :
-
-    theorem t : (x + 0) + 0 = x
-    prove t by {
-      simplify;
-      simplify
-    }
-
-### REPL interactif
-
-`prove t by {` (sans `}`) ouvre un mode interactif :
-
-<!-- doctest: skip -->
-    heaven> prove add_zero by {
-<!-- /doctest -->
-    Goal 1/1
-      ── Target ──
-        (= (+ x 0) x)
-    > simplify
-    ✓ All goals solved. Tapez '}' ou 'qed' pour valider.
-    > qed
-    ✓ [add_zero] proved (interactive)
-
-Tapez `}` ou `qed` pour valider, `abort` pour annuler.
-
-### Unification simple
-
-`apply` et `reflexivity` instancient des **métavariables** internes
-(`Tag.evar`) pour unifier deux termes. Exemple :
-
-    -- H : forall x, P x
-    -- cible : P a
-    apply H       -- l'unification lie x := a
-
-C'est une unification de premier ordre. L'unification vraie avec
-indexes dépendants (`Vec (n + m)`) est fait depuis v2f (2026-10-02).
-
-### Skills
-
-Un **skill** est une suite de tactiques nommée :
-
-    theorem t : x + 0 = x
-    skill algebra
-    ✓ [algebra] 't' proved via skill
-
-Built-in : `trivial` (= `reflexivity`), `algebra` (= `simplify;
-reflexivity`), `induction` (= `induction {var}; simplify; reflexivity`).
-
-### Holes — mise à jour
-
-Depuis septembre 2026, la syntaxe unifiée est `_` (comme Idris/Agda).
-Le REPL expose `:hole` (liste) et `:refine <id> <expr>` :
-
-<!-- doctest: skip -->
-    heaven> _
-<!-- /doctest -->
-    _
-    heaven> :hole
-    ?0 : Int
+    heaven> prove t2 by _
+    ?0 : x + 0 = x
       not refined
-    heaven> :refine 0 42
+
+Le `_` est un **trou** : un objectif non résolu. Heaven l'affiche
+avec son type et son contexte. On peut alors **raffiner** :
+
+    heaven> :refine 0 simplify
     ✓ hole 0 refined
+
     heaven> :hole
-    ?0 : Int
-      refined to: 42
+    ?0 : x + 0 = x
+      refined to: ✓
 
----
+La commande `:hole` affiche l'état des trous. `:refine <id> <tactique>`
+applique une tactique à un trou spécifique. C'est une interaction
+*pas à pas* — l'utilisateur guide, le noyau vérifie.
 
-Tu sais maintenant guider une preuve, raffiner un trou, faire confiance
-au noyau CIC. Mais un théorème vit dans un fichier — il faut encore
-l'**exécuter** dans le vrai monde. Le chapitre suivant ouvre la porte
-vers l'extérieur : fichiers, réseau, acteurs, appels C.
+Cette approche est née avec les assistants de preuve modernes. Elle
+vient d'**Idris** (Edwin Brady, 2007) et **Agda** (Ulf Norell, 2007),
+eux-mêmes inspirés de **Coq**. Le nom **type-driven development**
+(« développement guidé par le type ») vient de cette idée : *le type
+te dit quoi faire, tu suis ses indications*.
+
+Idris et Agda sont les langages qui ont le plus influencé Heaven.
+Leur slogan commun : *les types ne sont pas une contrainte, ce sont
+des guides*.
+
+## 6. Ce qu'on peut prouver en V0
+
+Il faut être **honnête** : Heaven V0 ne peut pas tout prouver. Voici
+ce qui marche, et ce qui ne marche pas.
+
+**Ce qui marche** :
+
+- Les équations simples (`x + 0 = x`, `x * 1 = x`).
+- Les réductions par `simplify`.
+- Les évaluations constantes par `eval`.
+- Les inductions sur les entiers naturels.
+- Les théorèmes avec variable libre (quantification implicite).
+
+**Ce qui ne marche pas encore** :
+
+- Les **inégalités** (`2 < 3`, `x ≤ y`) comme théorèmes. Le noyau
+  travaille sur l'**égalité** (`=`) uniquement. Pour prouver une
+  inégalité, il faudrait définir un **type inductif** `le`, plus un
+  type `Prop` pour distinguer les propositions des booléens. C'est
+  un chantier de V1, documenté dans `docs/ROADMAP.md`.
+- Les **ordres partiels** sur d'autres types (listes, arbres) — même
+  raison.
+- Les **théorèmes dépendant d'autres théorèmes** dans une même
+  session — l'infrastructure existe (`theorem`, `prove`), mais
+  l'usage reste limité.
+- Les **preuves d'équivalence** entre deux fonctions — possible dans
+  certains cas (par `eval` sur des entrées finies), pas en général.
+
+Ces limites sont **honnêtes**. Elles ne sont pas des bugs, ce sont
+des **frontières assumées**. Le noyau est petit (par choix), ce qui
+laisse des choses à construire.
+
+**Note** : on peut *calculer* `(< 2 3)` et obtenir `true`. Ce qu'on
+ne peut pas, c'est écrire `theorem deux_moins_trois : 2 < 3` et le
+prouver. Le **calcul** des ordres existe ; la **preuve** des ordres
+n'existe pas encore.
+
+## 7. Le théorème de Gödel
+
+![Le théorème de Gödel](images/08-godel.svg)
+
+En 1931, le logicien autrichien Kurt Gödel (1906-1978) démontre un
+théorème qui bouleverse les fondations des mathématiques. Son énoncé
+informel :
+
+> *Tout système formel suffisamment puissant pour décrire
+> l'arithmétique contient des propositions vraies qu'on ne peut
+> pas prouver dans ce système.*
+
+Gödel construit une proposition autoréférente, appelée
+« proposition G » :
+
+    G = « Cette proposition ne peut pas être prouvée. »
+
+Si `G` est vraie, alors elle ne peut pas être prouvée. Si `G` est
+fausse, alors elle **peut** être prouvée, donc elle est vraie.
+Contradiction. Conclusion : `G` est vraie, mais **non prouvable**
+dans le système.
+
+Ce n'est pas un défaut du système. C'est une **limite intrinsèque**
+de tout système formel assez puissant. Le mathématicien anglais
+Roger Penrose en a tiré des arguments philosophiques sur la nature
+de la conscience (*The Emperor's New Mind*, 1989). D'autres,
+comme Douglas Hofstadter dans *Gödel, Escher, Bach* (1979), y ont
+vu une leçon plus générale sur l'auto-référence.
+
+Heaven, comme tout langage fondé sur un système formel, est
+**concerné** par ce théorème. Il y aura toujours des propositions
+qu'on ne peut pas prouver en Heaven. Mais :
+
+- C'est **normal** — tous les langages logiques sont dans ce cas.
+- Ce n'est **pas grave** — on peut prouver beaucoup de choses
+  utiles.
+- C'est **philosophiquement intéressant** — on sait qu'on ne saura
+  jamais tout.
+
+Wittgenstein, dans le *Tractatus* (§6.54), disait : *« Mes
+propositions servent d'échelons : celui qui les comprend finit par
+les reconnaître comme absurdes, quand il les a utilisées pour monter
+au-dessus d'elles. »* Gödel a formalisé une version de cette idée :
+certaines vérités ne peuvent être *dites* dans le système, seulement
+*montrées* de l'extérieur.
+
+## Ce qu'on a appris
+
+- Platon (*Ménon*) : la différence entre **opinion vraie** et
+  **savoir**.
+- **Curry-Howard** (Curry 1934, Howard 1969) : propositions =
+  types, preuves = programmes.
+- Le **CIC** (Coquand, Paulin-Mohring 1988) est le noyau
+  mathématique de Heaven.
+- Un **théorème** s'écrit `theorem t : ...`. Une preuve se donne
+  avec `prove t by <tactique>`.
+- Les **tactiques** principales : `simplify`, `eval`, `induction`.
+- Les **trous** (`_`) et le **raffinement** (`:refine`) permettent
+  de construire une preuve pas à pas (Idris, Agda).
+- En **V0**, les inégalités et les ordres partiels ne sont pas
+  prouvables. Le calcul existe, la preuve non.
+- Le **théorème de Gödel** (1931) montre une limite intrinsèque de
+  tout système formel.
+
+Wittgenstein aurait vu dans la preuve une **grammaire** : un
+ensemble de règles qui disent ce qui compte comme justification.
+Prouver, c'est *suivre des règles* — pas *voir la vérité*. Le noyau
+CIC est cette grammaire.
+
+Leibniz, encore lui, rêvait d'un langage où « deux philosophes
+pourraient résoudre un désaccord en disant : *calculons* ». Heaven
+est un pas modeste dans cette direction.
+
+Au chapitre suivant, on descend des hauteurs théoriques pour
+aborder le **monde réel** : fichiers, réseau, acteurs, appels C.
+Comment Heaven, si pur dans son noyau, interagit avec le chaos du
+monde extérieur.
+
+*Vérifiable : les théorèmes et les commandes `:hole`/`:refine` de
+ce chapitre fonctionnent tels quels dans le REPL (sauf les limites
+V0 documentées).*
+

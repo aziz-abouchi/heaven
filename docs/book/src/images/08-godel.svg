@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300" font-family="Georgia, serif">
+  <rect width="500" height="300" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Le theoreme d'incompletude de Godel (1931)
+  </text>
+  <!-- Enonce -->
+  <g>
+    <rect x="60" y="70" width="380" height="80" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="250" y="100" text-anchor="middle" font-size="12" fill="#2c2c2c">
+      « Cette phrase ne peut pas etre prouvee. »
+    </text>
+    <text x="250" y="125" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+      (auto-reference)
+    </text>
+  </g>
+  <!-- Consequences -->
+  <g>
+    <text x="250" y="190" text-anchor="middle" font-size="11" fill="#7a3b3b">
+      Si elle est vraie -> elle n'est pas prouvable.
+    </text>
+    <text x="250" y="215" text-anchor="middle" font-size="11" fill="#7a3b3b">
+      Si elle est fausse -> elle est prouvable, donc vraie. Contradiction.
+    </text>
+    <text x="250" y="250" text-anchor="middle" font-size="12" fill="#2c2c2c" font-style="italic">
+      Il existe des verites qu'on ne peut pas prouver.
+    </text>
+  </g>
+  <text x="250" y="285" text-anchor="middle" font-size="10" fill="#666">
+    — Kurt Godel, Uber formal unentscheidbare Satze
+  </text>
+</svg>
