@@ -18,23 +18,21 @@ lex_is_space b = (if (= b 32) true (if (= b 9) true (if (= b 10) true (= b 13)))
 lex_is_digit b = (if (< b 48) false (<= b 57))
 lex_is_symchar b = (if (lex_is_space b) false (if (= b 40) false (if (= b 41) false (if (= b 34) false true))))
 
-lex s = (lex_from s 0)
-lex_from s i = (if (>= i (string_length s)) TNil (lex_step s i (peek_byte (string_ptr s) i)))
-lex_step s i b = (if (lex_is_space b) (lex_from s (+ i 1)) (lex_nonspace s i b))
-lex_nonspace s i b = (if (= b 40) (TCons TLParen (lex_from s (+ i 1))) (if (= b 41) (TCons TRParen (lex_from s (+ i 1))) (lex_atom s i b)))
-lex_atom s i b = (if (= b 34) (lex_string s (+ i 1)) (if (lex_is_dashdash s i) (lex_comment s (+ i 2)) (if (lex_is_digit b) (lex_int s i) (lex_sym s i))))
+lex s = (toks_rev (lex_loop s 0 TNil) TNil)
+toks_rev TNil acc = acc
+toks_rev (TCons t rest) acc = (toks_rev rest (TCons t acc))
+lex_str_token s i = (TStrTok (string_substring s (+ i 1) (- (lex_str_end s (+ i 1)) (+ i 1))))
+lex_str_after s i = (+ (lex_str_end s (+ i 1)) 1)
+lex_comment_end s i = (if (>= i (string_length s)) i (if (= (peek_byte (string_ptr s) i) 10) (+ i 1) (lex_comment_end s (+ i 1))))
+lex_loop s i acc = (if (>= i (string_length s)) acc (if (lex_is_space (peek_byte (string_ptr s) i)) (lex_loop s (+ i 1) acc) (if (= (peek_byte (string_ptr s) i) 40) (lex_loop s (+ i 1) (TCons TLParen acc)) (if (= (peek_byte (string_ptr s) i) 41) (lex_loop s (+ i 1) (TCons TRParen acc)) (if (= (peek_byte (string_ptr s) i) 34) (lex_loop s (lex_str_after s i) (TCons (lex_str_token s i) acc)) (if (lex_is_dashdash s i) (lex_loop s (lex_comment_end s (+ i 2)) acc) (if (lex_is_digit (peek_byte (string_ptr s) i)) (lex_loop s (lex_int_end s i) (TCons (TIntTok (lex_int_val s i (lex_int_end s i) 0)) acc)) (lex_loop s (lex_sym_end s i) (TCons (TSymTok (string_substring s i (- (lex_sym_end s i) i))) acc)))))))))
 
 lex_is_dashdash s i = (if (= (peek_byte (string_ptr s) i) 45) (if (< (+ i 1) (string_length s)) (= (peek_byte (string_ptr s) (+ i 1)) 45) false) false)
-lex_comment s i = (if (>= i (string_length s)) TNil (if (= (peek_byte (string_ptr s) i) 10) (lex_from s (+ i 1)) (lex_comment s (+ i 1))))
 
 lex_int_end s i = (if (>= i (string_length s)) i (if (lex_is_digit (peek_byte (string_ptr s) i)) (lex_int_end s (+ i 1)) i))
 lex_int_val s i j acc = (if (>= i j) acc (lex_int_val s (+ i 1) j (+ (* acc 10) (- (peek_byte (string_ptr s) i) 48))))
-lex_int s i = (let j (lex_int_end s i) (TCons (TIntTok (lex_int_val s i j 0)) (lex_from s j)))
 
 lex_sym_end s i = (if (>= i (string_length s)) i (if (lex_is_symchar (peek_byte (string_ptr s) i)) (lex_sym_end s (+ i 1)) i))
-lex_sym s i = (let j (lex_sym_end s i) (TCons (TSymTok (string_substring s i (- j i))) (lex_from s j)))
 lex_str_end s i = (if (>= i (string_length s)) i (if (= (peek_byte (string_ptr s) i) 34) i (lex_str_end s (+ i 1))))
-lex_string s i = (let j (lex_str_end s i) (TCons (TStrTok (string_substring s i (- j i))) (lex_from s (+ j 1))))
 
 tok_eq (TIntTok a) (TIntTok b) = (= a b)
 tok_eq (TSymTok a) (TSymTok b) = (= a b)
@@ -49,6 +47,9 @@ toks_eq _ _ = false
 
 tok_count TNil = 0
 tok_count (TCons _ rest) = (+ 1 (tok_count rest))
+tok_count_go TNil acc = acc
+tok_count_go (TCons _ rest) acc = (tok_count_go rest (+ acc 1))
+tok_count_big ts = (tok_count_go ts 0)
 -- lib/parser.hvn (Jalon 3, phase B — self-parse)
 -- Tokens -> Expr (les primitives comme ADT). Style UNE LIGNE (import).
 -- v0 : params symboles seulement (patterns = B-v1). `if`/`=` sont des
@@ -151,3 +152,6 @@ expr_at ENil n = (ESym "HORS_LIMITE")
 expr_at (ECons e rest) n = (if (= n 0) e (expr_at rest (- n 1)))
 expr_count ENil = 0
 expr_count (ECons _ rest) = (+ 1 (expr_count rest))
+expr_count_go ENil acc = acc
+expr_count_go (ECons _ rest) acc = (expr_count_go rest (+ acc 1))
+expr_count_big es = (expr_count_go es 0)
