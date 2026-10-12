@@ -864,6 +864,14 @@ limite D20 ~200 niveaux à 8 Mo. Le lexer (self-tail) était innocent.
 Workaround : pile (run-tests-with-stack.sh, corrigé en -Ss).
 Vraie fix : trampoline/itération des folds longs, ou pile au runner.
 
+**FIX APPLIQUÉE le 2026-10-12 (`bf22d08`)** : collapse du lexer en
+lex_loop unique self-tail — le cycle des 8 émetteurs avait un spine
+VIDE (aucune fonction ne s'appelle elle-même = zéro bounce = ~15
+frames/token, seuil ~30 tokens). Preuves : rep 100 ✓, countb 10000 ✓
+(le bounce gère les args calculés), lex 1600 tokens ✓ à pile par
+défaut, DIFF test_parser 22/22 à 8 Mo. Contrainte pile LEVÉE pour
+le différentiel.
+
 ## [ARCHIVÉ 2026-10-09 soir] TCO à arguments calculés — théorie réfutée
 
 Cinq itérations (Jalon 3, DIFF sur fichiers réels) :

@@ -1,6 +1,6 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-10-09
+Dernière mise à jour : 2026-10-12
 
 Ce document est **genere** depuis `docs/status.json` par
 `scripts/status_gen.py`. Ne pas editer a la main.
@@ -372,3 +372,8 @@ Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
 - **Stable** : lib/heaven_parse.hvn (fusion) + lib/heaven_eval.hvn — un .hvn lit, lex, parse et évalue un .hvn (fac 5 = 120, 13/13).
 - VRecClosure (récursion), if paresseux (VIf1/VIf2), prims curryfiés, env liste persistante.
 - Fossiles d'import du jour exhumés et contournés (voir _syntax_gaps) — condamnés par construction à la phase E.
+
+### 2026-10-12 : L'affaire Debug + le collapse du lexer
+
+- **Fausse alerte intégrale du matin** : binaire Debug (83 Mo, frames ×4) → 4 suites mortes pour rien. Règle 6 : ReleaseFast obligatoire. Fossile TCO de vendredi corrigé — le bounce gère les args calculés, la vraie cause était le cycle des émetteurs.
+- **Fix** : lexer collapsé en lex_loop unique self-tail (bf22d08) — 13 lignes. Lexing 1600 tokens ✓, DIFF 22/22 à pile par défaut. Le fosile différentiel meurt, la phase E n'a plus d'obstacle.
