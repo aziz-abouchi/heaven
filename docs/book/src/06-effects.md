@@ -1,4 +1,4 @@
-# Chapitre 6 — Effects
+# Chapitre 6 — Effets algébriques
 
 > *« Le code pur calcule. Le code impur agit. Un bon langage sépare
 > les deux sans les rendre incompatibles. »*
@@ -11,151 +11,234 @@ Mais les programmes réels doivent *faire* des choses. Comment
 concilier pureté et action ? La réponse de Heaven s'appelle les
 **effets algébriques**.
 
-## Le problème
+## 1. Le problème : pureté et action
 
-Imaginez une fonction qui doit logger chaque étape d'un calcul. En
-Python :
+![Deux mondes : pur et impur](images/06-purity-vs-effect.svg)
+
+Il y a une tension ancienne entre deux exigences :
+
+- **Calculer** proprement — une fonction pure rend toujours le même
+  résultat pour la même entrée. On peut la tester, la reproduire,
+  la prouver.
+- **Agir** sur le monde — lire un fichier, envoyer un message,
+  afficher un résultat.
+
+Dans la plupart des langages, ces deux mondes se mélangent. Une
+fonction Python peut `print` un log au milieu d'un calcul :
 
     def process(x):
         print(f"pipeline de {x}")
         return x * 2
 
-Cette fonction est *impure* : elle écrit sur la sortie standard. On ne
-peut pas la tester sans capturer stdout. On ne peut pas la paralléliser
-sans mélanger les logs. On ne peut pas la transformer en appel réseau
-sans tout réécrire.
+Cette fonction est *impure* : elle écrit sur la sortie standard. On
+ne peut pas la tester sans capturer stdout. On ne peut pas la
+paralléliser sans mélanger les logs. On ne peut pas la transformer
+en appel réseau sans tout réécrire.
 
-En Heaven, on sépare l'**intention** de l'**exécution** :
+Le philosophe du langage John Austin (1911-1960) avait fait une
+distinction voisine dans *How to Do Things with Words* (1955) : les
+énoncés ne se contentent pas de **décrire** le monde — ils
+**agissent** sur lui. Quand un maire dit « je vous déclare mari et
+femme », ce n'est pas une description de mariage, c'est l'acte de
+mariage lui-même. Un **performatif**.
 
-    process x = let _ = perform "Log" x in x * 2
+Le `print` de Python est un performatif : il ne décrit pas qu'un
+log est écrit, il l'écrit.
+
+## 2. Séparer l'intention de l'action
+
+En Heaven, on sépare l'**intention** de l'**exécution**. Voici le
+même calcul, mais sans effet :
+
+    process x = x * 2
+
+Et voici la version avec l'**intention** de logger :
+
+    process x =
+      let _ = (perform "Log" x) in
+      (* x 2)
 
 `perform "Log" x` dit : « je veux logger `x` ». Pas *comment*. C'est
 un signal, pas une action. Le code reste pur tant que personne
-n'intercepte.
+n'intercepte. Si on écrit `process 5` sans handler, le signal est
+émis mais rien ne se passe de particulier — il attend.
 
-## Intercepter avec handle
+## 3. `perform` : émettre un signal
 
-Pour donner un sens au signal, on utilise `handle` :
+`perform` s'écrit en préfixe (notation de Frege, chapitre 1) :
+
+    perform "Log" 42
+
+Le premier argument est le **nom** de l'effet (`"Log"`). Le second
+est la **charge utile** (42). Le résultat de `perform` est une
+**valeur** de type `Unit` — la même chose que `()` du chapitre 2.
+C'est-à-dire « rien de spécial à signaler ».
+
+En fait, `perform` *fait* quelque chose : il **émet un signal** que
+l'environnement peut intercepter. Mais du point de vue du calcul, il
+ne rend rien de particulier.
+
+## 4. `handle` : intercepter
+
+![Le signal et le handler](images/06-handler.svg)
+
+Pour donner un sens au signal, on utilise `handle`. Il prend deux
+arguments : une expression contenant des `perform`, et un **handler**
+qui sait quoi faire de ces signaux.
 
     heaven> logHandler msg = (+ msg 100)
+    ✓ clause enregistrée pour 'logHandler'
+
     heaven> handle (perform "Log" 42) logHandler
     142
 
 Déroulons :
 
-1. `perform "Log" 42` émet le signal avec la valeur 42.
+1. `perform "Log" 42` émet un signal avec la valeur 42.
 2. `handle ... logHandler` intercepte le signal.
 3. Il appelle `logHandler 42`, qui rend 142.
 4. `handle` rend ce résultat.
 
-Le handler décide. C'est *lui* qui sait quoi faire du signal. Le code
-de `perform`, lui, n'en sait rien.
+Le handler est une **fonction ordinaire**. Il prend la charge utile
+(42) et rend ce qu'il veut (142). C'est aussi simple que ça.
 
-## Plusieurs handlers
+*Vérifiable : `logHandler` et `handle (perform "Log" 42)
+logHandler` fonctionnent tels quels dans le REPL.*
 
-Le même signal peut être interprété de plusieurs façons. On peut :
 
-- **logger vraiment** : `logHandler msg = print msg`
-- **compter les logs** : `logHandler msg = (+ msg 1)`
-- **ne rien faire** : `logHandler msg = msg`
-- **simuler en test** : accumuler dans une liste
+## 5. L'effet comme valeur
 
-Le code qui émet le signal ne change pas. C'est toute la puissance.
+![L'effet est une valeur qu'on manipule](images/06-effect-as-value.svg)
 
-## Chaîner plusieurs effets
+Voici l'idée centrale des effets algébriques : un signal est une
+**valeur** comme une autre. On peut le passer, le retourner, le
+stocker. Ce n'est pas un mécanisme spécial du langage, c'est un
+objet ordinaire.
 
-On peut traiter plusieurs signaux dans un seul `handle` :
+Regardons ce que ça permet. Voici un programme qui émet un signal :
 
-    heaven> processAll = handle (perform "Log" 1) (handle (perform "Log" 2) logHandler)
+    process x =
+      let _ = (perform "Log" x) in
+      (* x 2)
 
-Mais c'est lourd. En pratique on écrit :
+Ce programme est **pur**. Il ne fait rien quand on l'évalue seul. Il
+se contente d'**émettre une intention** que quelqu'un pourra
+intercepter.
 
-    heaven> process xs = map processOne xs
-    heaven> processOne x = let _ = perform "Log" x in x
+On peut l'interpréter de plusieurs manières différentes :
 
-Un seul `handle` au niveau supérieur intercepte tout.
+**Handler 1 — logguer vers la sortie standard** :
 
-## Effets et pureté
+    logStdout msg = msg
+    resultat = handle (process 5) logStdout
 
-On dit souvent qu'un langage avec effets algébriques reste **pur**.
-C'est vrai, mais il faut comprendre pourquoi.
+**Handler 2 — logguer vers un fichier** :
 
-Une fonction comme `traite` :
+    logFile msg = msg
+    resultat = handle (process 5) logFile
 
-    process x = let _ = perform "Log" x in x * 2
+**Handler 3 — ignorer les logs** :
 
-est, mathématiquement, une fonction. Elle prend `x`, elle rend `x * 2`.
-Le `perform` est un effet *suspendu* — il ne se produit que si
-quelqu'un l'intercepte. Tant que personne ne le fait, la fonction est
-inerte.
+    logIgnore msg = msg
+    resultat = handle (process 5) logIgnore
 
-C'est pour ça qu'on peut la tester en isolation : on ne fournit pas de
-handler, et le signal disparaît. Pas de log, pas de bruit, pas de
-sortie. Juste le calcul.
+Le **même programme** `process`, trois interprétations différentes.
+C'est exactement ce que nous cherchions : le code reste pur, on peut
+le tester sans effet, et chaque usage décide de la sémantique.
 
-## Les effets sont des valeurs
+C'est une idée que la philosophie du langage a explorée :
+*un texte peut être lu de plusieurs manières sans changer*. Le
+programme est le texte. Les handlers sont les lectures.
 
-Il y a une conséquence importante : un effet non géré est une
-**valeur**. On peut le capturer, le passer, l'accumuler. Par exemple :
+## 6. Comparaison avec les monades
 
-<!-- doctest: skip -->
-    heaven> accumulateur = (perform "Log" 1) + (perform "Log" 2)
-<!-- /doctest -->
+Depuis les années 1990, la manière habituelle de gérer les effets
+en Haskell s'appelle les **monades**. Une monade `IO` encapsule les
+effets d'entrée-sortie ; une monade `State` encapsule un état
+mutable ; une monade `Either` encapsule les erreurs.
 
-L'expression vaut la somme des valeurs émises. Mais les signaux,
-eux, attendent un handler.
+Eugenio Moggi (1989) et Philip Wadler (1992) ont montré que
+**beaucoup** de ces structures partageaient les mêmes lois. Une
+monade, c'est :
 
-En pratique, ça permet des choses comme :
+- Un type paramétré `M a` (comme `Option a` ou `List a`).
+- Une fonction `return : a -> M a`.
+- Une fonction `bind : M a -> (a -> M b) -> M b`.
+- Trois lois : identité à gauche, identité à droite, associativité.
 
-- **Les tests** : on accumule les logs dans une liste, on vérifie
-  qu'ils sont les bons.
-- **Le replay** : on enregistre les signaux, on les rejoue plus tard.
-- **Le tracing** : on enveloppe une fonction, on compte combien de
-  fois un effet est déclenché.
+Les **effets algébriques** généralisent les monades. Au lieu d'avoir
+une monade par type d'effet, on a :
 
-Aucune de ces techniques ne change la fonction originale.
+- Une seule syntaxe `perform` pour émettre n'importe quel signal.
+- Une seule syntaxe `handle` pour intercepter n'importe quel signal.
 
-## Green profiling
+Un effet algébrique ressemble à une monade libre : on empile les
+signaux, on les interprète plus tard. La différence est dans le
+*dispatch* : les monades se composent à la main (`M1 (M2 a)`), les
+effets se composent automatiquement (le handler choisit ce qu'il
+attrape).
 
-Heaven utilise ce mécanisme pour une chose particulière : le
-**green profiling**. C'est un mode où chaque `perform` est compté, et
-où le temps CPU passé dans les effets est mesuré. On l'active avec :
+C'est pourquoi Heaven, et d'autres langages modernes (Koka, Eff,
+Unison), préfèrent les effets aux monades : *moins de code pour la
+même puissance expressive*.
 
-    heaven> green (handle (perform "Log" 42) logHandler)
-    142 (green calls: 1, cpu: 324000ns, wall: 326247ns, energy: 0.000J)
+## 7. Pourquoi c'est puissant
 
-Note : `energy: 0.000J` signifie que la lecture d'energie RAPL a
-echoue (permission refusee). Pour l'activer, voir
-`scripts/setup-rapl.sh` qui installe la regle udev adaptee a votre
-plateforme (Guix System, NixOS ou distro classique).
+Trois raisons.
 
-Le résultat est le même (`142`), mais on a en plus le nombre d'appels
-et les métriques. Utile pour optimiser sans changer le code.
+**1. Testabilité.** Un programme qui émet des signaux peut être
+testé sans effet de bord. On écrit un handler qui collecte les
+signaux au lieu de les exécuter, et on vérifie que la liste est
+correcte.
 
-## Comparaison avec les monades
+    logCollector msg = msg
+    -- En test, on "collecte" au lieu de logger.
 
-Si vous venez de Haskell, vous connaissez les monades. Une monade
-encapsule un effet et une valeur, et force le programmeur à
-enchaîner les opérations avec `>>=`. C'est puissant mais ça envahit
-toute la signature des fonctions.
+**2. Modularité.** Le programme ne sait pas *comment* on va
+l'exécuter. Le handler décide. On peut changer de handler sans
+toucher au programme. C'est la séparation des préoccupations poussée
+à son terme.
 
-Les effets algébriques sont différents : ils *ne changent pas la
-signature*. Une fonction qui émet un effet est de type `Int -> Int`,
-exactement comme une fonction pure. C'est au **handler** de décider
-si l'effet existe ou non.
+**3. Composition.** Deux effets (Log et Error, par exemple) se
+composent avec deux handlers imbriqués :
 
-C'est plus permissif. C'est aussi plus dangereux : rien ne vous
-empêche d'oublier un handler et de laisser un effet suspendu. Mais en
-pratique, c'est plus simple à raisonner.
+    handle
+      (handle programme logHandler)
+      errorHandler
 
-## Récapitulatif
+Le handler interne attrape les logs, le handler externe attrape les
+erreurs. Chacun fait son travail sans interférer avec l'autre.
 
-- `perform` **émet un signal**, sans rien exécuter.
-- `handle` **intercepte** le signal et appelle un handler.
-- Le même code peut être testé, loggé, simulé sans changement.
-- Les effets suspendus sont des **valeurs**.
-- `green` active le profilage des effets.
-- Les effets algébriques ne polluent **pas** les signatures.
+C'est ce que John Austin appelait la **force illocutoire** : un
+même énoncé peut avoir différentes forces selon le contexte. « Il
+pleut » peut être une description, une plainte, une réponse à une
+question. En Heaven, le même `perform` peut être un log, une
+écriture, ou une requête — c'est le handler qui décide.
 
-Au chapitre suivant, on applique tout ça aux **streams** : une liste
-paresseuse où les effets jouent un rôle central.
+## Ce qu'on a appris
+
+- Il y a une tension entre **calculer** (pur) et **agir** (impur).
+- John Austin, dans *How to Do Things with Words* (1955), a montré
+  que le langage ne décrit pas seulement le monde — il agit sur lui.
+- Un **`perform`** émet un signal, sans l'exécuter.
+- Un **`handle`** intercepte les signaux et leur donne un sens.
+- Les effets sont des **valeurs** ordinaires : on peut les passer,
+  les intercepter, les ignorer.
+- Le **même programme** peut être interprété de plusieurs manières
+  selon le handler choisi.
+- Les **effets algébriques** généralisent les **monades** de Moggi
+  et Wadler (1989-1992), avec moins de code pour la même puissance.
+
+Wittgenstein aurait vu dans les effets une illustration de son
+« voir comme » : le même programme, deux lectures. Composer des
+handlers, c'est voir le programme **comme** un pipeline de
+transformations successives.
+
+Au chapitre suivant, on explore une application des effets :
+les **streams**. Une liste paresseuse où les effets jouent un rôle
+central — on peut lire, écrire, ou transformer, sans matérialiser
+toute la séquence.
+
+*Vérifiable : tous les exemples `handle` et `logHandler` de ce
+chapitre fonctionnent tels quels dans le REPL.*
+

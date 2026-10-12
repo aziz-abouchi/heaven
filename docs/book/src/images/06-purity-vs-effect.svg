@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Deux mondes : ce qui calcule, ce qui agit
+  </text>
+  <!-- Monde pur (gauche) -->
+  <g>
+    <rect x="30" y="70" width="200" height="200" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="130" y="100" text-anchor="middle" font-size="13" font-style="italic" fill="#7a3b3b">Pur</text>
+    <text x="130" y="125" text-anchor="middle" font-size="10" fill="#666">ce qui calcule</text>
+    <text x="130" y="160" text-anchor="middle" font-size="12" fill="#2c2c2c">inc x = x + 1</text>
+    <text x="130" y="180" text-anchor="middle" font-size="12" fill="#2c2c2c">map f xs</text>
+    <text x="130" y="200" text-anchor="middle" font-size="12" fill="#2c2c2c">fact 5 = 120</text>
+    <text x="130" y="235" text-anchor="middle" font-size="10" fill="#666" font-style="italic">toujours le meme resultat</text>
+    <text x="130" y="255" text-anchor="middle" font-size="10" fill="#666" font-style="italic">pour la meme entree</text>
+  </g>
+  <!-- Monde impur (droite) -->
+  <g>
+    <rect x="270" y="70" width="200" height="200" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="370" y="100" text-anchor="middle" font-size="13" font-style="italic" fill="#7a3b3b">Impur</text>
+    <text x="370" y="125" text-anchor="middle" font-size="10" fill="#666">ce qui agit</text>
+    <text x="370" y="160" text-anchor="middle" font-size="12" fill="#2c2c2c">print "x"</text>
+    <text x="370" y="180" text-anchor="middle" font-size="12" fill="#2c2c2c">writeFile p c</text>
+    <text x="370" y="200" text-anchor="middle" font-size="12" fill="#2c2c2c">random 42</text>
+    <text x="370" y="235" text-anchor="middle" font-size="10" fill="#666" font-style="italic">change le monde</text>
+    <text x="370" y="255" text-anchor="middle" font-size="10" fill="#666" font-style="italic">a chaque execution</text>
+  </g>
+  <text x="250" y="300" text-anchor="middle" font-size="11" fill="#2c2c2c" font-style="italic">
+    Heaven separe les deux — et permet de passer de l'un a l'autre
+  </text>
+</svg>
