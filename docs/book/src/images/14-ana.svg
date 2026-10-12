@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    ana : deplier une graine en liste
+  </text>
+
+  <!-- Graine -->
+  <g>
+    <rect x="180" y="55" width="140" height="45" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="250" y="83" text-anchor="middle" font-size="13" fill="#2c2c2c" font-family="monospace">
+      seed 0
+    </text>
+  </g>
+
+  <!-- Arrow down -->
+  <g>
+    <path d="M 250 105 L 250 135" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr2)"/>
+  </g>
+
+  <!-- Decision -->
+  <g>
+    <polygon points="250,140 340,175 250,210 160,175" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="250" y="180" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">
+      f n = ?
+    </text>
+  </g>
+
+  <!-- Branches -->
+  <g fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr2)">
+    <path d="M 165 175 L 75 175 L 75 220"/>
+    <path d="M 335 175 L 425 175 L 425 220"/>
+  </g>
+
+  <!-- some branch -->
+  <g>
+    <rect x="20" y="225" width="120" height="55" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="80" y="248" text-anchor="middle" font-size="11" fill="#2c2c2c" font-family="monospace">some (x, s')</text>
+    <text x="80" y="266" text-anchor="middle" font-size="10" fill="#666" font-style="italic">cons x (ana f s')</text>
+  </g>
+
+  <!-- none branch -->
+  <g>
+    <rect x="360" y="225" width="120" height="55" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="420" y="248" text-anchor="middle" font-size="11" fill="#2c2c2c" font-family="monospace">none</text>
+    <text x="420" y="266" text-anchor="middle" font-size="10" fill="#666" font-style="italic">nil</text>
+  </g>
+
+  <defs>
+    <marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+</svg>
