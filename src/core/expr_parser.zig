@@ -657,6 +657,31 @@ pub const ExprParser = struct {
                 }
             }
 
+            // `let x = v in body` sans QTT : au moins 6 tokens.
+            if (kw == null and
+                std.mem.eql(u8, first, "let") and
+                tokens.items.len >= 6 and
+                std.mem.eql(u8, tokens.items[2], "=") and
+                std.mem.eql(u8, tokens.items[4], "in"))
+            {
+                const name_tok = tokens.items[1];
+                const is_qtt_kw = std.mem.eql(u8, name_tok, "linear") or
+                    std.mem.eql(u8, name_tok, "erased") or
+                    std.mem.eql(u8, name_tok, "many");
+                if (!is_qtt_kw) {
+                    var body_buf = std.ArrayListUnmanaged(u8){};
+                    defer body_buf.deinit(self.allocator);
+                    for (tokens.items[5..], 0..) |t, i| {
+                        if (i > 0) try body_buf.append(self.allocator, ' ');
+                        try body_buf.appendSlice(self.allocator, t);
+                    }
+                    const val_id = try self.parseExpression(tokens.items[3]);
+                    const body_id = try self.parseExpression(body_buf.items);
+                    const name_sym = try self.store.interner.intern(name_tok);
+                    return try self.store.bindSymWithBody(name_sym, val_id, body_id);
+                }
+            }
+
             // `let x = v in body` sans QTT : au moins 6 tokens
             // (let, name, =, val, in, body). Si tokens[1] est un kw QTT,
             // c'est le cas ci-dessus, on ne le traite pas ici.
