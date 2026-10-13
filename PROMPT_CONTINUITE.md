@@ -681,3 +681,43 @@ non-developpeurs).
 1. **Ch7 Streams** (~45 min + 3 SVG) : continuer la refonte.
 2. **Bug evalFunction** (1h+, a froid) : le bug le plus profond.
 3. **Endpoints HTTP manquants** (1 session) : `/api/egraph` pour la viz.
+
+
+---
+
+## Session 2026-10-12 (soir) — segfault test lambda courte : RCA + fix
+
+**Symptôme** : `zig build test` → signal 11 sur `heaven_expr.test.parseExpression — lambda courte λx.x` (1er test du binaire → les 50 tests heaven_expr ne s'exécutaient jamais).
+
+**RCA (GDB, 1704 frames)** : le test λ est innocent. Chaîne : `Heaven.init → loadStdIO → loadOne(core/std/string.hvn)` → l'équation `string_copy_range` (commit 46f7786) contient une `)` orpheline → dans `expr_parser.parseExpression`, le fallback juxtaposition (L308) ré-emballe `"(X) dst_ptr)"` sans jamais consommer la parenthèse en trop → récursion infinie (~1670 frames, +3 chars/tour → 5147 octets → SIGSEGV allocateur). De plus le self-tail de 46f7786 était doublement faux : poke en branche ELSE (jamais exécuté pendant la copie) + write hors bornes à i=len.
+
+**Fix (2 fichiers)** :
+1. `src/core/expr_parser.zig` : garde d'équilibre sur `trailing` avant le fallback — une `)` orpheline est `error.InvalidSyntax`, pas un groupement. Toute erreur de syntaxe doit terminer, jamais boucler (leçon directe pour le lexer/parser hvn du bootstrap).
+2. `core/std/string.hvn` : **aucun changement nécessaire sur main** — HEAD (post-46f7786, « corrige la syntaxe du self-tail ») avait déjà corrigé l'orphan ; le segfault était spécifique au clone@46f7786. Piège d'arité relevé : l'appel dans `string_substring_do` passe 6 args ↔ def HEAD à 6 params — tout revert partiel de string.hvn doit synchroniser def ET appel.
+
+**Validation** : zig build test OK, 50/50 heaven_expr standalone, probes REPL (`substring "hello" 1 3` → `"ell"`), zéro leak.
+
+**Follow-up** : self-tail propre possible ssi `poke_byte` retourne le pointeur (chaînage en argument : `(string_copy_range src start (poke_byte dst i …) (+ i 1) len)`) — vérifier la signature (section 7 du script de portage).
+
+
+---
+
+## Session 2026-10-13 (soir 2) — 3e incident Debug clos + Jalon 3-E
+
+**Incident n°3 règle #6** : `zig build test-files` SANS `-Doptimize` réinstalle le Debug sur zig-out (83 Mo) → « crash read_file » + escalier E1-E9 = artefacts DebugAllocator. Hash prouvé : zig-out RF == suite RF. **Fossile SSO/UAF acquitté** : `string_of_bytes` interne (copie). Règle : TOUT `zig build` passe `-Doptimize=ReleaseFast`.
+
+**Jalon 3-E (self-parse)** : `data` ajouté à `top_named` (heuristique capitalisés, v0 : types paramétrés minuscules exclus) + `EData` dans l'ADT Expr + tests/test_selfparse.hvn. Exit-1 suite = leaks GPA restants (voir rapport) — hygiène à étendre fichier par fichier.
+
+
+---
+
+## Jalon 3-E — self-parse RÉUSSI (2026-10-13, soir 6)
+
+**heaven_parse.hvn se parse lui-même : 130 formes** (patterns + data + ADT).
+
+Bloqueur réel : params pattern (fallback "patterns : B-v1", phase B v0) — pas `data` (data_scan marchait). Fix : `def_pat` collecte le pattern en string **plate** (profondeur gérée, zéro parenthèse — contrainte splitter : strings équilibrées).
+
+Session émaillée de 5 pièges process (tous documentés) : clone périmé (46f7786), pipe rc de tail, binaire Debug 83 Mo réinstallé par test-files sans flag, binaire stale non-rebuildé après patch .hvn, off-by-one filtre import. Fossile SSO/UAF acquitté : string_of_bytes interne (copie).
+
+Validation : self-parse 130 formes, test_lexer 14/14, test_parser 22/22, zéro régression.
+Leaks suite restants (hashmap 66 / array 11) : chantier hygiène séparé.

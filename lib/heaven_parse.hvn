@@ -17,6 +17,7 @@ data Toks = TNil | TCons Tok Toks
 lex_is_space b = (if (= b 32) true (if (= b 9) true (if (= b 10) true (= b 13))))
 lex_is_digit b = (if (< b 48) false (<= b 57))
 lex_is_symchar b = (if (lex_is_space b) false (if (= b 40) false (if (= b 41) false (if (= b 34) false true))))
+lex_is_upper s = (if (>= (peek_byte (string_ptr s) 0) 65) (<= (peek_byte (string_ptr s) 0) 90) false)
 
 lex s = (toks_rev (lex_loop s 0 TNil) TNil)
 toks_rev TNil acc = acc
@@ -56,7 +57,7 @@ tok_count_big ts = (tok_count_go ts 0)
 -- symboles ici — l'EVALUATEUR (phase C) donnera leur sens.
 
 
-data Expr = ELitI Int | ELitS Str | ESym Str | EApply Expr Expr | EBind Str Expr | ELambda Str Expr | EImport Str Str | ETest Str Expr Expr
+data Expr = ELitI Int | ELitS Str | ESym Str | EApply Expr Expr | EBind Str Expr | ELambda Str Expr | EImport Str Str | ETest Str Expr Expr | EData Str
 data PRes = POk Expr Toks | PErr Str
 data Exprs = ENil | ECons Expr Exprs
 data Strs = SNil | SCons Str Strs
@@ -90,7 +91,7 @@ build_apply f (ECons a rest) = (build_apply (EApply f a) rest)
 
 parse_top (TCons (TSymTok name) rest) = (top_named name rest)
 parse_top ts = (parse_one ts)
-top_named name rest = (if (= name "test") (test_scan rest) (if (= name "import") (import_scan rest) (def_scan name SNil rest)))
+top_named name rest = (if (= name "test") (test_scan rest) (if (= name "import") (import_scan rest) (if (= name "data") (data_scan rest) (def_scan name SNil rest))))
 
 test_scan ts = (test_scan2 (tok_head ts) (tok_tail ts))
 test_scan2 (TStrTok name) rest = (test_colon name rest)
@@ -110,6 +111,14 @@ import_as path ts = (if (tok_eq (tok_head ts) (TSymTok "as")) (import_alias path
 import_alias path ts = (import_alias2 path (tok_head ts) (tok_tail ts))
 import_alias2 path (TSymTok alias) rest = (POk (EImport path alias) rest)
 import_alias2 path t rest = (PErr "alias attendu")
+data_scan ts = (data_scan2 (tok_head ts) (tok_tail ts))
+data_scan2 (TSymTok name) rest = (data_scan_eq name (tok_head rest) (tok_tail rest))
+data_scan2 t rest = (PErr "nom de data attendu")
+data_scan_eq name t rest = (if (tok_eq t (TSymTok "=")) (data_ctors name rest) (PErr "= attendu apres data"))
+data_ctors name TNil = (POk (EData name) TNil)
+data_ctors name ts = (if (tok_eq (tok_head ts) (TSymTok "|")) (data_ctors name (tok_tail ts)) (data_ctors2 name (tok_head ts) (tok_tail ts)))
+data_ctors2 name (TSymTok s) rest = (if (lex_is_upper s) (data_ctors name rest) (POk (EData name) (TCons (TSymTok s) rest)))
+data_ctors2 name t rest = (POk (EData name) (TCons t rest))
 
 tok_head TNil = TNil
 tok_head (TCons t _) = t
@@ -118,7 +127,14 @@ tok_tail (TCons _ r) = r
 def_scan name params ts = (def_scan_eq name params (tok_head ts) (tok_tail ts))
 def_scan_eq name params t rest = (if (tok_eq t (TSymTok "=")) (def_body name params rest) (def_scan_sym name params t rest))
 def_scan_sym name params (TSymTok s) rest = (def_scan name (SCons s params) rest)
+def_scan_sym name params TLParen rest = (def_pat name params "" 1 rest)
 def_scan_sym name params t rest = (PErr "param non-symbole patterns : B-v1")
+def_pat name params acc depth ts = (if (tok_eq (tok_head ts) TRParen) (def_pat_close name params acc depth (tok_tail ts)) (def_pat_tok name params acc depth (tok_head ts) (tok_tail ts)))
+def_pat_close name params acc depth ts = (if (= depth 1) (def_scan name (SCons acc params) ts) (def_pat name params acc (- depth 1) ts))
+def_pat_tok name params acc depth TLParen ts = (def_pat name params acc (+ depth 1) ts)
+def_pat_tok name params acc depth (TSymTok s) ts = (def_pat name params (string_concat (string_concat acc " ") s) depth ts)
+def_pat_tok name params acc depth (TIntTok n) ts = (def_pat name params (string_concat (string_concat acc " ") (int_to_string n)) depth ts)
+def_pat_tok name params acc depth t ts = (PErr "pattern : token non supporte B-v2")
 
 def_body name params ts = (let r (parse_one ts) (def_body2 name params r))
 def_body2 name params (PErr e) = (PErr e)
@@ -142,6 +158,7 @@ expr_eq (EApply f1 a1) (EApply f2 a2) = (if (expr_eq f1 f2) (expr_eq a1 a2) fals
 expr_eq (EBind n1 b1) (EBind n2 b2) = (if (= n1 n2) (expr_eq b1 b2) false)
 expr_eq (ELambda p1 b1) (ELambda p2 b2) = (if (= p1 p2) (expr_eq b1 b2) false)
 expr_eq (EImport p1 a1) (EImport p2 a2) = (if (= p1 p2) (= a1 a2) false)
+expr_eq (EData a) (EData b) = (= a b)
 expr_eq (ETest n1 b1 v1) (ETest n2 b2 v2) = (if (= n1 n2) (if (expr_eq b1 b2) (expr_eq v1 v2) false) false)
 expr_eq _ _ = false
 
