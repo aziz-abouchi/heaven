@@ -234,8 +234,46 @@ pub fn evalImport(heaven: anytype, src: []const u8) ImportError![]u8 {
             heaven.current_module = old_module;
         }
 
+        // Accumulation multi-ligne par indentation, comme std_loader.zig.
+        // Une ligne non-indentee (colonne 0) commence un nouveau
+        // statement. Les lignes indentees qui suivent sont des
+        // continuations (let ... in sur plusieurs lignes, etc.).
+        var accumulate_buffer = std.ArrayListUnmanaged(u8){};
+        defer accumulate_buffer.deinit(heaven.allocator);
         var lines = std.mem.splitScalar(u8, source, '\n');
         var count: usize = 0;
+
+        const flush = struct {
+            fn call(
+                alloc: std.mem.Allocator,
+                buf: *std.ArrayListUnmanaged(u8),
+                heaven_ptr: anytype,
+                path_str: []const u8,
+                count_ptr: *usize,
+            ) !?[]u8 {
+                if (buf.items.len == 0) return null;
+                const r = heaven_ptr.eval(buf.items) catch |err| {
+                    return try std.fmt.allocPrint(
+                        alloc,
+                        "✗ import {s} : ligne '{s}' → {}",
+                        .{ path_str, buf.items, err },
+                    );
+                };
+                if (std.mem.startsWith(u8, r, "✗")) {
+                    defer alloc.free(r);
+                    return try std.fmt.allocPrint(
+                        alloc,
+                        "✗ import {s} : {s}",
+                        .{ path_str, r },
+                    );
+                }
+                alloc.free(r);
+                count_ptr.* += 1;
+                buf.clearRetainingCapacity();
+                return null;
+            }
+        };
+
         while (lines.next()) |line| {
             const t = std.mem.trim(u8, line, " \t\r");
             if (t.len == 0) continue;
@@ -244,26 +282,22 @@ pub fn evalImport(heaven: anytype, src: []const u8) ImportError![]u8 {
             if (std.mem.startsWith(u8, t, "//")) continue;
             if (std.mem.startsWith(u8, t, ";;")) continue;
 
-            const r = heaven.eval(t) catch |err| {
-                return std.fmt.allocPrint(
-                    heaven.allocator,
-                    "✗ import {s} : ligne '{s}' → {}",
-                    .{ path, t, err },
-                );
-            };
-            defer heaven.allocator.free(r);
+            const is_indented = line.len > 0 and (line[0] == ' ' or line[0] == '\t');
 
-            // Propagation des erreurs retournées comme strings (✗ ...).
-            // Sans ce check, un cycle détecté dans un sous-import serait
-            // silencieusement avalé.
-            if (std.mem.startsWith(u8, r, "✗")) {
-                return std.fmt.allocPrint(
-                    heaven.allocator,
-                    "✗ import {s} : {s}",
-                    .{ path, r },
-                );
+            if (accumulate_buffer.items.len > 0 and !is_indented) {
+                if (try flush.call(heaven.allocator, &accumulate_buffer, heaven, path, &count)) |err_msg| {
+                    return err_msg;
+                }
             }
-            count += 1;
+
+            if (accumulate_buffer.items.len > 0) {
+                try accumulate_buffer.append(heaven.allocator, ' ');
+            }
+            try accumulate_buffer.appendSlice(heaven.allocator, t);
+        }
+        // Reste eventuel.
+        if (try flush.call(heaven.allocator, &accumulate_buffer, heaven, path, &count)) |err_msg| {
+            return err_msg;
         }
 
         // ─── v2b : enregistrer dans le cache ───
