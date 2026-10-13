@@ -338,6 +338,104 @@ Aristote classait les choses. Frege distinguait le sens de la
 référence. Girard et Atkey ajoutent une troisième dimension :
 **combien de fois**.
 
+### 7.1 Un jugement de typage quantitatif
+
+![Un jugement de typage avec multiplicités](images/02-qtt-jugement.svg)
+
+Un vérificateur QTT ne dit pas seulement « telle expression a tel
+type ». Il dit :
+
+    Γ ⊢ t : A
+
+qui se lit *« dans le contexte Γ, le terme t a le type A »*. Ce
+qui change avec QTT, c'est la **structure du contexte** Γ : ce
+n'est plus un simple ensemble de variables, c'est un ensemble de
+paires `(variable, multiplicité)` :
+
+    Γ = { x :¹ A, y :⁰ B, z :^ω C }
+
+Traduction :
+
+- `x :¹ A` — `x` est linéaire : utilisé **exactement une fois**.
+- `y :⁰ B` — `y` est effacé : **jamais** utilisé dans le corps.
+- `z :^ω C` — `z` est libre : utilisé zéro, une, ou plusieurs fois.
+
+Quand on écrit le corps de la fonction, le vérificateur **compte**
+les usages de chaque variable et compare aux multiplicités
+déclarées. S'il y a un écart, il refuse :
+
+    f : 1 Int -> Int
+    f x = x + x             -- ✗ x utilisé 2 fois, mais déclaré 1
+
+    f : 0 Int -> Int
+    f x = x + 1             -- ✗ x utilisé, mais déclaré 0
+
+    f : ^ω Int -> Int
+    f x = x + x             -- ✓ libre : 2 usages OK
+
+C'est un **raffinement du système de types** : au lieu de vérifier
+seulement *quel type* a une valeur, on vérifie aussi *combien de
+fois* elle est consommée.
+
+### 7.2 Le lien avec la logique linéaire
+
+Girard, en inventant QTT, ne partait pas de l'informatique — il
+partait de la **logique**. Sa *logique linéaire* (1987) propose
+une nouvelle lecture des connecteurs logiques :
+
+- **`A ⊗ B`** (tenseur) — *« A et B »*, mais chaque ressource est
+  utilisée une fois : c'est le produit linéaire, l'équivalent du
+  `Pair` dans une lecture linéaire.
+- **`A ⊕ B`** (plus) — *« A ou B »*, choix exclusif.
+- **`!A`** (bang) — *« A est disponible sans contrainte »*. C'est
+  ce qui permet de *répliquer* une ressource : passer de linéaire
+  à libre.
+- **`A ⊸ B`** (lolli) — *« A implique B »*, mais A est *consommé*
+  pour produire B. C'est la flèche linéaire.
+
+Ce vocabulaire éclaire QTT : les trois multiplicités `0`, `1`,
+`ω` sont exactement les trois régimes que Girard distingue. `ω`
+correspond à `!A` (« je peux l'utiliser autant que je veux »).
+`1` correspond à `A` sans `!`. `0` correspond à une ressource
+présente dans le contexte mais jamais consommée.
+
+La **correspondance de Curry-Howard** s'étend : les preuves en
+logique linéaire correspondent à des programmes qui consomment
+leurs ressources linéairement. C'est exactement ce dont Heaven a
+besoin pour la mémoire.
+
+### 7.3 Un exemple concret : `map` avec drop-reuse
+
+Voici pourquoi QTT compte pour l'efficacité. Une `map` sur une
+liste :
+
+    map f nil = nil
+    map f (cons x xs) = cons (f x) (map f xs)
+
+Chaque `cons` est un nœud alloué. Sur une liste de 1 million
+d'éléments, ça fait 1 million de `cons` nouveaux — et 1 million
+de `cons` anciens qui deviennent morts. **Sans QTT**, un GC doit
+balayer tout ça.
+
+**Avec QTT linéaire** (`1` sur `xs`) :
+
+1. Le compilateur sait que chaque `xs` (la queue) est consommé
+   exactement une fois — par le `map` récursif.
+2. Quand `map` atteint un `cons x xs`, il *détruit* ce nœud
+   (dernier usage) et *alloue* le nouveau `cons (f x) (...)`. Les
+   deux ont la même taille.
+3. **Perceus** détecte la paire `free + alloc` adjacente et la
+   remplace par un `drop-reuse` : on écrit dans le nœud *existant*.
+
+Résultat : `map` sur une liste linéaire ne fait **aucune
+allocation nouvelle** en régime permanent. C'est l'optimisation
+**FBIP** (Functional But In-Place). La liste de sortie occupe
+exactement la même mémoire que la liste d'entrée — et seules
+les valeurs `(f x)` ont été calculées.
+
+C'est pour cela que QTT n'est pas un détail de typage : c'est
+**le fondement d'un langage fonctionnel efficace sans GC**.
+
 ## Ce qu'on a appris
 
 - Un **type** est une catégorie (Aristote) : une manière de
@@ -357,6 +455,14 @@ référence. Girard et Atkey ajoutent une troisième dimension :
   est utilisée (`0` effacé, `1` linéaire, `ω` libre). Heaven V0
   s'en inspire pour la mémoire (voir `docs/spec/_memory.md`) mais
   ne l'implémente pas encore.
+- Un **jugement QTT** est un triplet `(contexte, terme, type)` où
+  le contexte porte des multiplicités. Le vérificateur compare
+  les usages aux déclarations.
+- La **logique linéaire** de Girard donne le vocabulaire
+  formel (`⊗`, `⊕`, `!`, `⊸`) qui sous-tend QTT.
+- **Drop-reuse** (FBIP) : `map` sur une liste linéaire ne fait
+  aucune allocation nouvelle — c'est la promesse concrète de
+  QTT pour la performance.
 
 Au chapitre suivant, on plonge dans le **pattern matching** :
 comment écrire des fonctions qui prennent vraiment de la donnée
