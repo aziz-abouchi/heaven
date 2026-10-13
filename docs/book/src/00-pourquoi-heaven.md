@@ -3,6 +3,10 @@
 > *« Ce qui se conçoit bien s'énonce clairement, et les mots pour
 > le dire arrivent aisément. »*
 > — Nicolas Boileau, *Art poétique* (1674)
+>
+> *Nuance : la clarté rend les preuves possibles, mais elle n'est
+> pas une preuve en soi. Ce livre s'en sert comme boussole, pas
+> comme garantie.*
 
 Ce chapitre ne contient pas de code. Il s'adresse à ceux qui
 ouvrent ce livre sans être programmeurs — philosophes, littéraires,
@@ -27,6 +31,11 @@ montre dans l'usage qu'on en fait — pas dans une définition
 préalable. Sa phrase la plus célèbre, dans les *Investigations
 philosophiques* (§43) : *« La signification d'un mot, c'est son
 usage dans le langage. »*
+
+Dans un langage formel comme Heaven, cette idée se précise : le
+sens se voit dans ce qu'on peut faire d'une expression — mais
+les règles de ce « faire » sont mathématiquement définies, pas
+laissées à l'usage social.
 
 Heaven est un jeu de langage. C'est un ensemble de règles pour
 décrire des calculs, des raisonnements, des communications. Ces
@@ -54,6 +63,10 @@ Heaven essaie de répondre à cette question. Il permet d'écrire
 des programmes qu'on peut non seulement **exécuter**, mais
 **prouver** corrects. Ce n'est pas un slogan marketing — c'est un
 noyau mathématique qui vérifie chaque affirmation.
+
+Heaven réunit dans le **même langage** deux gestes habituellement
+séparés : *programmer pour exécuter*, et *démontrer pour garantir*.
+Les preuves y sont des programmes comme les autres.
 
 ## Trois idées fondatrices
 
@@ -89,8 +102,10 @@ parce que la simplicité rend la vérification plus facile.
 
 D'où une devise du projet : *« un théorème en trois lignes vaut
 mieux qu'un théorème en trente »*. Ce n'est pas une coquetterie.
-C'est une heuristique : si on ne peut pas dire une idée simplement,
-c'est souvent qu'on ne l'a pas comprise.
+C'est une heuristique : un énoncé court et clair est plus facile
+à vérifier, donc plus sûr, qu'une formulation compliquée. La
+brièveté n'est pas un critère de vérité — un énoncé court peut
+être faux, un énoncé long peut être correct.
 
 ### 3. La construction à partir du minimum
 
@@ -100,7 +115,8 @@ sous la diversité des langues. Heaven suit la même intuition :
 **six primitives** suffisent à tout construire. Tout le reste —
 boucles, conditions, fonctions d'ordre supérieur, preuves, effets
 concurrents — est une manière plus lisible de dire ces six
-primitives.
+primitives. Nous verrons dans les chapitres suivants comment ces
+constructions familières se définissent à partir du noyau minimal.
 
 Cela a une conséquence pratique importante. Quand quelque chose ne
 fonctionne pas dans Heaven, on ne cherche pas dans une pile de
@@ -113,8 +129,11 @@ une méthode philosophique : *comprendre, c'est savoir décomposer*.
 - **Ce n'est pas un langage pour remplacer Python ou JavaScript.**
   Il est expérimental, jeune, rugueux par endroits.
 - **Ce n'est pas un assistant de preuve pur** comme Coq ou Agda.
-  Heaven essaie de rester un *langage de programmation*, pas un
-  outil pour mathématiciens seulement.
+  Le noyau est le même (Calcul des Constructions Inductives), mais
+  là où Coq sépare le mode *calcul* du mode *preuve*, Heaven
+  utilise la même syntaxe et les mêmes concepts pour les deux.
+  C'est un *langage de programmation*, pas un outil réservé aux
+  mathématiciens.
 - **Ce n'est pas fini.** Beaucoup de choses manquent. Le livre le
   dit honnêtement à chaque fois.
 
@@ -192,7 +211,9 @@ qu'une preuve est correcte.
 
 **QTT** — *Quantitative Type Theory*. Un système de types qui suit
 *combien de fois* une variable est utilisée. Utile pour la gestion
-mémoire et la programmation linéaire.
+mémoire et la programmation linéaire. C'est une **inspiration**
+pour Heaven : le suivi des ressources est en étude pour une
+intégration future dans le noyau (voir `docs/spec/_memory.md`).
 
 **HKT** — *Higher-Kinded Types*. Des types qui paramètrent d'autres
 types. « Liste de X » où X est lui-même un type.
@@ -203,8 +224,10 @@ entre le code source et le code machine.
 **E-graph** — *Equivalence graph*. Une structure de données qui
 stocke plusieurs formes équivalentes d'une même expression.
 
-**MPST** — *Multiparty Session Types*. Un système qui décrit les
-protocoles de communication entre plusieurs acteurs.
+**MPST** — *Multiparty Session Types*. Un cadre théorique qui
+décrit les protocoles de communication entre plusieurs acteurs.
+Il **guide la conception** des fonctionnalités de communication
+et de concurrence de Heaven ; l'implémentation reste partielle.
 
 **WASM** — *WebAssembly*. Un format de code compilé, exécutable
 dans un navigateur web.
