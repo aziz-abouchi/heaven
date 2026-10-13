@@ -63,7 +63,8 @@ Un langage moderne contient beaucoup de mécanismes : types,
 effets, concurrence, entrées-sorties. Chacun peut être implémenté
 de plusieurs façons. Heaven prend un parti : le **noyau
 mathématique** (un système formel appelé *Calcul des Constructions
-Inductives*) est la seule source de vérité. Tout le reste — les
+Inductives*) fournit le **cadre rigoureux** dans lequel toutes
+les preuves sont vérifiées. Tout le reste — les
 types, les fonctions, les listes, les protocoles de communication —
 n'est que du **sucre** posé au-dessus, qui disparaît à l'exécution.
 
@@ -71,6 +72,11 @@ C'est une idée ancienne : dans *Les Mots et les Choses*, Michel
 Foucault montre comment les classifications savantes reposent sur
 un petit nombre de distinctions fondatrices. Heaven fait pareil :
 six primitives, pas une de plus. Le reste se dérive.
+
+Ces six primitives sont : `lit` (un littéral), `sym` (un nom),
+`apply` (une application), `bind` (une liaison), `lambda` (une
+abstraction), `relation` (une égalité). Toute autre construction
+se désucre vers ces six formes avant évaluation.
 
 ### 2. L'esthétique comme critère
 
@@ -123,8 +129,8 @@ glossaire ci-dessous. Commence au chapitre 1.
 glossaire. Ensuite, aborde le chapitre 1 sans crainte : les
 exemples sont expliqués comme des phrases, pas comme du code.
 
-**Si tu veux juste voir Heaven en action** — il y a un REPL web
-accessible à `https://aziz-abouchi.github.io/heaven`. Tape
+**Si tu veux juste voir Heaven en action** — essaie le REPL web
+à `https://aziz-abouchi.github.io/heaven/repl`. Tape
 `(+ 1 2)`, regarde ce qui se passe, puis reviens lire le
 chapitre 1.
 
@@ -203,8 +209,9 @@ protocoles de communication entre plusieurs acteurs.
 **WASM** — *WebAssembly*. Un format de code compilé, exécutable
 dans un navigateur web.
 
-**Vessel** — Le serveur web intégré à Heaven, écrit dans un autre
-langage (Zig). Il sert un REPL web accessible depuis un navigateur.
+**Vessel** — Ancien serveur web de Heaven (REPL web, IDE,
+monitoring), écrit en Zig. Vestige en cours de remplacement par
+l'environnement HTTP écrit 100 % en Heaven (`core/http.hvn`).
 
 ## À toi de jouer
 
