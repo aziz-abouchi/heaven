@@ -1423,6 +1423,16 @@ store_stmt: ($) => seq(
   ";"
 ),
 
+let_expr: ($) =>
+  prec.right(2, seq(
+    "let",
+    field("name", $.identifier),
+    "=",
+    field("value", $._expr),
+    "in",
+    field("body", $._expr)
+  )),
+
 var_decl: ($) =>
   prec.right(seq(
     choice("let", "var", "const"),
@@ -1488,6 +1498,7 @@ match_stmt: ($) =>
 _expr: ($) =>
   choice(
     $.math_expr,
+    $.let_expr,
     $.identifier,
     $.type_name,
     $.int,

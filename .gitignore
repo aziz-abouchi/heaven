@@ -70,3 +70,26 @@ heaven_test_io.txt
 # hygiène 2026-10-09
 .backup_heaven/
 zig-pkg/
+
+# Session debug 2026-10-12/13 (fichiers de travail jetables)
+test_*.hvn
+http_server_*.hvn
+serve_minimal.hvn
+serve_once.hvn
+server_test.hvn
+debug_accept.hvn
+ide.hvn
+egraph_server.hvn
+test1.hvn
+test2.hvn
+test_let_lower.zig
+
+# Artefacts de travail racine (transitoires)
+update_docs.py
+egraph_viz.html
+http_parser_test.hvn
+http_server.hvn
+
+# Artefacts serveur vessel (regeneres par le serveur)
+src/vessel/public/egraph_data.json
+src/vessel/public/egraph_mock.json
