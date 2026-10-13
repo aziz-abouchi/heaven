@@ -1,11 +1,11 @@
 {
-  "updated": "2026-10-12",
+  "updated": "2026-10-13",
   "sections": [
     {
       "level": 2,
       "kind": "raw",
       "title": "Progrès récents",
-      "content": "- **2026-10-05** : Stabilisation du pipeline syntax HIR pour les déclarations `data` génériques : Tree-sitter valide `data List<a> = Nil | Cons a (List<a>)`, tests `lower_test.zig` couvrent `Vec<n>` et `List<a>` récursif. Ajout du champ `DataDecl.params` dans l'AST HIR (initialisation du chemin children). Les paramètres génériques restent à propager dans l'elaboration et l'enregistrement runtime.\n- **2026-10-02** : Unification arithmétique v2f complète (AC, succ, mul, identités, symbole `zero`) et testée sur types dépendants (`Vec (n+m)`). Commande REPL `:norm` opérationnelle.\n- **2026-10-01** : Nettoyage massif du pipeline logique (~1500 lignes supprimées : term_bridge, typeo, evalo, legacy/).\n- **2026-10-01** : Stabilisation du build WASM (475 Ko en ReleaseSmall) et création du stub wasm32_wasi.zig."
+      "content": "- **2026-10-13** : Fix parser `unit`/`Unit` : retires des ctors 0-arity enregistres. Debloque `core/http.hvn`, `core/http_server.hvn`, `serve.hvn` — la stack web Heaven-native est operationnelle (`curl localhost:8080` sert `src/vessel/public/`).\n- **2026-10-12** : D8 3a-3 livre pour la partie one-shot. `handle_rec`, `yield`, `schedule` passent par un mecanisme unique (`pending_capture` + `SuspendRequested`). Magics `@prompt`/`@throw` exposes. 53 tests verts (effects_rec, prompt_depth, scheduler, nested, continuations).\n- **2026-10-05** : Stabilisation du pipeline syntax HIR pour les déclarations `data` génériques : Tree-sitter valide `data List<a> = Nil | Cons a (List<a>)`, tests `lower_test.zig` couvrent `Vec<n>` et `List<a>` récursif. Ajout du champ `DataDecl.params` dans l'AST HIR (initialisation du chemin children). Les paramètres génériques restent à propager dans l'elaboration et l'enregistrement runtime.\n- **2026-10-02** : Unification arithmétique v2f complète (AC, succ, mul, identités, symbole `zero`) et testée sur types dépendants (`Vec (n+m)`). Commande REPL `:norm` opérationnelle.\n- **2026-10-01** : Nettoyage massif du pipeline logique (~1500 lignes supprimées : term_bridge, typeo, evalo, legacy/).\n- **2026-10-01** : Stabilisation du build WASM (475 Ko en ReleaseSmall) et création du stub wasm32_wasi.zig."
     },
     {
       "level": 2,
@@ -361,10 +361,22 @@
           "limit": "—"
         },
         {
+          "name": "`@prompt` / `@throw` (continuations one-shot)",
+          "tier": "stable",
+          "proof": "`tests/test_continuations.hvn` (5 tests)",
+          "limit": "one-shot : token invalide apres usage"
+        },
+        {
+          "name": "`handle_rec` (reprise, one-shot)",
+          "tier": "stable",
+          "proof": "`tests/test_effects_rec.hvn` + `_nested.hvn` (22 tests)",
+          "limit": "reentrant, discriminant par prompt"
+        },
+        {
           "name": "Multi-shot continuations",
           "tier": "roadmap",
           "proof": "—",
-          "limit": "—"
+          "limit": "clonage env + store a concevoir"
         },
         {
           "name": "Handler IO par défaut",
@@ -650,48 +662,84 @@
       "features": [
         {
           "name": "`core/std/bool.hvn`",
-          "tier": "partiel",
-          "proof": "clauses `not/and/or` OK ; `true`/`false` **sans corps**",
+          "tier": "stable",
+          "proof": "not/and/or + ctor true/false",
           "limit": "—"
         },
         {
           "name": "`core/std/list.hvn`",
-          "tier": "partiel",
-          "proof": "clauses OK ; `nil`/`cons` **sans corps**",
+          "tier": "stable",
+          "proof": "map/filter/take/drop/foldl/foldr",
           "limit": "—"
         },
         {
           "name": "`core/std/option.hvn`",
-          "tier": "partiel",
-          "proof": "`none`/`some` **sans corps**",
+          "tier": "stable",
+          "proof": "none/some + map/bind",
           "limit": "—"
         },
         {
           "name": "`core/std/pair.hvn`",
-          "tier": "partiel",
-          "proof": "`pair` **sans corps**",
+          "tier": "stable",
+          "proof": "pair/fst/snd + map",
           "limit": "—"
         },
         {
           "name": "`core/std/result.hvn`",
-          "tier": "partiel",
-          "proof": "`ok`/`err` **sans corps**",
+          "tier": "stable",
+          "proof": "ok/err + map/bind",
+          "limit": "—"
+        },
+        {
+          "name": "`core/std/array.hvn`",
+          "tier": "stable",
+          "proof": "acces indexe + taille",
+          "limit": "—"
+        },
+        {
+          "name": "`core/std/string.hvn`",
+          "tier": "stable",
+          "proof": "concat/split/length/eq",
+          "limit": "—"
+        },
+        {
+          "name": "`core/std/hashmap.hvn`",
+          "tier": "stable",
+          "proof": "get/put/del (Int->Int, Str->Int)",
+          "limit": "—"
+        },
+        {
+          "name": "`core/std/lens.hvn`",
+          "tier": "stable",
+          "proof": "view/set_via/over (one-shot)",
+          "limit": "—"
+        },
+        {
+          "name": "`core/std/recursion.hvn`",
+          "tier": "stable",
+          "proof": "cata/ana/hylo/para",
+          "limit": "—"
+        },
+        {
+          "name": "`core/std/free.hvn`",
+          "tier": "stable",
+          "proof": "Pure/Push/Add/Mul/LogOp + interpreteurs",
           "limit": "—"
         },
         {
           "name": "`core/stream.hvn`",
           "tier": "stable",
-          "proof": "clauses complètes, testées",
+          "proof": "Stream paresseux (delay/force)",
           "limit": "—"
         },
         {
           "name": "`core/bootstrap.hvn`",
           "tier": "partiel",
-          "proof": "`add`/`mul` OK ; signatures `theorem`/`prove` **sans corps**",
-          "limit": "—"
+          "proof": "add/mul OK ; signatures theorem/prove sans corps",
+          "limit": "bootstrap phase"
         }
       ],
-      "trailing_text": "**Note** : `module X` en tête est **inert** (no-op). Les `: Type` sans `=` sont des signatures non enregistrées. Le `std/` est en fait \"signatures + quelques clauses\"."
+      "trailing_text": "**Note** : `module X` en tete reste no-op syntaxique. Les modules listes ci-dessus exposent des clauses reelles et sont couverts par la suite de tests. Le bootstrap (`core/bootstrap.hvn`) reste partiel par construction."
     },
     {
       "level": 2,
@@ -994,10 +1042,16 @@
           "limit": "syntaxe scoped, pas handle-rec"
         },
         {
-          "name": "`handle-rec` (reprise)",
-          "tier": "roadmap",
-          "proof": "—",
-          "limit": "nécessite continuations"
+          "name": "`handle-rec` (reprise, one-shot)",
+          "tier": "stable",
+          "proof": "`test_effects_rec.hvn` + `test_effects_rec_nested.hvn`",
+          "limit": "discriminant par prompt"
+        },
+        {
+          "name": "`@prompt` / `@throw` (continuations delimitees)",
+          "tier": "stable",
+          "proof": "`test_continuations.hvn` (5 tests)",
+          "limit": "one-shot"
         },
         {
           "name": "Scheduler préemptif",

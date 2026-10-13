@@ -1,6 +1,6 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-10-12
+Dernière mise à jour : 2026-10-13
 
 Ce document est **genere** depuis `docs/status.json` par
 `scripts/status_gen.py`. Ne pas editer a la main.
@@ -15,6 +15,8 @@ Légende :
 
 ## Progrès récents
 
+- **2026-10-13** : Fix parser `unit`/`Unit` : retires des ctors 0-arity enregistres. Debloque `core/http.hvn`, `core/http_server.hvn`, `serve.hvn` — la stack web Heaven-native est operationnelle (`curl localhost:8080` sert `src/vessel/public/`).
+- **2026-10-12** : D8 3a-3 livre pour la partie one-shot. `handle_rec`, `yield`, `schedule` passent par un mecanisme unique (`pending_capture` + `SuspendRequested`). Magics `@prompt`/`@throw` exposes. 53 tests verts (effects_rec, prompt_depth, scheduler, nested, continuations).
 - **2026-10-05** : Stabilisation du pipeline syntax HIR pour les déclarations `data` génériques : Tree-sitter valide `data List<a> = Nil | Cons a (List<a>)`, tests `lower_test.zig` couvrent `Vec<n>` et `List<a>` récursif. Ajout du champ `DataDecl.params` dans l'AST HIR (initialisation du chemin children). Les paramètres génériques restent à propager dans l'elaboration et l'enregistrement runtime.
 - **2026-10-02** : Unification arithmétique v2f complète (AC, succ, mul, identités, symbole `zero`) et testée sur types dépendants (`Vec (n+m)`). Commande REPL `:norm` opérationnelle.
 - **2026-10-01** : Nettoyage massif du pipeline logique (~1500 lignes supprimées : term_bridge, typeo, evalo, legacy/).
@@ -117,7 +119,9 @@ depuis une string utilisateur, jamais d'evar dedans).
 | `perform "Op" v` | ✅ | `engine_expr` | one-shot |
 | `handle e h` | ✅ | test `effect_handle` | one-shot |
 | `green` profiler | ✅ | 2 tests | — |
-| Multi-shot continuations | 🚧 | — | — |
+| `@prompt` / `@throw` (continuations one-shot) | ✅ | `tests/test_continuations.hvn` (5 tests) | one-shot : token invalide apres usage |
+| `handle_rec` (reprise, one-shot) | ✅ | `tests/test_effects_rec.hvn` + `_nested.hvn` (22 tests) | reentrant, discriminant par prompt |
+| Multi-shot continuations | 🚧 | — | clonage env + store a concevoir |
 | Handler IO par défaut | ✅ | `defaultIOHandler` (heaven_expr.zig) | — |
 | `readFile`, `writeFile`, `readLine` | ✅ | `core/io.hvn` + handler | — |
 
@@ -186,15 +190,21 @@ depuis une string utilisateur, jamais d'evar dedans).
 
 | Élément | Statut | Note |
 |---|---|---|
-| `core/std/bool.hvn` | ⚠️ | clauses `not/and/or` OK ; `true`/`false` **sans corps** |
-| `core/std/list.hvn` | ⚠️ | clauses OK ; `nil`/`cons` **sans corps** |
-| `core/std/option.hvn` | ⚠️ | `none`/`some` **sans corps** |
-| `core/std/pair.hvn` | ⚠️ | `pair` **sans corps** |
-| `core/std/result.hvn` | ⚠️ | `ok`/`err` **sans corps** |
-| `core/stream.hvn` | ✅ | clauses complètes, testées |
-| `core/bootstrap.hvn` | ⚠️ | `add`/`mul` OK ; signatures `theorem`/`prove` **sans corps** |
+| `core/std/bool.hvn` | ✅ | not/and/or + ctor true/false |
+| `core/std/list.hvn` | ✅ | map/filter/take/drop/foldl/foldr |
+| `core/std/option.hvn` | ✅ | none/some + map/bind |
+| `core/std/pair.hvn` | ✅ | pair/fst/snd + map |
+| `core/std/result.hvn` | ✅ | ok/err + map/bind |
+| `core/std/array.hvn` | ✅ | acces indexe + taille |
+| `core/std/string.hvn` | ✅ | concat/split/length/eq |
+| `core/std/hashmap.hvn` | ✅ | get/put/del (Int->Int, Str->Int) |
+| `core/std/lens.hvn` | ✅ | view/set_via/over (one-shot) |
+| `core/std/recursion.hvn` | ✅ | cata/ana/hylo/para |
+| `core/std/free.hvn` | ✅ | Pure/Push/Add/Mul/LogOp + interpreteurs |
+| `core/stream.hvn` | ✅ | Stream paresseux (delay/force) |
+| `core/bootstrap.hvn` | ⚠️ | add/mul OK ; signatures theorem/prove sans corps |
 
-**Note** : `module X` en tête est **inert** (no-op). Les `: Type` sans `=` sont des signatures non enregistrées. Le `std/` est en fait "signatures + quelques clauses".
+**Note** : `module X` en tete reste no-op syntaxique. Les modules listes ci-dessus exposent des clauses reelles et sont couverts par la suite de tests. Le bootstrap (`core/bootstrap.hvn`) reste partiel par construction.
 
 ## Ontologie (2026-10-01)
 
@@ -280,7 +290,8 @@ Résultats de référence (`docs/spec/_bench.md`) :
 | `spawn` / `tell` / `recv` (process) | ✅ | test_suite.hvn (3 tests) | prototype concurrence, mailbox FIFO, caller-driven |
 | `run(pid)` (drain mailbox) | ✅ | test_suite.hvn (2 tests) | — |
 | `bracket` / `local` / `catch` | ✅ | test_suite.hvn (5 tests) | syntaxe scoped, pas handle-rec |
-| `handle-rec` (reprise) | 🚧 | — | nécessite continuations |
+| `handle-rec` (reprise, one-shot) | ✅ | `test_effects_rec.hvn` + `test_effects_rec_nested.hvn` | discriminant par prompt |
+| `@prompt` / `@throw` (continuations delimitees) | ✅ | `test_continuations.hvn` (5 tests) | one-shot |
 | Scheduler préemptif | 🚧 | — | C3 tranchée (budget + safepoints) |
 | Distribution | 🚧 | — | C2 tranchée (Option D lazy copy) |
 
