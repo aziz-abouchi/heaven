@@ -35,16 +35,10 @@ pub fn build(b: *std.Build) void {
     //   wasm32-*  -> wasm.zig          (freestanding ET wasi)
     //   aarch64-* -> x86_64_linux.zig  (macOS, POSIX)
     //   autres    -> <arch>_<os>.zig
-    const platform_file = blk: {
-        if (target.query.cpu_arch == .wasm32)
-            break :blk "src/platform/wasm.zig";
-        if (target.query.cpu_arch == .aarch64 and target.result.os.tag == .macos)
-            break :blk "src/platform/x86_64_linux.zig";
-        break :blk b.fmt("src/platform/{s}_{s}.zig", .{
-            @tagName(target.result.cpu.arch),
-            @tagName(target.result.os.tag),
-        });
-    };
+    const platform_file = b.fmt("src/platform/{s}_{s}.zig", .{
+        @tagName(target.result.cpu.arch),
+        @tagName(target.result.os.tag),
+    });
 
     const platform_mod = b.createModule(.{
         .root_source_file = b.path(platform_file),
@@ -856,6 +850,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "platform", .module = platform_mod },
         },
     });
+    platform_mod.addImport("shell_parser", shell_parser_mod);
 
     const dispatch_ops = b.createModule(.{
         .root_source_file = b.path("src/core/commands/dispatch.zig"),
