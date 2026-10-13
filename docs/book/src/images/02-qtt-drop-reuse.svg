@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Drop-reuse (FBIP) : reutiliser sans reallouer
+  </text>
+
+  <!-- Avant -->
+  <text x="125" y="70" text-anchor="middle" font-size="12" fill="#2c2c2c" font-style="italic">
+    Sans FBIP
+  </text>
+
+  <g>
+    <rect x="30" y="90" width="80" height="50" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="70" y="120" text-anchor="middle" font-size="11" fill="#2c2c2c" font-family="monospace">node A</text>
+  </g>
+
+  <g>
+    <path d="M 115 115 L 155 115" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arq)"/>
+    <text x="135" y="107" text-anchor="middle" font-size="10" fill="#7a3b3b">free</text>
+  </g>
+
+  <g>
+    <rect x="160" y="90" width="80" height="50" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="200" y="120" text-anchor="middle" font-size="11" fill="#2c2c2c" font-family="monospace">node B</text>
+  </g>
+
+  <text x="140" y="165" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+    2 operations systeme
+  </text>
+
+  <!-- Apres (FBIP) -->
+  <text x="375" y="70" text-anchor="middle" font-size="12" fill="#2c2c2c" font-style="italic">
+    Avec FBIP
+  </text>
+
+  <g>
+    <rect x="290" y="90" width="80" height="50" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="330" y="120" text-anchor="middle" font-size="11" fill="#2c2c2c" font-family="monospace">node A</text>
+  </g>
+
+  <g>
+    <path d="M 375 115 L 415 115" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arq)"/>
+    <text x="395" y="107" text-anchor="middle" font-size="10" fill="#7a3b3b">reuse</text>
+  </g>
+
+  <g>
+    <rect x="420" y="90" width="60" height="50" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="450" y="120" text-anchor="middle" font-size="11" fill="#2c2c2c" font-family="monospace">node A'</text>
+  </g>
+
+  <text x="375" y="165" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+    0 operation systeme
+  </text>
+
+  <!-- Explication -->
+  <g>
+    <rect x="40" y="200" width="420" height="90" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="250" y="225" text-anchor="middle" font-size="11" fill="#2c2c2c">
+      Quand une structure lineaire est detruite juste avant
+    </text>
+    <text x="250" y="245" text-anchor="middle" font-size="11" fill="#2c2c2c">
+      une allocation de meme taille, on ecrit directement dans
+    </text>
+    <text x="250" y="265" text-anchor="middle" font-size="11" fill="#2c2c2c">
+      l'ancienne memoire. <tspan font-style="italic">free + alloc</tspan> devient <tspan font-style="italic">drop-reuse</tspan>.
+    </text>
+    <text x="250" y="285" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+      Perceus (Reinking et al., 2021) — voir docs/spec/_memory.md
+    </text>
+  </g>
+
+  <defs>
+    <marker id="arq" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+</svg>

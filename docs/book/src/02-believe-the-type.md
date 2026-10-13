@@ -229,6 +229,115 @@ Heaven supporte partiellement les types dépendants en V0 (via
 peut contenir une valeur, et que cette idée vient de la logique
 de Frege, Russell et Martin-Löf.
 
+## 7. Combien de fois ? — QTT
+
+![Les trois multiplicités QTT](images/02-qtt-multiplicites.svg)
+
+> *« Une ressource linéaire n'est utilisée qu'une fois. Une
+> ressource effacée, jamais. Une ressource libre, autant qu'on
+> veut. »*
+> — à la manière de Jean-Yves Girard, *Linear Logic* (1987)
+
+Une dernière idée, encore plus fine que les types dépendants,
+mérite d'être présentée ici — même si Heaven V0 ne fait que s'en
+inspirer.
+
+Imagine une fonction qui prend une valeur et la renvoie deux fois :
+
+    heaven> dup x = (pair x x)
+
+Combien de fois `x` apparaît-il dans le corps ? **Deux fois**.
+Maintenant, une fonction qui jette son argument :
+
+    heaven> ignore x = 42
+
+Combien de fois `x` apparaît-il dans le corps ? **Zéro fois** —
+il est nommé, puis oublié.
+
+Et une fonction qui l'utilise exactement une fois :
+
+    heaven> inc x = (+ x 1)
+
+**Une fois**.
+
+Ces trois situations — zéro, une, plusieurs — correspondent à
+trois **régimes d'usage**. En 1987, le logicien français
+**Jean-Yves Girard** (né en 1947) a introduit une **logique
+linéaire** qui distingue précisément ces régimes. Sa découverte :
+le *combien de fois* n'est pas un détail, c'est une **structure
+mathématique** à part entière.
+
+### Les trois multiplicités
+
+En QTT — *Quantitative Type Theory*, formalisée par **Robert
+Atkey** en 2018 — chaque variable porte une **multiplicité** :
+
+- **`0`** — variable **effacée**. Elle n'est jamais utilisée dans
+  le corps. La valeur correspondante n'existe pas au runtime :
+  **zéro octet**.
+- **`1`** — variable **linéaire**. Elle est utilisée **exactement
+  une fois**. Elle a un propriétaire unique : quand on la
+  consomme, elle disparaît.
+- **`ω`** — variable **libre**. Elle peut être utilisée zéro,
+  une, ou plusieurs fois. C'est le régime habituel.
+
+Dans un langage avec QTT, on annoterait :
+
+    dup : a -> 1 (Pair a a)         -- x utilise 2 fois : non, erreur
+    ignore : 0 a -> Int             -- a efface
+    inc : 1 Int -> Int              -- Int utilise 1 fois
+
+Le vérificateur **rejette** `dup` (utilise x deux fois alors que
+la signature dit `1`), accepte `ignore` (x effacé), accepte `inc`
+(x linéaire).
+
+### Pourquoi c'est puissant
+
+Trois bénéfices immédiats :
+
+**1. Effacement.** Une variable `0` n'existe pas au runtime. Les
+preuves, les types, les annotations — tout ce qui est `0` disparaît
+à la compilation. C'est la base du *proof erasure* : on peut écrire
+des preuves lourdes sans payer leur coût à l'exécution.
+
+**2. Gestion mémoire.** Une variable `1` a un **propriétaire
+unique**. Quand ce propriétaire consomme la variable — au dernier
+usage — le compilateur sait qu'il peut libérer la mémoire. Pas de
+compteur de références, pas de GC.
+
+**3. Réutilisation in-place.** Si le compilateur voit qu'une
+structure linéaire est détruite juste avant qu'une autre de même
+taille soit allouée, il peut remplacer `free + alloc` par une
+écriture **directement dans la mémoire de l'ancienne**. C'est
+l'optimisation *drop-reuse* (Perceus, 2021) — aussi appelée
+**FBIP** (Functional But In-Place).
+
+![Drop-reuse (FBIP)](images/02-qtt-drop-reuse.svg)
+
+Résultat : des algorithmes **fonctionnels purs** — `map`,
+`filter`, `fold` — qui tournent en temps constant de mémoire, sans
+GC. C'est le rêve de la programmation fonctionnelle efficace.
+
+### Où en est Heaven
+
+Heaven V0 **n'implémente pas** QTT. C'est une **inspiration** pour
+la suite, documentée dans `docs/spec/_memory.md`. Aujourd'hui :
+
+- La **couche mémoire** est explicite : `core/std/memory.hvn` +
+  `Arena` (livré 2026-10-13).
+- Les continuations délimitées one-shot (`@prompt`/`@throw`) sont
+  livrées — la partie *linéaire* de leur usage viendra plus tard.
+- Le suivi quantitatif des variables et l'injection automatique
+  de `drop`/`alloc` par le compilateur restent à faire.
+
+C'est un chantier long. Mais l'idée directrice est claire : *un
+type n'est pas seulement une catégorie de valeurs — c'est aussi
+une indication sur la manière dont elles circulent*.
+
+Aristote classait les choses. Frege distinguait le sens de la
+référence. Girard et Atkey ajoutent une troisième dimension :
+**combien de fois**.
+
 ## Ce qu'on a appris
 
 - Un **type** est une catégorie (Aristote) : une manière de
@@ -244,6 +353,10 @@ de Frege, Russell et Martin-Löf.
   par des chemins différents.
 - Les **types dépendants** (`Vec n a`) portent une valeur dans
   leur structure.
+- **QTT** ajoute une dimension : *combien de fois* une variable
+  est utilisée (`0` effacé, `1` linéaire, `ω` libre). Heaven V0
+  s'en inspire pour la mémoire (voir `docs/spec/_memory.md`) mais
+  ne l'implémente pas encore.
 
 Au chapitre suivant, on plonge dans le **pattern matching** :
 comment écrire des fonctions qui prennent vraiment de la donnée
