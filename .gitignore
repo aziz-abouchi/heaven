@@ -72,16 +72,16 @@ heaven_test_io.txt
 zig-pkg/
 
 # Session debug 2026-10-12/13 (fichiers de travail jetables)
-test_*.hvn
-http_server_*.hvn
-serve_minimal.hvn
-serve_once.hvn
-server_test.hvn
-debug_accept.hvn
-ide.hvn
-egraph_server.hvn
-test1.hvn
-test2.hvn
+/test_*.hvn
+/http_server_*.hvn
+/serve_minimal.hvn
+/serve_once.hvn
+/server_test.hvn
+/debug_accept.hvn
+/ide.hvn
+/egraph_server.hvn
+/test1.hvn
+/test2.hvn
 test_let_lower.zig
 
 # Artefacts de travail racine (transitoires)
