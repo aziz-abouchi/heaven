@@ -758,6 +758,58 @@ pub const EGraph = struct {
             .changed = true,
         };
     }
+
+    /// Exporte l'EGraph en JSON pour visualisation D3.js (#egraph-viz)
+    pub fn exportToJson(self: *const EGraph, allocator: Allocator) ![]u8 {
+        var buf = std.ArrayListUnmanaged(u8){};
+        defer buf.deinit(allocator);
+        const w = buf.writer(allocator);
+
+        try w.writeAll("{\"classes\":[");
+        for (self.classes.items, 0..) |eclass, class_idx| {
+            if (class_idx > 0) try w.writeAll(",");
+            try w.print("{{\"id\":{d},\"nodes\":[", .{class_idx});
+            for (eclass.nodes.items, 0..) |node_id, ni| {
+                if (ni > 0) try w.writeAll(",");
+                const node = self.store.get(node_id);
+                const tag = @tagName(node.tag);
+                try w.print("{{\"id\":{d},\"tag\":\"{s}\"", .{ node_id, tag });
+                if (node.tag == .sym) {
+                    const name = self.store.interner.resolve(node.payload);
+                    try w.print(",\"name\":\"{s}\"", .{name});
+                }
+                try w.writeAll("}");
+            }
+            try w.writeAll("]}");
+        }
+
+        try w.writeAll("],\"nodes\":[");
+        var first_node = true;
+        for (0..self.store.len()) |node_id| {
+            if (!first_node) try w.writeAll(",");
+            first_node = false;
+            const node = self.store.get(@intCast(node_id));
+            const tag = @tagName(node.tag);
+            try w.print("{{\"id\":{d},\"tag\":\"{s}\"", .{ node_id, tag });
+            if (node.tag == .sym) {
+                const name = self.store.interner.resolve(node.payload);
+                try w.print(",\"name\":\"{s}\"", .{name});
+            }
+            try w.writeAll("}");
+        }
+
+        try w.writeAll("],\"merges\":[");
+        for (self.proofs.items, 0..) |proof, pi| {
+            if (pi > 0) try w.writeAll(",");
+            try w.print("{{\"lhs\":{d},\"rhs\":{d},\"rule\":{d},\"ts\":{d}}}", .{
+                proof.lhs, proof.rhs, proof.rule_id, proof.timestamp
+            });
+        }
+        try w.writeAll("]}");
+
+        return buf.toOwnedSlice(allocator);
+    }
+
 };
 
 pub fn cost(store: *const Store, id: Id) u32 {
@@ -941,4 +993,35 @@ test "egraph — merge establishes explicit equivalence" {
     _ = try egraph.merge(ca, cb);
 
     try std.testing.expect(egraph.areEqual(a, b));
+}
+
+test "egraph — exportToJson génère un JSON valide" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    var g = EGraph.init(&store, allocator);
+    defer g.deinit();
+
+    const x = try store.sym("x");
+    const one = try store.int(1);
+    const add_expr = try store.binop("+", x, one);
+
+    const class_a = try g.add(add_expr);
+    const class_b = try g.add(x);
+    _ = try g.merge(class_a, class_b);
+
+    const json = try g.exportToJson(allocator);
+    defer allocator.free(json);
+
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"classes\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"nodes\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"merges\"") != null);
+
+    // Écriture directe dans le dossier public pour le serveur HTTP
+    const file_path = "src/vessel/public/egraph_data.json";
+    var file = try std.fs.cwd().createFile(file_path, .{});
+    defer file.close();
+    try file.writeAll(json);
+
+    std.debug.print("\n[egraph-viz] Fichier {s} généré ({d} bytes)\n", .{ file_path, json.len });
 }

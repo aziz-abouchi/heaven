@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Heaven — E-Graph Visualizer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'JetBrains Mono', monospace; background: #1a1a2e; color: #eee; }
+        #header { padding: 1rem 2rem; background: #16213e; border-bottom: 2px solid #0f3460; }
+        #header h1 { color: #e94560; font-size: 1.5rem; }
+        #header .subtitle { color: #888; font-size: 0.9rem; }
+        #controls { padding: 0.8rem 2rem; background: #16213e; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #0f3460; }
+        button { padding: 0.5rem 1rem; background: #e94560; border: none; border-radius: 4px; color: white; cursor: pointer; font-family: inherit; }
+        button:hover { background: #c73e54; }
+        #stats { color: #4ecca3; margin-left: auto; }
+        #graph { width: 100vw; height: calc(100vh - 140px); background: #0f0f1e; }
+        .node circle { stroke: #fff; stroke-width: 1.5px; cursor: grab; }
+        .node circle:hover { stroke-width: 3px; stroke: #e94560; }
+        .node text { fill: #eee; font-size: 12px; pointer-events: none; text-shadow: 1px 1px 2px #000; }
+        .link { stroke: #585b70; stroke-width: 1.5px; stroke-opacity: 0.6; }
+        .link.merge { stroke: #e94560; stroke-dasharray: 5,5; stroke-width: 2px; }
+        .legend { position: absolute; bottom: 20px; right: 20px; background: rgba(22, 33, 62, 0.95); padding: 1rem; border-radius: 6px; border: 1px solid #0f3460; font-size: 0.85rem; }
+        .legend-item { display: flex; align-items: center; gap: 0.5rem; margin: 0.3rem 0; }
+        .legend-color { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #fff; }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>🌌 Heaven E-Graph Visualizer</h1>
+        <div class="subtitle">Equality Saturation — Visualisation D3.js du Store</div>
+    </div>
+    <div id="controls">
+        <button onclick="loadData()">🔄 Recharger</button>
+        <button onclick="resetZoom()">🔍 Reset Zoom</button>
+        <span id="stats">Chargement...</span>
+    </div>
+    <svg id="graph"></svg>
+    <div class="legend">
+        <div class="legend-item"><div class="legend-color" style="background:#e94560"></div> sym (symbole)</div>
+        <div class="legend-item"><div class="legend-color" style="background:#4ecca3"></div> lit (littéral)</div>
+        <div class="legend-item"><div class="legend-color" style="background:#3498db"></div> apply (application)</div>
+        <div class="legend-item"><div class="legend-color" style="background:#9b59b6"></div> bind (let)</div>
+        <div class="legend-item"><div class="legend-color" style="background:#f39c12"></div> lambda</div>
+    </div>
+
+    <script>
+        const width = window.innerWidth;
+        const height = window.innerHeight - 140;
+        const svg = d3.select("#graph").attr("width", width).attr("height", height);
+        const g = svg.append("g");
+
+        const zoom = d3.zoom().scaleExtent([0.1, 5]).on("zoom", (event) => g.attr("transform", event.transform));
+        svg.call(zoom);
+
+        function resetZoom() {
+            svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+        }
+
+        function colorForTag(tag) {
+            const colors = {
+                sym: "#e94560", lit: "#4ecca3", apply: "#3498db",
+                bind: "#9b59b6", lambda: "#f39c12", relation: "#1abc9c"
+            };
+            return colors[tag] || "#95a5a6";
+        }
+
+        async function loadData() {
+            try {
+                const resp = await fetch("egraph_data.json");
+                const data = await resp.json();
+                renderGraph(data);
+                document.getElementById("stats").textContent = 
+                    `${data.classes.length} classes · ${data.nodes.length} nœuds · ${data.merges.length} fusions`;
+            } catch (e) {
+                console.error(e);
+                document.getElementById("stats").textContent = "❌ Erreur: lance `zig build test` puis `python3 -m http.server`";
+            }
+        }
+
+        function renderGraph(data) {
+            g.selectAll("*").remove();
+
+            const nodes = [];
+            const nodeById = new Map();
+            data.nodes.forEach((n, i) => {
+                const angle = (i / data.nodes.length) * 2 * Math.PI;
+                const radius = 200 + Math.random() * 100;
+                const node = {
+                    ...n,
+                    x: width / 2 + Math.cos(angle) * radius,
+                    y: height / 2 + Math.sin(angle) * radius
+                };
+                nodes.push(node);
+                nodeById.set(n.id, node);
+            });
+
+            const links = [];
+            data.merges.forEach(m => {
+                const src = nodeById.get(m.lhs);
+                const tgt = nodeById.get(m.rhs);
+                if (src && tgt) links.push({ source: src, target: tgt, type: "merge" });
+            });
+
+            const simulation = d3.forceSimulation(nodes)
+                .force("link", d3.forceLink(links).id(d => d.id).distance(100))
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("center", d3.forceCenter(width / 2, height / 2))
+                .force("collision", d3.forceCollide().radius(25));
+
+            const link = g.append("g").selectAll("line").data(links).join("line")
+                .attr("class", d => `link ${d.type}`);
+
+            const node = g.append("g").selectAll("g").data(nodes).join("g")
+                .attr("class", "node")
+                .call(d3.drag()
+                    .on("start", (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+                    .on("drag", (e, d) => { d.fx = e.x; d.fy = e.y; })
+                    .on("end", (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+            node.append("circle")
+                .attr("r", d => d.tag === "sym" ? 20 : 14)
+                .attr("fill", d => colorForTag(d.tag));
+
+            node.append("text")
+                .attr("dy", d => d.tag === "sym" ? -25 : -18)
+                .attr("text-anchor", "middle")
+                .text(d => d.name || `${d.tag}#${d.id}`);
+
+            node.append("title")
+                .text(d => `ID: ${d.id}\nTag: ${d.tag}${d.name ? "\nName: " + d.name : ""}`);
+
+            simulation.on("tick", () => {
+                link
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+                
+                node.attr("transform", d => `translate(${d.x},${d.y})`);
+            });
+        }
+
+        loadData();
+    </script>
+</body>
+</html>
