@@ -742,12 +742,9 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             return error.UnboundVariable;
         },
         .apply => {
-            platform.dbg("[ho-dbg] ENTER .apply: id={d}\n", .{id});
             const pool = store.pool.items;
             const all_args = node.span_a.slice(pool);
-            platform.dbg("[ho-dbg] .apply all_args.len={d}\n", .{all_args.len});
             if (all_args.len == 0) {
-                platform.dbg("[ho-dbg] FAIL: all_args.len == 0\n", .{});
                 return error.ArityMismatch;
             }
 
@@ -765,10 +762,6 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                     const lam_span = store.spanSliceConst(evaled_node.span_a);
                     if (lam_span.len != 1) return error.NotALambda;
                     const param_sym = evaled_node.payload;
-                    {
-                        const pn = store.interner.resolve(param_sym);
-                        platform.dbg("[ho-dbg] beta : param='{s}' arg_val_tag={s}\n", .{ pn, @tagName(store.get(arg_val).tag) });
-                    }
                     // Substitution AST (capture env, évite les closures).
                     // Necessaire pour les lambdas imbriquees :
                     // f = λx. λy. (+ x y) ; f 3 doit produire λy. (+ 3 y).
@@ -840,7 +833,6 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                 }
             }
 
-            platform.dbg("[ho-dbg] ABOUT TO CALL evalMagic: op='{s}' args={d}\n", .{ op_name, args.len });
 return try evalMagic(store, env, engine, op_name, args, depth);
         },
         .bind => {
@@ -1175,7 +1167,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // new_state : reboucler avec state = new_state.
     if (std.mem.eql(u8, op, "handle_rec")) {
         if (args_snap.len != 3) {
-            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
             return error.ArityMismatch;
         }
 
@@ -1249,7 +1240,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // arg2 = expression (corps avec name lie).
     if (std.mem.eql(u8, op, "let")) {
         if (args_snap.len != 3) {
-            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
             return error.ArityMismatch;
         }
         const name_node = store.get(args_snap[0]);
@@ -1351,7 +1341,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // poke_int64 ptr off v : ecrit 8 bytes v a ptr + off*8.
     if (std.mem.eql(u8, op, "poke_int64")) {
         if (args_snap.len != 3) {
-            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
             return error.ArityMismatch;
         }
         const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
@@ -1451,7 +1440,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // poke_byte : ecrit 1 byte a l'adresse + offset.
     if (std.mem.eql(u8, op, "poke_byte")) {
         if (args_snap.len != 3) {
-            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
             return error.ArityMismatch;
         }
         const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
@@ -1475,7 +1463,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // memset : remplit une zone.
     if (std.mem.eql(u8, op, "memset")) {
         if (args_snap.len != 3) {
-            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
             return error.ArityMismatch;
         }
         const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
@@ -1678,7 +1665,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 const bound_node = store.get(bound);
                 if (bound_node.tag == .lambda) {
                     const lam_span = bound_node.span_a.slice(store.pool.items);
-                    platform.dbg("[ho-dbg] ENV-BOUND lambda : op={s} args={d} lam_span={d}\n", .{ op, args_snap.len, lam_span.len });
                     if (lam_span.len == 1) {
                         const arg_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
                         try env.put(bound_node.payload, arg_val);
@@ -1978,7 +1964,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         // résultat de body. Si teardown échoue, l'erreur remonte
         // (le résultat de body est perdu).
         if (args_snap.len != 3) {
-            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
             return error.ArityMismatch;
         }
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
@@ -1992,7 +1977,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         // restaure le binding précédent (ou retire si absent).
         // `name` est un string lit ("x") ou un sym nu.
         if (args_snap.len != 3) {
-            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
             return error.ArityMismatch;
         }
         const name_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
@@ -2129,63 +2113,12 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return result;
     }
 
-    // ═══ 5. OPÉRATEURS ARITHMÉTIQUES ═══
-    if (args_snap.len == 0) return error.ArityMismatch;
-    if (std.mem.eql(u8, op, "!")) {
-        if (args_snap.len != 1) return error.ArityMismatch;
-        const a = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        return evalUnary(store, a, .not);
-    }
-    if (args_snap.len != 2) return error.ArityMismatch;
-    const a = try evaluate(store, env, engine, args_snap[0], depth + 1);
-    const b = try evaluate(store, env, engine, args_snap[1], depth + 1);
-
-    // Gérer à la fois les noms natifs (+, *) et lowered (add, mul)
-    if (std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "add")) return evalBinary(store, a, b, .add);
-    if (std.mem.eql(u8, op, "-") or std.mem.eql(u8, op, "sub")) return evalBinary(store, a, b, .sub);
-    if (std.mem.eql(u8, op, "*") or std.mem.eql(u8, op, "mul")) return evalBinary(store, a, b, .mul);
-    if (std.mem.eql(u8, op, "/") or std.mem.eql(u8, op, "div")) return evalBinary(store, a, b, .div);
-    if (std.mem.eql(u8, op, "%") or std.mem.eql(u8, op, "mod")) return evalBinary(store, a, b, .mod);
-    if (std.mem.eql(u8, op, "&") or std.mem.eql(u8, op, "and")) return evalBinary(store, a, b, .and_op);
-    if (std.mem.eql(u8, op, "|") or std.mem.eql(u8, op, "or")) return evalBinary(store, a, b, .or_op);
-    if (std.mem.eql(u8, op, "band")) return evalBinary(store, a, b, .band_op);
-    if (std.mem.eql(u8, op, "bor"))  return evalBinary(store, a, b, .bor_op);
-    if (std.mem.eql(u8, op, "shl"))  return evalBinary(store, a, b, .shl_op);
-    if (std.mem.eql(u8, op, "shr"))  return evalBinary(store, a, b, .shr_op);
-    if (std.mem.eql(u8, op, "=") or std.mem.eql(u8, op, "eq")) return evalCmp(store, a, b, .eq);
-    if (std.mem.eql(u8, op, "!=") or std.mem.eql(u8, op, "neq")) return evalCmp(store, a, b, .neq);
-    if (std.mem.eql(u8, op, "<") or std.mem.eql(u8, op, "lt")) return evalCmp(store, a, b, .lt);
-    if (std.mem.eql(u8, op, ">") or std.mem.eql(u8, op, "gt")) return evalCmp(store, a, b, .gt);
-    if (std.mem.eql(u8, op, "<=") or std.mem.eql(u8, op, "le")) return evalCmp(store, a, b, .le);
-    if (std.mem.eql(u8, op, ">=") or std.mem.eql(u8, op, "ge")) return evalCmp(store, a, b, .ge);
-
-    // ═══ ENV-BOUND LAMBDA : (f arg) où f est une lambda dans l'env ═══
-    // Permet la récursion locale : (let fact (lambda n ...) (fact 5))
-    // L'engine résout fact via l'env, applique la lambda récursivement.
-    if (store.interner.lookup(op)) |op_sym| {
-        if (env.get(op_sym)) |bound| {
-            platform.dbg("[engine-lambda] op='{s}' found!\n", .{op});
-            const bound_node = store.get(bound);
-            if (bound_node.tag == .lambda and args_snap.len == 1) {
-                const lam_span = bound_node.span_a.slice(store.pool.items);
-                if (lam_span.len == 1) {
-                    const arg_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
-                    try env.put(bound_node.payload, arg_val);
-                    // (defer delete retiré : thunk)
-                    return evaluate(store, env, engine, lam_span[0], depth + 1);
-                }
-            }
-        }
-    }
-
-
     // ═══ HEAVEN-IN-HEAVEN : CAPS & ECOSYSTEM MAGICS ═══
 
     if (std.mem.eql(u8, op, "cap_acquire")) {
-        // cap_acquire "name" -> Int (Token de capacité dummy pour l'instant)
         if (args_snap.len != 1) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        return try store.lit(.{ .int = 42 }); // Token de capacité valide
+        return try store.lit(.{ .int = 42 });
     }
 
     if (std.mem.eql(u8, op, "@egraph_snapshot")) {
@@ -2199,60 +2132,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return try store.lit(.{ .str = sym });
     }
 
-    if (std.mem.eql(u8, op, "@fs_read")) {
-        // @fs_read cap path -> String (Lecture réelle de fichier !)
-        if (args_snap.len != 2) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // consomme la cap
-        const path_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
-        const path_node = store.get(path_val);
-        if (path_node.tag != .lit) return error.TypeError;
-        const lit_val = store.lits.items[path_node.aux];
-        if (lit_val != .str) return error.TypeError;
-        
-        const path_str = store.interner.resolve(lit_val.str);
-        const content = platform.readFileAllocCwd(engine.allocator, path_str, 1024 * 1024) catch {
-            const err_str = "ERROR: File not found or unreadable";
-            const err_sym = try store.interner.intern(err_str);
-            return try store.lit(.{ .str = err_sym });
-        };
-        defer engine.allocator.free(content);
-        
-        const sym = try store.interner.intern(content);
-        return try store.lit(.{ .str = sym });
-    }
-
-    if (std.mem.eql(u8, op, "@spawn")) {
-        // @spawn cap thunk -> Int (ID d'acteur dummy)
-        if (args_snap.len != 2) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
-        _ = try evaluate(store, env, engine, args_snap[1], depth + 1); // thunk
-        return try store.lit(.{ .int = 1 }); // ID d'acteur dummy
-    }
-
-    if (std.mem.eql(u8, op, "@sleep_ms")) {
-        if (args_snap.len != 1) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        return try store.lit(.{ .int = 0 }); 
-    }
-
-    if (std.mem.eql(u8, op, "@runtime_stats")) {
-        if (args_snap.len != 1) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        const stats = "{\"mem_kb\": 1024, \"egraph_nodes\": 42}";
-        const sym = try store.interner.intern(stats);
-        return try store.lit(.{ .str = sym });
-    }
-
-    if (std.mem.eql(u8, op, "@broadcast")) {
-        if (args_snap.len != 2) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        _ = try evaluate(store, env, engine, args_snap[1], depth + 1);
-        return try store.lit(.{ .int = 0 });
-    }
-
-
-    // ═══ HEAVEN-IN-HEAVEN : RÉSEAU (std.posix) ═══
-    platform.debug.print("[ZIG] DISPATCH OP: '{s}' (len={d})\n", .{op, op.len});
 
     if (std.mem.eql(u8, op, "@net_listen")) {
         if (args_snap.len != 2) return error.ArityMismatch;
@@ -2289,14 +2168,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return try store.lit(.{ .str = sym });
     }
 
-    platform.debug.print("[DEBUG] ABOUT TO CHECK @go\n", .{});
     if (std.mem.eql(u8, op, "@go")) {
-        platform.debug.print("[ZIG] @go START (len={d})\n", .{op.len});
         if (args_snap.len != 3) {
-            platform.debug.print("[ZIG] @go ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
             return error.ArityMismatch;
         }
-        platform.debug.print("[ZIG] @go SUCCESS!\n", .{});
         return try store.lit(.{ .str = try store.interner.intern("SUCCESS_FROM_ZIG") });
     }
 
@@ -2351,6 +2226,111 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         platform.net.close(fd);
         return try store.lit(.{ .int = 0 });
     }
+
+    // ═══ 5. OPÉRATEURS ARITHMÉTIQUES ═══
+    if (args_snap.len == 0) return error.ArityMismatch;
+    if (std.mem.eql(u8, op, "!")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const a = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        return evalUnary(store, a, .not);
+    }
+    if (args_snap.len != 2) return error.ArityMismatch;
+    const a = try evaluate(store, env, engine, args_snap[0], depth + 1);
+    const b = try evaluate(store, env, engine, args_snap[1], depth + 1);
+
+    // Gérer à la fois les noms natifs (+, *) et lowered (add, mul)
+    if (std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "add")) return evalBinary(store, a, b, .add);
+    if (std.mem.eql(u8, op, "-") or std.mem.eql(u8, op, "sub")) return evalBinary(store, a, b, .sub);
+    if (std.mem.eql(u8, op, "*") or std.mem.eql(u8, op, "mul")) return evalBinary(store, a, b, .mul);
+    if (std.mem.eql(u8, op, "/") or std.mem.eql(u8, op, "div")) return evalBinary(store, a, b, .div);
+    if (std.mem.eql(u8, op, "%") or std.mem.eql(u8, op, "mod")) return evalBinary(store, a, b, .mod);
+    if (std.mem.eql(u8, op, "&") or std.mem.eql(u8, op, "and")) return evalBinary(store, a, b, .and_op);
+    if (std.mem.eql(u8, op, "|") or std.mem.eql(u8, op, "or")) return evalBinary(store, a, b, .or_op);
+    if (std.mem.eql(u8, op, "band")) return evalBinary(store, a, b, .band_op);
+    if (std.mem.eql(u8, op, "bor"))  return evalBinary(store, a, b, .bor_op);
+    if (std.mem.eql(u8, op, "shl"))  return evalBinary(store, a, b, .shl_op);
+    if (std.mem.eql(u8, op, "shr"))  return evalBinary(store, a, b, .shr_op);
+    if (std.mem.eql(u8, op, "=") or std.mem.eql(u8, op, "eq")) return evalCmp(store, a, b, .eq);
+    if (std.mem.eql(u8, op, "!=") or std.mem.eql(u8, op, "neq")) return evalCmp(store, a, b, .neq);
+    if (std.mem.eql(u8, op, "<") or std.mem.eql(u8, op, "lt")) return evalCmp(store, a, b, .lt);
+    if (std.mem.eql(u8, op, ">") or std.mem.eql(u8, op, "gt")) return evalCmp(store, a, b, .gt);
+    if (std.mem.eql(u8, op, "<=") or std.mem.eql(u8, op, "le")) return evalCmp(store, a, b, .le);
+    if (std.mem.eql(u8, op, ">=") or std.mem.eql(u8, op, "ge")) return evalCmp(store, a, b, .ge);
+
+    // ═══ ENV-BOUND LAMBDA : (f arg) où f est une lambda dans l'env ═══
+    // Permet la récursion locale : (let fact (lambda n ...) (fact 5))
+    // L'engine résout fact via l'env, applique la lambda récursivement.
+    if (store.interner.lookup(op)) |op_sym| {
+        if (env.get(op_sym)) |bound| {
+            platform.dbg("[engine-lambda] op='{s}' found!\n", .{op});
+            const bound_node = store.get(bound);
+            if (bound_node.tag == .lambda and args_snap.len == 1) {
+                const lam_span = bound_node.span_a.slice(store.pool.items);
+                if (lam_span.len == 1) {
+                    const arg_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+                    try env.put(bound_node.payload, arg_val);
+                    // (defer delete retiré : thunk)
+                    return evaluate(store, env, engine, lam_span[0], depth + 1);
+                }
+            }
+        }
+    }
+
+
+    if (std.mem.eql(u8, op, "@fs_read")) {
+        // @fs_read cap path -> String (Lecture réelle de fichier !)
+        if (args_snap.len != 2) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // consomme la cap
+        const path_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const path_node = store.get(path_val);
+        if (path_node.tag != .lit) return error.TypeError;
+        const lit_val = store.lits.items[path_node.aux];
+        if (lit_val != .str) return error.TypeError;
+        
+        const path_str = store.interner.resolve(lit_val.str);
+        const content = platform.readFileAllocCwd(engine.allocator, path_str, 1024 * 1024) catch {
+            const err_str = "ERROR: File not found or unreadable";
+            const err_sym = try store.interner.intern(err_str);
+            return try store.lit(.{ .str = err_sym });
+        };
+        defer engine.allocator.free(content);
+        
+        const sym = try store.interner.intern(content);
+        return try store.lit(.{ .str = sym });
+    }
+
+    if (std.mem.eql(u8, op, "@spawn")) {
+        // @spawn cap thunk -> Int (ID d'acteur dummy)
+        if (args_snap.len != 2) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        _ = try evaluate(store, env, engine, args_snap[1], depth + 1); // thunk
+        return try store.lit(.{ .int = 1 }); // ID d'acteur dummy
+    }
+
+    if (std.mem.eql(u8, op, "@sleep_ms")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        return try store.lit(.{ .int = 0 }); 
+    }
+
+    if (std.mem.eql(u8, op, "@runtime_stats")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const stats = "{\"mem_kb\": 1024, \"egraph_nodes\": 42}";
+        const sym = try store.interner.intern(stats);
+        return try store.lit(.{ .str = sym });
+    }
+
+    if (std.mem.eql(u8, op, "@broadcast")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        _ = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        return try store.lit(.{ .int = 0 });
+    }
+
+
+    // ═══ HEAVEN-IN-HEAVEN : RÉSEAU (std.posix) ═══
+
     return error.UnknownSymbol;
 }
 
