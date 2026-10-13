@@ -21,14 +21,24 @@ Session fondatrice : D10-D15. Voir `DECISIONS.md` pour le detail.
 - **D12** — laziness (`delay`/`force` + memoization).
 - **D14** — IO en Heaven (5 magics fins). `core/io_stream.hvn` (Linux x86_64).
 - **D15** — `let` magic symbol S-expr.
+- **D8 3a-3** — continuations delimitees one-shot (`@prompt`/`@throw`,
+  `handle_rec`, scheduler sur `pending_capture`). Livre 2026-10-12.
+  Multi-shot reste ouvert.
+- **P0 memoire** — `core/std/memory.hvn` (alloc/dealloc + Arena +
+  memcpy64). Livre 2026-10-13. Vision : `docs/spec/_memory.md`.
+- **Fixes transversaux** (13 oct) : `unit`/`Unit` retires des ctors
+  0-arity, `let-in` parenthese dans les clauses, `@intCast` →
+  `@bitCast` pour pointeurs 64-bit.
 
 ### Pistes actives (ordre conseille)
 
-1. **D8 3a-3** — continuations delimitees (2-3 sessions).
-2. **D14 etape 2** — `peek_byte`/`poke_byte`/`string_concat` (1 session).
-3. **Audit `Store.getInt`** (30 min).
-4. **Panic DebugAllocator** (session a froid).
-5. **Quirks parser** (1 session).
+1. **D9 Vessel** — decouplage et absorption par la stack HTTP Heaven.
+2. **QTT** — documenter dans le book (`_memory.md` point 4).
+3. **Multi-shot continuations** — clonage env + store (1 session).
+4. **C3 preemptif** — debloque conceptuellement par D8 3a-3.
+5. **`test_selfparse.hvn`** (4/5) — bug parser Heaven-en-Heaven.
+6. **Audit `Store.getInt`** (30 min).
+7. **Panic DebugAllocator** (session a froid).
 
 ---
 
@@ -906,3 +916,43 @@ Les algebres sont mentionnees dans :
 
 Une fois V1 en place, ces chapitres pourront etre enrichis avec
 des exemples qui utilisent les type classes directement.
+
+---
+
+## #memory — Couche memoire Heaven
+
+**Statut** : P0 ✅ (2026-10-13). Vision complète dans
+`docs/spec/_memory.md`.
+
+### v0 ✅ *fait* (P0)
+
+- `core/std/memory.hvn` : wrappers `alloc`/`dealloc` sur
+  `raw_alloc`/`raw_free`.
+- `Arena` (bump pointer immutable) : `arena_new`, `arena_alloc`,
+  `arena_reset`, `arena_deinit`, `arena_used`/`cap`/`remaining`.
+- `memcpy64` naïf (element-par-element).
+- Chargé au boot via `std_loader.zig` (avant `list.hvn`).
+- Tests : `tests/test_memory.hvn` (14/14).
+
+### v0.5 — à faire
+
+- Migrer `http.hvn`, `fs.hvn`, `net.hvn`, `json.hvn` vers
+  `memory.hvn` (remplacer les `raw_alloc`/`raw_free` directs).
+- `@mem_stats` magic pour monitoring (mémoire allouée, pics).
+- Optimiser `memcpy64` via un vrai magic bas-niveau.
+
+### v1 — arène contrôlée par `Engine`
+
+- Exposer `engine.memory` (arène Zig contrôlée par Heaven) pour
+  que `raw_alloc` pointe dedans.
+- `drop-reuse` (FBIP) : réutilisation in-place sur structures
+  linéaires (map, filter).
+- Un `Arena` par requête HTTP (Vessel premier consommateur).
+
+### v2 — vision bootstrap
+
+- `alloc`/`free` via `mmap`/`munmap` directs
+  (`core/platform/mod.hvn`).
+- QTT 0/1/ω : le compilateur injecte `drop` et `alloc`.
+- Perceus : `drop-reuse` automatique.
+- Bare-metal : bump pointer ou buddy allocator noyau.
