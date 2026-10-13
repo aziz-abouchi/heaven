@@ -1,5 +1,5 @@
--- serve.hvn -- lance le serveur HTTP statique sur le port 8080
--- Usage : ./zig-out/bin/heaven run serve.hvn
--- Puis : curl http://localhost:8080/egraph-viz/
+-- serve.hvn — Lanceur minimal exécutable
+import "core/http_server.hvn"
 
-http_serve unit
+-- Appel direct pour démarrer la boucle
+(http_serve 8080)

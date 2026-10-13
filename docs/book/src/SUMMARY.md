@@ -31,3 +31,5 @@
 - [C — Glossaire](C-glossaire.md)
 - [D — Contribuer](D-contribuer.md)
 - [F — Références](F-references.md)
+
+- [Effets de Bord](05-effects-and-network.md)

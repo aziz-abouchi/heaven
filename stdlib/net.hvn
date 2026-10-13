@@ -1,0 +1,26 @@
+-- stdlib/net.hvn — Réseau typé linéairement (QTT)
+type Fd = Int
+type Request = { method: String, path: String, headers: List (Pair String String) }
+type Response = { status: Int, body: String, headers: List (Pair String String) }
+
+net_listen cap port   = @net_listen cap port
+net_accept cap fd     = @net_accept cap fd
+net_read   cap fd     = @net_read cap fd
+net_write  cap fd str = @net_write cap fd str
+net_close  cap fd     = @net_close cap fd
+
+parse_request raw =
+  let lines = (string_split raw "\r\n") in
+  let first = (list_head lines) in
+  let parts = (string_split first " ") in
+  { method = (list_nth parts 0)
+  , path   = (list_nth parts 1)
+  , headers = [] }
+
+format_response resp =
+  let status_text = (if (eq resp.status 200) "OK" "Not Found") in
+  let body_len = (int_to_string (string_length resp.body)) in
+  (string_concat "HTTP/1.1 " (int_to_string resp.status)
+    (string_concat " " (string_concat status_text
+      (string_concat "\r\nContent-Length: " (string_concat body_len "\r\n\r\n")))))
+    resp.body)

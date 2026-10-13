@@ -1,0 +1,8 @@
+-- stdlib/fs.hvn — FS avec capabilities
+fs_read cap path = @fs_read cap path
+fs_write cap path content = @fs_write cap path content
+
+fs_read_public path =
+  let cap = (cap_acquire "fs:read:src/vessel/public/*") in
+  let full = (string_concat "src/vessel/public/" path) in
+  (fs_read cap full)

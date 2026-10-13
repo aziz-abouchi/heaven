@@ -1,0 +1,22 @@
+-- stdlib/json.hvn — Construction JSON pure
+json_obj pairs  = (string_concat "{" (json_join_pairs pairs) "}")
+json_arr items  = (string_concat "[" (json_join_items items) "]")
+json_str s      = (string_concat "\"" (string_concat s "\""))
+json_int n      = (int_to_string n)
+json_pair k v   = (string_concat (json_str k) (string_concat ":" v))
+
+json_join_pairs ps =
+  (if (list_null ps) ""
+    (let p = (list_head ps) in
+     let rest = (list_tail ps) in
+     (string_concat (json_pair (pair_fst p) (pair_snd p))
+       (if (list_null rest) ""
+         (string_concat "," (json_join_pairs rest))))))
+
+json_join_items is =
+  (if (list_null is) ""
+    (let i = (list_head is) in
+     let rest = (list_tail is) in
+     (string_concat i
+       (if (list_null rest) ""
+         (string_concat "," (json_join_items rest))))))
