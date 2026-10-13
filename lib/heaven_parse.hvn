@@ -25,7 +25,7 @@ toks_rev (TCons t rest) acc = (toks_rev rest (TCons t acc))
 lex_str_token s i = (TStrTok (string_substring s (+ i 1) (- (lex_str_end s (+ i 1)) (+ i 1))))
 lex_str_after s i = (+ (lex_str_end s (+ i 1)) 1)
 lex_comment_end s i = (if (>= i (string_length s)) i (if (= (peek_byte (string_ptr s) i) 10) (+ i 1) (lex_comment_end s (+ i 1))))
-lex_loop s i acc = (if (>= i (string_length s)) acc (if (lex_is_space (peek_byte (string_ptr s) i)) (lex_loop s (+ i 1) acc) (if (= (peek_byte (string_ptr s) i) 40) (lex_loop s (+ i 1) (TCons TLParen acc)) (if (= (peek_byte (string_ptr s) i) 41) (lex_loop s (+ i 1) (TCons TRParen acc)) (if (= (peek_byte (string_ptr s) i) 34) (lex_loop s (lex_str_after s i) (TCons (lex_str_token s i) acc)) (if (lex_is_dashdash s i) (lex_loop s (lex_comment_end s (+ i 2)) acc) (if (lex_is_digit (peek_byte (string_ptr s) i)) (lex_loop s (lex_int_end s i) (TCons (TIntTok (lex_int_val s i (lex_int_end s i) 0)) acc)) (lex_loop s (lex_sym_end s i) (TCons (TSymTok (string_substring s i (- (lex_sym_end s i) i))) acc)))))))))
+lex_loop s i acc = (if (>= i (string_length s)) acc (if (lex_is_space (peek_byte (string_ptr s) i)) (lex_loop s (+ i 1) acc) (if (= (peek_byte (string_ptr s) i) 40) (lex_loop s (+ i 1) (TCons TLParen acc)) (if (= (peek_byte (string_ptr s) i) 41) (lex_loop s (+ i 1) (TCons TRParen acc)) (if (= (peek_byte (string_ptr s) i) 34) (lex_loop s (lex_str_after s i) (TCons (lex_str_token s i) acc)) (if (lex_is_dashdash s i) (lex_loop s (lex_comment_end s (+ i 2)) acc) (if (lex_is_0x s i) (lex_loop s (lex_hex_end s i) (TCons (TSymTok (string_substring s i (- (lex_hex_end s i) i))) acc)) (if (lex_is_digit (peek_byte (string_ptr s) i)) (lex_loop s (lex_int_end s i) (TCons (TIntTok (lex_int_val s i (lex_int_end s i) 0)) acc)) (lex_loop s (lex_sym_end s i) (TCons (TSymTok (string_substring s i (- (lex_sym_end s i) i))) acc))))))))))
 
 lex_is_dashdash s i = (if (= (peek_byte (string_ptr s) i) 45) (if (< (+ i 1) (string_length s)) (= (peek_byte (string_ptr s) (+ i 1)) 45) false) false)
 
@@ -172,3 +172,9 @@ expr_count (ECons _ rest) = (+ 1 (expr_count rest))
 expr_count_go ENil acc = acc
 expr_count_go (ECons _ rest) acc = (expr_count_go rest (+ acc 1))
 expr_count_big es = (expr_count_go es 0)
+
+-- Hex (famille 2a) : 0x... en un token symbole (v0)
+lex_is_0x s i = (if (= (peek_byte (string_ptr s) i) 48) (if (< (+ i 1) (string_length s)) (= (peek_byte (string_ptr s) (+ i 1)) 120) false) false)
+lex_is_hexdigit b = (if (lex_is_digit b) true (if (>= b 97) (<= b 102) (if (>= b 65) (<= b 70) false)))
+lex_hex_end s i = (if (>= (+ i 2) (string_length s)) (string_length s) (lex_hexdigits_end s (+ i 2)))
+lex_hexdigits_end s j = (if (>= j (string_length s)) j (if (lex_is_hexdigit (peek_byte (string_ptr s) j)) (lex_hexdigits_end s (+ j 1)) j))
