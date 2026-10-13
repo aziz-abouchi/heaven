@@ -464,16 +464,24 @@ Trois principes structurent Heaven dans cet esprit :
 
 ## 13. Ce qui reste à faire
 
-Heaven est un projet jeune. Il manque :
+Heaven est un projet jeune. Il reste :
 
-- **La paresse** sur les streams (évaluation stricte aujourd'hui).
+- **Multi-shot continuations** : les continuations délimitées
+  one-shot (`@prompt`/`@throw`) sont livrées ; le multi-shot
+  demande un clonage d'environnement et de Store (voir
+  `docs/spec/_continuations.md`).
+- **QTT intégré** : la gestion mémoire par multiplicité (0/1/ω)
+  est une cible (voir `docs/spec/_memory.md`). Aujourd'hui, la
+  couche mémoire est explicite (`core/std/memory.hvn` + `Arena`).
 - **Les types quotients** dans le noyau CIC.
-- **Un scheduler** préemptif pour les acteurs (séquentiel
-  aujourd'hui).
-- **Une bibliothèque standard** plus riche.
+- **Un scheduler** préemptif (coopératif aujourd'hui ; C3
+  conceptuellement débloqué par les continuations).
 - **Des cycles SCC** de 3+ fonctions pour la TCO mutuelle (QBE).
 - **L'unification d'indexes** dépendants au-delà de v2f
   (`Vec (n + m)` modulo arithmétique complète).
+- **Absorber Vessel** : migrer REPL, IDE, monitoring, E-Graph
+  viewer vers la stack HTTP Heaven-native
+  (`core/http_server.hvn`).
 
 Chaque point est identifié. La structure est prête. C'est une
 question de temps et de contributions.
