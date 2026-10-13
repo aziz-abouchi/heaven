@@ -96,3 +96,5 @@ http_parser_test.hvn
 # Artefacts serveur vessel (regeneres par le serveur)
 src/vessel/public/egraph_data.json
 src/vessel/public/egraph_mock.json
+*.bak
+*.bak
