@@ -294,7 +294,12 @@ pub const Heaven = struct {
             .{ .name = "nil", .arity = 0 },   .{ .name = "Nil", .arity = 0 },
             .{ .name = "true", .arity = 0 },  .{ .name = "True", .arity = 0 },
             .{ .name = "false", .arity = 0 }, .{ .name = "False", .arity = 0 },
-            .{ .name = "unit", .arity = 0 },  .{ .name = "Unit", .arity = 0 },
+            // NB : `unit` et `Unit` etaient enregistres comme ctor
+            // 0-arity, ce qui cassait `f unit = 42` (le pattern etait
+            // lu comme ctor-match, pas comme binder). Le type unite
+            // est deja represente par `()` via unit_type/unit_expr
+            // dans la grammaire tree-sitter, donc ce n'est pas
+            // necessaire.
             .{ .name = "succ", .arity = 1 },  .{ .name = "Succ", .arity = 1 },
         };
 
@@ -4031,6 +4036,19 @@ test "parseExpression — application sur lambda courte" {
     const id = try heaven.parseExpression("((λx.x) 42)");
     const node = heaven.store.get(id);
     try std.testing.expectEqual(expr.Tag.apply, node.tag);
+}
+
+test "parseExpression — ')' orpheline → InvalidSyntax (garde anti-récursion)" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
+    }
+    // RCA segfault 'lambda courte' : une ')' orpheline faisait boucler le
+    // fallback juxtaposition (~1670 frames, +3 chars/tour) → SIGSEGV.
+    // La garde doit la transformer en erreur propre, immédiatement.
+    try std.testing.expectError(error.InvalidSyntax, heaven.parseExpression("(if (< i len) x) dst_ptr)"));
 }
 
 test "tactics v1.5 — rewrite a=b dans la cible" {
