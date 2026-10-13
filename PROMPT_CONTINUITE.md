@@ -721,3 +721,23 @@ Session émaillée de 5 pièges process (tous documentés) : clone périmé (46f
 
 Validation : self-parse 130 formes, test_lexer 14/14, test_parser 22/22, zéro régression.
 Leaks suite restants (hashmap 66 / array 11) : chantier hygiène séparé.
+
+
+---
+
+## Différentiel E — premier passage complet (2026-10-13, soir 7)
+
+HP parse tout le repo (81 fichiers) : **31 passent** (38%). Règle GT = indentation std_loader (validée sur les 3 compteurs connus 22/14/13). Le count rendu désigne la forme futive (parse_file tronque au premier PErr) — pas de bisect nécessaire.
+
+Census des manques : autre ×24; ? (split/crash) ×9; test (contenu) ×6; data args minuscules ×4; import (contenu) ×3; fn ×1
+
+tests/test_diff_e.hvn : différentiel vert sur le subset passant. Prochaine extension HP par ordre de fréquence du census.
+
+---
+
+## Différentiel E — 31/81 documenté (2026-10-13, soir 8)
+
+**Documentation complète : docs/BOOTSTRAP_DIFF.md** (fichier manuel, hors génération).
+Census : data paramétré ×7 (fix prioritaire) · test corps nu ×6 · splits ×9 (GT approx) ·
+autres ×24 · crash list.hvn. lib/heaven_eval.hvn passe (41 formes).
+NOTE convention : STATUS.md/README générés (status_gen/docgen) — respectés ce tour.
