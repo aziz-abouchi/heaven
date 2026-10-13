@@ -9,18 +9,74 @@ net_read   cap fd     = @net_read cap fd
 net_write  cap fd str = @net_write cap fd str
 net_close  cap fd     = @net_close cap fd
 
+-- ─── Helpers (string_eq, string_split, list_nth) ───
+-- Ces fonctions ne sont pas dans core/std, on les definit ici
+-- puisqu'elles servent exclusivement a parse_request.
+
+string_eq a b =
+  (if (= (string_length a) (string_length b))
+    (string_eq_from a b 0)
+    false)
+
+string_eq_from a b i =
+  (if (= i (string_length a))
+    true
+    (if (= (peek_byte (string_ptr a) i) (peek_byte (string_ptr b) i))
+      (string_eq_from a b (+ i 1))
+      false))
+
+string_matches_at s i sep =
+  (if (> (+ i (string_length sep)) (string_length s))
+    false
+    (string_matches_at_from s i sep 0))
+
+string_matches_at_from s i sep j =
+  (if (= j (string_length sep))
+    true
+    (if (= (peek_byte (string_ptr s) (+ i j)) (peek_byte (string_ptr sep) j))
+      (string_matches_at_from s i sep (+ j 1))
+      false))
+
+string_split s sep =
+  (string_split_from s sep 0 0)
+
+string_split_from s sep start i = (if (>= i (string_length s)) (if (< start i) (cons (string_substring s start (- i start)) nil) nil) (if (string_matches_at s i sep) (cons (string_substring s start (- i start)) (string_split_from s sep (+ i (string_length sep)) (+ i (string_length sep)))) (string_split_from s sep start (+ i 1))))
+
+list_head (cons x _) = x
+list_head nil = nil
+
+list_nth xs n =
+  (if (= n 0)
+    (list_head xs)
+    (list_nth (tail xs) (- n 1)))
+
+-- Records non supportes comme expression : on utilise Pair imbrique.
+-- Request = (pair method (pair path headers))
+-- Response = (pair status (pair body headers))
+
 parse_request raw =
   let lines = (string_split raw "\r\n") in
   let first = (list_head lines) in
   let parts = (string_split first " ") in
-  { method = (list_nth parts 0)
-  , path   = (list_nth parts 1)
-  , headers = [] }
+  (pair (list_nth parts 0) (pair (list_nth parts 1) nil))
 
-format_response resp =
-  let status_text = (if (eq resp.status 200) "OK" "Not Found") in
-  let body_len = (int_to_string (string_length resp.body)) in
-  (string_concat "HTTP/1.1 " (int_to_string resp.status)
-    (string_concat " " (string_concat status_text
-      (string_concat "\r\nContent-Length: " (string_concat body_len "\r\n\r\n")))))
-    resp.body)
+-- Pattern matching direct (fst/snd ne sont pas dans le scope de net.hvn).
+
+req_method  (pair m _) = m
+req_path    (pair _ (pair p _)) = p
+req_headers (pair _ (pair _ h)) = h
+
+resp_status  (pair s _) = s
+resp_body    (pair _ (pair b _)) = b
+resp_headers (pair _ (pair _ h)) = h
+
+format_response (pair status (pair body _)) =
+  let status_text = (if (eq status 200) "OK" "Not Found") in
+  let body_len = (int_to_string (string_length body)) in
+  (string_concat "HTTP/1.1 "
+    (string_concat (int_to_string status)
+      (string_concat " "
+        (string_concat status_text
+          (string_concat "\r\nContent-Length: "
+            (string_concat body_len
+              (string_concat "\r\n\r\n" body)))))))

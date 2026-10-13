@@ -1,27 +1,38 @@
+-- MARKER-XYZZY-42
 -- core/http_server.hvn — Serveur HTTP simplifié et robuste
 import "stdlib/net.hvn"
 import "stdlib/fs.hvn"
 
+-- Note : on evite `if COND (let ...) (let ...)` (bug parser
+-- if-multiligne-let-in). Chaque branche est une fonction a part.
 handle_request req =
-  let is_api = (string_eq req.path "/api/egraph") in
-  (if is_api
-    (let cap = (cap_acquire "egraph:snapshot") in
-     let json = (@egraph_snapshot cap) in
-     { status = 200, body = json, headers = [] })
-    (let path = (if (string_eq req.path "/") "index.html" req.path) in
-     let body = (fs_read_public path) in
-     { status = 200, body = body, headers = [] }))
+  let p = (req_path req) in
+  let is_api = (string_eq p "/api/egraph") in
+  (if is_api (handle_api p) (handle_static p))
 
+handle_api _ =
+  let cap = (cap_acquire "egraph:snapshot") in
+  let json = (@egraph_snapshot cap) in
+  (pair 200 (pair json nil))
+
+handle_static p =
+  let path = (if (string_eq p "/") "index.html" p) in
+  let body = (fs_read_public path) in
+  (pair 200 (pair body nil))
+
+-- En V0, @spawn est un dummy (retourne un id sans executer le
+-- thunk). On traite donc le client sequentiellement, un a la fois.
+-- C'est suffisant pour servir les fichiers statiques.
 handle_client cap listen_fd =
   let client_fd = (net_accept cap listen_fd) in
-  let _ = (@spawn (cap_acquire "spawn")
-    (fn _ =
-      let raw = (net_read cap client_fd) in
-      let req = (parse_request raw) in
-      let resp = (handle_request req) in
-      let _ = (net_write cap client_fd (format_response resp)) in
-      (net_close cap client_fd))) in
-  unit
+  (handle_one_client cap client_fd)
+
+handle_one_client cap client_fd =
+  let raw = (net_read cap client_fd) in
+  let req = (parse_request raw) in
+  let resp = (handle_request req) in
+  let _ = (net_write cap client_fd (format_response resp)) in
+  (net_close cap client_fd)
 
 server_loop cap listen_fd =
   let _ = (handle_client cap listen_fd) in
