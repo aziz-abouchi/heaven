@@ -1838,7 +1838,7 @@ const Lexer = struct {
             }
         }
         // Opérateurs 1 char
-        const one_ops = "+-*/%^<>!";
+        const one_ops = "+-*/%^<>!=";
         if (std.mem.indexOfScalar(u8, one_ops, c) != null) {
             const t = self.src[self.pos .. self.pos + 1];
             self.pos += 1;
@@ -1866,7 +1866,7 @@ const NativeParser = struct {
         if (eq(op, ">>>")) return 0xFE;
         if (eq(op, "||") or eq(op, "or")) return 1;
         if (eq(op, "&&") or eq(op, "and")) return 2;
-        if (eq(op, "==") or eq(op, "!=")) return 3;
+        if (eq(op, "==") or eq(op, "=") or eq(op, "!=")) return 3;
         if (eq(op, "<") or eq(op, ">") or eq(op, "<=") or eq(op, ">=")) return 4;
         if (eq(op, "+") or eq(op, "-")) return 5;
         if (eq(op, "*") or eq(op, "/") or eq(op, "%")) return 6;
@@ -1903,7 +1903,10 @@ const NativeParser = struct {
             // ^ right-assoc : min = p ; les autres : min = p+1
             const next_min: u8 = if (eq(op_text, "^")) p else p + 1;
             const rhs = try self.parseExpr(next_min);
-            const sym = if (eq(op_text, "&&")) "and" else if (eq(op_text, "||")) "or" else op_text;
+            const sym = if (eq(op_text, "&&")) "and"
+                else if (eq(op_text, "||")) "or"
+                else if (eq(op_text, "==")) "="
+                else op_text;
             lhs = try std.fmt.allocPrint(self.allocator, "({s} {s} {s})", .{ sym, lhs, rhs });
         }
         return lhs;
@@ -1959,6 +1962,13 @@ const NativeParser = struct {
                     return error.InvalidSyntax;
                 }
             } else if (t.kind == .ident or t.kind == .num) {
+                // Mots-cles qui terminent une application : `then`,
+                // `else`, `in` ne sont jamais des arguments juxtaposes.
+                if (t.kind == .ident and
+                    (eq(t.text, "then") or eq(t.text, "else") or eq(t.text, "in")))
+                {
+                    break;
+                }
                 const arg = try self.parsePrimary();
                 try args.append(self.allocator, arg);
             } else {
@@ -1980,11 +1990,67 @@ const NativeParser = struct {
         return try buf.toOwnedSlice(self.allocator);
     }
 
+    /// `if cond then a else b` -> `(if cond a b)`.
+    fn parseIfExpr(self: *NativeParser) NativeError![]u8 {
+        const cond = try self.parseExpr(0);
+        const then_tok = try self.lex.next();
+        if (then_tok.kind != .ident or !eq(then_tok.text, "then")) return error.InvalidSyntax;
+        const then_branch = try self.parseExpr(0);
+        const else_tok = try self.lex.next();
+        if (else_tok.kind != .ident or !eq(else_tok.text, "else")) return error.InvalidSyntax;
+        const else_branch = try self.parseExpr(0);
+        return std.fmt.allocPrint(self.allocator, "(if {s} {s} {s})", .{ cond, then_branch, else_branch });
+    }
+
     fn parsePrimary(self: *NativeParser) NativeError![]u8 {
         const t = try self.lex.next();
         switch (t.kind) {
-            .num, .ident, .str => return self.allocator.dupe(u8, t.text),
+            .num, .str => return self.allocator.dupe(u8, t.text),
+            .ident => {
+                if (eq(t.text, "if")) return self.parseIfExpr();
+                return self.allocator.dupe(u8, t.text);
+            },
             .lparen => {
+                // Forme prefixe `(op arg1 arg2 ...)` : si le prochain
+                // token est un operateur (symbole .op ou mot-cle .ident
+                // d'operateur connu), on construit `(op arg1 arg2 ...)`.
+                const next = try self.lex.peek();
+                const is_prefix_op = (next.kind == .op) or
+                    (next.kind == .ident and
+                     (eq(next.text, "eq") or eq(next.text, "neq") or
+                      eq(next.text, "lt") or eq(next.text, "gt") or
+                      eq(next.text, "le") or eq(next.text, "ge") or
+                      eq(next.text, "add") or eq(next.text, "sub") or
+                      eq(next.text, "mul") or eq(next.text, "div") or
+                      eq(next.text, "mod") or eq(next.text, "and") or
+                      eq(next.text, "or")  or eq(next.text, "not")));
+                if (is_prefix_op) {
+                    _ = try self.lex.next(); // consomme l'operateur
+                    const op_text = next.text;
+                    var args = std.ArrayListUnmanaged([]const u8){};
+                    defer {
+                        for (args.items) |arg| self.allocator.free(arg);
+                        args.deinit(self.allocator);
+                    }
+                    while (true) {
+                        const t2 = try self.lex.peek();
+                        if (t2.kind == .rparen or t2.kind == .eof) break;
+                        const arg = try self.parsePrimary();
+                        try args.append(self.allocator, arg);
+                    }
+                    const close = try self.lex.next();
+                    if (close.kind != .rparen) return error.InvalidSyntax;
+                    var buf: std.ArrayListUnmanaged(u8) = .{};
+                    defer buf.deinit(self.allocator);
+                    try buf.append(self.allocator, '(');
+                    try buf.appendSlice(self.allocator, op_text);
+                    for (args.items) |arg| {
+                        try buf.append(self.allocator, ' ');
+                        try buf.appendSlice(self.allocator, arg);
+                    }
+                    try buf.append(self.allocator, ')');
+                    return try buf.toOwnedSlice(self.allocator);
+                }
                 const inner = try self.parseExpr(0);
                 const close = try self.lex.next();
                 if (close.kind != .rparen) return error.InvalidSyntax;

@@ -60,6 +60,13 @@ pub const CoreLowerer = struct {
                 const body_id = try self.lowerExpr(lb.body.*);
                 return try self.store.bindSymWithBody(name_sym, value_id, body_id);
             },
+            .if_expr => |ie| {
+                const cond_id = try self.lowerExpr(ie.cond.*);
+                const then_id = try self.lowerExpr(ie.then_branch.*);
+                const else_id = try self.lowerExpr(ie.else_branch.*);
+                const if_sym = try self.store.sym("if");
+                return try self.store.apply(if_sym, &.{ cond_id, then_id, else_id });
+            },
             .unary => |un| {
                 const op_sym = try self.store.sym(un.op);
                 const operand_id = try self.lowerExpr(un.operand.*);

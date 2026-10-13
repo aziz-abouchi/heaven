@@ -662,6 +662,33 @@ pub const Lowerer = struct {
             };
         }
 
+        if (std.mem.eql(u8, k, "if_expr")) {
+            // if_expr : 3 named children (cond, then, else).
+            // Les tokens `then` et `else` sont anonymes et ne comptent
+            // pas dans namedCount — donc n = 3.
+            if (self.namedCount(node) != 3) return LowerError.MissingField;
+
+            const cp = try self.allocator.create(ast.Expr);
+            errdefer self.allocator.destroy(cp);
+            cp.* = try self.lowerExpr(self.namedChild(node, 0));
+
+            const tp = try self.allocator.create(ast.Expr);
+            errdefer self.allocator.destroy(tp);
+            tp.* = try self.lowerExpr(self.namedChild(node, 1));
+
+            const ep = try self.allocator.create(ast.Expr);
+            errdefer self.allocator.destroy(ep);
+            ep.* = try self.lowerExpr(self.namedChild(node, 2));
+
+            return .{
+                .if_expr = .{
+                    .cond = cp,
+                    .then_branch = tp,
+                    .else_branch = ep,
+                },
+            };
+        }
+
         if (std.mem.eql(u8, k, "paren_expr")) {
             if (self.namedCount(node) == 0) return LowerError.MissingField;
 
@@ -1013,6 +1040,19 @@ pub fn lowerExprToStore(
         const op_str = source[op_start..op_end];
 
         return store.binop(op_str, left_id, right_id) catch LowerExprError.OutOfMemory;
+    }
+
+    if (std.mem.eql(u8, kind, "if_expr")) {
+        // 3 named children : cond, then_branch, else_branch.
+        // Les mots-cles `then` / `else` sont anonymes (non comptes).
+        const n_if = ts.ts_node_named_child_count(node);
+        if (n_if != 3) return LowerExprError.UnsupportedNode;
+        const cond_id = try lowerExprToStore(store, ts.ts_node_named_child(node, 0), source);
+        const then_id = try lowerExprToStore(store, ts.ts_node_named_child(node, 1), source);
+        const else_id = try lowerExprToStore(store, ts.ts_node_named_child(node, 2), source);
+        const if_sym = store.sym("if") catch return LowerExprError.OutOfMemory;
+        return store.apply(if_sym, &.{ cond_id, then_id, else_id }) catch
+            LowerExprError.OutOfMemory;
     }
 
     if (std.mem.eql(u8, kind, "let_expr")) {

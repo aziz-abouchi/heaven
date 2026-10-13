@@ -433,6 +433,21 @@ pub const ExprParser = struct {
     }
 
     fn parseSExpr(self: *ExprParser, inner: []const u8) anyerror!Id {
+        // Forme infixe `if cond then a else b` : on delegue au parser
+        // natif (Lexer + NativeParser) qui sait gerer if/then/else.
+        // Sans ceci, parseSExpr tokenize `if`, `then`, `else` comme
+        // des identifiers separes et construit un apply a 5 args, ce
+        // qui echoue en ArityMismatch a l'eval.
+        {
+            const t = std.mem.trim(u8, inner, " \t");
+            if (std.mem.startsWith(u8, t, "if ") and
+                std.mem.indexOf(u8, t, " then ") != null and
+                std.mem.indexOf(u8, t, " else ") != null)
+            {
+                return self.parseExpression(t);
+            }
+        }
+
         var tokens: std.ArrayListUnmanaged([]const u8) = .{};
         defer tokens.deinit(self.allocator);
 
@@ -520,6 +535,19 @@ pub const ExprParser = struct {
                     }
                 }
             }
+        }
+
+        // Pre-negation unaire : `(- X)`. Delegue au parser natif qui
+        // produit `(- 0 X)` ou le nombre negatif -N.
+        if (tokens.items.len == 2 and std.mem.eql(u8, first, "-")) {
+            var arena = std.heap.ArenaAllocator.init(self.allocator);
+            defer arena.deinit();
+            const sexpr = expr.nativeToSExpr(inner, arena.allocator()) catch {
+                return error.InvalidSyntax;
+            };
+            const owned = try self.allocator.dupe(u8, sexpr);
+            defer self.allocator.free(owned);
+            return self.parseExpression(owned);
         }
 
         // DÉTECTION INFIXE : un opérateur au milieu → syntaxe infixe

@@ -268,6 +268,12 @@ pub const Expr = union(enum) {
         body: *Expr,
     },
 
+    if_expr: struct {
+        cond: *Expr,
+        then_branch: *Expr,
+        else_branch: *Expr,
+    },
+
     pub fn deinit(self: *Expr, allocator: Allocator) void {
         switch (self.*) {
             .call => |*x| {
@@ -299,6 +305,14 @@ pub const Expr = union(enum) {
                 x.body.deinit(allocator);
                 allocator.destroy(x.value);
                 allocator.destroy(x.body);
+            },
+            .if_expr => |*x| {
+                x.cond.deinit(allocator);
+                x.then_branch.deinit(allocator);
+                x.else_branch.deinit(allocator);
+                allocator.destroy(x.cond);
+                allocator.destroy(x.then_branch);
+                allocator.destroy(x.else_branch);
             },
             else => {},
         }
