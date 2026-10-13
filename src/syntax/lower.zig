@@ -633,6 +633,35 @@ pub const Lowerer = struct {
             };
         }
 
+        if (std.mem.eql(u8, k, "let_expr")) {
+            const name_node = ts.ts_node_child_by_field_name(node, "name", 4);
+            const value_node = ts.ts_node_child_by_field_name(node, "value", 5);
+            const body_node = ts.ts_node_child_by_field_name(node, "body", 4);
+
+            if (ts.ts_node_is_null(name_node) or
+                ts.ts_node_is_null(value_node) or
+                ts.ts_node_is_null(body_node))
+            {
+                return LowerError.MissingField;
+            }
+
+            const vp = try self.allocator.create(ast.Expr);
+            errdefer self.allocator.destroy(vp);
+            vp.* = try self.lowerExpr(value_node);
+
+            const bp = try self.allocator.create(ast.Expr);
+            errdefer self.allocator.destroy(bp);
+            bp.* = try self.lowerExpr(body_node);
+
+            return .{
+                .let_bind = .{
+                    .name = self.text(name_node),
+                    .value = vp,
+                    .body = bp,
+                },
+            };
+        }
+
         if (std.mem.eql(u8, k, "paren_expr")) {
             if (self.namedCount(node) == 0) return LowerError.MissingField;
 
@@ -942,6 +971,12 @@ pub fn lowerExprToStore(
     }
 
 
+    if (std.mem.eql(u8, kind, "paren_expr")) {
+        const n = ts.ts_node_named_child_count(node);
+        if (n == 0) return LowerExprError.UnsupportedNode;
+        return lowerExprToStore(store, ts.ts_node_named_child(node, 0), source);
+    }
+
     if (std.mem.eql(u8, kind, "call") or std.mem.eql(u8, kind, "app_expr")) {
         const n = ts.ts_node_named_child_count(node);
         if (n == 0) return LowerExprError.UnsupportedNode;
@@ -978,6 +1013,33 @@ pub fn lowerExprToStore(
         const op_str = source[op_start..op_end];
 
         return store.binop(op_str, left_id, right_id) catch LowerExprError.OutOfMemory;
+    }
+
+    if (std.mem.eql(u8, kind, "let_expr")) {
+        const name_node = ts.ts_node_child_by_field_name(node, "name", 4);
+        const value_node = ts.ts_node_child_by_field_name(node, "value", 5);
+        const body_node = ts.ts_node_child_by_field_name(node, "body", 4);
+
+        if (ts.ts_node_is_null(name_node) or
+            ts.ts_node_is_null(value_node) or
+            ts.ts_node_is_null(body_node))
+        {
+            return LowerExprError.UnsupportedNode;
+        }
+
+        if (!std.mem.eql(u8, std.mem.span(ts.ts_node_type(name_node)), "identifier")) {
+            return LowerExprError.UnsupportedNode;
+        }
+
+        const name_start = ts.ts_node_start_byte(name_node);
+        const name_end = ts.ts_node_end_byte(name_node);
+        const name_sym = store.interner.intern(source[name_start..name_end]) catch
+            return LowerExprError.OutOfMemory;
+
+        const value_id = try lowerExprToStore(store, value_node, source);
+        const body_id = try lowerExprToStore(store, body_node, source);
+        return store.bindSymWithBody(name_sym, value_id, body_id) catch
+            LowerExprError.OutOfMemory;
     }
 
     if (std.mem.eql(u8, kind, "var_decl")) {

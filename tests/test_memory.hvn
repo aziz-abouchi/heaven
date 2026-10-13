@@ -1,0 +1,97 @@
+-- tests/test_memory.hvn — P0 : couche memoire Heaven
+-- Regle test runner : bare clause call == valeur, pas de let-in
+-- dans la ligne de test. Toute la logique dans les bodies.
+-- Note : fst/snd viennent de core/std/pair.hvn (pas pair_fst).
+
+-- ─── Alloc simple ───
+try_alloc u =
+  (let p = (alloc 16) in
+   (let _ = (poke_int64 p 0 42) in
+    (let r = (peek_int64 p 0) in
+     (let _ = (dealloc p 16) in
+      r))))
+
+test "alloc + poke + peek + dealloc":
+  (try_alloc unit) == 42
+
+-- ─── Arena : 2 ptr successifs separes de 8 ───
+arena_delta u =
+  (let a0 = (arena_new 64) in
+   (let p1 = (arena_alloc a0 8) in
+    (let a1 = (snd p1) in
+     (let p2 = (arena_alloc a1 8) in
+      (let a2 = (snd p2) in
+       (let _ = (arena_deinit a2) in
+        (- (fst p2) (fst p1))))))))
+
+test "arena : delta entre ptr1 et ptr2 = 8":
+  (arena_delta unit) == 8
+
+-- ─── Arena : used apres 2 allocs = 16 ───
+arena_used_after2 u =
+  (let a0 = (arena_new 64) in
+   (let p1 = (arena_alloc a0 8) in
+    (let a1 = (snd p1) in
+     (let p2 = (arena_alloc a1 8) in
+      (let a2 = (snd p2) in
+       (let u = (arena_used a2) in
+        (let _ = (arena_deinit a2) in
+         u)))))))
+
+test "arena : used = 16 apres 2 allocs de 8":
+  (arena_used_after2 unit) == 16
+
+-- ─── Arena : reset -> used = 0 ───
+arena_used_after_reset u =
+  (let a0 = (arena_new 64) in
+   (let p1 = (arena_alloc a0 8) in
+    (let a1 = (snd p1) in
+     (let a2 = (arena_reset a1) in
+      (let u = (arena_used a2) in
+       (let _ = (arena_deinit a2) in
+        u))))))
+
+test "arena_reset : used = 0":
+  (arena_used_after_reset unit) == 0
+
+-- ─── Arena : depassement -> ptr = 0 ───
+arena_overflow u =
+  (let a0 = (arena_new 16) in
+   (let a1 = (arena_reset a0) in
+    (let p = (arena_alloc a1 100) in
+     (let r = (fst p) in
+      (let _ = (arena_deinit (snd p)) in
+       r)))))
+
+test "arena : depassement -> ptr = 0":
+  (arena_overflow unit) == 0
+
+-- ─── memcpy64 : premier mot ───
+memcpy_first u =
+  (let src = (alloc 16) in
+   (let dst = (alloc 16) in
+    (let _ = (poke_int64 src 0 111) in
+     (let _ = (poke_int64 src 1 222) in
+      (let _ = (memcpy64 src dst 2) in
+       (let r = (peek_int64 dst 0) in
+        (let _ = (dealloc src 16) in
+         (let _ = (dealloc dst 16) in
+          r))))))))
+
+test "memcpy64 : dst[0] = 111":
+  (memcpy_first unit) == 111
+
+-- ─── memcpy64 : deuxieme mot ───
+memcpy_second u =
+  (let src = (alloc 16) in
+   (let dst = (alloc 16) in
+    (let _ = (poke_int64 src 0 111) in
+     (let _ = (poke_int64 src 1 222) in
+      (let _ = (memcpy64 src dst 2) in
+       (let r = (peek_int64 dst 1) in
+        (let _ = (dealloc src 16) in
+         (let _ = (dealloc dst 16) in
+          r))))))))
+
+test "memcpy64 : dst[1] = 222":
+  (memcpy_second unit) == 222

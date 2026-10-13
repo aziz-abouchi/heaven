@@ -262,6 +262,12 @@ pub const Expr = union(enum) {
     application: []Expr,
     parenthesized: *Expr,
 
+    let_bind: struct {
+        name: []const u8,
+        value: *Expr,
+        body: *Expr,
+    },
+
     pub fn deinit(self: *Expr, allocator: Allocator) void {
         switch (self.*) {
             .call => |*x| {
@@ -287,6 +293,12 @@ pub const Expr = union(enum) {
             .parenthesized => |x| {
                 x.deinit(allocator);
                 allocator.destroy(x);
+            },
+            .let_bind => |*x| {
+                x.value.deinit(allocator);
+                x.body.deinit(allocator);
+                allocator.destroy(x.value);
+                allocator.destroy(x.body);
             },
             else => {},
         }

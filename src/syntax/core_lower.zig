@@ -54,6 +54,12 @@ pub const CoreLowerer = struct {
             .parenthesized => |inner| {
                 return try self.lowerExpr(inner.*);
             },
+            .let_bind => |lb| {
+                const name_sym = try self.store.interner.intern(lb.name);
+                const value_id = try self.lowerExpr(lb.value.*);
+                const body_id = try self.lowerExpr(lb.body.*);
+                return try self.store.bindSymWithBody(name_sym, value_id, body_id);
+            },
             .unary => |un| {
                 const op_sym = try self.store.sym(un.op);
                 const operand_id = try self.lowerExpr(un.operand.*);

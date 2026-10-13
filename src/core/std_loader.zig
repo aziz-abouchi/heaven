@@ -16,6 +16,7 @@ const platform = @import("platform");
 pub const files = [_][]const u8{
     "core/io.hvn",
     "core/std/bool.hvn",
+    "core/std/memory.hvn",
     "core/std/list.hvn",
     "core/std/option.hvn",
     "core/std/pair.hvn",

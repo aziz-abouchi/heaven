@@ -1,0 +1,59 @@
+-- core/std/memory.hvn — Couche memoire Heaven
+-- Wrappers sur les magics raw_alloc/raw_free pour que la stdlib
+-- et le code utilisateur n'appellent jamais les magics directement.
+-- En interprété, wrappe raw_alloc/raw_free. En bootstrap, sera
+-- rebranche sur mmap/arena (voir docs/spec/_memory.md).
+
+module Memory
+
+-- ─── Primitives ───
+-- Contrat d'alignement : raw_alloc retourne un pointeur aligne sur
+-- 8 octets minimum (utilisable par peek_int64 / poke_int64).
+alloc size      = (raw_alloc size)
+dealloc ptr size = (raw_free ptr size)
+
+-- ─── Arena (bump pointer) ───
+-- Arena immutable : chaque alloc retourne (ptr, arena'). On
+-- propage la nouvelle arena. Liberation en bloc via arena_deinit.
+-- Adapte aux passes de compilation, E-Graphs, sessions parsing.
+
+data Arena = MkArena Int Int Int
+-- MkArena base used cap : base = pointeur, used = bytes utilises,
+-- cap = bytes alloues.
+
+arena_new cap = (MkArena (alloc cap) 0 cap)
+
+arena_base (MkArena b _ _) = b
+arena_used (MkArena _ u _) = u
+arena_cap  (MkArena _ _ c) = c
+arena_remaining a = (- (arena_cap a) (arena_used a))
+
+-- Retourne (pair ptr arena'). Sans alignement explicite : l'appelant
+-- doit s'assurer que size est multiple de 8 s'il utilise peek_int64.
+-- Retourne (pair ptr arena').
+-- Depassement : ptr = 0, arena inchangee.
+arena_alloc a size =
+  (let b = (arena_base a) in
+   let u = (arena_used a) in
+   let c = (arena_cap a) in
+   let ok = (<= (+ u size) c) in
+   (if ok
+     (pair (+ b u) (MkArena b (+ u size) c))
+     (pair 0 a)))
+
+-- Reset : remet used a 0, garde cap et base. Reutilisable.
+arena_reset (MkArena b _ c) = (MkArena b 0 c)
+
+-- Liberation en bloc.
+arena_deinit (MkArena b _ c) = (dealloc b c)
+
+-- Placeholder : memcpy naif (element par element sur 8 octets).
+-- A optimiser plus tard via un vrai magic.
+memcpy64 src dst n =
+  (if (= n 0)
+    dst
+    (memcpy64_step src dst n))
+
+memcpy64_step src dst n =
+  (let _ = (poke_int64 dst (- n 1) (peek_int64 src (- n 1))) in
+   (memcpy64 src dst (- n 1)))

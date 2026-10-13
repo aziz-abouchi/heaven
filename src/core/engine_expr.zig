@@ -740,9 +740,12 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             return error.UnboundVariable;
         },
         .apply => {
+            platform.dbg("[ho-dbg] ENTER .apply: id={d}\n", .{id});
             const pool = store.pool.items;
             const all_args = node.span_a.slice(pool);
+            platform.dbg("[ho-dbg] .apply all_args.len={d}\n", .{all_args.len});
             if (all_args.len == 0) {
+                platform.dbg("[ho-dbg] FAIL: all_args.len == 0\n", .{});
                 return error.ArityMismatch;
             }
 
@@ -835,7 +838,8 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                 }
             }
 
-            return try evalMagic(store, env, engine, op_name, args, depth);
+            platform.dbg("[ho-dbg] ABOUT TO CALL evalMagic: op='{s}' args={d}\n", .{ op_name, args.len });
+return try evalMagic(store, env, engine, op_name, args, depth);
         },
         .bind => {
             if (node.span_a.len < 1) return error.ArityMismatch;
@@ -893,7 +897,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "band", "bor", "shl", "shr", "@prompt_depth", "@prompt_current", "@prompt", "@throw" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -946,7 +950,6 @@ fn patternArgMatches(store: *Store, pp: Id, aa: Id) bool {
 }
 
 fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
-    platform.dbg("[ho-dbg] evalMagic op={s} args={d}\n", .{ op, args.len });
     // Buffer stack-local : zéro allocation pour args ≤ 8 (limite patterns).
     // Les appels récursifs à evaluate() peuvent realloc pool.items,
     // rendant la slice `args` dangling. On copie sur la stack.
@@ -954,6 +957,13 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     if (args.len > 8) return error.ArityMismatch;
     @memcpy(args_buf[0..args.len], args);
     const args_snap: []const Id = args_buf[0..args.len];
+
+    // `unit` : valeur litterale (). En pattern, c'est un binder normal
+    // (lowerPattern le voit comme identifier). En position d'expression
+    // ou d'argument, il s'evalue en ().
+    if (std.mem.eql(u8, op, "unit") or std.mem.eql(u8, op, "Unit")) {
+        return try store.unitLit();
+    }
 
     if (std.mem.eql(u8, op, "task_state")) {
         if (args_snap.len != 1) return error.ArityMismatch;
@@ -2236,6 +2246,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
 
     // ═══ HEAVEN-IN-HEAVEN : RÉSEAU (std.posix) ═══
+    platform.debug.print("[ZIG] DISPATCH OP: '{s}' (len={d})\n", .{op, op.len});
 
     if (std.mem.eql(u8, op, "@net_listen")) {
         platform.debug.print("[DEBUG] @net_listen appelé, args_len={d}\n", .{args_snap.len});
@@ -2301,6 +2312,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return try store.lit(.{ .str = sym });
     }
 
+    std.debug.print("[DEBUG] ABOUT TO CHECK @go\n", .{});
     if (std.mem.eql(u8, op, "@go")) {
         platform.debug.print("[ZIG] @go START (len={d})\n", .{op.len});
         if (args_snap.len != 3) {
