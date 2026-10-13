@@ -1,0 +1,34 @@
+-- core/http_server.hvn — Serveur HTTP simplifié et robuste
+import "stdlib/net.hvn"
+import "stdlib/fs.hvn"
+
+handle_request req =
+  let is_api = (string_eq req.path "/api/egraph") in
+  (if is_api
+    (let cap = (cap_acquire "egraph:snapshot") in
+     let json = (@egraph_snapshot cap) in
+     { status = 200, body = json, headers = [] })
+    (let path = (if (string_eq req.path "/") "index.html" req.path) in
+     let body = (fs_read_public path) in
+     { status = 200, body = body, headers = [] }))
+
+handle_client cap listen_fd =
+  let client_fd = (net_accept cap listen_fd) in
+  let _ = (@spawn (cap_acquire "spawn")
+    (fn _ =
+      let raw = (net_read cap client_fd) in
+      let req = (parse_request raw) in
+      let resp = (handle_request req) in
+      let _ = (net_write cap client_fd (format_response resp)) in
+      (net_close cap client_fd))) in
+  unit
+
+server_loop cap listen_fd =
+  let _ = (handle_client cap listen_fd) in
+  (server_loop cap listen_fd)
+
+http_serve port =
+  let cap = (cap_acquire (string_concat "net:listen:" (int_to_string port))) in
+  let listen_fd = (net_listen cap port) in
+  let _ = (print (string_concat "🌌 Heaven HTTP on http://127.0.0.1:" (int_to_string port))) in
+  (server_loop cap listen_fd)

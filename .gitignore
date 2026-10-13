@@ -88,7 +88,7 @@ test_let_lower.zig
 update_docs.py
 egraph_viz.html
 http_parser_test.hvn
-http_server.hvn
+/http_server.hvn
 
 # Artefacts serveur vessel (regeneres par le serveur)
 src/vessel/public/egraph_data.json
