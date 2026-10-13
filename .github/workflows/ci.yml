@@ -36,9 +36,7 @@ jobs:
           curl https://wasmtime.dev/install.sh -sSf | bash
           echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
 
-      - name: Prepare vendor + build (native)
-        env:
-          HEAVEN_NO_WASM: "1"
+      - name: Prepare vendor + build (native + wasm)
         run: bash build.sh
 
       - name: Run unit tests (no network)
