@@ -1,0 +1,12 @@
+node_modules/
+build/
+.DS_Store
+*.log
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.iml
+package-lock.json
+_codeql_detected_source_root

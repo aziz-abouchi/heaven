@@ -46,6 +46,9 @@ config.local.json
 vendor/*
 !vendor/tree-sitter-heaven/
 vendor/tree-sitter-heaven/node_modules/
+!vendor/tree-sitter-pie/
+vendor/tree-sitter-pie/node_modules/
+vendor/tree-sitter-pie/bindings/
 
 # Git backups
 .git.bak/
