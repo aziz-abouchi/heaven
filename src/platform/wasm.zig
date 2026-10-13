@@ -116,6 +116,27 @@ pub fn readFileAllocCwd(alloc: std.mem.Allocator, p: []const u8, max: usize) ![]
     return fs.readFileAlloc(alloc, p, max);
 }
 
+/// Reseau : interface uniforme cross-platform.
+/// En wasm32-freestanding, toute operation reseau est indisponible
+/// (les WebSockets passent par les externs js_websocket_*).
+pub const net = struct {
+    pub fn listenTcp(_: u16) !i64 {
+        return error.NotSupported;
+    }
+    pub fn accept(_: i64) !i64 {
+        return error.NotSupported;
+    }
+    pub fn read(_: i64, _: []u8) !usize {
+        return error.NotSupported;
+    }
+    pub fn write(_: i64, _: []const u8) !usize {
+        return error.NotSupported;
+    }
+    pub fn close(_: i64) void {
+        // no-op en wasm
+    }
+};
+
 pub fn getenv(_: []const u8) ?[]const u8 {
     return null;
 }

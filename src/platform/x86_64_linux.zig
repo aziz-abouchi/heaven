@@ -131,6 +131,43 @@ pub const profiler = switch (builtin.os.tag) {
 pub const posix = std.posix;
 pub const os = std.os;
 
+/// Reseau : interface uniforme cross-platform.
+/// En natif, wrappe std.net + std.posix. En wasm, stubs qui
+/// retournent error.NotSupported. Toute dependance std.net /
+/// std.posix.sockaddr est confinee ici.
+pub const net = struct {
+    /// Cree un listener TCP sur 127.0.0.1:port. Retourne un fd (i64).
+    pub fn listenTcp(port: u16) !i64 {
+        const address = std.net.Address.parseIp4("127.0.0.1", port) catch return error.InvalidInput;
+        const server = address.listen(.{ .reuse_address = true }) catch return error.InvalidInput;
+        return @intCast(server.stream.handle);
+    }
+
+    /// Accepte une connexion. Retourne le fd du client (i64).
+    pub fn accept(fd: i64) !i64 {
+        const sfd: std.posix.socket_t = @intCast(fd);
+        var addr: std.net.Address = undefined;
+        var addr_len: std.posix.socklen_t = @sizeOf(std.net.Address);
+        const client = std.posix.accept(sfd, &addr.any, &addr_len, 0) catch return error.InvalidInput;
+        return @intCast(client);
+    }
+
+    pub fn read(fd: i64, buf: []u8) !usize {
+        const sfd: std.posix.socket_t = @intCast(fd);
+        return std.posix.read(sfd, buf) catch return error.InvalidInput;
+    }
+
+    pub fn write(fd: i64, data: []const u8) !usize {
+        const sfd: std.posix.socket_t = @intCast(fd);
+        return std.posix.write(sfd, data) catch return error.InvalidInput;
+    }
+
+    pub fn close(fd: i64) void {
+        const sfd: std.posix.socket_t = @intCast(fd);
+        std.posix.close(sfd);
+    }
+};
+
 // Importation centralisée des headers C
 pub const ts = @cImport({
     @cInclude("tree_sitter/api.h");

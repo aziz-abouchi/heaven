@@ -2255,73 +2255,41 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     platform.debug.print("[ZIG] DISPATCH OP: '{s}' (len={d})\n", .{op, op.len});
 
     if (std.mem.eql(u8, op, "@net_listen")) {
-        if (comptime builtin.os.tag == .freestanding) return error.NotSupported;
-        platform.debug.print("[DEBUG] @net_listen appelé, args_len={d}\n", .{args_snap.len});
         if (args_snap.len != 2) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const port_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const port_node = store.get(port_val);
-        platform.debug.print("[DEBUG] port_node.tag={any}\n", .{port_node.tag});
         if (port_node.tag != .lit) return error.TypeError;
         const port: u16 = @intCast(store.lits.items[port_node.aux].int);
-        
-        const address = std.net.Address.parseIp4("127.0.0.1", port) catch return error.InvalidInput;
-        const server = address.listen(.{ .reuse_address = true }) catch return error.InvalidInput;
-        return try store.lit(.{ .int = @as(i64, @intCast(server.stream.handle)) });
+        const fd = try platform.net.listenTcp(port);
+        return try store.lit(.{ .int = fd });
     }
 
     if (std.mem.eql(u8, op, "@net_accept")) {
-        if (comptime builtin.os.tag == .freestanding) return error.NotSupported;
-        platform.debug.print("[DEBUG] @net_accept appelé, args_len={d}\n", .{args_snap.len});
         if (args_snap.len != 2) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const fd_node = store.get(fd_val);
-        if (fd_node.tag == .sym) {
-            platform.debug.print("[DEBUG] ERREUR CRITIQUE: fd est le symbole '{s}' au lieu d'un littéral!\n", .{store.interner.resolve(fd_node.payload)});
-        } else {
-            platform.debug.print("[DEBUG] fd_node.tag={any}\n", .{fd_node.tag});
-        }
         if (fd_node.tag != .lit) return error.TypeError;
-        const fd: platform.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
-        
-        var addr: std.net.Address = undefined;
-        var addr_len: platform.posix.socklen_t = @sizeOf(std.net.Address);
-        const client_fd = platform.posix.accept(fd, &addr.any, &addr_len, 0) catch return error.InvalidInput;
-        return try store.lit(.{ .int = @as(i64, @intCast(client_fd)) });
+        const fd: i64 = store.lits.items[fd_node.aux].int;
+        const client_fd = try platform.net.accept(fd);
+        return try store.lit(.{ .int = client_fd });
     }
 
     if (std.mem.eql(u8, op, "@net_read")) {
-        if (comptime builtin.os.tag == .freestanding) return error.NotSupported;
-        platform.debug.print("[ZIG] @net_read START\n", .{});
         if (args_snap.len != 2) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const fd_node = store.get(fd_val);
         if (fd_node.tag != .lit) return error.TypeError;
-        const fd: platform.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
-        
+        const fd: i64 = store.lits.items[fd_node.aux].int;
         var buf: [4096]u8 = undefined;
-        const len = platform.posix.read(fd, &buf) catch |err| {
-            platform.debug.print("[ZIG] read error: {any}\n", .{err});
-            const err_msg = try std.fmt.allocPrint(store.allocator, "[ERREUR LECTURE: {any}]", .{err});
-            defer store.allocator.free(err_msg);
-            const sym = try store.interner.intern(err_msg);
-            return try store.lit(.{ .str = sym });
-        };
-        platform.debug.print("[ZIG] read len={d}\n", .{len});
-        
-        if (len == 0) {
-            platform.debug.print("[ZIG] EOF reached, returning empty string\n", .{});
-            return try store.lit(.{ .str = try store.interner.intern("") });
-        }
-        
+        const len = try platform.net.read(fd, &buf);
         const sym = try store.interner.intern(buf[0..len]);
-        platform.debug.print("[ZIG] @net_read SUCCESS\n", .{});
         return try store.lit(.{ .str = sym });
     }
 
-    std.debug.print("[DEBUG] ABOUT TO CHECK @go\n", .{});
+    platform.debug.print("[DEBUG] ABOUT TO CHECK @go\n", .{});
     if (std.mem.eql(u8, op, "@go")) {
         platform.debug.print("[ZIG] @go START (len={d})\n", .{op.len});
         if (args_snap.len != 3) {
@@ -2334,80 +2302,53 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
 
     if (std.mem.eql(u8, op, "@net_http_respond")) {
-        platform.debug.print("[ZIG] @net_http_respond START\n", .{});
-        if (args_snap.len != 3) {
-            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
-            return error.ArityMismatch;
-        }
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        if (args_snap.len != 3) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const port_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const port_node = store.get(port_val);
         if (port_node.tag != .lit) return error.TypeError;
         const port: u16 = @intCast(store.lits.items[port_node.aux].int);
-        
         const response_val = try evaluate(store, env, engine, args_snap[2], depth + 1);
         const response_node = store.get(response_val);
         if (response_node.tag != .lit) return error.TypeError;
         const response_str = store.interner.resolve(store.lits.items[response_node.aux].str);
 
-        const address = std.net.Address.parseIp4("127.0.0.1", port) catch return error.InvalidInput;
-        var server = address.listen(.{ .reuse_address = true }) catch return error.InvalidInput;
-        platform.debug.print("[ZIG] Listening on port {d}\n", .{port});
-        
-        var client = server.accept() catch return error.InvalidInput;
-        platform.debug.print("[ZIG] Client accepted\n", .{});
-        
+        const listen_fd = try platform.net.listenTcp(port);
+        const client_fd = try platform.net.accept(listen_fd);
         var buf: [4096]u8 = undefined;
-        const len = client.stream.read(&buf) catch |err| {
-            platform.debug.print("[ZIG] read error: {any}\n", .{err});
-            client.stream.close();
-            return error.InvalidInput;
-        };
-        platform.debug.print("[ZIG] Read {d} bytes\n", .{len});
-        
-        const request_str = try std.fmt.allocPrint(store.allocator, "{s}", .{buf[0..len]});
-        defer store.allocator.free(request_str);
-        const req_sym = try store.interner.intern(request_str);
-        
-        _ = client.stream.write(response_str) catch return error.InvalidInput;
-        client.stream.close();
-        platform.debug.print("[ZIG] @net_http_respond SUCCESS\n", .{});
-        
+        const len = try platform.net.read(client_fd, &buf);
+        _ = try platform.net.write(client_fd, response_str);
+        platform.net.close(client_fd);
+        platform.net.close(listen_fd);
+
+        const req_sym = try store.interner.intern(buf[0..len]);
         return try store.lit(.{ .str = req_sym });
     }
 
 
     if (std.mem.eql(u8, op, "@net_write")) {
-        if (comptime builtin.os.tag == .freestanding) return error.NotSupported;
-        if (args_snap.len != 3) {
-            platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
-            return error.ArityMismatch;
-        }
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        if (args_snap.len != 3) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const str_val = try evaluate(store, env, engine, args_snap[2], depth + 1);
-        
         const fd_node = store.get(fd_val);
         const str_node = store.get(str_val);
         if (fd_node.tag != .lit or str_node.tag != .lit) return error.TypeError;
-        const fd: platform.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
+        const fd: i64 = store.lits.items[fd_node.aux].int;
         const str_sym = store.lits.items[str_node.aux].str;
         const str_bytes = store.interner.resolve(str_sym);
-        
-        _ = platform.posix.write(fd, str_bytes) catch return error.InvalidInput;
+        _ = try platform.net.write(fd, str_bytes);
         return try store.lit(.{ .int = 0 });
     }
 
     if (std.mem.eql(u8, op, "@net_close")) {
-        if (comptime builtin.os.tag == .freestanding) return error.NotSupported;
         if (args_snap.len != 2) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const fd_node = store.get(fd_val);
         if (fd_node.tag != .lit) return error.TypeError;
-        const fd: platform.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
-        
-        platform.posix.close(fd);
+        const fd: i64 = store.lits.items[fd_node.aux].int;
+        platform.net.close(fd);
         return try store.lit(.{ .int = 0 });
     }
     return error.UnknownSymbol;
