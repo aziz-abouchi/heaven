@@ -1322,7 +1322,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const pl = store.lits.items[pn.aux];
         const ll = store.lits.items[ln.aux];
         if (pl != .int or ll != .int) return error.TypeError;
-        const addr: usize = @bitCast(pl.int);
+        const addr: usize = @truncate(@as(u64, @bitCast(pl.int)));
         const len: usize = @intCast(ll.int);
         const bytes: [*]const u8 = @ptrFromInt(addr);
         const sym = try store.interner.intern(bytes[0..len]);
@@ -1341,7 +1341,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const pl = store.lits.items[pn.aux];
         const ol = store.lits.items[on.aux];
         if (pl != .int or ol != .int) return error.TypeError;
-        const addr: usize = @bitCast(pl.int);
+        const addr: usize = @truncate(@as(u64, @bitCast(pl.int)));
         const off: usize = @intCast(ol.int);
         const ptr: [*]const u64 = @ptrFromInt(addr);
         return try store.int(@bitCast(ptr[off]));
@@ -1363,7 +1363,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const ol = store.lits.items[on.aux];
         const vl = store.lits.items[vn.aux];
         if (pl != .int or ol != .int or vl != .int) return error.TypeError;
-        const addr: usize = @bitCast(pl.int);
+        const addr: usize = @truncate(@as(u64, @bitCast(pl.int)));
         const off: usize = @intCast(ol.int);
         const ptr: [*]align(1) u64 = @ptrFromInt(addr);
         ptr[off] = @bitCast(@as(i64, vl.int));
@@ -1383,7 +1383,8 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const str = store.interner.resolve(sl.str);
         // Pointeurs 64-bit : bit 63 peut etre a 1 -> i64 via bitCast
         // (et non intCast qui panic si la valeur ne tient pas).
-        return try store.int(@bitCast(@intFromPtr(str.ptr)));
+        const ptr_u64: u64 = @intCast(@intFromPtr(str.ptr));
+        return try store.int(@bitCast(ptr_u64));
     }
     // raw_alloc : allocation brute via mmap (Linux/Unix). Retourne
     //             un pointeur. Utiliser raw_free pour liberer (TODO).
@@ -1396,7 +1397,8 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (nl != .int) return error.TypeError;
         const sz: usize = @intCast(nl.int);
         const buf = engine.allocator.alloc(u8, sz) catch return error.OutOfMemory;
-        return try store.int(@bitCast(@intFromPtr(buf.ptr)));
+        const buf_u64: u64 = @intCast(@intFromPtr(buf.ptr));
+        return try store.int(@bitCast(buf_u64));
     }
     // target_os : renvoie "linux", "macos", "windows", "wasm".
     if (std.mem.eql(u8, op, "target_os")) {
@@ -1421,7 +1423,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const pl = store.lits.items[pn.aux];
         const nl = store.lits.items[nn.aux];
         if (pl != .int or nl != .int) return error.TypeError;
-        const addr: usize = @bitCast(pl.int);
+        const addr: usize = @truncate(@as(u64, @bitCast(pl.int)));
         const sz: usize = @intCast(nl.int);
         const buf: [*]u8 = @ptrFromInt(addr);
         engine.allocator.free(buf[0..sz]);
@@ -1439,7 +1441,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const pl = store.lits.items[pn.aux];
         const ol = store.lits.items[on.aux];
         if (pl != .int or ol != .int) return error.TypeError;
-        const addr: usize = @bitCast(pl.int);
+        const addr: usize = @truncate(@as(u64, @bitCast(pl.int)));
         const off: usize = @intCast(ol.int);
         const buf: [*]const u8 = @ptrFromInt(addr);
         return try store.int(@intCast(buf[off]));
@@ -1461,7 +1463,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const ol = store.lits.items[on.aux];
         const vl = store.lits.items[vn.aux];
         if (pl != .int or ol != .int or vl != .int) return error.TypeError;
-        const addr: usize = @bitCast(pl.int);
+        const addr: usize = @truncate(@as(u64, @bitCast(pl.int)));
         const off: usize = @intCast(ol.int);
         const val: u8 = @intCast(@as(u64, @bitCast(vl.int)) & 0xFF);
         const buf: [*]u8 = @ptrFromInt(addr);
@@ -1485,7 +1487,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const vl = store.lits.items[vn.aux];
         const ll = store.lits.items[ln.aux];
         if (pl != .int or vl != .int or ll != .int) return error.TypeError;
-        const addr: usize = @bitCast(pl.int);
+        const addr: usize = @truncate(@as(u64, @bitCast(pl.int)));
         const val: u8 = @intCast(@as(u64, @bitCast(vl.int)) & 0xFF);
         const len: usize = @intCast(ll.int);
         const buf: [*]u8 = @ptrFromInt(addr);
