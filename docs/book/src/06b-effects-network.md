@@ -1,4 +1,4 @@
-# Chap 5 - Effets de Bord
+# Chapitre 6b — Effets réseau
 
 Heaven est a evaluation paresseuse.
 
