@@ -154,6 +154,12 @@ pub const Thread = std.Thread;
 
 pub const fs = std.fs;
 
+/// Wrapper uniforme cross-platform pour lire un fichier depuis
+/// le cwd. En natif, delegue a std.fs.cwd().readFileAlloc.
+pub fn readFileAllocCwd(alloc: std.mem.Allocator, path: []const u8, max: usize) ![]u8 {
+    return std.fs.cwd().readFileAlloc(alloc, path, max);
+}
+
 // ═══════════════════════════════════════════════════════════
 // I/O ABSTRACTION
 // ═══════════════════════════════════════════════════════════

@@ -8,13 +8,20 @@
 //! N fois, affiche les stats (wall, rss, cpu).
 
 const std = @import("std");
+const platform = @import("platform");
+const builtin = @import("builtin");
+
+/// getenv portable : en freestanding (wasm), retourne null.
+fn getenvSafe(key: []const u8) ?[]const u8 {
+    if (comptime builtin.os.tag == .freestanding) return null;
+    return std.posix.getenv(key);
+}
 const expr = @import("expr");
 const parse = @import("parse");
 const heaven_expr = @import("heaven_expr");
 const engine_expr = @import("engine_expr");
 const mir = @import("mir");
 const mir_qbe = @import("mir_qbe");
-const platform = @import("platform");
 const build_options = @import("build_options");
 
 const Store = expr.Store;
@@ -187,7 +194,7 @@ pub fn runCompileQbe(
     }
 
     // 7. cc -> prog (natif seulement)
-    if (std.posix.getenv("HEAVEN_NO_LIBC") != null) {
+    if (getenvSafe("HEAVEN_NO_LIBC") != null) {
         // Mode freestanding : stubs asm + pas de libc.
         const root = try std.fs.cwd().realpathAlloc(alloc, ".");
         defer alloc.free(root);

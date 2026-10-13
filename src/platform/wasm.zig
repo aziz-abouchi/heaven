@@ -65,6 +65,10 @@ pub const posix = struct {
     pub const STDOUT_FILENO = 1;
     pub const STDERR_FILENO = 2;
 
+    // Types reseau (compat std.posix pour engine_expr.zig)
+    pub const socket_t = i32;
+    pub const socklen_t = u32;
+
     pub fn write(fd: i32, bytes: []const u8) !usize {
         switch (fd) {
             STDOUT_FILENO => js_write_stdout(bytes.ptr, bytes.len),
@@ -90,15 +94,27 @@ pub const posix = struct {
     pub fn fork() !i32 {
         return error.NotSupported;
     }
+    pub fn accept(_: socket_t, _: *anyopaque, _: *socklen_t, _: u32) !socket_t {
+        return error.NotSupported;
+    }
+    pub fn close(_: socket_t) void {
+        // no-op en wasm
+    }
     /// Test whether a file descriptor refers to a terminal.
-    pub fn isatty(handle: i32) bool {
-        return std.posix.isatty(handle);
+    /// En wasm freestanding : pas de TTY.
+    pub fn isatty(_: i32) bool {
+        return false;
     }
 };
 
 // ═══════════════════════════════════════════════════════════
 // ENVIRONMENT STUB (WASM Freestanding)
 // ═══════════════════════════════════════════════════════════
+
+/// Wrapper uniforme cross-platform : delegue au VFS JS.
+pub fn readFileAllocCwd(alloc: std.mem.Allocator, p: []const u8, max: usize) ![]u8 {
+    return fs.readFileAlloc(alloc, p, max);
+}
 
 pub fn getenv(_: []const u8) ?[]const u8 {
     return null;
@@ -162,6 +178,7 @@ pub const fs = struct {
     pub fn join(alloc: std.mem.Allocator, paths: []const []const u8) ![]u8 {
         return std.fs.path.join(alloc, paths);
     }
+
 
     pub const File = struct {
         pub const OpenError = error{

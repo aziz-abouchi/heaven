@@ -8,6 +8,7 @@ const Id = expr.Id;
 const Sym = expr.Sym;
 const Tag = expr.Tag;
 const platform = @import("platform");
+const builtin = @import("builtin");
 const continuation = @import("continuation");
 const scheduler_lib = @import("scheduler");
 
@@ -78,6 +79,7 @@ pub const Env = struct {
 pub const EvalError = error{
     SuspendRequested,
     InvalidCapture,
+    NotSupported,
     TypeError,
     ArityMismatch,
     DivisionByzero,
@@ -2208,7 +2210,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (lit_val != .str) return error.TypeError;
         
         const path_str = store.interner.resolve(lit_val.str);
-        const content = std.fs.cwd().readFileAlloc(engine.allocator, path_str, 1024 * 1024) catch {
+        const content = platform.readFileAllocCwd(engine.allocator, path_str, 1024 * 1024) catch {
             const err_str = "ERROR: File not found or unreadable";
             const err_sym = try store.interner.intern(err_str);
             return try store.lit(.{ .str = err_sym });
@@ -2253,6 +2255,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     platform.debug.print("[ZIG] DISPATCH OP: '{s}' (len={d})\n", .{op, op.len});
 
     if (std.mem.eql(u8, op, "@net_listen")) {
+        if (comptime builtin.os.tag == .freestanding) return error.NotSupported;
         platform.debug.print("[DEBUG] @net_listen appelé, args_len={d}\n", .{args_snap.len});
         if (args_snap.len != 2) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
@@ -2268,6 +2271,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_accept")) {
+        if (comptime builtin.os.tag == .freestanding) return error.NotSupported;
         platform.debug.print("[DEBUG] @net_accept appelé, args_len={d}\n", .{args_snap.len});
         if (args_snap.len != 2) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
@@ -2279,25 +2283,26 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             platform.debug.print("[DEBUG] fd_node.tag={any}\n", .{fd_node.tag});
         }
         if (fd_node.tag != .lit) return error.TypeError;
-        const fd: std.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
+        const fd: platform.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
         
         var addr: std.net.Address = undefined;
-        var addr_len: std.posix.socklen_t = @sizeOf(std.net.Address);
-        const client_fd = std.posix.accept(fd, &addr.any, &addr_len, 0) catch return error.InvalidInput;
+        var addr_len: platform.posix.socklen_t = @sizeOf(std.net.Address);
+        const client_fd = platform.posix.accept(fd, &addr.any, &addr_len, 0) catch return error.InvalidInput;
         return try store.lit(.{ .int = @as(i64, @intCast(client_fd)) });
     }
 
     if (std.mem.eql(u8, op, "@net_read")) {
+        if (comptime builtin.os.tag == .freestanding) return error.NotSupported;
         platform.debug.print("[ZIG] @net_read START\n", .{});
         if (args_snap.len != 2) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const fd_node = store.get(fd_val);
         if (fd_node.tag != .lit) return error.TypeError;
-        const fd: std.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
+        const fd: platform.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
         
         var buf: [4096]u8 = undefined;
-        const len = std.posix.read(fd, &buf) catch |err| {
+        const len = platform.posix.read(fd, &buf) catch |err| {
             platform.debug.print("[ZIG] read error: {any}\n", .{err});
             const err_msg = try std.fmt.allocPrint(store.allocator, "[ERREUR LECTURE: {any}]", .{err});
             defer store.allocator.free(err_msg);
@@ -2373,6 +2378,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
 
     if (std.mem.eql(u8, op, "@net_write")) {
+        if (comptime builtin.os.tag == .freestanding) return error.NotSupported;
         if (args_snap.len != 3) {
             platform.debug.print("[ZIG] ARITY MISMATCH! Expected 3, got {d}\n", .{args_snap.len});
             return error.ArityMismatch;
@@ -2384,23 +2390,24 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const fd_node = store.get(fd_val);
         const str_node = store.get(str_val);
         if (fd_node.tag != .lit or str_node.tag != .lit) return error.TypeError;
-        const fd: std.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
+        const fd: platform.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
         const str_sym = store.lits.items[str_node.aux].str;
         const str_bytes = store.interner.resolve(str_sym);
         
-        _ = std.posix.write(fd, str_bytes) catch return error.InvalidInput;
+        _ = platform.posix.write(fd, str_bytes) catch return error.InvalidInput;
         return try store.lit(.{ .int = 0 });
     }
 
     if (std.mem.eql(u8, op, "@net_close")) {
+        if (comptime builtin.os.tag == .freestanding) return error.NotSupported;
         if (args_snap.len != 2) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const fd_node = store.get(fd_val);
         if (fd_node.tag != .lit) return error.TypeError;
-        const fd: std.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
+        const fd: platform.posix.socket_t = @intCast(store.lits.items[fd_node.aux].int);
         
-        std.posix.close(fd);
+        platform.posix.close(fd);
         return try store.lit(.{ .int = 0 });
     }
     return error.UnknownSymbol;

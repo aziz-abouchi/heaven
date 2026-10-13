@@ -5,6 +5,13 @@
 //! (exit code = 8 bits, insuffisant pour un i64).
 
 const std = @import("std");
+const builtin = @import("builtin");
+
+/// getenv portable : en freestanding (wasm), retourne null.
+fn getenvSafe(key: []const u8) ?[]const u8 {
+    if (comptime builtin.os.tag == .freestanding) return null;
+    return std.posix.getenv(key);
+}
 const mir = @import("mir");
 
 const MirFunction = mir.MirFunction;
@@ -58,7 +65,7 @@ pub fn emitQbeLoop(
     var kit = root.fn_defs.keyIterator();
     while (kit.next()) |k| try fn_names.append(allocator, k.*);
 
-    if (std.posix.getenv("HEAVEN_SCC_DUMP") != null) {
+    if (getenvSafe("HEAVEN_SCC_DUMP") != null) {
         const pairs = try detectTailPairs(root, allocator);
         defer allocator.free(pairs);
         for (pairs) |p| {
@@ -80,7 +87,7 @@ pub fn emitQbeLoop(
         try w.writeAll("}\n");
     }
 
-    const no_libc = std.posix.getenv("HEAVEN_NO_LIBC") != null;
+    const no_libc = getenvSafe("HEAVEN_NO_LIBC") != null;
     try w.writeAll("function l $heaven_main() {\n");
     try emitBody(w, root, null, null);
     try w.writeAll("}\n");
