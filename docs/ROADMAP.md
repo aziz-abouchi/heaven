@@ -1,3 +1,9 @@
+## Jalon Reseau (Oct 2026)
+- [x] Primitives reseau (@net_*)
+- [x] Serveur HTTP 1-shot
+- [ ] Serveur multi-requetes
+- [ ] Vrai EGraph
+
 # Heaven — Roadmap & specs
 
 Ce document contient les specs des fonctionnalites **non implementees**
