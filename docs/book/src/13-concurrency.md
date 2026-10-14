@@ -1,4 +1,4 @@
-# Chapitre 13 — Concurrence coopérative
+# Concurrence coopérative
 
 > *« La concurrence, c'est composer des processus indépendants.
 > Le parallélisme, c'est exécuter plusieurs choses en même temps. »*

@@ -1,4 +1,4 @@
-# Chapitre 10 — Modules : organiser le sens
+# Modules : organiser le sens
 
 > *« Un programme qui tient dans un fichier est un programme qui
 > ne grandit pas. »*

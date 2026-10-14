@@ -1,4 +1,4 @@
-# Chapitre 0 — Pourquoi Heaven ?
+# Pourquoi Heaven ?
 
 > *« Ce qui se conçoit bien s'énonce clairement, et les mots pour
 > le dire arrivent aisément. »*

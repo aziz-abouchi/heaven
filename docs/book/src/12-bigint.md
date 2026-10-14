@@ -1,4 +1,4 @@
-# Chapitre 12 — BigInt : calculer au-delà du fini
+# BigInt : calculer au-delà du fini
 
 > *« Le fini est plus grand qu'on ne le croit. L'infini est plus
 > petit qu'on ne l'espère. »*

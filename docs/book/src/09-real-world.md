@@ -1,4 +1,4 @@
-# Chapitre 9 — Le monde réel
+# Le monde réel
 
 > *« La théorie, c'est quand on sait tout et que rien ne fonctionne.
 > La pratique, c'est quand tout fonctionne et que personne ne sait
@@ -116,7 +116,9 @@ systèmes qui se maintiennent par leurs propres communications, sans
 contrôle central.
 
 Heaven V0 supporte les acteurs en mode **séquentiel** (pas de
-préemption). Voir D8 dans `docs/DECISIONS.md`.
+préemption). Depuis 2026-10, un contournement coopératif existe :
+`(@budget_left)` permet à une tâche de `yield` quand son budget est
+épuisé (voir chapitre 13). Voir D8 et D31 dans `docs/DECISIONS.md`.
 
 *Vérifiable : les exemples `readFile`, `writeFile` et le serveur
 HTTP fonctionnent tels quels. Les acteurs fonctionnent mais sans

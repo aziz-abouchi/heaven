@@ -1,4 +1,4 @@
-# Chapitre 11 — Knowledge : raisonner sur le monde
+# Knowledge : raisonner sur le monde
 
 > *« Nous ne connaissons pas le monde, nous connaissons seulement
 > des propositions sur le monde. »*

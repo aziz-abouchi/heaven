@@ -1,4 +1,4 @@
-# Chapitre 5 — Fonctions d'ordre supérieur
+# Fonctions d'ordre supérieur
 
 > *« Un concept de second ordre est un concept dont l'argument
 > est lui-même un concept. »*

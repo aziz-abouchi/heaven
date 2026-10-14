@@ -1,4 +1,4 @@
-# Chapitre 14 — Schémas de récursion
+# Schémas de récursion
 
 > *« La programmation fonctionnelle se résume à deux gestes : replier
 > une structure, et en déplier une autre. Le reste n'est que du sucre. »*

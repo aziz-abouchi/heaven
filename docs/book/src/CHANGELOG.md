@@ -389,6 +389,9 @@ antéchronologique.
 - C2 : Option D (lazy closure copy) pour la distribution.
 - C3 : reduction budget + safepoints.
 - C4 : structured concurrency (scopes).
+- **C3 V0+ (2026-10-14)** : safepoint + `@budget_left` (coopération) +
+  `TaskState.preempted` (retriable). Tests : scheduler 3/3,
+  preemptive 12/12, coop 4/4, split 3/3.
 - C5 : sous-scheduler logique dédié.
 - **Intégré dans** : `docs/spec/_concurrency.md`.
 

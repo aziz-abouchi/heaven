@@ -1,4 +1,4 @@
-# Chapitre 4 — Récursion : l'infini à partir du fini
+# Récursion : l'infini à partir du fini
 
 > *« Pour comprendre la récursion, il faut d'abord comprendre la
 > récursion. »*

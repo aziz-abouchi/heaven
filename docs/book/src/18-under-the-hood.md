@@ -1,4 +1,4 @@
-# Chapitre 18 — Under the Hood
+# Under the Hood
 
 > *« Toute la géométrie tient en cinq postulats. Toute la
 > programmation peut tenir en quelques primitives — à condition de
@@ -474,8 +474,9 @@ Heaven est un projet jeune. Il reste :
   est une cible (voir `docs/spec/_memory.md`). Aujourd'hui, la
   couche mémoire est explicite (`core/std/memory.hvn` + `Arena`).
 - **Les types quotients** dans le noyau CIC.
-- **Un scheduler** préemptif (coopératif aujourd'hui ; C3
-  conceptuellement débloqué par les continuations).
+- **Un scheduler** préemptif (coopératif aujourd'hui ; C3 partiel :
+  safepoints + budget + `TaskState.preempted` depuis 2026-10.
+  Reprise exacte en attente d'A-3b, cf. `docs/spec/_capture_eval.md`).
 - **Des cycles SCC** de 3+ fonctions pour la TCO mutuelle (QBE).
 - **L'unification d'indexes** dépendants au-delà de v2f
   (`Vec (n + m)` modulo arithmétique complète).

@@ -7,7 +7,7 @@
 - [Hello, Recursion!](04-recursion.md)
 - [Higher-Order Functions](05-higher-order.md)
 - [Effects](06-effects.md)
-- [Effets réseau](06b-effects-network.md)
+  - [Effets réseau](06b-effects-network.md)
 - [Streams](07-streams.md)
 - [Proofs and Theorems](08-proofs.md)
 - [Real World](09-real-world.md)
