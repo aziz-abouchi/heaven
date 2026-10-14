@@ -2944,23 +2944,30 @@ test "A-2 capture stack : push/pop equilibre" {
     try std.testing.expectEqual(@as(u32, 0), cs.depth());
 }
 
-test "A-2 capture stack : champion LIFO strict" {
-    // Le Frame du sommet est le plus profond (dernier push).
-    // A-2 s'appuie sur cette discipline pour capturer correctement.
+test "A-2 capture stack : ordre LIFO sur 5 frames" {
     const allocator = std.testing.allocator;
     var cs = continuation.CaptureStack.init(allocator);
     defer cs.deinit();
 
-    for (0..5) |i| {
-        try cs.push(.{ .prompt = 0, .position = @intCast(i), .env = 0 });
-    }
+    // Push 5 frames d'affilee
+    try cs.push(.{ .prompt = 0, .position = 0, .env = 0 });
+    try cs.push(.{ .prompt = 0, .position = 1, .env = 0 });
+    try cs.push(.{ .prompt = 0, .position = 2, .env = 0 });
+    try cs.push(.{ .prompt = 0, .position = 3, .env = 0 });
+    try cs.push(.{ .prompt = 0, .position = 4, .env = 0 });
     try std.testing.expectEqual(@as(u32, 5), cs.depth());
 
-    var last: u32 = 0;
-    while (cs.pop()) |f| {
-        // LIFO : on doit voir 4, 3, 2, 1, 0
-        try std.testing.expect(f.position <= 4);
-        if (last != 0) try std.testing.expect(f.position < last);
-        last = f.position;
-    }
+    // Pop : LIFO strict -> 4, 3, 2, 1, 0
+    const f4 = cs.pop() orelse unreachable;
+    try std.testing.expectEqual(@as(u32, 4), f4.position);
+    const f3 = cs.pop() orelse unreachable;
+    try std.testing.expectEqual(@as(u32, 3), f3.position);
+    const f2 = cs.pop() orelse unreachable;
+    try std.testing.expectEqual(@as(u32, 2), f2.position);
+    const f1 = cs.pop() orelse unreachable;
+    try std.testing.expectEqual(@as(u32, 1), f1.position);
+    const f0 = cs.pop() orelse unreachable;
+    try std.testing.expectEqual(@as(u32, 0), f0.position);
+
+    try std.testing.expectEqual(@as(u32, 0), cs.depth());
 }
