@@ -45,7 +45,7 @@ exige `captureCont` (3a-3b), chantier separe.
 
 ## Suite
 
-- A (3a-3b) : brancher CaptureStack dans evaluate, rendre
-  @budget_left obsolete (yield automatique).
-- let : spec _let_syntax.md separee, a traiter dans une
+- A (3a-3b) : brancher `CaptureStack` dans `evaluate`, rendre
+  `@budget_left` obsolete (yield automatique).
+- let : spec `_let_syntax.md` separee, a traiter dans une
   session dediee.
