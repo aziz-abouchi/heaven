@@ -1,0 +1,30 @@
+-- tests/test_preemptive_coop.hvn
+-- Tache CPU-bound COOPERATIVE : yield quand le budget tombe.
+-- Demontre le split multi-schedule sans preemption native.
+
+rec_coop n =
+  (if (= n 0)
+    0
+    (if (= (@budget_left) 0)
+      (yield n)
+      (rec_coop (- n 1))))
+
+test "coop : 1 schedule suffit":
+  (let t (add_task (lambda s -> (rec_coop 50)) 0)
+   (let _ (schedule 10000)
+    (task_state t))) == 0
+
+test "coop : split en 3 schedules":
+  (let t (add_task (lambda s -> (rec_coop 50)) 0)
+   (let _ (schedule 8)
+    (let _ (schedule 8)
+     (let _ (schedule 10000)
+      (task_state t))))) == 0
+
+test "coop : 2 taches entrelacees sur split":
+  (let t1 (add_task (lambda s -> (rec_coop 20)) 0)
+   (let t2 (add_task (lambda s -> (rec_coop 30)) 0)
+    (let _ (schedule 5)
+     (let _ (schedule 5)
+      (let _ (schedule 10000)
+       (+ (task_state t1) (task_state t2))))))) == 0
