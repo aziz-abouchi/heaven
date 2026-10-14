@@ -150,10 +150,18 @@ Un point technique important : le scheduler de Heaven V0 est
 n'est **pas** reprise exactement là où elle s'était arrêtée — elle
 repart de son état initial, en rejouant les étapes déjà effectuées.
 
-C'est une **limitation** du modèle. La reprise exacte demanderait des
-**continuations délimitées** (D8), qui capturent la pile entière au
-moment de la suspension. C'est un chantier de plusieurs sessions
-(2-3), documenté dans `docs/ROADMAP.md`.
+C'est une **limitation** du modèle — mais depuis A-3a (2026-10-14),
+une tâche suspendue par budget insuffisant n'est plus **perdue** :
+elle passe `.preempted` (distinct de `.blocked`, terminal) et sera
+reprise au prochain `schedule`. Le redémarrage est le mécanisme de
+reprise actuel.
+
+La reprise **exacte** (repartir au point précis de suspension)
+demanderait des **continuations délimitées** (D8), qui capturent la
+pile entière au moment de la suspension. A-2 a posé le hook de
+capture conditionnel dans `evaluate` ; A-3b utilisera ce hook pour
+la reprise exacte. Chantier de 2-3 sessions, documenté dans
+`docs/spec/_capture_eval.md`.
 
 Pourquoi c'est acceptable ? Parce que les tâches d'un calcul pur
 sont **déterministes** : rejouer les étapes donne le même résultat.
@@ -179,7 +187,8 @@ Le scheduler coopératif est **livré**, mais minimal. Ce qui marche :
 
 Ce qui **ne marche pas encore** :
 
-- **Reprise exacte** — les tâches redémarrent au lieu de reprendre.
+- **Reprise exacte** — les tâches redémarrent au lieu de reprendre
+  (A-3a : `.preempted` retriable, mais redémarrage complet).
   Acceptable pour du calcul pur, pas pour des effets.
 - **Priorités** — la structure `Policy` (`.priority`, `.edf`)
   existe, mais n'est pas utilisée par `schedule`.
@@ -187,7 +196,9 @@ Ce qui **ne marche pas encore** :
   (chapitre 9) et le scheduler sont deux modèles qui coexistent
   sans se parler.
 - **Préemption** — pas d'interruption automatique. Une tâche qui ne
-  cède jamais bloque tout.
+  cède jamais bloque tout. Contournement coopératif depuis 2026-10 :
+  `(@budget_left)` permet à une tâche de `yield` quand son budget
+  est épuisé (`tests/test_preemptive_coop.hvn` 4/4).
 
 Le modèle coopératif est un **choix philosophique** : on préfère la
 simplicité de raisonnement à la robustesse automatique. Une tâche mal
@@ -221,6 +232,8 @@ ne supervise.
   par leurs propres opérations.
 - En V0 : pas de reprise exacte, pas de priorité, pas de
   préemption. Chantiers documentés.
+- A-3a : les tâches préemptées par budget sont **retriables**
+  (`.preempted`), plus perdues. Redémarrage, pas reprise exacte.
 
 Wittgenstein aurait vu dans la tâche coopérative une illustration
 de son « jeu de langage » : chaque tâche joue son jeu, en respectant
