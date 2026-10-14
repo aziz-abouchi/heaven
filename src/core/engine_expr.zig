@@ -2898,3 +2898,21 @@ test "pattern — ctor imbrique depth 3 avec variable" {
     const result = try fx.engine.evalFunction(&fx.env, "f", &.{arg});
     try std.testing.expectEqual(v42, result);
 }
+
+test "pattern — litteral" {
+    const allocator = std.testing.allocator;
+    var fx = try PatternFixture.init(allocator);
+    defer fx.deinit();
+
+    const p = try fx.store.int(42);
+    const body = try fx.store.int(1);
+    try fx.clause("is42", &.{p}, body);
+
+    const v42 = try fx.store.int(42);
+    const r1 = try fx.engine.evalFunction(&fx.env, "is42", &.{v42});
+    try std.testing.expectEqual(body, r1);
+
+    const v43 = try fx.store.int(43);
+    const r2 = fx.engine.evalFunction(&fx.env, "is42", &.{v43});
+    try std.testing.expectError(error.ArityMismatch, r2);
+}
