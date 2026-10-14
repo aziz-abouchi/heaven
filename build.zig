@@ -1133,9 +1133,19 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const exe_name = blk: {
+        if (target.result.os.tag == .wasi) {
+            break :blk "heaven-wasi";
+        } else if (target.result.cpu.arch == .wasm32 and target.result.os.tag == .freestanding) {
+            break :blk "heaven-freestanding";
+        } else {
+            break :blk "heaven";
+        }
+    };
+
     // ─── Exécutable principal ───
     const exe = b.addExecutable(.{
-        .name = "heaven",
+        .name = exe_name,
         .root_module = b.createModule(
             .{
                 .root_source_file = b.path(if (target.query.cpu_arch == .wasm32)

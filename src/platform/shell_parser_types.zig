@@ -361,3 +361,10 @@ pub fn TreeSitterParser(comptime Ts: type, comptime getLanguage: anytype) type {
         }
     };
 }
+
+pub const ShellParser = struct {
+    pub fn init(alloc: std.mem.Allocator) !ShellParser {
+        _ = alloc;
+        return ShellParser{};
+    }
+};

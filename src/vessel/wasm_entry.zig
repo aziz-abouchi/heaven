@@ -24,18 +24,18 @@ var cmds: ?Commands = null;
 export fn init() void {
     // platform.debug.print("=== WASM init called ===\n", .{});
 
-    heaven = Heaven.init(allocator()) catch @panic("Failed to init Heaven");
+    heaven = Heaven.init(allocator) catch @panic("Failed to init Heaven");
     const store = heaven.?.store;
     const engine = &heaven.?.engine;
     const env = &heaven.?.env;
 
-    bridge = MatrixBridge.init(store, allocator());
-    parser = Parser.init(store, engine, env, allocator());
-    math = Math.init(store, engine, &bridge, &parser, allocator());
-    kb = KnowledgeBase.init(allocator());
-    skills = SkillRegistry.init(allocator());
-    proof_core = ProofCore.init(allocator());
-    agent = Agent.init(allocator());
+    bridge = MatrixBridge.init(store, allocator);
+    parser = Parser.init(store, engine, env, allocator);
+    math = Math.init(store, engine, &bridge, &parser, allocator);
+    kb = KnowledgeBase.init(allocator);
+    skills = SkillRegistry.init(allocator);
+    proof_core = ProofCore.init(allocator);
+    agent = Agent.init(allocator);
 
     // platform.debug.print("Before Commands.init\n", .{});
     cmds = Commands.init(
@@ -43,7 +43,7 @@ export fn init() void {
         engine,
         env,
         &bridge,
-        allocator(),
+        allocator,
         &parser,
         &math,
         &kb,
@@ -56,7 +56,7 @@ export fn init() void {
     ) catch |err| blk: {
         var buf: [256]u8 = undefined;
         const msg = std.fmt.bufPrint(&buf, "Commands.init failed: {s}\n", .{@errorName(err)}) catch "Commands.init failed";
-        js_console_log(msg.ptr, msg.len);
+        js_env.js_console_log(msg.ptr, msg.len);
         break :blk null;
     };
     // platform.debug.print("After Commands.init, cmds is {any}\n", .{cmds});
@@ -80,8 +80,7 @@ var global_store: expr_mod.Store = undefined;
 var global_egraph: egraph_mod.EGraph = undefined;
 
 // 1. Déclarer la fonction que ton runtime JS (Vessel) fournira pour afficher du texte
-extern fn vesselLogWrite(ptr: [*]const u8, len: usize) void;
-
+const js_env = platform.js_env;
 // 2. Surcharger la fonction racine de log de Zig pour WASM
 pub fn log(
     comptime message_level: std.log.Level,
@@ -95,11 +94,11 @@ pub fn log(
     var buf: [1024]u8 = undefined;
     const msg = std.fmt.bufPrint(&buf, prefix ++ format, args) catch return;
 
-    vesselLogWrite(msg.ptr, msg.len);
+    js_env.vesselLogWrite(msg.ptr, msg.len);
 }
 
-fn allocator() std.mem.Allocator {
-    return platform.allocator();
+fn allocator std.mem.Allocator {
+    return platform.allocator;
 }
 
 var heaven: ?*Heaven = null;
@@ -166,7 +165,7 @@ export fn heavenEval(len: u32) u32 {
             return 5;
         };
         // platform.debug.print("heavenEval: Commands.eval succeeded\n", .{});
-        defer allocator().free(result);
+        defer allocator.free(result);
         setOutput(result);
         return output_len;
     }
@@ -201,7 +200,7 @@ export fn heavenEval(len: u32) u32 {
                         setOutput("error");
                         return 5;
                     };
-                    defer allocator().free(result);
+                    defer allocator.free(result);
                     setOutput(result);
                     return output_len;
                 }
@@ -214,7 +213,7 @@ export fn heavenEval(len: u32) u32 {
         return 5;
     };
 
-    defer allocator().free(result);
+    defer allocator.free(result);
     setOutput(result);
     return output_len;
 }
@@ -225,7 +224,7 @@ export fn heavenSimplify(len: u32) u32 {
         setOutput("error");
         return 5;
     };
-    defer allocator().free(result);
+    defer allocator.free(result);
     setOutput(result);
     return output_len;
 }
@@ -236,7 +235,7 @@ export fn heavenTypeOf(len: u32) u32 {
         setOutput("?");
         return 1;
     };
-    defer allocator().free(result);
+    defer allocator.free(result);
     setOutput(result);
     return output_len;
 }
@@ -247,7 +246,7 @@ export fn heavenExplain(len: u32) u32 {
         setOutput("error");
         return 5;
     };
-    defer allocator().free(result);
+    defer allocator.free(result);
     setOutput(result);
     return output_len;
 }
@@ -263,7 +262,7 @@ export fn heavenLatex(len: u32) u32 {
         setOutput("error");
         return 5;
     };
-    defer allocator().free(result);
+    defer allocator.free(result);
     setOutput(result);
     return output_len;
 }
@@ -274,7 +273,7 @@ export fn heavenQuote(len: u32) u32 {
         setOutput("error");
         return 5;
     };
-    defer allocator().free(result);
+    defer allocator.free(result);
     setOutput(result);
     return output_len;
 }
@@ -288,7 +287,7 @@ export fn heavenDefine(name_len: u32, val_offset: u32, val_len: u32) u32 {
         setOutput("error");
         return 5;
     };
-    defer allocator().free(result);
+    defer allocator.free(result);
     setOutput(result);
     return output_len;
 }
@@ -302,7 +301,7 @@ export fn heavenRewrite(lhs_len: u32, rhs_offset: u32, rhs_len: u32) u32 {
         setOutput("error");
         return 5;
     };
-    defer allocator().free(result);
+    defer allocator.free(result);
     setOutput(result);
     return output_len;
 }
@@ -324,7 +323,7 @@ export fn heavenToC(len: u32) u32 {
         setOutput("error");
         return 5;
     };
-    defer allocator().free(code);
+    defer allocator.free(code);
     setOutput(code);
     return output_len;
 }
@@ -336,7 +335,7 @@ export fn heavenDerive(len: u32) u32 {
         setOutput("error");
         return 5;
     };
-    defer allocator().free(result);
+    defer allocator.free(result);
     setOutput(result);
     return output_len;
 }
@@ -348,7 +347,7 @@ export fn heavenSolve(len: u32) u32 {
         setOutput("no solution");
         return 11;
     };
-    defer allocator().free(result);
+    defer allocator.free(result);
     setOutput(result);
     return output_len;
 }
@@ -360,7 +359,7 @@ export fn heavenIntegrate(len: u32) u32 {
         setOutput("error");
         return 5;
     };
-    defer allocator().free(result);
+    defer allocator.free(result);
     setOutput(result);
     return output_len;
 }
@@ -372,7 +371,7 @@ export fn heavenExpand(len: u32) u32 {
         setOutput("error");
         return 5;
     };
-    defer allocator().free(result);
+    defer allocator.free(result);
     setOutput(result);
     return output_len;
 }
@@ -381,7 +380,7 @@ export fn heavenFnDef(len: u32) u32 {
     if (heaven == null) return 0;
     var h = heaven orelse return 0;
     h.ensureInit();
-    const alloc = allocator();
+    const alloc = allocator;
     const line = input_buf[0..len];
 
     const eq_pos = std.mem.indexOfScalar(u8, line, '=') orelse {
@@ -707,7 +706,7 @@ export fn dispatch(cmd_len: u32, arg_len: u32) u32 {
                 setOutput(msg);
                 return @intCast(msg.len);
             };
-            defer allocator().free(result);
+            defer allocator.free(result);
             setOutput(result);
             return output_len;
         }
@@ -722,7 +721,7 @@ export fn dispatch(cmd_len: u32, arg_len: u32) u32 {
                 setOutput(msg);
                 return @intCast(msg.len);
             };
-            defer allocator().free(result);
+            defer allocator.free(result);
             setOutput(result);
             return output_len;
         }
@@ -736,7 +735,7 @@ export fn dispatch(cmd_len: u32, arg_len: u32) u32 {
             setOutput(msg);
             return @intCast(msg.len);
         };
-        defer allocator().free(result);
+        defer allocator.free(result);
         setOutput(result);
         return output_len;
     }
@@ -748,7 +747,7 @@ export fn dispatch(cmd_len: u32, arg_len: u32) u32 {
         setOutput("()");
         return 2;
     };
-    defer allocator().free(res);
+    defer allocator.free(res);
     setOutput(res);
     return output_len;
 }
@@ -777,30 +776,20 @@ export fn get_payload_buffer(size: usize) u32 {
 // NETWORK MESSAGE PROCESSING (appelé par JS)
 // ═══════════════════════════════════════════════════════════
 
-extern fn js_drain_message_queue() u32;
-extern fn js_get_peer_id(msg_id: u32, out_ptr: [*]u8) void;
-extern fn js_get_msg_type(msg_id: u32) u8;
-extern fn js_get_timestamp(msg_id: u32) u64;
-extern fn js_get_payload_ptr(msg_id: u32) u32;
-extern fn js_get_payload_len(msg_id: u32) u32;
-extern fn js_free_message(msg_id: u32) void;
-extern fn js_console_log(ptr: [*]const u8, len: usize) void;
-extern fn js_log(ptr: [*]const u8, len: usize) void;
-extern fn js_rtc_send(peer_id_ptr: [*]const u8, peer_id_len: usize, data_ptr: [*]const u8, data_len: usize) void;
 
 export fn process_network_messages() u32 {
     var count: u32 = 0;
-    const alloc = platform.allocator();
+    const alloc = platform.allocator;
 
     while (true) {
-        const msg_id = js_drain_message_queue();
+        const msg_id = js_env.js_drain_message_queue();
         if (msg_id == 0) break;
 
         var peer_id_buf: [16]u8 = undefined;
-        js_get_peer_id(msg_id, &peer_id_buf);
-        const msg_type = js_get_msg_type(msg_id);
-        const payload_ptr = js_get_payload_ptr(msg_id);
-        const payload_len = js_get_payload_len(msg_id);
+        js_env.js_get_peer_id(msg_id, &peer_id_buf);
+        const msg_type = js_env.js_get_msg_type(msg_id);
+        const payload_ptr = js_env.js_get_payload_ptr(msg_id);
+        const payload_len = js_env.js_get_payload_len(msg_id);
 
         if (payload_ptr > 0 and payload_len > 0) {
             const payload = @as([*]const u8, @ptrFromInt(payload_ptr))[0..payload_len];
@@ -818,14 +807,14 @@ export fn process_network_messages() u32 {
             count += 1;
         }
 
-        js_free_message(msg_id);
+        js_env.js_free_message(msg_id);
     }
 
     return count;
 }
 
 fn logError(msg: []const u8) void {
-    js_console_log(msg.ptr, msg.len);
+    js_env.js_console_log(msg.ptr, msg.len);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -838,9 +827,9 @@ export fn init_swarm() void {
     if (swarm_initialized) return;
 
     const log_msg = "Initializing swarm runtime...";
-    js_console_log(log_msg.ptr, log_msg.len);
+    js_env.js_console_log(log_msg.ptr, log_msg.len);
 
-    const alloc = platform.allocator();
+    const alloc = platform.allocator;
 
     global_store = expr_mod.Store.init(alloc);
     global_egraph = egraph_mod.EGraph.init(&global_store, alloc);
@@ -848,7 +837,7 @@ export fn init_swarm() void {
     swarm_initialized = true;
 
     const success_msg = "Swarm runtime initialized";
-    js_console_log(success_msg.ptr, success_msg.len);
+    js_env.js_console_log(success_msg.ptr, success_msg.len);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -868,20 +857,20 @@ export fn tick_swarm() void {
     while (true) {
         if (messages_processed >= MAX_MESSAGES_PER_TICK) break;
 
-        const msg_id = js_drain_message_queue();
+        const msg_id = js_env.js_drain_message_queue();
         if (msg_id == 0) break;
 
         var peer_id_buf: [16]u8 = undefined;
-        js_get_peer_id(msg_id, &peer_id_buf);
-        const msg_type = js_get_msg_type(msg_id);
-        const payload_ptr = js_get_payload_ptr(msg_id);
-        const payload_len = js_get_payload_len(msg_id);
+        js_env.js_get_peer_id(msg_id, &peer_id_buf);
+        const msg_type = js_env.js_get_msg_type(msg_id);
+        const payload_ptr = js_env.js_get_payload_ptr(msg_id);
+        const payload_len = js_env.js_get_payload_len(msg_id);
 
         if (payload_ptr > 0 and payload_len > 0) {
             const payload = @as([*]const u8, @ptrFromInt(payload_ptr))[0..payload_len];
             const peer_id: []const u8 = &peer_id_buf;
 
-            const alloc = platform.allocator();
+            const alloc = platform.allocator;
             switch (msg_type) {
                 2 => handlers.handleEGraphSync(alloc, peer_id, payload, &global_egraph, &global_store) catch |err| {
                     platform.io.print("egraph_sync failed: {}\n", .{err});
@@ -894,12 +883,12 @@ export fn tick_swarm() void {
             messages_processed += 1;
         }
 
-        js_free_message(msg_id);
+        js_env.js_free_message(msg_id);
     }
 
     // PHASE 2 : Saturation EGraph avec budget
     if (swarm_initialized) {
-        const alloc = platform.allocator();
+        const alloc = platform.allocator;
         var rewriter = egraph_rewriter.Rewriter.init(&global_egraph, &global_store, alloc);
         const merges = rewriter.saturate(1) catch 0;
         if (merges > 0) {
@@ -910,7 +899,7 @@ export fn tick_swarm() void {
     // PHASE 3 : Diffuser les demandes de preuve en attente
     if (heaven) |h| {
         if (h.pending_proof_request) |msg| {
-            const alloc = platform.allocator();
+            const alloc = platform.allocator;
             if (pending_proof_request_global) |old| alloc.free(old);
             const len = msg.len;
             const copy = alloc.alloc(u8, len) catch {
@@ -927,8 +916,8 @@ export fn tick_swarm() void {
 
     // PHASE 3 : Diffuser les demandes de preuve en attente
     if (pending_proof_request_global) |msg| {
-        js_broadcast_proof_request(msg.ptr, msg.len);
-        platform.allocator().free(msg);
+        js_env.js_broadcast_proof_request(msg.ptr, msg.len);
+        platform.allocator.free(msg);
         pending_proof_request_global = null;
     }
 
@@ -937,26 +926,26 @@ export fn tick_swarm() void {
 
 export fn debug_egraph() void {
     const msg = "=== EGraph Debug ===";
-    js_console_log(msg.ptr, msg.len);
+    js_env.js_console_log(msg.ptr, msg.len);
 
     var buf: [256]u8 = undefined;
 
     const class_count = global_egraph.classes.items.len;
     const msg1 = std.fmt.bufPrint(&buf, "Classes: {}", .{class_count}) catch "error";
-    js_console_log(msg1.ptr, msg1.len);
+    js_env.js_console_log(msg1.ptr, msg1.len);
 
     const node_count = global_store.nodes.items.len;
     const msg2 = std.fmt.bufPrint(&buf, "Store nodes: {}", .{node_count}) catch "error";
-    js_console_log(msg2.ptr, msg2.len);
+    js_env.js_console_log(msg2.ptr, msg2.len);
 
     var i: usize = 0;
     while (i < class_count) : (i += 1) {
         if (global_egraph.extract(i, null)) |id| {
             const msg3 = std.fmt.bufPrint(&buf, "Class {} -> expr {}", .{ i, id }) catch "error";
-            js_console_log(msg3.ptr, msg3.len);
+            js_env.js_console_log(msg3.ptr, msg3.len);
         } else {
             const msg4 = std.fmt.bufPrint(&buf, "Class {} -> (empty)", .{i}) catch "error";
-            js_console_log(msg4.ptr, msg4.len);
+            js_env.js_console_log(msg4.ptr, msg4.len);
         }
     }
 }
@@ -979,7 +968,7 @@ export fn get_pending_proof_request_len() u32 {
 
 export fn clear_pending_proof_request() void {
     if (pending_proof_request_global) |req| {
-        platform.allocator().free(req);
+        platform.allocator.free(req);
         pending_proof_request_global = null;
     }
 }
@@ -994,7 +983,7 @@ var pending_peer_id: [16]u8 = undefined;
 export fn send_work_steal_response(peer_id_ptr: [*]const u8, peer_id_len: usize, data_ptr: [*]const u8, data_len: usize) void {
     _ = peer_id_len;
 
-    const alloc = platform.allocator();
+    const alloc = platform.allocator;
     const data_copy = alloc.alloc(u8, data_len) catch return;
     @memcpy(data_copy, data_ptr[0..data_len]);
     pending_response = data_copy;
@@ -1022,7 +1011,7 @@ export fn get_pending_peer_id_ptr() u32 {
 
 export fn clear_pending_response() void {
     if (pending_response) |resp| {
-        platform.allocator().free(resp);
+        platform.allocator.free(resp);
         pending_response = null;
     }
 }
@@ -1034,7 +1023,7 @@ export fn clear_pending_response() void {
 var serialized_state: ?[]u8 = null;
 
 export fn get_egraph_state_ptr() u32 {
-    const alloc = platform.allocator();
+    const alloc = platform.allocator;
 
     var buf: [65536]u8 = undefined;
     var fbs = std.io.fixedBufferStream(&buf);
@@ -1194,8 +1183,6 @@ export fn wasm_entry_process_input(ptr: [*]const u8, len: usize) void {
     }
 }
 
-extern fn js_ollama_query(prompt_ptr: [*]const u8, prompt_len: usize, out_ptr: [*]u8, out_max: usize) usize;
-extern fn js_broadcast_proof_request(ptr: [*]const u8, len: usize) void;
 
 export fn set_debug_logging(enabled: bool) void {
     simplify_engine.log_saturation = enabled;

@@ -1,46 +1,53 @@
 const std = @import("std");
+const sp = @import("shell_parser_types.zig");
+const builtin = @import("builtin");
 
-// Renommer le paramètre pour éviter le masquage
-pub fn args(alloc: std.mem.Allocator) ![][]const u8 {
-    var argv = try std.process.argsAlloc(alloc);
-    // ignorer le nom du programme si besoin
-    return argv[1..];
-}
+pub const target = struct {
+    pub const os = struct { pub const tag = .wasi; };
+    pub const cpu = struct { pub const arch = .wasm32; };
+    pub const is_debug = (builtin.mode == .Debug);
+};
 
 pub const allocator = std.heap.wasm_allocator;
 
 pub const io = struct {
-    pub fn print(comptime fmt: []const u8, args_: anytype) void {
-        std.debug.print(fmt, args_);
+    pub fn print(comptime fmt: []const u8, args: anytype) void {
+        std.io.getStdErr().writer().print(fmt, args) catch {};
     }
-    pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
-        const stdin = std.io.getStdIn().reader();
-        return try stdin.readUntilDelimiterAlloc(alloc, '\n', 4096);
-    }
+    pub fn readLine(alloc: std.mem.Allocator) ![]u8 { _ = alloc; return error.Unsupported; }
 };
 
-pub const ShellParser = @import("shell_parser");
-
-pub const time = struct {
-    pub fn timestampMs() i64 {
-        return std.time.milliTimestamp();
-    }
+pub const debug = struct {
+    pub fn print(comptime fmt: []const u8, args: anytype) void { io.print(fmt, args); }
 };
 
 pub const fs = struct {
+    pub const File = struct {
+        pub const OpenError = error{Unsupported};
+    };
+    pub fn openFile(p: []const u8, _: anytype) !File { _ = p; return error.Unsupported; }
     pub const cwd = struct {
-        pub fn readFileAlloc(alloc: std.mem.Allocator, path: []const u8) ![]u8 {
-            return std.fs.cwd().readFileAlloc(alloc, path, 1024 * 1024);
-        }
-        pub fn createFile(path: []const u8, data: []const u8) !void {
-            try std.fs.cwd().writeFile(.{ .sub_path = path, .data = data });
-        }
+        pub fn get() []const u8 { return ""; }
     };
 };
 
-pub fn getEnv(alloc: std.mem.Allocator, key: []const u8) !?[]u8 {
-    return std.process.getEnvVarOwned(alloc, key) catch |e| switch (e) {
-        error.EnvironmentVariableNotFound => return null,
-        else => return e,
-    };
-}
+pub const ShellParser = sp.ShellParser;
+pub const init = ShellParser.init;
+pub const parse = ShellParser.parse;
+pub const reset = ShellParser.reset;
+
+pub const time = struct {
+    pub fn timestampMs() i64 { return std.time.milliTimestamp(); }
+    pub const milliTimestamp = timestampMs;
+};
+
+pub const profiler = struct {
+    pub const ResourceUsage = struct { utime: struct{sec:i64=0,usec:i64=0}={}, stime: struct{sec:i64=0,usec:i64=0}={}, maxrss:u64=0 };
+    pub fn getResourceUsage() ResourceUsage { return .{}; }
+    pub fn readEnergyUJ() ?u64 { return null; }
+};
+
+pub const js_env = struct {
+    pub fn js_console_log(msg: []const u8) void { _ = msg; }
+    pub fn js_drain_message_queue() ?[]const u8 { return null; }
+};
