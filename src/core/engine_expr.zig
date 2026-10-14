@@ -1024,6 +1024,11 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             break :blk @intCast(bl.int);
         } else 10_000;
 
+        // HEAVEN:FIX_C3_LIVELOCK (A)
+        // budget 0 -> aucun progres possible, retour vide.
+        if (budget == 0) return try store.unitLit();
+
+
         while (true) {
             const task = engine.scheduler.next() orelse break;
             task.state = .running;
@@ -1065,7 +1070,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                         }
                     } else {
                         // Budget epuise : etat inchange, requeue.
-                        task.state = .ready;
+                        // HEAVEN:FIX_C3_LIVELOCK (B) — budget epuise sans
+                        // yield : pas de reprise sans captureCont (3a-3b).
+                        // .blocked garantit la terminaison.
+                        task.state = .blocked;
                     }
                 },
             }

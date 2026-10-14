@@ -1,0 +1,38 @@
+-- tests/test_preemptive.hvn — C3 : scheduler preemptif
+-- Verifie la robustesse du scheduler sur des taches CPU-bound
+-- (sans yield) et les cas limites.
+--
+-- Voir docs/spec/_preemptive.md pour la cible et les etapes.
+
+-- ─── Helpers nommes ───
+rec_cd50 n = (if (= n 0) 0 (rec_cd50 (- n 1)))
+rec_cd1 n = (if (= n 0) 1 (rec_cd1 (- n 1)))
+yield3 s = (if (= s 3) 42 (yield (+ s 1)))
+always_1 _ = 1
+always_2 _ = 2
+always_3 _ = 3
+
+-- ─── T1 : budget genereux, 2 taches simples ───
+test "T1 budget 10000 : 2 taches finissent":
+  (let t1 (add_task (lambda s -> 42) 0) (let t2 (add_task (lambda s -> 43) 0) (let _ (schedule 10000) (+ (task_state t1) (task_state t2))))) == 85
+
+-- ─── T2 : tache recursive pure termine ───
+test "T2 tache recursive (50 appels) termine":
+  (let t (add_task (lambda s -> (rec_cd50 50)) 0) (let _ (schedule 10000) (task_state t))) == 0
+
+-- ─── T3 : 2 taches recursives, les 2 finissent ───
+test "T3 2 taches CPU-bound finissent":
+  (let t1 (add_task (lambda s -> (rec_cd50 50)) 0) (let t2 (add_task (lambda s -> (rec_cd1 50)) 0) (let _ (schedule 10000) (+ (task_state t1) (task_state t2))))) == 1
+
+-- ─── T4 : yield + CPU-bound ───
+test "T4 yield + CPU-bound : les 2 finissent":
+  (let t1 (add_task (lambda s -> (yield3 s)) 0) (let t2 (add_task (lambda s -> (rec_cd50 50)) 0) (let _ (schedule 10000) (+ (task_state t1) (task_state t2))))) == 42
+
+-- ─── T5 : budget 0, aucun progrès, pas de boucle infinie ───
+-- (Cible : le scheduler doit retourner sans boucler.)
+test "T5 budget 0 : pas de boucle infinie":
+  (let t (add_task (lambda s -> 42) 0) (let _ (schedule 0) 1)) == 1
+
+-- ─── T6 : 3 taches, toutes finissent ───
+test "T6 3 taches : somme correcte":
+  (let t1 (add_task (lambda s -> (always_1 s)) 0) (let t2 (add_task (lambda s -> (always_2 s)) 0) (let t3 (add_task (lambda s -> (always_3 s)) 0) (let _ (schedule 10000) (+ (+ (task_state t1) (task_state t2)) (task_state t3)))))) == 6

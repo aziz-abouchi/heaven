@@ -956,3 +956,22 @@ des exemples qui utilisent les type classes directement.
 - QTT 0/1/ω : le compilateur injecte `drop` et `alloc`.
 - Perceus : `drop-reuse` automatique.
 - Bare-metal : bump pointer ou buddy allocator noyau.
+
+<!-- HEAVEN:ROADMAP:C3:BEGIN -->
+### Pistes actives (mise à jour 2026-10-14)
+
+1. **D9 Vessel** — découplage + absorption stack HTTP.
+2. **QTT** — documentation dans `_memory.md` §4.
+3. **Multi-shot continuations** — clonage env + store (1 session).
+4. **C3 préemptif** — infrastructure en place, tests 6/6 ✗.
+   Dépend de 3a-3b. Effort : 2-3 sessions (3a-3b) + 1 (C3).
+5. **`test_selfparse.hvn`** (4/5) — bug parser Heaven-en-Heaven.
+6. **Audit `Store.getInt`** (30 min).
+7. **Panic DebugAllocator** (session à froid).
+
+### Jalons récents
+- **2026-10-14** : spec `_preemptive.md` publiée, tests
+  `test_preemptive.hvn` écrits (6/6 ✗), décision D31 actée.
+- **2026-10-12** : D8 3a-3a (prompts branchés dans `engine_expr.zig`).
+- **HKT V0.5** : 15/15 tests verts.
+<!-- HEAVEN:ROADMAP:C3:END -->

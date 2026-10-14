@@ -97,9 +97,7 @@ pub fn log(
     js_env.vesselLogWrite(msg.ptr, msg.len);
 }
 
-fn allocator std.mem.Allocator {
-    return platform.allocator;
-}
+const allocator = platform.allocator;
 
 var heaven: ?*Heaven = null;
 const ProofEntry = struct { name: [64]u8, name_len: u8, stmt: [128]u8, stmt_len: u8, verified: bool };

@@ -1055,9 +1055,9 @@
         },
         {
           "name": "Scheduler préemptif",
-          "tier": "roadmap",
-          "proof": "—",
-          "limit": "C3 tranchée (budget + safepoints)"
+          "tier": "partiel",
+          "proof": "`test_scheduler.hvn` 3/3 ✓ ; `test_preemptive.hvn` (T1-T5) ✓ ; budget insuffisant -> `.blocked` (fix A+B)",
+          "limit": "reprise exacte exige captureCont (3a-3b). Voir D31 + `docs/spec/_preemptive.md`."
         },
         {
           "name": "Distribution",

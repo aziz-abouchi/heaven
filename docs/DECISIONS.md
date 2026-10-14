@@ -1008,3 +1008,49 @@ Le serveur complet est teste manuellement :
 **Commits** : `a73e29f` (v2), `b8b9374` (tests), `9ae9df5` (SO_REUSEADDR).
 
 **Spec** : `docs/spec/_http.md`.
+
+<!-- HEAVEN:D31 -->
+## D31 — Scheduler préemptif C3 : safepoints + budget de réductions
+
+**Date** : 2026-10-14
+**Statut** : TRANCHÉE — implémentation partielle
+
+**Contexte** : C3 listée comme option ouverte dans `_concurrency.md`.
+Trois options : (1) safepoints instrumentés, (2) signaux + timer,
+(3) coopératif pur.
+
+**Décision** : option 1. Le compilateur insère des safepoints,
+l'interpréteur décrémente `engine.reductions` à chaque pas
+d'évaluation. À 0, la tâche est suspendue comme un `yield` implicite.
+
+**Conséquence** : le safepoint n'est PAS une capture. La préemption
+fine exige le branchement réel de `captureCont` (3a-3b). Sans 3a-3b,
+C3 est conceptuellement débloqué mais techniquement partiel.
+
+<!-- HEAVEN:D31:ADDENDUM -->
+### D31 — Addendum 2026-10-14 (bug fix)
+
+**Bug identifié** : `schedule` avec un budget insuffisant provoque un
+livelock — la tâche suspendue sans yield est remise `.ready`, et la
+boucle `while(true)` la reprend indéfiniment. Se déclenche dès que
+`budget < reductions_necessaires`, y compris `budget 0` (freeze du
+système, OOM).
+
+**Fix A** : garde `budget == 0` en tête de `schedule` → retour
+immédiat.
+
+**Fix B** : en cas de `.suspended` sans `pending_capture`, marquer la
+tâche `.blocked` (au lieu de `.ready`). La reprise exacte exige
+`captureCont` (3a-3b) — hors scope. En attendant, `.blocked` garantit
+la terminaison.
+
+**Limite introduite** : une tâche dont le budget est épuisé passe
+`.blocked` et **n'est jamais reprise**. Budget insuffisant = tâche
+perdue. Ce n'est PAS la sémantique cible (round-robin équitable) ;
+c'est un palliatif de terminaison en attendant le branchement réel
+de `captureCont` (3a-3b), seul moyen de reprendre une tâche
+exactement où elle s'est arrêtée.
+
+**Test** : `test_preemptive.hvn` 12/12 ✓ (T1-T6) ; `test_scheduler.hvn`
+3/3 ✓. La préemption fine reste un chantier, mais le livelock et le
+freeze système sont éliminés.

@@ -741,3 +741,32 @@ tests/test_diff_e.hvn : différentiel vert sur le subset passant. Prochaine exte
 Census : data paramétré ×7 (fix prioritaire) · test corps nu ×6 · splits ×9 (GT approx) ·
 autres ×24 · crash list.hvn. lib/heaven_eval.hvn passe (41 formes).
 NOTE convention : STATUS.md/README générés (status_gen/docgen) — respectés ce tour.
+
+<!-- HEAVEN:CONTINUITE:C3:BEGIN -->
+## Dernière session : 2026-10-14
+
+**Fait**
+- Spec `docs/spec/_preemptive.md` (C3, décision D31).
+- Tests `tests/test_preemptive.hvn` (6 cas, 6 ✗).
+- D31 actée : safepoints + budget de réductions (option 1).
+
+**État des tests**
+- `test_preemptive.hvn` : 6/6 ✗.
+- Cause probable : `schedule` / `task_state` / budget 0.
+
+**Prochaine session — priorité 1 : déboguer C3**
+1. Test minimal :
+   `(let t (add_task (lambda s -> 42) 0) in
+    (let _ (schedule 100) in (task_state t)))` → doit valoir 42.
+2. Vérifier décrément de `engine.reductions` dans `evaluate`.
+3. Garde sur `budget == 0` dans `schedule`.
+
+**Prochaine session — priorité 2 : 3a-3b**
+Brancher `captureCont` réellement dans `evaluate`.
+Restructurer les corps de handler en unités réévaluables.
+
+**Points de vigilance**
+- Safepoint ≠ capture. C3 fin exige 3a-3b.
+- `kernel_bridge.zig` ne traduit que `lit`, `sym`, `apply` binop.
+  `bind`, `lambda`, `relation` lèvent une erreur.
+<!-- HEAVEN:CONTINUITE:C3:END -->
