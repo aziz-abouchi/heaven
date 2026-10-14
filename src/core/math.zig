@@ -58,7 +58,30 @@ pub const Math = struct {
     /// Convertit les expressions infixes avec ^ en S-expressions
     /// x^2 → (^ x 2)
     /// x^2 + 1 → (^ x 2) + 1  (le parseExpression gèrera le +)
-    fn preprocessPower(input: []const u8, allocator: std.mem.Allocator) ![]u8 {
+    pub fn preprocessPower(input: []const u8, allocator: std.mem.Allocator) ![]u8 {
+        // Cas : input entierement parenthese `(...)`. On traite
+        // l'interieur et on remet les parens externes — sinon `^`
+        // est a depth 1 et jamais detecte.
+        const t = std.mem.trim(u8, input, " \t");
+        if (t.len > 2 and t[0] == '(' and t[t.len - 1] == ')') {
+            // Verifier que la paren externe est bien equilibree
+            var d: usize = 0;
+            var balanced = true;
+            for (t[1 .. t.len - 1], 0..) |c, idx| {
+                if (c == '(') d += 1;
+                if (c == ')') {
+                    if (d == 0) { balanced = false; break; }
+                    d -= 1;
+                }
+                _ = idx;
+            }
+            if (balanced and d == 0) {
+                const inner = try preprocessPower(t[1 .. t.len - 1], allocator);
+                defer allocator.free(inner);
+                return try std.fmt.allocPrint(allocator, "({s})", .{inner});
+            }
+        }
+
         // Chercher ^ en dehors des parenthèses
         var depth: usize = 0;
         var i: usize = 0;
@@ -70,40 +93,72 @@ pub const Math = struct {
                 },
                 '^' => {
                     if (depth == 0) {
-                        // Trouver le lhs (vers la gauche)
+                        // ─── LHS : remonter en gerant les parens ───
                         var lhs_end = i;
                         while (lhs_end > 0 and input[lhs_end - 1] == ' ') lhs_end -= 1;
                         var lhs_start = lhs_end;
-                        while (lhs_start > 0 and input[lhs_start - 1] != ' ' and input[lhs_start - 1] != '(' and input[lhs_start - 1] != ')') {
-                            lhs_start -= 1;
+                        if (lhs_start > 0 and input[lhs_start - 1] == ')') {
+                            // Le LHS finit par une paren : on remonte jusqu'a
+                            // la paren ouvrante correspondante.
+                            var d: usize = 0;
+                            while (lhs_start > 0) {
+                                lhs_start -= 1;
+                                if (input[lhs_start] == ')') d += 1;
+                                if (input[lhs_start] == '(') {
+                                    d -= 1;
+                                    if (d == 0) break;
+                                }
+                            }
+                        } else {
+                            while (lhs_start > 0 and input[lhs_start - 1] != ' ' and input[lhs_start - 1] != '(' and input[lhs_start - 1] != ')') {
+                                lhs_start -= 1;
+                            }
                         }
 
-                        // Trouver le rhs (vers la droite)
+                        // ─── RHS : idem, mais vers la droite ───
                         var rhs_start = i + 1;
                         while (rhs_start < input.len and input[rhs_start] == ' ') rhs_start += 1;
                         var rhs_end = rhs_start;
-                        while (rhs_end < input.len and input[rhs_end] != ' ' and input[rhs_end] != '+' and input[rhs_end] != '-' and input[rhs_end] != '*' and input[rhs_end] != '/' and input[rhs_end] != ')') {
-                            rhs_end += 1;
+                        if (rhs_start < input.len and input[rhs_start] == '(') {
+                            // RHS est parenthese : remonter jusqu'a la fermante
+                            var d: usize = 0;
+                            while (rhs_end < input.len) {
+                                if (input[rhs_end] == '(') d += 1;
+                                if (input[rhs_end] == ')') {
+                                    d -= 1;
+                                    if (d == 0) { rhs_end += 1; break; }
+                                }
+                                rhs_end += 1;
+                            }
+                        } else {
+                            while (rhs_end < input.len and input[rhs_end] != ' ' and input[rhs_end] != '+' and input[rhs_end] != '-' and input[rhs_end] != '*' and input[rhs_end] != '/' and input[rhs_end] != ')') {
+                                rhs_end += 1;
+                            }
                         }
 
                         const lhs = input[lhs_start..lhs_end];
                         const rhs = input[rhs_start..rhs_end];
 
-                        // Construire la nouvelle chaîne
-                        var result = std.ArrayListUnmanaged(u8){};
-                        defer result.deinit(allocator);
+                        // `^` en position prefixe (`(^ x 2)` deja S-expr) :
+                        // lhs vide, ne pas transformer. Le parser sait
+                        // gerer la forme prefixe directement.
+                        if (lhs.len > 0 and rhs.len > 0) {
+                            // Construire la nouvelle chaîne
+                            var result = std.ArrayListUnmanaged(u8){};
+                            defer result.deinit(allocator);
 
-                        // Partie avant lhs
-                        _ = try result.appendSlice(allocator, input[0..lhs_start]);
-                        // (^ lhs rhs)
-                        _ = try result.writer(allocator).print("(^ {s} {s})", .{ lhs, rhs });
-                        // Partie après rhs
-                        _ = try result.appendSlice(allocator, input[rhs_end..]);
+                            // Partie avant lhs
+                            _ = try result.appendSlice(allocator, input[0..lhs_start]);
+                            // (^ lhs rhs)
+                            _ = try result.writer(allocator).print("(^ {s} {s})", .{ lhs, rhs });
+                            // Partie après rhs
+                            _ = try result.appendSlice(allocator, input[rhs_end..]);
 
-                        // Récursivement traiter le reste
-                        const intermediate = try result.toOwnedSlice(allocator);
-                        defer allocator.free(intermediate);
-                        return preprocessPower(intermediate, allocator);
+                            // Récursivement traiter le reste
+                            const intermediate = try result.toOwnedSlice(allocator);
+                            defer allocator.free(intermediate);
+                            return preprocessPower(intermediate, allocator);
+                        }
                     }
                 },
                 else => {},

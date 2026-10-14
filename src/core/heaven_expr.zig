@@ -2797,8 +2797,12 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         };
     }
     pub fn derive(self: *Heaven, expr_str: []const u8, var_name: []const u8) HeavenError![]u8 {
-        // Utiliser parseExpression (gère ^, *, +, -, /)
-        const expr_id = try self.parseExpression(expr_str);
+        // 1. Pretraiter : x^2 -> (^ x 2), gestion des parens externes.
+        //    Sans ceci, (x^2) devient un token unique inconnu.
+        const processed = try math_mod.Math.preprocessPower(expr_str, self.allocator);
+        defer self.allocator.free(processed);
+        // 2. Parse + derive
+        const expr_id = try self.parseExpression(processed);
         // Récupérer le Sym de la variable
         const var_id = try self.store.sym(var_name);
         const var_node = self.store.get(var_id);

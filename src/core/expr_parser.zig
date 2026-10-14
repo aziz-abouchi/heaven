@@ -766,10 +766,24 @@ pub const ExprParser = struct {
         // Sans ceci, `(1) == 1` echouait (apply(int(1), []) non
         // evaluable) et `(target_os)` restait un symbole nu.
         if (tokens.items.len == 1) {
-            const c0 = if (first.len > 0) first[0] else 0;
-            const is_ident = (c0 >= 'a' and c0 <= 'z') or
-                (c0 >= 'A' and c0 <= 'Z') or c0 == '_';
-            if (is_ident) {
+            // `first` est un identifiant pur (alphanum + _ + ?) → c'est
+            // un appel 0-arg (magic ou fonction). Sinon (ex: "x+1",
+            // "2*x"), deleguer a parseExpression qui sait parser
+            // l'infixe.
+            const is_pure_ident = blk: {
+                if (first.len == 0) break :blk false;
+                const c0 = first[0];
+                if (!((c0 >= 'a' and c0 <= 'z') or
+                      (c0 >= 'A' and c0 <= 'Z') or
+                      c0 == '_' or c0 == '?')) break :blk false;
+                for (first[1..]) |c| {
+                    if (!std.ascii.isAlphanumeric(c) and c != '_' and c != '?') {
+                        break :blk false;
+                    }
+                }
+                break :blk true;
+            };
+            if (is_pure_ident) {
                 return self.store.apply(try self.store.sym(first), &.{});
             }
             return self.parseExpression(first);

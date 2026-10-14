@@ -285,9 +285,7 @@ pub fn cmdToC(self: *Shell, input: []const u8) void {
 
 /// Sépare "expression, variable" — la variable est optionnelle (défaut : "x")
 fn splitExprVar(input: []const u8) struct { expr: []const u8, varname: []const u8 } {
-    // NOUVEAU : la variable doit être séparée par une virgule
-    // "x * x"     → expr = "x * x",     varname = "x" (défaut)
-    // "x^2, y"    → expr = "x^2",       varname = "y"
+    // 1. Virgule (priorite) : "x^2, y" -> expr="x^2", var="y"
     if (std.mem.lastIndexOfScalar(u8, input, ',')) |comma| {
         const expr = std.mem.trim(u8, input[0..comma], " ");
         const varname = std.mem.trim(u8, input[comma + 1 ..], " ");
@@ -295,6 +293,16 @@ fn splitExprVar(input: []const u8) struct { expr: []const u8, varname: []const u
             return .{ .expr = expr, .varname = varname };
         }
     }
+    // 2. Dernier espace : "(x^2) x" -> expr="(x^2)", var="x"
+    //    "x * x x"  -> expr="x * x",  var="x"
+    if (std.mem.lastIndexOfScalar(u8, input, ' ')) |sp| {
+        const expr = std.mem.trim(u8, input[0..sp], " ");
+        const varname = std.mem.trim(u8, input[sp + 1 ..], " ");
+        if (expr.len > 0 and varname.len > 0 and isIdentifier(varname)) {
+            return .{ .expr = expr, .varname = varname };
+        }
+    }
+    // 3. Defaut : variable implicite "x", expression = input entier.
     return .{ .expr = input, .varname = "x" };
 }
 
@@ -309,8 +317,8 @@ fn isIdentifier(s: []const u8) bool {
 pub fn cmdDerive(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     const parts = splitExprVar(input);
-    const result = self.heaven.derive(parts.expr, parts.varname) catch {
-        platform.debug.print(" derive error\n", .{});
+    const result = self.heaven.derive(parts.expr, parts.varname) catch |err| {
+        platform.debug.print(" derive error: {}\n", .{err});
         return;
     };
     defer self.allocator.free(result);
