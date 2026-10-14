@@ -308,6 +308,12 @@ pub const Engine = struct {
     vtable: *const HeavenVTable,
     /// Pile de frames pour continuations delimitees (D8 3a-3).
     capture_stack: continuation.CaptureStack,
+    /// A-2 (3a-3b pre-vol) : active la capture de frames dans
+    /// evaluate. false par defaut : aucun impact, aucune alloc.
+    /// true uniquement pendant evalWithBudget (scheduler).
+    capturing: bool = false,
+    /// Prompt courant, copie dans Frame.prompt a chaque push.
+    current_prompt: continuation.Prompt = 0,
     /// 3a-3a : pile des prompts ouverts (handle_rec, futurs bracket/catch).
     /// Distinct de capture_stack : celui-ci ne stocke que des ids de
     /// frontiere, pas des frames capturees.
@@ -690,6 +696,21 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
     // Le `try` des 56 sites recursifs propage automatiquement.
     if (engine.reductions == 0) return error.SuspendRequested;
     engine.reductions -= 1;
+
+    // HEAVEN:A2 (3a-3b pre-vol) : capture conditionnelle.
+    // Active uniquement par le scheduler (engine.capturing).
+    // Aucun impact en usage normal (capture_on = false).
+    const capture_on = engine.capturing;
+    if (capture_on) {
+        try engine.capture_stack.push(.{
+            .prompt = engine.current_prompt,
+            .position = depth,
+            .env = @as(u64, @intFromPtr(env)),
+        });
+    }
+    defer if (capture_on) {
+        _ = engine.capture_stack.pop();
+    };
 
     if (platform.target.is_debug and id == 0xAAAAAAAA) {
         @panic("poison Id at evaluate entry");
