@@ -6,6 +6,9 @@ pub const TaskState = enum {
     ready,
     running,
     blocked,
+    /// A-3a : suspendue par budget insuffisant. Retriable au
+    /// prochain schedule (contrairement a .blocked, terminal).
+    preempted,
     finished,
     cancelled,
 };

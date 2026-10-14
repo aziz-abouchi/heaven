@@ -1054,6 +1054,13 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         // budget 0 -> aucun progres possible, retour vide.
         if (budget == 0) return try store.unitLit();
 
+        // HEAVEN:A3A-RESET : reprendre les taches preemptees au
+        // cycle precedent. Conversion unique AVANT la boucle : sinon
+        // la tache re-preemptee serait immediatement re-eligible,
+        // -> livelock.
+        for (engine.scheduler.tasks.items) |*t| {
+            if (t.state == .preempted) t.state = .ready;
+        }
 
         while (true) {
             const task = engine.scheduler.next() orelse break;
@@ -1095,11 +1102,13 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                             task.state = .ready;
                         }
                     } else {
-                        // Budget epuise : etat inchange, requeue.
-                        // HEAVEN:FIX_C3_LIVELOCK (B) — budget epuise sans
-                        // yield : pas de reprise sans captureCont (3a-3b).
-                        // .blocked garantit la terminaison.
-                        task.state = .blocked;
+                        // HEAVEN:A3A-PREEMPT : budget epuise sans yield.
+                        // .preempted (au lieu de .blocked, terminal) :
+                        // la tache sera reprise au prochain schedule.
+                        // Modele redemarrable : la tache repart du debut
+                        // (current_state inchange), mais elle n'est plus
+                        // perdue.
+                        task.state = .preempted;
                     }
                 },
             }
