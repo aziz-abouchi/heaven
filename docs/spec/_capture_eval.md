@@ -53,3 +53,21 @@ engine.capturing). Overhead nul en usage normal.
 - A-2 : flag engine.capturing + push/pop conditionnel.
 - A-3 : captureCont sur SuspendRequested + reprise.
 - A-4 : tests preemptive_split + non-regression complete.
+
+## Etat 2026-10-14 (soir)
+
+**A-2 livre** : hook conditionnel `engine.capturing` + push/pop
+dans `evaluate`. Inerte en usage normal (capturing=false par
+defaut). Non-regression validee.
+
+**A-3a livre** : `TaskState.preempted` + reprise par redemarrage.
+`test_preemptive_split` 0/2 -> 3/3.
+
+**Note tests Zig** : les tests unitaires A-2 places dans
+`engine_expr.zig` cassaient bigint/hashmap/parser. Hypothesis :
+specialisation `CaptureStack.init(std.testing.allocator)` fuit
+dans le binaire ReleaseFast. Tests retires (commit bbaa798).
+Tests d'integration `.hvn` couvrent la fonction.
+
+**A-3b (prochain)** : reprise exacte via `captureCont`.
+Effort 2-3 sessions. Voir les 4 obstacles chiffres ci-dessus.

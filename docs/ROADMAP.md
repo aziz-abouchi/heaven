@@ -975,3 +975,16 @@ des exemples qui utilisent les type classes directement.
 - **2026-10-12** : D8 3a-3a (prompts branchés dans `engine_expr.zig`).
 - **HKT V0.5** : 15/15 tests verts.
 <!-- HEAVEN:ROADMAP:C3:END -->
+
+### C3 — Préemption : jalons 2026-10-14
+
+- **C3 V0** : safepoint + budget, fix livelock (D31).
+- **@budget_left** : coopération budget-aware (3/3).
+- **A-2** : hook capture conditionnel dans `evaluate`.
+- **A-3a** : `TaskState.preempted` + reprise par redémarrage.
+  `test_preemptive_split` 0/2 -> 3/3.
+
+**Prochain** : A-3b (`captureCont` réel, reprise exacte). Effort
+2-3 sessions. Voir `docs/spec/_capture_eval.md`.
+
+**Dette séparée** : bug `(+ 1 2 3 4)` dans lambda.

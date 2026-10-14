@@ -1056,8 +1056,8 @@
         {
           "name": "Scheduler préemptif",
           "tier": "partiel",
-          "proof": "`test_scheduler.hvn` 3/3 ✓ ; `test_preemptive.hvn` (T1-T5) ✓ ; budget insuffisant -> `.blocked` (fix A+B)",
-          "limit": "reprise exacte exige captureCont (3a-3b). Voir D31 + `docs/spec/_preemptive.md`."
+          "proof": "test_scheduler 3/3, test_preemptive 12/12, test_preemptive_coop 4/4, test_preemptive_split 3/3 ; TaskState.preempted (A-3a) : reprise par redemarrage",
+          "limit": "reprise exacte exige captureCont (3a-3b). Bug (+ 1 2 3 4) dans lambda trace separement."
         },
         {
           "name": "Distribution",

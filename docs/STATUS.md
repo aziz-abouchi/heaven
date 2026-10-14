@@ -292,7 +292,7 @@ Résultats de référence (`docs/spec/_bench.md`) :
 | `bracket` / `local` / `catch` | ✅ | test_suite.hvn (5 tests) | syntaxe scoped, pas handle-rec |
 | `handle-rec` (reprise, one-shot) | ✅ | `test_effects_rec.hvn` + `test_effects_rec_nested.hvn` | discriminant par prompt |
 | `@prompt` / `@throw` (continuations delimitees) | ✅ | `test_continuations.hvn` (5 tests) | one-shot |
-| Scheduler préemptif | ⚠️ | `test_scheduler.hvn` 3/3 ✓ ; `test_preemptive.hvn` (T1-T5) ✓ ; budget insuffisant -> `.blocked` (fix A+B) | reprise exacte exige captureCont (3a-3b). Voir D31 + `docs/spec/_preemptive.md`. |
+| Scheduler préemptif | ⚠️ | test_scheduler 3/3, test_preemptive 12/12, test_preemptive_coop 4/4, test_preemptive_split 3/3 ; TaskState.preempted (A-3a) : reprise par redemarrage | reprise exacte exige captureCont (3a-3b). Bug (+ 1 2 3 4) dans lambda trace separement. |
 | Distribution | 🚧 | — | C2 tranchée (Option D lazy copy) |
 
 ## Top priorités

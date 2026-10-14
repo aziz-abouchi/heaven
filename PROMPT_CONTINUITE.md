@@ -770,3 +770,22 @@ Restructurer les corps de handler en unités réévaluables.
 - `kernel_bridge.zig` ne traduit que `lit`, `sym`, `apply` binop.
   `bind`, `lambda`, `relation` lèvent une erreur.
 <!-- HEAVEN:CONTINUITE:C3:END -->
+
+## Session 2026-10-14 (soir) — C3 V0+ et A-3a
+
+**Livré**
+- C3 V0 : safepoint + budget + fix livelock (D31).
+- Magic `@budget_left` (coopération).
+- A-2 : hook capture conditionnel (`capturing`).
+- A-3a : `TaskState.preempted` (reprise par redémarrage).
+- Bug `(+ 1 2 3 4)` dans lambda tracé (`_preemptive_split_bug.md`).
+
+**Tests** (tous verts)
+- scheduler 3/3, preemptive 12/12, coop 4/4, split 3/3.
+- bigint 30/30, hashmap 50/50, parser 22/22.
+
+**Prochaine session**
+- **A-3b** : reprise exacte via `captureCont` (3a-3b).
+  Voir `_capture_eval.md`. Effort 2-3 sessions.
+- Fix bug arité `+` (indépendant, 1 session).
+- Parser `let` infixe (spec `_let_syntax.md`, session dédiée).

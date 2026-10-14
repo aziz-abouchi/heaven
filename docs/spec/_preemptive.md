@@ -150,3 +150,21 @@ pour des tâches dont le coût total < budget**.
 - `src/core/engine_expr.zig` — `Engine.reductions`, `evalWithBudget`,
   `evalWithRetry`, safepoint ligne 689.
 - `tests/test_scheduler.hvn` — 3 tests coopératifs (sans préemption).
+
+## Mise a jour 2026-10-14
+
+**Livre** :
+- Safepoint + budget (`engine.reductions`).
+- Fix livelock budget insuffisant (D31).
+- `@budget_left` (cooperation).
+- A-2 : hook capture conditionnel.
+- A-3a : `TaskState.preempted` (reprise par redemarrage).
+
+**Tests** : scheduler 3/3, preemptive 12/12, coop 4/4, split 3/3.
+
+**Modele actuel** : redemarrable. La tache repart du debut sur
+budget insuffisant. Pas de reprise exacte -- cout quadratique
+mais correct.
+
+**Cible** : reprise exacte via `captureCont` (3a-3b), plan dans
+`_capture_eval.md`.

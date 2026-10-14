@@ -1054,3 +1054,24 @@ exactement où elle s'est arrêtée.
 **Test** : `test_preemptive.hvn` 12/12 ✓ (T1-T6) ; `test_scheduler.hvn`
 3/3 ✓. La préemption fine reste un chantier, mais le livelock et le
 freeze système sont éliminés.
+
+### D31 — Addendum 2026-10-14 (A-3a)
+
+**Livré** : `TaskState.preempted` (distinct de `.blocked` terminal)
++ conversion `.preempted -> .ready` en tête de `schedule` (une
+seule fois, sinon livelock) + budget épuisé -> `.preempted`.
+
+**Modèle** : redémarrable. La tâche repart du début (`current_state`
+inchangé) mais n'est plus perdue. Coût quadratique en nombre de
+suspensions — acceptable pour V0.
+
+**Tests** : `test_preemptive_split.hvn` 0/2 -> 3/3. Non-régression :
+scheduler 3/3, preemptive 12/12, coop 4/4, bigint 30/30,
+hashmap 50/50, parser 22/22.
+
+**Dette identifiée séparément** : `(+ 1 2 3 4)` dans une lambda
+retourne 0 (bug d'arité sur le magic `+`, indépendant de C3).
+Voir `docs/spec/_preemptive_split_bug.md`.
+
+**Prochaine étape** : reprise exacte via `captureCont` (3a-3b) —
+chantier séparé, cf. `_capture_eval.md`.
