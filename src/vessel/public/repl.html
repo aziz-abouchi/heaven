@@ -696,16 +696,18 @@
           : "";
 
         const encoder = new TextEncoder();
-        const cmdBytes = encoder.encode(cmd);
-        const argBytes = encoder.encode(args);
+        // HEAVEN:CMD_SPACE - injecter un espace entre cmd et args
+        // (le wasm concatene les deux buffers sans separateur)
+        const sep = args ? ' ' : '';
+        const fullText = cmd + sep + args;
+        const fullBytes = encoder.encode(fullText);
         
         const ptr = wasm.getInputPtr();
-        mem().set(cmdBytes, ptr);
-        mem().set(argBytes, ptr + cmdBytes.length);
+        mem().set(fullBytes, ptr);
         
         let outLen = 0;
         try {
-          outLen = wasm.dispatch(cmdBytes.length, argBytes.length);
+          outLen = wasm.dispatch(fullBytes.length, 0);
         } catch (e) {
           console.error('Erreur critique WASM :', e);
           addLine(' ✗ Erreur WASM: ' + e.message, 'error');

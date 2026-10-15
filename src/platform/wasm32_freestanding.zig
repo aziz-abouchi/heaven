@@ -202,6 +202,9 @@ pub const fs = struct {
 
 
     pub const File = struct {
+        // HEAVEN:FILE_VFS_CONTENT - contenu en memoire (VFS)
+        content: []u8 = &.{},
+
         pub const OpenError = error{
             FileNotFound,
             PermissionDenied,
@@ -227,10 +230,13 @@ pub const fs = struct {
         pub fn read(_: File, _: []u8) ReadError!usize {
             return error.ReadError;
         }
-        pub fn readToEndAlloc(_: File, _: std.mem.Allocator, _: usize) ![]u8 {
-            return error.NotSupported;
+        pub fn readToEndAlloc(self: File, alloc: std.mem.Allocator, _: usize) ![]u8 {
+            // HEAVEN:FILE_VFS_CONTENT - duplique (le File garde sa propre copie)
+            return alloc.dupe(u8, self.content);
         }
-        pub fn close(_: File) void {}
+        pub fn close(self: File) void {
+            if (self.content.len > 0) std.heap.wasm_allocator.free(self.content);
+        }
         pub fn writeAll(self: File, bytes: []const u8) anyerror!void {
             _ = self;
             _ = bytes;
@@ -263,8 +269,13 @@ pub const fs = struct {
     }
 
     pub const Dir = struct {
-        pub fn openFile(_: Dir, _: []const u8, _: anytype) error{FileNotFound}!File {
-            return error.FileNotFound;
+        // HEAVEN:OPENFILE_VFS - branche sur le VFS
+        pub fn openFile(_: Dir, path_str: []const u8, _: anytype) !File {
+            const len = js_vfs_read_file(path_str.ptr, path_str.len);
+            if (len == 0) return error.FileNotFound;
+            const buf = try std.heap.wasm_allocator.alloc(u8, len);
+            js_vfs_copy_buffer(buf.ptr, len);
+            return File{ .content = buf };
         }
 
         // HEAVEN:DIR_READFILE_VFS - copie inline de fs.readFileAlloc (VFS)
