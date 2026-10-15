@@ -47,6 +47,17 @@ pub fn getEnv(alloc: std.mem.Allocator, key: []const u8) !?[]u8 {
 }
 
 pub const net = struct {
+
+    // D-SH4 : socket/connect TCP client. Pas de support en V0
+    // sur cette cible. Voir _selfhosting_roadmap.md.
+    pub fn socketTcp() i64 {
+        return -1;
+    }
+
+    pub fn connectTcp(_: []const u8, _: u16) !i64 {
+        return error.NotSupported;
+    }
+
     pub fn listenTcp(port: u16) !std.net.Server {
         return std.net.Address.initIp4(.{ 127, 0, 0, 1 }, port).listen(.{});
     }

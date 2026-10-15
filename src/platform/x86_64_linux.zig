@@ -167,22 +167,64 @@ pub const net = struct {
         std.posix.close(sfd);
     }
 
-    // HEAVEN:NET_CONNECT — client TCP (N1 self-hosting roadmap)
-    /// Cree une socket TCP (AF_INET, SOCK_STREAM). Retourne fd ou -1.
-    pub fn socketTcp() i64 {
-        const sfd = std.posix.socket(std.posix.AF.INET, std.posix.SOCK.STREAM, 0) catch return -1;
-        return @intCast(sfd);
+    // HEAVEN:NET_CONNECT_RAW — syscalls Linux directs (D-SH4)
+    // Pas de std.posix : ABI Linux x86_64.
+    // socket(41), connect(42), close(3).
+    // Autorise : std.mem / std.fmt (computation pure).
+    // Interdit : std.posix.*, std.net.*, std.fs.* (wrappers portables).
+
+    /// Parse "1.2.3.4" en 4 bytes (pure computation).
+    fn parseIpv4(s: []const u8) ?[4]u8 {
+        var bytes: [4]u8 = undefined;
+        var it = std.mem.splitScalar(u8, s, '.');
+        var idx: usize = 0;
+        while (it.next()) |p| {
+            if (idx >= 4) return null;
+            bytes[idx] = std.fmt.parseInt(u8, p, 10) catch return null;
+            idx += 1;
+        }
+        if (idx != 4) return null;
+        return bytes;
     }
 
-    /// Connecte au serveur ip:port. Retourne fd (>=0) ou -errno (<0).
+    /// socket(AF_INET, SOCK_STREAM, 0). Retourne fd (>=0) ou -1.
+    pub fn socketTcp() i64 {
+        const result = std.os.linux.syscall3(.socket, 2, 1, 0);
+        const signed: isize = @bitCast(result);
+        if (signed < 0) return -1;
+        return @intCast(signed);
+    }
+
+    /// connect(fd, sockaddr_in, 16). Retourne fd (>=0) ou -1.
     pub fn connectTcp(ip: []const u8, port: u16) !i64 {
-        const address = std.net.Address.parseIp4(ip, port) catch return error.InvalidInput;
-        const sfd = std.posix.socket(address.any.family, std.posix.SOCK.STREAM, 0) catch return error.SocketFailed;
-        std.posix.connect(sfd, &address.any, address.getOsSockLen()) catch {
-            std.posix.close(sfd);
+        const bytes = parseIpv4(ip) orelse return error.InvalidInput;
+
+        // sockaddr_in (16 bytes) :
+        //   [0..2] family = AF_INET (2) little-endian
+        //   [2..4] port  big-endian
+        //   [4..8] addr  network order
+        //   [8..16] zero
+        var sa: [16]u8 = [_]u8{0} ** 16;
+        sa[0] = 2;
+        sa[1] = 0;
+        sa[2] = @intCast((port >> 8) & 0xFF);
+        sa[3] = @intCast(port & 0xFF);
+        sa[4] = bytes[0];
+        sa[5] = bytes[1];
+        sa[6] = bytes[2];
+        sa[7] = bytes[3];
+
+        const fd_i = socketTcp();
+        if (fd_i < 0) return error.SocketFailed;
+        const fd: usize = @intCast(fd_i);
+
+        const r = std.os.linux.syscall3(.connect, fd, @intFromPtr(&sa), 16);
+        const signed: isize = @bitCast(r);
+        if (signed < 0) {
+            _ = std.os.linux.syscall1(.close, fd);
             return error.ConnectFailed;
-        };
-        return @intCast(sfd);
+        }
+        return fd_i;
     }
 };
 
