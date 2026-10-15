@@ -58,13 +58,19 @@ jobs:
 
       - name: Assemble site
         run: |
-          mkdir -p site/repl
+          mkdir -p site
           cp -r docs/book/book/* site/
-          cp -r src/vessel/public/* site/repl/
-          cp zig-out/bin/heaven-freestanding.wasm site/repl/heaven.wasm
-          # Le REPL Vessel remplace l'index du dossier /repl/
-          cp src/vessel/public/repl.html site/repl/index.html
-          ls -la site/repl/
+          WASM=zig-out/bin/heaven-freestanding.wasm
+          for pair in repl:repl.html ide:ide.html dashboard:dashboard.html docs:docs.html test:test.html egraph:egraph-viz.html process:process-frame.html debugger:debugger-frame.html; do
+            app="${pair%:*}"
+            html="${pair#*:}"
+            mkdir -p "site/$app"
+            cp -r src/vessel/public/* "site/$app/"
+            cp "src/vessel/public/$html" "site/$app/index.html"
+            cp "$WASM" "site/$app/heaven.wasm"
+          done
+          echo "=== Apps disponibles ==="
+          ls -la site/
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3

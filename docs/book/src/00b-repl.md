@@ -17,7 +17,7 @@ Vous pouvez l'utiliser directement, sans installation.
     var path = location.pathname;
     var prefix = path.indexOf('/heaven/') >= 0 ? '/heaven' : '';
     var iframe = document.getElementById('heaven-repl-frame');
-    if (iframe) iframe.src = prefix + '/repl/repl.html';
+    if (iframe) iframe.src = prefix + '/repl/';
   })();
 </script>
 
