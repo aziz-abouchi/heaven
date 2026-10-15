@@ -135,3 +135,46 @@ Base vectorielle (HNSW) en Heaven pur — utile meme sans IA.
 - Cassandra auto-heberge (Bitcask d'abord)
 - IA en Heaven pur (ONNX d'abord)
 - Support Windows/macOS serveur (Linux seulement V0)
+
+## Annexes : exemples en infixe
+
+### N1 -- TCP client
+
+    -- stdlib/net.hvn (infixe)
+    net_connect host port =
+      @net_connect (string_ptr host) port
+
+    -- usage
+    fd = net_connect "example.com" 80
+    req = "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n"
+    io_write fd (string_ptr req) (string_length req)
+    resp = io_read fd buf 65536
+
+### T2 -- HTTP client
+
+    -- stdlib/http_client.hvn (infixe)
+    http_get url =
+      let host, path = parse_url url in
+      let fd = tls_connect host 443 in
+      let req = build_request "GET" path host in
+      let _ = tls_write fd req in
+      let resp = tls_read fd 65536 in
+      parse_response resp
+
+### M1 -- Memcached client
+
+    -- stdlib/memcached.hvn (infixe)
+    mc_get conn key =
+      let _ = send conn ("get " + key + "\r\n") in
+      recv_value conn
+
+    mc_set conn key value =
+      let _ = send conn ("set " + key + " 0 0 " + (length value) + "\r\n") in
+      let _ = send conn (value + "\r\n") in
+      recv_status conn
+
+## Style
+
+Tout le code de ce roadmap (et des futures implementations) est en
+**notation infixe** quand l'operateur est binaire. Voir
+`_style_infix.md`.
