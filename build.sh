@@ -191,7 +191,7 @@ if [ "${HEAVEN_NO_WASM:-0}" = "1" ]; then
 else
     echo "[FORGE] Building wasm (nécessaire pour @embedFile)..."
     zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
-    cp zig-out/bin/heaven.wasm src/vessel/public/heaven.wasm
+    cp zig-out/bin/heaven-freestanding.wasm src/vessel/public/heaven.wasm
 fi
 
 echo "[FORGE] Compilation native..."

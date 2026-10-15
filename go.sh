@@ -12,7 +12,7 @@ fi
 zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
 
 # 2. Le copier dans public/
-cp zig-out/bin/heaven.wasm src/vessel/public/heaven.wasm
+cp zig-out/bin/heaven-freestanding.wasm src/vessel/public/heaven.wasm
 cp core/test_suite.hvn src/vessel/public/test_suite.hvn
 
 # 3. Nettoyer : le natif doit lire le NOUVEAU public/heaven.wasm
