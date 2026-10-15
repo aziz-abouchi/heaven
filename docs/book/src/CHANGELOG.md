@@ -1,6 +1,64 @@
 # Changements récents
 
 
+## 2026-10-15 -- VFS, WASM 8 apps, book, fix type
+
+### WASM / Web
+
+- **wasm32-freestanding** : build exit=0 (contenu reel de wasm.zig
+  restaure, `js_env` par alias).
+- **8 apps Vessel** exposees : REPL, IDE, Dashboard, Docs, Tests,
+  E-Graph, Process, Debugger.
+- **GitHub Pages** : workflow `deploy.yml` (book + apps).
+- **VFS** : 85 fichiers `.hvn` charges via fetch + manifest.
+  `js_vfs_read_file` / `js_vfs_copy_buffer`.
+- **`:load`** dans le REPL web : lit un fichier via le VFS et
+  evalue chaque ligne.
+
+### Book
+
+- **Chapitres 19-23** : Algebres (Fantasy Land), HKT, CAS & E-Graph,
+  HoTT, Validation.
+- **5 SVG** : 19-algebras-chain, 20-hkt-functor,
+  21-egraph-saturation, 22-hott-vs-cic, 23-validation-vs-result.
+
+### Fix
+
+- **`type true/"hello"/3.14`** retournaient `?`. Pre-reconnaissance
+  directe des litteraux dans `typeOf`.
+- **Separateur cmd/args** dans `repl.html::dispatch` (le wasm
+  concatenait `"loadcore/std/list.hvn"`).
+- **`File.content` + `Dir.openFile`** branches sur le VFS.
+
+
+## 2026-10-14 -- C3 preemptif (D31), A-3a
+
+### C3 -- Scheduler preemptif
+
+- **Safepoint + budget de reductions** : `engine.reductions`
+  decremente a chaque pas d'evaluation. A 0 -> `SuspendRequested`.
+- **Fix livelock** : `schedule` avec budget insuffisant provoquait
+  un freeze systeme. Fix A (garde budget==0) + Fix B
+  (`.preempted` au lieu de `.blocked`).
+- **`@budget_left`** : magic de cooperation budget-aware.
+- **A-2** : hook capture conditionnel (`engine.capturing`) dans
+  `evaluate`. Inerte en usage normal.
+- **A-3a** : `TaskState.preempted` -- tache retriable au prochain
+  `schedule`.
+
+### Docs
+
+- D31 + 3 addendums (`DECISIONS.md`).
+- Specs : `_preemptive.md`, `_capture_eval.md`,
+  `_cooperative_budget.md`, `_let_syntax.md`.
+- Book : chapitre 13 (Concurrence) nuance.
+- CI : `HEAVEN_NO_LEAK_CHECK=1` (aligne sur build.sh).
+
+### Tests
+
+- scheduler 3/3, preemptive 12/12, coop 4/4, split 3/3.
+
+
 ## 2026-10-09 (soir) -- Série Kmett + first-class + hex
 
 ### Série Kmett -- 4 chapitres, 3 modules
