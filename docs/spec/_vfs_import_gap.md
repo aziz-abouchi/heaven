@@ -53,3 +53,32 @@ reutiliser le code du parser fichier sans toucher au dispatch.
 - src/vessel/public/vfs.js
 - src/platform/wasm32_freestanding.zig (Dir.readFileAlloc)
 - src/core/commands/dispatch.zig
+
+## Tests REPL supplementaires (2026-10-15 16h45)
+
+| Commande | Resultat |
+|---|---|
+| :import core/std/list.hvn as L | UnboundVariable |
+| :load core/std/list.hvn as L | UnboundVariable |
+| :i core/std/list.hvn as L | UnboundVariable |
+
+**Conclusion definitive** : aucune syntaxe REPL ne permet
+l'import. Le dispatch REPL n'expose pas `import` comme commande.
+C'est un MANQUE, pas un bug.
+
+## Fix recommande (session dediee)
+
+Ajouter dans src/core/commands/dispatch.zig une commande `:load` :
+
+    :load <path> as <Name>
+
+Qui appelle le meme code que le parser fichier :
+1. Lit le fichier via platform.fs.cwd().readFileAlloc (VFS).
+2. Parse via heaven_parse.
+3. Lie le resultat sous <Name> dans l'env global.
+
+Effort : 30 min.
+
+Alternative minimale : documenter que l'import se fait par
+fichier .hvn, pas dans le REPL web. Le REPL reste utile pour
+evaluer des expressions.
