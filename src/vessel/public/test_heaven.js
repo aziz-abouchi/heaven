@@ -19,7 +19,8 @@ async function runTests(wasm) {
     // Fetch the single source of truth
     let suiteText;
     try {
-        const resp = await fetch('/test_suite.hvn');
+        // HEAVEN:RELATIVE_TEST_SUITE - relatif pour /test/ et /
+        const resp = await fetch('test_suite.hvn');
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         suiteText = await resp.text();
     } catch (e) {

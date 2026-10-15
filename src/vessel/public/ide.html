@@ -170,11 +170,14 @@
           console.log('[REPL] ' + e.data.text);
         } else if (e.data && e.data.type === 'repl-ready') {
           console.log('REPL is ready');
-          document.getElementById('sb-wasm').textContent = 'wasm: REPL ready';
+          // HEAVEN:SB_WASM_GUARD - #sb-wasm peut ne pas exister
+          var sbw = document.getElementById('sb-wasm');
+          if (sbw) sbw.textContent = 'wasm: REPL ready';
         }
         if (e.data && e.data.type === 'status') {
           console.log('REPL status is', e.data.text);
-          document.getElementById('sb-wasm').textContent = e.data.text;
+          var sbw2 = document.getElementById('sb-wasm');
+          if (sbw2) sbw2.textContent = e.data.text;
         }
       });
 
