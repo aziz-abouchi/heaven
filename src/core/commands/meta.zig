@@ -132,6 +132,28 @@ pub fn countNodes(cmds: anytype, id: Id) usize {
 
 pub fn typeOf(cmds: anytype, input: []const u8) anyerror![]u8 {
     const trimmed = std.mem.trim(u8, input, " \t");
+
+    // HEAVEN:TYPEOF_LIT — reconnaissance directe des litteraux
+    // (parseExpression ne gere pas boolean/string de facon fiable)
+    if (std.mem.eql(u8, trimmed, "true") or std.mem.eql(u8, trimmed, "false")) {
+        return cmds.allocator.dupe(u8, "Bool");
+    }
+    if (trimmed.len >= 2 and trimmed[0] == '"' and trimmed[trimmed.len - 1] == '"') {
+        return cmds.allocator.dupe(u8, "String");
+    }
+    if (trimmed.len > 0 and (trimmed[0] == '-' or (trimmed[0] >= '0' and trimmed[0] <= '9'))) {
+        // Entier ou flottant
+        var has_dot = false;
+        var has_invalid = false;
+        for (trimmed[1..]) |c| {
+            if (c == '.') { has_dot = true; continue; }
+            if (c < '0' or c > '9') { has_invalid = true; break; }
+        }
+        if (!has_invalid) {
+            return cmds.allocator.dupe(u8, if (has_dot) "Float" else "Int");
+        }
+    }
+
     const id = blk: {
         if (std.mem.indexOf(u8, trimmed, "(λ") != null or std.mem.indexOf(u8, trimmed, "(\\") != null) {
             break :blk try cmds.parseApp(trimmed);
@@ -145,7 +167,8 @@ pub fn typeOf(cmds: anytype, input: []const u8) anyerror![]u8 {
     var inf = types_mod.Infer.init(cmds.store, cmds.allocator);
     defer inf.deinit();
     const t = try inf.typeOf(id);
-    return inf.typeStr(&inf.subst, t, cmds.allocator);
+    const result = try inf.typeStr(&inf.subst, t, cmds.allocator);
+    return result;
 }
 
 pub fn listRules(cmds: anytype) anyerror![]u8 {
