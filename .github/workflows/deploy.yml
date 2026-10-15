@@ -1,4 +1,4 @@
-name: Deploy Book & WASM REPL to GitHub Pages
+name: Deploy Book & WASM REPL
 
 on:
   push:
@@ -43,31 +43,28 @@ jobs:
 
       - name: Install mdBook
         run: |
-          mkdir -p $HOME/.local/bin
+          mkdir -p "$HOME/.local/bin"
           curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz \
-            | tar -xz -C $HOME/.local/bin
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+            | tar -xz -C "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Build Heaven WASM
+      - name: Build WASM
         run: |
-          bash build.sh
+          zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
           ls -la zig-out/bin/
-          ls -la src/vessel/public/heaven.wasm
 
       - name: Build mdBook
         run: mdbook build docs/book
 
       - name: Assemble site
         run: |
-          mkdir -p site
-          # 1. Book a la racine
-          cp -r docs/book/book/* site/
-          # 2. REPL dans /repl/
           mkdir -p site/repl
+          cp -r docs/book/book/* site/
           cp -r src/vessel/public/* site/repl/
-          # 3. WASM (deja copie par build.sh dans src/vessel/public/)
-          # Verifier qu'il est bien la
-          ls -la site/repl/heaven.wasm
+          cp zig-out/bin/heaven-freestanding.wasm site/repl/heaven.wasm
+          # Le REPL Vessel remplace l'index du dossier /repl/
+          cp src/vessel/public/repl.html site/repl/index.html
+          ls -la site/repl/
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
