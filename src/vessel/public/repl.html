@@ -358,6 +358,15 @@
       let pendingProofPeerId = null;
 
       const jsImports = {
+      // HEAVEN:WASM_IMPORTS_ADDED - matching externs in wasm32_freestanding.zig
+      // Stubs : VFS non implemente (retourne 0 = FileNotFound),
+      // metrics no-op, stdout/stderr -> console.
+      js_write_stdout: (ptr, len) => { try { console.log(readWasmString(ptr, len)); } catch(_) {} },
+      js_write_stderr: (ptr, len) => { try { console.error(readWasmString(ptr, len)); } catch(_) {} },
+      js_vfs_read_file: (_ptr, _len) => 0,
+      js_vfs_copy_buffer: (_outPtr, _len) => {},
+      js_emit_metrics: (_classes, _nodes, _count) => {},
+
         // Console
         js_console_log: (ptr, len) => {
           console.log(readWasmString(ptr, len));
