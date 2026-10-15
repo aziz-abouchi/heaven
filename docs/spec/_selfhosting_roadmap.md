@@ -191,3 +191,26 @@ portable en Heaven. Zig std reserve au host (alloc, debug, FFI C).
 - T1 (TLS) : OpenSSL FFI accepte (C, pas Zig std)
 
 Voir `DECISIONS.md` (D-SH4).
+
+### N4bis -- clarification (2026-10-15)
+
+**Fausse dette** : les 4 copies du desugar bitstring ne sont PAS
+4 fois la meme chose.
+
+| Fichier | Rôle |
+|---|---|
+| heaven_expr.zig:621 | **Destructuration** (P1/P3) |
+| commands/defs.zig:159 | **Destructuration** (P1/P3) |
+| parse.zig:51 | **Construction** (P2) |
+| expr_parser.zig:46 | **Construction** (P2) |
+
+Seule la **destructuration** a besoin de `/little` et
+`rest:bits`. Les 2 copies de construction sont OK telles quelles.
+
+**Feature différée** : construction avec `/little`
+(`<<0x12:16/little>>` → `0x3412`). Non-spécifiée, non testée,
+non-bloquante. À traiter si un protocole l'exige.
+
+**Dette restante** : les 2 copies de destructuration sont
+identiques (heaven_expr + commands/defs). À centraliser en
+helper partagé. Effort : 30 min. Priorité : basse.
