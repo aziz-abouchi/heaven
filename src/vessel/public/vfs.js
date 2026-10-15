@@ -34,6 +34,8 @@
       js_vfs_read_file: (ptr, len) => {
         const path = readWasmString(getMemory(), ptr, len);
         const data = VFS.get(path);
+        // HEAVEN:VFS_DEBUG (active via window.HEAVEN_VFS_DEBUG)
+        if (window.HEAVEN_VFS_DEBUG) console.log('[vfs] read', JSON.stringify(path), '->', data ? data.length + ' bytes' : 'NOT FOUND');
         if (!data) return 0;
         pending = data;
         return data.length;
