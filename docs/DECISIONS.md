@@ -1093,3 +1093,39 @@ FFI C comme OpenSSL).
 
 **Consequence** : N1 (TCP client) doit etre refactore. N2 (DNS)
 sera en Heaven pur. Voir `_selfhosting_roadmap.md`.
+
+## D-SH1 — TLS : OpenSSL via FFI
+
+**Date** : 2026-10-15
+**Statut** : TRANCHEE.
+
+**Decision** : utiliser OpenSSL (`libssl.so`) via FFI C. TCC est
+deja lie au build ; ajouter libssl est du meme ordre.
+
+**Alternatives ecartees** :
+- TLS en Heaven pur (6-12 mois, hors scope).
+- Pas de TLS (non-deployable en prod).
+
+## D-SH2 — Persistance : Bitcask-like en Heaven
+
+**Date** : 2026-10-15
+**Statut** : TRANCHEE.
+
+**Decision** : Bitcask (append-only log + index RAM) ecrit en
+Heaven pur. ~500 lignes.
+
+**Alternatives ecartees** :
+- SQLite FFI (moins Heaven-natif).
+- Cassandra auto-heberge (operationnellement lourd).
+
+## D-SH3 — IA : ONNX FFI + vector DB native
+
+**Date** : 2026-10-15
+**Statut** : TRANCHEE.
+
+**Decision** : ONNX Runtime via FFI pour l'inference. Base
+vectorielle (HNSW) en Heaven pur.
+
+**Alternatives ecartees** :
+- llama.cpp FFI (specifique LLM).
+- Heaven pur (limite a < 10M params).

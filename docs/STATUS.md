@@ -185,6 +185,7 @@ depuis une string utilisateur, jamais d'evar dedans).
 | WebRTC | ⚠️ | `webrtc.zig` + stub | stub en prod |
 | TCC linké | ⚠️ | `vendor/tcc` | présent, non utilisé |
 | ABI C (`extern fn`) | ❌ | — | **documenté ch9, absent** |
+| Networking (TCP/UDP) | ⚠️ | TCP client (N1), UDP socket (N2), bitstrings P3 (74/74). Test N1 5/5, HTTP 13/13, UDP 2/2. | DNS pur Heaven non complet (escape \x manquant). TLS/T1 a faire. Voir _selfhosting_roadmap.md. |
 
 ## Bibliothèque standard
 

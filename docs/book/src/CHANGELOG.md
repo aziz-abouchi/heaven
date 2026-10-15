@@ -625,3 +625,26 @@ sont déjà intégrées dans les chapitres :
 - Support du style classique : `\x. body`
 - Curryfication automatique pour multi-paramètres
 - Intégré dans : `03-syntax-in-functions.md` (à enrichir)
+
+## 2026-10-15 (soir) -- Self-hosting : TCP, UDP, bitstrings P3
+
+### Decisions
+- **D-SH4** : pas de Zig std dans le code portable.
+  `raw_syscall` ou `std.os.linux.syscall` uniquement.
+- **D-SH1/2/3** : TLS via OpenSSL FFI, persistance Bitcask-like,
+  IA via ONNX FFI.
+
+### Livre
+- **N1** : TCP client (@net_socket, @net_connect). Tests 5/5.
+- **N1bis** : listen/accept/read/write raw syscalls. HTTP 13/13.
+- **P3 bitstrings** : non aligne + /little + rest:bits. 74/74.
+- **N2** : UDP socket (@net_socket_udp, @net_sendto, @net_recvfrom).
+  DNS pur Heaven en cours (bloque par escape \x).
+
+### Specs
+- _selfhosting_roadmap.md : plan 9 etapes.
+- _magic_0arg_gap.md : magics 0-arg strippes en RHS de let.
+- _string_escape_gap.md : escapes \x non supportes.
+
+### Book
+- Chapitre 24 : Reseau.

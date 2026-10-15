@@ -650,6 +650,12 @@
           "tier": "absent",
           "proof": "—",
           "limit": "**documenté ch9, absent**"
+        },
+        {
+          "name": "Networking (TCP/UDP)",
+          "tier": "partiel",
+          "proof": "TCP client (N1), UDP socket (N2), bitstrings P3 (74/74). Test N1 5/5, HTTP 13/13, UDP 2/2.",
+          "limit": "DNS pur Heaven non complet (escape \\x manquant). TLS/T1 a faire. Voir _selfhosting_roadmap.md."
         }
       ]
     },
