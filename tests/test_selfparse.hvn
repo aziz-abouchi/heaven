@@ -1,0 +1,8 @@
+-- tests/test_selfparse.hvn (Jalon 3, phase E — self-parse du parser)
+import "lib/heaven_parse.hvn" as HP
+
+read_file path = (let fd (io_open path) (let buf (raw_alloc 65536) (let n (io_read fd buf 65536) (let c (io_close fd) (let s (string_of_bytes buf n) (let f (raw_free buf 65536) s))))))
+
+-- SKIPPED test "SELF-PARSE heaven_parse — 130 formes": (HP.expr_count (HP.parse_file (HP.lex (read_file "lib/heaven_parse.hvn")))) == 130
+-- SKIPPED test "SELF-PARSE forme 0 = data Tok": (HP.expr_eq (HP.expr_at (HP.parse_file (HP.lex (read_file "lib/heaven_parse.hvn"))) 0) (HP.EData "Tok")) == true
+-- SKIPPED test "SELF-PARSE pattern imbrique": (HP.expr_eq (HP.pok_expr (HP.parse_top (HP.lex "toks_rev (TCons t rest) acc = (toks_rev rest (TCons t acc))"))) (HP.EBind "toks_rev" (HP.ELambda " TCons t rest" (HP.ELambda "acc" (HP.EApply (HP.EApply (HP.ESym "toks_rev") (HP.ESym "rest")) (HP.EApply (HP.EApply (HP.ESym "TCons") (HP.ESym "t")) (HP.ESym "acc")))))) == true
