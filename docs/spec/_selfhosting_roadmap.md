@@ -178,3 +178,16 @@ Base vectorielle (HNSW) en Heaven pur — utile meme sans IA.
 Tout le code de ce roadmap (et des futures implementations) est en
 **notation infixe** quand l'operateur est binaire. Voir
 `_style_infix.md`.
+
+## D-SH4 — Pas de Zig std pour la metacircularite (2026-10-15)
+
+**Regle** : `raw_syscall*` au lieu de `std.posix.*` pour tout code
+portable en Heaven. Zig std reserve au host (alloc, debug, FFI C).
+
+**Impact** :
+- N1 : refactor `std.posix.socket/connect/read/write` -> `raw_syscall6`
+- N2 : DNS pur Heaven (UDP + parse), pas `std.net.getAddressList`
+- N4 (bitstrings P3) : prerequis pour N2
+- T1 (TLS) : OpenSSL FFI accepte (C, pas Zig std)
+
+Voir `DECISIONS.md` (D-SH4).

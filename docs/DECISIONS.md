@@ -1075,3 +1075,21 @@ Voir `docs/spec/_preemptive_split_bug.md`.
 
 **Prochaine étape** : reprise exacte via `captureCont` (3a-3b) —
 chantier séparé, cf. `_capture_eval.md`.
+
+## D-SH4 — Pas de dependance Zig std pour la metacircularite
+
+**Date** : 2026-10-15
+**Statut** : TRANCHEE.
+
+**Regle** : le code qui doit etre porte un jour en Heaven (runtime,
+reseau, IO, crypto) utilise `raw_syscall*` directement, PAS
+`std.posix.*` ni `std.net.*`.
+
+**Autorise** : Zig std pour le host (allocator, debug, builtins,
+FFI C comme OpenSSL).
+
+**Interdit** : `std.posix.socket/connect/read/write`, `std.net.*`,
+`std.fs.*` dans le code portable.
+
+**Consequence** : N1 (TCP client) doit etre refactore. N2 (DNS)
+sera en Heaven pur. Voir `_selfhosting_roadmap.md`.
