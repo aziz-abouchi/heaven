@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" font-family="monospace">
+  <rect width="800" height="300" fill="#0a0a0a"/>
+  <text x="400" y="40" text-anchor="middle" fill="#00ff41" font-size="20">HKT : un type qui prend un type</text>
+
+  <rect x="80"  y="100" width="160" height="60" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="160" y="135" text-anchor="middle" fill="#00ff41" font-size="16">Type</text>
+
+  <rect x="340" y="100" width="160" height="60" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="420" y="135" text-anchor="middle" fill="#00ff41" font-size="16">Type</text>
+
+  <rect x="600" y="100" width="160" height="60" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="680" y="135" text-anchor="middle" fill="#00ff41" font-size="16">Type</text>
+
+  <line x1="240" y1="130" x2="340" y2="130" stroke="#00ff41" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="500" y1="130" x2="600" y2="130" stroke="#00ff41" stroke-width="2" marker-end="url(#arr)"/>
+
+  <text x="290" y="120" text-anchor="middle" fill="#00ff41" font-size="12">f</text>
+  <text x="550" y="120" text-anchor="middle" fill="#00ff41" font-size="12">a</text>
+
+  <text x="400" y="230" text-anchor="middle" fill="#888" font-size="14">f : Type -&gt; Type      a : Type      f a : Type</text>
+  <text x="400" y="270" text-anchor="middle" fill="#888" font-size="12">15/15 tests verts (test_hkt.hvn)</text>
+
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#00ff41"/>
+    </marker>
+  </defs>
+</svg>

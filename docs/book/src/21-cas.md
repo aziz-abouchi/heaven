@@ -37,6 +37,8 @@ Au fur et à mesure, l'E-Graph **sature** : il ajoute les
 conséquences des règles jusqu'à ce qu'aucune nouvelle information
 n'apparaisse.
 
+![E-Graph : fusion](images/21-egraph-saturation.svg)
+
 ## 2. La saturation
 
 Le principe de **saturation** (ou *equality saturation*) vient de

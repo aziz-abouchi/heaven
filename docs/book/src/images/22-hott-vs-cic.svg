@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 350" font-family="monospace">
+  <rect width="800" height="350" fill="#0a0a0a"/>
+  <text x="400" y="40" text-anchor="middle" fill="#00ff41" font-size="20">HoTT vs CIC standard</text>
+
+  <!-- CIC -->
+  <rect x="60" y="80" width="320" height="220" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="220" y="110" text-anchor="middle" fill="#00ff41" font-size="16">CIC (Heaven V0)</text>
+  <text x="220" y="150" text-anchor="middle" fill="#00ff41" font-size="13">UIP : vrai</text>
+  <text x="220" y="180" text-anchor="middle" fill="#00ff41" font-size="13">a = b : proposition</text>
+  <text x="220" y="210" text-anchor="middle" fill="#00ff41" font-size="13">Pas de HITs</text>
+  <text x="220" y="240" text-anchor="middle" fill="#00ff41" font-size="13">Quotients : setoides</text>
+  <text x="220" y="270" text-anchor="middle" fill="#888" font-size="12">implem. aujourd'hui</text>
+
+  <!-- HoTT -->
+  <rect x="420" y="80" width="320" height="220" fill="none" stroke="#ff8800" stroke-width="2"/>
+  <text x="580" y="110" text-anchor="middle" fill="#ff8800" font-size="16">HoTT (V1+)</text>
+  <text x="580" y="150" text-anchor="middle" fill="#ff8800" font-size="13">UIP : faux</text>
+  <text x="580" y="180" text-anchor="middle" fill="#ff8800" font-size="13">a = b : type (chemins)</text>
+  <text x="580" y="210" text-anchor="middle" fill="#ff8800" font-size="13">HITs disponibles</text>
+  <text x="580" y="240" text-anchor="middle" fill="#ff8800" font-size="13">Univalence</text>
+  <text x="580" y="270" text-anchor="middle" fill="#888" font-size="12">chantier de plusieurs annees</text>
+
+  <text x="400" y="330" text-anchor="middle" fill="#888" font-size="12">V0 reste en CIC standard. HoTT = session dediee.</text>
+</svg>

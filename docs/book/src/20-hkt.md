@@ -17,6 +17,8 @@ d'argument** :
 Ce `f` peut être `List`, `Maybe`, `Stream` — n'importe quel type
 paramétré. C'est un **type d'ordre supérieur** (HKT).
 
+![HKT : type vers type](images/20-hkt-functor.svg)
+
 ## 1. Le cas proprement dit
 
     sig wrap : (f : Type) -> (a : Type) -> f a -> f a

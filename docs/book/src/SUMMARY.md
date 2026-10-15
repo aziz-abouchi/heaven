@@ -27,7 +27,6 @@
 - [CAS et E-Graph](21-cas.md)
 - [HoTT](22-hott.md)
 - [Validation](23-validation.md)
-- [Essayez le REPL](repl-embed.md)
 
 ---
 

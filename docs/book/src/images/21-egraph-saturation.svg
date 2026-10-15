@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="monospace">
+  <rect width="800" height="400" fill="#0a0a0a"/>
+  <text x="400" y="40" text-anchor="middle" fill="#00ff41" font-size="20">E-Graph : fusion de formes equivalentes</text>
+
+  <!-- Classe d'equivalence -->
+  <ellipse cx="400" cy="200" rx="300" ry="120" fill="none" stroke="#00ff41" stroke-width="2" stroke-dasharray="8 4"/>
+  <text x="400" y="105" text-anchor="middle" fill="#00ff41" font-size="14">classe d'equivalence</text>
+
+  <!-- Formes equivalentes -->
+  <rect x="120" y="160" width="140" height="50" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="190" y="190" text-anchor="middle" fill="#00ff41" font-size="14">(+ x 0)</text>
+
+  <rect x="330" y="160" width="140" height="50" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="400" y="190" text-anchor="middle" fill="#00ff41" font-size="14">x</text>
+
+  <rect x="540" y="160" width="140" height="50" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="610" y="190" text-anchor="middle" fill="#00ff41" font-size="14">(+ 0 x)</text>
+
+  <!-- Fleches de fusion -->
+  <line x1="260" y1="185" x2="330" y2="185" stroke="#00ff41" stroke-width="2" marker-end="url(#arr2)"/>
+  <line x1="470" y1="185" x2="540" y2="185" stroke="#00ff41" stroke-width="2" marker-end="url(#arr2)"/>
+
+  <!-- Regles -->
+  <text x="400" y="270" text-anchor="middle" fill="#888" font-size="12">regle : x + 0 == x</text>
+  <text x="400" y="295" text-anchor="middle" fill="#888" font-size="12">regle : x + y == y + x (commutativite)</text>
+  <text x="400" y="340" text-anchor="middle" fill="#888" font-size="14">extraction : forme la plus simple = x</text>
+
+  <defs>
+    <marker id="arr2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#00ff41"/>
+    </marker>
+  </defs>
+</svg>

@@ -37,6 +37,8 @@ Avec `chain`, on enchaîne :
 Dès la première `Err`, on s'arrête. Les étapes suivantes ne
 tournent pas.
 
+![Result vs Validation](images/23-validation-vs-result.svg)
+
 ## 2. Validation : l'applicatif accumulatif
 
     Validation e a = Valid a | Invalid (List e)

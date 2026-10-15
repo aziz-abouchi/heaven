@@ -49,6 +49,8 @@ ces chemins ont eux-mêmes une structure. C'est une autre théorie.
 
 C'est un **chantier de plusieurs années**, avec une expertise rare.
 
+![HoTT vs CIC](images/22-hott-vs-cic.svg)
+
 ## 3. Deux voies pour aller vers HoTT
 
 ### Voie A — HoTT axiomatique

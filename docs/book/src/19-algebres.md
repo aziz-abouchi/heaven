@@ -20,6 +20,8 @@ Heaven V1 suivra **Fantasy Land**, la spécification populaire par
 Brian McKenna, qui formalise cette hiérarchie pour JavaScript. On
 la reprend telle quelle, adaptée au système de types de Heaven.
 
+![Hiérarchie Fantasy Land](images/19-algebras-chain.svg)
+
 ## 1. La hiérarchie
 
 Les algèbres s'empilent : chaque niveau ajoute des méthodes et
