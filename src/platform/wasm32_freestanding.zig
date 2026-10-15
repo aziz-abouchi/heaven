@@ -267,9 +267,16 @@ pub const fs = struct {
             return error.FileNotFound;
         }
 
-        // Stub pour la compatibilité avec le code natif
-        pub fn readFileAlloc(_: Dir, _: std.mem.Allocator, _: []const u8, _: usize) ![]u8 {
-            return error.NotSupported;
+        // HEAVEN:DIR_READFILE_VFS - copie inline de fs.readFileAlloc (VFS)
+        // (deleguer par nom serait ambigu : Dir.readFileAlloc shadow
+        //  le fs.readFileAlloc du parent)
+        pub fn readFileAlloc(_: Dir, alloc: std.mem.Allocator, path_str: []const u8, max: usize) ![]u8 {
+            _ = max;
+            const len = js_vfs_read_file(path_str.ptr, path_str.len);
+            if (len == 0) return error.FileNotFound;
+            const buf = try alloc.alloc(u8, len);
+            js_vfs_copy_buffer(buf.ptr, len);
+            return buf;
         }
 
         pub fn createFile(_: Dir, _: []const u8, _: anytype) error{NotSupported}!File {
