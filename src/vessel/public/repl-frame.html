@@ -78,7 +78,8 @@
     <span id="st-peers">peers: 0</span>
   </div>
 
-  <script src="wasm-core.js"></script>
+  <script src="vfs.js"></script>
+<script src="wasm-core.js"></script>
   <script>
     const originalLog = console.log;
     console.log = function(...args) {
@@ -224,8 +225,15 @@
       // metrics no-op, stdout/stderr -> console.
       js_write_stdout: (ptr, len) => { try { console.log(readWasmString(ptr, len)); } catch(_) {} },
       js_write_stderr: (ptr, len) => { try { console.error(readWasmString(ptr, len)); } catch(_) {} },
-      js_vfs_read_file: (_ptr, _len) => 0,
-      js_vfs_copy_buffer: (_outPtr, _len) => {},
+      // HEAVEN:VFS_IMPORTS - remplace par HeavenVFS (voir init en bas)
+      js_vfs_read_file: (ptr, len) => {
+        if (!window.HeavenVFS) return 0;
+        return window._heavenVfsImports.js_vfs_read_file(ptr, len);
+      },
+      js_vfs_copy_buffer: (outPtr, len) => {
+        if (!window.HeavenVFS) return;
+        window._heavenVfsImports.js_vfs_copy_buffer(outPtr, len);
+      },
       js_emit_metrics: (_classes, _nodes, _count) => {},
 
       js_console_log: (ptr, len) => addLine(readWasmString(ptr, len), 'info'),
@@ -299,6 +307,9 @@
         console.log('WASM exports:', Object.keys(wasm).filter(k => k.includes('proof')));
         window.heavenEngine = wasm;
         memory = wasm.memory;
+        // HEAVEN:VFS_INIT - prepare imports avant wasm.init()
+        window._heavenVfsImports = window.HeavenVFS.makeVfsImports(() => memory);
+        await window.HeavenVFS.vfsInit('.');
         wasm.init();
         if (wasm.set_debug_logging) {
     wasm.set_debug_logging(false);

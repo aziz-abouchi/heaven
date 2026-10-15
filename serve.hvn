@@ -1,5 +1,0 @@
--- serve.hvn — Lanceur minimal exécutable
-import "core/http_server.hvn"
-
--- Appel direct pour démarrer la boucle
-(http_serve 8080)

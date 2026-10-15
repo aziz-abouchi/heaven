@@ -69,8 +69,19 @@ jobs:
             cp "src/vessel/public/$html" "site/$app/index.html"
             cp "$WASM" "site/$app/heaven.wasm"
           done
-          # test_suite.hvn attendu par test.html (fetch /test_suite.hvn)
+          # test_suite.hvn attendu par test.html
           cp core/test_suite.hvn site/test/test_suite.hvn
+          # VFS : copier les .hvn dans chaque app pour read_file
+          for app in repl ide test dashboard docs egraph process debugger; do
+            # Preserve la structure (core/std/list.hvn -> site/$app/core/std/list.hvn)
+            find core lib tests -name '*.hvn' | while read -r f; do
+              dst="site/$app/$f"
+              mkdir -p "$(dirname "$dst")"
+              cp "$f" "$dst"
+            done
+            cp src/vessel/public/vfs.js "site/$app/vfs.js"
+            cp src/vessel/public/vfs_manifest.json "site/$app/vfs_manifest.json"
+          done
           echo "=== Apps disponibles ==="
           ls -la site/
           echo "=== test_suite.hvn ==="

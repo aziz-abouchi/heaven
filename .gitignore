@@ -100,3 +100,5 @@ src/vessel/public/egraph_mock.json
 *.bak
 site/
 .cache/
+tests/scratch/
+examples/http/
