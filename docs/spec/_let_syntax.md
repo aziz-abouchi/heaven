@@ -74,3 +74,33 @@ compatibilite bootstrap.
 
 - letrec, where, do : formes connexes, a traiter separement.
 - Pattern matching dans let : chantier separe.
+
+## Etat 2026-10-15 — let-infixe operationnel
+
+Test `/tmp/t_let.hvn` (6 cas) : **5/6 verts**.
+
+### Formes supportees
+
+| Forme | Etat |
+|---|---|
+| `(let x 1 x)` S-expr 3-args | OK |
+| `(let x = 1 in x)` infixe inline | OK |
+| `(let x = 1 in\n x)` multiligne | OK |
+| `let x = 1 in x` sans parens | OK |
+| `(let x = 1 in (let y = 2 in ...))` chaine | OK |
+| `let x = 1 y = 2 in body` multi-binding | KO |
+
+### Decision
+
+Les formes B (infixe Haskell) et C (les deux) de la spec sont
+**operationnelles**. La forme multi-binding dans un seul `let`
+n'est PAS supportee — la chaine se fait par imbrication, ce qui
+est plus simple a parser et aussi lisible.
+
+### Implementation
+
+- `parse.zig:496` : branche S-expr 3-args (avec et sans `=`).
+- `expr_parser.zig:673` : infixe QTT (`let linear/many/erased`).
+- `expr_parser.zig:690` : infixe `let x = v in body` standard.
+- Le multi-binding single-let n'est pas traite — chaque `let`
+  ouvre une nouvelle portee.
