@@ -98,3 +98,5 @@ src/vessel/public/egraph_data.json
 src/vessel/public/egraph_mock.json
 *.bak
 *.bak
+site/
+.cache/
