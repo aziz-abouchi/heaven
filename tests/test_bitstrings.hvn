@@ -115,3 +115,34 @@ test "nibble 4": (p3_n4 43981) == 13
 -- ─── Roundtrip P3 ───
 mkp3 x y z = <<x:3, y:5, z:8>>
 test "roundtrip 3+5+8": (p3_b (mkp3 3 17 42)) == 17
+
+-- ═══════════════════════════════════════════════════════════════════
+-- P3 : endianness + rest:bits (verification)
+-- ═══════════════════════════════════════════════════════════════════
+
+-- ─── Endianness big (defaut) ───
+p3_be16 <<v:16>> = v
+-- 0x1234 lit en big = 0x1234
+test "big 0x1234": (p3_be16 4660) == 4660
+
+-- ─── Endianness little ───
+p3_le16 <<v:16/little>> = v
+-- 0x1234 lit en little = 0x3412 = 13330
+test "little 0x1234": (p3_le16 4660) == 13330
+
+-- ─── rest:bits apres header 16 bits ───
+-- Convention : pattern total = 64 bits, input 64 bits.
+-- Input 0x1234_5678_9ABC_DEF0
+p3_rest <<head:16, rest:bits>> = head
+test "rest head = 0x1234":
+  (p3_rest 1311768467463790320) == 4660
+
+p3_restval <<head:16, rest:bits>> = rest
+test "rest value = bas 48 bits":
+  (p3_restval 1311768467463790320) == 95075992133360
+
+-- ─── Head 8 bits, rest 56 bits ───
+-- Input 0x01_02_03_04_05_06_07_08 = 72623859790382856
+p3_h8 <<h:8, rest:bits>> = h
+test "head 8 bits = 0x01":
+  (p3_h8 72623859790382856) == 1

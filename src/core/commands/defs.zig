@@ -157,7 +157,10 @@ pub fn parseLambdaShortcut(cmds: anytype, name: []const u8, expr_str: []const u8
 /// `f __bs = let x = (band (shr __bs O) M) in ... in body`.
 /// Retourne null si pas de bitstring en LHS.
 fn tryDesugarBitstring(cmds: anytype, input: []const u8) !?[]u8 {
-    const eq_pos = std.mem.indexOfScalar(u8, input, '=') orelse return null;
+    const eq_pos = std.mem.indexOfScalar(u8, input, '=') orelse {
+        platform.debug.print("[BS_TRY] no '='\n", .{});
+        return null;
+    };
     if (eq_pos + 1 < input.len and input[eq_pos + 1] == '=') return null;
     const lhs = input[0..eq_pos];
     const open = std.mem.indexOf(u8, lhs, "<<") orelse return null;
@@ -172,8 +175,12 @@ fn tryDesugarBitstring(cmds: anytype, input: []const u8) !?[]u8 {
     const body = std.mem.trim(u8, input[eq_pos + 1 ..], " \t");
     if (body.len == 0) return null;
 
+    // HEAVEN:BITSTRING_P3 — non aligne + /little + rest:bits
     var names: [16][]const u8 = undefined;
     var sizes: [16]u32 = undefined;
+    var is_little: [16]bool = undefined;
+    var has_rest = false;
+    var rest_idx: usize = 0;
     var n: usize = 0;
     var it = std.mem.splitScalar(u8, segments_str, ',');
     while (it.next()) |seg| {
@@ -182,16 +189,45 @@ fn tryDesugarBitstring(cmds: anytype, input: []const u8) !?[]u8 {
         const colon = std.mem.indexOfScalar(u8, s, ':') orelse return null;
         const nstr = std.mem.trim(u8, s[0..colon], " \t");
         var szstr = std.mem.trim(u8, s[colon + 1 ..], " \t");
-        if (std.mem.indexOfScalar(u8, szstr, '/')) |slash| szstr = szstr[0..slash];
+        var little = false;
+        if (std.mem.indexOfScalar(u8, szstr, '/')) |slash| {
+            const modifier = std.mem.trim(u8, szstr[slash + 1 ..], " \t");
+            if (std.mem.eql(u8, modifier, "little")) little = true;
+            szstr = szstr[0..slash];
+        }
         szstr = std.mem.trim(u8, szstr, " \t");
+        if (n >= 16) return null;
+
+        names[n] = nstr;
+        is_little[n] = little;
+
+        if (std.mem.eql(u8, szstr, "bits")) {
+            if (has_rest) return null;
+            has_rest = true;
+            rest_idx = n;
+            sizes[n] = 0;
+            n += 1;
+            break;
+        }
+
         const size = std.fmt.parseInt(u32, szstr, 10) catch return null;
         if (size == 0 or size > 64) return null;
-        if (n >= 16) return null;
-        names[n] = nstr;
         sizes[n] = size;
         n += 1;
     }
     if (n == 0) return null;
+
+    if (has_rest and rest_idx != n - 1) return null;
+
+    if (has_rest) {
+        var non_rest_total: u32 = 0;
+        var j: usize = 0;
+        while (j < n) : (j += 1) {
+            if (j != rest_idx) non_rest_total += sizes[j];
+        }
+        if (non_rest_total >= 64) return null;
+        sizes[rest_idx] = 64 - non_rest_total;
+    }
 
     var buf = std.ArrayListUnmanaged(u8){};
     defer buf.deinit(cmds.allocator);
@@ -210,6 +246,44 @@ fn tryDesugarBitstring(cmds: anytype, input: []const u8) !?[]u8 {
     for (names[0..n], 0..) |nm, idx| {
         if (std.mem.eql(u8, nm, "_")) continue;
         const sz = sizes[idx];
+
+        if (is_little[idx] and sz > 8 and (sz % 8) == 0) {
+            const B: usize = sz / 8;
+            var expr_buf = std.ArrayListUnmanaged(u8){};
+            defer expr_buf.deinit(cmds.allocator);
+
+            var k: usize = 0;
+            while (k + 1 < B) : (k += 1) {
+                try expr_buf.appendSlice(cmds.allocator, "(bor ");
+            }
+            k = 0;
+            while (k < B) : (k += 1) {
+                // byte-reverse : destination byte k prend la source byte B-1-k
+                const src_byte = B - 1 - k;
+                const src_off = offsets[idx] + @as(u32, @intCast(src_byte * 8));
+                const dst_shift = @as(u32, @intCast(k * 8));
+                const term = if (dst_shift == 0)
+                    try std.fmt.allocPrint(cmds.allocator,
+                        "(band (shr __bs {d}) 255)", .{src_off})
+                else
+                    try std.fmt.allocPrint(cmds.allocator,
+                        "(shl (band (shr __bs {d}) 255) {d})", .{ src_off, dst_shift });
+                defer cmds.allocator.free(term);
+                try expr_buf.appendSlice(cmds.allocator, term);
+                if (k + 1 < B) try expr_buf.append(cmds.allocator, ' ');
+            }
+            k = 0;
+            while (k + 1 < B) : (k += 1) {
+                try expr_buf.append(cmds.allocator, ')');
+            }
+
+            const let_str = try std.fmt.allocPrint(cmds.allocator,
+                "let {s} = {s} in ", .{ nm, expr_buf.items });
+            defer cmds.allocator.free(let_str);
+            try buf.appendSlice(cmds.allocator, let_str);
+            continue;
+        }
+
         const mask: u64 = if (sz >= 64) ~@as(u64, 0) else (@as(u64, 1) << @intCast(sz)) - 1;
         const let_str = try std.fmt.allocPrint(cmds.allocator,
             "let {s} = (band (shr __bs {d}) {d}) in ",
