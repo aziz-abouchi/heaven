@@ -69,8 +69,12 @@ jobs:
             cp "src/vessel/public/$html" "site/$app/index.html"
             cp "$WASM" "site/$app/heaven.wasm"
           done
+          # test_suite.hvn attendu par test.html (fetch /test_suite.hvn)
+          cp core/test_suite.hvn site/test/test_suite.hvn
           echo "=== Apps disponibles ==="
           ls -la site/
+          echo "=== test_suite.hvn ==="
+          ls -la site/test/test_suite.hvn
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
