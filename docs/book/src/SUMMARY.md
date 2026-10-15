@@ -22,6 +22,11 @@
 - [Free monads](16-free-monads.md)
 - [Catégories](17-categories.md)
 - [Under the Hood](18-under-the-hood.md)
+- [Algèbres](19-algebres.md)
+- [HKT](20-hkt.md)
+- [CAS et E-Graph](21-cas.md)
+- [HoTT](22-hott.md)
+- [Validation](23-validation.md)
 - [Essayez le REPL](repl-embed.md)
 
 ---
