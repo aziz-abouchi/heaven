@@ -97,3 +97,23 @@ Le stub `wasm32_freestanding.zig` compile (exit=0) mais utilise des
 - net : WebSocket partiel, manque WebRTC.
 - message queue : stub, pas de vrai routage.
 - time : js_performance_now non branche.
+
+## Etat 2026-10-15 soir
+
+### Resolu
+
+- wasm32_freestanding = contenu reel de wasm.zig (580 lignes) +
+  js_env par alias. Le commit 4f3adf3 avait cree un stub vide
+  par erreur de rename.
+- Build wasm32-freestanding : exit=0.
+- REPL web charge : 19 imports JS fournis, dont 5 nouveaux
+  (js_write_stdout, js_write_stderr, js_vfs_read_file,
+  js_vfs_copy_buffer, js_emit_metrics).
+
+### Reste
+
+- js_vfs_read_file : stub no-op. VFS a brancher sur fetch()
+  ou IndexedDB.
+- Autres HTML (index, ide, dashboard, test) : a patcher avec
+  les 5 imports si erreur LinkError au chargement.
+- wasm.zig orphelin : contenu duplique, a supprimer.
