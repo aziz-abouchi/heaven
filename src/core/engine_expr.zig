@@ -2277,27 +2277,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const a = try evaluate(store, env, engine, args_snap[0], depth + 1);
         return evalUnary(store, a, .not);
     }
-
-    // HEAVEN:FOLD_NARY — (+ 1 2 3 4) -> (((1+2)+3)+4). Idem -, *, /.
-    // Le top-level passe par e-graph (deja simplifie), mais lambda/task
-    // prennent le chemin direct. Sans ce fold, arity mismatch.
-    if (args_snap.len > 2) {
-        const is_add = std.mem.eql(u8, op, "+") or std.mem.eql(u8, op, "add");
-        const is_sub = std.mem.eql(u8, op, "-") or std.mem.eql(u8, op, "sub");
-        const is_mul = std.mem.eql(u8, op, "*") or std.mem.eql(u8, op, "mul");
-        const is_div = std.mem.eql(u8, op, "/") or std.mem.eql(u8, op, "div");
-        if (is_add or is_sub or is_mul or is_div) {
-            const bop: BinOp = if (is_add) .add else if (is_sub) .sub else if (is_mul) .mul else .div;
-            var acc = try evaluate(store, env, engine, args_snap[0], depth + 1);
-            var i: usize = 1;
-            while (i < args_snap.len) : (i += 1) {
-                const next = try evaluate(store, env, engine, args_snap[i], depth + 1);
-                acc = try evalBinary(store, acc, next, bop);
-            }
-            return acc;
-        }
-    }
-
     if (args_snap.len != 2) return error.ArityMismatch;
     const a = try evaluate(store, env, engine, args_snap[0], depth + 1);
     const b = try evaluate(store, env, engine, args_snap[1], depth + 1);
