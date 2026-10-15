@@ -912,7 +912,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -2175,6 +2175,30 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return try store.lit(.{ .str = sym });
     }
 
+
+    // HEAVEN:MAGIC_NET_CONNECT — client TCP
+    if (std.mem.eql(u8, op, "@net_socket")) {
+        if (args_snap.len != 0) return error.ArityMismatch;
+        const fd = platform.net.socketTcp();
+        return try store.lit(.{ .int = fd });
+    }
+
+    if (std.mem.eql(u8, op, "@net_connect")) {
+        if (args_snap.len != 3) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
+        const ip_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const port_val = try evaluate(store, env, engine, args_snap[2], depth + 1);
+        const ip_node = store.get(ip_val);
+        const port_node = store.get(port_val);
+        if (ip_node.tag != .lit or port_node.tag != .lit) return error.TypeError;
+        const ip_lit = store.lits.items[ip_node.aux];
+        const port_lit = store.lits.items[port_node.aux];
+        if (ip_lit != .str or port_lit != .int) return error.TypeError;
+        const ip_str = store.interner.resolve(@intCast(ip_lit.str));
+        const port: u16 = @intCast(port_lit.int);
+        const fd = platform.net.connectTcp(ip_str, port) catch return try store.lit(.{ .int = -1 });
+        return try store.lit(.{ .int = fd });
+    }
 
     if (std.mem.eql(u8, op, "@net_listen")) {
         if (args_snap.len != 2) return error.ArityMismatch;

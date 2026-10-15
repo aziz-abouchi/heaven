@@ -9,6 +9,10 @@ net_read   cap fd     = @net_read cap fd
 net_write  cap fd str = @net_write cap fd str
 net_close  cap fd     = @net_close cap fd
 
+-- ─── Client TCP (N1 self-hosting roadmap) ───
+net_socket cap        = @net_socket
+net_connect cap ip port = @net_connect cap ip port
+
 -- ─── Helpers (string_eq, string_split, list_nth) ───
 -- Ces fonctions ne sont pas dans core/std, on les definit ici
 -- puisqu'elles servent exclusivement a parse_request.

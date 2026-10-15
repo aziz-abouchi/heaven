@@ -120,6 +120,15 @@ pub fn readFileAllocCwd(alloc: std.mem.Allocator, p: []const u8, max: usize) ![]
 /// En wasm32-freestanding, toute operation reseau est indisponible
 /// (les WebSockets passent par les externs js_websocket_*).
 pub const net = struct {
+    // HEAVEN:NET_CONNECT_WASM — stubs (pas de TCP client en browser)
+    pub fn socketTcp() i64 {
+        return -1;
+    }
+
+    pub fn connectTcp(_: []const u8, _: u16) !i64 {
+        return error.NotSupported;
+    }
+
     pub fn listenTcp(_: u16) !i64 {
         return error.NotSupported;
     }

@@ -166,6 +166,24 @@ pub const net = struct {
         const sfd: std.posix.socket_t = @intCast(fd);
         std.posix.close(sfd);
     }
+
+    // HEAVEN:NET_CONNECT — client TCP (N1 self-hosting roadmap)
+    /// Cree une socket TCP (AF_INET, SOCK_STREAM). Retourne fd ou -1.
+    pub fn socketTcp() i64 {
+        const sfd = std.posix.socket(std.posix.AF.INET, std.posix.SOCK.STREAM, 0) catch return -1;
+        return @intCast(sfd);
+    }
+
+    /// Connecte au serveur ip:port. Retourne fd (>=0) ou -errno (<0).
+    pub fn connectTcp(ip: []const u8, port: u16) !i64 {
+        const address = std.net.Address.parseIp4(ip, port) catch return error.InvalidInput;
+        const sfd = std.posix.socket(address.any.family, std.posix.SOCK.STREAM, 0) catch return error.SocketFailed;
+        std.posix.connect(sfd, &address.any, address.getOsSockLen()) catch {
+            std.posix.close(sfd);
+            return error.ConnectFailed;
+        };
+        return @intCast(sfd);
+    }
 };
 
 // Importation centralisée des headers C
