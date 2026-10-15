@@ -367,4 +367,11 @@ pub const ShellParser = struct {
         _ = alloc;
         return ShellParser{};
     }
+    // Stub wasm : pas de parsing tree-sitter embarque.
+    // Retourne une erreur -- le code appelant gere le cas.
+    pub fn parse(self: *ShellParser, source: []const u8) anyerror!Matrix {
+        _ = self; _ = source;
+        return error.Unsupported;
+    }
+    pub fn reset(self: *ShellParser) void { _ = self; }
 };
