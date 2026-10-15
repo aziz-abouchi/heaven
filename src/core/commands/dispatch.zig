@@ -185,6 +185,39 @@ pub fn eval(cmds: anytype, input: []const u8) anyerror![]u8 {
         if (cmds.tryFnCall(trimmed)) |result| return result;
     }
 
+    // HEAVEN:LOAD_CMD - charge un fichier .hvn ligne par ligne
+    if (std.mem.startsWith(u8, trimmed, "load ")) {
+        const path = std.mem.trim(u8, trimmed["load ".len..], " \t");
+        if (path.len == 0) return cmds.allocator.dupe(u8, "usage: :load <file.hvn>");
+
+        const content = platform.fs.cwd().readFileAlloc(
+            cmds.allocator, path, 10 * 1024 * 1024) catch {
+            return cmds.allocator.dupe(u8, "error: cannot read file");
+        };
+        defer cmds.allocator.free(content);
+
+        var buf = std.ArrayListUnmanaged(u8){};
+        defer buf.deinit(cmds.allocator);
+        const w = buf.writer(cmds.allocator);
+
+        var lines = std.mem.splitScalar(u8, content, '\n');
+        var ok_count: usize = 0;
+        var err_count: usize = 0;
+        while (lines.next()) |line| {
+            const l = std.mem.trim(u8, line, " \t\r");
+            if (l.len == 0 or l[0] == '#' or std.mem.startsWith(u8, l, "--")) continue;
+            const r = cmds.eval(l) catch {
+                err_count += 1;
+                continue;
+            };
+            defer cmds.allocator.free(r);
+            ok_count += 1;
+        }
+        try w.print("\u{2713} fichier '{s}' charge ({d} lignes, {d} erreurs)\n",
+            .{ path, ok_count, err_count });
+        return buf.toOwnedSlice(cmds.allocator);
+    }
+
     if (std.mem.eql(u8, trimmed, "help")) return cmds.evalHelp();
     if (std.mem.eql(u8, trimmed, "stats")) return cmds.evalStats();
     if (std.mem.eql(u8, trimmed, "theorems")) return cmds.evalTheorems();
