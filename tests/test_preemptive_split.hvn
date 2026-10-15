@@ -1,10 +1,6 @@
 -- tests/test_preemptive_split.hvn
 -- Verifie qu'une tache suspendue par budget insuffisant est
 -- reprise au prochain schedule (A-3a : TaskState.preempted).
---
--- Note : (+ 1 2 3 4) dans une lambda retourne 0 (bug
--- independant de C3, a tracer). On utilise donc + binaire
--- imbrique, qui passe par le chemin lambda -> apply correct.
 
 test "split budget (+ 1 2) : 1 + 100":
   (let t (add_task (lambda s -> (+ 1 2)) 0)
@@ -12,9 +8,9 @@ test "split budget (+ 1 2) : 1 + 100":
     (let _ (schedule 100)
      (task_state t)))) == 3
 
-test "split budget (+ (+ 1 2) (+ 3 4)) : 5 + 100":
-  (let t (add_task (lambda s -> (+ (+ 1 2) (+ 3 4))) 0)
-   (let _ (schedule 5)
+test "split budget (+ 1 2 3 4) : 2 + 100":
+  (let t (add_task (lambda s -> (+ 1 2 3 4)) 0)
+   (let _ (schedule 2)
     (let _ (schedule 100)
      (task_state t)))) == 10
 
