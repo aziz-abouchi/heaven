@@ -1,4 +1,4 @@
-# Voir comme : le pattern matching
+# Chapitre 3 — Voir comme : le pattern matching
 
 > *« Ne pas penser, mais regarder. »*
 > — Ludwig Wittgenstein, *Investigations philosophiques*, §66

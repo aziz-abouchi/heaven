@@ -1,4 +1,4 @@
-# Optiques : lire et écrire en profondeur
+# Chapitre 15 — Optiques : lire et écrire en profondeur
 
 > *« Une lentille ne change pas ce qu'elle voit. Elle décide
 > seulement ce qui, depuis elle, devient visible. »*

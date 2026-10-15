@@ -1,4 +1,4 @@
-# Effets algébriques
+# Chapitre 6 — Effets algébriques
 
 > *« Le code pur calcule. Le code impur agit. Un bon langage sépare
 > les deux sans les rendre incompatibles. »*

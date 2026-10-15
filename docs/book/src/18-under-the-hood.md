@@ -1,4 +1,4 @@
-# Under the Hood
+# Chapitre 18 — Under the Hood
 
 > *« Toute la géométrie tient en cinq postulats. Toute la
 > programmation peut tenir en quelques primitives — à condition de

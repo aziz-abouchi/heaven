@@ -1,4 +1,4 @@
-# Streams : calculer à la demande
+# Chapitre 7 — Streams : calculer à la demande
 
 > *« La paresse est parfois une vertu : elle économise le travail
 > inutile. »*

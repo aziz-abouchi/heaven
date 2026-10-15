@@ -1,4 +1,4 @@
-# Preuves et théorèmes
+# Chapitre 8 — Preuves et théorèmes
 
 > *« Prouver, c'est contraindre l'imagination à ne plus pouvoir
 > douter. »*

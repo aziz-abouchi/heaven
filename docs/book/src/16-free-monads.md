@@ -1,4 +1,4 @@
-# Free monads : séparer programme et interprétation
+# Chapitre 16 — Free monads : séparer programme et interprétation
 
 > *« Un programme qui n'a pas encore été interprété n'est ni vrai
 > ni faux. C'est un texte en attente de lecture. »*

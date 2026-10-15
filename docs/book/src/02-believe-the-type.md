@@ -1,4 +1,4 @@
-# Types et catégories
+# Chapitre 2 — Types et catégories
 
 > *« Les catégories ne sont pas des choses — ce sont des manières
 > de classer les choses. »*

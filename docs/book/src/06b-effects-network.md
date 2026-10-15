@@ -1,4 +1,4 @@
-# Effets réseau
+# Chapitre 6b — Effets réseau
 
 Heaven est a evaluation paresseuse.
 

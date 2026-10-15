@@ -1,4 +1,4 @@
-# Catégories : la structure derrière tout
+# Chapitre 17 — Catégories : la structure derrière tout
 
 > *« Je n'ai pas inventé les catégories pour étudier les foncteurs ;
 > je les ai inventées pour étudier les transformations naturelles. »*
