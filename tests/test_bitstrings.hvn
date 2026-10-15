@@ -48,3 +48,70 @@ ipv4 <<ver:4, ihl:4, _tos:8, _len:16>> = (bor (shl ver 4) ihl)
 mkv4 ver ihl = <<ver:4, ihl:4, 0:24>>
 test "ipv4 roundtrip 4,5":  (ipv4 (mkv4 4 5)) == 69
 test "ipv4 roundtrip 15,9": (ipv4 (mkv4 15 9)) == 249
+
+-- ═══════════════════════════════════════════════════════════════════
+-- P3 : non aligne + endianness + rest:bits
+-- ═══════════════════════════════════════════════════════════════════
+
+-- ─── Destructuration non alignee : 3+5+8 = 16 bits ───
+p3_a <<x:3, y:5, z:8>> = x
+p3_b <<x:3, y:5, z:8>> = y
+p3_c <<x:3, y:5, z:8>> = z
+
+-- 0xABCD = 1010 1011 1100 1101
+-- x = 101 = 5, y = 01011 = 11, z = 11001101 = 205
+test "3+5+8 x": (p3_a 43981) == 5
+test "3+5+8 y": (p3_b 43981) == 11
+test "3+5+8 z": (p3_c 43981) == 205
+
+-- ─── 1+7+8+16 = 32 bits (header realiste) ───
+p3_v <<v:1, f:7, code:8, len:16>> = v
+p3_f <<v:1, f:7, code:8, len:16>> = f
+p3_code <<v:1, f:7, code:8, len:16>> = code
+p3_len <<v:1, f:7, code:8, len:16>> = len
+
+-- 0x80 0x01 0x00 0x05 = v=1, f=0, code=1, len=5
+test "32 bits v": (p3_v 2147549189) == 1
+test "32 bits f": (p3_f 2147549189) == 0
+test "32 bits code": (p3_code 2147549189) == 1
+test "32 bits len": (p3_len 2147549189) == 5
+
+-- ─── 5+11 = 16 bits (traverse byte) ───
+p3_hi5 <<h:5, l:11>> = h
+p3_lo11 <<h:5, l:11>> = l
+
+-- 0xFFFF = x=31, y=2047
+test "5+11 h": (p3_hi5 65535) == 31
+test "5+11 l": (p3_lo11 65535) == 2047
+
+-- ─── 12+4 = 16 bits ───
+p3_a12 <<a:12, b:4>> = a
+p3_b4 <<a:12, b:4>> = b
+
+-- 0xABCD = a=0xABC=2748, b=0xD=13
+test "12+4 a": (p3_a12 43981) == 2748
+test "12+4 b": (p3_b4 43981) == 13
+
+-- ─── 2+6 = 8 bits (varint QUIC) ───
+p3_prefix <<prefix:2, val:6>> = prefix
+p3_val6 <<prefix:2, val:6>> = val
+
+-- 0x7F = prefix=1, val=0x3F=63
+test "2+6 prefix": (p3_prefix 127) == 1
+test "2+6 val": (p3_val6 127) == 63
+
+-- ─── 4 nibbles ───
+p3_n1 <<n1:4, n2:4, n3:4, n4:4>> = n1
+p3_n2 <<n1:4, n2:4, n3:4, n4:4>> = n2
+p3_n3 <<n1:4, n2:4, n3:4, n4:4>> = n3
+p3_n4 <<n1:4, n2:4, n3:4, n4:4>> = n4
+
+-- 0xABCD = n1=A=10, n2=B=11, n3=C=12, n4=D=13
+test "nibble 1": (p3_n1 43981) == 10
+test "nibble 2": (p3_n2 43981) == 11
+test "nibble 3": (p3_n3 43981) == 12
+test "nibble 4": (p3_n4 43981) == 13
+
+-- ─── Roundtrip P3 ───
+mkp3 x y z = <<x:3, y:5, z:8>>
+test "roundtrip 3+5+8": (p3_b (mkp3 3 17 42)) == 17
