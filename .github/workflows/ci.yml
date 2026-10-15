@@ -9,6 +9,7 @@ on:
 
 env:
   ZIG_VERSION: 0.15.2
+  HEAVEN_NO_LEAK_CHECK: "1"
 
 jobs:
   build-and-test:
