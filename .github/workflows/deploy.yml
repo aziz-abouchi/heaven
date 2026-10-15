@@ -1,0 +1,79 @@
+name: Deploy Book & WASM REPL to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Zig
+        run: |
+          cd /tmp
+          curl -fsSL "https://ziglang.org/download/0.15.2/zig-x86_64-linux-0.15.2.tar.xz" -o zig.tar.xz
+          tar -xf zig.tar.xz
+          sudo mv "zig-x86_64-linux-0.15.2" /opt/zig
+          sudo ln -sf /opt/zig/zig /usr/local/bin/zig
+          zig version
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtree-sitter-dev tcc
+
+      - name: Install mdBook
+        run: |
+          mkdir -p $HOME/.local/bin
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz \
+            | tar -xz -C $HOME/.local/bin
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build Heaven WASM
+        run: |
+          bash build.sh
+          ls -la zig-out/bin/
+          ls -la src/vessel/public/heaven.wasm
+
+      - name: Build mdBook
+        run: mdbook build docs/book
+
+      - name: Assemble site
+        run: |
+          mkdir -p site
+          # 1. Book a la racine
+          cp -r docs/book/book/* site/
+          # 2. REPL dans /repl/
+          mkdir -p site/repl
+          cp -r src/vessel/public/* site/repl/
+          # 3. WASM (deja copie par build.sh dans src/vessel/public/)
+          # Verifier qu'il est bien la
+          ls -la site/repl/heaven.wasm
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
