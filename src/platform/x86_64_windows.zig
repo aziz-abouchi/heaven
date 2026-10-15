@@ -54,6 +54,12 @@ pub const net = struct {
 
     // D-SH4 : socket/connect TCP client. Pas de support en V0
     // sur cette cible. Voir _selfhosting_roadmap.md.
+
+    // D-SH4 : UDP raw syscalls. Pas de support en V0.
+    pub fn socketUdp() i64 { return -1; }
+    pub fn sendtoUdp(_: i64, _: []const u8, _: u16, _: []const u8) i64 { return -1; }
+    pub fn recvfromUdp(_: i64, _: []u8) i64 { return -1; }
+
     pub fn socketTcp() i64 {
         return -1;
     }

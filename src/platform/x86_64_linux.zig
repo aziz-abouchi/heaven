@@ -229,6 +229,48 @@ pub const net = struct {
         return @intCast(signed);
     }
 
+    // HEAVEN:UDP_RAW — syscalls UDP (D-SH4)
+    // socket(AF_INET, SOCK_DGRAM), sendto, recvfrom.
+
+    /// socket(AF_INET, SOCK_DGRAM, 0). Retourne fd (>=0) ou -1.
+    pub fn socketUdp() i64 {
+        const result = std.os.linux.syscall3(.socket, 2, 2, 0);
+        const signed: isize = @bitCast(result);
+        if (signed < 0) return -1;
+        return @intCast(signed);
+    }
+
+    /// Envoie un datagramme vers ip:port. Retourne nb bytes envoyes
+    /// (>=0) ou -1.
+    pub fn sendtoUdp(fd: i64, ip: []const u8, port: u16, data: []const u8) i64 {
+        const bytes = parseIpv4(ip) orelse return -1;
+        const ufd: usize = @intCast(fd);
+
+        var sa: [16]u8 = [_]u8{0} ** 16;
+        sa[0] = 2; sa[1] = 0;
+        sa[2] = @intCast((port >> 8) & 0xFF);
+        sa[3] = @intCast(port & 0xFF);
+        sa[4] = bytes[0]; sa[5] = bytes[1]; sa[6] = bytes[2]; sa[7] = bytes[3];
+
+        const r = std.os.linux.syscall6(.sendto, ufd,
+            @intFromPtr(data.ptr), data.len, 0,
+            @intFromPtr(&sa), 16);
+        const signed: isize = @bitCast(r);
+        if (signed < 0) return -1;
+        return @intCast(signed);
+    }
+
+    /// Recoit un datagramme. Retourne nb bytes recus (>=0) ou -1.
+    /// Bloque jusqu'a reception (fd non-bloquant non gere en V0).
+    pub fn recvfromUdp(fd: i64, buf: []u8) i64 {
+        const ufd: usize = @intCast(fd);
+        const r = std.os.linux.syscall6(.recvfrom, ufd,
+            @intFromPtr(buf.ptr), buf.len, 0, 0, 0);
+        const signed: isize = @bitCast(r);
+        if (signed < 0) return -1;
+        return @intCast(signed);
+    }
+
     /// connect(fd, sockaddr_in, 16). Retourne fd (>=0) ou -1.
     pub fn connectTcp(ip: []const u8, port: u16) !i64 {
         const bytes = parseIpv4(ip) orelse return error.InvalidInput;

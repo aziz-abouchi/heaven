@@ -912,7 +912,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -982,7 +982,12 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     if (std.mem.eql(u8, op, "@budget_left")) {
         if (args_snap.len != 0) return error.ArityMismatch;
-        return try store.int(@intCast(engine.reductions));
+        // HEAVEN:BUDGET_FIX — clamp pour eviter overflow i64
+        // (reductions peut valoir maxInt(u64) au top-level)
+        const r = engine.reductions;
+        const max_i64: u64 = @intCast(std.math.maxInt(i64));
+        const r_safe: i64 = if (r > max_i64) std.math.maxInt(i64) else @intCast(r);
+        return try store.int(r_safe);
     }
 
     if (std.mem.eql(u8, op, "task_state")) {
@@ -2181,6 +2186,55 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (args_snap.len != 0) return error.ArityMismatch;
         const fd = platform.net.socketTcp();
         return try store.lit(.{ .int = fd });
+    }
+
+    // HEAVEN:MAGIC_UDP
+    // 1-arg (dummy ignore) pour eviter le strip parser des 0-arg magics
+    if (std.mem.eql(u8, op, "@net_socket_udp")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const fd = platform.net.socketUdp();
+        return try store.lit(.{ .int = fd });
+    }
+
+    if (std.mem.eql(u8, op, "@net_sendto")) {
+        if (args_snap.len != 4) return error.ArityMismatch;
+        const fd_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const ip_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const port_val = try evaluate(store, env, engine, args_snap[2], depth + 1);
+        const data_val = try evaluate(store, env, engine, args_snap[3], depth + 1);
+        const fd_node = store.get(fd_val);
+        const ip_node = store.get(ip_val);
+        const port_node = store.get(port_val);
+        const data_node = store.get(data_val);
+        if (fd_node.tag != .lit or ip_node.tag != .lit or port_node.tag != .lit or data_node.tag != .lit)
+            return error.TypeError;
+        const fd: i64 = store.lits.items[fd_node.aux].int;
+        const ip_lit = store.lits.items[ip_node.aux];
+        const port_lit = store.lits.items[port_node.aux];
+        const data_lit = store.lits.items[data_node.aux];
+        if (ip_lit != .str or port_lit != .int or data_lit != .str) return error.TypeError;
+        const ip_str = store.interner.resolve(@intCast(ip_lit.str));
+        const data_str = store.interner.resolve(@intCast(data_lit.str));
+        const port: u16 = @intCast(port_lit.int);
+        const n = platform.net.sendtoUdp(fd, ip_str, port, data_str);
+        return try store.lit(.{ .int = n });
+    }
+
+    if (std.mem.eql(u8, op, "@net_recvfrom")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const fd_node = store.get(fd_val);
+        if (fd_node.tag != .lit) return error.TypeError;
+        const fd: i64 = store.lits.items[fd_node.aux].int;
+
+        // Buffer 4096 bytes, retourne la string (tronquee a n)
+        var buf: [4096]u8 = undefined;
+        const n = platform.net.recvfromUdp(fd, &buf);
+        if (n < 0) return try store.unitLit();
+        const s_sym = try store.interner.intern(buf[0..@intCast(n)]);
+        return try store.lit(.{ .str = s_sym });
     }
 
     if (std.mem.eql(u8, op, "@net_connect")) {
