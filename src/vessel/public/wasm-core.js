@@ -7,7 +7,20 @@ window.loadWasm = async function() {
     const resp = await fetch('heaven.wasm?t=' + Date.now());
     const bytes = await resp.arrayBuffer();
     const result = await WebAssembly.instantiate(bytes, {
-      env: window.jsImports || {}
+      env: new Proxy(window.jsImports || {}, {
+        // HEAVEN:WASM_PROXY — fallback auto pour imports manquants.
+        // Evite LinkError quand le wasm importe une nouvelle fonction.
+        // Heuristique sur le nom pour deviner le type de retour.
+        get: (target, prop) => {
+          if (prop in target) return target[prop];
+          const p = String(prop);
+          return (...args) => {
+            if (p.includes('now') || p.includes('time') || p.includes('timestamp')) return performance.now();
+            if (p.includes('len') || p.includes('read_file')) return 0;
+            return undefined;
+          };
+        }
+      })
     });
     window.wasm = result.instance.exports;
     window.memory = window.wasm.memory;
