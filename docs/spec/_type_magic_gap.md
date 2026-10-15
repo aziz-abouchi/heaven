@@ -5,7 +5,7 @@
 
 ## Ce qui marche
 
-Dans le REPL web :
+REPL web :
     heaven> type 42       -> Int
     heaven> type true     -> Bool
     heaven> type "hello"  -> String
@@ -17,23 +17,10 @@ Dans un fichier .hvn :
     test "type":
       (type 42) == "Int"    -- echoue
 
-## Cause
-
-Deux chemins distincts :
-
-| Contexte | Dispatch |
-|---|---|
-| REPL web : type X | Commands.eval -> typeOf |
-| Fichier : (type X) | heaven.eval (magic) |
-
-`type` n'est pas un magic dans engine_expr.zig. Pour l'ajouter,
-il faudrait acces a types_mod.Infer (pas dispo dans ce scope).
+Deux chemins distincts : Commands.eval (REPL) vs heaven.eval
+(magic). `type` n'est pas un magic dans engine_expr.zig.
 
 ## Fix propose
 
-Session dediee : ajouter le magic dans engine_expr.zig, ou
-exposer typeOf via une API accessible.
-
-## Effort
-
-30-60 min.
+Session dediee : ajouter un magic `type` qui appelle types_mod.
+Effort : 30-60 min.
