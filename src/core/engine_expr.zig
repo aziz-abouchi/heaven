@@ -738,21 +738,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
     if (engine.reductions == 0) return error.SuspendRequested;
     engine.reductions -= 1;
 
-    // HEAVEN:A2 (3a-3b pre-vol) : capture conditionnelle.
-    // Active uniquement par le scheduler (engine.capturing).
-    // Aucun impact en usage normal (capture_on = false).
-    const capture_on = engine.capturing;
-    if (capture_on) {
-        try engine.capture_stack.push(.{
-            .prompt = engine.current_prompt,
-            .position = depth,
-            .env = @as(u64, @intFromPtr(env)),
-            .id = @as(u64, id),
-        });
-    }
-    defer if (capture_on) {
-        _ = engine.capture_stack.pop();
-    };
+    // A3B2_MOVE_PUSH : hook deplace apres store.get(id).
 
     if (platform.target.is_debug and id == 0xAAAAAAAA) {
         @panic("poison Id at evaluate entry");
@@ -760,6 +746,21 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
 
     if (depth > 1000) return error.RecursionLimitExceeded;
     const node = store.get(id);
+
+    // A3B2_MOVE_PUSH : push apres store.get(id) pour inclure kind.
+    const capture_on = engine.capturing;
+    if (capture_on) {
+        try engine.capture_stack.push(.{
+            .prompt = engine.current_prompt,
+            .position = depth,
+            .env = @as(u64, @intFromPtr(env)),
+            .id = @as(u64, id),
+            .kind = .unknown, // rempli a l'etape suivante
+        });
+    }
+    defer if (capture_on) {
+        _ = engine.capture_stack.pop();
+    };
 
     return switch (node.tag) {
         .lit => id,

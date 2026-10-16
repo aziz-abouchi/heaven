@@ -110,13 +110,27 @@ test "prompt stack: top et depth" {
 // Ces etapes sont 3a-3.
 
 /// Une frame d'execution.
+/// A3B2 : nature de l'evaluation en cours au point de push.
+/// Permet de reconstituer l'etat pour la reprise exacte.
+pub const FrameKind = enum(u8) {
+    unknown = 0,
+    lit_sym,           // .lit ou .sym : feuille
+    apply_op,          // .apply : evaluation des args
+    lambda_body,       // .lambda : evaluation du corps
+    bind_body,         // .bind : let x = v in body
+    if_branch,         // (if p a b) : on evalue p, a ou b
+    seq,               // (seq a b) : sequence
+    other,
+};
+
 pub const Frame = struct {
     prompt: Prompt,
     position: u32,
     env: u64,
     /// A3B1 : id de l'expression evaluee (0 = inconnu).
-    /// Utilise par A-3b-2 pour reconstituer l'etat.
     id: u64 = 0,
+    /// A3B2 : nature de l'evaluation (pour resume).
+    kind: FrameKind = .unknown,
 };
 
 /// Pile d'execution simulee. Le sommet est le dernier element.
