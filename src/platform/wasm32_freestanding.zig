@@ -1,3 +1,8 @@
+// HEAVEN:io_console shim cross-cible (API minimale).
+pub const io_console = struct {
+    pub var debug_enabled: bool = false;
+};
+
 const std = @import("std");
 pub const target = @import("target.zig");
 
@@ -18,11 +23,10 @@ pub fn readEnergyUJ() error{Unsupported}!u64 {
     return error.Unsupported;
 }
 
-pub var debug_enabled: bool = false;
 
 /// Debug conditionnel : activé par HEAVEN_DEBUG=1
 pub fn dbg(comptime fmt: []const u8, args: anytype) void {
-    if (debug_enabled) debug.print(fmt, args);
+    if (io_console.debug_enabled) debug.print(fmt, args);
 }
 
 // On définit le type localement pour éviter la dépendance circulaire avec driver.zig

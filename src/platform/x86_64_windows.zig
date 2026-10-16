@@ -1,3 +1,8 @@
+// HEAVEN:io_console shim cross-cible (API minimale).
+pub const io_console = struct {
+    pub var debug_enabled: bool = false;
+};
+
 const std = @import("std");
 const shell_parser_types = @import("shell_parser_types.zig");
 
