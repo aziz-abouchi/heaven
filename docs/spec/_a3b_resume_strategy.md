@@ -140,3 +140,67 @@ sont jamais deinit() individuellement. L'arena est reset entre deux
 ### Recommandation
 B1 d'abord (local, sur, non intrusif). B3 ensuite en optimisation si
 le profiling montre que B1 coute trop.
+
+
+## DESIGN B2 (ref-counting Env) — a valider avant code
+
+### Struct
+
+    // src/core/env.zig (nouveau module, casse le cycle continuation<->engine)
+    pub const Env = struct {
+        bindings: std.AutoHashMapUnmanaged(Sym, Id) = .{},
+        allocator: Allocator,
+        refs: u32 = 1,   // B2 : compteur
+
+        pub fn init(a: Allocator) Env { ... }
+        pub fn clone(self: *const Env, a: Allocator) !*Env { ... }  // retourne *Env
+        pub fn ref(self: *Env) void { self.refs += 1; }
+        pub fn unref(self: *Env) void {
+            self.refs -= 1;
+            if (self.refs == 0) { self.bindings.deinit(...); self.allocator.destroy(self); }
+        }
+    };
+
+### Regle « qui possede quoi »
+
+1. Un `new_env` local est cree avec refs=1, possede par la stack frame
+   courante. A la fin du scope : `defer new_env.unref()`.
+2. Chaque push de Frame fait `env.ref()`. Chaque pop fait `env.unref()`.
+3. `captureCont` fait `ref()` sur chaque Env unique des frames captures.
+   `Continuation.deinit` fait `unref()` sur chacun.
+4. `throwCont` refait `ref()` pour chaque frame re-push (l'appelant possede
+   maintenant une nouvelle reference).
+
+### B2a vs B2b
+
+- B2a : `Frame.env: *anyopaque`. `continuation.zig` n'importe pas
+  `engine_expr.zig` ; l'Engine fournit des callbacks ref/unref.
+- B2b : `Env` vit dans `src/core/env.zig`, importable par les deux.
+
+**Choix B2b** : le cycle est reel (continuation importe Env), mais un
+module dedie evite le *anyopaque et les callbacks runtime. Cout :
+extraire `Env` + `Sym` + `Allocator` dans `env.zig`, mettre a jour les
+imports (3-4 fichiers).
+
+### Plan 4 commits
+
+1. **2e-1** : extraire `Env` dans `src/core/env.zig` (copie, re-export
+   depuis `engine_expr.zig`). Zero changement de comportement.
+2. **2e-2** : `Env` -> `*Env` partout dans engine_expr.zig. `init`
+   retourne `*Env` (alloue). `unref()` remplace `deinit()`.
+3. **2e-3** : `Frame.env: *Env` (plus u64). Push/pop ajustent ref.
+   `captureCont` / `Continuation.deinit` ajustent ref.
+4. **2e-4** : tests + A-3b-3 debloque (reprise exacte reelle).
+
+### Risques
+
+- Oubli de ref => fuite (leak detector le verra).
+- Oubli de unref => fuite.
+- Double unref => crash (leak detector aide).
+- Perf : ref++ / ref-- sur hot path. Mesurer avec un bench.
+
+### Alternative si trop lourd
+
+Revenir a B1 (arena par capture) : plus simple mais O(N) memoire par
+capture. Pertinent si captures rares (deja le cas : yield ne capture
+pas, seuls @throw / perform / resume capturent).
