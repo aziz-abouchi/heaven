@@ -1372,10 +1372,20 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const ctx = engine.rec_ctx orelse return error.HandlerFailed;
         if (args_snap.len != 1) return error.ArityMismatch;
         const new_state = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        // A3B2D : capture la pile jusqu'au prompt handle_rec.
+        var cont: ?continuation.Continuation = null;
+        if (engine.capturing) {
+            cont = continuation.captureCont(
+                &engine.capture_stack,
+                ctx.prompt,
+                engine.allocator,
+            ) catch null;
+        }
         engine.pending_capture = PendingCapture{
             .kind = .resume_from_k,
             .new_state = new_state,
             .prompt = ctx.prompt,
+            .cont = cont,
         };
         return error.SuspendRequested;
     }
@@ -2201,11 +2211,21 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (engine.rec_ctx) |ctx| {
             if (args_snap.len < 2) return error.HandlerFailed;
             const v = try evaluate(store, env, engine, args_snap[1], depth + 1);
+            // A3B2D : capture la pile jusqu'au prompt du handler.
+            var cont: ?continuation.Continuation = null;
+            if (engine.capturing) {
+                cont = continuation.captureCont(
+                    &engine.capture_stack,
+                    ctx.prompt,
+                    engine.allocator,
+                ) catch null;
+            }
             engine.pending_capture = PendingCapture{
                 .kind = .perform,
                 .handler = ctx.handler,
                 .value = v,
                 .prompt = ctx.prompt,
+                .cont = cont,
             };
             return error.SuspendRequested;
         }
