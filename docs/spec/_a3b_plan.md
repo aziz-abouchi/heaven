@@ -75,6 +75,34 @@ Chaque site : remplacer le marqueur par un appel reel a
 captureCont(capture_stack, prompt, allocator), stocker le
 Continuation dans la tache ou le CaptureRecord.
 
+## Etat d'avancement (2026-10-16, 2d)
+
+### A-3b-2d TERMINE
+
+Sous-etapes commitees :
+- 210a9b8 : PendingCapture +cont:?Continuation + releasePendingCapture
+- b5a7a26 : captureCont dans @throw (throw_to_prompt)
+- b545709 : captureCont dans resume_from_k + perform
+
+**Decision yield (2d-4)** : Option A — pas de capture pour `yield`.
+Raison : le scheduler (engine_expr.zig:1183) traite yield_task en
+lisant `cap.new_state` puis `task.state = .ready` ; il ne consomme
+jamais de Continuation. Une capture pour yield serait morte et
+couteuse. Documente ici, skip.
+
+**Test d'integration (2d-5)** : differe a A-3b-3. Le champ
+`pending_capture.cont` n'est pas observable depuis un test .hvn ;
+il sera teste en A-3b-3 quand throwCont du scheduler sera cable et
+qu'un resume produira un effet observable.
+
+### A-3b-3 (prochain)
+
+Cabler throwCont dans le scheduler : remplacer le `releasePendingCapture`
+brut par une vraie reprise (deplacer le Continuation dans la tache,
+re-executer les frames capturees). Necessite de definir :
+- Representation du resume dans SchedulerTask.
+- Politique de duree de vie de la Continuation.
+
 ## Risque
 
 Eleve. `evaluate` est appele 56 fois, le hook A-2 est inerte
