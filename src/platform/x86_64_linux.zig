@@ -23,11 +23,6 @@ pub const ProcessResult = process.ProcessResult;
 
 pub const time = @import("time.zig");
 
-// --- NETWORK & SOCKETS ---
-
-
-
-
 pub const profiler = switch (builtin.os.tag) {
     .linux => @import("profiler_linux.zig"),
     .macos, .ios, .tvos, .watchos => @import("profiler_darwin.zig"),
@@ -79,17 +74,10 @@ pub fn readFileAllocCwd(alloc: std.mem.Allocator, path: []const u8, max: usize) 
 }
 
 // ═══════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════
 // DEBUG ABSTRACTION
 // ═══════════════════════════════════════════════════════════
 
 pub const debug = std.debug;
-
-// ═══════════════════════════════════════════════════════════
-// NETWORK ABSTRACTION (WebSocket + WebRTC)
-// ═══════════════════════════════════════════════════════════
-
-
 
 pub fn allocator() std.mem.Allocator {
     return std.heap.page_allocator;
