@@ -85,3 +85,58 @@ documenter dans le langage.
 Args impurs. Il faudra soit interdire `yield`/`@prompt`/`delay` en
 position d'arg dans `.apply`, soit accepter la duplication d'effets
 sur resume. À documenter dans `DECISIONS.md` (D-A3B-ARGS-PURITY).
+
+
+## LIMITE STRUCTURELLE (constat 2026-10-16, post-2d)
+
+Le champ `Frame.env: u64` est un pointeur **brut** vers un `*Env`.
+Or `evalFunction` (engine_expr.zig:605) cree son Env **stack-local** :
+
+    var new_env = Env.init(self.allocator);
+    defer new_env.deinit();
+
+Quand la pile unwind sur `SuspendRequested`, ces Env sont detruits.
+La Continuation capture leurs adresses, mais a la reprise elles
+pointent vers de la memoire reutilisee ou invalide.
+
+**Consequence** : R2-strict « resume a l'id du frame » ne peut PAS
+fonctionner tel quel. Le 2c-5 (« args_done_len survit a captureCont »)
+prouve que la donnee survit ; il ne prouve pas que la pile est
+reutilisable. C'est une omission du plan initial.
+
+**Decision** : ouvrir le chantier A-3b-2e (ownership des Env) AVANT
+A-3b-3. Voir ci-dessous.
+
+## A-3b-2e : ownership des Env (chantier)
+
+Objectif : rendre les Env capturables sans dangling pointer.
+
+### Option B1 — Arena dediee par capture
+Chaque captureCont cree une arena, deep-copie les Env, les stocke dans
+la Continuation. A la reprise, l'arena est utilisee. Au deinit() de la
+Continuation, l'arena est liberee.
+
+- Avantage : pas de changement global.
+- Inconvenient : cout memoire O(N) par capture, N = profondeur.
+
+### Option B2 — Ref-counting global
+Env devient `*Env` avec compteur de references. Chaque push de frame
+incremente. Chaque pop decremente (et libere si 0). La Continuation
+possede ses propres refs.
+
+- Avantage : pas de copie.
+- Inconvenient : touche tous les sites Env (init/deinit/get/put), risque
+  de fuite ou double-free.
+
+### Option B3 — Arena unique pour l'Engine
+Tous les Env vivent dans une arena possedee par l'Engine. Les Env ne
+sont jamais deinit() individuellement. L'arena est reset entre deux
+« mondes » d'evaluation (top-level, avant un schedule, apres un resume).
+
+- Avantage : zero cout par capture.
+- Inconvenient : politique de reset a definir (quand peut-on liberer ?).
+  Necessite un invariant clair : aucun Env ne survit au-dela d'un cycle.
+
+### Recommandation
+B1 d'abord (local, sur, non intrusif). B3 ensuite en optimisation si
+le profiling montre que B1 coute trop.
