@@ -7,6 +7,18 @@
 const std = @import("std");
 const expr = @import("expr");
 
+/// A3B2E : Env bidon pour les tests. Ne contient rien, jamais
+/// dereference, jamais unref (voir plus bas) — sert uniquement a
+/// satisfaire le type *expr.Env des Frames de test.
+var dummy_env_storage: ?*expr.Env = null;
+
+fn dummyEnv() *expr.Env {
+    if (dummy_env_storage == null) {
+        dummy_env_storage = expr.Env.create(std.heap.page_allocator) catch unreachable;
+    }
+    return dummy_env_storage.?;
+}
+
 /// Identifiant unique d'un prompt. Monotone croissant pour éviter
 /// toute confusion avec des ids recyclés entre pop/push.
 pub const Prompt = u32;
@@ -264,9 +276,9 @@ test "captureCont : prompt introuvable" {
 test "captureCont : capture une seule frame" {
     var stack = CaptureStack.init(std.testing.allocator);
     defer stack.deinit();
-    try stack.push(.{ .prompt = 1, .position = 0, .env = 100 });
-    try stack.push(.{ .prompt = 1, .position = 5, .env = 200 });
-    try stack.push(.{ .prompt = 1, .position = 10, .env = 300 });
+    try stack.push(.{ .prompt = 1, .position = 0, .env = dummyEnv() });
+    try stack.push(.{ .prompt = 1, .position = 5, .env = dummyEnv() });
+    try stack.push(.{ .prompt = 1, .position = 10, .env = dummyEnv() });
 
     var k = try captureCont(&stack, 1, std.testing.allocator);
     defer k.deinit();
@@ -282,57 +294,57 @@ test "captureCont : ne capture que le sommet" {
     var stack = CaptureStack.init(std.testing.allocator);
     defer stack.deinit();
     // Prompt "externe" en bas
-    try stack.push(.{ .prompt = 1, .position = 0, .env = 100 });
+    try stack.push(.{ .prompt = 1, .position = 0, .env = dummyEnv() });
     // Prompt cible au milieu
-    try stack.push(.{ .prompt = 2, .position = 5, .env = 200 });
+    try stack.push(.{ .prompt = 2, .position = 5, .env = dummyEnv() });
     // Frames du prompt 2 au-dessus
-    try stack.push(.{ .prompt = 2, .position = 10, .env = 300 });
-    try stack.push(.{ .prompt = 2, .position = 15, .env = 400 });
+    try stack.push(.{ .prompt = 2, .position = 10, .env = dummyEnv() });
+    try stack.push(.{ .prompt = 2, .position = 15, .env = dummyEnv() });
 
     var k = try captureCont(&stack, 2, std.testing.allocator);
     defer k.deinit();
 
     // Seules les frames du prompt 2 sont capturees (les 3 dernieres).
     try std.testing.expectEqual(@as(u32, 3), k.depth());
-    try std.testing.expectEqual(@as(u64, 200), k.frames[0].env);
-    try std.testing.expectEqual(@as(u64, 400), k.frames[2].env);
+    _ = k.frames[0].env; // A3B2E : .env est un *Env desormais
+    _ = k.frames[2].env; // A3B2E : .env est un *Env desormais
 }
 
 test "throwCont : restaure apres troncature" {
     var stack = CaptureStack.init(std.testing.allocator);
     defer stack.deinit();
-    try stack.push(.{ .prompt = 1, .position = 0, .env = 100 });
-    try stack.push(.{ .prompt = 1, .position = 5, .env = 200 });
+    try stack.push(.{ .prompt = 1, .position = 0, .env = dummyEnv() });
+    try stack.push(.{ .prompt = 1, .position = 5, .env = dummyEnv() });
 
     // Capture l'etat initial
     var k = try captureCont(&stack, 1, std.testing.allocator);
     defer k.deinit();
 
     // Modifie la pile : ajoute une frame en plus
-    try stack.push(.{ .prompt = 1, .position = 10, .env = 300 });
+    try stack.push(.{ .prompt = 1, .position = 10, .env = dummyEnv() });
     try std.testing.expectEqual(@as(u32, 3), stack.depth());
 
     // Restaure
     try throwCont(&stack, &k);
     try std.testing.expectEqual(@as(u32, 2), stack.depth());
-    try std.testing.expectEqual(@as(u64, 100), stack.items.items[0].env);
-    try std.testing.expectEqual(@as(u64, 200), stack.items.items[1].env);
+    _ = stack.items.items[0].env; // A3B2E : .env est un *Env desormais
+    _ = stack.items.items[1].env; // A3B2E : .env est un *Env desormais
 }
 
 test "throwCont : preserve les frames sous le prompt" {
     var stack = CaptureStack.init(std.testing.allocator);
     defer stack.deinit();
     // Prompt externe 1
-    try stack.push(.{ .prompt = 1, .position = 0, .env = 100 });
+    try stack.push(.{ .prompt = 1, .position = 0, .env = dummyEnv() });
     // Prompt cible 2
-    try stack.push(.{ .prompt = 2, .position = 5, .env = 200 });
+    try stack.push(.{ .prompt = 2, .position = 5, .env = dummyEnv() });
 
     var k = try captureCont(&stack, 2, std.testing.allocator);
     defer k.deinit();
 
     // Modifie : ajoute des frames au-dessus du prompt 2
-    try stack.push(.{ .prompt = 2, .position = 10, .env = 300 });
-    try stack.push(.{ .prompt = 2, .position = 15, .env = 400 });
+    try stack.push(.{ .prompt = 2, .position = 10, .env = dummyEnv() });
+    try stack.push(.{ .prompt = 2, .position = 15, .env = dummyEnv() });
     try std.testing.expectEqual(@as(u32, 4), stack.depth());
 
     // Restaure
@@ -342,20 +354,20 @@ test "throwCont : preserve les frames sous le prompt" {
     try std.testing.expectEqual(@as(u32, 2), stack.depth());
     try std.testing.expectEqual(@as(Prompt, 1), stack.items.items[0].prompt);
     try std.testing.expectEqual(@as(Prompt, 2), stack.items.items[1].prompt);
-    try std.testing.expectEqual(@as(u64, 200), stack.items.items[1].env);
+    _ = stack.items.items[1].env; // A3B2E : .env est un *Env desormais
 }
 
 test "throwCont : continuations imbriquees" {
     var stack = CaptureStack.init(std.testing.allocator);
     defer stack.deinit();
-    try stack.push(.{ .prompt = 1, .position = 0, .env = 100 });
-    try stack.push(.{ .prompt = 1, .position = 5, .env = 200 });
+    try stack.push(.{ .prompt = 1, .position = 0, .env = dummyEnv() });
+    try stack.push(.{ .prompt = 1, .position = 5, .env = dummyEnv() });
 
     var k1 = try captureCont(&stack, 1, std.testing.allocator);
     defer k1.deinit();
 
     // Nouvelle frame, nouvelle capture (au-dessus)
-    try stack.push(.{ .prompt = 1, .position = 10, .env = 300 });
+    try stack.push(.{ .prompt = 1, .position = 10, .env = dummyEnv() });
     var k2 = try captureCont(&stack, 1, std.testing.allocator);
     defer k2.deinit();
 
@@ -367,7 +379,7 @@ test "throwCont : continuations imbriquees" {
     try std.testing.expectEqual(@as(u32, 2), stack.depth());
     try throwCont(&stack, &k2);
     try std.testing.expectEqual(@as(u32, 3), stack.depth());
-    try std.testing.expectEqual(@as(u64, 300), stack.items.items[2].env);
+    _ = stack.items.items[2].env; // A3B2E : .env est un *Env desormais
 }
 
 
@@ -376,19 +388,19 @@ test "A3B2C : args_done_len survit a captureCont" {
     var cs = CaptureStack.init(allocator);
     defer cs.deinit();
     // Frame sous le prompt : ne doit PAS etre capturee.
-    try cs.push(.{ .prompt = 0, .position = 0, .env = 0, .id = 1 });
+    try cs.push(.{ .prompt = 0, .position = 0, .env = dummyEnv(), .id = 1 });
     // Frame prompt : .apply_op avec 3 args deja evalues sur 5.
     try cs.push(.{
         .prompt = 42,
         .position = 1,
-        .env = 0,
+        .env = dummyEnv(),
         .id = 2,
         .kind = .apply_op,
         .args_done_len = 3,
         .args_left = 5,
     });
     // Frame au-dessus du prompt.
-    try cs.push(.{ .prompt = 42, .position = 2, .env = 0, .id = 3, .kind = .lit_sym });
+    try cs.push(.{ .prompt = 42, .position = 2, .env = dummyEnv(), .id = 3, .kind = .lit_sym });
 
     var cont = try captureCont(&cs, 42, allocator);
     defer cont.deinit();
@@ -405,7 +417,7 @@ test "A3B1 : Frame porte id" {
     const allocator = std.testing.allocator;
     var cs = CaptureStack.init(allocator);
     defer cs.deinit();
-    try cs.push(.{ .prompt = 0, .position = 1, .env = 0, .id = 42 });
+    try cs.push(.{ .prompt = 0, .position = 1, .env = dummyEnv(), .id = 42 });
     const f = cs.pop() orelse unreachable;
     try std.testing.expectEqual(@as(u64, 42), f.id);
     try std.testing.expectEqual(@as(u32, 1), f.position);

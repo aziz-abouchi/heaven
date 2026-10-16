@@ -3017,7 +3017,7 @@ const PatternFixture = struct {
         self.allocator = allocator;
         self.store = Store.init(allocator);
         self.env = try Env.create(allocator);
-        self.engine = Engine.initTest(allocator, &self.store, &self.env);
+        self.engine = Engine.initTest(allocator, &self.store, self.env);
         return self;
     }
 
@@ -3065,7 +3065,7 @@ test "pattern — ctor 0-arity local" {
     try fx.clause("myId", &.{p}, p);
 
     const arg = try fx.store.sym("True");
-    const result = try fx.engine.evalFunction(&fx.env, "myId", &.{arg});
+    const result = try fx.engine.evalFunction(fx.env, "myId", &.{arg});
     try std.testing.expectEqual(p, result);
 }
 
@@ -3083,7 +3083,7 @@ test "pattern — ctor 0-arity qualified matche unqualified" {
 
     // Appel avec Q.True (qualifie)
     const arg = try fx.store.sym("Q.True");
-    const result = try fx.engine.evalFunction(&fx.env, "myId", &.{arg});
+    const result = try fx.engine.evalFunction(fx.env, "myId", &.{arg});
     try std.testing.expectEqual(p, result);
 }
 
@@ -3101,7 +3101,7 @@ test "pattern — ctor qualified A.X != B.X" {
     // Appel avec B.X : doit echouer (symMatchesPattern refuse deux
     // prefixes differents)
     const arg = try fx.store.sym("B.X");
-    const r = fx.engine.evalFunction(&fx.env, "myId", &.{arg});
+    const r = fx.engine.evalFunction(fx.env, "myId", &.{arg});
     try std.testing.expectError(error.ArityMismatch, r);
 }
 
@@ -3118,7 +3118,7 @@ test "pattern — ctor 1-arity avec variable" {
 
     const v42 = try fx.store.int(42);
     const arg = try fx.store.apply(box_sym, &.{v42});
-    const result = try fx.engine.evalFunction(&fx.env, "unbox", &.{arg});
+    const result = try fx.engine.evalFunction(fx.env, "unbox", &.{arg});
     try std.testing.expectEqual(v42, result);
 }
 
@@ -3139,7 +3139,7 @@ test "pattern — ctor imbrique depth 2 avec wildcard" {
 
     const v42 = try fx.store.int(42);
     const arg = try fx.store.apply(mk_sym, &.{ v42, leaf_sym });
-    const result = try fx.engine.evalFunction(&fx.env, "f", &.{arg});
+    const result = try fx.engine.evalFunction(fx.env, "f", &.{arg});
     try std.testing.expectEqual(body, result);
 }
 
@@ -3164,7 +3164,7 @@ test "pattern — ctor imbrique depth 3 avec variable" {
     const inner_arg = try fx.store.apply(tiri_sym, &.{v42});
     const nil_arg = try fx.store.sym("Nil");
     const arg = try fx.store.apply(cons_sym, &.{ inner_arg, nil_arg });
-    const result = try fx.engine.evalFunction(&fx.env, "f", &.{arg});
+    const result = try fx.engine.evalFunction(fx.env, "f", &.{arg});
     try std.testing.expectEqual(v42, result);
 }
 
@@ -3178,10 +3178,10 @@ test "pattern — litteral" {
     try fx.clause("is42", &.{p}, body);
 
     const v42 = try fx.store.int(42);
-    const r1 = try fx.engine.evalFunction(&fx.env, "is42", &.{v42});
+    const r1 = try fx.engine.evalFunction(fx.env, "is42", &.{v42});
     try std.testing.expectEqual(body, r1);
 
     const v43 = try fx.store.int(43);
-    const r2 = fx.engine.evalFunction(&fx.env, "is42", &.{v43});
+    const r2 = fx.engine.evalFunction(fx.env, "is42", &.{v43});
     try std.testing.expectError(error.ArityMismatch, r2);
 }

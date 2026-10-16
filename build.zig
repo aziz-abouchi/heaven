@@ -1312,6 +1312,9 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/core/continuation.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+        },
     }) });
     const test_abi_precision = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/platform/abi/precision.zig"),

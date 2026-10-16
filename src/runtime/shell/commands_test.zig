@@ -26,10 +26,10 @@ test "function definition and call persist" {
     const alloc = arena.allocator();
 
     var store = Store.init(alloc);
-    var env = engine_expr.Env.init(alloc);
-    var engine = engine_expr.Engine.initTest(alloc, &store, &env);
+    var env = try engine_expr.Env.create(alloc);
+    var engine = engine_expr.Engine.initTest(alloc, &store, env);
     var bridge = matrix_bridge.MatrixBridge.init(&store, alloc);
-    var parser = parse.Parser.init(&store, &engine, &env, alloc);
+    var parser = parse.Parser.init(&store, &engine, env, alloc);
     var kb = transform.KnowledgeBase.init(alloc);
     var skills = skill.SkillRegistry.init(alloc);
     var qtt_env = std.StringHashMapUnmanaged(u2){};
@@ -39,12 +39,12 @@ test "function definition and call persist" {
     var pending_proof_request: ?[]const u8 = null;
     var math_inst = math.Math.init(&store, &engine, &bridge, &parser, alloc);
 
-    defer env.deinit();
+    defer env.unref();
 
     var cmds = try Commands.init(
         &store,
         &engine,
-        &env,
+        env,
         &bridge,
         alloc,
         &parser,
@@ -76,10 +76,10 @@ test "actor lifecycle: spawn, send, state" {
     const alloc = arena.allocator();
 
     var store = Store.init(alloc);
-    var env = engine_expr.Env.init(alloc);
-    var engine = engine_expr.Engine.initTest(alloc, &store, &env);
+    var env = try engine_expr.Env.create(alloc);
+    var engine = engine_expr.Engine.initTest(alloc, &store, env);
     var bridge = matrix_bridge.MatrixBridge.init(&store, alloc);
-    var parser = parse.Parser.init(&store, &engine, &env, alloc);
+    var parser = parse.Parser.init(&store, &engine, env, alloc);
     var kb = transform.KnowledgeBase.init(alloc);
     var skills = skill.SkillRegistry.init(alloc);
     var qtt_env = std.StringHashMapUnmanaged(u2){};
@@ -89,12 +89,12 @@ test "actor lifecycle: spawn, send, state" {
     var pending_proof_request: ?[]const u8 = null;
     var math_inst = math.Math.init(&store, &engine, &bridge, &parser, alloc);
 
-    defer env.deinit();
+    defer env.unref();
 
     var cmds = try Commands.init(
         &store,
         &engine,
-        &env,
+        env,
         &bridge,
         alloc,
         &parser,
@@ -132,10 +132,10 @@ test "walrus operator := defines function correctly" {
     const alloc = arena.allocator();
 
     var store = Store.init(alloc);
-    var env = engine_expr.Env.init(alloc);
-    var engine = engine_expr.Engine.initTest(alloc, &store, &env);
+    var env = try engine_expr.Env.create(alloc);
+    var engine = engine_expr.Engine.initTest(alloc, &store, env);
     var bridge = matrix_bridge.MatrixBridge.init(&store, alloc);
-    var parser = parse.Parser.init(&store, &engine, &env, alloc);
+    var parser = parse.Parser.init(&store, &engine, env, alloc);
     var kb = transform.KnowledgeBase.init(alloc);
     var skills = skill.SkillRegistry.init(alloc);
     var qtt_env = std.StringHashMapUnmanaged(u2){};
@@ -145,12 +145,12 @@ test "walrus operator := defines function correctly" {
     var pending_proof_request: ?[]const u8 = null;
     var math_inst = math.Math.init(&store, &engine, &bridge, &parser, alloc);
 
-    defer env.deinit();
+    defer env.unref();
 
     var cmds = try Commands.init(
         &store,
         &engine,
-        &env,
+        env,
         &bridge,
         alloc,
         &parser,

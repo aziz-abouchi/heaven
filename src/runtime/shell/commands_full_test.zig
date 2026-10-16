@@ -22,7 +22,7 @@ const TestContext = struct {
     alloc: std.mem.Allocator,
     cmds: Commands,
     store: Store,
-    env: engine_expr.Env,
+    env: *engine_expr.Env,
     engine: Engine,
     bridge: matrix_bridge.MatrixBridge,
     parser: parse.Parser,
@@ -45,10 +45,10 @@ fn setupCommands(allocator: std.mem.Allocator) !*TestContext {
     ctx.alloc = ctx.arena.allocator();
 
     ctx.store = Store.init(ctx.alloc);
-    ctx.env = engine_expr.Env.init(ctx.alloc);
-    ctx.engine = engine_expr.Engine.initTest(ctx.alloc, &ctx.store, &ctx.env);
+    ctx.env = try engine_expr.Env.create(ctx.alloc);
+    ctx.engine = engine_expr.Engine.initTest(ctx.alloc, &ctx.store, ctx.env);
     ctx.bridge = matrix_bridge.MatrixBridge.init(&ctx.store, ctx.alloc);
-    ctx.parser = parse.Parser.init(&ctx.store, &ctx.engine, &ctx.env, ctx.alloc);
+    ctx.parser = parse.Parser.init(&ctx.store, &ctx.engine, ctx.env, ctx.alloc);
     ctx.math_inst = math.Math.init(&ctx.store, &ctx.engine, &ctx.bridge, &ctx.parser, ctx.alloc);
     ctx.kb = transform.KnowledgeBase.init(ctx.alloc);
     ctx.skills = skill.SkillRegistry.init(ctx.alloc);
@@ -61,7 +61,7 @@ fn setupCommands(allocator: std.mem.Allocator) !*TestContext {
     ctx.cmds = try Commands.init(
         &ctx.store,
         &ctx.engine,
-        &ctx.env,
+        ctx.env,
         &ctx.bridge,
         ctx.alloc,
         &ctx.parser,
