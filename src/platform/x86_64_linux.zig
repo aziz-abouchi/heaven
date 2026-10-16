@@ -14,6 +14,8 @@ pub const disableRawMode = io_console.disableRawMode;
 pub const initConsole = io_console.initConsole;
 pub const writeStdout = io_console.writeStdout;
 pub const readStdin = io_console.readStdin;
+pub const io = io_console.io;
+pub const readLine = io_console.readLine;
 
 // --- NETWORK & SOCKETS ---
 
@@ -285,34 +287,6 @@ pub fn readFileAllocCwd(alloc: std.mem.Allocator, path: []const u8, max: usize) 
 }
 
 // ═══════════════════════════════════════════════════════════
-// I/O ABSTRACTION
-// ═══════════════════════════════════════════════════════════
-
-pub const io = struct {
-    pub fn print(comptime fmt: []const u8, args: anytype) void {
-        std.debug.print(fmt, args);
-    }
-
-    pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
-        const stdin = std.fs.File.stdin().reader();
-        return stdin.readUntilDelimiterAlloc(alloc, '\n', 4096);
-    }
-};
-
-pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
-    var buf: [4096]u8 = undefined;
-     const n = try std.posix.read(0, &buf);
-
-    if (n == 0) return error.EndOfStream;
-    const line = buf[0..n];
-    // Supprimer le '\n' final
-    const line_clean = if (line.len > 0 and line[line.len - 1] == '\n')
-        line[0 .. line.len - 1]
-    else
-        line;
-    return try alloc.dupe(u8, line_clean);
-}
-
 // ═══════════════════════════════════════════════════════════
 // DEBUG ABSTRACTION
 // ═══════════════════════════════════════════════════════════

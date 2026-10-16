@@ -60,3 +60,28 @@ pub fn writeStdout(buf: []const u8) !usize {
 pub fn readStdin(buf: []u8) !usize {
     return std.posix.read(std.posix.STDIN_FILENO, buf);
 }
+
+// --- I/O ABSTRACTION (deplace depuis x86_64_linux.zig) ---
+pub const io = struct {
+    pub fn print(comptime fmt: []const u8, args: anytype) void {
+        std.debug.print(fmt, args);
+    }
+
+    pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
+        const stdin = std.fs.File.stdin().reader();
+        return stdin.readUntilDelimiterAlloc(alloc, '\n', 4096);
+    }
+};
+
+pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
+    var buf: [4096]u8 = undefined;
+    const n = try std.posix.read(0, &buf);
+
+    if (n == 0) return error.EndOfStream;
+    const line = buf[0..n];
+    const line_clean = if (line.len > 0 and line[line.len - 1] == '\n')
+        line[0 .. line.len - 1]
+    else
+        line;
+    return try alloc.dupe(u8, line_clean);
+}
