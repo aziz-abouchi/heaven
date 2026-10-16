@@ -1654,6 +1654,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (args_snap.len != 4) return error.ArityMismatch;
         var vals: [4]i64 = undefined;
         for (args_snap, 0..) |a, i| {
+            markArgDone(engine, i);
             const ev = try evaluate(store, env, engine, a, depth + 1);
             const node = store.get(ev);
             if (node.tag != .lit) {
@@ -1679,6 +1680,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (args_snap.len != 7) return error.ArityMismatch;
         var vals: [7]i64 = undefined;
         for (args_snap, 0..) |a, i| {
+            markArgDone(engine, i);
             const ev = try evaluate(store, env, engine, a, depth + 1);
             const node = store.get(ev);
             if (node.tag != .lit) {
@@ -1860,21 +1862,32 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             );
             return error.ArityMismatch;
         }
+        markArgDone(engine, 0);
         const cond = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const cond_node = store.get(cond);
         if (cond_node.tag != .lit) return error.TypeError;
         const lit = store.lits.items[cond_node.aux];
         if (lit != .boolean) return error.TypeError;
-        return if (lit.boolean) evaluate(store, env, engine, args_snap[1], depth + 1) else evaluate(store, env, engine, args_snap[2], depth + 1);
+        if (lit.boolean) {
+            markArgDone(engine, 1);
+            return evaluate(store, env, engine, args_snap[1], depth + 1);
+        } else {
+            markArgDone(engine, 2);
+            return evaluate(store, env, engine, args_snap[2], depth + 1);
+        }
     }
     if (std.mem.eql(u8, op, "seq") or std.mem.eql(u8, op, "block")) {
         var last: Id = undefined;
-        for (args_snap) |arg| last = try evaluate(store, env, engine, arg, depth + 1);
+        for (args_snap, 0..) |arg, i| {
+            markArgDone(engine, i);
+            last = try evaluate(store, env, engine, arg, depth + 1);
+        }
         return last;
     }
     if (std.mem.eql(u8, op, "tuple")) {
         const new_span = try store.reserveSpan(args_snap.len);
         for (0..args_snap.len) |i| {
+            markArgDone(engine, i);
             store.pool.items[new_span.start + i] = try evaluate(store, env, engine, args_snap[i], depth + 1);
         }
         const sym = try store.interner.intern("tuple");
