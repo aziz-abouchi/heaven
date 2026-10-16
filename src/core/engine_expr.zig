@@ -1285,10 +1285,22 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const record = engine.captures.get(token) orelse return error.InvalidCapture;
         const v = try evaluate(store, env, engine, args_snap[1], depth + 1);
 
+        // A3B2D : capture reelle de la pile jusqu'au prompt cible.
+        // On capture AVANT de poser pending_capture, sur la stack
+        // courante (le SuspendRequested n'a pas encore propage).
+        var cont: ?continuation.Continuation = null;
+        if (engine.capturing) {
+            cont = continuation.captureCont(
+                &engine.capture_stack,
+                record.prompt,
+                engine.allocator,
+            ) catch null;
+        }
         engine.pending_capture = PendingCapture{
             .kind = .throw_to_prompt,
             .value = v,
             .prompt = record.prompt,
+            .cont = cont,
         };
         return error.SuspendRequested;
     }
