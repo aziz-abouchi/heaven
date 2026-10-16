@@ -8,7 +8,6 @@ const Id = expr.Id;
 const Sym = expr.Sym;
 const Tag = expr.Tag;
 const platform = @import("platform");
-const builtin = @import("builtin");
 const continuation = @import("continuation");
 const scheduler_lib = @import("scheduler");
 
@@ -1492,7 +1491,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
     // target_os : renvoie "linux", "macos", "windows", "wasm".
     if (std.mem.eql(u8, op, "target_os")) {
-        const tag = @import("builtin").os.tag;
+        const tag = platform.target.os;
         const name = switch (tag) {
             .linux => "linux",
             .macos => "macos",
@@ -1632,7 +1631,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // par @bitCast — ce qui accepte les valeurs "négatives" comme
     // fd = -1 (mmap, AT_FDCWD).
     if (std.mem.eql(u8, op, "raw_syscall")) {
-        if (comptime @import("builtin").os.tag != .linux) return error.UnknownSymbol;
+        if (comptime platform.target.os != .linux) return error.UnknownSymbol;
         if (args_snap.len != 4) return error.ArityMismatch;
         var vals: [4]i64 = undefined;
         for (args_snap, 0..) |a, i| {
@@ -1657,7 +1656,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return try store.int(@bitCast(r));
     }
     if (std.mem.eql(u8, op, "raw_syscall6")) {
-        if (comptime @import("builtin").os.tag != .linux) return error.UnknownSymbol;
+        if (comptime platform.target.os != .linux) return error.UnknownSymbol;
         if (args_snap.len != 7) return error.ArityMismatch;
         var vals: [7]i64 = undefined;
         for (args_snap, 0..) |a, i| {
