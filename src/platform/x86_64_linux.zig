@@ -17,6 +17,12 @@ pub const readStdin = io_console.readStdin;
 pub const io = io_console.io;
 pub const readLine = io_console.readLine;
 
+pub const process = @import("process.zig");
+pub const spawnProcess = process.spawnProcess;
+pub const ProcessResult = process.ProcessResult;
+
+pub const time = @import("time.zig");
+
 // --- NETWORK & SOCKETS ---
 
 pub fn setNonBlocking(socket: std.posix.socket_t) !void {
@@ -36,21 +42,6 @@ pub fn setNonBlocking(socket: std.posix.socket_t) !void {
     }
 }
 
-// --- PROCESS CONTROL ---
-
-pub const ProcessResult = struct {
-    exit_code: u8,
-};
-
-pub fn spawnProcess(alloc: std.mem.Allocator, argv: []const []const u8) !ProcessResult {
-    var child = std.process.Child.init(argv, alloc);
-    const term = try child.spawnAndWait();
-
-    return switch (term) {
-        .Exited => |code| ProcessResult{ .exit_code = @truncate(code) },
-        else => ProcessResult{ .exit_code = 1 },
-    };
-}
 
 pub const profiler = switch (builtin.os.tag) {
     .linux => @import("profiler_linux.zig"),
@@ -298,23 +289,6 @@ pub const debug = std.debug;
 // ═══════════════════════════════════════════════════════════
 
 
-
-pub const time = struct {
-    pub const ns_per_s = std.time.ns_per_s;
-    pub const ns_per_us = std.time.ns_per_us;
-
-    pub fn milliTimestamp() i64 {
-        return std.time.milliTimestamp();
-    }
-
-    pub fn nanoTimestamp() i128 {
-        return std.time.nanoTimestamp();
-    }
-
-    pub fn sleep(ns: u64) void {
-        std.time.sleep(ns);
-    }
-};
 
 pub fn allocator() std.mem.Allocator {
     return std.heap.page_allocator;
