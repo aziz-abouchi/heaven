@@ -109,3 +109,38 @@ env (`env` au lieu de `new_env`). La trace ne permet pas de trancher.
 3. Tests de bisection sur `evalCmp` / `store.int` sur un Id `-`.
 
 Chantier dedie 2-4h. Bloque N2, JSON, HTTP body, AST walkers.
+
+
+## Decouverte majeure (2026-10-16)
+
+Traces ajoutees dans le TCO (l.885 engine_expr.zig). Sur :
+    c4 n = if (= n 0) then 0 else (c4 (- n 1))
+
+L'argument du self-call est le noeud 5752, un `.apply` avec :
+    span[0] = sym "-"       (op)
+    span[1] = lit int=0     (devrait etre `n` binde a 1)
+    span[2] = apply 5751    (devrait etre le litt. 1)
+
+**La structure `(- n 1)` est corrompue.** `n` est devenu un `lit 0`
+et `1` est devenu un `.apply`. C'est un bug de **reecriture d'Id**
+(probablement dans `store.substSym` ou l'equivalent TCO), pas
+d'evaluation.
+
+Le TCO tente alors `evaluate(5752)` -> `-` recoit `[0, <apply>]`
+-> ArityMismatch silencieux.
+
+## Piste precise pour le chantier
+
+1. Chercher qui reecrit les args du self-call dans `evalMagic` TCO.
+2. Comparer avec la voie `let m = (- n 1) in (v3 m)` (qui marche).
+3. Voir si `store.substSym` (utilise pour beta-reduction) est appele
+   ici a tort et reecrit la structure du sous-arbre.
+4. Verifier que les Ids 5756 (n binde) / 5748 (lit 0) / 5751 (apply)
+   ne sont pas confondus par un reuse d'Id.
+
+## Indice add.
+
+Le TCO trace `env.n=5756`, mais la structure passee a `evaluate` a
+`span[1]=5748` (`lit 0`). Donc l'env est correct (n=1), mais le
+**sous-arbre a ete altere** avant l'appel. C'est bien une
+substitution qui a touche l'AST, pas l'env.
