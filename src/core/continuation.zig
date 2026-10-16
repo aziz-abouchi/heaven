@@ -131,6 +131,11 @@ pub const Frame = struct {
     id: u64 = 0,
     /// A3B2 : nature de l'evaluation (pour resume).
     kind: FrameKind = .unknown,
+    /// A3B2C : args deja evalues pour .apply (vide = aucun).
+    /// La politique d'allocation (arena vs inline) sera fixee en 2c-3.
+    args_done: []const u64 = &.{},
+    /// A3B2C : args restant a evaluer pour .apply.
+    args_left: u32 = 0,
 };
 
 /// Pile d'execution simulee. Le sommet est le dernier element.
