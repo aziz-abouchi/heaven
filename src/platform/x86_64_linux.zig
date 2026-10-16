@@ -4,13 +4,6 @@ const builtin = @import("builtin");
 const queue_mod = @import("queue");
 pub const MessageQueue = queue_mod.MessageQueue;
 pub const rtc = @import("webrtc.zig");
-const c = @cImport({
-    // Assurez-vous que le nom du fichier header est correct
-    // pour votre installation de libdatachannel
-    @cInclude("rtc/datachannel.hpp");
-});
-const Driver = @import("driver");
-const NetworkDriver = Driver.NetworkDriver;
 
 pub var debug_enabled: bool = false;
 
@@ -384,91 +377,7 @@ pub const debug = std.debug;
 // NETWORK ABSTRACTION (WebSocket + WebRTC)
 // ═══════════════════════════════════════════════════════════
 
-pub const Network = struct {
-    ws_client: ?std.net.Stream = null,
-    peer_connections: std.StringHashMap(PeerConnection),
-    allocator: std.mem.Allocator,
 
-    pub fn init(alloc: std.mem.Allocator) !Network {
-        return Network{
-            .ws_client = null,
-            .peer_connections = std.StringHashMap(PeerConnection).init(alloc),
-            .allocator = alloc,
-        };
-    }
-
-    // WebSocket (signaling)
-    pub fn connectToSignaling(self: *Network, url: []const u8) !void {
-        const uri = try std.Uri.parse(url);
-        self.ws_client = try std.net.tcpConnectToHost(
-            self.allocator,
-            uri.host.?,
-            uri.port orelse 80,
-        );
-    }
-
-    pub fn announceNode(self: *Network, capabilities: []const u8) !void {
-        if (self.ws_client) |ws| {
-            const msg = try std.fmt.allocPrint(
-                self.allocator,
-                "{{\"type\":\"announce\",\"capabilities\":\"{s}\"}}",
-                .{capabilities},
-            );
-            defer self.allocator.free(msg);
-            _ = try ws.write(msg);
-        }
-    }
-
-    pub fn discoverPeers(self: *Network) ![][]const u8 {
-        _ = self;
-        return &[_][]const u8{ "peer1", "peer2" };
-    }
-
-    // WebRTC (data plane)
-    pub fn connectToPeer(self: *Network, peer_id: []const u8) !void {
-        // Si c'est un ID WebRTC, on utilise notre nouvelle implémentation
-        if (std.mem.startsWith(u8, peer_id, "rtc:")) {
-            try rtc.WebRTC.init(); // On s'assure qu'il est initialisé
-            // Logique de connexion WebRTC ici...
-            return;
-        }
-
-        // Sinon, on garde votre logique TCP existante
-        const conn = try std.net.tcpConnectToHost(self.allocator, peer_id, 9000);
-        try self.peer_connections.put(peer_id, .{ .stream = conn });
-    }
-
-    pub fn sendToPeer(self: *Network, peer_id: []const u8, data: []const u8) !void {
-        if (self.peer_connections.get(peer_id)) |peer| {
-            _ = try peer.stream.write(data);
-        }
-    }
-
-    pub fn receiveFromPeer(self: *Network, peer_id: []const u8) ![]const u8 {
-        if (self.peer_connections.get(peer_id)) |peer| {
-            var buf: [4096]u8 = undefined;
-            const n = try peer.stream.read(&buf);
-            return buf[0..n];
-        }
-        return error.PeerNotFound;
-    }
-    pub fn onPeerMessage(self: *Network, peer_id: []const u8, data: []const u8) !void {
-        // Validation basique avant d'envoyer dans la MessageQueue
-        if (data.len == 0) return error.EmptyPayload;
-
-        // Push dans la file globale que vous avez définie
-        try self.message_queue.push(.{
-            .peer_id = peer_id,
-            .msg_type = .egraph_sync,
-            .payload = data,
-            .timestamp = time.milliTimestamp(),
-        });
-    }
-};
-
-const PeerConnection = struct {
-    stream: std.net.Stream,
-};
 
 pub const time = struct {
     pub const ns_per_s = std.time.ns_per_s;
@@ -491,23 +400,6 @@ pub fn allocator() std.mem.Allocator {
     return std.heap.page_allocator;
 }
 
-// Native implementation
-fn native_send(ctx: *anyopaque, data: []const u8) void {
-    const channel: *c.DataChannel = @ptrCast(@alignCast(ctx));
-    channel.send(data);
-}
-
-pub fn createNativeDriver(channel: *c.DataChannel) NetworkDriver {
-    return .{
-        .send_fn = native_send,
-        .ctx = @ptrCast(channel),
-    };
-}
-
-pub fn init_network() !void {
-    try rtc.init();
-    std.debug.print("Heaven: WebRTC Layer Ready.\n", .{});
-}
 
 // ═══════════════════════════════════════════════════════════
 // SHELL PARSER (Tree-sitter natif)
