@@ -364,6 +364,36 @@ test "throwCont : continuations imbriquees" {
 }
 
 
+test "A3B2C : args_done_len survit a captureCont" {
+    const allocator = std.testing.allocator;
+    var cs = CaptureStack.init(allocator);
+    defer cs.deinit();
+    // Frame sous le prompt : ne doit PAS etre capturee.
+    try cs.push(.{ .prompt = 0, .position = 0, .env = 0, .id = 1 });
+    // Frame prompt : .apply_op avec 3 args deja evalues sur 5.
+    try cs.push(.{
+        .prompt = 42,
+        .position = 1,
+        .env = 0,
+        .id = 2,
+        .kind = .apply_op,
+        .args_done_len = 3,
+        .args_left = 5,
+    });
+    // Frame au-dessus du prompt.
+    try cs.push(.{ .prompt = 42, .position = 2, .env = 0, .id = 3, .kind = .lit_sym });
+
+    var cont = try captureCont(&cs, 42, allocator);
+    defer cont.deinit();
+
+    try std.testing.expectEqual(@as(u32, 2), cont.depth());
+    const f0 = cont.frames[0];
+    try std.testing.expectEqual(@as(u64, 2), f0.id);
+    try std.testing.expectEqual(FrameKind.apply_op, f0.kind);
+    try std.testing.expectEqual(@as(u8, 3), f0.args_done_len);
+    try std.testing.expectEqual(@as(u32, 5), f0.args_left);
+}
+
 test "A3B1 : Frame porte id" {
     const allocator = std.testing.allocator;
     var cs = CaptureStack.init(allocator);
