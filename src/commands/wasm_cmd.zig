@@ -70,7 +70,7 @@ fn parseLastExpr(
     heaven: *heaven_expr.Heaven,
     source: []const u8,
 ) !expr.Id {
-    var parser = parse.Parser.init(heaven.store, &heaven.engine, &heaven.env, alloc);
+    var parser = parse.Parser.init(heaven.store, &heaven.engine, heaven.env, alloc);
     defer parser.deinit();
 
     var last: ?expr.Id = null;

@@ -116,7 +116,7 @@ pub const HoleInfo = struct {
 pub const Heaven = struct {
     allocator: std.mem.Allocator,
     store: *Store,
-    env: engine_expr.Env,
+    env: *engine_expr.Env,
     type_env: types.TypeEnv,
     engine: engine_expr.Engine,
     kb: *transform_mod.KnowledgeBase,
@@ -206,7 +206,7 @@ pub const Heaven = struct {
         errdefer allocator.destroy(self);
         const store = try allocator.create(Store);
         store.* = Store.init(allocator);
-        const env = engine_expr.Env.init(allocator);
+        const env = try engine_expr.Env.create(allocator);
         const type_env = types.TypeEnv.init(allocator);
 
         // Créer le bridge et le parser (ils ne dépendent pas encore de l'engine)
@@ -261,12 +261,12 @@ pub const Heaven = struct {
         };
 
         // Initialiser l'engine DANS self.engine (champ stable du heap)
-        self.engine = engine_expr.Engine.init(allocator, store, &self.env, @ptrCast(self), &heaven_vtable);
+        self.engine = engine_expr.Engine.init(allocator, store, self.env, @ptrCast(self), &heaven_vtable);
         self.engine.io_handler = io_handler_mod.defaultIOHandler;
 
         // Tous les composants qui ont besoin de l'engine pointent sur self.engine,
         // pas sur une variable locale (sinon dangling pointer dès qu'init retourne).
-        parser.* = parse_mod.Parser.init(store, &self.engine, &self.env, allocator);
+        parser.* = parse_mod.Parser.init(store, &self.engine, self.env, allocator);
         self.math = math_mod.Math.init(store, &self.engine, bridge, parser, allocator);
 
         // Initialiser kb, simplify_eng, proof_core
@@ -274,7 +274,7 @@ pub const Heaven = struct {
         kb.* = transform_mod.KnowledgeBase.init(allocator);
         self.kb = kb;
 
-        self.simplify_eng = simplify_engine_mod.SimplifyEngine.init(store, &self.engine, &self.env, kb, allocator);
+        self.simplify_eng = simplify_engine_mod.SimplifyEngine.init(store, &self.engine, self.env, kb, allocator);
 
         const proof_core = proof.ProofEnv.init(allocator);
         self.proof_core = proof_core;
@@ -446,7 +446,7 @@ pub const Heaven = struct {
     pub fn deinit(self: *Heaven) void {
         self.store.deinit();
         self.allocator.destroy(self.store);
-        self.env.deinit();
+        self.env.unref();
         self.engine.deinit();
         self.type_env.deinit();
         self.kb.deinit(self.allocator);
@@ -3057,7 +3057,7 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         }
 
         self.engine.fuel = 1_000_000;
-        const result = engine_expr.evaluate(self.store, &self.env, &self.engine, id, 0) catch |err| {
+        const result = engine_expr.evaluate(self.store, self.env, &self.engine, id, 0) catch |err| {
             if (!self.in_interp and (err == error.UnboundVariable or err == error.UnknownSymbol)) {
                 self.in_interp = true;
                 defer self.in_interp = false;
@@ -3890,7 +3890,7 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         cmds.* = commands_mod.Commands.init(
             self.store,
             &self.engine,
-            &self.env,
+            self.env,
             self.bridge,
             self.allocator,
             self.parser,

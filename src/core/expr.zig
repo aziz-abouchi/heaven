@@ -6,6 +6,56 @@ pub const Id = u32;
 pub const NULL: Id = std.math.maxInt(Id);
 pub const Sym = u32;
 
+// HEAVEN:env (A-3b-2e, B2b) — Env ref-compte, heberge dans expr.zig
+// pour eviter le cycle de modules. Voir _a3b_resume_strategy.md DESIGN B2.
+pub const Env = struct {
+    bindings: std.AutoHashMapUnmanaged(Sym, Id) = .{},
+    allocator: Allocator,
+    refs: u32 = 1,
+
+    /// Alloue un nouvel Env. L'appelant possede 1 ref.
+    pub fn create(allocator: Allocator) !*Env {
+        const self = try allocator.create(Env);
+        self.* = .{ .allocator = allocator };
+        return self;
+    }
+
+    pub fn ref(self: *Env) void {
+        self.refs += 1;
+    }
+
+    pub fn unref(self: *Env) void {
+        std.debug.assert(self.refs > 0);
+        self.refs -= 1;
+        if (self.refs == 0) {
+            const alloc = self.allocator;
+            self.bindings.deinit(alloc);
+            alloc.destroy(self);
+        }
+    }
+
+    pub fn put(self: *Env, s: Sym, val: Id) !void {
+        try self.bindings.put(self.allocator, s, val);
+    }
+    pub fn get(self: *const Env, s: Sym) ?Id {
+        return self.bindings.get(s);
+    }
+    pub fn delete(self: *Env, s: Sym) void {
+        _ = self.bindings.remove(s);
+    }
+
+    /// Clone profond (D12 laziness v0). Retourne *Env (1 ref).
+    pub fn clone(self: *const Env, allocator: Allocator) !*Env {
+        const new_env = try Env.create(allocator);
+        errdefer new_env.unref();
+        var it = self.bindings.iterator();
+        while (it.next()) |entry| {
+            try new_env.bindings.put(allocator, entry.key_ptr.*, entry.value_ptr.*);
+        }
+        return new_env;
+    }
+};
+
 pub const Span = struct {
     start: u32,
     len: u16,

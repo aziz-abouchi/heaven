@@ -29,7 +29,7 @@ pub fn runCompile(allocator: std.mem.Allocator, file_path: []const u8) !void {
         allocator.destroy(heaven);
     }
 
-    var parser = parse.Parser.init(heaven.store, &heaven.engine, &heaven.env, allocator);
+    var parser = parse.Parser.init(heaven.store, &heaven.engine, heaven.env, allocator);
     defer parser.deinit();
 
     const out_file = try std.fs.cwd().createFile("output.c", .{});

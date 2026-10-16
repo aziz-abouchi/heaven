@@ -43,37 +43,7 @@ fn collectTailSpine(store: *const Store, node_id: Id, fn_name: []const u8, out: 
 
 const log = std.log.scoped(.engine);
 
-pub const Env = struct {
-    bindings: std.AutoHashMapUnmanaged(Sym, Id) = .{},
-    allocator: Allocator,
-
-    pub fn init(allocator: Allocator) Env {
-        return .{ .allocator = allocator };
-    }
-    pub fn deinit(self: *Env) void {
-        self.bindings.deinit(self.allocator);
-    }
-    pub fn put(self: *Env, s: Sym, val: Id) !void {
-        try self.bindings.put(self.allocator, s, val);
-    }
-    pub fn get(self: *const Env, s: Sym) ?Id {
-        return self.bindings.get(s);
-    }
-    pub fn delete(self: *Env, s: Sym) void {
-        _ = self.bindings.remove(s);
-    }
-
-    /// Snapshot des bindings (laziness v0, D12).
-    pub fn clone(self: *const Env, allocator: Allocator) !Env {
-        var new_env = Env.init(allocator);
-        errdefer new_env.deinit();
-        var it = self.bindings.iterator();
-        while (it.next()) |entry| {
-            try new_env.bindings.put(allocator, entry.key_ptr.*, entry.value_ptr.*);
-        }
-        return new_env;
-    }
-};
+pub const Env = expr.Env;
 
 pub const EvalError = error{
     SuspendRequested,
@@ -413,7 +383,7 @@ pub const Engine = struct {
         // Cleanup thunks (D12)
         var _thunk_it = self.thunks.iterator();
         while (_thunk_it.next()) |entry| {
-            entry.value_ptr.env.deinit();
+            entry.value_ptr.env.unref();
             self.allocator.destroy(entry.value_ptr.env);
         }
         self.thunks.deinit(self.allocator);
@@ -620,8 +590,8 @@ pub const Engine = struct {
             self.tco_spine_len = old_tco_spine_len;
         }
 
-        var new_env = Env.init(self.allocator);
-        defer new_env.deinit();
+        var new_env = try Env.create(self.allocator);
+        defer new_env.unref();
 
         // Copier caller_env UNE SEULE FOIS avant la boucle TCO
         {
@@ -644,7 +614,7 @@ pub const Engine = struct {
                 var matched = true;
                 for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
                     const arg_val = current_args_buf[i];
-                    if (!try self.matchPatternDeep(store, p, arg_val, &new_env, &bound_syms, &bound_count)) {
+                    if (!try self.matchPatternDeep(store, p, arg_val, new_env, &bound_syms, &bound_count)) {
                         matched = false;
                         break;
                     }
@@ -655,7 +625,7 @@ pub const Engine = struct {
                     // Évaluée dans new_env (captures visibles). != true →
                     // même nettoyage que non-match, clause suivante.
                     if (clause.guard) |g| {
-                        const gv = try evaluate(store, &new_env, self, g, 0);
+                        const gv = try evaluate(store, new_env, self, g, 0);
                         const gn = store.get(gv);
                         var guard_ok = false;
                         if (gn.tag == .lit) {
@@ -675,7 +645,7 @@ pub const Engine = struct {
                     self.tco_spine_len = 0;
                     collectTailSpine(store, clause.body, name, &self.tco_spine_buf, &self.tco_spine_len);
 
-                    const result = try evaluate(store, &new_env, self, clause.body, 0);
+                    const result = try evaluate(store, new_env, self, clause.body, 0);
 
                     // ─── TCO : self-tail-call détecté → boucler ───
                     if (self.tco_args_len > 0) {
@@ -1243,15 +1213,14 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const token = engine.next_capture_id;
         engine.next_capture_id += 1;
 
-        const env_clone = try engine.allocator.create(Env);
-        env_clone.* = try env.clone(engine.allocator);
+        const env_clone = try env.clone(engine.allocator);
         try engine.captures.put(engine.allocator, token, .{
             .prompt = my_prompt,
             .env = env_clone,
         });
         defer {
             if (engine.captures.fetchRemove(token)) |kv| {
-                kv.value.env.deinit();
+                kv.value.env.unref();
                 engine.allocator.destroy(kv.value.env);
             }
         }
@@ -1434,8 +1403,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     if (std.mem.eql(u8, op, "delay")) {
         if (args_snap.len != 1) return error.ArityMismatch;
         const thunk_id = try store.thunk(args_snap[0]);
-        const captured = try engine.allocator.create(Env);
-        captured.* = try env.clone(engine.allocator);
+        const captured = try env.clone(engine.allocator);
         try engine.thunks.put(engine.allocator, thunk_id, .{ .env = captured });
         return thunk_id;
     }
@@ -1958,8 +1926,8 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                     const clause = fn_def.clauses[0];
 
                     // CORRECTION : Créer un nouvel environnement isolé pour l'acteur
-                    var new_env = Env.init(env.allocator);
-                    defer new_env.deinit();
+                    var new_env = try Env.create(env.allocator);
+                    defer new_env.unref();
                     var it = env.bindings.iterator();
                     while (it.next()) |entry| {
                         try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
@@ -1973,7 +1941,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                         const p2 = store.get(clause.patterns[1]);
                         if (p2.tag == .sym) try new_env.put(p2.payload, msg_val);
                     }
-                    const new_state = try evaluate(store, &new_env, engine, clause.body, depth + 1);
+                    const new_state = try evaluate(store, new_env, engine, clause.body, depth + 1);
                     // Re-getPtr : evaluate peut creer des acteurs (HashMap realloc).
                     if (engine.actors.getPtr(actor_id_u32)) |p2| {
                         p2.state = new_state;
@@ -1983,8 +1951,8 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 }
             }
         } else if (handler_node.tag == .lambda) {
-            var new_env = Env.init(env.allocator);
-            defer new_env.deinit();
+            var new_env = try Env.create(env.allocator);
+            defer new_env.unref();
             var it = env.bindings.iterator();
             while (it.next()) |entry| {
                 try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
@@ -1999,7 +1967,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                     if (body_span.len > 0) current_handler = body_span[0];
                 }
             }
-            const new_state = try evaluate(store, &new_env, engine, current_handler, depth + 1);
+            const new_state = try evaluate(store, new_env, engine, current_handler, depth + 1);
             if (engine.actors.getPtr(actor_id_u32)) |p2| {
                 p2.state = new_state;
             }
@@ -2097,8 +2065,8 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             if (proc_cur.mailbox.items.len == 0) break;
             const msg_val = proc_cur.mailbox.orderedRemove(0);
 
-            var new_env = Env.init(engine.allocator);
-            defer new_env.deinit();
+            var new_env = try Env.create(engine.allocator);
+            defer new_env.unref();
             var it_env = env.bindings.iterator();
             while (it_env.next()) |entry| {
                 try new_env.put(entry.key_ptr.*, entry.value_ptr.*);
@@ -2113,7 +2081,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 if (p2.tag == .sym) try new_env.put(p2.payload, msg_val);
             }
 
-            current_state = try evaluate(store, &new_env, engine, clause.body, depth + 1);
+            current_state = try evaluate(store, new_env, engine, clause.body, depth + 1);
         }
 
         if (engine.processes.getPtr(pid_u32)) |p3| {
@@ -2821,9 +2789,9 @@ test "engine rejects non-lowered frontend expressions" {
 
     var store = Store.init(allocator);
     defer store.deinit();
-    var env = Env.init(allocator);
-    defer env.deinit();
-    var engine = Engine.initTest(allocator, &store, &env);
+    var env = try Env.create(allocator);
+    defer env.unref();
+    var engine = Engine.initTest(allocator, &store, env);
     defer engine.deinit();
 
     // Contrat mis à jour : les SYMBOLES NUS restent du sucre non-lowered.
@@ -2876,9 +2844,9 @@ test "engine evaluates lowered expression" {
 
     var store = Store.init(allocator);
     defer store.deinit();
-    var env = Env.init(allocator);
-    defer env.deinit();
-    var engine = Engine.initTest(allocator, &store, &env);
+    var env = try Env.create(allocator);
+    defer env.unref();
+    var engine = Engine.initTest(allocator, &store, env);
     defer engine.deinit();
 
     const x = try engine.store.int(2);
@@ -2890,8 +2858,8 @@ test "engine evaluates lowered expression" {
 }
 
 test "Env.get ne crash pas après init" {
-    var env = Env.init(std.testing.allocator);
-    defer env.deinit();
+    var env = try Env.create(std.testing.allocator);
+    defer env.unref();
     try env.put(42, 0);
     try std.testing.expectEqual(@as(?Id, 0), env.get(42));
 }
@@ -2900,9 +2868,9 @@ test "safepoint : evalWithBudget suspend si budget insuffisant" {
     const allocator = std.testing.allocator;
     var store = Store.init(allocator);
     defer store.deinit();
-    var env = Env.init(allocator);
-    defer env.deinit();
-    var engine = Engine.initTest(allocator, &store, &env);
+    var env = try Env.create(allocator);
+    defer env.unref();
+    var engine = Engine.initTest(allocator, &store, env);
     defer engine.deinit();
 
     // Expression simple : 2 + 3
@@ -2921,9 +2889,9 @@ test "safepoint : evalWithBudget termine avec budget suffisant" {
     const allocator = std.testing.allocator;
     var store = Store.init(allocator);
     defer store.deinit();
-    var env = Env.init(allocator);
-    defer env.deinit();
-    var engine = Engine.initTest(allocator, &store, &env);
+    var env = try Env.create(allocator);
+    defer env.unref();
+    var engine = Engine.initTest(allocator, &store, env);
     defer engine.deinit();
 
     const x = try engine.store.int(2);
@@ -2940,9 +2908,9 @@ test "safepoint : fuel top-level non affecte par evalWithBudget" {
     const allocator = std.testing.allocator;
     var store = Store.init(allocator);
     defer store.deinit();
-    var env = Env.init(allocator);
-    defer env.deinit();
-    var engine = Engine.initTest(allocator, &store, &env);
+    var env = try Env.create(allocator);
+    defer env.unref();
+    var engine = Engine.initTest(allocator, &store, env);
     defer engine.deinit();
 
     const fuel_before = engine.fuel;
@@ -2965,9 +2933,9 @@ test "evalWithRetry : budget initial suffisant" {
     const allocator = std.testing.allocator;
     var store = Store.init(allocator);
     defer store.deinit();
-    var env = Env.init(allocator);
-    defer env.deinit();
-    var engine = Engine.initTest(allocator, &store, &env);
+    var env = try Env.create(allocator);
+    defer env.unref();
+    var engine = Engine.initTest(allocator, &store, env);
     defer engine.deinit();
 
     const expr_id = try store.int(42);
@@ -2980,9 +2948,9 @@ test "evalWithRetry : budget initial insuffisant, retry reussit" {
     const allocator = std.testing.allocator;
     var store = Store.init(allocator);
     defer store.deinit();
-    var env = Env.init(allocator);
-    defer env.deinit();
-    var engine = Engine.initTest(allocator, &store, &env);
+    var env = try Env.create(allocator);
+    defer env.unref();
+    var engine = Engine.initTest(allocator, &store, env);
     defer engine.deinit();
 
     // Construit (+ 1 2) : plusieurs safepoints necessaires.
@@ -2999,9 +2967,9 @@ test "evalWithRetry : budget max atteint retourne null" {
     const allocator = std.testing.allocator;
     var store = Store.init(allocator);
     defer store.deinit();
-    var env = Env.init(allocator);
-    defer env.deinit();
-    var engine = Engine.initTest(allocator, &store, &env);
+    var env = try Env.create(allocator);
+    defer env.unref();
+    var engine = Engine.initTest(allocator, &store, env);
     defer engine.deinit();
 
     const expr_id = try store.int(42);
@@ -3014,9 +2982,9 @@ test "safepoint : reductions restaurees apres evalWithBudget" {
     const allocator = std.testing.allocator;
     var store = Store.init(allocator);
     defer store.deinit();
-    var env = Env.init(allocator);
-    defer env.deinit();
-    var engine = Engine.initTest(allocator, &store, &env);
+    var env = try Env.create(allocator);
+    defer env.unref();
+    var engine = Engine.initTest(allocator, &store, env);
     defer engine.deinit();
 
     // Modifie reductions manuellement
@@ -3036,21 +3004,21 @@ test "safepoint : reductions restaurees apres evalWithBudget" {
 const PatternFixture = struct {
     allocator: std.mem.Allocator,
     store: Store,
-    env: Env,
+    env: *Env,
     engine: Engine,
 
     fn init(allocator: std.mem.Allocator) !*PatternFixture {
         const self = try allocator.create(PatternFixture);
         self.allocator = allocator;
         self.store = Store.init(allocator);
-        self.env = Env.init(allocator);
+        self.env = try Env.create(allocator);
         self.engine = Engine.initTest(allocator, &self.store, &self.env);
         return self;
     }
 
     fn deinit(self: *PatternFixture) void {
         self.engine.deinit();
-        self.env.deinit();
+        self.env.unref();
         self.store.deinit();
         self.allocator.destroy(self);
     }

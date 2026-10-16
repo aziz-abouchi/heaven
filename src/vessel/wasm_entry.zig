@@ -27,7 +27,7 @@ export fn init() void {
     heaven = Heaven.init(allocator) catch @panic("Failed to init Heaven");
     const store = heaven.?.store;
     const engine = &heaven.?.engine;
-    const env = &heaven.?.env;
+    const env = heaven.?.env;
 
     bridge = MatrixBridge.init(store, allocator);
     parser = Parser.init(store, engine, env, allocator);
