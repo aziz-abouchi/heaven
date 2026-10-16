@@ -888,6 +888,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                         if (engine.fns.get(op_name)) |fd| {
                             if (fd.num_clauses > 0 and fd.ctor_arity == null) {
                                 for (args, 0..) |a_, i_| {
+                                    markArgDone(engine, i_);
                                     engine.tco_args_buf[i_] = try evaluate(store, env, engine, a_, depth + 1);
                                 }
                                 engine.tco_args_len = @intCast(args.len);
