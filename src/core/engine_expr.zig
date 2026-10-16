@@ -583,6 +583,7 @@ pub const Engine = struct {
         var current_args_buf: [8]Id = undefined;
         const current_args_len = @min(args_snap.len, 8);
         for (args_snap[0..current_args_len], 0..) |a_, i_| {
+            markArgDone(self, i_);
             current_args_buf[i_] = try evaluate(store, caller_env, self, a_, 0);
         }
 
