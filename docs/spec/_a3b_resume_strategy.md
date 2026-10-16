@@ -204,3 +204,69 @@ imports (3-4 fichiers).
 Revenir a B1 (arena par capture) : plus simple mais O(N) memoire par
 capture. Pertinent si captures rares (deja le cas : yield ne capture
 pas, seuls @throw / perform / resume capturent).
+
+
+## BLOCAGE R1 (constat 2026-10-16, fin de session)
+
+Apres 2e-3 (Env ref-compte, 0 leak), tentative de A-3b-3 : la reprise
+exacte au milieu d'un `.apply` n'est PAS possible avec `evaluate` tel
+qu'il est ecrit.
+
+### Pourquoi
+
+`evaluate` est recursif. Sur suspend budget :
+
+    evaluate(A) -> push Frame{A}
+      evaluate(B) -> push Frame{B}
+        evaluate(C) -> SUSPEND (reductions == 0)
+
+Unwind -> toutes les frames sont pop (defer). Stack vide. La capture
+(si active) aurait [A, B].
+
+Sur resume, on restaure [A, B] puis on evaluate(C). Mais le code Zig
+qui appelait evaluate(C) depuis evaluate(B) a disparu (c'etait une
+activation sur la pile native). Les Frame ne sont que des donnees.
+
+Resultat : evaluate(C) repart de zero, et son retour va a evalWithBudget,
+pas a B. Le resultat ne remonte pas la pile A<-B<-C.
+
+### Consequence
+
+Faire la reprise « au frame » necessite R1 : transformer `evaluate`
+en machine a etats explicite (boucle externe, chaque magic evalue
+1 arg par appel). C'est un refactor du hot path :
+- 56 sites d'appel `evaluate`,
+- ~50 magics a adapter,
+- risque eleve (chaque oubli = bug silencieux).
+
+Effort : 2-3 sessions dediees, pas une fin de session.
+
+### Etat actuel : dormant
+
+`engine.capturing = false` par defaut, jamais active (grep : 0 site
+`capturing = true`). Tout le travail 2c/2d/2e est DORMANT :
+- Frame enrichi (kind, args_done_len, args_left),
+- 11 sites markArgDone,
+- PendingCapture.cont (3 sites cables),
+- Env ref-compte (0 leak).
+
+Ces briques ne sont PAS perdues : elles sont le prerequis de R1. Le
+jour ou on fait R1, on active `capturing = true` et ca marche.
+
+### Modele alternatif deja fonctionnel : checkpoint yield
+
+Pour les taches longues, le modele `yield` actuel marche deja :
+
+    f s = if (= s 50) s (yield (+ s 1))
+
+Chaque tick avance d'un pas et re-yield. Budget arbitrairement petit.
+Test scheduler 3/3 vert. Ce n'est pas de la reprise exacte, mais ca
+progresse.
+
+### Prochaine etape A-3b
+
+R1 (trampoline `evaluate`) en session dediee. Ne pas activer
+`capturing` avant. Sinon : comportement inchange, correct.
+
+Alternative ecartee (reaffirmee) : voie B (budget doublant a chaque
+retry), deja mentionnee et rejetee pour absence de reprise exacte.
