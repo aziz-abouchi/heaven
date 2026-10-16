@@ -47,6 +47,7 @@
   "tests/test_array.hvn",
   "tests/test_base.hvn",
   "tests/test_bigint.hvn",
+  "tests/test_bigint_d20.hvn",
   "tests/test_bitstrings.hvn",
   "tests/test_continuations.hvn",
   "tests/test_data.hvn",

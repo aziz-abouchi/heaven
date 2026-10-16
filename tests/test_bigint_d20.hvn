@@ -1,0 +1,7 @@
+-- tests/test_bigint_d20.hvn -- D20 : bdiv/bmod 1000/7
+-- Isole du fichier principal : forte consommation memoire (175 Mo
+-- pour 2 tests), le runner cree un subprocess par fichier -> budget
+-- memoire frais. Voir docs/spec/_bigint_d20_stack.md.
+
+test "bdiv 1000 / 7 = 142": (to_int (bdiv (from_int 1000) (from_int 7))) == 142
+test "bmod 1000 % 7 = 6": (to_int (bmod (from_int 1000) (from_int 7))) == 6

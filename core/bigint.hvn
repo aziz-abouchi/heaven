@@ -178,9 +178,9 @@ bcmp (BNeg A) (BNeg B) = (- 0 (bcmp_bl A B))
 -- bdigit_choice : cherche k maximal tel que B*k <= cur.
 bdigit_choice cur B 0 = 0
 bdigit_choice cur B k =
-  let prod = (bmul_digit B k) in
-  let c = (bcmp_bl prod cur) in
-  (if (< c 1) k (bdigit_choice cur B (- k 1)))
+  (if (< (bcmp_bl (bmul_digit B k) cur) 1)
+    k
+    (bdigit_choice cur B (- k 1)))
 
 -- bdivmod_step : S-expr pur (pas de let-in) pour preserver le TCO.
 -- Le moteur ne traverse pas les let ... in dans collectTailSpine.
