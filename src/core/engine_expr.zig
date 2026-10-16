@@ -242,7 +242,23 @@ pub const PendingCapture = struct {
     new_state: Id = 0,
     /// Prompt de la frontiere cible.
     prompt: continuation.Prompt,
+    /// A3B2D : continuation capturee au moment du suspend.
+    /// null = pas encore capture (les 4 sites seront cables en 2d-2..4).
+    /// Possede ses frames : doit etre deinit() avant tout ecrasement.
+    cont: ?continuation.Continuation = null,
 };
+
+/// A3B2D : libere la continuation eventuelle et remet pending_capture a null.
+/// A utiliser a la place de `engine.pending_capture = null;` partout.
+fn releasePendingCapture(engine: *Engine) void {
+    if (engine.pending_capture) |*cap| {
+        if (cap.cont) |*c| {
+            c.deinit();
+            cap.cont = null;
+        }
+    }
+    engine.pending_capture = null;
+}
 
 /// 3a-3c : record d'une capture ouverte par `@prompt`. One-shot :
 /// invalide apres usage. Le token (u32) est l'index dans
@@ -1166,13 +1182,13 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 .suspended => {
                     if (engine.pending_capture) |cap| {
                         if (cap.kind == .yield_task) {
-                            engine.pending_capture = null;
+                            releasePendingCapture(engine);
                             task.current_state = @intCast(cap.new_state);
                             task.state = .ready;
                         } else {
                             // Inattendu : perform/resume ne devraient
                             // pas fuiter jusqu'ici. Reset + requeue.
-                            engine.pending_capture = null;
+                            releasePendingCapture(engine);
                             task.state = .ready;
                         }
                     } else {
@@ -1249,7 +1265,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             const cap = engine.pending_capture orelse return err;
             if (cap.prompt != my_prompt) return err;
             if (cap.kind != .throw_to_prompt) return err;
-            engine.pending_capture = null;
+            releasePendingCapture(engine);
             return cap.value;
         };
         return result;
@@ -1314,7 +1330,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 const cap = engine.pending_capture orelse return err;
                 if (cap.prompt != my_prompt) return err;
                 if (cap.kind != .perform) return err;
-                engine.pending_capture = null;
+                releasePendingCapture(engine);
 
                 // Invoquer le handler avec (value, k_sym).
                 const k_sym = try store.sym("__handle_rec_k");
@@ -1324,7 +1340,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                     const cap2 = engine.pending_capture orelse return herr;
                     if (cap2.prompt != my_prompt) return herr;
                     if (cap2.kind != .resume_from_k) return herr;
-                    engine.pending_capture = null;
+                    releasePendingCapture(engine);
                     ctx.state = cap2.new_state;
                     continue;  // reboucler
                 };
