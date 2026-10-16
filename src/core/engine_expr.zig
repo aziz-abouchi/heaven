@@ -750,12 +750,20 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
     // A3B2_MOVE_PUSH : push apres store.get(id) pour inclure kind.
     const capture_on = engine.capturing;
     if (capture_on) {
+        // A3B2B : mapper node.tag -> FrameKind
+        const fk: continuation.FrameKind = switch (node.tag) {
+            .lit, .sym => .lit_sym,
+            .apply => .apply_op,
+            .lambda => .lambda_body,
+            .bind => .bind_body,
+            else => .other,
+        };
         try engine.capture_stack.push(.{
             .prompt = engine.current_prompt,
             .position = depth,
             .env = @as(u64, @intFromPtr(env)),
             .id = @as(u64, id),
-            .kind = .unknown, // rempli a l'etape suivante
+            .kind = fk,
         });
     }
     defer if (capture_on) {
