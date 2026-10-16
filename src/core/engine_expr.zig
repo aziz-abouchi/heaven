@@ -757,12 +757,19 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             .bind => .bind_body,
             else => .other,
         };
+        // A3B2C : args_left = nombre brut de sous-expressions pour .apply.
+        // Affinage (soustraction de op_id) prevu en 2c-3.
+        const args_left: u32 = if (node.tag == .apply)
+            @intCast(node.span_a.slice(store.pool.items).len)
+        else
+            0;
         try engine.capture_stack.push(.{
             .prompt = engine.current_prompt,
             .position = depth,
             .env = @as(u64, @intFromPtr(env)),
             .id = @as(u64, id),
             .kind = fk,
+            .args_left = args_left,
         });
     }
     defer if (capture_on) {
