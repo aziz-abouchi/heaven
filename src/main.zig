@@ -110,7 +110,7 @@ pub fn main() !void {
     // Debug actif si HEAVEN_DEBUG est definie, non-vide et != "0".
     // Une variable vide (HEAVEN_DEBUG=) ne suffit pas - voir go.sh
     // qui passe HEAVEN_DEBUG="${HEAVEN_DEBUG:-}" (vide si non defini).
-    platform.debug_enabled = if (platform.getenv("HEAVEN_DEBUG")) |v|
+    platform.io_console.debug_enabled = if (platform.getenv("HEAVEN_DEBUG")) |v|
         v.len > 0 and !std.mem.eql(u8, v, "0")
     else
         false;

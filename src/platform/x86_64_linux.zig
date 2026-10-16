@@ -5,69 +5,15 @@ const queue_mod = @import("queue");
 pub const MessageQueue = queue_mod.MessageQueue;
 pub const rtc = @import("webrtc.zig");
 
-pub var debug_enabled: bool = false;
-
-/// Debug conditionnel : activé par HEAVEN_DEBUG=1
-pub fn dbg(comptime fmt: []const u8, args: anytype) void {
-    if (debug_enabled) debug.print(fmt, args);
-}
-
-pub fn getenv(key: []const u8) ?[]const u8 {
-    if (target.is_windows) {
-        return std.process.getEnvVarOwned(std.heap.page_allocator, key) catch null;
-    } else {
-        return std.posix.getenv(key);
-    }
-}
-
-// --- RAW MODE (clavier caractere par caractere) ---
-
-pub const ConsoleRawMode = struct {
-    original: std.posix.termios,
-};
-
-/// Passe le terminal en mode raw (ICANON off, ECHO off, ISIG off,
-/// ICRNL off, IXON off). Retourne null si stdin n'est pas un TTY
-/// (pipe, redirection, CI headless).
-pub fn enableRawMode() !?ConsoleRawMode {
-    const fd = std.posix.STDIN_FILENO;
-    if (!std.posix.isatty(fd)) return null;
-    var termios = try std.posix.tcgetattr(fd);
-    const original = termios;
-    termios.lflag.ECHO = false;
-    termios.lflag.ICANON = false;
-    termios.lflag.ISIG = false;
-    termios.iflag.ICRNL = false;
-    termios.iflag.IXON = false;
-    termios.iflag.INLCR = false;
-    termios.iflag.IGNCR = false;
-    try std.posix.tcsetattr(fd, .NOW, termios);
-    return .{ .original = original };
-}
-
-/// Restaure les attributs termios originaux.
-pub fn disableRawMode(state: ConsoleRawMode) void {
-    _ = std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, state.original) catch {};
-}
-
-// --- CONSOLE INIT (no-op sur Unix) ---
-pub fn initConsole() void {}
-
-// --- STDIN / STDOUT / STDERR ---
-
-pub fn writeStdout(buf: []const u8) !usize {
-    if (target.is_windows) {
-        const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_OUTPUT_HANDLE) orelse return error.BadFileDescriptor;
-        if (handle == std.os.windows.INVALID_HANDLE_VALUE) return error.BadFileDescriptor;
-        return std.posix.write(handle, buf);
-    } else {
-        return std.posix.write(std.posix.STDOUT_FILENO, buf);
-    }
-}
-
-pub fn readStdin(buf: []u8) !usize {
-        return std.posix.read(std.posix.STDIN_FILENO, buf);
-}
+pub const io_console = @import("io_console.zig");
+pub const dbg = io_console.dbg;
+pub const getenv = io_console.getenv;
+pub const ConsoleRawMode = io_console.ConsoleRawMode;
+pub const enableRawMode = io_console.enableRawMode;
+pub const disableRawMode = io_console.disableRawMode;
+pub const initConsole = io_console.initConsole;
+pub const writeStdout = io_console.writeStdout;
+pub const readStdin = io_console.readStdin;
 
 // --- NETWORK & SOCKETS ---
 
