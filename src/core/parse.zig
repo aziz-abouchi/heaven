@@ -792,36 +792,4 @@ pub const Parser = struct {
         return buf.toOwnedSlice(self.allocator);
     }
 
-    pub fn commasToLisp(self: *Parser, input: []const u8) ![]u8 {
-        var buf = std.ArrayListUnmanaged(u8){};
-        errdefer buf.deinit(self.allocator);
-        var i: usize = 0;
-        var depth: u32 = 0;
-        var in_paren = false;
-        while (i < input.len) {
-            switch (input[i]) {
-                '(' => {
-                    try buf.append(self.allocator, '(');
-                    depth += 1;
-                    if (depth == 1) in_paren = true;
-                    i += 1;
-                },
-                ')' => {
-                    try buf.append(self.allocator, ')');
-                    if (depth > 0) depth -= 1;
-                    if (depth == 0) in_paren = false;
-                    i += 1;
-                },
-                ',' => {
-                    if (in_paren) try buf.append(self.allocator, ' ') else try buf.append(self.allocator, ',');
-                    i += 1;
-                },
-                else => {
-                    try buf.append(self.allocator, input[i]);
-                    i += 1;
-                },
-            }
-        }
-        return buf.toOwnedSlice(self.allocator);
-    }
 };
