@@ -2493,8 +2493,93 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         return self.parseExpression(src);
     }
 
+
+/// HEAVEN:tuple-comma (wasi-polish-2) — reecrit (a, b) -> (tuple a b).
+/// Retourne une copie (alloc) ; la caller doit free.
+/// Skip : chaines "..." et prefixes lambda λ / \.
+fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
+    if (std.mem.indexOfScalar(u8, input, '(') == null) return allocator.dupe(u8, input);
+    if (std.mem.indexOfScalar(u8, input, ',') == null) return allocator.dupe(u8, input);
+
+    var buf = std.ArrayListUnmanaged(u8){};
+    errdefer buf.deinit(allocator);
+
+    const MaxDepth = 64;
+    var open_pos: [MaxDepth]usize = undefined;
+    var is_tuple: [MaxDepth]bool = undefined;
+    var skip_tuple: [MaxDepth]bool = undefined;
+    var depth: usize = 0;
+    var i: usize = 0;
+    var in_string = false;
+
+    while (i < input.len) {
+        const c = input[i];
+        if (in_string) {
+            try buf.append(allocator, c);
+            if (c == '\\' and i + 1 < input.len) {
+                try buf.append(allocator, input[i + 1]);
+                i += 2;
+                continue;
+            }
+            if (c == '"') in_string = false;
+            i += 1;
+            continue;
+        }
+        switch (c) {
+            '"' => {
+                try buf.append(allocator, c);
+                in_string = true;
+                i += 1;
+            },
+            '(' => {
+                var j = i;
+                while (j > 0 and (input[j - 1] == ' ' or input[j - 1] == '\t')) j -= 1;
+                const before_is_lambda = j > 0 and (input[j - 1] == '\\' or
+                    (j >= 2 and input[j - 2] == 0xCE and input[j - 1] == 0xBB));
+                if (depth < MaxDepth) {
+                    open_pos[depth] = buf.items.len;
+                    is_tuple[depth] = false;
+                    skip_tuple[depth] = before_is_lambda;
+                }
+                try buf.append(allocator, c);
+                depth += 1;
+                i += 1;
+            },
+            ')' => {
+                if (depth == 0) {
+                    try buf.append(allocator, c);
+                    i += 1;
+                    continue;
+                }
+                depth -= 1;
+                if (depth < MaxDepth and is_tuple[depth]) {
+                    try buf.insertSlice(allocator, open_pos[depth] + 1, "tuple ");
+                }
+                try buf.append(allocator, c);
+                i += 1;
+            },
+            ',' => {
+                if (depth > 0 and depth <= MaxDepth and !skip_tuple[depth - 1]) {
+                    if (!is_tuple[depth - 1]) is_tuple[depth - 1] = true;
+                    try buf.append(allocator, ' ');
+                } else {
+                    try buf.append(allocator, c);
+                }
+                i += 1;
+            },
+            else => {
+                try buf.append(allocator, c);
+                i += 1;
+            },
+        }
+    }
+    return buf.toOwnedSlice(allocator);
+}
+
     pub fn parseExpression(self: *Heaven, input: []const u8) HeavenError!Id {
-        const id = self.expr_parser.parseExpression(input) catch |err| {
+        const rewritten = rewriteTupleCommas(self.allocator, input) catch return error.OutOfMemory;
+        defer self.allocator.free(rewritten);
+        const id = self.expr_parser.parseExpression(rewritten) catch |err| {
             return switch (err) {
                 error.InvalidInput => error.InvalidInput,
                 error.InvalidSyntax => error.InvalidSyntax,
