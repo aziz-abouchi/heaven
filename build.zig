@@ -313,6 +313,9 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/core/continuation.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+        },
     });
 
     const engine_expr_mod = b.createModule(.{

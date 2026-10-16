@@ -5,6 +5,7 @@
 //! pas au-delà. Aucune sémantique de capture ici : juste la pile.
 
 const std = @import("std");
+const expr = @import("expr");
 
 /// Identifiant unique d'un prompt. Monotone croissant pour éviter
 /// toute confusion avec des ids recyclés entre pop/push.
@@ -126,7 +127,7 @@ pub const FrameKind = enum(u8) {
 pub const Frame = struct {
     prompt: Prompt,
     position: u32,
-    env: u64,
+    env: *expr.Env,
     /// A3B1 : id de l'expression evaluee (0 = inconnu).
     id: u64 = 0,
     /// A3B2 : nature de l'evaluation (pour resume).
@@ -198,6 +199,8 @@ pub const Continuation = struct {
     allocator: std.mem.Allocator,
 
     pub fn deinit(self: *Continuation) void {
+        // A3B2E : relache les refs prises par captureCont.
+        for (self.frames) |fr| fr.env.unref();
         self.allocator.free(self.frames);
     }
 
@@ -220,6 +223,8 @@ pub fn captureCont(
     const frames = try allocator.alloc(Frame, len);
     errdefer allocator.free(frames);
     @memcpy(frames, stack.items.items[idx..]);
+    // A3B2E : la Continuation possede ses frames -> ref sur chaque Env.
+    for (frames) |fr| fr.env.ref();
     return .{ .frames = frames, .target = target, .allocator = allocator };
 }
 
@@ -237,6 +242,8 @@ pub fn throwCont(stack: *CaptureStack, k: *const Continuation) !void {
     stack.items.shrinkRetainingCapacity(idx);
     // Re-empiler les frames de k.
     for (k.frames) |frame| {
+        // A3B2E : la pile prend une ref, elle la relachera au pop.
+        frame.env.ref();
         try stack.push(frame);
     }
 }

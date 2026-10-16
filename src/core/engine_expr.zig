@@ -753,14 +753,19 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
         try engine.capture_stack.push(.{
             .prompt = engine.current_prompt,
             .position = depth,
-            .env = @as(u64, @intFromPtr(env)),
+            .env = env,
             .id = @as(u64, id),
             .kind = fk,
             .args_left = args_left,
         });
+        // A3B2E : la Frame possede une ref, relachee au pop.
+        env.ref();
     }
     defer if (capture_on) {
-        _ = engine.capture_stack.pop();
+        // A3B2E : la Frame relache sa ref sur l'Env.
+        if (engine.capture_stack.pop()) |frame| {
+            frame.env.unref();
+        }
     };
 
     return switch (node.tag) {
