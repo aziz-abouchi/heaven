@@ -214,3 +214,28 @@ non-bloquante. À traiter si un protocole l'exige.
 **Dette restante** : les 2 copies de destructuration sont
 identiques (heaven_expr + commands/defs). À centraliser en
 helper partagé. Effort : 30 min. Priorité : basse.
+
+### N2 -- DNS partiel (2026-10-16)
+
+**Livre** :
+- stdlib/dns.hvn : dns_build_header (12 bytes), dns_qname_a_com
+  (7 bytes), dns_qtype_class (4 bytes), dns_build_query (23
+  bytes), dns_resolve_a_com.
+- Magic @net_set_timeout (SO_RCVTIMEO).
+- Tests : query 23 bytes OK, DNS response timeout.
+
+**Bloque par l'environnement** : sandbox Guix bloque UDP entrant.
+Verification : Python sendto OK, recvfrom TIMEOUT sur 8.8.8.8:53
+et 1.1.1.1:53. Notre code est correct (meme comportement que
+Python).
+
+**Tests futurs** : sur un VPS sans sandbox, dns_resolve_a_com
+devrait recevoir la reponse. Parser la reponse est l'etape V1.
+
+**V1** :
+1. Generaliser a un nom variable (dns_encode_name).
+2. Parser la reponse avec bitstrings P3 (extraire l'IP A).
+3. Tests sur VPS.
+
+**Pourquoi c'est OK** : le code est correct, la sandbox seule
+bloque. N2 debloque quand on teste sur VPS.

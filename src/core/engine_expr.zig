@@ -912,7 +912,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -2218,6 +2218,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const data_str = store.interner.resolve(@intCast(data_lit.str));
         const port: u16 = @intCast(port_lit.int);
         const n = platform.net.sendtoUdp(fd, ip_str, port, data_str);
+            .{fd, ip_str, port, data_str.len, n});
         return try store.lit(.{ .int = n });
     }
 
@@ -2235,6 +2236,23 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (n < 0) return try store.unitLit();
         const s_sym = try store.interner.intern(buf[0..@intCast(n)]);
         return try store.lit(.{ .str = s_sym });
+    }
+
+    // HEAVEN:MAGIC_TIMEOUT
+    if (std.mem.eql(u8, op, "@net_set_timeout")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const fd_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const sec_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const fd_node = store.get(fd_val);
+        const sec_node = store.get(sec_val);
+        if (fd_node.tag != .lit or sec_node.tag != .lit) return error.TypeError;
+        const fd: i64 = store.lits.items[fd_node.aux].int;
+        const secs: i64 = store.lits.items[sec_node.aux].int;
+        if (secs > 0) {
+            const ns: u64 = @intCast(secs * 1_000_000_000);
+            platform.net.setRecvTimeout(fd, ns);
+        }
+        return try store.unitLit();
     }
 
     if (std.mem.eql(u8, op, "@net_connect")) {

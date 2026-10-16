@@ -123,6 +123,9 @@ pub const net = struct {
     // HEAVEN:NET_CONNECT_WASM — stubs (pas de TCP client en browser)
 
     // D-SH4 : UDP raw syscalls. Pas de support en V0.
+
+    pub fn setRecvTimeout(_: i64, _: u64) void {}
+
     pub fn socketUdp() i64 { return -1; }
     pub fn sendtoUdp(_: i64, _: []const u8, _: u16, _: []const u8) i64 { return -1; }
     pub fn recvfromUdp(_: i64, _: []u8) i64 { return -1; }

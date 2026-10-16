@@ -260,6 +260,21 @@ pub const net = struct {
         return @intCast(signed);
     }
 
+    /// Ajoute un timeout de reception a une socket (SO_RCVTIMEO).
+    /// timeout_ns en nanosecondes.
+    pub fn setRecvTimeout(fd: i64, timeout_ns: u64) void {
+        // struct timeval x86_64 : tv_sec (8) + tv_usec (8) = 16 bytes
+        const sec: u64 = timeout_ns / 1_000_000_000;
+        const usec: u64 = (timeout_ns % 1_000_000_000) / 1000;
+        var tv: [16]u8 = [_]u8{0} ** 16;
+        @memcpy(tv[0..8], &@as([8]u8, @bitCast(sec)));
+        @memcpy(tv[8..16], &@as([8]u8, @bitCast(usec)));
+        const ufd: usize = @intCast(fd);
+        // level=SOL_SOCKET (1), optname=SO_RCVTIMEO (20)
+        _ = std.os.linux.syscall5(.setsockopt, ufd, 1, 20,
+            @intFromPtr(&tv), 16);
+    }
+
     /// Recoit un datagramme. Retourne nb bytes recus (>=0) ou -1.
     /// Bloque jusqu'a reception (fd non-bloquant non gere en V0).
     pub fn recvfromUdp(fd: i64, buf: []u8) i64 {

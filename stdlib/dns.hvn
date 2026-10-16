@@ -1,0 +1,57 @@
+-- stdlib/dns.hvn -- DNS resolver en Heaven pur (self-hosting N2)
+-- V0 : construit et envoie une query "a.com" via UDP vers 8.8.8.8:53.
+-- Le parse de la reponse viendra en V1 (bitstrings P3).
+
+-- ─── Header DNS : 12 bytes ───
+dns_build_header id flags qd =
+  let buf = (raw_alloc 12) in
+  let _ = (poke_byte buf 0 (band (shr id 8) 255)) in
+  let _ = (poke_byte buf 1 (band id 255)) in
+  let _ = (poke_byte buf 2 (band (shr flags 8) 255)) in
+  let _ = (poke_byte buf 3 (band flags 255)) in
+  let _ = (poke_byte buf 4 (band (shr qd 8) 255)) in
+  let _ = (poke_byte buf 5 (band qd 255)) in
+  let _ = (poke_byte buf 6 0) in
+  let _ = (poke_byte buf 7 0) in
+  let _ = (poke_byte buf 8 0) in
+  let _ = (poke_byte buf 9 0) in
+  let _ = (poke_byte buf 10 0) in
+  let _ = (poke_byte buf 11 0) in
+  (string_of_bytes buf 12)
+
+-- ─── QNAME "a.com" : 1 'a' 3 'c' 'o' 'm' 0 = 7 bytes ───
+dns_qname_a_com _ =
+  let buf = (raw_alloc 7) in
+  let _ = (poke_byte buf 0 1) in
+  let _ = (poke_byte buf 1 97) in
+  let _ = (poke_byte buf 2 3) in
+  let _ = (poke_byte buf 3 99) in
+  let _ = (poke_byte buf 4 111) in
+  let _ = (poke_byte buf 5 109) in
+  let _ = (poke_byte buf 6 0) in
+  (string_of_bytes buf 7)
+
+-- ─── QTYPE (A=1) + QCLASS (IN=1) = 4 bytes ───
+dns_qtype_class _ =
+  let buf = (raw_alloc 4) in
+  let _ = (poke_byte buf 0 0) in
+  let _ = (poke_byte buf 1 1) in
+  let _ = (poke_byte buf 2 0) in
+  let _ = (poke_byte buf 3 1) in
+  (string_of_bytes buf 4)
+
+-- ─── Query complete : header + qname + qtype_class ───
+dns_build_query _ =
+  let hdr = (dns_build_header 4660 256 1) in
+  let qn = (dns_qname_a_com 0) in
+  let qtc = (dns_qtype_class 0) in
+  (string_concat (string_concat hdr qn) qtc)
+
+-- ─── Envoie + recoit + retourne la reponse brute ───
+dns_resolve_a_com _ =
+  let fd = (@net_socket_udp 0) in
+  let _ = (@net_set_timeout fd 3) in
+  let q = (dns_build_query 0) in
+  let sent = (@net_sendto fd "8.8.8.8" 53 q) in
+  let resp = (@net_recvfrom 0 fd) in
+  resp
