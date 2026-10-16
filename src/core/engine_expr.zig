@@ -2218,7 +2218,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const data_str = store.interner.resolve(@intCast(data_lit.str));
         const port: u16 = @intCast(port_lit.int);
         const n = platform.net.sendtoUdp(fd, ip_str, port, data_str);
-            .{fd, ip_str, port, data_str.len, n});
         return try store.lit(.{ .int = n });
     }
 
