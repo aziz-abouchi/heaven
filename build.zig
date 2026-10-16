@@ -1154,10 +1154,14 @@ pub fn build(b: *std.Build) void {
         .name = exe_name,
         .root_module = b.createModule(
             .{
-                .root_source_file = b.path(if (target.query.cpu_arch == .wasm32)
-                    "src/vessel/wasm_entry.zig"
-                else
-                    "src/main.zig"),
+                .root_source_file = b.path(
+                    if (target.result.os.tag == .wasi)
+                        "src/vessel/wasi_main.zig"
+                    else if (target.query.cpu_arch == .wasm32)
+                        "src/vessel/wasm_entry.zig"
+                    else
+                        "src/main.zig",
+                ),
                 .target = target,
                 .optimize = optimize,
                 .imports = &.{

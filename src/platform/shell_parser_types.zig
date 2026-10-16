@@ -374,4 +374,5 @@ pub const ShellParser = struct {
         return error.Unsupported;
     }
     pub fn reset(self: *ShellParser) void { _ = self; }
+    pub fn deinit(self: *ShellParser) void { _ = self; }
 };
