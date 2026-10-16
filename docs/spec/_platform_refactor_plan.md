@@ -33,6 +33,37 @@ Chaque commit du refactor doit préserver ces symboles à l'identique.
 | 8 | Nettoyer `engine_expr.zig` : `@import("builtin")` → `platform.target` | — | Faible |
 | 9 | Corriger commentaires build.zig:34-37 + décider mapping explicite | — | Faible |
 
+## Statut : TERMINÉ (2026-10-16, commit 4bb506b)
+
+Bilan : `x86_64_linux.zig` **591 -> 113 lignes (-81%)**. 10 commits verts.
+
+| Module créé | Lignes | Contenu |
+|---|---|---|
+| parser_ts.zig | 66 | tree-sitter cImport + 4 externs + ShellParser/MultiParser |
+| io_console.zig | 87 | dbg, ConsoleRawMode, writeStdout, io.print, readLine |
+| process.zig | 15 | spawnProcess + ProcessResult |
+| time.zig | 17 | milli/nanoTimestamp + sleep |
+| net_sockets.zig | 209 | struct net (16 syscalls Linux directs) + setNonBlocking |
+
+Supprimés : `native.zig` (347 l. orphelin), `network.zig` (39 l. orphelin),
+zone WebRTC morte (108 l.), re-exports std morts.
+
+Reste dans `x86_64_linux.zig` : profiler switch, parser_ts re-exports,
+net_sockets re-exports, Thread/fs/debug/posix/os/allocator (alias std,
+purge = chantier D-SH4 séparé, ~500 sites), readFileAllocCwd/streamRead/
+readEnergyUJ (wrappers triviaux, extraire couterait plus que ça ne retire).
+
+## Chantier restant (non couvert par ce refactor)
+
+1. **Remplir les stubs** : `aarch64_macos.zig` (73 l.), `wasm32_wasi.zig` (53 l.),
+   `x86_64_windows.zig` (77 l.), `wasm32_freestanding.zig` (657 l., partiel).
+   Bloquant pour la philosophie portable (WASI/POSIX/Windows).
+2. **Purge alias std** (D-SH4 strict) : `platform.posix` (12 sites),
+   `platform.Thread` (16), `platform.fs` (57), `platform.debug` (430),
+   `platform.allocator` (11). Chantier multi-fichiers, pas un refactor plateforme.
+3. **`engine_expr.zig`** : migré `builtin` -> `platform.target`. Vérifier qu'aucune
+   autre fuite `builtin` n'apparaît dans `src/core/`.
+
 ## Règle absolue
 `zig build -Doptimize=ReleaseFast` ET
 `HEAVEN_NO_LEAK_CHECK=1 zig build -Dnetwork=false test-files`
