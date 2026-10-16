@@ -747,6 +747,7 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             .prompt = engine.current_prompt,
             .position = depth,
             .env = @as(u64, @intFromPtr(env)),
+            .id = @as(u64, id),
         });
     }
     defer if (capture_on) {

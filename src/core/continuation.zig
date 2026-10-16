@@ -114,6 +114,9 @@ pub const Frame = struct {
     prompt: Prompt,
     position: u32,
     env: u64,
+    /// A3B1 : id de l'expression evaluee (0 = inconnu).
+    /// Utilise par A-3b-2 pour reconstituer l'etat.
+    id: u64 = 0,
 };
 
 /// Pile d'execution simulee. Le sommet est le dernier element.
@@ -331,4 +334,15 @@ test "throwCont : continuations imbriquees" {
     try throwCont(&stack, &k2);
     try std.testing.expectEqual(@as(u32, 3), stack.depth());
     try std.testing.expectEqual(@as(u64, 300), stack.items.items[2].env);
+}
+
+
+test "A3B1 : Frame porte id" {
+    const allocator = std.testing.allocator;
+    var cs = CaptureStack.init(allocator);
+    defer cs.deinit();
+    try cs.push(.{ .prompt = 0, .position = 1, .env = 0, .id = 42 });
+    const f = cs.pop() orelse unreachable;
+    try std.testing.expectEqual(@as(u64, 42), f.id);
+    try std.testing.expectEqual(@as(u32, 1), f.position);
 }
