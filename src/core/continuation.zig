@@ -131,10 +131,11 @@ pub const Frame = struct {
     id: u64 = 0,
     /// A3B2 : nature de l'evaluation (pour resume).
     kind: FrameKind = .unknown,
-    /// A3B2C : args deja evalues pour .apply (vide = aucun).
-    /// La politique d'allocation (arena vs inline) sera fixee en 2c-3.
-    args_done: []const u64 = &.{},
-    /// A3B2C : args restant a evaluer pour .apply.
+    /// A3B2C-R2 : nombre d'args deja evalues dans le .apply courant.
+    /// On ne stocke PAS les valeurs (re-eval au resume, args supposes
+    /// purs — voir _a3b_resume_strategy.md).
+    args_done_len: u8 = 0,
+    /// A3B2C : nombre total d'args a evaluer (brut, inclut op_id).
     args_left: u32 = 0,
 };
 
@@ -166,6 +167,13 @@ pub const CaptureStack = struct {
     pub fn top(self: *const CaptureStack) ?Frame {
         if (self.items.items.len == 0) return null;
         return self.items.items[self.items.items.len - 1];
+    }
+
+    /// A3B2C-R2 : version mutable pour mettre a jour args_done_len
+    /// en place depuis les boucles d'eval d'args (cf. 2c-4).
+    pub fn topMut(self: *CaptureStack) ?*Frame {
+        if (self.items.items.len == 0) return null;
+        return &self.items.items[self.items.items.len - 1];
     }
 
     /// Retourne l'index (depuis la base) du frame d'ENTREE dans le
