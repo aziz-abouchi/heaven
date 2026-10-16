@@ -30,11 +30,14 @@ pub fn build(b: *std.Build) void {
     options.addOptionPath("qbe_path", .{ .cwd_relative = b.pathFromRoot("vendor/qbe-1.2/qbe") });
 
     // 2. Module platform
-    // Note : plusieurs cibles partagent le meme fichier (voir docs/spec/_syntax_gaps.md).
-    // Cibles routees :
-    //   wasm32-*  -> wasm.zig          (freestanding ET wasi)
-    //   aarch64-* -> x86_64_linux.zig  (macOS, POSIX)
-    //   autres    -> <arch>_<os>.zig
+    // Resolution par nom strict : {arch}_{os}.zig, pas de fallback.
+    // Etat (2026-10-16, apres refactor _platform_refactor_plan.md) :
+    //   x86_64-linux        -> x86_64_linux.zig        (impl complete)
+    //   wasm32-freestanding -> wasm32_freestanding.zig (partiel : mock posix/net)
+    //   wasm32-wasi         -> wasm32_wasi.zig         (stub)
+    //   aarch64-macos       -> aarch64_macos.zig       (stub)
+    //   x86_64-windows      -> x86_64_windows.zig      (stub)
+    // Chantier de remplissage a ouvrir (voir plan).
     const platform_file = b.fmt("src/platform/{s}_{s}.zig", .{
         @tagName(target.result.cpu.arch),
         @tagName(target.result.os.tag),
