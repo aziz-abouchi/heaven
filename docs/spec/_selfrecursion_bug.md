@@ -144,3 +144,50 @@ Le TCO trace `env.n=5756`, mais la structure passee a `evaluate` a
 `span[1]=5748` (`lit 0`). Donc l'env est correct (n=1), mais le
 **sous-arbre a ete altere** avant l'appel. C'est bien une
 substitution qui a touche l'AST, pas l'env.
+
+
+## Impasse (2026-10-16, session 2)
+
+Nouvelles investigations :
+- `substSym` (expr.zig:936) semble correct.
+- `apply` (expr.zig:1074) avec guard inconditionnel ne signale
+  aucun Id invalide -> les Ids sont valides.
+- Fix TCO_ARGS_COPY (copie stack-local des args) : aucun effet.
+- Le noeud 5752 = `(- n 1)` a `span = [-, lit 0, apply]` au lieu de
+  `[-, sym n, lit 1]`. Structure corrompue.
+
+**Hypothese revisee** : la corruption n'est pas a l'evaluation, mais
+au **parse**. Le parser produit un AST `[-, lit 0, apply]` pour la
+source `(- n 1)`. Verifier le pipeline :
+
+   heaven_expr.parseExpression -> expr_parser.parseExpression ->
+   parse.zig (rewriteTupleCommas ?) -> Store
+
+Piste concrete : `rewriteTupleCommas` (commit b4ca12f, aujourd'hui)
+injecte `tuple ` apres `(` quand il voit une virgule. Verifier qu'il
+ne corrompt pas les sous-arbres en bordure de `(- n 1)`.
+
+**Test discriminant a faire** :
+- `count n = if (= n 0) then 0 else (count (- n 1))` -> KO
+- `count n = if (= n 0) then 0 else (count (sub1 n))` -> OK
+  (avec `sub1 n = (- n 1)`)
+
+Si `sub1` fonctionne et `(- n 1)` inline casse, c'est **le parse**
+qui differe entre les deux formulations.
+
+## Cause probable identifiee
+
+`rewriteTupleCommas` (heaven_expr.zig, ajoute ce jour) parse le
+source en scannant les `(`. Il **insere `tuple `** apres un `(`
+quand il rencontre une virgule a profondeur 1. Sur `(- n 1)` sans
+virgule, il ne devrait rien faire. Mais il peut corrompre des cas
+subtils (si le source contient `(if ... (...))`).
+
+**ACTION** : tester le bug sur le commit precedent b4ca12f (avant
+rewriteTupleCommas). Si le bug **n'existe pas** avant, c'est une
+regression immediate.
+
+## Prio
+
+Session dediee 2-4h. Le bug peut etre une regression introduite ce
+jour. Premier test : git stash + checkout b3ac888 + reproduire.
