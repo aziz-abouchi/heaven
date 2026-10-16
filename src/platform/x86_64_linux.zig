@@ -320,15 +320,12 @@ pub const net = struct {
 };
 
 // Importation centralisée des headers C
-pub const ts = @cImport({
-    @cInclude("tree_sitter/api.h");
-});
-
-// Déclarations des parsers (on unifie le typage ici)
-pub extern fn tree_sitter_heaven() *ts.TSLanguage;
-pub extern fn tree_sitter_pie() *ts.TSLanguage;
-pub extern fn tree_sitter_c() *ts.TSLanguage;
-pub extern fn tree_sitter_zig() *ts.TSLanguage;
+pub const parser_ts = @import("parser_ts.zig");
+pub const ts = parser_ts.ts;
+pub const tree_sitter_heaven = parser_ts.tree_sitter_heaven;
+pub const tree_sitter_pie = parser_ts.tree_sitter_pie;
+pub const tree_sitter_c = parser_ts.tree_sitter_c;
+pub const tree_sitter_zig = parser_ts.tree_sitter_zig;
 
 // ═══════════════════════════════════════════════════════════
 // THREAD ABSTRACTION
@@ -516,59 +513,9 @@ pub fn init_network() !void {
 // SHELL PARSER (Tree-sitter natif)
 // ═══════════════════════════════════════════════════════════
 
-pub const shell_parser_types = @import("shell_parser_types");
-
-/// Parser par défaut : grammaire Heaven
-pub const ShellParser = shell_parser_types.TreeSitterParser(ts, tree_sitter_heaven);
-
-/// Parser multi-langage : union taguée pour supporter plusieurs grammaires
-pub const MultiParser = union(shell_parser_types.Language) {
-    heaven: shell_parser_types.TreeSitterParser(ts, tree_sitter_heaven),
-    pie: shell_parser_types.TreeSitterParser(ts, tree_sitter_pie),
-    c: shell_parser_types.TreeSitterParser(ts, tree_sitter_c),
-    zig: shell_parser_types.TreeSitterParser(ts, tree_sitter_zig),
-    turtle: void,  // Pas de parser tree-sitter pour turtle, géré séparément
-
-    pub fn init(alloc: std.mem.Allocator, lang: shell_parser_types.Language) shell_parser_types.ParseError!MultiParser {
-        return switch (lang) {
-            .heaven => .{ .heaven = try shell_parser_types.TreeSitterParser(ts, tree_sitter_heaven).init(alloc) },
-            .pie => .{ .pie = try shell_parser_types.TreeSitterParser(ts, tree_sitter_pie).init(alloc) },
-            .c => .{ .c = try shell_parser_types.TreeSitterParser(ts, tree_sitter_c).init(alloc) },
-            .zig => .{ .zig = try shell_parser_types.TreeSitterParser(ts, tree_sitter_zig).init(alloc) },
-            .turtle => .{ .turtle = {} },  // Jamais utilisé, turtle est géré avant
-        };
-    }
-
-    pub fn parse(self: *MultiParser, source: []const u8) shell_parser_types.ParseError!shell_parser_types.Matrix {
-        return switch (self.*) {
-            .heaven => |*p| p.parse(source),
-            .pie => |*p| p.parse(source),
-            .c => |*p| p.parse(source),
-            .zig => |*p| p.parse(source),
-            .turtle => error.NotSupported,  // Turtle est géré séparément
-        };
-    }
-
-    pub fn reset(self: *MultiParser) void {
-        switch (self.*) {
-            .heaven => |*p| p.reset(),
-            .pie => |*p| p.reset(),
-            .c => |*p| p.reset(),
-            .zig => |*p| p.reset(),
-            .turtle => {},  // Rien à faire
-        }
-    }
-
-    pub fn deinit(self: *MultiParser) void {
-        switch (self.*) {
-            .heaven => |*p| p.deinit(),
-            .pie => |*p| p.deinit(),
-            .c => |*p| p.deinit(),
-            .zig => |*p| p.deinit(),
-            .turtle => {},  // Rien à libérer
-        }
-    }
-};
+pub const shell_parser_types = parser_ts.shell_parser_types;
+pub const ShellParser = parser_ts.ShellParser;
+pub const MultiParser = parser_ts.MultiParser;
 
 // ═══════════════════════════════════════════════════════════
 // STREAM I/O ABSTRACTION
