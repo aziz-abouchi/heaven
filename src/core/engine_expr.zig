@@ -98,6 +98,7 @@ pub const EvalError = error{
     UnboundVariable,
     ExtensionNotLowered,
     NotALambda,
+    CapabilityDenied,
 };
 
 pub const FunctionClause = struct {
@@ -261,6 +262,43 @@ pub const RecCtx = struct {
     prompt: continuation.Prompt = 0,
 };
 
+// HEAVEN:CAPS_V0
+pub const CapKind = enum {
+    net_sendto, net_recvfrom, net_socket_udp, net_socket_tcp,
+    net_connect, net_listen, net_accept, net_read, net_write, net_close,
+    fs_read, egraph_snapshot, any,
+};
+
+fn parseCapKind(s: []const u8) ?CapKind {
+    const map = .{
+        .{"net:sendto", CapKind.net_sendto},
+        .{"net:recvfrom", CapKind.net_recvfrom},
+        .{"net:socket_udp", CapKind.net_socket_udp},
+        .{"net:connect", CapKind.net_connect},
+        .{"net:listen", CapKind.net_listen},
+        .{"net:accept", CapKind.net_accept},
+        .{"net:read", CapKind.net_read},
+        .{"net:write", CapKind.net_write},
+        .{"net:close", CapKind.net_close},
+        .{"fs:read", CapKind.fs_read},
+        .{"egraph:snapshot", CapKind.egraph_snapshot},
+        .{"any", CapKind.any},
+    };
+    inline for (map) |e| if (std.mem.eql(u8, s, e[0])) return e[1];
+    return null;
+}
+
+/// Verifie que la cap active (engine.active_cap) couvre (kind, resource).
+fn checkCap(engine: *Engine, cap_id: u32, kind: CapKind, resource: []const u8) !void {
+    if (cap_id == 0) return error.CapabilityDenied;
+    const cap = engine.capabilities.get(cap_id) orelse return error.CapabilityDenied;
+    if (cap.kind != .any and cap.kind != kind) return error.CapabilityDenied;
+    if (cap.resource.len > 0 and !std.mem.eql(u8, cap.resource, resource)) {
+        // Prefixe pour "8.8.8.8" couvre aussi "8.8.8.8:53"
+        if (!std.mem.startsWith(u8, resource, cap.resource)) return error.CapabilityDenied;
+    }
+}
+
 pub const Engine = struct {
     allocator: std.mem.Allocator,
     store: *Store,
@@ -327,6 +365,9 @@ pub const Engine = struct {
     /// Token (Int/u32) -> CaptureRecord. One-shot.
     captures: std.AutoHashMapUnmanaged(u32, CaptureRecord) = .{},
     next_capture_id: u32 = 0,
+    capabilities: std.AutoHashMapUnmanaged(u32, struct { kind: CapKind, resource: []const u8 }) = .{},
+    next_cap_id: u32 = 1,
+    active_cap: ?u32 = null,
     /// Scheduler cooperatif (D8 3a-3-c).
     scheduler: scheduler_lib.Scheduler,
     next_task_id: u64 = 1,
@@ -2163,10 +2204,32 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     // ═══ HEAVEN-IN-HEAVEN : CAPS & ECOSYSTEM MAGICS ═══
 
+    // HEAVEN:CAPS_V2 — cap_acquire reel
     if (std.mem.eql(u8, op, "cap_acquire")) {
         if (args_snap.len != 1) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        return try store.lit(.{ .int = 42 });
+        const scope_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const scope_node = store.get(scope_val);
+        if (scope_node.tag != .lit) return error.TypeError;
+        const scope_lit = store.lits.items[scope_node.aux];
+        if (scope_lit != .str) return error.TypeError;
+        const scope = store.interner.resolve(@intCast(scope_lit.str));
+        const i = std.mem.indexOfScalar(u8, scope, ':');
+        var kind_s: []const u8 = scope;
+        var resource: []const u8 = "";
+        if (i) |ii| {
+            if (std.mem.indexOfScalarPos(u8, scope, ii + 1, ':')) |jj| {
+                kind_s = scope[0..jj];
+                resource = scope[jj + 1 ..];
+            }
+        }
+        const kind = parseCapKind(kind_s) orelse return error.InvalidInput;
+        const id = engine.next_cap_id;
+        engine.next_cap_id += 1;
+        try engine.capabilities.put(engine.allocator, id, .{
+            .kind = kind,
+            .resource = try engine.allocator.dupe(u8, resource),
+        });
+        return try store.lit(.{ .int = @intCast(id) });
     }
 
     if (std.mem.eql(u8, op, "@egraph_snapshot")) {
@@ -2192,17 +2255,26 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // 1-arg (dummy ignore) pour eviter le strip parser des 0-arg magics
     if (std.mem.eql(u8, op, "@net_socket_udp")) {
         if (args_snap.len != 1) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const cv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const cn = store.get(cv);
+        if (cn.tag != .lit) return error.TypeError;
+        const cap_id: u32 = @intCast(store.lits.items[cn.aux].int);
+        try checkCap(engine, cap_id, .net_socket_udp, "");
         const fd = platform.net.socketUdp();
         return try store.lit(.{ .int = fd });
     }
 
     if (std.mem.eql(u8, op, "@net_sendto")) {
-        if (args_snap.len != 4) return error.ArityMismatch;
-        const fd_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        const ip_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
-        const port_val = try evaluate(store, env, engine, args_snap[2], depth + 1);
-        const data_val = try evaluate(store, env, engine, args_snap[3], depth + 1);
+        if (args_snap.len != 5) return error.ArityMismatch;
+        const cv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const cn = store.get(cv);
+        if (cn.tag != .lit) return error.TypeError;
+        const cap_id: u32 = @intCast(store.lits.items[cn.aux].int);
+        try checkCap(engine, cap_id, .net_sendto, "");
+        const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const ip_val = try evaluate(store, env, engine, args_snap[2], depth + 1);
+        const port_val = try evaluate(store, env, engine, args_snap[3], depth + 1);
+        const data_val = try evaluate(store, env, engine, args_snap[4], depth + 1);
         const fd_node = store.get(fd_val);
         const ip_node = store.get(ip_val);
         const port_node = store.get(port_val);
@@ -2223,7 +2295,11 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     if (std.mem.eql(u8, op, "@net_recvfrom")) {
         if (args_snap.len != 2) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const cv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const cn = store.get(cv);
+        if (cn.tag != .lit) return error.TypeError;
+        const cap_id: u32 = @intCast(store.lits.items[cn.aux].int);
+        try checkCap(engine, cap_id, .net_recvfrom, "");
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const fd_node = store.get(fd_val);
         if (fd_node.tag != .lit) return error.TypeError;
@@ -2239,9 +2315,14 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     // HEAVEN:MAGIC_TIMEOUT
     if (std.mem.eql(u8, op, "@net_set_timeout")) {
-        if (args_snap.len != 2) return error.ArityMismatch;
-        const fd_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        const sec_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        if (args_snap.len != 3) return error.ArityMismatch;
+        const cv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const cn = store.get(cv);
+        if (cn.tag != .lit) return error.TypeError;
+        const cap_id: u32 = @intCast(store.lits.items[cn.aux].int);
+        try checkCap(engine, cap_id, .net_recvfrom, "");
+        const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const sec_val = try evaluate(store, env, engine, args_snap[2], depth + 1);
         const fd_node = store.get(fd_val);
         const sec_node = store.get(sec_val);
         if (fd_node.tag != .lit or sec_node.tag != .lit) return error.TypeError;
