@@ -1021,6 +1021,16 @@ fn patternArgMatches(store: *Store, pp: Id, aa: Id) bool {
     return pattern_mod.exprStructuralEq(store, pp, aa);
 }
 
+/// A3B2C-R2 : marque sur le frame .apply_op courant que `i` args
+/// ont ete evalues. Appele AVANT chaque `try evaluate(arg_i)` dans
+/// les boucles d'eval d'args. No-op si capture desactivee.
+inline fn markArgDone(engine: *Engine, i: usize) void {
+    if (!engine.capturing) return;
+    if (engine.capture_stack.topMut()) |fr| {
+        if (fr.kind == .apply_op) fr.args_done_len = @intCast(i);
+    }
+}
+
 fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []const Id, depth: u32) EvalError!Id {
     // Buffer stack-local : zéro allocation pour args ≤ 8 (limite patterns).
     // Les appels récursifs à evaluate() peuvent realloc pool.items,
@@ -1706,6 +1716,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             const evaled = try engine.allocator.alloc(Id, args_snap.len);
             defer engine.allocator.free(evaled);
             for (args_snap, 0..) |a, i| {
+                markArgDone(engine, i);
                 evaled[i] = try evaluate(store, env, engine, a, depth + 1);
             }
             return try store.apply(op_id, evaled);
