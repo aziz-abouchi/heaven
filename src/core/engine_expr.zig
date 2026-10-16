@@ -1526,6 +1526,8 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             .linux => "linux",
             .macos => "macos",
             .windows => "windows",
+            .wasi => "wasi",
+            .freestanding => "freestanding",
             else => "unknown",
         };
         const sym = try store.interner.intern(name);
