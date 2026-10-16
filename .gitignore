@@ -102,3 +102,7 @@ site/
 .cache/
 tests/scratch/
 examples/http/
+
+# Exception : fixtures de test versionnees (ignorees sinon par heaven_test_io.txt)
+!tests/fixtures/
+!tests/fixtures/*.txt
