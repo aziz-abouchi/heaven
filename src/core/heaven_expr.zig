@@ -2511,9 +2511,21 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
     var depth: usize = 0;
     var i: usize = 0;
     var in_string = false;
+    var in_bitstring = false;
 
     while (i < input.len) {
         const c = input[i];
+        if (in_bitstring) {
+            try buf.append(allocator, c);
+            if (c == '>' and i + 1 < input.len and input[i + 1] == '>') {
+                try buf.append(allocator, '>');
+                in_bitstring = false;
+                i += 2;
+                continue;
+            }
+            i += 1;
+            continue;
+        }
         if (in_string) {
             try buf.append(allocator, c);
             if (c == '\\' and i + 1 < input.len) {
@@ -2564,6 +2576,16 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
                     try buf.append(allocator, ' ');
                 } else {
                     try buf.append(allocator, c);
+                }
+                i += 1;
+            },
+            '<' => {
+                try buf.append(allocator, c);
+                if (i + 1 < input.len and input[i + 1] == '<') {
+                    try buf.append(allocator, '<');
+                    in_bitstring = true;
+                    i += 2;
+                    continue;
                 }
                 i += 1;
             },
