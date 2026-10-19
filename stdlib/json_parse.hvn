@@ -4,7 +4,10 @@
 -- tete de corps (keyword top-level), PAS en S-expr imbrique dans
 -- une branche. Les sous-ifs sont extraits en helpers.
 
-data JVal = JNull | JBool Int | JNum Int | JStr Str
+data JVal = JNull | JBool Int | JNum Int | JStr Str | JArr JListVal | JObj JListPair
+data JListVal = JVCons JVal JListVal | JVNil
+data JPair = JPair Str JVal
+data JListPair = JPCons JPair JListPair | JPNil
 data JRes = JOk JVal Int | JErr
 
 json_skip s i =
@@ -45,11 +48,30 @@ json_parse_str s i = (json_parse_str_finish s i (json_str_end s (+ i 1)))
 json_parse s i = (json_parse2 s (json_skip s i))
 json_parse2 s i =
   if (>= i (string_length s)) then JErr
+  else if (= (string_char_at s i) 91) then (json_parse_arr s (+ i 1))
+  else if (= (string_char_at s i) 123) then (json_parse_obj s (+ i 1))
   else if (= (string_char_at s i) 34) then (json_parse_str s (+ i 1))
   else if (= (string_char_at s i) 110) then (JOk JNull (+ i 4))
   else if (= (string_char_at s i) 116) then (JOk (JBool 1) (+ i 4))
   else if (= (string_char_at s i) 102) then (JOk (JBool 0) (+ i 5))
   else (json_parse_num s i)
+
+-- Arrays
+jv_rev JVNil acc = acc
+jv_rev (JVCons x rest) acc = (jv_rev rest (JVCons x acc))
+
+json_parse_arr s i = (json_arr_loop s (json_skip s i) JVNil)
+json_arr_loop s i acc =
+  if (>= i (string_length s)) then JErr
+  else if (= (string_char_at s i) 93) then (JOk (JArr (jv_rev acc JVNil)) (+ i 1))
+  else (json_arr_after s acc (json_parse s i))
+json_arr_after s acc (JOk v np) = (json_arr_at s acc v (json_skip s np))
+json_arr_after s acc JErr = JErr
+json_arr_at s acc v j =
+  if (>= j (string_length s)) then JErr
+  else if (= (string_char_at s j) 44) then (json_arr_loop s (json_skip s (+ j 1)) (JVCons v acc))
+  else if (= (string_char_at s j) 93) then (JOk (JArr (jv_rev (JVCons v acc) JVNil)) (+ j 1))
+  else JErr
 
 -- Accesseurs
 json_as_int_finish (JOk (JNum n) p) = n
@@ -79,3 +101,73 @@ json_as_null_finish (JOk (JBool b) p) = 0
 json_as_null_finish (JOk (JStr s) p) = 0
 json_as_null_finish JErr = (- 0 1)
 json_as_null_s s = (json_as_null_finish (json_parse s 0))
+
+json_as_arr_finish (JOk (JArr l) p) = l
+json_as_arr_finish (JOk (JNum n) p) = JVNil
+json_as_arr_finish (JOk (JStr s) p) = JVNil
+json_as_arr_finish (JOk (JBool b) p) = JVNil
+json_as_arr_finish (JOk (JObj o) p) = JVNil
+json_as_arr_finish (JOk JNull p) = JVNil
+json_as_arr_finish JErr = JVNil
+json_as_arr_s s = (json_as_arr_finish (json_parse s 0))
+
+jv_len JVNil = 0
+jv_len (JVCons x rest) = (+ 1 (jv_len rest))
+
+-- Objects (JListPair)
+jv_rev_pair JPNil acc = acc
+jv_rev_pair (JPCons x rest) acc = (jv_rev_pair rest (JPCons x acc))
+
+json_parse_obj s i = (json_obj_loop s (json_skip s i) JPNil)
+json_obj_loop s i acc =
+  if (>= i (string_length s)) then JErr
+  else if (= (string_char_at s i) 125) then (JOk (JObj (jv_rev_pair acc JPNil)) (+ i 1))
+  else (json_obj_key s (json_skip s i) acc)
+json_obj_key s i acc =
+  if (>= i (string_length s)) then JErr
+  else if (= (string_char_at s i) 34) then (json_obj_after_key s acc (json_parse_str s (+ i 1)))
+  else JErr
+json_obj_after_key s acc (JOk (JStr k) kp) = (json_obj_colon s acc k (json_skip s kp))
+json_obj_after_key s acc (JOk _ kp) = JErr
+json_obj_after_key s acc JErr = JErr
+json_obj_colon s acc k j =
+  if (>= j (string_length s)) then JErr
+  else if (= (string_char_at s j) 58) then (json_obj_val s acc k (json_skip s (+ j 1)))
+  else JErr
+json_obj_val s acc k v =
+  let va = (json_parse s v) in
+  (json_obj_after_val s acc k va)
+json_obj_after_val s acc k (JOk v np) = (json_obj_at s acc k v (json_skip s np))
+json_obj_after_val s acc k JErr = JErr
+json_obj_at s acc k v j =
+  if (>= j (string_length s)) then JErr
+  else if (= (string_char_at s j) 44) then (json_obj_loop s (json_skip s (+ j 1)) (JPCons (JPair k v) acc))
+  else if (= (string_char_at s j) 125) then (JOk (JObj (jv_rev_pair (JPCons (JPair k v) acc) JPNil)) (+ j 1))
+  else JErr
+
+-- Accesseurs objects
+json_obj_get JPNil k = JNull
+json_obj_get (JPCons (JPair k v) rest) k2 = (if (= k k2) v (json_obj_get rest k2))
+json_obj_get (JPCons _ rest) k2 = (json_obj_get rest k2)
+
+json_as_obj_finish (JOk (JObj l) p) = l
+json_as_obj_finish (JOk (JArr l) p) = JPNil
+json_as_obj_finish (JOk (JNum n) p) = JPNil
+json_as_obj_finish (JOk (JStr s) p) = JPNil
+json_as_obj_finish (JOk (JBool b) p) = JPNil
+json_as_obj_finish (JOk JNull p) = JPNil
+json_as_obj_finish JErr = JPNil
+json_as_obj_s s = (json_as_obj_finish (json_parse s 0))
+
+jv_as_int (JNum n) = n
+jv_as_int (JBool b) = b
+jv_as_int (JStr s) = 0
+jv_as_int JNull = 0
+jv_as_int (JArr l) = 0
+jv_as_int (JObj l) = 0
+jv_as_str (JStr s) = s
+jv_as_str (JNum n) = ""
+jv_as_str (JBool b) = ""
+jv_as_str JNull = ""
+jv_as_str (JArr l) = ""
+jv_as_str (JObj l) = ""

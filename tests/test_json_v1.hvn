@@ -1,0 +1,15 @@
+-- tests/test_json_v1.hvn — JSON V1 (arrays, objects vides), 2026-10-19.
+-- Strings JSON construites via string_of_bytes (escape \" non supporte).
+-- Voir docs/spec/_json_object_bug.md pour objects avec cles (H1/H2).
+
+import "stdlib/json_parse.hvn" as JP
+
+-- Arrays
+test "arr_empty": (JP.jv_len (JP.json_as_arr_s "[]")) == 0
+test "arr_one": (JP.jv_len (JP.json_as_arr_s "[42]")) == 1
+test "arr_two": (JP.jv_len (JP.json_as_arr_s "[1,2]")) == 2
+test "arr_ws": (JP.jv_len (JP.json_as_arr_s "[1, 2, 3]")) == 3
+test "arr_nested": (JP.jv_len (JP.json_as_arr_s "[[1,2],[3]]")) == 2
+
+-- Objects : parse {} vide et lookup sur cle absente (retourne JNull)
+test "obj_empty_get": (JP.jv_as_int (JP.json_obj_get (JP.json_as_obj_s "{}") "z")) == 0
