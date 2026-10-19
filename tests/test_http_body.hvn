@@ -1,0 +1,14 @@
+-- tests/test_http_body.hvn — Parser POST body form-encoded (2026-10-19)
+-- V0 : pas de URL-decode, pas de multipart.
+
+import "stdlib/http_body.hvn" as HB
+
+test "one": (HB.body_get (HB.body_parse "a=1") "a") == "1"
+test "two_b": (HB.body_get (HB.body_parse "a=1&b=2") "b") == "2"
+test "two_a": (HB.body_get (HB.body_parse "a=1&b=2") "a") == "1"
+test "missing": (HB.body_get (HB.body_parse "a=1") "z") == ""
+test "name_hello": (HB.body_get (HB.body_parse "name=hello&age=42") "name") == "hello"
+test "age_42": (HB.body_get (HB.body_parse "name=hello&age=42") "age") == "42"
+test "num_str": (HB.body_get (HB.body_parse "n=123") "n") == "123"
+test "empty": (HB.body_get (HB.body_parse "") "a") == ""
+test "value_with_dots": (HB.body_get (HB.body_parse "ip=8.8.8.8") "ip") == "8.8.8.8"

@@ -1,0 +1,40 @@
+-- stdlib/http_body.hvn — Parser POST body form-encoded (2026-10-19)
+-- Format : "a=1&b=2&c=hello%20world" -> [("a","1"), ("b","2"), ...]
+-- V0 : pas de URL-decode (%20 etc), pas de gestion des valeurs vides.
+-- V1 : decode + multipart.
+
+data BodyPair = BodyPair Str Str
+data Body = BodyNil | BodyCons BodyPair Body
+
+-- Helpers string (copie de stdlib/net.hvn pour autonomie)
+b_matches s i sep =
+  if (>= (+ i (string_length sep)) (string_length s)) then false
+  else if (= (string_substring s i (string_length sep)) sep) then true
+  else false
+
+b_split s sep =
+  (b_split_from s sep 0 0)
+b_split_from s sep start i =
+  if (>= i (string_length s)) then (if (< start i) (cons (string_substring s start (- i start)) nil) nil)
+  else if (b_matches s i sep) then (cons (string_substring s start (- i start)) (b_split_from s sep (+ i (string_length sep)) (+ i (string_length sep))))
+  else (b_split_from s sep start (+ i 1))
+
+-- Splitter sur '=' : "a=1" -> ["a", "1"]
+b_split_eq s =
+  (b_split_eq_from s 0 0)
+b_split_eq_from s start i =
+  if (>= i (string_length s)) then (if (< start i) (cons (string_substring s start (- i start)) nil) nil)
+  else if (= (string_char_at s i) 61) then (cons (string_substring s start (- i start)) (cons (string_substring s (+ i 1) (- (string_length s) (+ i 1))) nil))
+  else (b_split_eq_from s start (+ i 1))
+
+-- Parse : "a=1&b=2" -> Body
+body_parse s = (body_parse_pairs (b_split s "&"))
+body_parse_pairs nil = BodyNil
+body_parse_pairs (cons p rest) = (body_parse_one (b_split_eq p) rest)
+body_parse_one (cons k (cons v nil)) rest = (BodyCons (BodyPair k v) (body_parse_pairs rest))
+body_parse_one _ rest = (body_parse_pairs rest)
+
+-- Lookup : body_get body "a" -> "1" (ou "" si absent)
+body_get BodyNil k = ""
+body_get (BodyCons (BodyPair bk bv) rest) k =
+  if (= bk k) then bv else (body_get rest k)
