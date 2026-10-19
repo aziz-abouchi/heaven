@@ -919,3 +919,34 @@ Fix : parser itératif à pile explicite (en données, pas en frames).
 
 **Impact** : ces 3 bugs rendent les tests non-triviaux penibles.
 A corriger avant 3a-3b/3a-3c.
+
+## Contraintes parser identifiees 2026-10-19 (E4-D2bis)
+
+Diagnostic chirurgical en fin de session, apres fix `is_command`
+(`51bf59a`) et `js_ollama_query` (`d8a33e8`).
+
+| Pattern | Resultat |
+|---|---|
+| `string_eq` en condition d'`if` dans helper local | SIGSEGV |
+| `S.string_eq` importe qualifie (idem en if) | SIGSEGV |
+| `string_ends_with` en condition d'`if` | SIGSEGV |
+| `==` infixe en condition d'`if` | OK |
+| `>` en condition d'`if` | OK |
+| let-chain 2 niveaux dans helper | OK |
+| let-chain >= 3 niveaux dans helper | valeur fausse (5 au lieu de 6) |
+| 3-arg helper + 2 lets | OK |
+| Chaine de helpers ordonnee (callee avant caller) | OK |
+| Chaine de helpers avec forward ref (caller avant callee) | KO (mauvaise branche) |
+
+**Workaround pratique** :
+- `==` infixe au lieu de `string_eq`/`string_ends_with` dans les `if`.
+- Let-chain 2 max par helper.
+- Definir les helpers avant usage (pas de forward ref).
+
+**Vrai fix** : le SIGSEGV `string_eq` est probablement un probleme
+d'evaluation de `string_eq` dans le contexte de comparaison d'un
+`if`. A diagnostiquer en session dediee (prochaine priorite P0).
+Une fois fixe, E4-D2bis (routing HTTP en `.hvn`) est 1 bloc.
+
+Voir `_http_fullstack_plan.md` section "E4-D2bis" pour le detail.
+

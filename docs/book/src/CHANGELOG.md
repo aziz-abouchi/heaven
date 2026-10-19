@@ -1,6 +1,57 @@
 # Changements récents
 
 
+## 2026-10-19 (cloture) -- is_command, js_ollama_query, http_server.hvn v0
+
+### Fix parser / evaluateur
+
+- **`is_command`** (commit `51bf59a`) : les prefixes `help`, `stats`,
+  `theorems`, `rules` (minuscule, sans espace) etaient traites comme
+  commandes REPL. `helper _ = 42` silencieusement skippe. Toute une
+  classe de noms de fonction mangee. Fix : match exact ou prefixe
+  avec espace.
+- **`js_ollama_query`** (commit `d8a33e8`) : le wasm freestanding
+  importait `env.f` (nom de l'identifiant Zig) au lieu de
+  `env.js_ollama_query` (nom du host JS). LinkError dans le REPL
+  web. Fix : renommer l'extern dans les deux branches.
+
+### Serveur HTTP en Heaven pur
+
+- **`http_server.hvn` v0** (commit `2c35724`) : serveur multi-client
+  en `.hvn`, 30 l. `@net_listen` + loop recursive + `@net_accept` +
+  `@net_read` + `@net_write` + `@net_close`. Repond `hi`.
+  Test : `curl http://127.0.0.1:8080/` -> `hi`.
+- **`string_ends_with`** ajoute a `stdlib/string.hvn` (5/5 tests),
+  avec warning documente (SIGSEGV en condition d'`if`).
+
+### HKT V1b (pas 3)
+
+- `@resolve_instance` et `@dispatch_instance` acceptent `.sym` en
+  plus de `.lit.str` : `fmap List f xs` (commit `4841c6b`, 3 tests).
+  V1b total 11 tests verts.
+
+### Contraintes parser identifiees
+
+- `string_eq` en condition d'`if` dans helper local -> SIGSEGV.
+  `==` infixe OK. Voir `_syntax_gaps.md` section 2026-10-19.
+- let-chain >= 3 niveaux dans helper -> valeur fausse.
+- Forward ref de helpers -> mauvaise branche.
+
+### Refutations
+
+- **B3** entierement refute : le "3 bugs let-chain" venait de
+  `is_command` qui mangeait `helper*`. Vrai fix : `normalizeLetChain`
+  (`66f0b32`) pour le top-level run.
+- **B2** entierement refute : les heredocs bash un-escapent `\n`
+  avant ecriture. `printf` preserve. `\n`/`\r\n` marchent.
+
+### Baseline
+
+- ReleaseFast `--run-tests` = 0 fail (Debug = 3 crashes connus :
+  test_parser, test_hashmap, test_bigint_d20).
+- wasm32-freestanding = 0, wasm32-wasi = 0.
+
+
 ## 2026-10-19 (fin de session) -- HKT V1b 1+2, E5, B3 cutoff
 
 ### HKT V1b (matching structurel)

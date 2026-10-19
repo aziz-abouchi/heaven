@@ -174,3 +174,23 @@ un S-expr parenthese.
 
 - `docs/spec/_syntax_gaps.md` : liste detaillee des gaps parser.
 - `docs/DECISIONS.md` : decisions structurantes.
+
+### `string_eq` en condition d'`if` dans helper local — SIGSEGV
+
+Tout `if (string_eq a b) then ... else ...` dans un helper local
+crashe par SIGSEGV (2026-10-19). Idem `S.string_eq` importé
+qualifié, et `string_ends_with` en condition.
+
+    f p = if (string_eq p "/") then "a" else "b"    -- ✗ SIGSEGV
+
+**Workaround** : `==` infixe.
+
+    f p = if p == "/" then "a" else "b"            -- ✓
+
+**Autres contraintes parser** (mêmes symptômes) :
+- `let` chain ≥ 3 niveaux dans helper → valeur fausse silencieuse.
+- `let` chain 2 max.
+- Helpers ordonnés (définition avant usage, pas de forward ref).
+
+Voir `docs/spec/_http_fullstack_plan.md` section "E4-D2bis" pour
+le diagnostic chirurgical complet.

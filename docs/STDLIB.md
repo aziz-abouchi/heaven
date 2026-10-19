@@ -16,6 +16,7 @@ Helpers string partagés. ✅
 | `string_matches_at s i sep` | `true` si `sep` commence à `s[i]` |
 | `string_split s sep` | split sur `sep` → `List String` |
 | `string_split_from s sep start i` | boucle interne de `string_split` |
+| `string_ends_with s suffix` | `1` si `s` finit par `suffix`, `0` sinon. ⚠️ SIGSEGV en condition d'`if` dans helper local (voir B-erreurs) |
 | `string_eq a b` | égalité byte-à-byte |
 | `string_eq_from a b i` | boucle interne de `string_eq` |
 
@@ -180,3 +181,17 @@ Tests : `test_http_client` (7).
 - `docs/spec/_stdlib_roadmap.md` — phases du refactor.
 - `docs/spec/_json_object_bug.md` — H1/H2/H3 (JSON objects).
 - `docs/spec/_metacircularite_chantier.md` — self-hosting Heaven.
+
+---
+
+## `http_server.hvn` (racine, E4)
+
+Serveur HTTP multi-client en `.hvn` pur, 30 l. (commit `2c35724`).
+
+- `@net_listen` + loop récursive + `@net_accept` + `@net_read` + `@net_write` + `@net_close`.
+- v0 : répond `hi` à toute requête.
+- Lancement : `./zig-out/bin/heaven run http_server.hvn`
+- Test : `curl http://127.0.0.1:8080/` → `hi`
+
+Routing (v1) en cours : voir `_http_fullstack_plan.md` section "E4-D2bis".
+NB : GitHub Pages n'utilise PAS ce serveur (statique).

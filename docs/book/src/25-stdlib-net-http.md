@@ -242,3 +242,38 @@ Trois bugs séparés, voir `docs/spec/_let_chain_bug.md` :
 - `docs/tutorials/no_let_chain.md` — tuto workaround complet.
 - `docs/spec/_let_chain_bug.md` — diagnostic détaillé.
 - `docs/spec/_handle_rec_status.md` — état effects.
+
+## 3bis. `http_server.hvn` v0 — serveur en Heaven pur (2026-10-19)
+
+Serveur multi-client en `.hvn`, livré (commit `2c35724`), testé
+avec `curl` × 3 (`hi` sur chaque requête).
+
+    -- http_server.hvn (extrait)
+    do_respond client _ =
+      seq (@net_read unit client)
+        seq (@net_write unit client "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi")
+          seq (@net_close unit client) 0
+
+    do_one listen_fd _ = (do_respond (@net_accept unit listen_fd) 0)
+
+    serve listen_fd = (seq (do_one listen_fd 0) (serve listen_fd))
+
+    serve_listen port =
+      seq (print (string_concat "heaven http: http://127.0.0.1:" (int_to_string port)))
+        (serve (@net_listen unit port))
+
+    (serve_listen 8080)
+
+Lancement : `./zig-out/bin/heaven run http_server.hvn`
+Test : `curl http://127.0.0.1:8080/` → `hi`
+
+C'est la preuve concrète que la cible du §3 (`handle_rec` +
+stream) est faisable en Heaven pur, version récursive au lieu de
+`handle_rec` (qui viendra après `effects-consolidation`).
+
+**Routing (v1) en cours** : voir `_http_fullstack_plan.md` section
+"E4-D2bis". Contrainte : pas de `string_eq` en condition d'`if`
+dans un helper local (SIGSEGV), utiliser `==` infixe.
+
+NB : GitHub Pages n'utilise PAS ce serveur (hébergement statique).
+C'est pour déploiement local/VPS.

@@ -77,8 +77,7 @@ Testé sur `List` (empty/one/multi). Voir
 
 ### Ce qui manque encore
 
-- **V1b pas 3** : dispatch sur `List` sans quotes (accès au nom
-  d'un nœud `.sym`). ~1 bloc.
+- **V1b pas 3** ✅ (2026-10-19) : dispatch sur `List` sans quotes. `@resolve_instance` et `@dispatch_instance` acceptent un nœud `.sym` en plus de `.lit.str` (commit `4841c6b`, 3 tests).
 - **V1c** : contraintes `fmap : Functor f => ...` vérifiées. Un
   checker simple après pas 3.
 - **Instances multiples** : `Int` Monoid+ vs Monoid*. Nécessite

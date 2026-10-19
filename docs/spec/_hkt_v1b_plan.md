@@ -39,3 +39,13 @@ l'inférence nécessaire (il type-check, il n'infère pas).
 ## Ce qui manque avant V1b
 Rien de bloquant. V1a a la table. Mais la décision A vs B est
 structurante (matching structurel = figé, inférence = générique).
+
+## Statut 2026-10-19 (fin de session)
+
+- **V1b pas 1** ✅ `@resolve_instance C T op` -> `op_T` ou "" (`62155ce`, 4 tests).
+- **V1b pas 2** ✅ `@dispatch_instance C T op args...` -> `op_T(args...)`, type T en string (`1ba6aa4`, 4 tests).
+- **V1b pas 3** ✅ arguments `.sym` acceptés (`fmap List f xs`), en plus de `.lit.str` (`4841c6b`, 3 tests).
+- **V1c** 🚧 contraintes `Functor f =>` vérifiées. 1 bloc, après V1b pas 3.
+
+Total : 11 tests verts (`test_hkt_v1b_step1.hvn`, `_step2.hvn`, `_step3.hvn`).
+
