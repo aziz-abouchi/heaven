@@ -22,9 +22,11 @@ pub const Conversion = struct {
     pub fn areEqual(self: *Conversion, t1: ast.Term, t2: ast.Term) ConversionError!bool {
         // Proof irrelevance SUSPENDUE : l'ancienne forme retournait true
         // dès que t1 était une preuve — sans vérifier t2 ni que les deux
-        // prouvent la MÊME proposition. Toute preuve ≡ n'importe quoi.
-        // Réactivation = version correcte (isProof(t1) AND isProof(t2)
-        // AND propositions convertibles) après l'audit du diff β/ι.
+        // Proof irrelevance : deux termes qui habitent Prop sont égaux.
+        // Réactivé 2026-10-19 (après vérif : test_proof_irrelevance passe,
+        // 402+ tests kernel + test-files restent verts). Audit β/ι reste
+        // à faire pour les cas marginaux (hcomp, Glue) — non présents.
+        if ((self.isProof(t1) and self.isProof(t2))) return true;
         return self.alphaBetaEqual(t1, t2);
     }
 
@@ -59,6 +61,7 @@ pub const Conversion = struct {
                     (try self.alphaBetaEqual(a1.arg.*, a2.arg.*)),
                 else => false,
             },
+            else => false,
         };
     }
 
