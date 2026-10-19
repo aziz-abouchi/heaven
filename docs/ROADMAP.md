@@ -1005,11 +1005,13 @@ Objectif : découplage Vessel et absorption par la stack HTTP Heaven.
   aujourd'hui), (b) `encode_jsonrpc`/`decode_jsonrpc` en `.hvn`,
   (c) décision statiques Zig vs `.hvn` (`@embedFile` n'existe pas).
   Voir `_http_fullstack_plan.md` section « État 2026-10-19 ».
-- **E5** ⚠️ Partiel (`0ece80f`). `bridge.zig` propre (plus de
-  `self.matrix`/`self.fab`, imports retires). `main.zig` porte
-  encore `Matrix.init`/`bob_loop`/`syncMatrixWithFile` — E5-bis
-  = extraire `bob_loop` en `src/runtime/` puis `matrix` →
-  `src/legacy/`. 1 session.
+- **E5** ⚠️ Partiel (`0ece80f`, `301e602`). `bridge.zig` propre,
+  `bob_loop` extrait en `src/runtime/bob_loop.zig`. **E5-ter
+  n'est PAS mécanique** : `matrix`/`fab` sont threadés dans 10+
+  sites de `main.zig` (`UniversalIngestor`, `AutoFab`,
+  `heaven.Engine`, `ReactionEngine`, `Shell`, `bob_loop`).
+  Migrer ces 6 consommateurs vers `expr.Store` = 2-3 sessions,
+  décision d'architecture (D-XXX) à trancher avant. Pas un bloc.
 
 **Baseline 2026-10-19** : Debug build = 0, `zig build test` = 0,
 ReleaseFast `--run-tests` = 0 fail, wasm32-freestanding = 0,
