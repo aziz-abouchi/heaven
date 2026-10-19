@@ -1,0 +1,14 @@
+-- tests/test_mpst.hvn — Session types binaires (2026-10-19)
+-- MPST V0 "paper" : dualite + checker. Pas de runtime mailbox.
+import "stdlib/mpst.hvn" as M
+
+test "server_dual": (M.dual (M.proto_client 0)) == (M.proto_server 0)
+test "client_ok": (M.check (M.proto_client 0) (M.TCons "Req" (M.TCons "Resp" M.TNil))) == true
+test "client_bad_label": (M.check (M.proto_client 0) (M.TCons "Req" (M.TCons "Bad" M.TNil))) == false
+test "client_truncated": (M.check (M.proto_client 0) (M.TCons "Req" M.TNil)) == false
+test "server_ok": (M.check (M.proto_server 0) (M.TCons "Req" (M.TCons "Resp" M.TNil))) == true
+test "server_bad_order": (M.check (M.proto_server 0) (M.TCons "Resp" (M.TCons "Req" M.TNil))) == false
+test "end_empty": (M.check M.STEnd M.TNil) == true
+test "end_nonempty": (M.check M.STEnd (M.TCons "x" M.TNil)) == false
+test "dual_involution": (M.dual (M.dual (M.proto_client 0))) == (M.proto_client 0)
+test "dual_send_recv": (M.dual (M.STSend "x" M.STEnd)) == (M.STRecv "x" M.STEnd)

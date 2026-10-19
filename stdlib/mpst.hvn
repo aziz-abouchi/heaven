@@ -1,0 +1,52 @@
+-- stdlib/mpst.hvn — Session types (MPST) : algèbre + checker (2026-10-19)
+-- V0 "paper" : pas de send/recv runtime. Protocoles + traces + dualité
+-- + check. Sera branché sur un runtime mailbox en V1.
+-- Ref : Honda-Yoshida-Carbone 2008, "Multiparty Asynchronous Session Types".
+
+-- ─── Session type (binaire) ───
+-- STEnd    : fin de session
+-- STSend   : emission d'un label vers l'autre partie
+-- STRecv   : reception d'un label
+-- STSeq    : sequence
+-- STPar    : choix interne (emission) / externe (reception)
+-- V0 : pas de recursion, pas de multipartite (>2). Binaire seulement.
+data ST = STEnd
+        | STSend Str ST
+        | STRecv Str ST
+        | STSeq ST ST
+        | STChoice ST ST
+
+-- ─── Trace (ce qui s'est passe) ───
+data Trace = TNil
+           | TCons Str Trace
+
+-- ─── Dualite binaire : send <-> recv, choice = dual des branches ───
+dual STEnd = STEnd
+dual (STSend l rest) = (STRecv l (dual rest))
+dual (STRecv l rest) = (STSend l (dual rest))
+dual (STSeq a b) = (STSeq (dual a) (dual b))
+dual (STChoice a b) = (STChoice (dual a) (dual b))
+
+-- ─── Check : trace conforme au protocole ? ───
+check STEnd TNil = true
+check STEnd (TCons _ _) = false
+check (STSend l rest) TNil = false
+check (STSend l rest) (TCons t rest2) =
+  (if (= l t) (check rest rest2) false)
+check (STRecv l rest) TNil = false
+check (STRecv l rest) (TCons t rest2) =
+  (if (= l t) (check rest rest2) false)
+check (STSeq a b) tr =
+  -- existe un split ? V0 : premier match, sinon false
+  (if (check a tr) (check b TNil) (check_split a b tr))
+check_split a b TNil = (check a TNil)
+check_split a b (TCons t rest) =
+  (if (check a (TCons t rest)) (check b TNil) (check_split a b rest))
+
+-- ─── Choix : trace conforme a l'une des branches ───
+check (STChoice a b) tr = (if (check a tr) true (check b tr))
+
+-- ─── Exemples de protocoles binaires (client / serveur) ───
+-- Client envoie "Req", recoit "Resp", termine.
+proto_client _ = (STSend "Req" (STRecv "Resp" STEnd))
+proto_server _ = (dual (proto_client 0))
