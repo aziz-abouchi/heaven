@@ -37,6 +37,16 @@ colle les sorties. Tu adaptes selon ce que tu vois.
    - **Changement `.hvn` pur** : seul `--run-tests tests` (ReleaseFast)
      est requis (pas de `zig build`).
 
+## Méthodes critiques
+
+1. Toujours vérifier par lecture + bisect avant de patcher un bug supposé.
+2. Un fix = un commit = un test qui passe auparavant.
+3. Ne jamais utiliser `git add -A` (plusieurs sessions parallèles tournent).
+4. Helpers nommés pour éviter les `if` multi-lignes dans le parser infixe.
+5. Régénérer doc : `python3 scripts/docgen.py && python3 scripts/status_gen.py` avant push.
+6. `HEAVEN_NO_LEAK_CHECK=1` par défaut (contournement DebugAllocator).
+7. `zig build -Doptimize=ReleaseFast` par défaut (D20).
+
 ## Style Heaven (infixe obligatoire)
 
 - `a + b` (pas `(+ a b)`), `if p then a else b`, `let x = v in body`
@@ -184,6 +194,35 @@ ReleaseFast = 0 fail).
 - **Ne jamais éditer `STATUS.md` ou `README.md` à la main.** Patcher
   `status.json` et relancer `python3 scripts/status_gen.py &&
   python3 scripts/docgen.py`.
+
+**Alternative STATUS.md-first** (petit patch) : éditer `STATUS.md`,
+puis `python3 scripts/status_import.py` (met à jour `status.json`),
+puis commit les deux. **Risque** : une section non importée est perdue
+au prochain `status_gen.py` (qui réécrit `STATUS.md` entier depuis le
+json). La voie `status.json`-first (2026-10-19) est plus sûre et
+prouvée.
+
+Le CI échoue si un chiffre est périmé (`--check` sur `docgen.py`).
+`PROMPT_CONTINUITE.md`, `docs/DECISIONS.md`, `docs/ROADMAP.md`,
+`docs/spec/*.md` sont **manuels**.
+
+## Fichiers de référence
+
+- `docs/DECISIONS.md` — ADR (D10 à D21, D-SH1..3, D-HTTP1/2, D-CI1)
+- `docs/spec/_syntax_gaps.md` — limites parser infixe + quirks
+- `docs/spec/_style_infix.md` — style Heaven (infixe, 0-pattern def)
+- `docs/STATUS.md` — généré, état des features
+- `docs/STDLIB.md` — modules stdlib
+- `docs/spec/_http_fullstack_plan.md` — D9 statut E1-E5
+- `docs/spec/_hkt_v1b_plan.md` — V1b (2 sessions)
+- `docs/spec/_mpst_v2_plan.md` — MPST-V2
+- `docs/spec/_metacircularite_chantier.md` — manques #2-#4
+- `_runner_crashes_2026-10.md` (racine) — 3 crashes Debug-only
+- `docs/book/src/14-concurrency.md` — scheduler coopératif
+- `core/std/array.hvn`, `core/std/string.hvn` — Jalon 2
+- `src/syntax/lower.zig` — pont Tree-sitter → Expr.Store (D21)
+- `tests/test_array.hvn`, `tests/test_string.hvn`, `tests/test_scheduler.hvn`,
+  `tests/test_effects_rec.hvn`
 
 ---
 
