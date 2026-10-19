@@ -53,6 +53,7 @@
   "tests/test_bitstrings.hvn",
   "tests/test_continuations.hvn",
   "tests/test_data.hvn",
+  "tests/test_data_eq.hvn",
   "tests/test_diff_e.hvn",
   "tests/test_dns_v1.hvn",
   "tests/test_effects_rec.hvn",

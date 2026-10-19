@@ -2703,7 +2703,21 @@ fn evalUnary(store: *Store, a: Id, op: enum { not }) EvalError!Id {
 fn evalCmp(store: *Store, a: Id, b: Id, op: CmpOp) EvalError!Id {
     const na = store.get(a);
     const nb = store.get(b);
-    if (na.tag != .lit or nb.tag != .lit) return error.TypeError;
+    if (na.tag != .lit or nb.tag != .lit) {
+        // HEAVEN:CMP_CTOR — egalite structurelle sur constructeurs.
+        if (op == .eq or op == .neq) {
+            const eq = pattern_mod.exprStructuralEq(store, a, b);
+            const result = if (op == .eq) eq else !eq;
+            return store.addNode(.{
+                .tag = .lit,
+                .payload = 0,
+                .aux = try store.addLit(.{ .boolean = result }),
+                .span_a = Span.EMPTY,
+                .span_b = Span.EMPTY,
+            });
+        }
+        return error.TypeError;
+    }
     const la = store.lits.items[na.aux];
     const lb = store.lits.items[nb.aux];
 

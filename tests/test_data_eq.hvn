@@ -1,0 +1,21 @@
+-- tests/test_data_eq.hvn — égalité structurelle sur constructeurs
+-- (2026-10-19). Bug pré-existant : (= ANil ANil) renvoyait TypeError.
+-- Fix : evalCmp délègue à pattern.exprStructuralEq pour eq/neq.
+
+data A = ANil | ACons Int A
+
+test "eq_nil": (= ANil ANil) == true
+test "neq_nil_cons": (= ANil (ACons 1 ANil)) == false
+test "eq_cons": (= (ACons 1 ANil) (ACons 1 ANil)) == true
+test "neq_cons_val": (= (ACons 1 ANil) (ACons 2 ANil)) == false
+test "eq_cons_nested": (= (ACons 1 (ACons 2 ANil)) (ACons 1 (ACons 2 ANil))) == true
+test "neq_cons_nested": (= (ACons 1 (ACons 2 ANil)) (ACons 1 (ACons 3 ANil))) == false
+
+-- via let
+f_eq x = (if (= x ANil) 1 0)
+test "let_eq_nil": (f_eq ANil) == 1
+test "let_eq_cons": (f_eq (ACons 1 ANil)) == 0
+
+-- neq
+test "neq_ctor": (!= ANil (ACons 1 ANil)) == true
+test "neq_nil_nil": (!= ANil ANil) == false
