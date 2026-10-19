@@ -1,6 +1,8 @@
 -- stdlib/json_parse.hvn — Parseur JSON V0 (num, str, bool, null)
--- Complement de stdlib/json.hvn (construction). V0 : pas d'arrays
--- ni d'objects. Viendront en V1.
+-- V0 : pas d'arrays ni d'objects. Complement de stdlib/json.hvn.
+-- Contrainte parser : les `if ... then ... else` doivent etre en
+-- tete de corps (keyword top-level), PAS en S-expr imbrique dans
+-- une branche. Les sous-ifs sont extraits en helpers.
 
 data JVal = JNull | JBool Int | JNum Int | JStr Str
 data JRes = JOk JVal Int | JErr
@@ -13,9 +15,15 @@ json_skip s i =
   else if (= (string_char_at s i) 13) then (json_skip s (+ i 1))
   else i
 
+-- Helper : si le char est un digit, continue ; sinon retourne i.
+json_digit_cont s i = (json_digits_end s (+ i 1))
+json_digit_or_stop s i =
+  if (<= (string_char_at s i) 57) then (json_digit_cont s i)
+  else i
+
 json_digits_end s i =
   if (>= i (string_length s)) then i
-  else if (>= (string_char_at s i) 48) then (if (<= (string_char_at s i) 57) (json_digits_end s (+ i 1)) i)
+  else if (>= (string_char_at s i) 48) then (json_digit_or_stop s i)
   else i
 
 json_num_val s end i acc =
@@ -32,7 +40,7 @@ json_str_end s i =
   else (json_str_end s (+ i 1))
 
 json_parse_str_finish s i end = (JOk (JStr (string_substring s i (- end i))) (+ end 1))
-json_parse_str s i = (json_parse_str_finish s i (json_str_end s i))
+json_parse_str s i = (json_parse_str_finish s i (json_str_end s (+ i 1)))
 
 json_parse s i = (json_parse2 s (json_skip s i))
 json_parse2 s i =
@@ -43,7 +51,7 @@ json_parse2 s i =
   else if (= (string_char_at s i) 102) then (JOk (JBool 0) (+ i 5))
   else (json_parse_num s i)
 
--- Accesseurs (parses+extrait)
+-- Accesseurs
 json_as_int_finish (JOk (JNum n) p) = n
 json_as_int_finish (JOk (JBool b) p) = 0
 json_as_int_finish (JOk (JStr s) p) = 0

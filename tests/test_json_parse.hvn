@@ -1,0 +1,20 @@
+-- tests/test_json_parse.hvn — Parseur JSON V0 (2026-10-19).
+-- Strings construites via string_of_bytes (escape \" non supporte).
+import "stdlib/json_parse.hvn" as JP
+
+-- Helper : construit une string avec le byte c repete n fois.
+mk_bytes c n =
+  let b = (raw_alloc n) in
+  let _ = (poke_byte b 0 c) in
+  (string_of_bytes b 1)
+
+q = (mk_bytes 34 1)
+
+test "num 42": (JP.json_as_int_s "42") == 42
+test "num 123": (JP.json_as_int_s "123") == 123
+test "num 0": (JP.json_as_int_s "0") == 0
+test "bool true": (JP.json_as_bool_s "true") == 1
+test "bool false": (JP.json_as_bool_s "false") == 0
+test "null": (JP.json_as_null_s "null") == 1
+test "ws prefix": (JP.json_as_int_s "  42") == 42
+test "ws post": (JP.json_as_int_s "42  ") == 42
