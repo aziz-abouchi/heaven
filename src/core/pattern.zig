@@ -12,7 +12,22 @@ pub fn exprStructuralEq(store: *const Store, a: Id, b: Id) bool {
     if (na.tag != nb.tag) return false;
 
     return switch (na.tag) {
-        .sym => na.payload == nb.payload,
+        .sym => blk: {
+            if (na.payload == nb.payload) break :blk true;
+            const sa = store.interner.resolve(na.payload);
+            const sb = store.interner.resolve(nb.payload);
+            const da = std.mem.lastIndexOfScalar(u8, sa, '.');
+            const db = std.mem.lastIndexOfScalar(u8, sb, '.');
+            // HEAVEN:H1_QUALIF — deux syms qualifies = prefixes differents
+            // = constructeurs distincts (conservateur).
+            if (da != null and db != null) break :blk false;
+            // Aucun qualifie : syms differents, pas d'alias.
+            if (da == null and db == null) break :blk false;
+            // Un qualifie + un non qualifie : comparer les suffixes.
+            const la = if (da) |d| sa[d + 1 ..] else sa;
+            const lb = if (db) |d| sb[d + 1 ..] else sb;
+            break :blk std.mem.eql(u8, la, lb);
+        },
         .lit => {
             const la = store.lits.items[na.aux];
             const lb = store.lits.items[nb.aux];

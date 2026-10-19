@@ -1,70 +1,49 @@
 <!-- HEAVEN:h1-qualified-sym -->
-# H1 — Symbole qualifié (module.Sym) non normalisé (2026-10-19)
+# H1 — Sym qualifié (module.Sym) (2026-10-19)
 
-## Symptôme (récidive 4x dans la session)
+## Symptôme (récidive 4x)
 
     -- module L exporte : data A = ANil | ACons Int A
-    -- mk _ = (ACons 1 ANil)
-    (= (L.mk 0) (L.ACons 1 L.ANil))  -- → false (attendu true)
-
-Tests discriminants (h1b.hvn) :
-- `(= (L.ACons 1 L.ANil) (L.ACons 1 L.ANil))` → ✅ true
-- `(= (L.mk 0) (L.mk 0))` → ✅ true
-- `(= (L.mk 0) (L.ACons 1 L.ANil))` → ❌ false
+    (= (L.mk 0) (L.ACons 1 L.ANil))  -- → false
 
 ## Diagnostic
 
-`L.mk 0` retourne un `.apply` avec `payload = Sym("ACons")` (Sym
-original, produit par le module). `L.ACons 1 L.ANil` produit un
-`.apply` avec `payload = Sym("L.ACons")` (Sym qualifié, jamais
-résolu vers l'original à la construction).
+Deux niveaux distincts :
 
-`evalCmp` → `exprStructuralEq` compare les `payload` (Sym ids).
-Sym("ACons") ≠ Sym("L.ACons") → false.
+**N1 — Sym qualifié (RÉSOLU 2026-10-19).**
+`L.ACons` (Sym qualifié) ≠ `ACons` (Sym original). `exprStructuralEq`
+comparait `na.payload == nb.payload` (ids Sym bruts).
 
-## Fix tenté (échoué)
+Fix dans `pattern.zig` : si un seul côté est qualifié, comparer les
+suffixes après le dernier `.`. Si les deux sont qualifiés avec des
+préfixes différents → false (conservateur). Si aucun n'est qualifié
+et les ids diffèrent → false.
 
-Résolution dans `.sym` et `.apply` de `engine_expr.zig` :
-- `.sym` : `env.get(L.ACons)` échoue → résoudre suffixe `ACons` → Sym
-  original.
-- `.apply` : `engine.fns.get(L.ACons)` échoue → résoudre suffixe.
+Tests : `tests/test_h1_qualified.hvn` (5 cas : eq_direct, eq_mk_self,
+eq_via_let, neq_int, neq_ctor). Tous verts.
 
-**Résultat** : 2/4 et 4/5 (inchangé). Pourquoi : la résolution se
-fait à l'**évaluation**, mais `exprStructuralEq` compare les Sym
-**dans l'AST déjà construit**. Le Sym qualifié reste dans l'AST.
+**N2 — apply curry vs n-aire (RESTE OUVERT).**
+`L.mk 0` produit un apply n-aire avec payload `Sym("ACons")`.
+`L.ACons 1 L.ANil` produit un apply **currifié**
+`apply(apply(L.ACons, 1), L.ANil)` (parser : args successifs).
+`exprStructuralEq` compare les spans → longueurs différentes → false.
 
-## Piste correcte
+Bug distinct, non résolu. Fix probable : normaliser `apply` en
+comparant via `applyArgs` (aplatir), OU harmoniser le parser pour
+produire un apply n-aire partout.
 
-La résolution doit se faire **à la construction de l'AST** (au
-parser/elaborator) : quand on voit `L.ACons` dans une expression,
-produire le Sym original `ACons` dans le Store, pas un Sym
-qualifié `L.ACons`.
+Effort : 1 session.
 
-Sites à traiter :
-1. `expr_parser.parseExpression` : quand un Sym contient un `.` et
-   que le suffixe est un Sym connu (env ou engine.fns), résoudre.
-2. OU `import.zig` : enregistrer des alias au moment de l'import
-   (`L.ACons` → `ACons`), pour que la construction du Sym pointât
-   vers l'original.
-3. OU `exprStructuralEq` : normaliser les deux Sym (strip prefix
-   module) avant comparaison. Workaround localisé, mais ne résout
-   pas le vrai problème (deux Syms coexistent dans le Store).
+## Impact résiduel
 
-Effort : 1 session. Pas un bloc de fin.
-
-## Impact
-
-- MPST : 3 tests contournés (`dual_send_recv`, `trace_parse`,
-  `json_obj_get` faux positif).
-- HKT : comparaisons de constructeurs importés.
-- Toute ADT importée.
-
-## Contournement systématique actuel
-
-Ne pas comparer directement des constructeurs qualifiés. Passer
-par extraction d'Int/String avant `==`. Moche, mais stable.
+- `(= (mk 0) (L.ACons 1 L.ANil))` → false (bug N2).
+- `(= (mk 0) (mk 0))` → true (résolu par N1).
+- MPST `dual_send_recv` : Sym résolu, structure reste à comparer
+  correctement (curry vs n-aire).
+- JSON `json_obj_get` : faux positif antérieur (c'était `jv_get`
+  manquant, pas H1). Reste à revérifier après N2.
 
 ## Priorité
 
-**P1** (après H1 récidive 4x). Un seul fix propre débloque MPST,
-HKT, JSON objects (H1/H2/H3), et toute ADT importée.
+N1 **RÉSOLU** (commit). N2 : 1 session. Le vrai bug bloquant
+(ADT importées) est à moitié fixé.

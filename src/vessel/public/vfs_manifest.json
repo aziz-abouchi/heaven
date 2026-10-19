@@ -72,6 +72,7 @@
   "tests/test_eval.hvn",
   "tests/test_factorial.hvn",
   "tests/test_free.hvn",
+  "tests/test_h1_qualified.hvn",
   "tests/test_hashmap.hvn",
   "tests/test_hkt.hvn",
   "tests/test_http.hvn",
