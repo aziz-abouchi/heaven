@@ -970,7 +970,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1078,6 +1078,29 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const rsym = try store.interner.intern(resolved);
         return try store.lit(.{ .str = rsym });
     }
+    if (std.mem.eql(u8, op, "@dispatch_instance")) {
+        if (args_snap.len < 3) return error.ArityMismatch;
+        var names: [3][]const u8 = undefined;
+        var i: usize = 0;
+        while (i < 3) : (i += 1) {
+            const v = try evaluate(store, env, engine, args_snap[i], depth + 1);
+            const n = store.get(v);
+            if (n.tag != .lit) return error.TypeError;
+            switch (store.lits.items[n.aux]) {
+                .str => |sym| names[i] = store.interner.resolve(sym),
+                else => return error.TypeError,
+            }
+        }
+        const key = try std.fmt.allocPrint(engine.allocator, "{s}|{s}", .{ names[0], names[1] });
+        defer engine.allocator.free(key);
+        if (!engine.instance_pairs.contains(key)) return error.InvalidInput;
+        const resolved = try std.fmt.allocPrint(engine.allocator, "{s}_{s}", .{ names[2], names[1] });
+        defer engine.allocator.free(resolved);
+        const head = try store.sym(resolved);
+        const call = try store.apply(head, args_snap[3..]);
+        return try evaluate(store, env, engine, call, depth + 1);
+    }
+
     if (std.mem.eql(u8, op, "@budget_left")) {
         if (args_snap.len != 0) return error.ArityMismatch;
         // HEAVEN:BUDGET_FIX — clamp pour eviter overflow i64

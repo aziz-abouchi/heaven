@@ -1,0 +1,22 @@
+-- tests/test_hkt_v1b_step2.hvn -- V1b pas 2 : @dispatch_instance (2026-10-19)
+-- Dispatch (C,T,op,args...) -> op_T(args...). Pas d'inference.
+
+class Functor f
+instance Functor List
+
+data HList = HNil | HCons Int HList
+
+hsum HNil = 0
+hsum (HCons x xs) = (+ x (hsum xs))
+
+inc x = (+ x 1)
+
+fmap_List f HNil = HNil
+fmap_List f (HCons x xs) = (HCons (f x) (fmap_List f xs))
+
+fmap T f xs = (@dispatch_instance "Functor" T "fmap" f xs)
+
+test "dispatch_list_empty": (hsum (fmap "List" inc HNil)) == 0
+test "dispatch_list_one": (hsum (fmap "List" inc (HCons 1 HNil))) == 2
+test "dispatch_list_multi": (hsum (fmap "List" inc (HCons 1 (HCons 2 (HCons 3 HNil))))) == 9
+test "resolve_still_works": (@resolve_instance "Functor" "List" "fmap") == "fmap_List"
