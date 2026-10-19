@@ -1,0 +1,38 @@
+-- tests/test_if_sexpr.hvn — régression bug if S-expr imbriqué
+-- (2026-10-19). Bug pré-existant : `if c then (if c2 a2 b2) else b`
+-- échouait silencieusement. Cause : parsePrimary sur `(` ne gérait
+-- pas `if` S-expr. Fix : parsePrimary gère (if c a b) et
+-- (if c then a else b).
+
+-- Forme 1 : keyword top-level
+f1 n = if (= n 0) then 1 else 2
+test "kw_t": (f1 0) == 1
+test "kw_f": (f1 5) == 2
+
+-- Forme 2 : S-expr top-level
+f2 n = (if (= n 0) 1 2)
+test "sx_t": (f2 0) == 1
+test "sx_f": (f2 5) == 2
+
+-- Forme 3 : S-expr dans then d'un keyword
+f3 n = if (= n 0) then (if (= n 1) 10 20) else 30
+test "sx_in_then_0": (f3 0) == 20
+test "sx_in_then_5": (f3 5) == 30
+
+-- Forme 4 : S-expr dans else d'un keyword
+f4 n = if (= n 0) then 10 else (if (= n 1) 20 30)
+test "sx_in_else_0": (f4 0) == 10
+test "sx_in_else_1": (f4 1) == 20
+test "sx_in_else_5": (f4 5) == 30
+
+-- Forme 5 : keyword dans parenthèses (mixte)
+f5 n = (if (= n 0) then 1 else 2)
+test "kw_in_parens_t": (f5 0) == 1
+test "kw_in_parens_f": (f5 5) == 2
+
+-- Forme 6 : triple imbrication
+f6 x y z = if (= x 0) then (if (= y 0) (if (= z 0) 100 200) 300) else 400
+test "triple_100": (f6 0 0 0) == 100
+test "triple_200": (f6 0 0 1) == 200
+test "triple_300": (f6 0 1 0) == 300
+test "triple_400": (f6 1 0 0) == 400

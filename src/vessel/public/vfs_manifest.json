@@ -64,6 +64,7 @@
   "tests/test_hashmap.hvn",
   "tests/test_hkt.hvn",
   "tests/test_http.hvn",
+  "tests/test_if_sexpr.hvn",
   "tests/test_io_stream.hvn",
   "tests/test_json_parse.hvn",
   "tests/test_laws.hvn",

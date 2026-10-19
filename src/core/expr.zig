@@ -2108,6 +2108,37 @@ const NativeParser = struct {
                 // token est un operateur (symbole .op ou mot-cle .ident
                 // d'operateur connu), on construit `(op arg1 arg2 ...)`.
                 const next = try self.lex.peek();
+                // HEAVEN:IF_SEXPR_FIX — `(if ...)` : deux formes.
+                // (a) S-expr pur : (if c a b)       -- pas de `then`.
+                // (b) keyword-in-parens : (if c then a else b).
+                // Detection : apres avoir parse cond, peek est `then` ?
+                // Appeler parsePrimary (pas parseExpr) sur chaque arg
+                // pour eviter que `c` colle `a b` ensemble.
+                if (next.kind == .ident and eq(next.text, "if")) {
+                    _ = try self.lex.next(); // consomme 'if'
+                    const if_cond = try self.parsePrimary();
+                    const after_cond = try self.lex.peek();
+                    var if_then: []const u8 = undefined;
+                    var if_else: []const u8 = undefined;
+                    if (after_cond.kind == .ident and eq(after_cond.text, "then")) {
+                        _ = try self.lex.next(); // consomme 'then'
+                        if_then = try self.parsePrimary();
+                        const else_tok = try self.lex.next();
+                        if (else_tok.kind != .ident or !eq(else_tok.text, "else"))
+                            return error.InvalidSyntax;
+                        if_else = try self.parsePrimary();
+                    } else {
+                        if_then = try self.parsePrimary();
+                        if_else = try self.parsePrimary();
+                    }
+                    const if_close = try self.lex.next();
+                    if (if_close.kind != .rparen) return error.InvalidSyntax;
+                    return std.fmt.allocPrint(
+                        self.allocator,
+                        "(if {s} {s} {s})",
+                        .{ if_cond, if_then, if_else },
+                    );
+                }
                 const is_prefix_op = (next.kind == .op) or
                     (next.kind == .ident and
                      (eq(next.text, "eq") or eq(next.text, "neq") or
