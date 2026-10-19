@@ -83,3 +83,27 @@ sur objects avec cles. JSON object reste partiel (parse {} vide
 mais pas de lookup sur cle non-vide).
 
 H3 (jv_get) : RESOLU, `jv_get` ajoute, 2/2.
+
+## RESOLU 2026-10-19 (apres discriminants test_disc*.hvn)
+
+**H1 REFUTE**, **H2 REFUTE**. Le bug `json_obj_get "{"a":42}" "a" -> 0`
+venait **exclusivement** de la construction de string dans les
+tests : `\"` n'est PAS un escape valide en Heaven, il reste
+litteral (2 octets : backslash + quote). Le parser JSON voyait
+`\` en position 1, invalide, -> JErr -> JNull -> 0.
+
+**Discriminants** :
+- test_disc2 : pattern inline sans import, 2/2 OK.
+- test_disc3a : construction manuelle + import qualifie, 3/3 OK.
+- test_disc3b : copie inline avec recursion mutuelle, 2/2 OK.
+- test_disc5 : `L_esc` != 8 (`\"` litteral), mais `poked_hit` /
+  `poked_miss` OK via `poke_byte`. **Parser OK, lookup OK.**
+
+**Workaround de construction** : `poke_byte` + `string_of_bytes`
+(pas `\"`, cf. prompt continuite). Tests ajoutes dans
+`tests/test_json_v1.hvn` (`real_one_key_hit`, `real_two_keys`,
+`real_str_val`) via helper `mk_obj`.
+
+**Aucune modification code requise** dans `stdlib/json/parse.hvn`.
+H3 (`jv_get`) etait deja resolu (2/2). Bug ferme.
+
