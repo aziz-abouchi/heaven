@@ -57,7 +57,7 @@ tok_count_big ts = (tok_count_go ts 0)
 -- symboles ici — l'EVALUATEUR (phase C) donnera leur sens.
 
 
-data Expr = ELitI Int | ELitS Str | ESym Str | EApply Expr Expr | EBind Str Expr | ELambda Str Expr | EImport Str Str | ETest Str Expr Expr | EData Str
+data Expr = ELitI Int | ELitS Str | ESym Str | EApply Expr Expr | EBind Str Expr | ELambda Str Expr | EImport Str Str | ETest Str Expr Expr | EData Str Exprs
 data PRes = POk Expr Toks | PErr Str
 data Exprs = ENil | ECons Expr Exprs
 data Strs = SNil | SCons Str Strs
@@ -114,11 +114,11 @@ import_alias2 path t rest = (PErr "alias attendu")
 data_scan ts = (data_scan2 (tok_head ts) (tok_tail ts))
 data_scan2 (TSymTok name) rest = (data_scan_eq name (tok_head rest) (tok_tail rest))
 data_scan2 t rest = (PErr "nom de data attendu")
-data_scan_eq name t rest = (if (tok_eq t (TSymTok "=")) (data_ctors name rest) (PErr "= attendu apres data"))
-data_ctors name TNil = (POk (EData name) TNil)
-data_ctors name ts = (if (tok_eq (tok_head ts) (TSymTok "|")) (data_ctors name (tok_tail ts)) (data_ctors2 name (tok_head ts) (tok_tail ts)))
-data_ctors2 name (TSymTok s) rest = (if (lex_is_upper s) (data_ctors name rest) (POk (EData name) (TCons (TSymTok s) rest)))
-data_ctors2 name t rest = (POk (EData name) (TCons t rest))
+data_scan_eq name t rest = (if (tok_eq t (TSymTok "=")) (data_ctors name ENil rest) (PErr "= attendu apres data"))
+data_ctors name acc TNil = (POk (EData name acc) TNil)
+data_ctors name acc ts = (if (tok_eq (tok_head ts) (TSymTok "|")) (data_ctors name acc (tok_tail ts)) (data_ctors2 name acc (tok_head ts) (tok_tail ts)))
+data_ctors2 name acc (TSymTok s) rest = (if (lex_is_upper s) (data_ctors name (ECons (ESym s) acc) rest) (POk (EData name acc) (TCons (TSymTok s) rest)))
+data_ctors2 name acc t rest = (POk (EData name acc) (TCons t rest))
 
 tok_head TNil = TNil
 tok_head (TCons t _) = t
@@ -186,7 +186,7 @@ expr_eq (EApply f1 a1) (EApply f2 a2) = (if (expr_eq f1 f2) (expr_eq a1 a2) fals
 expr_eq (EBind n1 b1) (EBind n2 b2) = (if (= n1 n2) (expr_eq b1 b2) false)
 expr_eq (ELambda p1 b1) (ELambda p2 b2) = (if (= p1 p2) (expr_eq b1 b2) false)
 expr_eq (EImport p1 a1) (EImport p2 a2) = (if (= p1 p2) (= a1 a2) false)
-expr_eq (EData a) (EData b) = (= a b)
+expr_eq (EData a _) (EData b _) = (= a b)
 expr_eq (ETest n1 b1 v1) (ETest n2 b2 v2) = (if (= n1 n2) (if (expr_eq b1 b2) (expr_eq v1 v2) false) false)
 expr_eq _ _ = false
 

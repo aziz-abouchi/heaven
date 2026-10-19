@@ -1,0 +1,9 @@
+-- tests/test_meta_data.hvn — data + constructeurs dans l'interpreteur
+-- Metacircularite session 2 (2026-10-19).
+
+import "lib/heaven_eval.hvn" as E
+
+test "ctor_red": (E.vstr_of (E.run_expr "data Color = Red | Green" "Red")) == "Red"
+test "ctor_green": (E.vstr_of (E.run_expr "data Color = Red | Green" "Green")) == "Green"
+test "ctor_unbound": (E.vstr_of (E.run_expr "data Color = Red | Green" "Blue")) == ""
+test "data_sans_ctor": (E.vstr_of (E.run_expr "data Empty" "Empty")) == ""

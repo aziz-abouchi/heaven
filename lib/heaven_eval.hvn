@@ -6,7 +6,7 @@
 
 import "lib/heaven_parse.hvn" as HP
 
-data Value = VInt Int | VStr Str | VClosure Str Expr Env | VRecClosure Str Str Expr Env | VPrim Str | VPrim1 Str Int | VIf1 Expr | VIf2 Expr Expr | VErr Str
+data Value = VInt Int | VStr Str | VCon Str | VClosure Str Expr Env | VRecClosure Str Str Expr Env | VPrim Str | VPrim1 Str Int | VIf1 Expr | VIf2 Expr Expr | VErr Str
 data Env = EnvNil | EnvCons Str Value Env
 
 eval (HP.ELitI n) env = (VInt n)
@@ -49,7 +49,11 @@ eval_bind n b env = (eval b env)
 eval_file HP.ENil env = env
 eval_file (HP.ECons e rest) env = (eval_file rest (eval_top e env))
 eval_top (HP.EBind n b) env = (EnvCons n (eval_bind n b env) env)
+eval_top (HP.EData _ ctors) env = (eval_top_data ctors env)
 eval_top e env = (eval e env)
+eval_top_data HP.ENil env = env
+eval_top_data (HP.ECons (HP.ESym s) rest) env = (eval_top_data rest (EnvCons s (VCon s) env))
+eval_top_data (HP.ECons _ rest) env = (eval_top_data rest env)
 
 run src = (eval_file (HP.parse_file (HP.lex src)) EnvNil)
 run_expr src expr = (eval (HP.pok_expr (HP.parse_one (HP.lex expr))) (run src))
@@ -57,4 +61,5 @@ run_expr src expr = (eval (HP.pok_expr (HP.parse_one (HP.lex expr))) (run src))
 vint_of (VInt n) = n
 vint_of v = (- 0 1)
 vstr_of (VStr s) = s
+vstr_of (VCon s) = s
 vstr_of v = ""

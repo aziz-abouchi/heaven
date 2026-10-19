@@ -82,6 +82,39 @@ selfrecursion. La metacircularite complete quand on aura 4 sessions
 devant nous.
 
 
+## Manque #1 PARTIELLEMENT RESOLU (2026-10-19, session 2)
+
+`data Color = Red | Green` est parse et evalue : les constructeurs
+0-arg sont enregistres dans l'Env comme `VCon Str`, accessibles par
+symbole.
+
+**Changements** :
+- heaven_parse.hvn : `EData Str` -> `EData Str Exprs` (liste des
+  constructeurs). data_ctors accumule via ECons.
+- heaven_eval.hvn : `VCon Str` dans Value. `eval_top (HP.EData _ ctors)`
+  -> `eval_top_data` enregistre chaque constructeur.
+- Tests : tests/test_meta_data.hvn (4 cas). Tous verts.
+
+**Reste pour data complet** : patterns constructeurs (manque #2).
+
+## Manque #6 NOUVEAU (2026-10-19) — sous-if parenthésé
+
+`if ... then ... else` est reconnu en **tete de corps de def**, mais
+PAS dans les sous-expressions parenthésées :
+  `f x = if c1 then (if c2 then a else b) else d`
+Le `(if c2 then a else b)` est parse comme S-expr, `then`/`else` non
+reconnus -> PErr ou arity mismatch.
+
+Test `if_nested` retire de test_meta_if.hvn en consequence.
+
+**Cause** : parse_if n'est declenche que par def_body, pas par
+parse_one / parse_tok TLParen. Pour supporter les sous-if, il faut
+une reecriture de `if` en position d'argument : soit en pre-processant
+le token stream, soit en etendant parse_head pour detecter
+`(if ... then ... else ...)`.
+
+Effort : 30-60 min. Non bloquant pour les cas courants.
+
 ## Manque #5 RESOLU (2026-10-19)
 
 `if then else` en syntaxe de surface fonctionne dans l'interpreteur
