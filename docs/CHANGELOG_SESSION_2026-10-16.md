@@ -81,3 +81,50 @@ Coût : ~3h. Formalisation : `_ci_checklist.md`.
 
 Piège découvert : **retirer une définition Heaven (même morte) peut
 casser via l'attribution d'Ids**. Ménage limité en conséquence.
+
+
+## Bilan 2026-10-19 (lundi) — 10 commits
+
+| Commit | Contenu |
+|---|---|
+| `011d934` | **Fix selfrecursion** (16 l., `parsePostfix`) — 2 sessions de debug, 4 diagnostics errones, resolu |
+| `58011cd` | Doc chantier metacircularite |
+| `00eec55` | DNS V1 parser (8 tests) |
+| `ad451dc` | `dns_ip_to_string` |
+| `210605b` | N2 resolve + parse branche |
+| `55a3dbf` | Checklist CI affinee (build seulement si .zig) |
+| `bcecc94` | `if/then/else` interpréteur Heaven-pur |
+| `9e9cd08` | `data` + constructeurs 0-arg interpréteur |
+| `147c246` | Pause metacircularite (3-4 sessions tracees) |
+| `d63b3fd` + `9db0214` | JSON V0 parseur (11 tests) |
+
+### Acquis structurels
+
+- **Bug selfrecursion RESOLU** : le bug de 2 sessions n'etait
+  PAS dans le moteur, mais dans `NativeParser.parsePostfix` qui
+  traitait `(- n 1)` comme liste d'args au lieu de forme prefixe.
+- **N2 (DNS)** operationnel : parser V1 + resolve/parse branches.
+- **Metacircularite** : 2 briques validees (`if then else` en
+  tete de corps, `data` + constructeurs 0-arg).
+- **JSON V0** : parseur num/bool/null/ws fonctionnel (11 tests).
+
+### Dettes tracees
+
+| Dette | Effort |
+|---|---|
+| `if S-expr` imbrique dans branche | 1 session (bloque JSON V1 strings/arrays/objects) |
+| Escape `\xNN` / `\"` | workaround poke_byte |
+| Metacircularite complete | 3-4 sessions |
+| Fossile #4 (import + patterns qualifies) | non reproduit isolement |
+
+### Lecons
+
+- **Toujours tester les 4 formes syntaxiques** avant de debugger
+  le moteur : `(if c a b)`, `if c then a else b`, mixte, imbrique.
+- **Un bug apparemment "moteur profond"** peut etre un fix parser
+  de 16 lignes. Ne pas partir sur un refactor avant d'avoir le
+  discriminant minimal.
+- **L'attribution d'Ids** dans le Store est fragile : retirer une
+  definition morte peut casser des tests distants (observe en
+  session precedente). Ne pas faire de "menage" cosmetique sans
+  verif complete.
