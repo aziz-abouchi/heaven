@@ -2,7 +2,7 @@
 # A-3b : stratégie de reprise au milieu d'un `.apply`
 
 **Date** : 2026-10-16
-**Statut** : décision à valider (R2 pressenti)
+**Statut** : R2 implémenté 2026-10-19. `Frame.args_done_len`, `markArgDone` (11 sites), `Env` ref-compté. R1 trampoline reste à faire (`_capture_eval.md`).
 
 ## Constat
 

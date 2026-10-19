@@ -2,7 +2,7 @@
 
 **Date** : 2026-10-16
 **Effort** : 2-3 sessions.
-**Statut** : planifie, pas demarre.
+**Statut** : SUPERSEDED 2026-10-19. A-3b-1/2a/2b/2c/2d/2e commités. Voir `_a3b_resume_strategy.md` (R2 implémenté) et `_metacircularite_chantier.md` (suite).
 
 ## Constat
 

@@ -1,7 +1,7 @@
 # Concurrence Heaven — conception
 
 **Date** : 2026-09-29
-**Statut** : analyse + questions ouvertes. Aucune implémentation.
+**Statut** : SUPERSEDED 2026-10-19. MPST V0 (`stdlib/mpst.hvn`) + V1-runtime (`mpst_trace`) fonctionnels. Multipartite (V2) reste à faire (`_mpst_plan.md`).
 **But** : figer la cible, poser les décisions, définir les prototypes.
 
 ## Constat
