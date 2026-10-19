@@ -453,15 +453,13 @@ pub fn main() !void {
     var v_thread: ?platform.Thread = null;
     v_thread = try platform.Thread.spawn(.{}, struct {
         fn wrapper(
-            m: *matrix_lib.Matrix,
-            f: *autofab_lib.AutoFab,
             hv: *heaven_expr.Heaven,
             p: u16,
             ex: *const std.atomic.Value(bool),
         ) void {
-            vessel_lib.startVesselServer(m, f, hv, p, ex);
+            vessel_lib.startVesselServer(hv, p, ex);
         }
-    }.wrapper, .{ &matrix, &fab, vessel_heaven, port, &exiting });
+    }.wrapper, .{ vessel_heaven, port, &exiting });
     // v_thread n'est pas jointe car elle peut être détachée
     // Si besoin de la joindre, décommenter : v_thread.join();
 

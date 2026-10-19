@@ -1,7 +1,5 @@
 const std = @import("std");
 const atomic = std.atomic;
-const matrix_lib = @import("matrix_lib");
-const autofab = @import("../runtime/autofab.zig");
 const platform = @import("platform");
 const expr = @import("expr");
 const heaven_expr = @import("heaven_expr");
@@ -25,8 +23,6 @@ const test_html = @embedFile("public/test.html");
 const test_suite_hvn = @embedFile("public/test_suite.hvn");
 
 pub const WebBridge = struct {
-    matrix: *matrix_lib.Matrix,
-    fab: *autofab.AutoFab,
     heaven: *heaven_expr.Heaven,
     port: u16,
     // Un booléen atomique : false = libre, true = occupé
@@ -316,8 +312,6 @@ fn handleClient(args: HandlerArgs) void {
 }
 
 pub fn startVesselServer(
-    matrix: *matrix_lib.Matrix,
-    fab: *autofab.AutoFab,
     heaven: *heaven_expr.Heaven,
     dash_port: u16,
     exiting: *const std.atomic.Value(bool),
@@ -330,7 +324,7 @@ pub fn startVesselServer(
 
     platform.debug.print("Vessel HTTP: http://localhost:{d}/\n", .{dash_port});
 
-    var bridge = WebBridge{ .matrix = matrix, .fab = fab, .heaven = heaven, .port = dash_port };
+    var bridge = WebBridge{ .heaven = heaven, .port = dash_port };
     while (true) {
         // Vérifier la sortie avant chaque accept
         if (exiting.load(.acquire)) break;
@@ -347,7 +341,7 @@ pub fn startVesselServer(
             break;
         }
 
-        const t = platform.Thread.spawn(.{}, handleClient, .{HandlerArgs{ .conn = conn, .bridge = &bridge, .allocator = matrix.allocator }}) catch {
+        const t = platform.Thread.spawn(.{}, handleClient, .{HandlerArgs{ .conn = conn, .bridge = &bridge, .allocator = heaven.allocator }}) catch {
             conn.stream.close();
             continue;
         };
