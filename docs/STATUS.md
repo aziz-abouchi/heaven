@@ -16,6 +16,7 @@ Légende :
 ## Progrès récents
 
 - **2026-10-19 (fin de session)** : HKT V1b pas 1+2 livres (`@resolve_instance`, `@dispatch_instance`, 8 tests). E5 partiel (`bridge.zig` sans matrix/autofab). B3 : let-chain top-level FIXE (`normalizeLetChain`), helper KO, 3e bug decouvert (pattern `_` + `heaven run`). Tuto `no_let_chain.md`. Baseline inchangee : Debug=0, `zig build test`=0, ReleaseFast `--run-tests`=0 fail, wasm=0/0.
+- **2026-10-19 (fin de session)** : HKT V1b pas 1+2 livres (`@resolve_instance`, `@dispatch_instance`, 8 tests). E5 partiel (`bridge.zig` sans matrix/autofab). B3 : let-chain top-level FIXE (`normalizeLetChain`), helper KO, 3e bug decouvert (pattern `_` + `heaven run`). Tuto `no_let_chain.md`. Baseline inchangee : Debug=0, `zig build test`=0, ReleaseFast `--run-tests`=0 fail, wasm=0/0.
 - **2026-10-19** : HTTP fullstack E1-E3 livre. `telemetry_store.zig` (JSON telemetry depuis `expr.Store`), `serveTelemetry` delegue a `render`, `didSave` evalue via `Heaven.eval` (plus de stub `syncMatrixWithFile`). `WebBridge.heaven: *Heaven`, accesseur `Heaven.getStore()`. Commits `00e1475`, `584e5e2`. JSON objects H1/H2 clos (`f2ee36c`) : le bug venait de l'echappement `backslash-quote` litteral dans les tests, pas du parser. 3 crashes runner identifies Debug-only (`0e606ef`). Baseline 2026-10-19 : Debug build=0, `zig build test`=0, ReleaseFast `--run-tests`=0 fail, wasm32-freestanding=0, wasm32-wasi=0.
 - **2026-10-13** : Fix parser `unit`/`Unit` : retires des ctors 0-arity enregistres. Debloque `core/http.hvn`, `core/http_server.hvn`, `serve.hvn` — la stack web Heaven-native est operationnelle (`curl localhost:8080` sert `src/vessel/public/`).
 - **2026-10-12** : D8 3a-3 livre pour la partie one-shot. `handle_rec`, `yield`, `schedule` passent par un mecanisme unique (`pending_capture` + `SuspendRequested`). Magics `@prompt`/`@throw` exposes. 53 tests verts (effects_rec, prompt_depth, scheduler, nested, continuations).
@@ -380,6 +381,32 @@ Résultats de référence (`docs/spec/_bench.md`) :
 ### Baseline 2026-10-19
 
 - `zig build` = 0, `zig build test` = 0, ReleaseFast `--run-tests` = 0 fail, `wasm32-freestanding` = 0, `wasm32-wasi` = 0.
+
+
+## 2026-10-19 (fin) : HKT V1b, E5, B3 cutoff
+
+### HKT V1b (matching structurel, option A)
+
+- `@resolve_instance C T op` -> `op_T` ou "" (`62155ce`).
+- `@dispatch_instance C T op args...` -> `op_T(args...)` (`1ba6aa4`). Type T passe en argument string.
+- Tests : `test_hkt_v1b_step1.hvn` (4), `test_hkt_v1b_step2.hvn` (4).
+- D-HKT1 tranchee : pas d'inference, matching explicite.
+
+### E5 (partiel)
+
+- `bridge.zig` : plus de `self.matrix`/`self.fab` ni imports. `startVesselServer(heaven, port, exiting)` (`0ece80f`).
+- `main.zig` porte encore `Matrix.init`/`bob_loop`/`syncMatrixWithFile`. E5-bis = extraction `bob_loop` en `src/runtime/`.
+
+### B3 (let-chain) cutoff
+
+- FIXE : `normalizeLetChain` top-level `heaven.eval` (`66f0b32`). `heaven run` avec let-chain OK.
+- KO : helper `f _ = (let ... in let ... in body)` via `parseBodySmart`/`convertLetIn`. Rollback.
+- NOUVEAU : `helper _ = 42` + `(helper 0)` en `heaven run` -> `ArityMismatch`. Probablement `splitStatements`/`runEvalFile`. **Bloque E4b**.
+- Tuto `docs/tutorials/no_let_chain.md` (workaround `fn`/`seq`).
+
+### Baseline
+
+- Debug=0, `zig build test`=0, ReleaseFast `--run-tests`=0 fail, wasm32-freestanding=0, wasm32-wasi=0.
 
 
 ## 2026-10-19 (fin) : HKT V1b, E5, B3 cutoff
