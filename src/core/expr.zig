@@ -2003,6 +2003,49 @@ const NativeParser = struct {
                     _ = try self.lex.next();
                     continue;
                 }
+                // HEAVEN:POSTFIX_PREFIX_PAREN — si le premier token
+                // interieur est un prefix-op (`.op` ou ident-op connu),
+                // ce `(` ouvre une forme prefixe `(- n 1)` (pas une
+                // liste d'arguments). On delegue a parsePrimary-like
+                // logique pour produire un seul argument.
+                const is_prefix_inner = (first.kind == .op) or
+                    (first.kind == .ident and
+                     (eq(first.text, "eq") or eq(first.text, "neq") or
+                      eq(first.text, "lt") or eq(first.text, "gt") or
+                      eq(first.text, "le") or eq(first.text, "ge") or
+                      eq(first.text, "add") or eq(first.text, "sub") or
+                      eq(first.text, "mul") or eq(first.text, "div") or
+                      eq(first.text, "mod") or eq(first.text, "and") or
+                      eq(first.text, "or")  or eq(first.text, "not")));
+                if (is_prefix_inner) {
+                    _ = try self.lex.next(); // consomme l'operateur
+                    const op_text = first.text;
+                    var inner_args = std.ArrayListUnmanaged([]const u8){};
+                    defer {
+                        for (inner_args.items) |a| self.allocator.free(a);
+                        inner_args.deinit(self.allocator);
+                    }
+                    while (true) {
+                        const t2 = try self.lex.peek();
+                        if (t2.kind == .rparen or t2.kind == .eof) break;
+                        const a = try self.parsePrimary();
+                        try inner_args.append(self.allocator, a);
+                    }
+                    const close = try self.lex.next();
+                    if (close.kind != .rparen) return error.InvalidSyntax;
+                    var ibuf: std.ArrayListUnmanaged(u8) = .{};
+                    defer ibuf.deinit(self.allocator);
+                    try ibuf.append(self.allocator, '(');
+                    try ibuf.appendSlice(self.allocator, op_text);
+                    for (inner_args.items) |a| {
+                        try ibuf.append(self.allocator, ' ');
+                        try ibuf.appendSlice(self.allocator, a);
+                    }
+                    try ibuf.append(self.allocator, ')');
+                    const single = try ibuf.toOwnedSlice(self.allocator);
+                    try args.append(self.allocator, single);
+                    continue;
+                }
                 while (true) {
                     const arg = try self.parseExpr(0);
                     try args.append(self.allocator, arg);

@@ -80,6 +80,7 @@
   "tests/test_recursion.hvn",
   "tests/test_scheduler.hvn",
   "tests/test_selfparse.hvn",
+  "tests/test_selfrecursion.hvn",
   "tests/test_stream.hvn",
   "tests/test_stream_lazy.hvn",
   "tests/test_string.hvn",

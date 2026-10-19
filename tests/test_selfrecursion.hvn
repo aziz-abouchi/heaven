@@ -1,0 +1,25 @@
+-- tests/test_selfrecursion.hvn — régression bug selfrecursion (2026-10-19)
+-- Bug historique : auto-récursion dans if-then-else infixe avec arg
+-- calculé direct retournait une valeur fausse. Cause : parsePostfix
+-- traitait (- n 1) comme liste d'args de c4 au lieu de forme préfixe.
+-- Voir docs/spec/_selfrecursion_bug.md.
+
+count n = if (= n 0) then 0 else (count (- n 1))
+t_tail n = (if (= n 0) 0 (t_tail (- n 1)))
+t_nontail n = if (= n 0) then 0 else (* 1 (t_nontail (- n 1)))
+fac n = if (= n 0) then 1 else (* n (fac (- n 1)))
+fib n = if (< n 2) then n else (+ (fib (- n 1)) (fib (- n 2)))
+sub1 n = (- n 1)
+t_helper n = if (= n 0) then 0 else (t_helper (sub1 n))
+f_arg x = (+ x 1)
+
+test "count 1": (count 1) == 0
+test "count 10": (count 10) == 0
+test "count 100": (count 100) == 0
+test "t_tail_parens": (t_tail 1) == 0
+test "t_nontail": (t_nontail 2) == 0
+test "fac 5": (fac 5) == 120
+test "fac 10": (fac 10) == 3628800
+test "fib 10": (fib 10) == 55
+test "helper": (t_helper 5) == 0
+test "arg_paren": (f_arg 3) == 4
