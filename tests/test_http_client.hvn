@@ -1,0 +1,12 @@
+-- tests/test_http_client.hvn — HTTP client V0 (2026-10-19)
+-- http_parse_status / http_parse_body / http_build_get testables.
+-- http_get requiert reseau (non teste, sandbox bloque).
+import "stdlib/net/http_client.hvn" as HC
+
+test "parse_200": (HC.http_parse_status "HTTP/1.1 200 OK") == 200
+test "parse_404": (HC.http_parse_status "HTTP/1.1 404 Not Found") == 404
+test "parse_500": (HC.http_parse_status "HTTP/1.1 500 Internal") == 500
+test "body_hello": (HC.http_parse_body "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello") == "hello"
+test "body_empty": (HC.http_parse_body "HTTP/1.1 200 OK\r\n\r\n") == ""
+test "body_two_lines": (HC.http_parse_body "A: 1\r\nB: 2\r\n\r\nX") == "X"
+test "build_get": (HC.http_build_get "example.com" "/") == "GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n"
