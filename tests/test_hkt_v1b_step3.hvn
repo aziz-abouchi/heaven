@@ -1,0 +1,20 @@
+-- tests/test_hkt_v1b_step3.hvn -- V1b pas 3 : sym sans quotes
+
+class Functor f
+instance Functor List
+
+data HList = HNil | HCons Int HList
+
+hsum HNil = 0
+hsum (HCons x xs) = (+ x (hsum xs))
+
+inc x = (+ x 1)
+
+fmap_List f HNil = HNil
+fmap_List f (HCons x xs) = (HCons (f x) (fmap_List f xs))
+
+fmap T f xs = (@dispatch_instance "Functor" T "fmap" f xs)
+
+test "sym_list_hit": (hsum (fmap List inc (HCons 1 HNil))) == 2
+test "str_list_still": (hsum (fmap "List" inc (HCons 1 HNil))) == 2
+test "sym_resolve": (@resolve_instance Functor List fmap) == "fmap_List"

@@ -1061,11 +1061,14 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         while (i < 3) : (i += 1) {
             const v = try evaluate(store, env, engine, args_snap[i], depth + 1);
             const n = store.get(v);
-            if (n.tag != .lit) return error.TypeError;
-            switch (store.lits.items[n.aux]) {
-                .str => |sym| strs[i] = store.interner.resolve(sym),
-                else => return error.TypeError,
-            }
+            if (n.tag == .sym) {
+                strs[i] = store.interner.resolve(n.payload);
+            } else if (n.tag == .lit) {
+                switch (store.lits.items[n.aux]) {
+                    .str => |sym| strs[i] = store.interner.resolve(sym),
+                    else => return error.TypeError,
+                }
+            } else return error.TypeError;
         }
         const key = try std.fmt.allocPrint(engine.allocator, "{s}|{s}", .{ strs[0], strs[1] });
         defer engine.allocator.free(key);
@@ -1085,11 +1088,14 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         while (i < 3) : (i += 1) {
             const v = try evaluate(store, env, engine, args_snap[i], depth + 1);
             const n = store.get(v);
-            if (n.tag != .lit) return error.TypeError;
-            switch (store.lits.items[n.aux]) {
-                .str => |sym| names[i] = store.interner.resolve(sym),
-                else => return error.TypeError,
-            }
+            if (n.tag == .sym) {
+                names[i] = store.interner.resolve(n.payload);
+            } else if (n.tag == .lit) {
+                switch (store.lits.items[n.aux]) {
+                    .str => |sym| names[i] = store.interner.resolve(sym),
+                    else => return error.TypeError,
+                }
+            } else return error.TypeError;
         }
         const key = try std.fmt.allocPrint(engine.allocator, "{s}|{s}", .{ names[0], names[1] });
         defer engine.allocator.free(key);
