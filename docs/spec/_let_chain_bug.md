@@ -146,3 +146,21 @@ isoler ce qui fait marcher `mk_obj`. Pas de fix à l'aveugle.
 **Impact** : E4b (serveur HTTP en .hvn) est bloqué. `core/http_server.hvn`
 ne peut pas être écrit en top-level ni en `test "main":`.
 
+## B3 #3 = FAUX POSITIF (2026-10-19, résolu)
+
+`helper _ = 42` échouait parce que `heaven.eval` traite toute ligne
+commençant par `help` (minuscule, sans espace) comme une commande
+REPL (`is_command`). Idem `stats*`, `theorems*`, `rules*`.
+
+**Fix** : `is_command` exige maintenant un match exact (`help`) ou
+un préfixe avec espace (`help `). Commit à venir.
+
+**Impact B3** :
+- B3 #3 : n'existe pas, retiré.
+- B3 #2 (let-chain helper) : à re-tester avec un nom neutre, peut
+  aussi être un faux positif.
+- E4b : probablement non bloqué.
+
+**Leçon** : nommer un helper de test `helper` dans un langage qui a
+un mot-clé `help` = piège. Utiliser `mk_*` ou `foo`/`bar`.
+

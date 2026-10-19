@@ -872,10 +872,14 @@ pub const Heaven = struct {
         // ─── Commandes REPL à ne PAS évaluer comme des expressions ───
         const is_command = std.mem.startsWith(u8, trimmed, "type ") or
             std.mem.startsWith(u8, trimmed, "green ") or
-            std.mem.startsWith(u8, trimmed, "help") or
-            std.mem.startsWith(u8, trimmed, "stats") or
-            std.mem.startsWith(u8, trimmed, "theorems") or
-            std.mem.startsWith(u8, trimmed, "rules");
+            std.mem.eql(u8, trimmed, "help") or
+            std.mem.startsWith(u8, trimmed, "help ") or
+            std.mem.eql(u8, trimmed, "stats") or
+            std.mem.startsWith(u8, trimmed, "stats ") or
+            std.mem.eql(u8, trimmed, "theorems") or
+            std.mem.startsWith(u8, trimmed, "theorems ") or
+            std.mem.eql(u8, trimmed, "rules") or
+            std.mem.startsWith(u8, trimmed, "rules ");
 
         if (is_command) {
             // Le shell va traiter ces commandes ; on ne les évalue pas ici.

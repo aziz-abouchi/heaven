@@ -123,6 +123,21 @@ le chemin (`(quote "/tmp/foo.txt")`).
 Un `let` dont la valeur est une chaine est renvoye tel quel (bug
 parser). Workaround : lier la chaine a un symbole.
 
+### Préfixes réservés (BUG corrigé 2026-10-19)
+
+Toute ligne commençant par `help`, `stats`, `theorems`, `rules`
+(minuscule, sans espace) était traitée comme **commande REPL** et
+non évaluée. Donc `helper _ = 42` silencieusement skippé.
+
+**Corrigé** : match exact (`help`) ou préfixe avec espace
+(`help ...`). Les fonctions `helper`, `statistics`, `rules_engine`
+marchent maintenant.
+
+**Noms encore réservés** (à éviter en début de ligne) : `type `,
+`green ` (avec espace), `let ` (début de def), `import `,
+`class `, `instance `, `sig `, `module `, `strict `, `theorem `,
+`prove `, `skill `, `export `, `meta `.
+
 ### `let` chainé (B3, partiellement fixé 2026-10-19)
 
 `let a = 1 in let b = 2 in body` **ne marchait pas** avant le
