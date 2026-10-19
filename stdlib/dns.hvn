@@ -1,6 +1,9 @@
 -- stdlib/dns.hvn -- DNS resolver en Heaven pur (self-hosting N2)
 -- V0 : construit et envoie une query "a.com" via UDP vers 8.8.8.8:53.
--- Le parse de la reponse viendra en V1 (bitstrings P3).
+-- V1 (N2, 2026-10-19) : parse la reponse via stdlib/dns_v1.hvn
+-- (debloque par le fix selfrecursion 011d934).
+
+import "stdlib/dns_v1.hvn" as dns_v1
 
 -- ─── Header DNS : 12 bytes ───
 dns_build_header id flags qd =
@@ -58,3 +61,10 @@ dns_resolve_a_com _ =
   let sent = (@net_sendto cap_send fd "8.8.8.8" 53 q) in
   let resp = (@net_recvfrom cap_recv fd) in
   resp
+
+-- ─── N2 : resolve + parse en une fonction ───
+-- Combine dns_resolve_a_com (V0, envoi/recv) et dns_v1 (parsing).
+-- Retourne l'IP de la 1ere answer A, en string "93.184.216.34".
+-- Note : requiert reseau. Test manuel uniquement (sandbox bloque).
+dns_resolve_a_com_parsed _ =
+  (dns_v1.dns_ip_to_string (dns_v1.dns_first_a_ip (dns_resolve_a_com 0)))
