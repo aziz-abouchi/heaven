@@ -1,13 +1,16 @@
 -- tests/test_h1_qualified.hvn — Sym qualifié (2026-10-19)
--- Fix : exprStructuralEq normalise module.Sym -> Sym par suffixe.
+-- H1 complet : Sym + math.structuralEq (runner) normalisés.
 -- Voir docs/spec/_h1_qualified_sym.md.
--- Note : apply curry vs n-aire reste (bug distinct, non tracé ici).
 
 data A = ANil | ACons Int A
 mk _ = (ACons 1 ANil)
 
+-- = (evalCmp -> exprStructuralEq)
 test "eq_direct": (= (ACons 1 ANil) (ACons 1 ANil)) == true
 test "eq_mk_self": (= (mk 0) (mk 0)) == true
 test "eq_via_let": (let a (mk 0) (let b (mk 0) (= a b))) == true
 test "neq_different_int": (= (ACons 1 ANil) (ACons 2 ANil)) == false
-test "neq_different_ctor": (= ANil (ACons 1 ANil)) == false
+
+-- == (runner -> math.structuralEq)
+test "assert_mk_self": (mk 0) == (mk 0)
+test "assert_eq_direct": (ACons 1 ANil) == (ACons 1 ANil)

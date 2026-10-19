@@ -713,7 +713,18 @@ pub const Math = struct {
                 const lb = self.store.lits.items[nb.aux];
                 return la.eql(lb);
             },
-            .sym => return na.payload == nb.payload,
+            .sym => {
+                if (na.payload == nb.payload) return true;
+                const sa = self.store.interner.resolve(na.payload);
+                const sb = self.store.interner.resolve(nb.payload);
+                const da = std.mem.lastIndexOfScalar(u8, sa, '.');
+                const db = std.mem.lastIndexOfScalar(u8, sb, '.');
+                if (da != null and db != null) return false;
+                if (da == null and db == null) return false;
+                const la = if (da) |d| sa[d + 1 ..] else sa;
+                const lb = if (db) |d| sb[d + 1 ..] else sb;
+                return std.mem.eql(u8, la, lb);
+            },
             .apply => {
                 //  Le span_a contient [func, args...] — tout est comparé récursivement
                 const sa = self.store.spanSliceConst(na.span_a);
