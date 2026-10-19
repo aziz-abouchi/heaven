@@ -120,3 +120,29 @@ en 1 ligne top-level marche (test E4-triage plus tot : fd=4 sur
 `@net_listen`, mais `@net_accept` n'a jamais ete atteint). A
 re-tester avec le fix let-chain top-level (`66f0b32`).
 
+## B3 #3 NON CONVERGENT (cutoff, 2026-10-19)
+
+Trois tentatives de diagnostic, 0 convergence. Discriminants :
+
+| Code | Resultat |
+|---|---|
+| `helper _ = 42` + `(helper 0)` | `ArityMismatch` |
+| `helper x = 42` + `(helper 0)` | `ArityMismatch` |
+| `helper _ = (let x 42 x)` + `(helper 0)` | `ArityMismatch` |
+| `helper _ = (+ 1 2)` + `(helper 0)` | `ArityMismatch` |
+| `import "stdlib/string.hvn"` puis idem | `ArityMismatch` |
+| `--run-test` avec `test "call": (helper 0)` | `ArityMismatch` |
+| **`mk_obj _ = (let b (raw_alloc 16) ...)` + `(mk_obj 0)` dans `test_json_v1.hvn`** | **PASS (12/12)** |
+
+**Contradiction irrésolue** : `mk_obj` marche avec un corps `let` + appels,
+`helper _ = (let x 42 x)` échoue. Même pattern `_`, même `let`, même
+appel en `test`. Différence possible : `test_json_v1.hvn` contient
+`import ... as JP` + `data ...` + plusieurs defs, qui active un chemin
+différent dans `evalEquation`.
+
+**Prochaine session = bisect.** Réduire `test_json_v1.hvn` jusqu'à
+isoler ce qui fait marcher `mk_obj`. Pas de fix à l'aveugle.
+
+**Impact** : E4b (serveur HTTP en .hvn) est bloqué. `core/http_server.hvn`
+ne peut pas être écrit en top-level ni en `test "main":`.
+
