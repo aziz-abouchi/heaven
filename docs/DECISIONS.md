@@ -1242,3 +1242,64 @@ que `bob_loop` (boucle Bob principale) tourne sur `matrix`, la
 suppression cote main casse le runtime. E5-bis demande extraction
 de la boucle, pas juste une suppression.
 
+## D-E5-TER — Migration complète Matrix -> Store (actée 2026-10-19)
+
+**Date** : 2026-10-19
+**Statut** : TRANCHEE (migration complète, pas cohabitation).
+
+**Décision** : migrer les 6 consommateurs de `Matrix` vers
+`expr.Store` + `egraph`. `Matrix`/`AutoFab` iront en `src/legacy/`
+quand la migration sera terminée.
+
+**Constat d'audit (2026-10-19)** : `Matrix` et `Store` ne sont PAS
+deux implémentations de la même abstraction. Ils diffèrent sur :
+
+| Matrix | Store |
+|---|---|
+| `nodes: Map BobId -> Node` | `nodes: []Node` (Id u32) |
+| `next_id` (BobId monotone) | `intern()` (hash-consing) |
+| `add`, `find`, `get(BobId)` | `get(Id)`, `apply`, `lit`, `sym` |
+| `saturate` (e-graph local) | Pas d'equivalent (egraph.zig separe) |
+
+**Consommateurs à migrer** (audit grep 2026-10-19) :
+- `main.zig` : `matrix.deinit` + 10 sites de threading.
+- `bob_loop.zig` : `m.next_id`, `m.saturate`.
+- `UniversalIngestor` : `matrix.add`, `matrix.find`, `matrix.nodes`.
+- `AutoFab` : `matrix.get`, `matrix.nodes`.
+- `ReactionEngine` : `matrix.add`, `matrix.get`.
+- `Shell` : (grep vide, à reverifier -- possible usage indirect).
+
+**Effort réel** : 4-5 sessions (pas 2-3). Change la sémantique :
+BobId (reseau) devient optionnel, `saturate` passe sur `egraph`,
+`find` devient du pattern matching sur DAG.
+
+**Plan phasé (propose)** :
+
+- **E5-ter-0 (session design, 0 code)** : trancher (a) mapping
+  BobId <-> Id (garder ou abandonner), (b) sort de `saturate`
+  (egraph global), (c) ordre de migration. Ecrire
+  `_matrix_migration_plan.md`.
+- **E5-ter-1** : migration `ReactionEngine` (le plus petit, 3
+  methodes).
+- **E5-ter-2** : migration `UniversalIngestor` (add/find/nodes).
+- **E5-ter-3** : migration `AutoFab` (get/nodes) -- proche de
+  ReactionEngine.
+- **E5-ter-4** : migration `bob_loop` (next_id/saturate, couplage
+  reseau).
+- **E5-ter-5** : `main.zig` sans `matrix_lib`/`autofab_lib`,
+  `Matrix` -> `src/legacy/`.
+
+**Ne pas commencer sans E5-ter-0.** La sémantique de BobId est
+utilisee par `scut/network.zig` (sync pair-a-pair). Une migration
+naive casserait le reseau.
+
+**Alternatives ecartees** :
+- Cohabitation (ma reco initiale) : rejetee par l'utilisateur.
+  Matrix reste pour KB/RDF, Store pour eval/proofs. Plus simple
+  mais laisse deux modeles.
+- Legacy partiel : `Matrix` reexporte, pas de migration reelle.
+
+**Consequence** : E5 (D9) n'est PAS fini. E5a/E5b faits
+(bridge propre, bob_loop extrait). E5-ter = chantier separe de
+4-5 sessions, demarre par E5-ter-0.
+
