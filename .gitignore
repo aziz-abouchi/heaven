@@ -106,3 +106,6 @@ examples/http/
 # Exception : fixtures de test versionnees (ignorees sinon par heaven_test_io.txt)
 !tests/fixtures/
 !tests/fixtures/*.txt
+
+# Tests locaux non portables (imports /tmp/, fixtures locales)
+tests/local/
