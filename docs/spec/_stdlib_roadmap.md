@@ -51,3 +51,27 @@ de test dans core/ (pas client).
 ## Règle
 
 Chaque phase = 1-2 commits, `test-files 0 fail` avant push.
+
+
+### Phase 6 — documenter la stdlib
+
+`docs/STDLIB.md` : référence technique (fait 2026-10-19).
+`docs/spec/_stdlib_todo_book.md` : plan du chapitre livre.
+
+Chapitre `12-stdlib.md` (ou intégré dans `10-modules.md`).
+Effort : 1 session. Priorité moyenne.
+
+### Phase 7 — DHCP (ex-phase 4, dépendances prêtes)
+
+`stdlib/net/dhcp.hvn` : DISCOVER/OFFER/REQUEST/ACK.
+Prérequis : udp.hvn (fait), ip.hvn (fait), string_split (fait).
+Effort : 1-2 sessions. Nouveau code réseau, testable sur fixture
+binaire (pas de réseau sandbox).
+
+## État final 2026-10-19
+
+Modules stdlib : 12 (string, fs, http_body, json/{build,parse},
+net/{ip,udp,tcp,dns,dns_parse,http,http_client}).
+
+Phases faites : 0, 1, 2, 3, 5 + udp + ip.
+Phases restantes : 4 (dhcp), 6 (doc livre), 7 (dhcp fusionné avec 4).
