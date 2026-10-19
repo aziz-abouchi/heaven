@@ -191,3 +191,96 @@ regression immediate.
 
 Session dediee 2-4h. Le bug peut etre une regression introduite ce
 jour. Premier test : git stash + checkout b3ac888 + reproduire.
+
+
+## DIAGNOSTIC FINAL (2026-10-19) — le bug est dans le PARSER, pas le moteur
+
+Toutes les hypothèses precedentes (substSym, AST corrompu, TCO args
+dangling) sont INFIRMEES. Test discriminant decisif :
+
+| Forme | Self-call | Resultat |
+|---|---|---|
+| `(if c a b)` avec parens externes | oui, arg calcule | ✅ OK |
+| `if c then a else b` (infixe) | aucun | ✅ OK |
+| `if c then a else b` (infixe) | oui, via helper `(sub1 n)` | ✅ OK |
+| `if c then a else b` (infixe) | oui, arg direct `(- n 1)` | ❌ KO |
+| `(if c then a else b)` (mixte) | oui | ❌ ArityMismatch |
+
+**Conclusion** : le bug est dans le desugare `if ... then ... else`
+de `src/core/parse.zig:574-577`. Ce site :
+1. Extrait `cond_str`, `then_str`, `else_str` par sous-strings.
+2. Appelle `parseSExpr` sur chacune.
+3. Reconstruit `store.call("if", [c, t, e])`.
+
+Quand `else_str` contient un self-call avec arg calcule
+(`(c4 (- n 1))`), le `parseSExpr` produit une structure incorrecte —
+peut-etre parce que `(- n 1)` est traite differemment quand c'est
+une sous-string deja extraite vs un S-expr complet.
+
+**Pourquoi `(sub1 n)` marche** : `parseSExpr` sur `(sub1 n)` produit
+un apply simple sans imbrication. Le bug ne se declenche qu'avec
+des arguments calcules imbriques.
+
+**Pourquoi `(if c a b)` avec parens externes marche** : le desugare
+NE S'ENCLENCHE PAS. Le parser voit `(if` d'abord et traite comme
+S-expr natif. Tout est correct.
+
+**Pourquoi `(if c then a else b)` casse** : le desugare s'enclenche
+PAS non plus (parens externes), donc `then` et `else` sont passes
+comme arguments litteraux a `if` → ArityMismatch (5 args au lieu
+de 3). Cas separe, non bloquant, fix trivial (detecter then/else
+dans le S-expr natif ou interdire cette forme).
+
+## Fix probable
+
+**Option A (recommandee)** : remplacer le desugare par sous-strings
+par un parsing tokenise natif. `parseSExpr` doit traiter `if` comme
+mot-cle special : lire condition jusqu'a `then`, branche then jusqu'a
+`else`, branche else jusqu'a fin. Une seule voie, pas de
+reconstruction.
+
+**Option B (minimale)** : forcer des parentheses autour de chaque
+branche avant de rappeler `parseSExpr` :
+    `if c then a else b` -> `(if c (a) (b))`
+Necessite de re-tokeniser et d'equilibrer les parentheses.
+
+**Option C (quick fix)** : dans le desugare, si `else_str` commence
+par `(` et finit par `)`, retirer les deux et parser l'interieur.
+Fragile, ne gere pas les imbrications.
+
+Effort estime : 1 a 2 h pour Option A, tests de regression
+obligatoires (les 6 cas du tableau).
+
+## Tests de regression a ajouter
+
+    -- dans tests/test_parser.hvn ou nouveau fichier
+    test "if_infixe_selfcall": (count n = if (= n 0) then 0 else (count (- n 1))) ...
+    test "if_infixe_no_selfcall": ...
+    test "if_infixe_helper": ...
+    test "if_parens_selfcall": ...
+
+## Ce qui est FAUX dans les sections precedentes
+
+- "AST corrompu par substitution" : non, l'AST est correct ; c'est
+  le parse en amont qui produit une structure incorrecte.
+- "substSym dans TCO" : non, substSym n'est pas en cause.
+- "TCO args dangling" : non, la copie stack-local n'a rien change.
+
+Ces sections sont conservees pour tracage historique mais sont
+INFIRMEES. Seul le diagnostic final compte.
+
+## Impact debloque
+
+Une fois ce fix :
+- Bug selfrecursion resolu (bloquant N2).
+- Interpreteur metacirculaire Heaven (lib/heaven_eval.hvn) peut
+  accepter la syntaxe de surface `if then else` — actuellement il
+  marche seulement avec `(if c a b)` (cf. les commentaires
+  "style une ligne, patterns plats" dans le fichier).
+- JSON, HTTP body, AST walkers debloques.
+
+## Priorite
+
+**P0** apres le week-end. Effort 1-2h. Fix parser, pas de refactor
+moteur. Le script `scripts/debug-selfrecursion.sh` reste utile pour
+reproduire.
