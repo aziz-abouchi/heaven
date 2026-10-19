@@ -84,3 +84,39 @@ sans recursion). Probablement 5-10 lignes dans
 `body_norm` pas applique sur la valeur en cas de chain imbrique
 dans la valeur). A diagnostiquer en session fraiche.
 
+## DECOUVERTE 2026-10-19 (cutoff, 3e bug)
+
+Deux fixes tentes pour let-chain helper, tous deux **sans effet** :
+1. `normalizeLetChain` dans `heaven.eval` top-level -> marche
+   pour `heaven run script.hvn`, pas pour `helper _ = (...)`.
+2. `normalizeLetChain` dans `parseBodySmart` (branche `(`) ->
+   rollback, `tests/test_let_chain.hvn` reste 0/4.
+
+**Vrai blocage (discriminant)** :
+
+    printf 'helper _ = 42\n(helper 0)\n' > /tmp/iso2.hvn
+    heaven run /tmp/iso2.hvn   -- -> [eval error] error.ArityMismatch
+
+`helper _ = 42` + `(helper 0)` echoue en `heaven run`. **Pas de let
+implique.** Alors que `mk_obj _ = ...` + `(mk_obj 0)` marche en
+`--run-test` (test_json_v1 12/12). Difference : `runEvalFile` +
+`splitStatements` (`test_runner.zig:36,260`) vs `runTestFile`.
+
+**Hypothese** : `splitStatements` ou l'eval statement-par-statement
+perd le lien `def -> sym_arity`. Soit la definition est enregistree
+avec arity 0 (car `_` skippe), soit `heaven.eval` ne persiste pas
+`fn_arities` entre appels.
+
+**Pas de fix ce soir** : 2 tentatives ratees, 3e bug decouvert.
+Chantier B3 = 3 bugs separes (let-chain top-level, let-chain helper,
+pattern `_` + `heaven run`). A attaquer en session fraiche, dans
+cet ordre :
+1. Discriminant `helper _ = 42` vs `helper x = 42` vs `helper 0 = 42`.
+2. `heaven run` vs `--run-test` sur le meme fichier.
+3. Fixer le split ou l'eval.
+
+**E4b est bloque par ce 3e bug, pas par let-chain.** Un `http_server.hvn`
+en 1 ligne top-level marche (test E4-triage plus tot : fd=4 sur
+`@net_listen`, mais `@net_accept` n'a jamais ete atteint). A
+re-tester avec le fix let-chain top-level (`66f0b32`).
+
