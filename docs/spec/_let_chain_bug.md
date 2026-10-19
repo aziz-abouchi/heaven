@@ -164,3 +164,34 @@ un préfixe avec espace (`help `). Commit à venir.
 **Leçon** : nommer un helper de test `helper` dans un langage qui a
 un mot-clé `help` = piège. Utiliser `mk_*` ou `foo`/`bar`.
 
+## B3 ENTIÈREMENT RÉFUTÉ (2026-10-19, fin de session)
+
+Après fix `is_command` (commit `51bf59a`), re-test avec noms neutres :
+
+| Test | Résultat |
+|---|---|
+| `mk_chain _ = (let a = 1 in let b = 2 in (+ a b))` + `(mk_chain 0) == 3` | ✅ |
+| `let a = 1 in let b = 2 in (print ...)` (heaven run) | ✅ `"3"` |
+
+**B3 #2 n'existe pas non plus.** Tout le "3 bugs B3" venait de
+`is_command` qui mangeait `helper*`. Le nom du helper de test
+était le problème, pas le let-chain ni le pattern `_`.
+
+**Bilan B3** :
+- B3 #1 (top-level run) : vrai fix `normalizeLetChain` (`66f0b32`),
+  garde.
+- B3 #2 (helper) : faux positif, retiré.
+- B3 #3 (pattern `_`) : faux positif, retiré.
+
+**E4b n'est PAS bloqué par B3.** Il est bloqué par **B2**
+(`\r\n`/`\n` dans string casse le parse), vérifié en fin de
+session (`@net_http_respond` jamais atteint, le parser meurt sur
+`"HTTP/1.1 200 OK\n\nhi"`).
+
+**Leçon transversale** : nommer un helper de test `helper` dans un
+langage qui a `help` comme mot-clé préfixe = piège. Utiliser
+`mk_*`, `foo`, `bar`. Ajouté à B-erreurs.
+
+**Prochain pas** : B2 (fix parser string escapes), puis E4b
+(serveur HTTP).
+
