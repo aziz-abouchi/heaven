@@ -171,3 +171,8 @@ jv_as_str (JBool b) = ""
 jv_as_str JNull = ""
 jv_as_str (JArr l) = ""
 jv_as_str (JObj l) = ""
+
+-- jv_get (absent en V1 initial, ajoute 2026-10-19)
+jv_get (JVCons x rest) 0 = x
+jv_get (JVCons _ rest) n = (jv_get rest (- n 1))
+jv_get JVNil n = JNull

@@ -10,6 +10,8 @@ test "arr_one": (JP.jv_len (JP.json_as_arr_s "[42]")) == 1
 test "arr_two": (JP.jv_len (JP.json_as_arr_s "[1,2]")) == 2
 test "arr_ws": (JP.jv_len (JP.json_as_arr_s "[1, 2, 3]")) == 3
 test "arr_nested": (JP.jv_len (JP.json_as_arr_s "[[1,2],[3]]")) == 2
+test "arr_get0": (JP.jv_as_int (JP.jv_get (JP.json_as_arr_s "[10,20,30]") 0)) == 10
+test "arr_get2": (JP.jv_as_int (JP.jv_get (JP.json_as_arr_s "[10,20,30]") 2)) == 30
 
 -- Objects : parse {} vide et lookup sur cle absente (retourne JNull)
 test "obj_empty_get": (JP.jv_as_int (JP.json_obj_get (JP.json_as_obj_s "{}") "z")) == 0

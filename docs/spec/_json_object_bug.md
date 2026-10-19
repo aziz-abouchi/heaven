@@ -62,3 +62,24 @@ Acces par index cassé (mais jv_len fonctionne).
 
 **Fix probable** : meme famille que selfrecursion (parsePostfix)
 ou 0-pattern def. 1 session avec test discriminant.
+
+
+## Mise à jour 2026-10-19 apres discriminant H1
+
+- Pattern `(LLCons (PP k v) rest) k2` avec `PP Str Int` : 5/5
+  en isolation (h1disc.hvn). Donc le pattern lui-meme marche.
+- `json_obj_get (JPCons (JPair "a" (JNum 42)) JPNil) "a"` : KO
+  meme en construction manuelle (faux positif precedent : c'etait
+  `jv_get` qui manquait, pas `json_obj_get`).
+- Import + pattern : 3/3 (imp.hvn). Pas le fossile #4.
+
+**Hypothese residuelle** : difference entre `PP Str Int` (Str type)
+et `JPair Str JVal` (Str + constructeur JVal imbrique en 2e arg).
+Un test direct `JPCons (JPair "a" (JNum 42)) JPNil` avec le pattern
+`(JPCons (JPair k v) rest)` trancherait. Non fait (cutoff).
+
+**Contournement** : utiliser `jv_get` sur arrays, pas `json_obj_get`
+sur objects avec cles. JSON object reste partiel (parse {} vide
+mais pas de lookup sur cle non-vide).
+
+H3 (jv_get) : RESOLU, `jv_get` ajoute, 2/2.
