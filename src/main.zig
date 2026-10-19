@@ -49,11 +49,10 @@ fn bobLog(comptime level: []const u8, comptime fmt: []const u8, args: anytype) v
 }
 
 const swarm_runtime = @import("runtime/swarm/runtime.zig");
-const heaven_expr_mod = @import("heaven_expr");
 
 fn swarmWorkerLoop(allocator: std.mem.Allocator, swarm: *swarm_runtime.SwarmRuntime, ex: *const std.atomic.Value(bool)) void {
     // Create dedicated Heaven for this thread
-    var heaven = heaven_expr_mod.Heaven.init(allocator) catch @panic("Failed to init Heaven");
+    var heaven = heaven_expr.Heaven.init(allocator) catch @panic("Failed to init Heaven");
     defer {
         heaven.deinit();
         allocator.destroy(heaven);

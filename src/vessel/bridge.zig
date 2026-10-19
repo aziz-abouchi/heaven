@@ -2,7 +2,6 @@ const std = @import("std");
 const atomic = std.atomic;
 const matrix_lib = @import("matrix_lib");
 const autofab = @import("../runtime/autofab.zig");
-const main_mod = @import("../main.zig");
 const platform = @import("platform");
 const expr = @import("expr");
 const heaven_expr = @import("heaven_expr");
