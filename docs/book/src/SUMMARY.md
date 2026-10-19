@@ -28,6 +28,7 @@
 - [HoTT](22-hott.md)
 - [Validation](23-validation.md)
 - [Réseau](24-reseau.md)
+- [Stdlib — HTTP, réseau, FS](25-stdlib-net-http.md)
 
 ---
 
