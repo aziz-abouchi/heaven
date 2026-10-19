@@ -48,6 +48,7 @@
   "stdlib/net/http.hvn",
   "stdlib/net/http_client.hvn",
   "stdlib/net/tcp.hvn",
+  "stdlib/net/udp.hvn",
   "stdlib/string.hvn",
   "tests/derive.hvn",
   "tests/features_smoke.hvn",

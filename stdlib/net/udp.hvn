@@ -1,0 +1,8 @@
+-- stdlib/net/udp.hvn — UDP wrappers (magics @net_*_udp)
+-- Pattern : l'appelant acquiert les capabilities, udp.hvn fournit
+-- les wrappers. Meme convention que tcp.hvn.
+
+udp_socket cap                 = @net_socket_udp cap
+udp_set_timeout cap fd secs    = @net_set_timeout cap fd secs
+udp_sendto cap fd ip port data = @net_sendto cap fd ip port data
+udp_recvfrom cap fd            = @net_recvfrom cap fd

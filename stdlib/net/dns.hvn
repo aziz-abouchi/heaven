@@ -4,6 +4,7 @@
 -- (debloque par le fix selfrecursion 011d934).
 
 import "stdlib/net/dns_parse.hvn" as dns_v1
+import "stdlib/net/udp.hvn" as udp
 
 -- ─── Header DNS : 12 bytes ───
 dns_build_header id flags qd =
@@ -55,11 +56,11 @@ dns_resolve_a_com _ =
   let cap_sock = (cap_acquire "net:socket_udp") in
   let cap_send = (cap_acquire "net:sendto") in
   let cap_recv = (cap_acquire "net:recvfrom") in
-  let fd = (@net_socket_udp cap_sock) in
-  let _ = (@net_set_timeout cap_recv fd 3) in
+  let fd = (udp.udp_socket cap_sock) in
+  let _ = (udp.udp_set_timeout cap_recv fd 3) in
   let q = (dns_build_query 0) in
-  let sent = (@net_sendto cap_send fd "8.8.8.8" 53 q) in
-  let resp = (@net_recvfrom cap_recv fd) in
+  let _sent = (udp.udp_sendto cap_send fd "8.8.8.8" 53 q) in
+  let resp = (udp.udp_recvfrom cap_recv fd) in
   resp
 
 -- ─── N2 : resolve + parse en une fonction ───
