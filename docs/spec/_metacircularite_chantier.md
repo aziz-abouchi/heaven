@@ -141,3 +141,44 @@ verts. Non-regression : test_parser 22/22, test_eval 13/13.
 4. Fossile 'exit 0 silencieux' (1 session).
 
 Estimation : 2-3 sessions.
+
+
+## Investigation #3 (import dans eval) — 2026-10-19 fin de matinee
+
+Test de `run self` (lire `lib/heaven_eval.hvn` + l'evaluer) :
+
+**Fonctionne** :
+- `import "lib/heaven_eval.hvn" as E` dans un `.hvn` test.
+- `import "stdlib/fs.hvn"` aussi.
+- L'interpreteur evalue `1` correctement (`E.vstr_of (E.run_expr "" "1")`).
+
+**Ne fonctionne PAS** :
+- `@fs_read` avec capability `(cap_acquire "fs:read:...")` retourne
+  une string vide (les tests historiques utilisent `(@fs_read 42 path)`
+  avec un int brut, pas une capability).
+- Les patterns qualifies (`HP.ELitI n`) restent le fossile #4 : un
+  import avec patterns qualifies en tete de clause fait sortir
+  silencieusement (a confirmer, mais non reproduit en test isole car
+  `heaven_eval.hvn` n'a pas ete evalue).
+
+## Distance residuelle pour run self
+
+| Blocage | Effort | Complexite |
+|---|---|---|
+| `@fs_read` capability vs int | 30 min ? | incertain |
+| patterns qualifies (fossile #4) | 1 session | parser profond |
+| patterns constructeurs (manque #2) | 1-2 sessions | evaluateur |
+| `import` dans eval_file | 30 min (simple si les autres sont resolus) | simple |
+| sous-if parenthésé (#6) | 30-60 min | parser |
+
+**Total : 3-4 sessions**, confirme. Pas de raccourci identifie.
+
+## Decision
+
+Metacircularite en PAUSE. Les briques validees (if-then-else
+surface, data + constructeurs 0-arg) sont commitees et utiles.
+La suite demande du temps consacre (fossile #4 est un chantier
+parser profond, pas un fix d'une heure).
+
+Pivot vers JSON (debloque par le fix selfrecursion, testable sur
+fixtures, standard). Retour metacircularite apres JSON + HTTP body.
