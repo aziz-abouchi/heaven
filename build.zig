@@ -1389,6 +1389,14 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }) });
 
+    const test_telemetry_store = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/vessel/telemetry_store.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+        },
+    }) });
     const test_egraph = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/inference/eqsat/egraph.zig"),
         .target = target,
@@ -1808,6 +1816,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_kernel_proof_irrelevance).step);
     test_step.dependOn(&b.addRunArtifact(test_kernel_quotient).step);
     test_step.dependOn(&b.addRunArtifact(test_kernel_transform).step);
+    test_step.dependOn(&b.addRunArtifact(test_telemetry_store).step);
     test_step.dependOn(&b.addRunArtifact(test_egraph).step);
     test_step.dependOn(&b.addRunArtifact(test_profile_egraph).step);
     test_step.dependOn(&b.addRunArtifact(test_codegen_c).step);
