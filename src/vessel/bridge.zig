@@ -5,6 +5,7 @@ const autofab = @import("../runtime/autofab.zig");
 const main_mod = @import("../main.zig");
 const platform = @import("platform");
 const expr = @import("expr");
+const heaven_expr = @import("heaven_expr");
 
 // En mode DEBUG, on lit depuis le disque pour éviter de recompiler
 const DEBUG_MODE = platform.target.is_debug;
@@ -27,7 +28,7 @@ const test_suite_hvn = @embedFile("public/test_suite.hvn");
 pub const WebBridge = struct {
     matrix: *matrix_lib.Matrix,
     fab: *autofab.AutoFab,
-    store: *expr.Store,
+    heaven: *heaven_expr.Heaven,
     port: u16,
     // Un booléen atomique : false = libre, true = occupé
     busy: atomic.Value(bool) = atomic.Value(bool).init(false),
@@ -48,7 +49,7 @@ pub const WebBridge = struct {
         for (net2.known_peers.items) |peer| {
             try ports.append(allocator, peer.address.getPort());
         }
-        return @import("telemetry_store.zig").render(allocator, self.store, self.port, ports.items);
+        return @import("telemetry_store.zig").render(allocator, self.heaven.getStore(), self.port, ports.items);
     }
 };
 
@@ -252,14 +253,41 @@ fn handleLsp(args: HandlerArgs, request: []const u8) !void {
 
         // platform.debug.print("\n[LSP] Synchronisation (Unique) : {s}\n", .{path});
 
-        _ = main_mod.syncMatrixWithFile(args.bridge.matrix, args.bridge.fab, args.allocator, path) catch |err| {
-            platform.dbg("[LSP ERR] {any}\n", .{err});
+        const file = platform.fs.cwd().openFile(path, .{}) catch |err| {
+            platform.dbg("[LSP] openFile {s}: {any}\n", .{ path, err });
+            return;
         };
+        defer file.close();
+        const stat = file.stat() catch return;
+        const src = args.allocator.alloc(u8, stat.size) catch return;
+        defer args.allocator.free(src);
+        _ = file.readAll(src) catch return;
+        var stmts: std.ArrayListUnmanaged([]const u8) = .{};
+        defer {
+            for (stmts.items) |st| args.allocator.free(st);
+            stmts.deinit(args.allocator);
+        }
+        @import("../runtime/test_runner.zig").splitStatements(args.allocator, src, &stmts) catch return;
+        var ok: usize = 0;
+        var fail: usize = 0;
+        for (stmts.items) |stmt| {
+            const trimmed = std.mem.trim(u8, stmt, " \t\r\n");
+            if (trimmed.len == 0) continue;
+            const res = args.bridge.heaven.eval(trimmed) catch |err| {
+                platform.dbg("[LSP] eval {s}: {any}\n", .{ path, err });
+                fail += 1;
+                continue;
+            };
+            args.allocator.free(res);
+            ok += 1;
+        }
         // On affiche le résultat immédiatement dans le flux de logs
-        platform.debug.print(">>> MATRIX UPDATED: {d} nodes, {d} symbols <<<\n", .{
-            args.bridge.matrix.nodes.count(),
-            args.bridge.matrix.getStats().symbols,
-        });
+        {
+            const st = args.bridge.heaven.getStore();
+            platform.debug.print(">>> HEAVEN EVAL {s}: {d} ok, {d} fail, store={d} nodes, {d} syms <<<\n", .{
+                path, ok, fail, st.nodes.items.len, st.interner.list.items.len,
+            });
+        }
     }
 }
 
@@ -291,7 +319,7 @@ fn handleClient(args: HandlerArgs) void {
 pub fn startVesselServer(
     matrix: *matrix_lib.Matrix,
     fab: *autofab.AutoFab,
-    store: *expr.Store,
+    heaven: *heaven_expr.Heaven,
     dash_port: u16,
     exiting: *const std.atomic.Value(bool),
 ) void {
@@ -303,7 +331,7 @@ pub fn startVesselServer(
 
     platform.debug.print("Vessel HTTP: http://localhost:{d}/\n", .{dash_port});
 
-    var bridge = WebBridge{ .matrix = matrix, .fab = fab, .store = store, .port = dash_port };
+    var bridge = WebBridge{ .matrix = matrix, .fab = fab, .heaven = heaven, .port = dash_port };
     while (true) {
         // Vérifier la sortie avant chaque accept
         if (exiting.load(.acquire)) break;

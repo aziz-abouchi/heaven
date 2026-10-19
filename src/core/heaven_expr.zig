@@ -443,6 +443,10 @@ pub const Heaven = struct {
         std_loader.loadAll(self);
     }
 
+    pub fn getStore(self: *Heaven) *const Store {
+        return self.store;
+    }
+
     pub fn deinit(self: *Heaven) void {
         self.store.deinit();
         self.allocator.destroy(self.store);

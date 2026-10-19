@@ -16,6 +16,7 @@ const MessageQueue = network_queue.MessageQueue;
 // ─── Ancien système (chemins relatifs) ───
 const matrix_lib = @import("matrix_lib");
 const vessel_lib = @import("vessel/bridge.zig");
+const heaven_expr = @import("heaven_expr");
 const heaven_lib = @import("runtime/heaven.zig");
 const universal_lib = @import("inference/forge/universal.zig");
 const autofab_lib = @import("runtime/autofab.zig");
@@ -443,19 +444,25 @@ pub fn main() !void {
         .allocator = allocator,
     };
 
+    var vessel_heaven = try heaven_expr.Heaven.init(allocator);
+    defer {
+        vessel_heaven.deinit();
+        allocator.destroy(vessel_heaven);
+    }
+
     // Threads
     var v_thread: ?platform.Thread = null;
     v_thread = try platform.Thread.spawn(.{}, struct {
         fn wrapper(
             m: *matrix_lib.Matrix,
             f: *autofab_lib.AutoFab,
-            st: *expr.Store,
+            hv: *heaven_expr.Heaven,
             p: u16,
             ex: *const std.atomic.Value(bool),
         ) void {
-            vessel_lib.startVesselServer(m, f, st, p, ex);
+            vessel_lib.startVesselServer(m, f, hv, p, ex);
         }
-    }.wrapper, .{ &matrix, &fab, &store, port, &exiting });
+    }.wrapper, .{ &matrix, &fab, vessel_heaven, port, &exiting });
     // v_thread n'est pas jointe car elle peut être détachée
     // Si besoin de la joindre, décommenter : v_thread.join();
 

@@ -33,7 +33,7 @@ fn displayName(stmt: []const u8) []const u8 {
 
 /// Découpe en statements. Fin = '\n' à brace_depth 0, hors string.
 /// Multi-ligne via `{ ... }` (les accolades sont équilibrées dans le statement).
-fn splitStatements(
+pub fn splitStatements(
     allocator: std.mem.Allocator,
     content: []const u8,
     out: *std.ArrayListUnmanaged([]const u8),
