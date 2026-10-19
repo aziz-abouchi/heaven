@@ -988,3 +988,28 @@ des exemples qui utilisent les type classes directement.
 2-3 sessions. Voir `docs/spec/_capture_eval.md`.
 
 **Dette séparée** : bug `(+ 1 2 3 4)` dans lambda.
+
+---
+
+## D9 Vessel — statut 2026-10-19
+
+Objectif : découplage Vessel et absorption par la stack HTTP Heaven.
+
+- **E1** ✅ `telemetry_store.zig` (JSON depuis `expr.Store`), CI-câblé. `e65dc66`.
+- **E2** ✅ (implicite) — pattern `heavenIngestSource` inline dans E3b.
+- **E3a** ✅ `serveTelemetry → telemetry_store.render`. `0bdc6e9`.
+- **E3b** ✅ `didSave → Heaven.eval` (read + split + eval loop). `00e1475`.
+- **E3c** ✅ dedup `heaven_expr`, retire `main_mod`. `584e5e2`.
+- **E4** 🚧 À faire — 1-2 sessions de conception. `core/http_server.hvn`
+  nécessite : (a) `http_serve` en `.hvn` (0 match `serve|listen|accept`
+  aujourd'hui), (b) `encode_jsonrpc`/`decode_jsonrpc` en `.hvn`,
+  (c) décision statiques Zig vs `.hvn` (`@embedFile` n'existe pas).
+  Voir `_http_fullstack_plan.md` section « État 2026-10-19 ».
+- **E5** 🚧 À faire après E4 — `matrix`/`autofab` → `src/legacy/`.
+  6 usages résiduels `self.matrix` dans `bridge.zig` (`/graph`,
+  `/rules`, `/bob`).
+
+**Baseline 2026-10-19** : Debug build = 0, `zig build test` = 0,
+ReleaseFast `--run-tests` = 0 fail, wasm32-freestanding = 0,
+wasm32-wasi = 0.
+

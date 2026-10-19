@@ -51,3 +51,37 @@ D1 complète (Astra hors du chemin runtime).
 ## Dettes résiduelles
 - LSP `didSave` : hors-scope (IDE couplé, à traiter séparément).
 - `net2.known_peers` : conservé, couplage réseau Vessel/Scut.
+
+---
+
+## Etat 2026-10-19
+
+- **E1** : DONE. `src/vessel/telemetry_store.zig` livre, cable au CI
+  (`test_telemetry_store`). Commit `e65dc66`.
+- **E2** : DONE (implicite). Le helper `heavenIngestSource` n'a pas
+  ete extrait en fonction nommee : le pattern est repris inline
+  dans E3b (read + splitStatements + heaven.eval loop). Refactor
+  eventuel si E4 le reutilise.
+- **E3a** : DONE. `serveTelemetry -> telemetry_store.render`, store
+  plombe `WebBridge.store: *expr.Store`. Commit `0bdc6e9`.
+- **E3b** : DONE. `didSave -> Heaven.eval` (read + split + eval
+  loop). `WebBridge.heaven: *Heaven` remplace `.store`. Accesseur
+  `Heaven.getStore()`, `splitStatements` passe pub.
+  `syncMatrixWithFile` (stub) n'est plus appele par bridge.
+  Commit `00e1475`.
+- **E3c** : DONE. Dedup `heaven_expr`/`heaven_expr_mod`, retire
+  `main_mod` orphelin de bridge. Commit `584e5e2`.
+- **E4** : TODO. Reestimation : **1-2 sessions de conception**, pas
+  "30 min". Blocages identifies :
+  1. `stdlib/net/http.hvn` n'a pas de serveur (0 match `serve|
+     listen|accept|recv`). Il faut un `http_serve` en `.hvn`.
+  2. JSON-RPC en `.hvn` : objets maintenant OK (H1/H2 clos), mais
+     ni `encode_jsonrpc` ni `decode_jsonrpc` n'existent.
+  3. `@embedFile` n'existe pas en `.hvn`. Decision a poser : soit
+     statiques en Zig (seul `/api/*` porte en `.hvn`), soit
+     `fs.read_file` + manifest.
+  Voir `_vessel_decouple.md` pour le decoupage E4a/E4b.
+- **E5** : TODO. matrix/autofab/matrix_bridge -> `src/legacy/`.
+  6 usages residuels de `self.matrix` dans `bridge.zig` (`/graph`,
+  `/rules`, `/bob`...). Apres E4.
+

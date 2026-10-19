@@ -1,791 +1,190 @@
-# Prompt de continuité — Heaven
+# HEAVEN — Prompt de continuité (2026-10-19, après E3 Vessel + H1/H2 clos)
 
-> ⚠️ **Document de continuité — METTRE À JOUR PAR SECTIONS, ne jamais réécrire.**
-> Le 2026-10-09, une session l'a remplacé (347 → 34 lignes) au lieu de le mettre
-> à jour ; restauré depuis git. Lire, insérer sa section, ne rien supprimer.
+## Rôle de l'agent
 
+Tu es un agent expert Zig/Heaven. Tu fournis des scripts shell/python
+copier-collables (JAMAIS d'édition manuelle). L'utilisateur exécute et
+colle les sorties. Tu adaptes selon ce que tu vois.
 
-## Contexte projet
+## Méthodologie obligatoire
 
-**Heaven** est un langage de programmation expérimental unifiant :
-- Raisonnement mathématique (CIC, preuves, tactiques)
-- Métaprogrammation (egraph, kanren, macros)
-- Concurrence (acteurs, scheduler coopératif, effets algébriques)
+1. **Blocs courts** : shell < 25 lignes, python < 40 lignes. Heredoc
+   `python3 - <<'PYPATCH'` préféré à `cat > file <<'EOF'`. Si le
+   navigateur corrompt un heredoc (backticks, fences markdown), faire
+   des appends Python par petits lots (5-10 lignes chacun) — c'est
+   arrivé 3 fois dans la session 2026-10-19.
+2. **Chaque bloc vérifiable** : `grep`, `wc -l`, exit code explicite
+   (`echo "EXIT=${PIPESTATUS[0]}"`, JAMAIS `$?` après un pipe).
+3. **Backups `.bak`** avant toute modif (`cp -n`). Ils sont gitignored.
+   `rm` en fin de session (les 7 .bak de E3b ont pollué `find src`).
+4. **Marqueurs `HEAVEN:XXX`** dans le code.
+5. **Grep -A5 après re.sub multi-ligne** (fragments orphelins).
+6. **Cutoff dur** : si un fix échoue au 1er build, rollback + doc +
+   pause. Pas de 3ᵉ tentative. Signaler AVANT de coder si le chantier
+   n'est pas faisable en 2-3 blocs.
 
-**Invariants fondateurs** (docs/VISION.md) :
-- 6 primitives de noyau (`lit`, `sym`, `apply`, `bind`, `lambda`, `relation`)
-- Le reste = sucre abaissé avant évaluation
-- Vérité mathématique comme source unique (kernel CIC)
-- Esthétique comme heuristique (théorème en 3 lignes > 30 lignes)
+7. **Baseline avant commit** (ordre, tous doivent être 0) :
+   - `zig build` = 0 (Debug, tests Zig unitaires) **si .zig touché**
+   - `zig build test` = 0 (Debug) **si .zig touché**
+   - `zig build -Doptimize=ReleaseFast` = 0
+   - `HEAVEN_NO_LEAK_CHECK=1 ./zig-out/bin/heaven --run-tests tests`
+     = 0 fail — **ReleaseFast uniquement** (cf. D-CI1). En Debug,
+     3 fichiers crashent (test_parser, test_hashmap, test_bigint_d20,
+     SIGSEGV, `_runner_crashes_2026-10.md`). **Toujours**.
+   - `zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall`
+     = 0 **si platform/ ou expr.zig ou heaven_expr.zig touché**
+   - `zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall` = 0 (idem)
+   - **Changement `.hvn` pur** : seul `--run-tests tests` (ReleaseFast)
+     est requis (pas de `zig build`).
 
-**Repo** : https://github.com/aziz-abouchi/heaven
-**Machine** : Linux x86_64, Guix, Zig 0.15.2
-**Working dir** : `~/Desktop/Dev/langage/boot`
+## Style Heaven (infixe obligatoire)
 
----
+- `a + b` (pas `(+ a b)`), `if p then a else b`, `let x = v in body`
+  (hors test), `f x y` multi-arg.
+- S-expr réservé : magics 0-arg (`(@budget_left)`), tuples `(a, b)`,
+  patterns `f (cons x xs) = ...`.
+- **0-pattern def (`f = body`) est une fonction, PAS une valeur** :
+  `f = 42` puis `f == 42` → faux. Toujours `f _ = 42` puis `f 0 == 42`.
+  **Piège récidivant.**
+- **Dans `test "nom":`, le parser cherche `==` à profondeur 0.** Tout
+  `let ... in` doit être dans un helper HORS test :
+  `helper _ = let x = v in body` / `test "n": (helper 0) == val`.
+- **Escape `\xNN` et `\"` NON supportés.** `\"` reste littéral (2
+  octets : backslash + quote). `\n`, `\r`, `\t` OK. Workaround string
+  avec quotes : `poke_byte` + `string_of_bytes` (cf. `mk_obj` dans
+  `tests/test_json_v1.hvn`).
 
-## Convention doc critique
+## Pièges appris (ne pas répéter)
 
-- **`README.md`** et **`docs/STATUS.md`** sont **GÉNÉRÉS**. Ne jamais les éditer à la main.
-- Regen : `python3 scripts/docgen.py` et `python3 scripts/status_gen.py`
-- **`STATUS.md`** : seule exception outillée — on édite, puis TOUJOURS `python3 scripts/status_import.py` et on committe `status.json` avec. `status_gen.py` réécrit le fichier **entier** depuis le json : une section non importée est une section perdue au prochain build.
-- Le CI échoue si un chiffre est périmé (`--check`)
-- `PROMPT_CONTINUITE.md`, `docs/DECISIONS.md`, `docs/ROADMAP.md` sont manuels
+- **Regex multi-ligne** : casse les corps indentés. Toujours
+  `remove_def` par blocs (première ligne + toutes les lignes
+  indentées suivantes), jamais `re.sub` seul.
+- **Double import** (`import "X.hvn"` direct + transitif via Y) fait
+  échouer silencieusement les comparaisons de symboles. Workaround :
+  tests séparés, pas d'import double.
+- **Fossile #4** (import + patterns qualifiés) : jamais reproduit
+  isolément. Suspect mais non tracé. `_vfs_import_gap.md` traite du
+  REPL web, PAS du Sym qualifié. Voir `_json_object_bug.md` (H1/H2
+  clos 2026-10-19 : ni pattern, ni import, ni `==` — c'était `\"`
+  littéral dans les strings de test).
+- **Runner `--run-tests`** fork un subprocess par fichier
+  (`test_runner.zig:318`). Un crash dans un fichier n'affecte pas les
+  autres. Un `TestFailed` sans `Total` = crash silencieux au parse.
+  **`--run-test` (singulier)** existe pour un fichier unique.
+- **`--run-tests` refuse un fichier** (`openDir` → `NotDir`), il faut
+  un répertoire. Pour isoler un fichier : `--run-test path.hvn`.
+- **`matrix.zig`/`autofab.zig`/`bridge.zig`** sont legacy (D9→HTTP).
+  Ne pas y toucher sauf E4/E5 dédiés. `bridge.zig` : E3a/E3b/E3c
+  livrés, reste E4 (main.zig → http_serve) + E5 (matrix → legacy).
+- **`engine_expr.zig:1052-1060`** : `evalMagic` est fonction libre,
+  utiliser `engine` (pas `self`).
+- **`heaven_expr.zig` vs `engine_expr.zig`** : parser dans le premier
+  (fields `Heaven`), magics dans le second (fields `Engine`). Les deux
+  ont un `fn_arities`.
+- **`syncMatrixWithFile`** (`main.zig:101`) est un stub no-op
+  (`return;`). Ne pas le ressusciter. `didSave` passe par
+  `Heaven.eval` depuis E3b.
 
----
+## État du dépôt (à vérifier au démarrage)
 
-## État git actuel
+```
+cd ~/Desktop/Dev/langage/boot
+git log --oneline -8
+git status --short   # doit être propre sauf README.md (docgen) et *.bak
+```
 
-**HEAD** : `5f1fdba` (feat(syntax): pont expérimental Tree-sitter → Expr.Store)
+**Derniers commits connus** :
+- `584e5e2` chore(vessel): E3c — dedup heaven_expr, retire main_mod
+- `f2ee36c` fix(json): H1/H2 clos — artefacts `\"`, pas bug parser
+- `00e1475` feat(vessel): didSave via Heaven.eval (E3b/5, D9)
+- `0bdc6e9` feat(vessel): serveTelemetry via telemetry_store (E3a/5, D9)
+- `e65dc66` feat(vessel): telemetry_store.zig (E1/5, D9)
 
-**Working tree** : `src/syntax/lower.zig` et `src/syntax/lower_test.zig`
-modifiés par une session parallèle (chantier D21 — extension à `call`/`app_expr`).
-**Ne pas toucher.** Ne pas `git add -A`.
+## Ce qui a été livré (session 2026-10-19)
 
-**Commits poussés cette session (2026-10-08)** :
+**HTTP fullstack E3 (Vessel)** :
+- E3a : `serveTelemetry → telemetry_store.render`. `render` prend
+  `peer_ports: []const u16`, émet Bob puis les peers puis les nodes
+  du Store (limite 500). `WebBridge.store: *expr.Store` plombé
+  jusqu'au constructeur `bridge.zig:453`.
+- E3b : `didSave` réécrit — lit le fichier, `splitStatements`, boucle
+  `Heaven.eval` par statement, log stats `Heaven.getStore()`. Le stub
+  `syncMatrixWithFile` n'est plus appelé. `WebBridge.heaven: *Heaven`
+  (remplace `.store`). `Heaven.getStore()` pub, `splitStatements` pub
+  (`test_runner.zig:36`).
+- E3c : dédup `heaven_expr`/`heaven_expr_mod` dans `main.zig`, retire
+  `main_mod` orphelin de `bridge.zig`.
 
-| Commit | Contenu |
-|---|---|
-| `c029802` | `defs.zig` : retire `normalizeOps` + distingue `fn` vs équation |
-| `2db23f0` | `test_runner.zig` : support blocs `{ ... }` multi-lignes (brace_depth) |
-| `c5b59d6` | regen README + STATUS |
-| `5f1fdba` | pont Tree-sitter → Expr.Store (session parallèle D21) |
+**JSON objects (H1/H2 clos)** :
+- Discriminants `test_disc2/3a/3b/5` : pattern 2-arg OK, import
+  qualifié OK, parser OK, lookup OK. Le "bug" venait de `\"`
+  littéral dans les strings de test, pas du parser.
+- `_json_object_bug.md` amendé (H1 réfuté, H2 réfuté).
+- Tests objects réels ajoutés dans `test_json_v1.hvn` via `mk_obj`
+  (`poke_byte` + `string_of_bytes`). Total 12/12.
 
----
+**Runner / CI** :
+- 3 crashes `--run-tests` identifiés Debug-only (`test_parser`,
+  `test_hashmap`, `test_bigint_d20`, SIGSEGV). ReleaseFast = 0 fail.
+  Tracés dans `_runner_crashes_2026-10.md`. Priorité basse.
 
-## Session 2026-10-08 — trois chantiers
+**Docs mises à jour** :
+- `_http_fullstack_plan.md` (état E1-E5), `STDLIB.md` (json V1),
+  `ROADMAP.md` (D9 statut), `CHANGELOG.md` (entrée 2026-10-19),
+  `DECISIONS.md` (D-HTTP1, D-HTTP2, D-CI1), `status.json` (Progrès,
+  Top priorités, journal 2026-10-19).
 
-### Chantier 1 — Bug `evalFnDef` (src/core/commands/defs.zig)
+## Ordre de priorité pour la suite
 
-- `normalizeOps` transformait `+` en `add` dans les bodies. Or `add` est **aussi**
-  une primitive Peano (3 args). Le dispatcher préférait la version user et
-  refusait les appels à 2 args.
-  → Fix : retire l'appel (`parseBodySmart` wrappe déjà).
-- Distinction `fn name(args) = body` (remplace) vs `name args = body` (multi-clause) absente.
-  → Fix : ajout de `is_fn_keyword` + branche `put`/`addClause` explicite.
+1. **E4 HTTP fullstack** (1-2 sessions de conception, pas un bloc).
+   `core/http_server.hvn` : (a) inventaire sockets `.hvn`
+   (`stdlib/net/http.hvn` n'a pas de `serve|listen|accept`), (b)
+   `encode_jsonrpc`/`decode_jsonrpc` en `.hvn` (H1/H2 clos = objet
+   JSON OK), (c) décision statiques Zig vs `.hvn` (`@embedFile`
+   n'existe pas en `.hvn`). Voir `_http_fullstack_plan.md`.
+2. **E5** (1 session) — `matrix`/`autofab` → `src/legacy/`. 6 usages
+   résiduels `self.matrix` dans `bridge.zig`. Après E4.
+3. **effects-consolidation** (1-2 sessions) — `perform`/`handle`/
+   `yield`/`resume` cohérents. Prérequis MPST-V2 et A-3b-3.
+4. **hkt-v1b** (2 sessions, décision A vs B) — dispatch typeclass.
+   V1a déclaratif livré (0 dispatch). Voir `_hkt_v1b_plan.md`.
+5. **mpst-v2a** (2 sessions) — multipartite + projection. Voir
+   `_mpst_v2_plan.md`.
+6. **metacircularite-patterns** (2-3 sessions) — manque #2 de
+   `_metacircularite_chantier.md`. Le fossile #4 sera attaqué ici.
+7. **quotients-expose** (2-3 sessions) — kernel prêt, exposition
+   `.hvn` reste.
 
-Impact : 89/99 → 95/98.
+**Hors-scope court terme** : Cubical (multi-années,
+`_hott_cubical_plan.md`), DHCP (dépriorisé, SCTP/RTP/WebRTC avant),
+stubs macOS/Windows (SDK requis), Debug-triage runner (priorité basse,
+ReleaseFast = 0 fail).
 
-### Chantier 2 — Bug `splitStatements` (src/runtime/test_runner.zig)
+## Contraintes de communication
 
-- Découpait uniquement par indentation, ignorant le `brace_depth` documenté en
-  en-tête. Conséquence : le `}` en colonne 0 fermait un statement avant l'heure,
-  et `prove X by { ... }` arrivait tronqué à `evalProve` → `InvalidSyntax`.
-- Fix : compteur `brace_depth`. Tant qu'il est `> 0`, une ligne non-indentée
-  (y compris `}`) est une continuation, pas un nouveau statement.
+- Signaler à l'utilisateur quand on entre en tunnel (> 3 blocs sur un
+  diagnostic). Proposer rollback + doc + pause.
+- Ne pas prétendre qu'un chantier est faisable si c'est une session
+  de conception. Dire « 2 sessions », pas « un bloc ». E4 est dans ce
+  cas : le plan disait 30 min, c'est 1-2 sessions.
+- Demander la sortie après CHAQUE bloc, ne pas supposer.
+- Pas de « bon week-end » : l'utilisateur conduit cette session quand
+  il veut.
+- Le navigateur corrompt parfois les heredocs Python (backticks,
+  fences). Si `python3 - <<'PYPATCH'` échoue avec `SyntaxError`,
+  vérifier que la dernière ligne du heredoc n'a pas de `""` ou de
+  fragment collé — c'est arrivé 3 fois le 2026-10-19.
 
-Impact : 95/98 → **98/98**.
+## Régénération docs (source de vérité)
 
-**Note méthode** : le bug des tactiques n'était PAS dans `runTacticsBlock`
-(hypothèse du prompt précédent) mais dans `test_runner.splitStatements`.
-Toujours vérifier par lecture + bisect, pas par confiance au prompt.
-
-### Chantier 3 — Pont Tree-sitter → Expr.Store (D21, session parallèle)
-
-- `lowerExprToStore` dans `src/syntax/lower.zig` abaisse directement les nœuds
-  Tree-sitter vers `core.Expr.Store` (6 primitives).
-- Couvre actuellement : `identifier`, `int`, `binary`, `call`/`app_expr` et `pattern` (VALIDÉ 2026-10-08).
-- Helper `lowerExprSource` encapsule le parsing Tree-sitter.
-- `build.zig` : dépendances `core` + `platform` ajoutées au module `syntax_lower`.
-
-**Décision D21** : `Expr.Store` devient l'unique IR intermédiaire.
-`UniversalIngestor` (Matrix/BobId) → `SurvivalTranspiler` (C) sera déprécié.
-
-**Prochaines étapes** : étendre à `let` et `lambda` (dernière étape avant migration progressive).
-
----
-
-## Suites de tests (après fix)
-
-- test_suite.hvn   : 98/98  (3 tactiques reparees)
-- array.hvn        : 11/11
-- string.hvn       : 15/15
-- scheduler.hvn    :  3/3
-- bigint.hvn       : 30/30
-- effects_rec.hvn  :  4/4
-- io_stream.hvn    :  4/4
-- stream_lazy.hvn  :  8/8
-- smoke.sh         : 16/16
-- zig build test   : 383 tests Zig
-
-### Jalon 2 (auto-hébergement) en cours
-
-- **`core/std/array.hvn`** : array mutable via `raw_alloc`, resize auto. 11 tests.
-- **`core/std/string.hvn`** : `char_code`, `string_char_at`, `string_index_of`,
-  `string_starts_with`, `string_substring`. 15 tests.
-- **Garde anti-shadowing** : `evalEquation` refuse les magics.
-- **Nouveaux magics** : `peek_int64`, `poke_int64`, `string_of_bytes`.
-
----
-
-## Décisions structurantes (DECISIONS.md)
-
-| # | Contenu |
-|---|---|
-| D10 | Syscalls : 3 chemins A/B/C (`raw_syscall`, `@nom`, `HEAVEN_NO_LIBC`) |
-| D11 | Perimetre multi-plateforme (amd64-linux seulement pour D10) |
-| D12 | Laziness (`Tag.thunk` + `delay`/`force` + memoization) |
-| D14 | IO en Heaven (5 magics fins) |
-| D15 | `let` magic symbol S-expr |
-| D16 | Serveur HTTP 100% Heaven |
-| D17 | BigInt v0 (badd/bsub/bcmp) |
-| D17-2 | BigInt signe + bmul + bto_string |
-| D18 | Style Haskell multi-ligne (loader par indentation) |
-| D19 | Stack guard + TCO let-in (partiel) |
-| D20 | ReleaseFast par defaut (recursion profonde ~500 niveaux) |
-| D21 | Unification Lowering vers Expr.Store (pont Tree-sitter) |
-
----
-
-## Limites parser infixe (docs/spec/_syntax_gaps.md)
-
-| Forme | Supporté |
-|---|---|
-| `f x y` | oui |
-| `a + b` | oui |
-| `let x = v in body` multi-ligne | oui (D18) |
-| `if (cond) A B` | oui |
-| `if cond A B` sans parens | non |
-| `if` multi-ligne avec `let-in` dans branche | non |
-| opérateur préfixe dans `if` : `if < a b A B` | non |
-| bloc `{ ... }` multi-lignes dans test_runner | oui (fix 2026-10-08) |
-
-**Workaround** : helpers nommés (`array_copy_body`, `string_copy_body`).
-
-**Chantier futur** : parser indentation-aware complet (Python/Haskell-style).
-1-2 sessions. Casse potentiellement des tests. À faire à froid.
-
----
-
-## Bugs ouverts
-
-| Bug | Impact | Effort |
-|---|---|---|
-| `bdiv > 1000` sur BigInt | Limite pratique | 2-3 sessions (tree-walker iteratif) |
-| `if` multi-ligne avec `let-in` | Friction stdlib | 1-2 sessions (parser indentation) |
-| DebugAllocator panic intermittent | Contourne via `HEAVEN_NO_LEAK_CHECK=1` | 1 session a froid |
-
----
-
-## Passe de contradictions — session stratégie 2026-10-08
-
-Convergences : frontière syscall = D10 · HTTP pur = D16 · pipeline = D21 ·
-Jalon 2 = prérequis des services purs · streams = D12 (D8 = park/backpressure).
-
-Corrections au plan stratégique :
-1. README ×3 « Mise à jour Architecture » = signature d'agent en boucle.
-   Protocole : ps aux + timestamps AVANT patch. Contenu déjà couvert par D21
-   → suppression pure (README généré de toute façon).
-2. « Un chantier à la fois » → « un chantier PAR SESSION » (règles de
-   coordination multi-sessions ci-dessous).
-3. Bitstrings : RFC + grammar.js + parse.zig = zéro conflit ; pont
-   Tree-sitter (lower.zig) APRÈS land de D21.
-4. À trancher par lecture (méthode du doc, appliquée au doc) :
-   - hashmap.hvn + test_hashmap.hvn existent déjà alors que l'option B dit
-     « nouveau fichier » — stub ? boucle ?
-   - état réel de l'exhaustivité des patterns et de l'opacité des
-     constructeurs en modules v0 — mesurer avant de chiffrer l'incrément.
-
-## Prochaine session — options (v2)
-
-**Option B (exécutée le 2026-10-09 — 50/50, CRUD complet)** : HashMap — trancher le
-point 4 par lecture d'abord. Si friction `if` multi-ligne : brique
-prioritaire de l'audit d'abord (parse.zig:488, 1 session, risque faible).
-
-**Option A (inchangée, session parallèle)** : D21 → `let`/`lambda`.
-`lower.zig`/`lower_test.zig` occupés jusqu'à land.
-
-**Option E (nouvelle, après land D21)** : bitstrings RFC-0002, impl en deux
-temps (parse.zig + grammar.js, puis pont Tree-sitter).
-
-## Arc stratégique (détail → docs/ROADMAP.md)
-
-Principe : le statique d'abord · D8 quand ses consommateurs existeront ·
-le Zig ne recule jamais.
-
-1. bitstrings (RFC-0002)
-2. PARSER à pile explicite (le DIFF auto-référentiel meurt — maladie du lexer, version corpus)
-3. incrément compilateur : filtrage dépendant sur indices + exhaustivité +
-   constructeurs privés (état réel à mesurer d'abord)
-3. édifice statique : caps (D22) · typestate (D23) · MPST-en-Heaven (D24)
-4. tranche IA : MCP vérifié + mandats ToolCap/Budget (D25) — mcp_server.zig existe
-5. D8 branchement : continuations × effets, QTT-aware (composer avec D19/D20)
-6. services purs : Jalon 2 (HashMap/Set/List) puis Bitcask + Datalog sur D10
-7. facette HTTP (D16) + demo day full-Heaven
-
-Métrique-cliquet : `zig_hors_sanctuaire` dans status.json — lignes Zig hors
-sanctuaire (platform/syscalls + moteur bootstrap). CI échoue si ça monte.
-
-Hygiène (à froid, ½ journée, après vérif ps aux) : .backup_heaven/ ·
-check_all.sh chemin QBE (vendor/qbe-1.2/qbe, pas vendor/qbe/obj/qbe) ·
-fixtures dupliquées test_data/ ↔ fixtures/ · zig-pkg/ dupliqué.
-
-## Décisions à enregistrer (proposition — DECISIONS.md reste manuel)
-
-| # | Contenu |
-|---|---|
-| D22 | Caps : permissions = valeurs linéaires QTT, raffinables, constructeurs privés |
-| D23 | Typestate : un type par état, transitions linéaires consommantes |
-| D24 | MPST en Heaven : Proto/Chan, bouts issus d'un global unique |
-| D25 | Position IA : notaire MCP vérifié + mandats ToolCap/Budget |
+- `docs/status.json` → `docs/STATUS.md` via `scripts/status_gen.py`
+- `README.md` via `scripts/docgen.py` (lit les marqueurs
+  `<!-- DOCGEN:xxx -->` dans le repo)
+- `go.sh` et `build.sh` appellent les deux (non bloquant).
+- **Ne jamais éditer `STATUS.md` ou `README.md` à la main.** Patcher
+  `status.json` et relancer `python3 scripts/status_gen.py &&
+  python3 scripts/docgen.py`.
 
 ---
 
-## Session 2026-10-09 (matin) — plomberie doc + HashMap durci (Jalon 2)
-
-**Plomberie doc** (poussée) : pipeline STATUS guéri — dé-dup, sync
-status.json, date dynamique, convention amendée : TOUTE édition de
-STATUS.md -> `status_import.py` + committer le json avec.
-
-**HashMap (Option B)** — `1808eff` :
-- Le v0 existait deja (`db53128`, Int->Int, open addressing) — vert mais
-  jamais intégré : l'option B du doc décrivait en fait la v1.
-- Durci : `map_hash` (cles negatives), clamp cap, `map_free`, resize
-  libere l'ancien buffer, commentaires honnêtes (mutable en place).
-- **23/23** + batterie intacte : 98/98 · 11/11 · 15/15 · 3/3 · 30/30 ·
-  4/4 · 4/4 · 8/8.
-- **v1 (prochaine étape)** : cles Str — fnv1a viable (xor derivable :
-  a xor b = (bor a b) - (band a b)) ou rolling 31h+c ; `map_del` (tombstones).
-
-**Gap relevé — moins unaire** : `(- 5)` produit une valeur fausse/instable
-(validé par probe P1-P4). Workaround : `(- 0 5)`. Fix future : 1 ligne
-dans evalMagic — à froid, engine_expr.zig en zone active.
-
-**Sessions parallèles (état 2026-10-09 midi)** :
-- D21 : lower.zig/lower_test.zig (let/lambda) — en vol.
-- Bitstrings : **P1 LANDÉ** (`216aff9` + `d731622` : les 4 opérateurs
-  band/bor/shl/shr). Suite probable sur parse.zig (P2 ?).
-- Terrain partagé : STATUS.md/status.json — git status avant édition.
-
-**Suites (référence)** : test_suite 98/98 · array 11/11 · string 15/15 ·
-scheduler 3/3 · bigint 30/30 · effects_rec 4/4 · io_stream 4/4 ·
-stream_lazy 8/8 · **hashmap 23/23** · zig build test 383.
-
-**Reste à faire** : néant — soldé en fin de session (le quirk négatifs
-était déjà documenté le 2026-10-07, annoté d'une re-validation ; P1 coché
-dans RFC-0002).
-
-**Méthode validée** : le probe P1-P4 a tranché en une exécution ce que
-deux tours de correctifs avaient embrouillé. Probes d'abord, fix ensuite.
-
----
-
-## Session 2026-10-09 (après-midi) — D21 let landé, P0 partiel, incident doc
-
-**D21 — `let` landé** : identifier, int, binary, call, pattern,
-simple_expr, var_decl + `let x = 1 in x` validés. Commit : `1240cac`
-(recréé lors de la réparation d'historique — `440a002` est orphelin,
-ne pas le citer). **`lambda` reste à faire** (case ROADMAP), puis
-migration Matrix/BobId et tests d'intégration.
-
-**P0 partiel** : EBNF bitstrings dans GRAMMAR.md (`fd4ad4c`) —
-grammar.js + regen restent ouverts.
-
-**HashMap v1 : LANDÉ** — Str→Int, chaining, fnv1a-mod (xor dérivé de
-band/bor), del sans tombstones — 39/39, batterie verte. Le chantier
-Option B est entièrement clos (v0 durci le matin, v1 l'après-midi). Le soir a ajouté :
-map_del tombstones (50/50 — CRUD complet sur les deux cartes), UTF-8 validé
-(string_length = octets), règle coordination 5 (commit par chemins —
-index partagé, 2 incidents), dédup ROADMAP (fossile de boucle).
-
-**Incident doc** : une session a REMPLACÉ ce document au lieu de le
-mettre à jour. Restauré depuis `739b62b~1` + fusion. STATUS.md avait
-été édité sans `status_import` → json resynchronisé ce tour.
-
-**Hygiène relevée** : ROADMAP.md contient une section dupliquée
-(« Phase : Unification du Lowering » ×2) — fossile, à dédupliquer à froid.
-
----
-
-## Jalon 3 : self-parse — prochaine étape majeure (décidé le 2026-10-09)
-
-Le README l'appelle : « Auto-hébergement (BigInt, I/O, structures de
-données, **puis self-parse**) ». Les trois prérequis sont tombés — le
-dernier le 2026-10-09 (hashmap CRUD complet, 50/50). La séquence dit : maintenant.
-
-**Ce qui est prêt** (validé par les probes du jour) :
-- octets : readFile (D14) · string_ptr + peek_byte · string_of_bytes
-- environnement de l'évaluateur : la smap Str (CRUD complet) est le gabarit de l'env métacirculaire
-- patterns : un parser est une ana, un évaluateur une cata, « parse puis évalue » une hylo — cata/ana/hylo/para landés le 2026-10-09
-- ADT + matching imbriqué (matchPatternDeep, 2026-10-08) · TCO mutuel ✓
-
-**Phases** :
-
-| Phase | Contenu | Sessions |
-|---|---|---|
-| A. self-lex | ✅ landé le 2026-10-09 — lib/heaven_parse.hvn (fusion), 13 tests. Style une-ligne (workaround splitter import). Deux quirks documentes rencontres et contournes en une session : splitter multi-ligne + clause 0-pattern | 1 |
-| B. self-parse | 🟡 v0 landé le 2026-10-09 — lib/heaven_parse.hvn (fusion), 14/14 (S-expr, defs sym, fac canonique). Restent : patterns, sucre | 1 |
-| C. évaluateur métacirculaire | ✅ v0 landé le 2026-10-09 — lib/heaven_eval.hvn, MOMENT D : run_expr parse ET évalue, fac 5 = 120. VRecClosure pour la récursion, if paresseux | 1 |
-| D. le moment bootstrap | un .hvn lit, parse et évalue un .hvn | livré par C |
-| E. différentiel | le parser Heaven passe les suites en se parsant ; le Zig reste l'arbitre | 1–2 |
-| F. vitesse | MIR × ADT → compile-qbe compile le parser | chantier MIR |
-
-**Notes** : interprété d'abord (lent mais correct), la vitesse vient de F.
-Un lexer Heaven fixe par construction le moins unaire et le hex.
-Le parser Zig ne disparaît qu'après E — il reste l'arbitre du différentiel. ~~Les tests DIFF exigeaient `ulimit -s unlimited`~~ — LEVÉE le
-2026-10-12 : collapse du lexer (bf22d08), DIFF 22/22 à pile par défaut.
-
----
-
-## Chantiers parallèles — coordination
-
-Le repo est travaillé par plusieurs sessions simultanées. Règles :
-
-1. Ne jamais `git add -A` — toujours nommer les fichiers.
-2. Vérifier `git status --short` avant chaque commit — d'autres fichiers
-   peuvent être modifiés.
-3. Si un fichier est modifié et n'est pas à toi → ne pas y toucher.
-4. Agents IA qui bouclent : si un fichier contient des blocs dupliqués
-   (`## 2026-10-08` × 3) ou des typos (`lover_` au lieu de `lower_`),
-   c'est une signature de boucle. Vérifier `ps aux` et les timestamps
-   (`ls -la --time-style=full-iso`) avant de patcher.
-5. `git commit` nu valide TOUT l'index — et l'index est PARTAGÉ : le `git mv`
-   / `git rm` d'une autre session s'y retrouve et file dans votre commit.
-   Committer TOUJOURS avec chemins : `git commit -m "..." -- f1 f2`, et
-   pré-vérifier par `git diff --cached --stat`.
-6. Le binaire de test est TOUJOURS `-Doptimize=ReleaseFast` (D20). Un
-   `zig build` nu = Debug = frames ×4 = FAUX NÉGATIFS massifs (2026-10-12 :
-   4 suites mortes pour rien). Vérifier la taille : ~23 Mo = ReleaseFast,
-   ~83 Mo = Debug. Le triomphe du DebugAllocator de cette conversation.
-   (2 incidents le 2026-10-09 : git rm → docs(readme) élargi à tort ;
-   git mv book → embarqué dans 4b8c23e « map_del tombstones ».) (3e incident : fichiers NOUVEAUX — commit -- chemins
-   échoue tant qu'ils ne sont pas connus. Pour un nouveau fichier :
-   git add d'abord, PUIS commit par chemins.)
-
----
-
-## Méthodes critiques
-
-1. Toujours verifier par lecture + bisect avant de patcher un bug suppose.
-2. Un fix = un commit = un test qui passe auparavant.
-3. Ne jamais utiliser `git add -A` (plusieurs sessions parallèles tournent).
-4. Helpers nommes pour eviter les `if` multi-lignes dans le parser infixe.
-5. Regenerer doc : `python3 scripts/docgen.py && python3 scripts/status_gen.py` avant push.
-6. `HEAVEN_NO_LEAK_CHECK=1` par defaut (contournement DebugAllocator).
-7. `zig build -Doptimize=ReleaseFast` par defaut (D20).
-
----
-
-## Fichiers de reference
-
-- `docs/DECISIONS.md` — D10 a D21
-- `docs/spec/_syntax_gaps.md` — limites parser infixe + quirks
-- `docs/STATUS.md` — généré, état des features
-- `docs/book/src/14-concurrency.md` — scheduler coopératif
-- `core/std/array.hvn`, `core/std/string.hvn` — Jalon 2
-- `src/syntax/lower.zig` — pont Tree-sitter → Expr.Store (D21)
-- `tests/test_array.hvn`, `tests/test_string.hvn`, `tests/test_scheduler.hvn`,
-  `tests/test_effects_rec.hvn`
-
----
-
-## Chantier parser infixe — audit 2026-10-08
-
-### Ce qui marche déjà (ne pas toucher)
-
-- `f x y` en RHS, `a + b`, `if (cond) A B` mono-ligne
-- `let x = v in body` multi-ligne (D18)
-- `data T a b = ctor a b`
-- `if` infix mono-ligne : `filter f xs = if (f x) A B`
-
-### Ce qui manque (vrai périmètre, plus petit que prévu)
-
-1. `if cond A B` **multi-ligne** (branche A ou B sur plusieurs lignes)
-2. `if` avec `let-in` dans une branche (conséquence du #1)
-3. `if < a b A B` (opérateur préfixe sans parenthèses autour de cond)
-
-### Impact mesuré
-
-- 64 fichiers `.hvn`, 1732 lignes
-- 6 fichiers utilisent `(if ` Lisp (35 occurrences) :
-  hashmap 13, test_suite 6, string 6, array 4, effects_rec 3, scheduler 3
-- 2 fichiers utilisent déjà `if` infix mono-ligne (list.hvn, stream.hvn)
-- Rien sur le multi-ligne côté parser → c'est le **loader** qui accumule
-  (parenthèses équilibrées pour std_loader, brace_depth pour test_runner)
-
-### Où c'est parsé
-
-- `src/core/parse.zig:457` : forme S-expr `(if c A B)` num_parts == 4
-- `src/core/parse.zig:488` : forme infix (cond_str / then_str / else_str)
-- **Cible probable du fix** : parse.zig:488 (découpage infix)
-- `src/core/heaven_expr.zig:2006` : liste magics (garde anti-shadowing)
-
-### Brique prioritaire
-
-Rendre `if cond A B` multi-ligne fonctionnel.
-Effort : 1 session. Risque : faible (les tests mono-ligne passent déjà).
-
-### Méthode
-
-1. Test minimal qui échoue (voir Bloc B ci-dessous).
-2. Étendre parse.zig:488 pour accepter branche multi-ligne.
-3. Vérifier 98/98 + suites intactes. Commit.
-
----
-
-## Chantier : bug de comparaison Lit (2026-10-09, découvert)
-
-**Symptôme** : `(1) == 1` échoue alors que `1 == 1` passe. Idem `0x1 == 1`.
-
-**Matrice établie** :
-- `1 == 1` ✅
-- `0x1 == 0x1` ✅
-- `(1) == 1` ❌
-- `((1)) == 1` ❌
-- `1 == (1)` ❌
-- `(+ 1 0) == 1` ✅
-- `(+ (1) 0) == 1` ❌
-- `(let x 1 x) == 1` ✅
-
-**Conclusion** : parenthéser un atome le transforme en quelque chose qui
-n'est plus un `lit(int)`. Le test framework affiche `(1)` au lieu de `1`.
-
-**Hypothèses testées (sans succès)** :
-- Dédupliquer `store.addLit` → aucun effet (rollback).
-- Fix parser trivial pour `(atome)` → déplace le bug (`((1))` reste cassé).
-
-**Piste restante** : `parseSExpr("1")` retourne probablement un
-`apply(sym("1"), [])` au lieu d'un `int(1)`. À vérifier par trace dans
-`src/core/parse.zig` (branche `num_parts == 1`).
-
-**Impact** : hex et parenthèses d'atomes ne marchent pas — mais aucun
-test actuel n'utilise ces formes, donc l'impact réel est faible. Chantier
-à froid (1-2h).
-
-**Lexer hex livré** : commit `e5e84ce` (le lexer reconnaît `0x...` comme
-un seul token). Le parser ne le convertit pas encore — bloqué par ce bug.
-
-**RÉSOLU (2026-10-09 soir, commits `6fe55ec` + `0881c93`)** :
-
-Trois bugs cumulés corrigés :
-
-1. **Lexer** (`expr.zig`) : tokenise `0x...` en un seul token `.num`.
-2. **`parseFloat` C99** : acceptait `0x1` comme hex float → produisait
-   `.float=1`. Fix : check hex avant `parseFloat`, dans `parse.zig` ET
-   `expr_parser.zig`.
-3. **Cas trivial de `parseSExpr`** : un seul token devenait
-   `apply(sym(tok), [])`. Fix : déléguer à `parseExpression`.
-4. **Cas 1 de `parseSExpr`** : `(X)` sans args produisait
-   `apply(func_id, [])` fantôme. Fix : `if args.len == 0 return func_id`.
-
-Tests : `tests/test_parser_literals.hvn` (23/23).
-Non-régression : test_suite 98/98, bitstrings 28/28, recursion 22/22,
-lens 12/12, free 14/14.
-
-
----
-
-## Session 2026-10-09 (soir) — série Kmett + first-class + hex
-
-**Série Kmett complète** (4 chapitres, 3 modules) :
-
-- **Ch14 — Schémas de récursion** : `core/std/recursion.hvn` (`cata`,
-  `ana`, `hylo`, `para`). 22/22 tests. Commit `8b24511` + `fe9de8c`.
-- **Ch15 — Optiques** : `core/std/lens.hvn` (lens = getter/setter).
-  12/12 tests. Commit `b11af7e` + `a093fa6`.
-- **Ch16 — Free monads** : `core/std/free.hvn` (AST interprétable).
-  14/14 tests. Commit `d0db939` + `f073634`.
-- **Ch17 — Catégories** : conceptuel. Commit `0572277`.
-
-**Fix runtime majeur — fonctions first-class** (`2810cc7`) :
-
-`((fst (pair g h)) 5)` échouait alors que `(let f (fst (pair g h)) (f 5))`
-marchait. Cause : reconstruction d'un `apply` avec `span_a` original
-(incluant op_id). 9 lignes dans `evaluate(.apply)`. Débloque optiques,
-free monads, DSLs.
-
-**Book réorganisation** (`1adb1af` + `52201a2` + séries) :
-
-- Changelog avant annexes (pas en préambule).
-- Under the Hood en dernier chapitre (18).
-- 8 transitions narratives ajoutées entre chapitres.
-- Total : 18 chapitres + 4 annexes + Changelog.
-
-**RFC-0002 bitstrings** (4 commits) : P1 destructuration (`216aff9`),
-P2 construction (`118e87d`), 4 magics bitwise (`d731622`), P0 partiel
-GRAMMAR.md (`fd4ad4c`). 28/28 tests. Tree-sitter différé (conflit GLR).
-
-**Fix parser (hex + parens)** : `6fe55ec` + `0881c93`.
-`tests/test_parser_literals.hvn` 23/23.
-
-**Serveur HTTP statique v2** (`a73e29f`) : `core/http.hvn` sert
-`src/vessel/public/` en boucle (extract_path + normalize + 404).
-Tests : `test_http.hvn` 13/13. Permet `curl localhost:8080/egraph-viz/`.
-
-**Session Qwen terminée** (`9722735`) : `egraph_viz.zig` + module build
-+ test. Fix API Zig 0.15.2 (ArrayListUnmanaged).
-
-**Suites (référence fin de session)** : test_suite 98/98 · bitstrings
-28/28 · recursion 22/22 · lens 12/12 · free 14/14 · parser_literals 23/23
-· http 13/13 · hashmap 50/50 · lexer 14/14 (sessions parallèles).
-
-
----
-
-## Bug ouvert : substitution multi-args dans evalFunction (2026-10-12)
-
-**Symptome** : `mkpair x y = (Pair x y)` retourne `(Pair x y)` au
-lieu de `(Pair 1 2)`. Les variables du pattern ne sont pas liees.
-
-**Test minimal** :
-
-    id x = x                    -- OK (1 param)
-    mkpair x y = (Pair x y)     -- KO (2 params)
-    (mkpair 1 2) -> (Pair x y)  -- attendu (Pair 1 2)
-
-**Localisation** : la substitution `substSym` n'est appelee qu'a
-un endroit dans `engine_expr.zig` (ligne 717, lambda). Les
-fonctions enregistrees (`mkpair`) passent par un autre chemin
-(`evalFunction`) qui gere la substitution des patterns
-differemment. C'est ce chemin qui est buggue.
-
-**Impact** : les fonctions a 2+ arguments ne lient pas leurs
-parametres correctement. Bizarrement, `hashmap.hvn`,
-`lens.hvn`, `recursion.hvn`, `free.hvn` passent tous leurs
-tests -- donc le bug est peut-etre plus subtil (specifique aux
-constructeurs imbriques `Pair`/`Cons` ?).
-
-**Diagnostic affine (2026-10-12 apres-midi)** : le bug touche
-la **chaine d'applications sur lambdas imbriquees**, pas juste
-les multi-args. Manifestations observees :
-
-1. `mkpair x y = (Pair x y)` puis `(mkpair 1 2)` -> `(Pair x y)`
-   (variables non substituees).
-2. `curry f = (\a. (\b. (f (pair a b))))` puis `((curry g) 3 4)`
-   -> `(lambda b (f (pair (pair 3 4) b)))` -- le premier argument
-   `3` est lie a la **valeur totale** `(pair 3 4)`, pas a `a`.
-3. `zip` (2 listes) -> variables `x` et `y` du pattern restent
-   non liees.
-
-**Note positive** : `uncurry f (pair a b)` (1 parametre + lambda
-interne applique avec 2 args via let) **marche**. Le bug est
-specifiquement dans le **dispatch de la curryfication implicite**
-du moteur, pas dans la substitution elle-meme.
-
-**Tests parques** :
-- `tests/test_stream.hvn` : 2 tests zip
-- `tests/test_pair.hvn` : tests curry (parques en commentaire)
-
-**Tests parques** : 2 tests dans `test_stream.hvn` (zip).
-
-**Effort estime** : 1h - 1 session. Necessite de tracer
-`evalFunction` et de comprendre comment les patterns sont lies
-aux arguments.
-
-**Chantier a froid**, pas a faire en fin de session.
-
-**Commits de la session 2026-10-12 (matin)** :
-
-- `77e497a` fuite CI splitStatements
-- `e4cbc04` HKT minimal V0.5
-- `7f024a0` build casse egraph.zig
-- `b007413` guards alignes separees
-- `c3b81ef` identifiants triviaux -> apply zero-arg
-- `5f319b3` tests zip parques
-
-
----
-
-## Session 2026-10-12 (lundi) -- refonte book non-dev + modules std
-
-**Contexte** : retour d'un lecteur non-developpeur qui avait
-abandonne la lecture a « REPL » (trop d'acronymes non expliques).
-Decision : reecrire les premiers chapitres pour un public
-philosophique/litteraire, avec tous les exemples en Heaven reel.
-
-### Chapitres reecrits (7)
-
-- **Ch0 — Pourquoi Heaven ?** : Wittgenstein (jeux de langage),
-  Platon (opinion vraie vs savoir), Boileau, Foucault, Yoneda.
-  Glossaire non-technique de 20 termes.
-- **Ch1 — Commencer : qu'est-ce qu'un calcul ?** : Wittgenstein,
-  Platon (maieutique), Frege (Begriffsschrift, 1879).
-- **Ch2 — Types et categories** : Aristote (Categories), Frege
-  (Sinn und Bedeutung, 1892).
-- **Ch3 — Voir comme : le pattern matching** : Wittgenstein
-  (canard-lapin), Aristote (diaeresis, Seconds Analytiques).
-- **Ch4 — Recursion : l'infini a partir du fini** : Peano (1889),
-  Dedekind (1888), Edouard Lucas (Hanoi, 1883).
-- **Ch5 — Fonctions d'ordre superieur** : Frege (concepts de 2e
-  ordre), Schonfinkel (1924), Curry (1930), Kant (synthese).
-- **Ch6 — Effets algebriques** : Austin (performatifs, 1955),
-  Moggi (1989), Wadler (1992).
-
-**21 illustrations SVG** creees dans `docs/book/src/images/`
-(style sobre : creme, encre, bordeaux).
-
-### Modules std enrichis (inspires maryamyriameliamurphies.js)
-
-- `core/std/base.hvn` : id, constant, flip, until, even, odd (15 tests)
-- `core/std/eq.hvn` : isEq, isNotEq (5 tests)
-- `core/std/ord.hvn` : Ordering, compare, min, max, predicats (14 tests)
-- `core/std/list.hvn` : +10 fonctions (isEmpty, singleton, last,
-  init, uncons, takeWhile, dropWhile, splitAt, find, any, intersperse,
-  replicate, nub, lookup, elemIndex, concat_map) -- 50 tests
-- `core/std/option.hvn` : +7 fonctions (is_just, from_just,
-  maybeToList, listToMaybe, catMaybes, mapMaybe) -- 16 tests
-- `core/std/pair.hvn` : curry (parque), uncurry, swap (7 tests)
-- `tests/test_laws.hvn` : 10 lois algebriques (34 tests)
-
-Chaque module cite sa source en en-tete (maryamyriameliamurphies.js
-+ Fantasy Land). Voir `docs/book/src/F-references.md` (40+ sources)
-et `docs/spec/_algebras.md` (24 algebres Fantasy Land).
-
-### Fix CI + HKT V0.5
-
-- **`77e497a`** : fuite CI `splitStatements` (dupes non liberes).
-- **`7f024a0`** : build casse `egraph.zig` (parasite colle par une
-  session parallele).
-- **`b007413`** : guards alignes -- les lignes `| ...` indentees
-  deviennent des statements separes. +15 tests recuperes.
-- **`c3b81ef`** : identifiants triviaux -> `apply(sym(id), [])`
-  (magics zero-arg comme `target_os`).
-- **`e4cbc04`** : HKT V0.5 -- les constructeurs de type connus
-  (`List`, `Maybe`, `Pair`, etc.) sont reconnus comme univers.
-  `tests/test_hkt.hvn` (15/15).
-
-### Bug ouvert -- `evalFunction`
-
-**Substitution multi-args + curryfication imbriquee** : `mkpair x y =
-(Pair x y)` retourne `(Pair x y)`. `curry f a b` lie le premier
-argument a la valeur totale `(pair a b)`. `compare a b == LT` echoue
-(constructeurs nullaires != sym nu).
-
-**Tests parques** : 2 zip (`test_stream.hvn`), 2 curry
-(`test_pair.hvn`), 3 compare (`test_laws.hvn`, contournes par
-pattern matching).
-
-**Effort estime** : 1h - 1 session a froid. Documente dans la section
-« Bug ouvert : substitution multi-args dans evalFunction » ci-dessus.
-
-### Commits de la session (lundi 12 octobre)
-
-Environ 25 commits. Voir `git log --since="2026-10-12"`.
-
-### Sessions paralleles (lundi)
-
-Active sur : serveur HTTP alternatif (`core/http_server.hvn`,
-`serve.hvn`, `serve_minimal.hvn`), IDE (`ide.hvn`), stdlib
-(`stdlib/`), std/string.hvn (fixes `46f7786`, `fe9d891`).
-**Ne pas toucher** tant qu'elles travaillent.
-
-### Friction relevee
-
-Le `book` etait oriente developpeur. La refonte des 7 premiers
-chapitres resout cela. Reste a faire : Ch7 (Streams), Ch8 (Proofs),
-Ch9 (Real World), etc. -- pour un public mixte (developpeurs et
-non-developpeurs).
-
-### Prochaines options
-
-1. **Ch7 Streams** (~45 min + 3 SVG) : continuer la refonte.
-2. **Bug evalFunction** (1h+, a froid) : le bug le plus profond.
-3. **Endpoints HTTP manquants** (1 session) : `/api/egraph` pour la viz.
-
-
----
-
-## Session 2026-10-12 (soir) — segfault test lambda courte : RCA + fix
-
-**Symptôme** : `zig build test` → signal 11 sur `heaven_expr.test.parseExpression — lambda courte λx.x` (1er test du binaire → les 50 tests heaven_expr ne s'exécutaient jamais).
-
-**RCA (GDB, 1704 frames)** : le test λ est innocent. Chaîne : `Heaven.init → loadStdIO → loadOne(core/std/string.hvn)` → l'équation `string_copy_range` (commit 46f7786) contient une `)` orpheline → dans `expr_parser.parseExpression`, le fallback juxtaposition (L308) ré-emballe `"(X) dst_ptr)"` sans jamais consommer la parenthèse en trop → récursion infinie (~1670 frames, +3 chars/tour → 5147 octets → SIGSEGV allocateur). De plus le self-tail de 46f7786 était doublement faux : poke en branche ELSE (jamais exécuté pendant la copie) + write hors bornes à i=len.
-
-**Fix (2 fichiers)** :
-1. `src/core/expr_parser.zig` : garde d'équilibre sur `trailing` avant le fallback — une `)` orpheline est `error.InvalidSyntax`, pas un groupement. Toute erreur de syntaxe doit terminer, jamais boucler (leçon directe pour le lexer/parser hvn du bootstrap).
-2. `core/std/string.hvn` : **aucun changement nécessaire sur main** — HEAD (post-46f7786, « corrige la syntaxe du self-tail ») avait déjà corrigé l'orphan ; le segfault était spécifique au clone@46f7786. Piège d'arité relevé : l'appel dans `string_substring_do` passe 6 args ↔ def HEAD à 6 params — tout revert partiel de string.hvn doit synchroniser def ET appel.
-
-**Validation** : zig build test OK, 50/50 heaven_expr standalone, probes REPL (`substring "hello" 1 3` → `"ell"`), zéro leak.
-
-**Follow-up** : self-tail propre possible ssi `poke_byte` retourne le pointeur (chaînage en argument : `(string_copy_range src start (poke_byte dst i …) (+ i 1) len)`) — vérifier la signature (section 7 du script de portage).
-
-
----
-
-## Session 2026-10-13 (soir 2) — 3e incident Debug clos + Jalon 3-E
-
-**Incident n°3 règle #6** : `zig build test-files` SANS `-Doptimize` réinstalle le Debug sur zig-out (83 Mo) → « crash read_file » + escalier E1-E9 = artefacts DebugAllocator. Hash prouvé : zig-out RF == suite RF. **Fossile SSO/UAF acquitté** : `string_of_bytes` interne (copie). Règle : TOUT `zig build` passe `-Doptimize=ReleaseFast`.
-
-**Jalon 3-E (self-parse)** : `data` ajouté à `top_named` (heuristique capitalisés, v0 : types paramétrés minuscules exclus) + `EData` dans l'ADT Expr + tests/test_selfparse.hvn. Exit-1 suite = leaks GPA restants (voir rapport) — hygiène à étendre fichier par fichier.
-
-
----
-
-## Jalon 3-E — self-parse RÉUSSI (2026-10-13, soir 6)
-
-**heaven_parse.hvn se parse lui-même : 130 formes** (patterns + data + ADT).
-
-Bloqueur réel : params pattern (fallback "patterns : B-v1", phase B v0) — pas `data` (data_scan marchait). Fix : `def_pat` collecte le pattern en string **plate** (profondeur gérée, zéro parenthèse — contrainte splitter : strings équilibrées).
-
-Session émaillée de 5 pièges process (tous documentés) : clone périmé (46f7786), pipe rc de tail, binaire Debug 83 Mo réinstallé par test-files sans flag, binaire stale non-rebuildé après patch .hvn, off-by-one filtre import. Fossile SSO/UAF acquitté : string_of_bytes interne (copie).
-
-Validation : self-parse 130 formes, test_lexer 14/14, test_parser 22/22, zéro régression.
-Leaks suite restants (hashmap 66 / array 11) : chantier hygiène séparé.
-
-
----
-
-## Différentiel E — premier passage complet (2026-10-13, soir 7)
-
-HP parse tout le repo (81 fichiers) : **31 passent** (38%). Règle GT = indentation std_loader (validée sur les 3 compteurs connus 22/14/13). Le count rendu désigne la forme futive (parse_file tronque au premier PErr) — pas de bisect nécessaire.
-
-Census des manques : autre ×24; ? (split/crash) ×9; test (contenu) ×6; data args minuscules ×4; import (contenu) ×3; fn ×1
-
-tests/test_diff_e.hvn : différentiel vert sur le subset passant. Prochaine extension HP par ordre de fréquence du census.
-
----
-
-## Différentiel E — 31/81 documenté (2026-10-13, soir 8)
-
-**Documentation complète : docs/BOOTSTRAP_DIFF.md** (fichier manuel, hors génération).
-Census : data paramétré ×7 (fix prioritaire) · test corps nu ×6 · splits ×9 (GT approx) ·
-autres ×24 · crash list.hvn. lib/heaven_eval.hvn passe (41 formes).
-NOTE convention : STATUS.md/README générés (status_gen/docgen) — respectés ce tour.
-
-<!-- HEAVEN:CONTINUITE:C3:BEGIN -->
-## Dernière session : 2026-10-14
-
-**Fait**
-- Spec `docs/spec/_preemptive.md` (C3, décision D31).
-- Tests `tests/test_preemptive.hvn` (6 cas, 6 ✗).
-- D31 actée : safepoints + budget de réductions (option 1).
-
-**État des tests**
-- `test_preemptive.hvn` : 6/6 ✗.
-- Cause probable : `schedule` / `task_state` / budget 0.
-
-**Prochaine session — priorité 1 : déboguer C3**
-1. Test minimal :
-   `(let t (add_task (lambda s -> 42) 0) in
-    (let _ (schedule 100) in (task_state t)))` → doit valoir 42.
-2. Vérifier décrément de `engine.reductions` dans `evaluate`.
-3. Garde sur `budget == 0` dans `schedule`.
-
-**Prochaine session — priorité 2 : 3a-3b**
-Brancher `captureCont` réellement dans `evaluate`.
-Restructurer les corps de handler en unités réévaluables.
-
-**Points de vigilance**
-- Safepoint ≠ capture. C3 fin exige 3a-3b.
-- `kernel_bridge.zig` ne traduit que `lit`, `sym`, `apply` binop.
-  `bind`, `lambda`, `relation` lèvent une erreur.
-<!-- HEAVEN:CONTINUITE:C3:END -->
-
-## Session 2026-10-14 (soir) — C3 V0+ et A-3a
-
-**Livré**
-- C3 V0 : safepoint + budget + fix livelock (D31).
-- Magic `@budget_left` (coopération).
-- A-2 : hook capture conditionnel (`capturing`).
-- A-3a : `TaskState.preempted` (reprise par redémarrage).
-- Bug `(+ 1 2 3 4)` dans lambda tracé (`_preemptive_split_bug.md`).
-
-**Tests** (tous verts)
-- scheduler 3/3, preemptive 12/12, coop 4/4, split 3/3.
-- bigint 30/30, hashmap 50/50, parser 22/22.
-
-**Prochaine session**
-- **A-3b** : reprise exacte via `captureCont` (3a-3b).
-  Voir `_capture_eval.md`. Effort 2-3 sessions.
-- Fix bug arité `+` (indépendant, 1 session).
-- Parser `let` infixe (spec `_let_syntax.md`, session dédiée).
+Colle ce prompt au début de la prochaine session.

@@ -1,6 +1,6 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-10-13
+Dernière mise à jour : 2026-10-19
 
 Ce document est **genere** depuis `docs/status.json` par
 `scripts/status_gen.py`. Ne pas editer a la main.
@@ -15,6 +15,7 @@ Légende :
 
 ## Progrès récents
 
+- **2026-10-19** : HTTP fullstack E1-E3 livre. `telemetry_store.zig` (JSON telemetry depuis `expr.Store`), `serveTelemetry` delegue a `render`, `didSave` evalue via `Heaven.eval` (plus de stub `syncMatrixWithFile`). `WebBridge.heaven: *Heaven`, accesseur `Heaven.getStore()`. Commits `00e1475`, `584e5e2`. JSON objects H1/H2 clos (`f2ee36c`) : le bug venait de l'echappement `backslash-quote` litteral dans les tests, pas du parser. 3 crashes runner identifies Debug-only (`0e606ef`). Baseline 2026-10-19 : Debug build=0, `zig build test`=0, ReleaseFast `--run-tests`=0 fail, wasm32-freestanding=0, wasm32-wasi=0.
 - **2026-10-13** : Fix parser `unit`/`Unit` : retires des ctors 0-arity enregistres. Debloque `core/http.hvn`, `core/http_server.hvn`, `serve.hvn` — la stack web Heaven-native est operationnelle (`curl localhost:8080` sert `src/vessel/public/`).
 - **2026-10-12** : D8 3a-3 livre pour la partie one-shot. `handle_rec`, `yield`, `schedule` passent par un mecanisme unique (`pending_capture` + `SuspendRequested`). Magics `@prompt`/`@throw` exposes. 53 tests verts (effects_rec, prompt_depth, scheduler, nested, continuations).
 - **2026-10-05** : Stabilisation du pipeline syntax HIR pour les déclarations `data` génériques : Tree-sitter valide `data List<a> = Nil | Cons a (List<a>)`, tests `lower_test.zig` couvrent `Vec<n>` et `List<a>` récursif. Ajout du champ `DataDecl.params` dans l'AST HIR (initialisation du chemin children). Les paramètres génériques restent à propager dans l'elaboration et l'enregistrement runtime.
@@ -298,46 +299,14 @@ Résultats de référence (`docs/spec/_bench.md`) :
 
 ## Top priorités
 
-1. **Découper `heaven_expr.zig`** (RFC-0001) — extraire IO, imports, data, holes,
-   tactics. Le monolithe freine toute évolution (WASM, tests, onboarding,
-   éventuel merge avec astra-core).
-   → **✅ 5/5 complet** (2026-09-25) : `io_handler.zig`,
-   `expr_parser.zig`, `hole_runtime.zig`, `unify_proof.zig`,
-   `std_loader.zig`, `import.zig`. Monolithe 4367 → 4101 lignes.
-2. **Unifier le pipeline logique** — `kanren_expr` + `logic/*` + `prolog`
-   derrière une API `assertFact` / `query` + 2-3 commandes REPL.
-   → **Étape 1** ✅ 2026-09-25 : `fact` + `query` en langage
-   (kanren_expr, Store-based). Étapes 2-3 : `rule` (SLD simple),
-   `?-` (Prolog) + raccord shell.
-3. **README aligné sur STATUS** (✅ fait).
-4. ~~**Type-dep v2d**~~ ✅ 2026-09-24 · ~~**v2e/v2f**~~ ✅ 2026-10-01 (unification arithmetique complete : AC + succ + mul + identites)
-   (fix `holesToEvars` + exposition `subst_v2d`).
-   ✅ v2f terminé — unification vraie (`Vec (n + m)` modulo arithmétique).
-5. **Documenter QTT** dans le book.
-6. Remplir les `std/*.hvn` restants (`kernel.hvn`, signatures sans corps).
-7. ~~Sync auto `test_suite.hvn` (natif ↔ WASM).~~ [OK] (2026-10-01)
+- **HTTP fullstack E4** (1-2 sessions de conception). `core/http_server.hvn` : inventaire sockets `.hvn`, JSON-RPC encode/decode en `.hvn`, decision statiques Zig vs `.hvn`. Voir `_http_fullstack_plan.md`.
+- **E5** : matrix/autofab -> `src/legacy/`. Apres E4.
+- **effects-consolidation** (1-2 sessions). `perform`/`handle`/`yield`/`resume` coherents. Pre-requis MPST-V2 et A-3b-3.
+- **hkt-v1b** (2 sessions, decision A vs B). Dispatch typeclass.
+- **mpst-v2a** (2 sessions). Multipartite + projection.
+- **metacircularite-patterns** (2-3 sessions). Manque #2 de `_metacircularite_chantier.md`.
+- **quotients-expose** (2-3 sessions). Kernel pret, exposition `.hvn` reste.
 
-Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
-
-8. ~~**Spec formelle du langage** (pour LLMs) — `docs/spec/heaven.md`.~~ [OK] (2026-10-01)
-   EBNF + sémantique des formes acceptées + erreurs canoniques.
-   Descriptif d'abord (WYSIWYG), section « écarts connus ».
-   5-7 sessions. Format : 1 fichier agrégé + `grammar.ebnf`
-   + `errors.md`. Validation : tester qu'un LLM génère du
-   code qui compile avec la spec seule en contexte.
-9. **Uniformiser `src/platform`** — `native.zig` +
-   `x86_64_linux.zig` + `x86_64_windows.zig` (~90 % identiques).
-   Cible : 1 fichier commun + dispatch OS aux points critiques.
-   1-2 sessions.
-10. **Fusion kernel CIC** — `src/core/kernel.zig` (853 l.,
-    TermPool) vs `src/kernel/*` (1727 l., AST). Cible :
-    `src/kernel/` source de vérité, `core/kernel.zig` thin
-    wrapper puis suppression. 2-3 sessions. Risque élevé
-    (`proof_core`, `wasm.zig`, `cli/repl`, `frontend/parser`).
-11. ~~**`readKey` → `platform`**~~ ✅ (2026-10-01) — sorti
-    `readKeyUnix`, les `VK_*` et `INPUT_RECORD` de
-    `interactive.zig` vers `platform.readKey()`. Cohérence
-    avec la règle platform. 1 session.
 
 ### 2026-10-08 : Pipeline de Lowering (D21)
 
@@ -389,3 +358,24 @@ Chantiers identifiés le 2026-09-25 (pas encore planifiés) :
 
 - **Fausse alerte intégrale du matin** : binaire Debug (83 Mo, frames ×4) → 4 suites mortes pour rien. Règle 6 : ReleaseFast obligatoire. Fossile TCO de vendredi corrigé — le bounce gère les args calculés, la vraie cause était le cycle des émetteurs.
 - **Fix** : lexer collapsé en lex_loop unique self-tail (bf22d08) — 13 lignes. Lexing 1600 tokens ✓, DIFF 22/22 à pile par défaut. Le fosile différentiel meurt, la phase E n'a plus d'obstacle.
+
+## 2026-10-19 : E3 Vessel + H1/H2 clos
+
+### HTTP fullstack E3 (Vessel)
+
+- **E3a** (`0bdc6e9`) : `serveTelemetry -> telemetry_store.render`, `WebBridge.store: *expr.Store` plombe.
+- **E3b** (`00e1475`) : `didSave -> Heaven.eval` (read + split + eval loop). `WebBridge.heaven: *Heaven`. `Heaven.getStore()` pub, `splitStatements` pub. `syncMatrixWithFile` (stub no-op) n'est plus appele par bridge.
+- **E3c** (`584e5e2`) : dedup `heaven_expr`/`heaven_expr_mod`, retire `main_mod` orphelin.
+
+### JSON objects (H1/H2 clos)
+
+- `_json_object_bug.md` amend : le "bug" etait un artefact de construction de string dans les tests (`\"` reste litteral en Heaven, 2 octets). Discriminants test_disc2/3a/3b/5 : pattern OK, import qualifie OK, parser OK, lookup OK.
+- Tests objects reels ajoutes dans `test_json_v1.hvn` (`mk_obj` via `poke_byte`, 2 tests). Total 12/12.
+
+### Runner --run-tests
+
+- 3 crashes Debug-only identifies (`test_parser`, `test_hashmap`, `test_bigint_d20`, SIGSEGV). ReleaseFast = 0 fail. Traces dans `_runner_crashes_2026-10.md`. Priorite basse.
+
+### Baseline 2026-10-19
+
+- `zig build` = 0, `zig build test` = 0, ReleaseFast `--run-tests` = 0 fail, `wasm32-freestanding` = 0, `wasm32-wasi` = 0.

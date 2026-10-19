@@ -1129,3 +1129,57 @@ vectorielle (HNSW) en Heaven pur.
 **Alternatives ecartees** :
 - llama.cpp FFI (specifique LLM).
 - Heaven pur (limite a < 10M params).
+
+## D-HTTP1 — telemetry_store lit expr.Store, pas matrix
+
+**Date** : 2026-10-19
+**Statut** : TRANCHEE.
+
+**Decision** : `/telemetry` sert depuis `expr.Store` (via
+`src/vessel/telemetry_store.zig::render`), pas depuis
+`matrix_lib.Matrix`. `WebBridge.store` puis `WebBridge.heaven`
+remplace la dependance matrix pour cette route.
+
+**Alternatives ecartees** :
+- Garder matrix + traduire : double source de verite.
+- Render dans bridge.zig : melange transport et serialisation.
+
+## D-HTTP2 — didSave evalue via Heaven, pas syncMatrix
+
+**Date** : 2026-10-19
+**Statut** : TRANCHEE.
+
+**Decision** : `textDocument/didSave` lit le fichier, split en
+statements (`splitStatements`), evalue chaque statement via
+`Heaven.eval`. Le resultat vit dans `Heaven.getStore()`, lu par
+`serveTelemetry`. `syncMatrixWithFile` n'est plus appele.
+
+**Alternatives ecartees** :
+- Garder syncMatrixWithFile : etait un stub (`return;`), endpoint
+  LSP mort.
+- Eval par ligne : casse multi-lignes (`{ ... }`, let-chains).
+
+**Note** : ce n'est pas un LSP complet (pas de diagnostics, hover,
+positions). Eval-on-save seulement. LSP complet = E4+ et parser
+incremental.
+
+## D-CI1 — baseline --run-tests en ReleaseFast, pas Debug
+
+**Date** : 2026-10-19
+**Statut** : TRANCHEE.
+
+**Decision** : `HEAVEN_NO_LEAK_CHECK=1 ./zig-out/bin/heaven
+--run-tests tests` doit etre lance sur le binaire **ReleaseFast**
+(`zig build -Doptimize=ReleaseFast`). En Debug, 3 fichiers crashent
+(SIGSEGV) : `test_parser.hvn`, `test_hashmap.hvn`,
+`test_bigint_d20.hvn`. Debug-only, priorite basse.
+
+**Alternatives ecartees** :
+- Fixer Debug : 1 session de triage, non prioritaire, ReleaseFast
+  est la cible prod.
+- Ignorer : risque de "regression" fantome a chaque session.
+
+**Consequence** : `zig build test` reste en Debug (tests Zig
+unitaires), `--run-tests tests` est en ReleaseFast. Voir
+`_runner_crashes_2026-10.md`.
+

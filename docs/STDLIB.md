@@ -41,13 +41,20 @@ Accès fichier avec capabilities. ⚠️ V0 : `fs_read_public` restreint à `src
 `json_obj pairs`, `json_arr items`, `json_str s`, `json_int n`, `json_pair k v`.
 Aucun test dédié (couvert via usages).
 
-### `parse.hvn` — parseur JSON ⚠️ V0+V1
+### `parse.hvn` — parseur JSON ✅ V0+V1
 - ✅ V0 : `num`, `bool`, `null`, `ws` (`json_parse`, `json_as_int_s`, `json_as_bool_s`, `json_as_null_s`).
 - ✅ V1 arrays : `json_parse_arr`, `json_as_arr_s`, `jv_len`, `jv_get`, `jv_as_int`, `jv_as_str`.
-- ⚠️ V1 objects : `{}` vide OK, clés non-vides KO (voir `_json_object_bug.md`).
+- ✅ V1 objects : parse `{k:v, ...}`, lookup `json_obj_get`.
+  H1/H2 clos 2026-10-19 (`_json_object_bug.md`) : le "bug" était
+  un artefact de construction de string dans les tests (`\"` reste
+  littéral). Parser OK, lookup OK.
 - ❌ Pas de : URL-decode, échappements `\uXXXX`, floats.
 
-Tests : `test_json_parse` (11), `test_json_v1` (9).
+**Piège construction** : `"{\"a\":1}"` ne contient pas ce qu'on
+croit. Utiliser `poke_byte` + `string_of_bytes` pour les tests
+objects (cf. `tests/test_json_v1.hvn::mk_obj`).
+
+Tests : `test_json_parse` (11), `test_json_v1` (12).
 
 ---
 

@@ -1,6 +1,37 @@
 # Changements récents
 
 
+## 2026-10-19 -- HTTP fullstack E3, JSON objects, baseline ReleaseFast
+
+### Vessel / HTTP
+
+- **E3a** : `serveTelemetry` délègue à `telemetry_store.render`.
+  `WebBridge.store: *expr.Store`.
+- **E3b** : `didSave` lit le fichier, split en statements,
+  évalue via `Heaven.eval`. `WebBridge.heaven: *Heaven`.
+  `syncMatrixWithFile` (stub) n'est plus appelé.
+- **E3c** : dédup `heaven_expr`/`heaven_expr_mod`, retire
+  `main_mod` orphelin de `bridge.zig`.
+
+### JSON
+
+- **H1/H2 clos** : le "bug" objects était un artefact de
+  construction de string dans les tests (`\"` reste littéral en
+  Heaven, 2 octets). Discriminants `test_disc2/3a/3b/5` : pattern
+  OK, import qualifié OK, parser OK, lookup OK.
+- Tests objects réels (`test_json_v1.hvn::mk_obj` via `poke_byte`),
+  12/12.
+
+### CI / baseline
+
+- **3 crashes runner Debug-only** identifiés (`test_parser`,
+  `test_hashmap`, `test_bigint_d20`, SIGSEGV). ReleaseFast = 0
+  fail. Tracés dans `_runner_crashes_2026-10.md`. Priorité basse.
+- Baseline 2026-10-19 : Debug build = 0, `zig build test` = 0,
+  ReleaseFast `--run-tests` = 0 fail, wasm32-freestanding = 0,
+  wasm32-wasi = 0.
+
+
 ## 2026-10-15 -- VFS, WASM 8 apps, book, fix type
 
 ### WASM / Web
