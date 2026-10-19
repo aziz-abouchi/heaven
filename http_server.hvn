@@ -1,0 +1,21 @@
+-- http_server.hvn — serveur HTTP Heaven pur (v0, 2026-10-19)
+-- Lancement : ./zig-out/bin/heaven run http_server.hvn
+-- Test       : curl http://127.0.0.1:8080/
+--
+-- Pas de routing, pas de statiques, pas de telemetry. Repond "hi"
+-- a toute requete. Base pour E4 (routing en .hvn).
+
+do_respond client _ =
+  seq (@net_read unit client)
+    seq (@net_write unit client "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi")
+      seq (@net_close unit client) 0
+
+do_one listen_fd _ = (do_respond (@net_accept unit listen_fd) 0)
+
+serve listen_fd = (seq (do_one listen_fd 0) (serve listen_fd))
+
+serve_listen port =
+  seq (print (string_concat "heaven http: http://127.0.0.1:" (int_to_string port)))
+    (serve (@net_listen unit port))
+
+(serve_listen 8080)
