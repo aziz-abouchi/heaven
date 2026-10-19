@@ -80,3 +80,31 @@ Mettre le chantier en pause apres session 1 (validation). Faire
 N2 (DNS) d'abord — livrable concret, debloque par le fix
 selfrecursion. La metacircularite complete quand on aura 4 sessions
 devant nous.
+
+
+## Manque #5 RESOLU (2026-10-19)
+
+`if then else` en syntaxe de surface fonctionne dans l'interpreteur
+Heaven-pur.
+
+**Fix** : ajout de `parse_if` dans `heaven_parse.hvn` (def_body
+dispatche vers `parse_if` si le premier token du corps est `if`).
+Consomme `if` explicitement (pas via `parse_one`), puis parse
+cond / `then` / a / `else` / b, produit `EApply (EApply (EApply
+(ESym "if") c) a) b` — curry 3 compatible VIf1/VIf2 de l'evaluateur.
+
+**Premier essai (rollback)** : `parse_one` consommait `if` en
+`ESym "if"`, `parse_if_c` ne trouvait pas `then` -> PErr. Deuxieme
+essai : `parse_if (TCons (TSymTok "if") rest) = (parse_if_c (parse_one rest))`.
+
+**Tests** : tests/test_meta_if.hvn (7 cas : then, else, recursion,
+fac 5, fac 6, parens `(if c a b)` toujours OK, imbrique). Tous
+verts. Non-regression : test_parser 22/22, test_eval 13/13.
+
+**Reste a faire (manques 1-4)** :
+1. `data` -> `eval (HP.EData ...)` + constructeurs 0-arg (1 session).
+2. Patterns constructeurs (1-2 sessions).
+3. `import` non resolu dans eval_file (30 min).
+4. Fossile 'exit 0 silencieux' (1 session).
+
+Estimation : 2-3 sessions.

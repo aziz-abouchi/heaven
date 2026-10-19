@@ -1,0 +1,13 @@
+-- tests/test_meta_if.hvn — if then else dans l'interpreteur Heaven-pur
+-- Metacircularite session 1 (2026-10-19). Avant parse_if, le parser
+-- Heaven-pur ne connaissait pas 'if' en tete de corps.
+
+import "lib/heaven_eval.hvn" as E
+
+test "if_then_t": (E.vint_of (E.run_expr "f x = if (= x 0) then 42 else 0" "(f 0)")) == 42
+test "if_then_f": (E.vint_of (E.run_expr "f x = if (= x 0) then 42 else 0" "(f 5)")) == 0
+test "if_rec": (E.vint_of (E.run_expr "c n = if (= n 0) then 0 else (c (- n 1))" "(c 5)")) == 0
+test "if_fac": (E.vint_of (E.run_expr "fac n = if (= n 0) then 1 else (* n (fac (- n 1)))" "(fac 5)")) == 120
+test "if_fac_6": (E.vint_of (E.run_expr "fac n = if (= n 0) then 1 else (* n (fac (- n 1)))" "(fac 6)")) == 720
+test "if_parens_still_ok": (E.vint_of (E.run_expr "" "(if (= 1 1) 42 99)")) == 42
+test "if_nested": (E.vint_of (E.run_expr "f x = if (= x 0) then (if (= x 0) then 1 else 2) else 3" "(f 0)")) == 1

@@ -69,6 +69,7 @@
   "tests/test_lexer.hvn",
   "tests/test_list.hvn",
   "tests/test_memory.hvn",
+  "tests/test_meta_if.hvn",
   "tests/test_option.hvn",
   "tests/test_ord.hvn",
   "tests/test_pair.hvn",

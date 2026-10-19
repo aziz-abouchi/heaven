@@ -136,7 +136,35 @@ def_pat_tok name params acc depth (TSymTok s) ts = (def_pat name params (string_
 def_pat_tok name params acc depth (TIntTok n) ts = (def_pat name params (string_concat (string_concat acc " ") (int_to_string n)) depth ts)
 def_pat_tok name params acc depth t ts = (PErr "pattern : token non supporte B-v2")
 
-def_body name params ts = (let r (parse_one ts) (def_body2 name params r))
+def_body name params ts =
+  (if (tok_eq (tok_head ts) (TSymTok "if"))
+    (def_body_if name params (parse_if ts))
+    (def_body_norm name params ts))
+def_body_norm name params ts = (let r (parse_one ts) (def_body2 name params r))
+def_body_if name params (PErr e) = (PErr e)
+def_body_if name params (POk body rest) = (POk (EBind name (lambda_wrap (strs_rev params SNil) body)) rest)
+
+-- HEAVEN:PARSE_IF_INFIXE — if c then a else b (infixe) -> EApply curry 3.
+-- Declenche uniquement en tete de corps de def (pas dans les S-expr).
+-- Reutilise l'evaluateur existant qui attend curry : if c -> VIf1 c,
+-- VIf1 c a -> VIf2 c a, VIf2 c a b -> eval_if.
+parse_if (TCons (TSymTok "if") rest) = (parse_if_c (parse_one rest))
+parse_if ts = (PErr "if attendu")
+parse_if_c (PErr e) = (PErr e)
+parse_if_c (POk cond rest) =
+  (if (tok_eq (tok_head rest) (TSymTok "then"))
+    (parse_if_a cond (tok_tail rest))
+    (PErr "then attendu"))
+parse_if_a cond ts = (parse_if_a2 cond (parse_one ts))
+parse_if_a2 cond (PErr e) = (PErr e)
+parse_if_a2 cond (POk a rest) =
+  (if (tok_eq (tok_head rest) (TSymTok "else"))
+    (parse_if_b cond a (tok_tail rest))
+    (PErr "else attendu"))
+parse_if_b cond a ts = (parse_if_b2 cond a (parse_one ts))
+parse_if_b2 cond a (PErr e) = (PErr e)
+parse_if_b2 cond a (POk b rest) =
+  (POk (EApply (EApply (EApply (ESym "if") cond) a) b) rest)
 def_body2 name params (PErr e) = (PErr e)
 def_body2 name params (POk body rest) = (POk (EBind name (lambda_wrap (strs_rev params SNil) body)) rest)
 
