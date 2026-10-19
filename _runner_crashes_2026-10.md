@@ -1,40 +1,55 @@
-# Runner --run-tests : 3 crashes silencieux (2026-10-19)
+# Runner --run-tests : 3 crashes Debug-only (2026-10-19)
 
 ## Constat
 
 HEAVEN_NO_LEAK_CHECK=1 ./zig-out/bin/heaven --run-tests tests
-produit 3 CRASH/FAIL (Signal) silencieux : pas de TestFailed,
-pas de Total pour ces fichiers. Le runner continue (fork par
-fichier, test_runner.zig:318).
+en build DEBUG (zig build sans -Doptimize) produit 3 crashes
+CRASH/FAIL (Signal) silencieux : pas de TestFailed, pas de
+Total pour ces fichiers. Le runner continue (fork par fichier,
+test_runner.zig:318). Reproduits en isolation avec --run-test :
 
-  tests/test_parser.hvn     -- crash apres 5 tests passes
-  tests/test_hashmap.hvn    -- crash apres 6 tests passes
-  tests/test_bigint_d20.hvn -- crash avant tout test
+  tests/test_parser.hvn     -- SIGSEGV apres 8 tests (exit 139)
+  tests/test_hashmap.hvn    -- SIGSEGV apres 8 tests (exit 139)
+  tests/test_bigint_d20.hvn -- SIGSEGV avant tout test (exit 139)
 
-## Statut
+## Statut (CORRIGE)
 
-- Pre-existant : confirme sur HEAD e65dc66 stashe (memes
-  3 lignes, memes fichiers). Non cause par E3a (0bdc6e9).
-- Contredit l'annonce '0 fail' du prompt de continuite
-  2026-10-19. Regression silencieuse entre la derniere session
-  verte et 7123886/e65dc66, ou baseline jamais re-verifiee.
+- Debug-only : zig build -Doptimize=ReleaseFast + --run-tests
+  tests = 0 fail. Le prompt de continuite 2026-10-19 annoncait
+  '0 fail' -- c'etait vrai en ReleaseFast, faux en Debug.
+- Non causé par E3a (0bdc6e9) : vrai, mais trompeur. E3a n'y
+  est pour rien du tout -- Debug crashait deja sur e65dc66.
+- Cause racine non identifiee. Suspects : UB en Debug (pointeur
+  non initialise, index hors borne non checke en ReleaseFast par
+  hasard), ou alignement/stack. Commit suspect : 82b7835
+  'bigint Debug-only + test-files ReleaseFast' -- le titre
+  suggere que Debug est deja connu pour casser sur bigint.
 
-## Hypotheses (non verifiees)
+## Regle de baseline (a rappeler)
 
-1. Parse silencieux : TestFailed sans Total (piege connu).
-2. Signal (segfault/timeout) dans un test, catch par le fork.
-3. let ... in a profondeur 0 dans test 'nom': (piege
-   recidivant, cf. prompt continuite).
-4. Regression exprStructuralEq sur les 3 fichiers (Sym qualifie,
-   recidive 4x, H1).
+Les 4 commandes du prompt de continuite sont a lancer en
+ReleaseFast pour --run-tests :
 
-## Action
+  zig build -Doptimize=ReleaseFast           # 0
+  zig build test                              # 0
+  zig build -Doptimize=ReleaseFast
+  HEAVEN_NO_LEAK_CHECK=1 ./zig-out/bin/heaven --run-tests tests
+                                              # fails=0
+  zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall  # 0
+  zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall          # 0
 
-Session dediee runner-triage. Un fichier a la fois :
+Noter : 'zig build test' est en Debug (tests Zig unitaires) et
+doit rester vert en Debug. Seul --run-tests (runner Heaven) est
+un baseline ReleaseFast.
 
-  HEAVEN_NO_LEAK_CHECK=1 ./zig-out/bin/heaven --run-tests \
-    tests/test_parser.hvn 2>&1 | tail -30
+## Action (optionnelle, hors chemin critique)
 
-Reproduire en isolation, capturer le signal (dmesg / exit code),
-patcher ou documenter.
+Triage Debug-only si priorise. Un fichier a la fois :
+
+  zig build  # Debug
+  HEAVEN_NO_LEAK_CHECK=1 ./zig-out/bin/heaven --run-test \
+    tests/test_bigint_d20.hvn
+
+Ou : valgrind / ASan si dispo, sinon bisect sur 82b7835.
+Priorite basse : ReleaseFast est la cible de prod et de CI.
 
