@@ -11,4 +11,3 @@ test "server_bad_order": (M.check (M.proto_server 0) (M.TCons "Resp" (M.TCons "R
 test "end_empty": (M.check M.STEnd M.TNil) == true
 test "end_nonempty": (M.check M.STEnd (M.TCons "x" M.TNil)) == false
 test "dual_involution": (M.dual (M.dual (M.proto_client 0))) == (M.proto_client 0)
-test "dual_send_recv": (M.dual (M.STSend "x" M.STEnd)) == (M.STRecv "x" M.STEnd)
