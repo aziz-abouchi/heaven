@@ -8,14 +8,14 @@ const Allocator = std.mem.Allocator;
 // En WASI et natif, on definit une version locale no-op (retourne 0).
 const js_ollama_query = if (builtin.target.os.tag == .freestanding)
     struct {
-        extern "env" fn f(prompt_ptr: [*]const u8, prompt_len: usize, out_ptr: [*]u8, out_max: usize) usize;
-    }.f
+        extern "env" fn js_ollama_query(prompt_ptr: [*]const u8, prompt_len: usize, out_ptr: [*]u8, out_max: usize) usize;
+    }.js_ollama_query
 else
     struct {
-        fn f(_: [*]const u8, _: usize, _: [*]u8, _: usize) usize {
+        fn js_ollama_query(_: [*]const u8, _: usize, _: [*]u8, _: usize) usize {
             return 0;
         }
-    }.f;
+    }.js_ollama_query;
 
 pub fn query(prompt: []const u8, allocator: Allocator) !?[]const u8 {
     // Tenter Ollama en WASM (si disponible)
