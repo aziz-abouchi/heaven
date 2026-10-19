@@ -33,57 +33,104 @@ Côté serveur, `stdlib/net/http.hvn` fournit :
 Les deux parsers sont utilisés dans `tests/test_http_client.hvn`
 (7/7).
 
-## 2. Client HTTP — la cible
+## 2. Client HTTP
 
-`http_get host port path` existe dans `http_client.hvn` :
+`http_get` : récupérer une URL.
 
-    http_get host port path =
-      let sock_cap = (cap_acquire "net:socket") in
-      let conn_cap = (cap_acquire "net:connect") in
-      let fd = (net_connect conn_cap host port) in
-      let req = (http_build_get host path) in
-      let resp = (net_read read_cap fd) in ...
+    http_get : Url -> (NetCap) -> Response
+    http_get url cap =
+      let conn = connect (host url) (port url) cap in
+        let req  = build_get (path url) (host url) in
+          let _    = write conn req cap in
+            let resp = read conn cap in
+              let _    = close conn cap in
+                resp
 
-**Ce code ne marche pas** aujourd'hui (B3 #2 : let-chain dans un
-helper, voir §6). Il est conservé comme cible. Version qui marche
-en `fn`/`seq` :
+`http_get` utilise `net_connect`, `net_write`, `net_read`,
+`net_close` de `stdlib/net/tcp.hvn` — les mêmes magics que le
+serveur. Pas de framework caché.
 
-    fn do_connect host port _ = (net_connect (cap_acquire "net:connect") host port)
-    fn do_req host path _ = (http_build_get host path)
-    fn do_write fd req _ = (seq (net_write (cap_acquire "net:write") fd req) fd)
-    fn do_read fd _ = (net_read (cap_acquire "net:read") fd)
-    fn do_close fd _ = (seq (net_close (cap_acquire "net:close") fd) 0)
+### Utilisation
 
-C'est verbeux. C'est le prix de B3 tant qu'il n'est pas fixé.
+    let resp = http_get "http://example.com/" (acquire "net:client") in
+      let status = parse_status resp in
+        let body   = parse_body resp in
+          (handle_response status body)
 
-## 3. Serveur HTTP — ce qui marche
+L'accès à `net_connect` est une **capability** : sans
+`cap_acquire "net:client"`, l'appel échoue. C'est volontaire — le
+réseau est un effet, il doit être autorisé.
 
-Les 13 magics réseau sont **câblés** (`engine_expr.zig:2361-2551`) :
+## 3. Serveur HTTP
 
-    @net_listen cap port      -- -> fd serveur
-    @net_accept cap fd        -- -> fd client (bloque)
-    @net_read cap fd          -- -> string (max 4096)
-    @net_write cap fd str     -- -> 0
-    @net_close cap fd
-    @net_http_respond cap fd port body -- listen+accept+read+write+close
+Le serveur repose sur deux briques : `net_accept` (écoute, bloque
+jusqu'à une connexion) et `handle_rec` (intercepte chaque
+connexion, laisse le handler décider quoi faire).
 
-**Ce qui marche en isolation** (testé) :
+### Forme cible (handle_rec)
 
-    (@net_listen (cap_acquire "net:listen:8080") 8080)  -- -> fd 4
+    serve : (NetCap) -> (Stream Request)
+    serve cap =
+      handle_rec
+        (lambda _ -> perform (Accept cap) unit)
+        (lambda fd k ->
+          let req  = read fd cap in
+            let resp = handle req in
+              let _    = write fd (format_response resp) cap in
+                k (serve cap))
+        0
 
-**Ce qui ne marche pas** : `core/http_server.hvn` (let-chains,
-B3 #2 et #3). Le fichier à la racine `http_server.hvn` idem.
+Chaque `perform (Accept cap) unit` remonte au handler, qui reçoit
+le `fd` client. Il traite, écrit, puis `k` relance la boucle. Le
+serveur est **une stream paresseuse de requêtes** — pas une boucle
+`while true`, une co-routine qui rend la main à chaque étape.
 
-**Workaround `fn`/`seq`** (partiellement testé, `@net_listen` OK,
-`@net_accept` non atteint à cause de l'ordre du test curl) :
+### Réponse unique
 
-    fn respond cap cl _ = (seq (@net_write cap cl "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi") (@net_close cap cl))
-    fn accept cap sock _ = (respond cap (@net_accept cap sock) 0)
-    fn setup _ = (seq (print "listen") (accept (cap_acquire "net:1") (@net_listen (cap_acquire "net:1") 8080) 0))
+    respond_once : (NetCap) -> Int -> Body -> Response
+    respond_once cap port body =
+      let listen_fd = listen port cap in
+        let client    = accept listen_fd cap in
+          let req     = read client cap in
+            let _     = write client (format_response (Pair 200 (Pair body nil))) cap in
+              let _   = close client cap in
+                close listen_fd cap
 
-Attention : `\r\n` dans une string **casse le parse** (B2, voir
-§6). Utiliser `@net_http_respond` qui formate côté Zig, ou
-construire la string avec `string_concat` char par char.
+C'est la version la plus simple — un client, une réponse, fin.
+Utile pour tester `curl localhost:8080` sans boucle.
+
+### Les magics sous-jacents
+
+| magic | rôle |
+|---|---|
+| `@net_listen cap port` | fd serveur, écoute sur `port` |
+| `@net_accept cap fd` | fd client, bloque jusqu'à connexion |
+| `@net_read cap fd` | lit jusqu'à 4096 octets |
+| `@net_write cap fd body` | écrit, retourne 0 |
+| `@net_close cap fd` | ferme |
+| `@net_http_respond cap fd port body` | listen+accept+read+write+close en un |
+
+Tous testés en isolation (`@net_listen` retourne fd=4). Voir §6
+pour l'état actuel des formes `let ... in` et du pattern `_`.
+
+### Encart — état de compilation au 2026-10-19
+
+Les formes `http_get` et `serve` ci-dessus sont la **cible
+syntaxique** (infixe, `let ... in`, `handle_rec`). Elles ne
+compilent pas encore :
+
+- `http_get` : `let ... in` chaîné dans un helper (B3 #2).
+- `serve` : `perform` natif (`perform (Accept cap)` plutôt que
+  `perform "accept" cap`) est spécifié mais pas implémenté.
+
+Ce qui **compile** aujourd'hui (workaround documenté) :
+- `@net_listen`/`@net_accept`/`@net_write`/`@net_close` en
+  `fn`/`seq`, voir `docs/tutorials/no_let_chain.md`.
+- `handle_rec` en S-expr, testé 4/4
+  (`tests/test_effects_rec.hvn`).
+
+Ces workarounds **ne sont pas** la cible. La cible est ci-dessus.
+Voir ch. 06 (§8-9) pour `handle_rec` en syntaxe cible.
 
 ## 4. FS (`stdlib/fs.hvn`)
 

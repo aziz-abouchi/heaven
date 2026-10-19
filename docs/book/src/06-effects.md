@@ -242,3 +242,101 @@ toute la séquence.
 *Vérifiable : tous les exemples `handle` et `logHandler` de ce
 chapitre fonctionnent tels quels dans le REPL.*
 
+## 8. `handle_rec` — implémentation actuelle
+
+`handle_rec` est l'**implémentation testée** (4/4,
+`tests/test_effects_rec.hvn`). Signature :
+
+    handle_rec thunk handler init
+
+    -- thunk   : la computation, paramétrée par l'état
+    -- handler : (lambda val k -> ...), k = continuation
+    -- init    : état initial
+
+Exemple — compteur d'effets :
+
+    test "countdown":
+      (handle_rec
+        (lambda s -> (if s == 0 then 0 else (perform "tick" s)))
+        (lambda v k -> (if v == 0 then 0 else (k (v - 1))))
+        5) == 0
+
+Décomposé :
+
+1. `thunk 5` s'exécute. `5 != 0`, donc `perform "tick" 5`.
+2. `perform` capture le handler via `pending_capture.kind = .perform`.
+3. `handle_rec` invoque `handler` : `(lambda v k -> ...) 5 k`.
+4. `v = 5`, `k` est la continuation. `k (5 - 1) = k 4`.
+5. `thunk 4`, `thunk 3`, ..., `thunk 0`.
+6. `thunk 0` retourne `0` (pas de `perform`). Fin.
+
+Le handler décide : soit il appelle `k` (reprise), soit il
+retourne une valeur (abandon, one-shot).
+
+    test "one-shot":
+      (handle_rec
+        (lambda s -> (perform "once" s))
+        (lambda v k -> v)   -- k jamais appelé
+        42) == 42
+
+## 9. Effets en syntaxe cible
+
+La direction (`_effects.md` §5) : **les opérations sont des
+`Expr` normales**, pas des labels string.
+
+### Aujourd'hui
+
+    perform "Accept" cap
+
+### Cible
+
+    perform (Accept cap)
+
+`Accept` est une **opération**, pas un constructeur de data. Elle
+peut porter un payload typé. Le handler intercepte par
+**pattern-matching sur l'opération** :
+
+    handle e with
+      | Accept fd     -> resume k (read fd cap)
+      | ReadFile cap  -> resume k (io_read cap 0 4096)
+      | WriteFile cap -> resume k (io_write cap 0 ...)
+
+`with`, `|`, `resume` — syntaxe cible, non implémentée. La
+spécification complète est dans `docs/spec/_effects.md` §5-7.
+
+### `do` notation
+
+Direction : `do` est du **sucre** pour chaîner des `handle_rec`.
+
+    fetch url = do
+      conn <- connect (host url) (port url)
+      req  <- build_get (path url) (host url)
+      send conn req
+      recv conn
+
+Désucre en `handle_rec` imbriqués. Pas de primitive runtime. La
+grammaire (`GRAMMAR.md`) ne contient pas `do` aujourd'hui —
+c'est une cible.
+
+## 10. Ce qui marche aujourd'hui
+
+| Feature | État | Test |
+|---|---|---|
+| `perform "label" val` | ✅ | `test_effects_rec.hvn` |
+| `handle_rec thunk handler init` | ✅ | `test_effects_rec.hvn` (4/4) |
+| `yield` (scheduler) | ✅ | `test_scheduler.hvn` |
+| `@prompt` / `@throw` | ✅ | `test_continuations.hvn` (15/15) |
+| `@prompt_depth` | ✅ | `test_prompt_depth.hvn` (13/13) |
+| `perform (Op args)` | ❌ | cible §9 |
+| `handle ... with` | ❌ | cible §9 |
+| `resume k v` public | ❌ | `resume_from_k` interne |
+| `do` notation | ❌ | cible §9 |
+
+### Référence
+
+- `docs/spec/_effects.md` — spec (285 l.), état + cible.
+- `docs/spec/_handle_rec_status.md` — chantier parallèle.
+- `docs/spec/_continuations.md` — continuations délimitées.
+- `src/core/engine_expr.zig:187-350` — `PendingCapture`,
+  `prompts`, scheduler.
+
