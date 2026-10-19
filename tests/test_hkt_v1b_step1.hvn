@@ -1,0 +1,11 @@
+-- tests/test_hkt_v1b_step1.hvn -- HKT V1b pas 1 : @resolve_instance (2026-10-19)
+-- Resolution (C, T) -> op_T via instance_pairs. Pas d'inference, pas de dispatch.
+
+class Functor f
+instance Functor List
+instance Functor Maybe
+
+test "resolve List": (@resolve_instance "Functor" "List" "fmap") == "fmap_List"
+test "resolve Maybe": (@resolve_instance "Functor" "Maybe" "fmap") == "fmap_Maybe"
+test "resolve unknown": (@resolve_instance "Functor" "Int" "fmap") == ""
+test "resolve unknown class": (@resolve_instance "Monoid" "List" "mappend") == ""
