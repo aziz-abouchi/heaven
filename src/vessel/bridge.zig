@@ -4,6 +4,7 @@ const matrix_lib = @import("matrix_lib");
 const autofab = @import("../runtime/autofab.zig");
 const main_mod = @import("../main.zig");
 const platform = @import("platform");
+const expr = @import("expr");
 
 // En mode DEBUG, on lit depuis le disque pour éviter de recompiler
 const DEBUG_MODE = platform.target.is_debug;
@@ -26,6 +27,7 @@ const test_suite_hvn = @embedFile("public/test_suite.hvn");
 pub const WebBridge = struct {
     matrix: *matrix_lib.Matrix,
     fab: *autofab.AutoFab,
+    store: *expr.Store,
     port: u16,
     // Un booléen atomique : false = libre, true = occupé
     busy: atomic.Value(bool) = atomic.Value(bool).init(false),
@@ -40,160 +42,13 @@ pub const WebBridge = struct {
     }
 
     pub fn serveTelemetry(self: *WebBridge, allocator: std.mem.Allocator) ![]u8 {
-        var list = std.ArrayListUnmanaged(u8){};
-        const writer = list.writer(allocator);
-        const stats = self.matrix.getStats();
-        try writer.writeAll("{ \"stats\": {");
-
-        const approx_bytes = stats.nodes * 64 + stats.symbols * 32;
-        const load = if (stats.nodes > 0) @min(@as(f64, @floatFromInt(stats.nodes)) / 1000.0, 1.0) else 0.0;
-        try std.fmt.format(writer, "\"node_count\": {d}, \"symbol_count\": {d}, \"approx_bytes\": {d}, \"hash_map_load\": {d:.4}", .{ stats.nodes, stats.symbols, approx_bytes, load });
-
-        try writer.writeAll("}, \"nodes\": [");
-        // Bob node
-        try std.fmt.format(writer, "{{\"id\": 99999, \"tag\": \"Bob\", \"label\": \"Bob:{d}\", \"status\": \"active\"}}", .{self.port});
-
-        var first_node = false;
-
-        // Add peer Bob nodes
         const net2 = @import("../scut/network.zig");
+        var ports = std.ArrayListUnmanaged(u16){};
+        defer ports.deinit(allocator);
         for (net2.known_peers.items) |peer| {
-            const pp = peer.address.getPort();
-            try writer.writeAll(",");
-            try std.fmt.format(writer, "{{\"id\": {d}, \"tag\": \"Bob\", \"label\": \"Bob:{d}\", \"status\": \"active\"}}", .{ pp, pp });
+            try ports.append(allocator, peer.address.getPort());
         }
-
-        var node_it = self.matrix.nodes.iterator();
-        var edges = std.ArrayListUnmanaged(matrix_lib.Edge){};
-        defer edges.deinit(allocator);
-
-        while (node_it.next()) |entry| {
-            const id = entry.key_ptr.*;
-            const node = entry.value_ptr.*;
-            if (node == .Edge) {
-                try edges.append(allocator, node.Edge);
-                continue;
-            }
-            if (!first_node) try writer.writeAll(",");
-            first_node = false;
-
-            const label = switch (node) {
-                .Symbol => |s| try std.fmt.allocPrint(allocator, "Sym:{s}", .{s}),
-                .NativeCode => "Native",
-                else => try std.fmt.allocPrint(allocator, "{s}", .{@tagName(node)}),
-            };
-            defer allocator.free(label);
-
-            try std.fmt.format(writer, "{{\"id\": {d}, \"tag\": \"Symbol\", \"label\": \"{s}\", \"status\": \"stable\"}}", .{ id, escapeJson(allocator, label) });
-        }
-
-        try writer.writeAll("], \"links\": [");
-        var first_edge = true;
-        for (edges.items) |e| {
-            if (!first_edge) try writer.writeAll(",");
-            first_edge = false;
-            try std.fmt.format(writer, "{{\"source\": {d}, \"target\": {d}, \"label\": \"{s}\"}}", .{ e.source, e.target, escapeJson(allocator, e.label) });
-        } // Auto-generate links: rules referencing predicates
-        var rule_it = self.matrix.nodes.iterator();
-        while (rule_it.next()) |rentry| {
-            const rid = rentry.key_ptr.*;
-            const rnode = rentry.value_ptr.*;
-            if (rnode != .Symbol) continue;
-            const rlabel = rnode.Symbol;
-            if (!std.mem.startsWith(u8, rlabel, "RULE:")) continue;
-            // Find predicates referenced in the rule body
-            var fact_it = self.matrix.nodes.iterator();
-            while (fact_it.next()) |fentry| {
-                const fid = fentry.key_ptr.*;
-                const fnode = fentry.value_ptr.*;
-                if (fnode != .Symbol) continue;
-                const flabel = fnode.Symbol;
-                if (!std.mem.startsWith(u8, flabel, "FACT:")) continue;
-                // Extract predicate name from FACT:pred(...)
-                const fpred_start: usize = 5;
-                const fparen = std.mem.indexOfScalar(u8, flabel[fpred_start..], '(') orelse continue;
-                const fpred = flabel[fpred_start .. fpred_start + fparen];
-                // Check if rule body contains this predicate
-                if (std.mem.indexOf(u8, rlabel, fpred) != null) {
-                    if (!first_edge) try writer.writeAll(",");
-                    first_edge = false;
-                    try std.fmt.format(writer, "{{\"source\": {d}, \"target\": {d}, \"label\": \"uses\"}}", .{ rid, fid });
-                }
-            }
-        }
-        // Peer Bobs
-        const net = @import("../scut/network.zig");
-        const peers = net.known_peers.items;
-        for (peers) |peer| {
-            const peer_port = peer.address.getPort();
-            if (!first_edge) try writer.writeAll(",");
-            first_edge = false;
-            try std.fmt.format(writer, "{{\"source\": 99999, \"target\": {d}, \"label\": \"p2p\"}}", .{peer_port});
-        }
-
-        // Swarm tasks as nodes
-        const swarm_rt = @import("../runtime/swarm/runtime.zig");
-        if (swarm_rt.global_inbox) |inbox| {
-            for (inbox.items, 0..) |task, tidx| {
-                try writer.writeAll(",");
-                const task_expr = task.expr[0..task.expr_len];
-                const escaped = escapeJson(allocator, task_expr);
-                try std.fmt.format(writer, "{{\"id\": {d}, \"tag\": \"Swarm\", \"label\": \"[{s}] {s}\", \"status\": \"{s}\"}}", .{
-                    @as(u32, @intCast(80000 + tidx)),
-                    @tagName(task.kind),
-                    escaped,
-                    @tagName(task.status),
-                });
-            }
-        }
-
-        // Swarm completed results as nodes
-        if (swarm_rt.global_results) |results| {
-            for (results.items, 0..) |result, ridx| {
-                try writer.writeAll(",");
-                const res_text = result.result[0..result.result_len];
-                const res_escaped = escapeJson(allocator, res_text);
-                try std.fmt.format(writer, "{{\"id\": {d}, \"tag\": \"SwarmResult\", \"label\": \"\xe2\x9c\x93 {s} (Bob:{d})\", \"status\": \"solved\"}}", .{
-                    @as(u32, @intCast(90000 + ridx)),
-                    res_escaped,
-                    result.solver_port,
-                });
-            }
-        }
-
-        // Links from swarm tasks to Bob
-        if (swarm_rt.global_inbox) |inbox| {
-            for (inbox.items, 0..) |task, tidx| {
-                if (!first_edge) try writer.writeAll(",");
-                first_edge = false;
-                try std.fmt.format(writer, "{{\"source\": 99999, \"target\": {d}, \"label\": \"swarm\"}}", .{
-                    @as(u32, @intCast(80000 + tidx)),
-                });
-                _ = task;
-            }
-        }
-
-        // Links from swarm results to Bob
-        if (swarm_rt.global_results) |results| {
-            for (results.items, 0..) |_, ridx| {
-                if (!first_edge) try writer.writeAll(",");
-                first_edge = false;
-                try std.fmt.format(writer, "{{\"source\": {d}, \"target\": 99999, \"label\": \"resolved\"}}", .{
-                    @as(u32, @intCast(90000 + ridx)),
-                });
-            }
-        }
-
-        // Links from Bob to all nodes
-        var bob_it = self.matrix.nodes.iterator();
-        while (bob_it.next()) |bentry| {
-            const bid = bentry.key_ptr.*;
-            if (!first_edge) try writer.writeAll(",");
-            first_edge = false;
-            try std.fmt.format(writer, "{{\"source\": 99999, \"target\": {d}, \"label\": \"owns\"}}", .{bid});
-        }
-        try writer.writeAll("] }");
-        return list.toOwnedSlice(allocator);
+        return @import("telemetry_store.zig").render(allocator, self.store, self.port, ports.items);
     }
 };
 
@@ -436,6 +291,7 @@ fn handleClient(args: HandlerArgs) void {
 pub fn startVesselServer(
     matrix: *matrix_lib.Matrix,
     fab: *autofab.AutoFab,
+    store: *expr.Store,
     dash_port: u16,
     exiting: *const std.atomic.Value(bool),
 ) void {
@@ -447,7 +303,7 @@ pub fn startVesselServer(
 
     platform.debug.print("Vessel HTTP: http://localhost:{d}/\n", .{dash_port});
 
-    var bridge = WebBridge{ .matrix = matrix, .fab = fab, .port = dash_port };
+    var bridge = WebBridge{ .matrix = matrix, .fab = fab, .store = store, .port = dash_port };
     while (true) {
         // Vérifier la sortie avant chaque accept
         if (exiting.load(.acquire)) break;

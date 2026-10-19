@@ -9,6 +9,7 @@ pub fn render(
     allocator: std.mem.Allocator,
     store: *const expr.Store,
     self_port: u16,
+    peer_ports: []const u16,
 ) ![]u8 {
     var list = std.ArrayListUnmanaged(u8){};
     errdefer list.deinit(allocator);
@@ -33,6 +34,12 @@ pub fn render(
     try w.writeAll("{\"id\": 99999, \"tag\": \"Bob\", ");
     try std.fmt.format(w, "\"label\": \"Bob:{d}\", \"status\": \"active\"", .{self_port});
     try w.writeAll("}");
+
+    for (peer_ports) |pp| {
+        try w.writeAll(",");
+        try std.fmt.format(w, "{{\"id\": {d}, \"tag\": \"Bob\", \"label\": \"Bob:{d}\", \"status\": \"active\"}}", .{ pp, pp });
+    }
+
     first = false;
 
     // Nœuds du Store (limité à 500 pour ne pas exploser le JSON)
@@ -56,7 +63,7 @@ test "render : JSON bien forme, contient stats et nodes" {
     // 1 nœud (lit int)
     _ = try store.int(42);
 
-    const json = try render(allocator, &store, 8080);
+    const json = try render(allocator, &store, 8080, &.{});
     defer allocator.free(json);
 
     try std.testing.expect(std.mem.indexOf(u8, json, "\"node_count\"") != null);
