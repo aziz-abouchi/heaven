@@ -1,61 +1,86 @@
-# Bug : `let _ = e in body` n'evalue pas `e` (2026-10-19)
+# Bug : `let` chain et `let` en argument (2026-10-19)
 
 ## Symptome
 
-Reproducteur (une ligne, aucun split) :
+`convertLetIn` (`heaven_expr.zig:1988`) ne gere que le `let`
+**top-level** d'un corps de fonction. Tout `let` imbrique ou
+chaîne est ignore, l'AST n'est pas evalue.
 
-    let _ = (print "A") in let _ = (print "B") in (print "C")
+## Reproducteurs
 
-Sortie observee : `"C"` uniquement. A et B ne s'affichent pas.
+| Code | Resultat |
+|---|---|
+| `let a = 1 in (print (int_to_string a))` | `"1"` ✅ |
+| `let a = 1 in let b = 2 in body` | AST non-evalue ❌ |
+| `(+ (let a = 1 in a) (let b = 2 in b))` | AST non-evalue ❌ |
+| `fn f _ = (seq (print "A") (seq (let x = (print "B")) (print "C")))` | `UnboundVariable` ❌ |
 
-## Impact
+## Ce qui marche (prouve)
 
-- Tout programme Heaven imperatif casse silencieusement.
-- `http_server.hvn` (racine, non-tracke) : `let _ = (@net_listen ...)`,
-  `let _ = (@net_write ...)` ne font rien. Le serveur se termine
-  sans avoir ecoute. C'est un faux positif observe en E4-triage.
-- `core/http_server.hvn` : idem, mais il n'utilise pas `let _` (il
-  bind des noms reels) — a reverifier.
+- `fn f _ = (let x = v in body)` : un seul `let`, top-level
+- `fn f _ = (seq e1 (seq e2 e3))` : `seq` chain
+- `f arg1 arg2` : application simple, args sans `let`
+- `(@net_listen (cap_acquire "net:N") N)` : magic one-liner
 
-## Hypotheses (non verifiees)
+## Workaround : `fn` + `seq`, pas de let-chain
 
-1. Desugaring de `let _ = e in body` : si `_` est traite comme
-   wildcard de pattern et que le RHS est *skippe* (pas juste ignore),
-   `e` n'est jamais evalue. Voir `heaven_expr.zig:713`
-   (`if (std.mem.eql(u8, nm, "_")) continue;`) et `convertLetIn`
-   (`heaven_expr.zig:1988`).
-2. `let` est lazy en general, et `_` (sans usage) empeche la
-   forcage. A tester : `let x = (print "A") in (print "B")` — si
-   A ne sort pas, c'est `let` qui est lazy, pas `_`.
+Chaque fonction fait une chose, les valeurs passent en parametres :
 
-## Correctif possible (a valider en session)
+    fn respond cap cl _ = (seq (@net_write cap cl "HTTP/1.1 200 OK") (@net_close cap cl))
+    fn accept cap sock _ = (respond cap (@net_accept cap sock) 0)
+    fn setup _ = (seq (print "start") (accept (cap_acquire "net:N") (@net_listen ... N) 0))
 
-- Soit forcer le RHS a l'eval pour `let _` (mais alors `let x`
-  aussi ? a verifier la coherence).
-- Soit desugar `let _ = e in body` en `seq e body` (si `seq` force
-  bien ses deux args).
+Imbrication : `(seq (let x = v in x) (seq ...))` — attention,
+`let` dans un arg de `seq` echoue (`UnboundVariable`). Extraire
+en fonction separee.
 
-## Comportement annexe (PAS un bug)
+## Pourquoi ça bloque E4b
 
-`splitStatements` (`test_runner.zig:36`) traite chaque ligne non
-indentee comme un statement separe. Un let-chain multi-ligne a
-colonne 0 = N statements orphelins. C'est *voulu* pour les fichiers
-de tests (clauses, gardes). **Workaround** : ecrire les let-chain
-sur une seule ligne (ou indenter les continuations).
+`http_server.hvn` (root, non-tracke) et `core/http_server.hvn`
+utilisent tous les deux des let-chains. Ils ne peuvent pas
+marcher. Un serveur fonctionnel doit etre ecrit en `fn`/`seq`.
 
-## Prochaine session
+## Correctif (session dediee)
 
-1. Discriminant : `let x = (print "A") in (print "B")` (une ligne).
-2. Si `let x` force, patch `_` uniquement (~10 lignes).
-3. Si `let x` ne force pas non plus, patch `let` general (parser
-   ou eval), tests unitaires requis.
-4. Puis E4b : `http_server.hvn` reecrit en une ligne (contournement
-   B2) avec `let _` remplaces par `seq` ou `let r = e in`.
+`convertLetIn` doit :
+1. Rendre `let ... in` comme **expression d'un S-expr**
+   (actuellement : seulement top-level).
+2. Detecter et normaliser `let x = v in body` en
+   `(let x v body)` **a l'interieur** d'un S-expr.
 
-## Fichiers
+Probablement 2-3h + tests unitaires (`test_let_chain.hvn`).
+Ne pas bricoler a chaud.
 
-- `src/core/heaven_expr.zig:713, 1501, 1988` (parsing `_`, `let-in`)
-- `src/core/engine_expr.zig` (eval, pas de `.let =>` grep-match :
-  desugaring en amont, a tracer via `parseExpression` sur un mini
-  fichier)
-- `src/runtime/test_runner.zig:36-90` (splitStatements)
+## Impact estimate
+
+- Tout programme imperatif > 1 ligne (serveur, HTTP, etc.)
+- Mais : les tests unitaires `.hvn` ne l'utilisent pas
+  (`test "n": (helper 0) == val` — pas de chain)
+- `lib/heaven_eval.hvn` (metacircularite) : a verifier
+
+## Reference
+
+- `src/core/heaven_expr.zig:1988` (`convertLetIn`),
+  `:2082` (`parseBodySmart`, top-level seulement)
+- `_let_wildcard_bug.md` (historique, refute : `let _` marche)
+
+## AMENDEMENT 2026-10-19 (fix partiel)
+
+**Fix committe** : `normalizeLetChain` (`heaven_expr.zig:763`),
+appele dans la branche top-level de `heaven.eval`.
+
+**Debloque** : `heaven run script.hvn` avec let-chain
+(`"3"` sur chain 2, `"6"` sur chain 3).
+
+**Ne debloque PAS** :
+- `.hvn` helper `f _ = (let ... in let ... in body)` — passe par
+  `parseBodySmart` -> `convertLetIn` (chemin distinct). Test
+  `tests/test_let_chain.hvn` 0/4 -> non commite.
+- `let` en argument de S-expr.
+
+**Prochain pas** : couvrir `convertLetIn` (meme bug de reassemblage
+sans recursion). Probablement 5-10 lignes dans
+`heaven_expr.zig:2045-2065` (rest_conv deja recursif, mais
+`body_norm` pas applique sur la valeur en cas de chain imbrique
+dans la valeur). A diagnostiquer en session fraiche.
+
