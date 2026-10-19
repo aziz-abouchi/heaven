@@ -1,0 +1,8 @@
+-- tests/test_ip.hvn — ip_to_string (2026-10-19)
+import "stdlib/net/ip.hvn" as IP
+
+test "ip 93.184.216.34": (IP.ip_to_string 1572395042) == "93.184.216.34"
+test "ip 127.0.0.1": (IP.ip_to_string 2130706433) == "127.0.0.1"
+test "ip 8.8.8.8": (IP.ip_to_string 134744072) == "8.8.8.8"
+test "ip 0.0.0.0": (IP.ip_to_string 0) == "0.0.0.0"
+test "ip 255.255.255.255": (IP.ip_to_string 4294967295) == "255.255.255.255"

@@ -5,6 +5,7 @@
 -- selfrecursion (commit 011d934, 2026-10-19).
 
 -- ─── Helpers binaires (big-endian) ───
+import "stdlib/net/ip.hvn"
 peek_u16_be ptr off =
   (+ (* (peek_byte ptr off) 256) (peek_byte ptr (+ off 1)))
 
@@ -44,10 +45,3 @@ dns_first_a_ip s =
 
 -- ─── Conversion IP int -> "a.b.c.d" ───
 -- int_to_string est un magic. Concat avec "." manuel.
-dns_ip_octet ip shift = (band (shr ip shift) 255)
-dns_ip_to_string ip =
-  let a = (int_to_string (dns_ip_octet ip 24)) in
-  let b = (int_to_string (dns_ip_octet ip 16)) in
-  let c = (int_to_string (dns_ip_octet ip 8)) in
-  let d = (int_to_string (dns_ip_octet ip 0)) in
-  (string_concat (string_concat (string_concat (string_concat (string_concat (string_concat a ".") b) ".") c) ".") d)

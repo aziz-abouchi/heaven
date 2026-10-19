@@ -1,0 +1,13 @@
+-- stdlib/net/ip.hvn — utilitaires IPv4 (int big-endian <-> string)
+-- Format "a.b.c.d" <-> int 32 bits. Pas de ip_from_string en V0.
+
+ip_octet ip shift = (band (shr ip shift) 255)
+
+ip_to_string ip =
+  (string_concat
+    (string_concat (int_to_string (ip_octet ip 24)) ".")
+    (string_concat
+      (string_concat (int_to_string (ip_octet ip 16)) ".")
+      (string_concat
+        (string_concat (int_to_string (ip_octet ip 8)) ".")
+        (int_to_string (ip_octet ip 0)))))

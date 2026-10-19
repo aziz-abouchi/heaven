@@ -5,6 +5,7 @@
 
 import "stdlib/net/dns_parse.hvn" as dns_v1
 import "stdlib/net/udp.hvn" as udp
+import "stdlib/net/ip.hvn" as ip
 
 -- ─── Header DNS : 12 bytes ───
 dns_build_header id flags qd =
@@ -68,4 +69,4 @@ dns_resolve_a_com _ =
 -- Retourne l'IP de la 1ere answer A, en string "93.184.216.34".
 -- Note : requiert reseau. Test manuel uniquement (sandbox bloque).
 dns_resolve_a_com_parsed _ =
-  (dns_v1.dns_ip_to_string (dns_v1.dns_first_a_ip (dns_resolve_a_com 0)))
+  (ip.ip_to_string (dns_v1.dns_first_a_ip (dns_resolve_a_com 0)))
