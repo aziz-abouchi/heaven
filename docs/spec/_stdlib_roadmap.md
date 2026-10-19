@@ -21,15 +21,16 @@ au find).
 `git mv stdlib/dns.hvn stdlib/net/dns.hvn`
 Imports mis à jour.
 
-### Phase 2 — split net.hvn (1h, risqué)
+### Phase 2 ✅ (commit à venir) — split net.hvn
 
-`stdlib/net/ip.hvn` : parse/format a.b.c.d (extrait de dns_parse)
-`stdlib/net/udp.hvn` : sendto/recvfrom wrappers
-`stdlib/net/tcp.hvn` : connect/listen/accept/read/write
-`stdlib/net.hvn` : supprimé (contenu dispatché)
-
-Risque : `core/http_server.hvn` importe `stdlib/net.hvn` -> à
-mettre à jour vers les nouveaux fichiers.
+Plan initial (ip/udp/tcp) ERRONÉ : net.hvn n'avait ni ip ni udp.
+Contenu réel :
+`stdlib/net/tcp.hvn` : net_listen/accept/read/write/close/socket/
+  connect + Fd (magics @net_*).
+`stdlib/net/http.hvn` : parse_request, req_*/resp_*,
+  format_response, _list_head/_list_nth.
+`stdlib/string.hvn` : +string_eq, string_eq_from.
+`stdlib/net.hvn` supprimé. `core/http_server.hvn` migré.
 
 ### Phase 3 — json sous stdlib/json/
 
