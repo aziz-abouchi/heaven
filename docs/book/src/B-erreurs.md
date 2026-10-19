@@ -123,6 +123,27 @@ le chemin (`(quote "/tmp/foo.txt")`).
 Un `let` dont la valeur est une chaine est renvoye tel quel (bug
 parser). Workaround : lier la chaine a un symbole.
 
+### `let` chainé (B3, partiellement fixé 2026-10-19)
+
+`let a = 1 in let b = 2 in body` **ne marchait pas** avant le
+2026-10-19 (body brut non reconverti, AST non évalué).
+
+**Fixé** : `heaven run script.hvn` avec let-chain 2-3 niveaux
+(`66f0b32`, `normalizeLetChain`).
+
+**Toujours cassé** :
+- `.hvn` helper `f _ = (let a = 1 in let b = 2 in body)`.
+- `let` en argument de S-expr : `(+ (let a 1 in a) (let b 2 in b))`.
+- **Pattern `_` dans une def + `heaven run`** : `helper _ = 42`
+  puis `(helper 0)` -> `ArityMismatch`. Bloque E4b (serveur HTTP
+  en `.hvn`).
+
+**Workarounds** :
+- Écrire `fn` + `seq` : `fn f _ = (seq e1 (seq e2 e3))`.
+- Ou S-expr nested : `(let a 1 (let b 2 body))`.
+- Voir `docs/tutorials/no_let_chain.md` (tuto complet) et
+  `docs/spec/_let_chain_bug.md` (diagnostic).
+
 ### `let ... in` multi-lignes
 
 Le body d'une equation doit etre sur **une seule ligne** ou etre

@@ -118,6 +118,16 @@ cas d'usage (parsing de protocoles).
 
 Liaison locale. Le nom est visible dans la partie après `in`.
 
+**Limitations connues (B3, 2026-10-19)** :
+- `let` chaîné (`let a = 1 in let b = 2 in body`) : fixé en
+  `heaven run` top-level (`66f0b32`), mais **toujours cassé** dans
+  les helpers `.hvn` et les arguments de S-expr.
+- Pattern `_` + `heaven run` : `helper _ = 42` puis `(helper 0)`
+  -> `ArityMismatch`.
+- Workarounds : `fn`/`seq`, ou S-expr nested
+  `(let a 1 (let b 2 body))`. Voir
+  `docs/tutorials/no_let_chain.md`.
+
 ## if
 
     if cond then a else b          -- forme infixe

@@ -46,40 +46,48 @@ classique, pas encore HKT — mais la syntaxe est prête.
 
 Le domaine peut être une application de type paramétré.
 
-## 3. Ce qui manque pour V1
+## 3. Classes de types : V1 (2026-10-19)
 
-### Classes de types
+### V1a — déclaratif
 
-Ce qu'on aimerait écrire :
+    class Functor f
+    instance Functor List
+    instance Functor Maybe
 
-    class Functor f where
-      map : (a -> b) -> f a -> f b
+`class` et `instance` sont enregistrés (`engine.class_names`,
+`engine.instance_pairs`). Magics `@class_count`, `@instance_count`.
+Pas encore de dispatch.
 
-Heaven V0.5 n'a **pas** de classes. On peut seulement écrire une
-signature HKT et l'instancier manuellement pour chaque type.
+### V1b — dispatch structurel (matching explicite)
 
-### Contraintes de type
+Deux magics :
 
-Encore plus loin :
+    (@resolve_instance "Functor" "List" "fmap")       -- -> "fmap_List"
+    (@resolve_instance "Functor" "Int" "fmap")        -- -> ""
+    (@dispatch_instance "Functor" "List" "fmap" f xs) -- -> fmap_List f xs
 
-    map : Functor f => (a -> b) -> f a -> f b
+Le type `T` est passé en argument **string**. Pas d'inférence de
+type. Écriture typique :
 
-Le `Functor f =>` dit : « `map` marche pour tout `f` qui est un
-`Functor` ». Résolu en V1 par résolution d'instance.
+    fmap T f xs = (@dispatch_instance "Functor" T "fmap" f xs)
+    fmap "List" inc (HCons 1 HNil)   -- -> (HCons 2 HNil)
+
+Testé sur `List` (empty/one/multi). Voir
+`tests/test_hkt_v1b_step2.hvn`.
+
+### Ce qui manque encore
+
+- **V1b pas 3** : dispatch sur `List` sans quotes (accès au nom
+  d'un nœud `.sym`). ~1 bloc.
+- **V1c** : contraintes `fmap : Functor f => ...` vérifiées. Un
+  checker simple après pas 3.
+- **Instances multiples** : `Int` Monoid+ vs Monoid*. Nécessite
+  `newtype`.
 
 ### Quantification universelle explicite
 
-En Haskell :
-
-    id :: forall a. a -> a
-
-En Heaven, la quantification est implicite. Le `forall` explicite
-viendra en V1 pour les cas rank-2 (polymorphisme de rang supérieur).
-
-### Instances multiples
-
-`Int` peut être un `Monoid` de plusieurs façons (addition, produit,
-minimum, maximum...). Résolu en V1 par `newtype`.
+En Haskell : `id :: forall a. a -> a`. En Heaven, la quantification
+est implicite. Le `forall` explicite viendra plus tard (rank-2).
 
 ## 4. Lien avec les algèbres
 
@@ -97,8 +105,10 @@ résolution d'instance viendra.
 ## Ce qu'on a appris
 
 - Un **HKT** est un type qui prend un type et en retourne un autre.
-- Heaven V0.5 accepte `sig wrap : (f : Type) -> ...` (15/15 tests).
-- Les **classes de types** et les **contraintes** arrivent en V1.
+- Heaven accepte `sig wrap : (f : Type) -> ...` (15/15 tests).
+- Les **classes de types** sont livrées en V1a (déclaratif) et
+  V1b (dispatch structurel). Les contraintes `Functor f =>`
+  arrivent en V1c.
 - Les HKT sont **l'outil** des algèbres : une `map` pour tous les
   `Functor`.
 - On emprunte ici à **Fantasy Land** (McKenna) et à **Haskell**.
