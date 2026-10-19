@@ -760,6 +760,25 @@ pub const Heaven = struct {
         return try buf.toOwnedSlice(allocator);
     }
 
+    fn normalizeLetChain(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        const trimmed = std.mem.trim(u8, src, " \t\r\n");
+        if (!std.mem.startsWith(u8, trimmed, "let ")) {
+            return self.allocator.dupe(u8, trimmed);
+        }
+        const after_let = trimmed["let ".len..];
+        const in_pos = std.mem.indexOf(u8, after_let, " in ") orelse
+            return self.allocator.dupe(u8, trimmed);
+        const binding = std.mem.trim(u8, after_let[0..in_pos], " \t");
+        const body = std.mem.trim(u8, after_let[in_pos + 4 ..], " \t");
+        const eq = std.mem.indexOfScalar(u8, binding, '=') orelse
+            return self.allocator.dupe(u8, trimmed);
+        const name = std.mem.trim(u8, binding[0..eq], " \t:");
+        const val = std.mem.trim(u8, binding[eq + 1 ..], " \t");
+        const body_norm = try self.normalizeLetChain(body);
+        defer self.allocator.free(body_norm);
+        return std.fmt.allocPrint(self.allocator, "(let {s} {s} {s})", .{ name, val, body_norm });
+    }
+
     pub fn eval(self: *Heaven, src: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, src, " \t\n\r");
         if (trimmed.len == 0) return self.allocator.dupe(u8, "");
@@ -1098,7 +1117,9 @@ pub const Heaven = struct {
                     else
                         try self.allocator.dupe(u8, "let");
                     defer self.allocator.free(head);
-                    try buf.writer(self.allocator).print("({s} {s} {s} {s})", .{ head, name, val, body });
+                    const body_norm = try self.normalizeLetChain(body);
+                    defer self.allocator.free(body_norm);
+                    try buf.writer(self.allocator).print("({s} {s} {s} {s})", .{ head, name, val, body_norm });
 
                     if (self.parseExpression(buf.items)) |id| {
                         // (à faire pour chaque parse réussi)
