@@ -103,12 +103,18 @@ git log --oneline -8
 git status --short   # doit être propre sauf README.md (docgen) et *.bak
 ```
 
-**Derniers commits connus** :
-- `584e5e2` chore(vessel): E3c — dedup heaven_expr, retire main_mod
-- `f2ee36c` fix(json): H1/H2 clos — artefacts `\"`, pas bug parser
-- `00e1475` feat(vessel): didSave via Heaven.eval (E3b/5, D9)
-- `0bdc6e9` feat(vessel): serveTelemetry via telemetry_store (E3a/5, D9)
-- `e65dc66` feat(vessel): telemetry_store.zig (E1/5, D9)
+**Derniers commits connus (2026-10-19 fin de session)** :
+- `0ece80f` E5 — bridge.zig sans matrix/autofab
+- `1ba6aa4` HKT V1b pas 2 — @dispatch_instance
+- `62155ce` HKT V1b pas 1 — @resolve_instance
+- `57d306b` doc cutoff B3 (3e bug : pattern `_` + heaven run)
+- `66f0b32` fix(heaven.eval): let-chain top-level via normalizeLetChain
+- `da2f5b3` doc let-chain bug + tuto workaround fn/seq
+- `584e5e2` E3c — dedup heaven_expr, retire main_mod
+- `f2ee36c` H1/H2 clos — artefacts `\"`, pas bug parser
+- `00e1475` E3b — didSave via Heaven.eval
+- `0bdc6e9` E3a — serveTelemetry via telemetry_store
+- `e65dc66` E1 — telemetry_store.zig
 
 ## Ce qui a été livré (session 2026-10-19)
 
@@ -144,26 +150,59 @@ git status --short   # doit être propre sauf README.md (docgen) et *.bak
   `DECISIONS.md` (D-HTTP1, D-HTTP2, D-CI1), `status.json` (Progrès,
   Top priorités, journal 2026-10-19).
 
+## Chantiers ouverts (état 2026-10-19 fin de session)
+
+**B3 (let-chain) — 3 bugs séparés, cutoff après 2 tentatives.**
+1. Let-chain top-level `heaven run` : **FIXÉ** (`66f0b32`,
+   `normalizeLetChain`).
+2. Let-chain helper `f _ = (let ... in let ... in body)` : **KO**,
+   `parseBodySmart`/`convertLetIn` non couvert, rollback.
+3. Pattern `_` + `heaven run` : `helper _ = 42` + `(helper 0)` ->
+   `ArityMismatch`. **Découvert en fin de session**, probablement
+   `splitStatements`/`runEvalFile` qui perd le lien def -> sym_arity.
+   **Bloque E4b.**
+Session fraîche : discriminant `helper _ = 42` vs `helper x = 42`
+vs `helper 0 = 42`, puis `heaven run` vs `--run-test` sur même
+fichier. Voir `docs/spec/_let_chain_bug.md`.
+
+**E4b (http_server.hvn) — bloqué par B3 #3.** Les magics `@net_*`
+existent (13, câblés), `@net_listen` + `@net_accept` marchent en
+isolation. Dès que B3 #3 est fixé, E4b = réécrire `http_server.hvn`
+en top-level (pas helper), boucle accept, routing `/telemetry`.
+
+**E5-bis (matrix → legacy)** — `main.zig` porte encore
+`matrix_lib`/`autofab_lib` (`Matrix.init`, `bob_loop`,
+`syncMatrixWithFile` stub). Extraction de `bob_loop` en
+`src/runtime/` = 1 session.
+
+**effects-consolidation** (1-2 sessions) — `handle_rec`/`resume`
+public, `stdlib/effects.hvn` façade, composition. Voir
+`_handle_rec_status.md`.
+
+**HKT V1b pas 3 (optionnel)** — dispatch sur sym `List` sans
+quotes (accès au nom d'un nœud `.sym`). 1 bloc. Voir
+`_hkt_v1b_plan.md`.
+
+**quotients-expose** (2-3 sessions) — kernel prêt (quot/class/lift,
+ι-réduction, PI réactivée), pont `kernel_bridge` manquant
+(`elabQuot`/`elabClass`/`elabLift`). Voir
+`_quotients_expose_plan.md`.
+
+**Debug-triage runner** — 3 crashes Debug-only (`test_parser`,
+`test_hashmap`, `test_bigint_d20`), ReleaseFast = 0 fail. Priorité
+basse. Voir `_runner_crashes_2026-10.md`.
+
 ## Ordre de priorité pour la suite
 
-1. **E4 HTTP fullstack** (1-2 sessions de conception, pas un bloc).
-   `core/http_server.hvn` : (a) inventaire sockets `.hvn`
-   (`stdlib/net/http.hvn` n'a pas de `serve|listen|accept`), (b)
-   `encode_jsonrpc`/`decode_jsonrpc` en `.hvn` (H1/H2 clos = objet
-   JSON OK), (c) décision statiques Zig vs `.hvn` (`@embedFile`
-   n'existe pas en `.hvn`). Voir `_http_fullstack_plan.md`.
-2. **E5** (1 session) — `matrix`/`autofab` → `src/legacy/`. 6 usages
-   résiduels `self.matrix` dans `bridge.zig`. Après E4.
-3. **effects-consolidation** (1-2 sessions) — `perform`/`handle`/
-   `yield`/`resume` cohérents. Prérequis MPST-V2 et A-3b-3.
-4. **hkt-v1b** (2 sessions, décision A vs B) — dispatch typeclass.
-   V1a déclaratif livré (0 dispatch). Voir `_hkt_v1b_plan.md`.
-5. **mpst-v2a** (2 sessions) — multipartite + projection. Voir
-   `_mpst_v2_plan.md`.
-6. **metacircularite-patterns** (2-3 sessions) — manque #2 de
-   `_metacircularite_chantier.md`. Le fossile #4 sera attaqué ici.
-7. **quotients-expose** (2-3 sessions) — kernel prêt, exposition
-   `.hvn` reste.
+1. **B3 #3** (pattern `_` + heaven run) — **1 session fraîche**,
+   discriminant avant tout. Bloque E4b.
+2. **E4b** (http_server.hvn) — après B3 #3. 2-3 blocs.
+3. **E5-bis** (bob_loop → runtime/, matrix → legacy) — 1 session.
+4. **effects-consolidation** (1-2 sessions).
+5. **HKT V1b pas 3** (dispatch sur sym) — 1 bloc.
+6. **quotients-expose** (2-3 sessions) — kernel prêt.
+7. **B3 #2** (let-chain helper via `convertLetIn`) — après E4b.
+8. **Debug-triage runner** — priorité basse.
 
 **Hors-scope court terme** : Cubical (multi-années,
 `_hott_cubical_plan.md`), DHCP (dépriorisé, SCTP/RTP/WebRTC avant),
