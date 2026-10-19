@@ -3,7 +3,7 @@
 
 **Constat 2026-10-19.**
 
-`src/kernel/` contient 4 fichiers de test :
+`src/kernel/` contient 4 fichiers de test. 3 sont maintenant câblés au CI (test_pi, test_quotient, test_transform). test_proof_irrelevance reste hors CI. :
 - `test_pi.zig` (38 l.)
 - `test_proof_irrelevance.zig` (49 l.)
 - `test_quotient.zig` (28 l.) — **2/2 verts en isolation**

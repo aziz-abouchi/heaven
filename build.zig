@@ -1368,6 +1368,22 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }) });
 
+    const test_kernel_pi = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/kernel/test_pi.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+    const test_kernel_quotient = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/kernel/test_quotient.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+    const test_kernel_transform = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/kernel/test_transform.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+
     const test_egraph = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/inference/eqsat/egraph.zig"),
         .target = target,
@@ -1783,6 +1799,9 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_abi_profile_ser).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_profile_tree).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_profile_annotations).step);
+    test_step.dependOn(&b.addRunArtifact(test_kernel_pi).step);
+    test_step.dependOn(&b.addRunArtifact(test_kernel_quotient).step);
+    test_step.dependOn(&b.addRunArtifact(test_kernel_transform).step);
     test_step.dependOn(&b.addRunArtifact(test_egraph).step);
     test_step.dependOn(&b.addRunArtifact(test_profile_egraph).step);
     test_step.dependOn(&b.addRunArtifact(test_codegen_c).step);
