@@ -164,6 +164,8 @@ pub const Process = struct {
     /// File de messages en attente (FIFO). Chaque message est un Id
     /// (expression Core).
     mailbox: std.ArrayListUnmanaged(expr.Id) = .{},
+    /// MPST : trace des labels strings emis/recus (pour check offline).
+    trace: std.ArrayListUnmanaged(expr.Sym) = .{},
     /// Prototype 2-lite : handler + state attachés au process.
     /// `spawn(fn, init)` les renseigne. `run(pid)` les consomme.
     /// `null` si le process a été créé sans handler.
@@ -172,6 +174,7 @@ pub const Process = struct {
 
     pub fn deinit(self: *Process, allocator: std.mem.Allocator) void {
         self.mailbox.deinit(allocator);
+        self.trace.deinit(allocator);
     }
 };
 
@@ -962,7 +965,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1071,6 +1074,27 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     // ═══ add_task + schedule + yield (D8 3a-3-c-b) ═══
     // (add_task body_fn init_state) -> task_id
+    // MPST : mpst_trace(pid) -> string "Req,Resp" (trace des labels)
+    if (std.mem.eql(u8, op, "mpst_trace")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const pv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const pn = store.get(pv);
+        if (pn.tag != .lit) return error.ActorIdNotLiteral;
+        const pl = store.lits.items[pn.aux];
+        if (pl != .int) return error.ActorIdNotLiteral;
+        const proc = engine.processes.getPtr(@intCast(pl.int)) orelse
+            return error.ProcessNotFound;
+        // Concat labels avec ","
+        var buf = std.ArrayListUnmanaged(u8){};
+        defer buf.deinit(engine.allocator);
+        for (proc.trace.items, 0..) |sym, i| {
+            if (i > 0) try buf.append(engine.allocator, ',');
+            try buf.appendSlice(engine.allocator, store.interner.resolve(sym));
+        }
+        const sym_out = try store.interner.intern(buf.items);
+        return try store.lit(.{ .str = sym_out });
+    }
+
     if (std.mem.eql(u8, op, "add_task")) {
         if (args_snap.len != 2) return error.ArityMismatch;
         const body_fn = try evaluate(store, env, engine, args_snap[0], depth + 1);
@@ -2019,6 +2043,12 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const proc = engine.processes.getPtr(@intCast(pid_lit.int)) orelse
             return error.ProcessNotFound;
         try proc.mailbox.append(engine.allocator, msg_val);
+        // MPST : si msg = literal string, append a la trace.
+        const msg_node = store.get(msg_val);
+        if (msg_node.tag == .lit) {
+            const ml = store.lits.items[msg_node.aux];
+            if (ml == .str) try proc.trace.append(engine.allocator, ml.str);
+        }
         return msg_val;
     }
 
@@ -2035,7 +2065,14 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const proc = engine.processes.getPtr(@intCast(pid_lit.int)) orelse
             return error.ProcessNotFound;
         if (proc.mailbox.items.len == 0) return error.MailboxEmpty;
-        return proc.mailbox.orderedRemove(0);
+        const m = proc.mailbox.orderedRemove(0);
+        // MPST : si le message poppe est un literal string, append.
+        const m_node = store.get(m);
+        if (m_node.tag == .lit) {
+            const ml = store.lits.items[m_node.aux];
+            if (ml == .str) try proc.trace.append(engine.allocator, ml.str);
+        }
+        return m;
     }
 
     if (std.mem.eql(u8, op, "run")) {

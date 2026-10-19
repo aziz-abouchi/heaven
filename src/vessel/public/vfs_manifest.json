@@ -90,6 +90,7 @@
   "tests/test_meta_data.hvn",
   "tests/test_meta_if.hvn",
   "tests/test_mpst.hvn",
+  "tests/test_mpst_runtime.hvn",
   "tests/test_option.hvn",
   "tests/test_ord.hvn",
   "tests/test_pair.hvn",

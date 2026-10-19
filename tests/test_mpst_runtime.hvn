@@ -1,0 +1,12 @@
+-- tests/test_mpst_runtime.hvn — MPST + runtime (2026-10-19)
+-- V0 : trace_of_string + check sur trace runtime via tell.
+import "stdlib/mpst.hvn" as M
+
+-- Construction runtime d'un process + tell de 2 labels
+mk_p _ = (spawn (lambda s -> 0) 0)
+send_two p _ = (let _ (tell p "Req") (let _ (tell p "Resp") p))
+run_two _ = (let p (mk_p 0) (let p2 (send_two p 0) (mpst_trace p2)))
+
+test "runtime_trace": (run_two 0) == "Req,Resp"
+test "check_runtime_ok": (M.check (M.proto_client 0) (M.trace_of_string (run_two 0))) == true
+test "check_runtime_bad": (M.check (M.proto_client 0) (M.trace_of_string "Req,Bad")) == false

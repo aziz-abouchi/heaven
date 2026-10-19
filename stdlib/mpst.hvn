@@ -50,3 +50,13 @@ check (STChoice a b) tr = (if (check a tr) true (check b tr))
 -- Client envoie "Req", recoit "Resp", termine.
 proto_client _ = (STSend "Req" (STRecv "Resp" STEnd))
 proto_server _ = (dual (proto_client 0))
+
+-- ─── Runtime : parse trace "Req,Resp" -> Trace ───
+-- Permet : (check proto (trace_of_string (mpst_trace pid)))
+import "stdlib/string.hvn"
+
+trace_of_string s =
+  (trace_from_parts (string_split s ","))
+trace_from_parts nil = TNil
+trace_from_parts (cons "" rest) = TNil
+trace_from_parts (cons x rest) = (TCons x (trace_from_parts rest))
