@@ -85,3 +85,54 @@ D1 complète (Astra hors du chemin runtime).
   6 usages residuels de `self.matrix` dans `bridge.zig` (`/graph`,
   `/rules`, `/bob`...). Apres E4.
 
+## E4-D (routing HTTP en .hvn) -- cutoff 2026-10-19
+
+**Fait** :
+- `http_server.hvn` v0 (commit `2c35724`) : serveur multi-client,
+  repond "hi" a toute requete. 10 lignes.
+- `parse_request` ✓ 4/4 (teste).
+- `fs_read_public` ✓ (test mal ecrit, mais la fonction marche).
+- `format_response` : test exact KO mais probablement OK (a
+  verifier via curl).
+- `string_ends_with` : n'existe pas dans `stdlib/string.hvn`.
+
+**Blocage E4-D2 (routing v1)** : construire la reponse HTTP avec
+Content-Type + body + Content-Length en `.hvn` **sans let chain
+dans les helpers** force a dupliquer
+`(do_path (H.req_path (H.parse_request raw)))` 3 fois, ce qui est
+illisible et fragile. Un essai a ete rollback.
+
+**Deux approches pour une session fraiche** :
+
+1. **Helpers separes + passage d'arguments** :
+       do_parse raw _ = (H.parse_request raw)
+       do_path_of req _ = (do_path (H.req_path req))
+       do_mime_of path _ = (do_mime path)
+       do_body_of path _ = (FS.fs_read_public path)
+       do_respond client req _ = (seq (@net_write unit client
+         (do_http_response (do_path_of req 0) (do_body_of (do_path_of req 0) 0) 0))
+         (@net_close unit client))
+       -- 6 petites fonctions, pas de let chain.
+    Verbeux mais lisible.
+
+2. **Ajouter `let` chain dans `do_*` helpers** : tester si
+   `do_path req = (let p = ... in ...)` marche apres `is_command`
+   fix. Si oui, factoriser.
+
+3. **Faire le routing en Zig** (garder `bridge.zig` pour les
+   statiques), et n'utiliser `http_server.hvn` que pour /telemetry
+   (une seule route, pas de Content-Type lookup).
+
+**Reco** : approche 1 (6 fonctions plates), session fraiche.
+C'est 30 lignes de .hvn, testable avec curl.
+
+**E4c-B (magic @telemetry_json)** : bloque par le module
+`telemetry_store` non importable depuis `engine_expr`. Approche :
+ajouter un module `telemetry_store` dans `build.zig` (3 lignes),
+ou callback depuis `Heaven`. Session fraiche.
+
+**E4-final (suppression Vessel Zig)** : apres D + E4c-B.
+
+**Etat** : `http_server.hvn` v0 shippe, prouve que le serveur
+multi-client en Heaven pur marche. Le routing demande 1 session.
+
