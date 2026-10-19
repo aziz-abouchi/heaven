@@ -1005,11 +1005,32 @@ Objectif : découplage Vessel et absorption par la stack HTTP Heaven.
   aujourd'hui), (b) `encode_jsonrpc`/`decode_jsonrpc` en `.hvn`,
   (c) décision statiques Zig vs `.hvn` (`@embedFile` n'existe pas).
   Voir `_http_fullstack_plan.md` section « État 2026-10-19 ».
-- **E5** 🚧 À faire après E4 — `matrix`/`autofab` → `src/legacy/`.
-  6 usages résiduels `self.matrix` dans `bridge.zig` (`/graph`,
-  `/rules`, `/bob`).
+- **E5** ⚠️ Partiel (`0ece80f`). `bridge.zig` propre (plus de
+  `self.matrix`/`self.fab`, imports retires). `main.zig` porte
+  encore `Matrix.init`/`bob_loop`/`syncMatrixWithFile` — E5-bis
+  = extraire `bob_loop` en `src/runtime/` puis `matrix` →
+  `src/legacy/`. 1 session.
 
 **Baseline 2026-10-19** : Debug build = 0, `zig build test` = 0,
 ReleaseFast `--run-tests` = 0 fail, wasm32-freestanding = 0,
 wasm32-wasi = 0.
+
+---
+
+## HKT V1b — statut 2026-10-19
+
+- **V1a** ✅ `class`/`instance` declaratifs, `engine.class_names`,
+  `engine.instance_pairs`, magics `@class_count`/`@instance_count`.
+  `bde8adc`.
+- **V1b pas 1** ✅ `@resolve_instance C T op` -> `op_T` ou "".
+  `62155ce`.
+- **V1b pas 2** ✅ `@dispatch_instance C T op args...` ->
+  `op_T(args...)`. Matching structurel explicite (type T passe en
+  argument string). `1ba6aa4`. Tests `test_hkt_v1b_step1.hvn` (4),
+  `test_hkt_v1b_step2.hvn` (4).
+- **V1b pas 3** 🚧 dispatch sur sym `List` sans quotes (acces `.sym`
+  name). 1 bloc. Non bloquant.
+- **V1c** 🚧 contraintes `Functor f =>` verifiees. Apres pas 3.
+
+Voir `_hkt_v1b_plan.md` (option A retenue, cf. D-HKT1).
 

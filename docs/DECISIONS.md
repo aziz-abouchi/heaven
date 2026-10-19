@@ -1183,3 +1183,62 @@ incremental.
 unitaires), `--run-tests tests` est en ReleaseFast. Voir
 `_runner_crashes_2026-10.md`.
 
+## D-HKT1 — HKT V1b : matching structurel (reco A)
+
+**Date** : 2026-10-19
+**Statut** : TRANCHEE.
+
+**Decision** : V1b = matching structurel explicite (option A du
+`_hkt_v1b_plan.md`). Le type `T` est passe en argument string
+(`fmap "List" f xs`), pas d'inference de type. Deux magics livrent
+la mecanique :
+
+- `@resolve_instance C T op` -> `op_T` ou "" (pas 1, `62155ce`).
+- `@dispatch_instance C T op args...` -> `op_T(args...)` (pas 2,
+  `1ba6aa4`).
+
+**Alternatives ecartees** :
+- Option B (inference via `elab.zig`) : 3-4 sessions, risque de
+  decouvrir que `elab` type-check mais n'inferre pas. Repousse.
+
+**Consequence** : V1c (contraintes `Functor f =>`) devient un
+checker simple. V1b pas 3 = dispatch sur sym `List` sans quotes
+(acces `.sym` name), ~1 bloc.
+
+## D-B3-1 — B3 cutoff apres 2 tentatives
+
+**Date** : 2026-10-19
+**Statut** : TRANCHEE (cutoff).
+
+**Decision** : sur `let a = 1 in let b = 2 in body` (B3), 2 fixes
+tentes, 0 effet, un 3e bug decouvert. Cutoff applique (rollback +
+doc). Ne pas re-tenter a chaud.
+
+**Bilan** :
+1. `normalizeLetChain` top-level `heaven.eval` -> **FIXÉ**
+   (`66f0b32`). Debloque `heaven run script.hvn` avec let-chain.
+2. `normalizeLetChain` dans `parseBodySmart` -> **KO** (rollback).
+3. Pattern `_` + `heaven run` : `helper _ = 42` + `(helper 0)` ->
+   `ArityMismatch`. Decouvert en fin de session, non diagnostique.
+   **Bloque E4b**.
+
+**Regle** : 2 tentatives max par bug, puis cutoff. Le discriminant
+doit preceder le patch (5 faux diagnostics cette session : grep
+`"net_` au lieu de `"@net_`, `@net_listen` bugge, B1 non-evalue,
+PI kernel absent, `_let_wildcard` non reproductible).
+
+## D-E5-1 — E5 en deux temps (partial)
+
+**Date** : 2026-10-19
+**Statut** : TRANCHEE (phase 1).
+
+**Decision** : E5 = retire `matrix`/`autofab` de `bridge.zig` en
+premier (`0ece80f`), garde `main.zig` intact. Extraction de
+`bob_loop` + `Matrix.init` + `syncMatrixWithFile` = E5-bis,
+session fraiche.
+
+**Raison** : `bridge.zig` etait le chemin HTTP actif (D9). Tant
+que `bob_loop` (boucle Bob principale) tourne sur `matrix`, la
+suppression cote main casse le runtime. E5-bis demande extraction
+de la boucle, pas juste une suppression.
+

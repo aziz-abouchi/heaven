@@ -1,6 +1,42 @@
 # Changements récents
 
 
+## 2026-10-19 (fin de session) -- HKT V1b 1+2, E5, B3 cutoff
+
+### HKT V1b (matching structurel)
+
+- **`@resolve_instance C T op`** -> `op_T` ou "". Table `instance_pairs`
+  de V1a. Pas d'inference. 4 tests.
+- **`@dispatch_instance C T op args...`** -> `op_T(args...)`. Type T
+  passe en argument string (`fmap "List" f xs`). 4 tests (empty/
+  one/multi + resolve intact).
+- Décision : option A (matching structurel) retenue, cf. D-HKT1.
+
+### E5 (partiel)
+
+- **`bridge.zig`** : retire `matrix`/`fab` fields, imports
+  `matrix_lib`/`autofab`. `startVesselServer(heaven, port, exiting)`.
+  `main.zig` wrapper allégé.
+- **E5-bis** : `main.zig` porte encore `Matrix.init`/`bob_loop`/
+  `syncMatrixWithFile`. Extraction `bob_loop` = session suivante.
+
+### B3 (let-chain) -- cutoff
+
+- **FIXÉ** : `normalizeLetChain` top-level `heaven.eval` (`66f0b32`).
+  `heaven run script.hvn` avec let-chain 2/3 niveaux OK.
+- **KO** : let-chain helper `f _ = (let ... in let ... in body)`,
+  `parseBodySmart`/`convertLetIn` non couvert.
+- **NOUVEAU BUG** : `helper _ = 42` + `(helper 0)` en `heaven run`
+  -> `ArityMismatch`. Probablement `splitStatements`/`runEvalFile`.
+  Bloque E4b.
+- **Tuto** : `docs/tutorials/no_let_chain.md` (workaround `fn`/`seq`).
+
+### Baseline
+
+- Debug=0, `zig build test`=0, ReleaseFast `--run-tests`=0 fail,
+  wasm32-freestanding=0, wasm32-wasi=0.
+
+
 ## 2026-10-19 -- HTTP fullstack E3, JSON objects, baseline ReleaseFast
 
 ### Vessel / HTTP
