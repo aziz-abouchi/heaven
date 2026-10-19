@@ -11,3 +11,15 @@ string_split_from s sep start i =
   if (>= i (string_length s)) then (if (< start i) (cons (string_substring s start (- i start)) nil) nil)
   else if (string_matches_at s i sep) then (cons (string_substring s start (- i start)) (string_split_from s sep (+ i (string_length sep)) (+ i (string_length sep))))
   else (string_split_from s sep start (+ i 1))
+
+string_eq a b =
+  (if (= (string_length a) (string_length b))
+    (string_eq_from a b 0)
+    false)
+
+string_eq_from a b i =
+  (if (= i (string_length a))
+    true
+    (if (= (peek_byte (string_ptr a) i) (peek_byte (string_ptr b) i))
+      (string_eq_from a b (+ i 1))
+      false))

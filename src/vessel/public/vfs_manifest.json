@@ -44,6 +44,8 @@
   "stdlib/json_parse.hvn",
   "stdlib/net/dns.hvn",
   "stdlib/net/dns_parse.hvn",
+  "stdlib/net/http.hvn",
+  "stdlib/net/tcp.hvn",
   "stdlib/string.hvn",
   "tests/derive.hvn",
   "tests/features_smoke.hvn",

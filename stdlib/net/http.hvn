@@ -1,0 +1,34 @@
+-- stdlib/net/http.hvn — helpers HTTP (server) : parse + format
+-- Request = (pair method (pair path headers))
+-- Response = (pair status (pair body headers))
+import "stdlib/string.hvn"
+
+_list_head (cons x _) = x
+_list_head nil = nil
+_list_nth xs n =
+  (if (= n 0) (_list_head xs) (_list_nth (tail xs) (- n 1)))
+
+parse_request raw =
+  let lines = (string_split raw "\r\n") in
+  let first = (_list_head lines) in
+  let parts = (string_split first " ") in
+  (pair (_list_nth parts 0) (pair (_list_nth parts 1) nil))
+
+req_method  (pair m _) = m
+req_path    (pair _ (pair p _)) = p
+req_headers (pair _ (pair _ h)) = h
+
+resp_status  (pair s _) = s
+resp_body    (pair _ (pair b _)) = b
+resp_headers (pair _ (pair _ h)) = h
+
+format_response (pair status (pair body _)) =
+  let status_text = (if (eq status 200) "OK" "Not Found") in
+  let body_len = (int_to_string (string_length body)) in
+  (string_concat "HTTP/1.1 "
+    (string_concat (int_to_string status)
+      (string_concat " "
+        (string_concat status_text
+          (string_concat "\r\nContent-Length: "
+            (string_concat body_len
+              (string_concat "\r\n\r\n" body)))))))

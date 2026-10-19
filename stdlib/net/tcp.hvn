@@ -1,0 +1,10 @@
+-- stdlib/net/tcp.hvn — TCP (serveur + client) via magics @net_*
+type Fd = Int
+
+net_listen cap port     = @net_listen cap port
+net_accept cap fd       = @net_accept cap fd
+net_read   cap fd       = @net_read cap fd
+net_write  cap fd str   = @net_write cap fd str
+net_close  cap fd       = @net_close cap fd
+net_socket cap          = @net_socket
+net_connect cap ip port = @net_connect cap ip port

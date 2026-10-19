@@ -1,6 +1,8 @@
 -- MARKER-XYZZY-42
 -- core/http_server.hvn — Serveur HTTP simplifié et robuste
-import "stdlib/net.hvn"
+import "stdlib/net/http.hvn"
+import "stdlib/net/tcp.hvn"
+import "stdlib/string.hvn"
 import "stdlib/fs.hvn"
 
 -- Note : on evite `if COND (let ...) (let ...)` (bug parser
