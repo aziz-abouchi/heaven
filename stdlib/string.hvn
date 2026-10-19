@@ -1,0 +1,13 @@
+-- stdlib/string.hvn — helpers string partages (2026-10-19)
+-- Extraits de stdlib/net.hvn pour reutilisation autonome.
+
+string_matches_at s i sep =
+  if (>= (+ i (string_length sep)) (string_length s)) then false
+  else if (= (string_substring s i (string_length sep)) sep) then true
+  else false
+
+string_split s sep = (string_split_from s sep 0 0)
+string_split_from s sep start i =
+  if (>= i (string_length s)) then (if (< start i) (cons (string_substring s start (- i start)) nil) nil)
+  else if (string_matches_at s i sep) then (cons (string_substring s start (- i start)) (string_split_from s sep (+ i (string_length sep)) (+ i (string_length sep))))
+  else (string_split_from s sep start (+ i 1))

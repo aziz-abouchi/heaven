@@ -43,6 +43,7 @@
   "stdlib/dns_v1.hvn",
   "stdlib/http_body.hvn",
   "stdlib/json_parse.hvn",
+  "stdlib/string.hvn",
   "tests/derive.hvn",
   "tests/features_smoke.hvn",
   "tests/guards.hvn",

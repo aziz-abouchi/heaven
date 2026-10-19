@@ -74,7 +74,7 @@ jobs:
           # VFS : copier les .hvn dans chaque app pour read_file
           for app in repl ide test dashboard docs egraph process debugger; do
             # Preserve la structure (core/std/list.hvn -> site/$app/core/std/list.hvn)
-            find core lib tests -name '*.hvn' | while read -r f; do
+            find core lib stdlib tests -name '*.hvn' | while read -r f; do
               dst="site/$app/$f"
               mkdir -p "$(dirname "$dst")"
               cp "$f" "$dst"

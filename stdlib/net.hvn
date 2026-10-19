@@ -1,4 +1,5 @@
 -- stdlib/net.hvn — Réseau typé linéairement (QTT)
+import "stdlib/string.hvn"
 type Fd = Int
 type Request = { method: String, path: String, headers: List (Pair String String) }
 type Response = { status: Int, body: String, headers: List (Pair String String) }
@@ -28,23 +29,6 @@ string_eq_from a b i =
     (if (= (peek_byte (string_ptr a) i) (peek_byte (string_ptr b) i))
       (string_eq_from a b (+ i 1))
       false))
-
-string_matches_at s i sep =
-  (if (> (+ i (string_length sep)) (string_length s))
-    false
-    (string_matches_at_from s i sep 0))
-
-string_matches_at_from s i sep j =
-  (if (= j (string_length sep))
-    true
-    (if (= (peek_byte (string_ptr s) (+ i j)) (peek_byte (string_ptr sep) j))
-      (string_matches_at_from s i sep (+ j 1))
-      false))
-
-string_split s sep =
-  (string_split_from s sep 0 0)
-
-string_split_from s sep start i = (if (>= i (string_length s)) (if (< start i) (cons (string_substring s start (- i start)) nil) nil) (if (string_matches_at s i sep) (cons (string_substring s start (- i start)) (string_split_from s sep (+ i (string_length sep)) (+ i (string_length sep)))) (string_split_from s sep start (+ i 1))))
 
 list_head (cons x _) = x
 list_head nil = nil
