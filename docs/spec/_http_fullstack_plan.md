@@ -136,3 +136,43 @@ ou callback depuis `Heaven`. Session fraiche.
 **Etat** : `http_server.hvn` v0 shippe, prouve que le serveur
 multi-client en Heaven pur marche. Le routing demande 1 session.
 
+## E4-D2bis (routing v1) -- cutoff 2026-10-19 (fin de session)
+
+**Contraintes parser identifiees** (diagnostic chirurgical) :
+
+| Pattern | Resultat |
+|---|---|
+| `string_eq` en condition d'`if` dans helper local | SIGSEGV |
+| `string_eq` importe qualifie (`S.string_eq`) idem | SIGSEGV |
+| `==` infixe en condition d'`if` | OK |
+| `string_ends_with` en condition d'`if` | SIGSEGV |
+| `>` en condition d'`if` | OK |
+| let-chain 2 niveaux dans helper | OK |
+| let-chain >= 3 niveaux dans helper | valeur fausse (5 au lieu de 6) |
+| Chaîne de helpers (a->b) ordonnee (b avant a) | OK |
+| Chaîne de helpers avec forward ref (a->b, a avant b) | KO (mauvaise branche) |
+| 3-arg helper + 2 lets | OK |
+
+**Ce qui marche en theorie** : `==` infixe, `>`, let-chain 2, ordre
+helpers, 3-arg. Mais la v1 (30 lignes, 8 helpers, chaine
+`do_handle -> do_final -> do_file -> do_path_to_file` + `do_build`
++ `do_mime`) a produit `InvalidSyntax` x3 + `ArityMismatch` sans
+curl de succes. Un seul essai, rollback.
+
+**Raison probable** : `H.parse_request raw` (import qualifie sur
+`
+` request) peut etre affecte par le bug `string_eq` sous-jacent
+(`string_split` utilise peut-etre `string_eq`). Pas investigate.
+
+**Prochaine session** :
+
+1. Diagnostiquer le SIGSEGV `string_eq` (probablement le fix
+   debloque tout E4-D2).
+2. `parse_request` importe sur raw (test `raw = "GET / HTTP/1.1\r\n\r\n"`).
+3. Puis v1 par etapes : une seule route (`/` -> index.html), curl,
+   commit. Puis `/foo.css`, commit. Puis general.
+
+**http_server.hvn v0** (commit `2c35724`) reste le serveur shipped.
+Test : `curl http://127.0.0.1:8080/` -> "hi". 24 commits pousses
+dans la session, v0 est un jalon propre.
+
