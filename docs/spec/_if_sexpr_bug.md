@@ -62,3 +62,25 @@ Effort : 1 session (recon serieuse + tests exhaustifs).
 Extraire les sous-ifs en helpers keyword top-level. Utilise dans
 `stdlib/json_parse.hvn` (json_digit_or_stop, json_digit_cont).
 Verbeux mais fonctionnel.
+
+
+## RESOLU (2026-10-19, commit b63014a)
+
+Le fix `parsePrimary` gère maintenant `(if ...)` en deux formes
+(S-expr pur et keyword-in-parens) avec `parsePrimary` par arg
+(pas `parseExpr`).
+
+**Tests** : tests/test_if_sexpr.hvn (21 cas : keyword top,
+S-expr top, S-expr dans then/else, keyword-in-parens, triple).
+Non-régression : test_parser 22/22, test_eval 13/13,
+test_meta_if 7/7, test_meta_data 5/5, test_json_parse 11/11,
+test-files 0 fail. 5 commandes : OK/0/0/0.
+
+**Débloqué** : JSON V1 (strings/arrays/objects), HTTP body,
+métacircularité #6.
+
+**Note** : un autre bug a été découvert en tentant JSON V1 —
+`let x = (JArr JVNil) in (if (= x x) 1 0)` échoue alors que
+`f (ACons 7 ANil)` marche. C'est probablement l'égalité `=` sur
+constructeur à argument constructeur, OU le `let` avec
+constructeur. Bug distinct, non tracé.

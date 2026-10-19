@@ -53,3 +53,37 @@ Mais ca ne resout pas le fossile pour les autres fichiers.
 - `if then else` en tete de corps de def dans `heaven_parse.hvn` (fix bcecc94) : OK.
 
 Seul le fossile #4 reste bloquant.
+
+
+## Etat final V0 (2026-10-19)
+
+V0 (num, bool, null, ws) : operationnel, 11 tests verts.
+Commit 9db0214.
+
+V1 (strings, arrays, objects) : **bloque** par deux bugs
+distincts identifies :
+
+1. `let x = (JArr JVNil) in (if (= x x) 1 0)` echoue silencieusement,
+   alors que `f (ACons 7 ANil) = x` marche (rec2 6/6).
+   - Probablement l'egalite `=` sur constructeur a argument
+     constructeur, OU `let` avec constructeur en RHS.
+   - Test discriminant : rec (2/4) vs rec2 (6/6).
+
+2. Les `data` mutuellement recursifs (`JVal` reference `JListVal`
+   qui reference `JVal`) parsent et enregistrent, mais l'eval
+   de l'expression les impliquant echoue.
+
+## Pour une session V1
+
+Test discriminant minimal (deja identifie) :
+    data A = ANil | ACons Int A     -- marche (rec2)
+    data B = BNil | BCons A B       -- a tester
+    f (BCons a b) = 0               -- a tester
+    let x (BCons (ACons 1 ANil) BNil) in (if (= x x) 1 0)  -- ?
+
+Ordre de diagnostic :
+1. let + constructeur en RHS (sans `=`).
+2. `=` sur constructeur a argument constructeur.
+3. `data` mutuellement recursifs.
+
+Effort : 1 session.
