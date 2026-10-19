@@ -53,3 +53,7 @@ test "dns_qdcount": (D.dns_qdcount (dns_fake 0)) == 1
 test "dns_ancount": (D.dns_ancount (dns_fake 0)) == 1
 test "dns_question_end": (D.dns_question_end (dns_fake 0)) == 23
 test "dns_first_a_ip": (D.dns_first_a_ip (dns_fake 0)) == 1572395042
+
+test "dns_ip_to_string 93.184.216.34": (D.dns_ip_to_string 1572395042) == "93.184.216.34"
+test "dns_ip_to_string 127.0.0.1": (D.dns_ip_to_string 2130706433) == "127.0.0.1"
+test "dns_ip_to_string 8.8.8.8": (D.dns_ip_to_string 134744072) == "8.8.8.8"
