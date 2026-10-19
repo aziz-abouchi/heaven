@@ -3,7 +3,7 @@
 -- V1 (N2, 2026-10-19) : parse la reponse via stdlib/dns_v1.hvn
 -- (debloque par le fix selfrecursion 011d934).
 
-import "stdlib/dns_v1.hvn" as dns_v1
+import "stdlib/net/dns_parse.hvn" as dns_v1
 
 -- ─── Header DNS : 12 bytes ───
 dns_build_header id flags qd =

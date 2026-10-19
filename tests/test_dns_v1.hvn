@@ -2,7 +2,7 @@
 -- Fixture forgee : reponse "a.com A" avec 1 answer = 93.184.216.34.
 -- 39 bytes totaux.
 
-import "stdlib/dns_v1.hvn" as D
+import "stdlib/net/dns_parse.hvn" as D
 
 dns_fake _ =
   let buf = (raw_alloc 39) in
