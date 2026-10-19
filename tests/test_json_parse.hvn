@@ -1,6 +1,6 @@
 -- tests/test_json_parse.hvn — Parseur JSON V0 (2026-10-19).
 -- Strings construites via string_of_bytes (escape \" non supporte).
-import "stdlib/json_parse.hvn" as JP
+import "stdlib/json/parse.hvn" as JP
 
 -- Helper : construit une string avec le byte c repete n fois.
 mk_bytes c n =

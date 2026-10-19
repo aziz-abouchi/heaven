@@ -2,7 +2,7 @@
 -- Strings JSON construites via string_of_bytes (escape \" non supporte).
 -- Voir docs/spec/_json_object_bug.md pour objects avec cles (H1/H2).
 
-import "stdlib/json_parse.hvn" as JP
+import "stdlib/json/parse.hvn" as JP
 
 -- Arrays
 test "arr_empty": (JP.jv_len (JP.json_as_arr_s "[]")) == 0
