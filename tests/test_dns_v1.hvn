@@ -1,0 +1,55 @@
+-- tests/test_dns_v1.hvn -- DNS V1 parser
+-- Fixture forgee : reponse "a.com A" avec 1 answer = 93.184.216.34.
+-- 39 bytes totaux.
+
+import "stdlib/dns_v1.hvn" as D
+
+dns_fake _ =
+  let buf = (raw_alloc 39) in
+  let _ = (poke_byte buf 0 18) in
+  let _ = (poke_byte buf 1 52) in
+  let _ = (poke_byte buf 2 129) in
+  let _ = (poke_byte buf 3 128) in
+  let _ = (poke_byte buf 4 0) in
+  let _ = (poke_byte buf 5 1) in
+  let _ = (poke_byte buf 6 0) in
+  let _ = (poke_byte buf 7 1) in
+  let _ = (poke_byte buf 8 0) in
+  let _ = (poke_byte buf 9 0) in
+  let _ = (poke_byte buf 10 0) in
+  let _ = (poke_byte buf 11 0) in
+  let _ = (poke_byte buf 12 1) in
+  let _ = (poke_byte buf 13 97) in
+  let _ = (poke_byte buf 14 3) in
+  let _ = (poke_byte buf 15 99) in
+  let _ = (poke_byte buf 16 111) in
+  let _ = (poke_byte buf 17 109) in
+  let _ = (poke_byte buf 18 0) in
+  let _ = (poke_byte buf 19 0) in
+  let _ = (poke_byte buf 20 1) in
+  let _ = (poke_byte buf 21 0) in
+  let _ = (poke_byte buf 22 1) in
+  let _ = (poke_byte buf 23 192) in
+  let _ = (poke_byte buf 24 12) in
+  let _ = (poke_byte buf 25 0) in
+  let _ = (poke_byte buf 26 1) in
+  let _ = (poke_byte buf 27 0) in
+  let _ = (poke_byte buf 28 1) in
+  let _ = (poke_byte buf 29 0) in
+  let _ = (poke_byte buf 30 0) in
+  let _ = (poke_byte buf 31 0) in
+  let _ = (poke_byte buf 32 60) in
+  let _ = (poke_byte buf 33 0) in
+  let _ = (poke_byte buf 34 4) in
+  let _ = (poke_byte buf 35 93) in
+  let _ = (poke_byte buf 36 184) in
+  let _ = (poke_byte buf 37 216) in
+  let _ = (poke_byte buf 38 34) in
+  (string_of_bytes buf 39)
+
+test "dns_id": (D.dns_id (dns_fake 0)) == 4660
+test "dns_flags": (D.dns_flags (dns_fake 0)) == 33152
+test "dns_qdcount": (D.dns_qdcount (dns_fake 0)) == 1
+test "dns_ancount": (D.dns_ancount (dns_fake 0)) == 1
+test "dns_question_end": (D.dns_question_end (dns_fake 0)) == 23
+test "dns_first_a_ip": (D.dns_first_a_ip (dns_fake 0)) == 1572395042

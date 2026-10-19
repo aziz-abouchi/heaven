@@ -1,0 +1,43 @@
+-- stdlib/dns_v1.hvn -- DNS parser V1 (Heaven pur, sans reseau)
+-- Parse une reponse DNS brute (string) : header + question + 1ere answer A.
+-- Reference : RFC 1035 sections 4.1.1 et 4.1.4.
+-- Note : dns_qname_end est recursif, ce qui marche depuis le fix
+-- selfrecursion (commit 011d934, 2026-10-19).
+
+-- ─── Helpers binaires (big-endian) ───
+peek_u16_be ptr off =
+  (+ (* (peek_byte ptr off) 256) (peek_byte ptr (+ off 1)))
+
+peek_u32_be ptr off =
+  (+ (+ (+ (* (peek_byte ptr off) 16777216)
+           (* (peek_byte ptr (+ off 1)) 65536))
+        (* (peek_byte ptr (+ off 2)) 256))
+     (peek_byte ptr (+ off 3)))
+
+-- ─── Header (12 bytes) ───
+dns_id s = (peek_u16_be (string_ptr s) 0)
+dns_flags s = (peek_u16_be (string_ptr s) 2)
+dns_qdcount s = (peek_u16_be (string_ptr s) 4)
+dns_ancount s = (peek_u16_be (string_ptr s) 6)
+
+-- ─── Scan du QNAME : labels (len, len bytes), termine par 0 ───
+-- Retourne l'offset juste apres le 0.
+dns_qname_end ptr off =
+  if (= (peek_byte ptr off) 0) then (+ off 1) else (dns_qname_end ptr (+ (+ off 1) (peek_byte ptr off)))
+
+-- Offset fin de la question complete (qname + 4 bytes QTYPE+QCLASS).
+dns_question_end s =
+  (+ (dns_qname_end (string_ptr s) 12) 4)
+
+-- ─── 1ere answer A ───
+-- NAME (2 bytes si compression 0xC0xx ; sinon label direct).
+-- Puis TYPE(2) CLASS(2) TTL(4) RDLEN(2) RDATA(RDLEN).
+-- On suppose TYPE=A (1), RDLEN=4.
+dns_answer_rdata_off s =
+  if (= (band (peek_byte (string_ptr s) (dns_question_end s)) 192) 192)
+  then (+ (dns_question_end s) 12)
+  else (+ (dns_qname_end (string_ptr s) (dns_question_end s)) 10)
+
+-- IP de la 1ere answer A, en int (big-endian 32 bits).
+dns_first_a_ip s =
+  (peek_u32_be (string_ptr s) (dns_answer_rdata_off s))
