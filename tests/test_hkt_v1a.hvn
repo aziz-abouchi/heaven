@@ -1,0 +1,11 @@
+-- tests/test_hkt_v1a.hvn — HKT V1a : declaration class/instance (2026-10-19)
+-- Metadata seulement, pas de dispatch (voir _hkt_v1_plan.md V1b).
+
+class Functor f
+class Monoid a
+instance Functor List
+instance Monoid Int
+instance Functor Maybe
+
+test "class_count": (@class_count 0) == 2
+test "instance_count": (@instance_count 0) == 3

@@ -334,6 +334,9 @@ pub const Engine = struct {
     vtable: *const HeavenVTable,
     /// Pile de frames pour continuations delimitees (D8 3a-3).
     capture_stack: continuation.CaptureStack,
+    /// HKT-V1a : classes et instances declarees (metadata, 0 dispatch).
+    class_names: std.StringHashMapUnmanaged(void) = .{},
+    instance_pairs: std.StringHashMapUnmanaged(void) = .{},
     /// A-2 (3a-3b pre-vol) : active la capture de frames dans
     /// evaluate. false par defaut : aucun impact, aucune alloc.
     /// true uniquement pendant evalWithBudget (scheduler).
@@ -390,6 +393,8 @@ pub const Engine = struct {
             self.allocator.destroy(entry.value_ptr.env);
         }
         self.thunks.deinit(self.allocator);
+        self.class_names.deinit(self.allocator);
+        self.instance_pairs.deinit(self.allocator);
         var it = self.fns.iterator();
         while (it.next()) |entry| {
             platform.dbg("[fns.deinit] freeing key='{s}' addr={d}\n", .{ entry.key_ptr.*, @intFromPtr(entry.key_ptr.*.ptr) });
@@ -965,7 +970,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1043,6 +1048,12 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return try store.unitLit();
     }
 
+    if (std.mem.eql(u8, op, "@class_count")) {
+        return try store.int(@intCast(engine.class_names.count()));
+    }
+    if (std.mem.eql(u8, op, "@instance_count")) {
+        return try store.int(@intCast(engine.instance_pairs.count()));
+    }
     if (std.mem.eql(u8, op, "@budget_left")) {
         if (args_snap.len != 0) return error.ArityMismatch;
         // HEAVEN:BUDGET_FIX — clamp pour eviter overflow i64

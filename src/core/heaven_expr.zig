@@ -911,6 +911,26 @@ pub const Heaven = struct {
             return self.evalImport(trimmed["import ".len..]);
         }
 
+        // ─── HKT-V1a : class Name [param] ───
+        if (std.mem.startsWith(u8, trimmed, "class ")) {
+            const rest = std.mem.trim(u8, trimmed["class ".len..], " \t");
+            var it = std.mem.tokenizeAny(u8, rest, " \t");
+            const cname = it.next() orelse return self.allocator.dupe(u8, "class: nom attendu");
+            const owned = try self.allocator.dupe(u8, cname);
+            try self.engine.class_names.put(self.engine.allocator, owned, {});
+            return std.fmt.allocPrint(self.allocator, "class {s}", .{cname});
+        }
+        // ─── HKT-V1a : instance C T ───
+        if (std.mem.startsWith(u8, trimmed, "instance ")) {
+            const rest = std.mem.trim(u8, trimmed["instance ".len..], " \t");
+            var it = std.mem.tokenizeAny(u8, rest, " \t");
+            const cname = it.next() orelse return self.allocator.dupe(u8, "instance: C attendu");
+            const tname = it.next() orelse return self.allocator.dupe(u8, "instance: T attendu");
+            const key = try std.fmt.allocPrint(self.engine.allocator, "{s}|{s}", .{ cname, tname });
+            try self.engine.instance_pairs.put(self.engine.allocator, key, {});
+            return std.fmt.allocPrint(self.allocator, "instance {s} {s}", .{ cname, tname });
+        }
+
         // ─── sig name : type ───
         if (std.mem.startsWith(u8, trimmed, "sig ")) {
             const rest = std.mem.trim(u8, trimmed["sig ".len..], " \t");

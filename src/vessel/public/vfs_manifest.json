@@ -75,6 +75,7 @@
   "tests/test_h1_qualified.hvn",
   "tests/test_hashmap.hvn",
   "tests/test_hkt.hvn",
+  "tests/test_hkt_v1a.hvn",
   "tests/test_http.hvn",
   "tests/test_http_body.hvn",
   "tests/test_http_client.hvn",
