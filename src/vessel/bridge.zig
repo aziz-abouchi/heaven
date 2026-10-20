@@ -114,7 +114,14 @@ fn extractHttpPath(request: []const u8) ?[]const u8 {
     const path_start = start + prefix.len;
     const path_end = std.mem.indexOfPos(u8, request, path_start, " ") orelse return null;
     if (path_end <= path_start) return null;
-    return request[path_start..path_end];
+    const raw = request[path_start..path_end];
+    // Strip query string (?t=...) et fragment (#...) : le fichier
+    // servi est /path, pas /path?t=... (cache-buster).
+    var end = raw.len;
+    if (std.mem.indexOfScalar(u8, raw, '?')) |q| { if (q < end) end = q; }
+    if (std.mem.indexOfScalar(u8, raw, '#')) |f| { if (f < end) end = f; }
+    if (end == 0) return null;
+    return raw[0..end];
 }
 
 // Vrai si le path a une extension statique connue (a servir depuis public/).
