@@ -1,0 +1,32 @@
+-- examples/memory/alloc_demo.hvn -- allocation + liberation (2026-10-20)
+--
+-- Signatures (engine_expr.zig:1737-1820) :
+--   (raw_alloc n)          -> Int (pointeur brut, bitCast i64)
+--   (poke_byte ptr off b)  -> unit
+--   (peek_byte ptr off)    -> Int
+--   (raw_free ptr n)       -> unit (2 args : pointeur + taille)
+--
+-- NOTE : pas de `linear` sur ces bindings. `let linear x = v in body`
+-- est accepte au parse mais fausse l'eval runtime (ArityMismatch).
+-- C'est le bug QTT Phase 2 (voir _qtt_runtime_bug.md). Quand QTT est
+-- branche, on pourra annoter `linear buf` et oublier le free devra
+-- etre rejete statiquement.
+
+write_read_abcd _ =
+  let buf = (raw_alloc 4) in
+  let _w0 = (poke_byte buf 0 65) in
+  let _w1 = (poke_byte buf 1 66) in
+  let _w2 = (poke_byte buf 2 67) in
+  let _w3 = (poke_byte buf 3 68) in
+  let a = (peek_byte buf 0) in
+  let b = (peek_byte buf 1) in
+  let c = (peek_byte buf 2) in
+  let d = (peek_byte buf 3) in
+  let _f = (raw_free buf 4) in
+  (+ (* a 1000000) (+ (* b 10000) (+ (* c 100) d)))
+
+-- Retourne 42 apres alloc+free (`raw_free` renvoie unit).
+alloc_free_clean _ =
+  let buf = (raw_alloc 16) in
+  let _f = (raw_free buf 16) in
+  42
