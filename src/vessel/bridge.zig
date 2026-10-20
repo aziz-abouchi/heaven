@@ -107,6 +107,28 @@ fn serveFile(path_in_url: []const u8, stream: std.net.Stream, allocator: std.mem
     try respond(stream, "200 OK", mime, data);
 }
 
+// Extrait le path d'une requete "GET /path HTTP/1.1".
+fn extractHttpPath(request: []const u8) ?[]const u8 {
+    const prefix = "GET ";
+    const start = std.mem.indexOf(u8, request, prefix) orelse return null;
+    const path_start = start + prefix.len;
+    const path_end = std.mem.indexOfPos(u8, request, path_start, " ") orelse return null;
+    if (path_end <= path_start) return null;
+    return request[path_start..path_end];
+}
+
+// Vrai si le path a une extension statique connue (a servir depuis public/).
+fn isStaticAsset(path: []const u8) bool {
+    const exts = [_][]const u8{
+        ".js", ".css", ".json", ".wasm", ".svg", ".png", ".ico",
+        ".html", ".hvn", ".woff2", ".woff", ".ttf", ".map",
+    };
+    for (exts) |e| {
+        if (std.mem.endsWith(u8, path, e)) return true;
+    }
+    return false;
+}
+
 // --- LOGIQUE HTTP (RÉINTÉGRÉE) ---
 fn handleHttp(args: HandlerArgs, request: []const u8) !void {
     var arena = std.heap.ArenaAllocator.init(args.allocator);
@@ -176,6 +198,17 @@ fn handleHttp(args: HandlerArgs, request: []const u8) !void {
         try args.conn.stream.writeAll(header);
         try args.conn.stream.writeAll(test_html);
     } else {
+        // Fallback generique : servir un fichier statique s'il a une
+        // extension connue (vfs.js, egraph_data.json, ...), sinon
+        // renvoyer index_html (SPA).
+        if (extractHttpPath(request)) |path| {
+            if (isStaticAsset(path)) {
+                serveFile(path, args.conn.stream, args.allocator) catch {
+                    try respond(args.conn.stream, "404 Not Found", "text/plain", "not found");
+                };
+                return;
+            }
+        }
         const header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nConnection: close\r\n\r\n";
         try args.conn.stream.writeAll(header);
         try args.conn.stream.writeAll(index_html);
