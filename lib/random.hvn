@@ -1,10 +1,14 @@
--- lib/random.hvn -- PRNG deterministe (LCG) en .hvn pur (2026-10-20)
--- Aucun import requis (utilise + * % == if, tous auto-loades).
--- Pas cryptographique. Pour crypto : /dev/urandom via @fs_read.
+-- lib/random.hvn -- PRNG (2026-10-20)
+-- Niveau 1 : LCG deterministe (portable partout, pas crypto).
+-- Niveau 2 : urandom (Linux seulement, entropie OS reelle).
+--
+-- Le dispatch OS automatique est en attente du fix target_os
+-- (bug symbol/string, voir _target_os_bug.md). En attendant :
+-- appeler explicitement rand_os sur Linux, LCG ailleurs.
 
 seed s = if s == 0 then 1 else s
 
-lcg_next s = (s * 1103515245 + 12345) % 2147483648
+lcg_next s = s * 1103515245 + 12345 % 2147483648
 
 abs_pos n = if n < 0 then 0 - n else n
 
@@ -20,3 +24,15 @@ rand_range s lo hi =
 rand_bool s =
   let n = lcg_next s in
   abs_pos n % 2 == 0
+
+-- ─── Niveau 2 : OS random (Linux uniquement) ───
+-- Retourne un int signe issu de 4 bytes d'entropie OS.
+-- Necessite : import "lib/syscall/linux_x86_64.hvn" as S
+-- Usage : rand_os_linux S
+
+rand_os_linux _ =
+  let b = raw_alloc 8 in
+  let _n = raw_syscall 318 b 8 0 in
+  let v = peek_int64 b 0 in
+  let _f = raw_free b 8 in
+  abs_pos v

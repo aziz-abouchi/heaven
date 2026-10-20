@@ -43,3 +43,12 @@ Baseline complete requise (.zig touche).
 3. Style infixe TOUJOURS.
 4. Verifier dans 25 fichiers auto-loades avant de creer.
 5. Baseline complete avant commit .zig.
+
+
+## Vague 2.5 -- DX (apres bugs, avant features)
+
+| # | Chantier | Effort | Note |
+|---|---|---|---|
+| S6.5 | Messages d'erreur enrichis | 1-2 sessions | ErrorKind + location + expr |
+| S6.6 | `target_os` fix (symbol/string) | 1 session | Voir _target_os_bug.md |
+

@@ -1,12 +1,11 @@
 import "lib/random.hvn" as R
 
--- helpers : retournent Bool directement (pas == true qui casse
--- la precedence : ge v lo == true parse en ge v (lo == true))
 above lo v = ge v lo
 below hi v = le v hi
+different a b = not (a == b)
 
 test "lcg_det": R.lcg_next 42 == R.lcg_next 42
-test "lcg_var": R.lcg_next 42 != R.lcg_next 43
+test "lcg_var": different (R.lcg_next 42) (R.lcg_next 43) == true
 test "seed_zero": R.seed 0 == 1
 test "seed_42": R.seed 42 == 42
 test "range_lo": above 1 (R.rand_range 42 1 6) == true

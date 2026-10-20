@@ -1,0 +1,28 @@
+-- lib/syscall/linux_x86_64.hvn -- syscalls Linux x86_64 en .hvn pur
+-- Via raw_syscall (magic Zig). Aucun dispatch OS (voir bug target_os).
+-- Numeros : include/uapi/asm-generic/unistd.h + arch/x86/entry/syscalls.
+
+-- getrandom(2) : buf, len, flags -> bytes remplis (ou -errno)
+sys_getrandom = 318
+
+getrandom buf len flags = raw_syscall sys_getrandom buf len flags
+
+-- read(2) : fd, buf, count -> n
+sys_read = 0
+read fd buf count = raw_syscall sys_read fd buf count
+
+-- write(2) : fd, buf, count -> n
+sys_write = 1
+write fd buf count = raw_syscall sys_write fd buf count
+
+-- openat(2) : dirfd, path, flags, mode -> fd
+sys_openat = 257
+openat dirfd path flags mode = raw_syscall sys_openat dirfd path flags mode
+
+-- close(2) : fd -> 0
+sys_close = 3
+close fd = raw_syscall sys_close fd 0 0
+
+-- exit_group(2) : code -> jamais
+sys_exit = 231
+exit_group code = raw_syscall sys_exit code 0 0

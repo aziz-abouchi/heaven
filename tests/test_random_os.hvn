@@ -1,0 +1,15 @@
+import "lib/random.hvn" as R
+
+-- rand_os_linux tire un nouveau random a chaque appel (par design).
+-- Ne PAS tester `a 0 == a 0` (compare 2 appels independants).
+-- On teste : valeurs dans une plage plausible + variabilite entre appels.
+
+a _ = R.rand_os_linux 0
+b _ = R.rand_os_linux 0
+
+different x y = not (x == y)
+positive x = gt x 0
+
+test "os_positive_a": positive (a 0) == true
+test "os_positive_b": positive (b 0) == true
+test "os_var": different (a 0) (b 0) == true
