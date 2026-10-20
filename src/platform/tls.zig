@@ -30,6 +30,12 @@ extern fn SSL_write(ssl: *SSL, buf: [*]const u8, num: c_int) c_int;
 extern fn SSL_shutdown(ssl: *SSL) c_int;
 extern fn SSL_free(ssl: *SSL) void;
 
+// SSL_get_error codes (OpenSSL)
+pub const SSL_ERROR_WANT_READ: c_int = 2;
+pub const SSL_ERROR_WANT_WRITE: c_int = 3;
+pub const SSL_ERROR_ZERO_RETURN: c_int = 6;
+pub const SSL_ERROR_SYSCALL: c_int = 5;
+
 // SNI : SSL_ctrl(ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, hostname)
 pub const SSL_CTRL_SET_TLSEXT_HOSTNAME: c_int = 55;
 pub const TLSEXT_NAMETYPE_host_name: c_long = 0;
@@ -92,9 +98,20 @@ pub fn write(conn: *TlsConn, data: []const u8) TlsError!usize {
 
 pub fn read(conn: *TlsConn, buf: []u8) TlsError!usize {
     if (buf.len == 0) return 0;
-    const n = SSL_read(conn.ssl, buf.ptr, @intCast(@min(buf.len, std.math.maxInt(c_int))));
-    if (n <= 0) return error.ReadFailed;
-    return @intCast(n);
+    var spins: u32 = 0;
+    while (spins < 1000) : (spins += 1) {
+        const n = SSL_read(conn.ssl, buf.ptr, @intCast(@min(buf.len, std.math.maxInt(c_int))));
+        if (n > 0) return @intCast(n);
+        const err = SSL_get_error(conn.ssl, n);
+        if (err == SSL_ERROR_WANT_READ or err == SSL_ERROR_WANT_WRITE) {
+            std.Thread.sleep(1_000_000); // 1ms
+            continue;
+        }
+        if (err == SSL_ERROR_ZERO_RETURN) return 0; // EOF propre
+        if (err == SSL_ERROR_SYSCALL and n == 0) return 0; // EOF sur close
+        return error.ReadFailed;
+    }
+    return error.ReadFailed;
 }
 
 pub fn close(conn: *TlsConn) void {
