@@ -302,3 +302,55 @@ Sortie :
 Le module Zig `src/knowledge/` reste disponible pour un usage avance
 (parseur Turtle, requetes RDFS), mais n'est pas expose en `.hvn`.
 
+## 8. Bases ouvertes sur internet
+
+Heaven peut interroger des KB ouvertes (OpenLibrary, Wikidata,
+DBpedia) via HTTP, parser le JSON, et alimenter une `Kb` locale.
+`stdlib/net/urlencode.hvn` (RFC 3986) + `stdlib/json/parse.hvn`
+(suffisent).
+
+### Pattern
+
+    import "stdlib/net/http_client.hvn" as H
+    import "stdlib/json/parse.hvn" as J
+    import "stdlib/net/urlencode.hvn" as U
+
+    -- OpenLibrary : JSON plat, docs[0].title
+    first_title body =
+      (J.jv_as_str
+        (J.json_obj_get
+          (J.jv_get
+            (J.json_obj_get (J.json_as_obj_s body) "docs") 0)
+          "title"))
+
+    query q = (H.http_get "openlibrary.org" 80
+                (string_concat "/search.json?q=" (U.url_encode q)))
+
+### APIs disponibles
+
+- **OpenLibrary** : `search.json?q=...` (JSON plat).
+- **Wikidata** : `query.wikidata.org/sparql?format=json&query=...`
+  (JSON nested, `results.bindings`).
+- **DBpedia** : `dbpedia.org/sparql?query=...&format=json`, supporte
+  HTTP (port 80).
+
+### Ce qui marche
+
+- **Parseur JSON** : 12/12 tests (objects, arrays, lookup).
+- **urlencode** : 9/9 (RFC 3986, SPARQL-safe).
+- **Pattern complet** : `examples/open_data/*.hvn`.
+
+### Ce qui bloque (TLS)
+
+- `http_get` V0 **ne fait pas TLS**. Les 3 APIs sont en HTTPS.
+- **User-Agent** absent de `http_build_get`. Wikidata renvoie 403.
+- **Workaround** : DBpedia en HTTP (port 80), ou tunnel/proxy TLS.
+- **Fix** : `D-SH1` (OpenSSL FFI, 2 sessions). Voir
+  `_open_data_tls.md`.
+
+### Fixture offline
+
+Les litteraux `"{"a":1}"` ne contiennent pas ce qu'on croit
+(`\"` reste litteral, cf. `_syntax_gaps.md`). Pour tester offline :
+`poke_byte` + `string_of_bytes` (cf. `tests/test_json_v1.hvn`).
+
