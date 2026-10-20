@@ -1,0 +1,8 @@
+-- tests/test_dns_qname.hvn — QNAME DNS offline (2026-10-20)
+import "stdlib/net/dns.hvn" as D
+
+test "qname_a_com_len": (string_length (D.dns_qname "a.com")) == 7
+test "qname_a_com_first": (peek_byte (string_ptr (D.dns_qname "a.com")) 0) == 1
+test "qname_a_com_last": (peek_byte (string_ptr (D.dns_qname "a.com")) 6) == 0
+test "qname_wiki_len": (string_length (D.dns_qname "www.wikidata.org")) == 18
+test "qname_wiki_www": (peek_byte (string_ptr (D.dns_qname "www.wikidata.org")) 0) == 3

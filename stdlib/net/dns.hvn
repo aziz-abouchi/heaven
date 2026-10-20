@@ -6,6 +6,7 @@
 import "stdlib/net/dns_parse.hvn" as dns_v1
 import "stdlib/net/udp.hvn" as udp
 import "stdlib/net/ip.hvn" as ip
+import "stdlib/string.hvn" as str
 
 -- ─── Header DNS : 12 bytes ───
 dns_build_header id flags qd =
@@ -24,17 +25,14 @@ dns_build_header id flags qd =
   let _ = (poke_byte buf 11 0) in
   (string_of_bytes buf 12)
 
--- ─── QNAME "a.com" : 1 'a' 3 'c' 'o' 'm' 0 = 7 bytes ───
-dns_qname_a_com _ =
-  let buf = (raw_alloc 7) in
-  let _ = (poke_byte buf 0 1) in
-  let _ = (poke_byte buf 1 97) in
-  let _ = (poke_byte buf 2 3) in
-  let _ = (poke_byte buf 3 99) in
-  let _ = (poke_byte buf 4 111) in
-  let _ = (poke_byte buf 5 109) in
-  let _ = (poke_byte buf 6 0) in
-  (string_of_bytes buf 7)
+-- ─── QNAME generique : "host.name" -> length bytes ───
+dns_seg s = (string_concat (@char_string (string_length s)) s)
+
+dns_qname_parts nil _ = (@char_string 0)
+dns_qname_parts (cons seg rest) _ =
+  (string_concat (dns_seg seg) (dns_qname_parts rest unit))
+
+dns_qname host = (dns_qname_parts (str.string_split host ".") unit)
 
 -- ─── QTYPE (A=1) + QCLASS (IN=1) = 4 bytes ───
 dns_qtype_class _ =
@@ -46,21 +44,21 @@ dns_qtype_class _ =
   (string_of_bytes buf 4)
 
 -- ─── Query complete : header + qname + qtype_class ───
-dns_build_query _ =
+dns_build_query host =
   let hdr = (dns_build_header 4660 256 1) in
-  let qn = (dns_qname_a_com 0) in
+  let qn = (dns_qname host) in
   let qtc = (dns_qtype_class 0) in
   (string_concat (string_concat hdr qn) qtc)
 
 -- ─── Envoie + recoit + retourne la reponse brute ───
-dns_resolve_a_com _ =
+dns_resolve_a_com host server =
   let cap_sock = (cap_acquire "net:socket_udp") in
   let cap_send = (cap_acquire "net:sendto") in
   let cap_recv = (cap_acquire "net:recvfrom") in
   let fd = (udp.udp_socket cap_sock) in
   let _ = (udp.udp_set_timeout cap_recv fd 3) in
-  let q = (dns_build_query 0) in
-  let _sent = (udp.udp_sendto cap_send fd "8.8.8.8" 53 q) in
+  let q = (dns_build_query host) in
+  let _sent = (udp.udp_sendto cap_send fd server 53 q) in
   let resp = (udp.udp_recvfrom cap_recv fd) in
   resp
 
@@ -68,5 +66,5 @@ dns_resolve_a_com _ =
 -- Combine dns_resolve_a_com (V0, envoi/recv) et dns_v1 (parsing).
 -- Retourne l'IP de la 1ere answer A, en string "93.184.216.34".
 -- Note : requiert reseau. Test manuel uniquement (sandbox bloque).
-dns_resolve_a_com_parsed _ =
-  (ip.ip_to_string (dns_v1.dns_first_a_ip (dns_resolve_a_com 0)))
+dns_resolve_a_com_parsed host server =
+  (ip.ip_to_string (dns_v1.dns_first_a_ip (dns_resolve_a_com host server)))
