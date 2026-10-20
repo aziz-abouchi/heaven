@@ -1,0 +1,13 @@
+-- tests/test_mpst_projection.hvn -- projection V0.5 (2026-10-20)
+import "stdlib/mpst.hvn" as M
+
+p _ = (M.proto_client 0)
+
+test "labels_order": (length (M.labels (p 0))) == 2
+test "labels_first": (head (M.labels (p 0))) == "Req"
+test "send_req": (head (M.project_side "send" (p 0))) == "Req"
+test "send_len": (length (M.project_side "send" (p 0))) == 1
+test "recv_resp": (head (M.project_side "recv" (p 0))) == "Resp"
+test "recv_len": (length (M.project_side "recv" (p 0))) == 1
+test "send_no_resp": (M.check (M.STSend "Resp" M.STEnd) (M.TNil)) == false
+test "dual_check": (M.check (M.dual (p 0)) (M.trace_of_string "Req,Resp")) == true

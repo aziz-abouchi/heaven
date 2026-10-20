@@ -60,3 +60,25 @@ trace_of_string s =
 trace_from_parts nil = TNil
 trace_from_parts (cons "" rest) = TNil
 trace_from_parts (cons x rest) = (TCons x (trace_from_parts rest))
+
+-- ─── V0.5 : projection binaire (role = cote emetteur/recepteur) ───
+-- Projection : extrait les labels visibles pour un cote du protocole.
+-- En binaire, deux cotes possibles : "send" (ce que A envoie) et
+-- "recv" (ce que A recoit). Utile pour verifier qu'un acteur ne voit
+-- que les labels qui le concernent.
+
+labels STEnd = nil
+labels (STSend l rest) = (cons l (labels rest))
+labels (STRecv l rest) = (cons l (labels rest))
+labels (STSeq a b) = (append (labels a) (labels b))
+labels (STChoice a b) = (labels a)
+
+project_side side STEnd = nil
+project_side side (STSend l rest) =
+  (if (= side "send") (cons l (project_side side rest)) (project_side side rest))
+project_side side (STRecv l rest) =
+  (if (= side "recv") (cons l (project_side side rest)) (project_side side rest))
+project_side side (STSeq a b) =
+  (append (project_side side a) (project_side side b))
+project_side side (STChoice a b) =
+  (project_side side a)
