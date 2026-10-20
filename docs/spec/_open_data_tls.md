@@ -47,3 +47,41 @@ Exemple pour `{"docs":[{"title":"X"}]}` (23 bytes) :
 - ... 23 poke_byte au total.
 
 A eviter si `http_get` peut tester online (binaire natif, HTTP).
+
+## RESOLU 2026-10-20 (TLS livre)
+
+**`src/platform/tls.zig`** : wrappers OpenSSL FFI (SSL_CTX_new,
+SSL_new, SSL_set_fd, SSL_connect, SSL_read, SSL_write, SSL_shutdown).
+2 tests linkage passent (`TLS_client_method`, `SSL_CTX_new`).
+
+**4 magics** dans `engine_expr.zig` :
+- `@tls_connect fd host` -> handle (pointer TlsConn)
+- `@tls_write handle data` -> n bytes
+- `@tls_read handle` -> response string (max 64KB)
+- `@tls_close handle`
+
+**Linkage** : `build.zig` lie `libssl` + `libcrypto` (Nix/Guix store,
+pkg-config). `tls_mod.link_libc = true`.
+
+**Test end-to-end** : TLS sur `query.wikidata.org:443` via
+`@net_connect` (IPv4) + `@tls_connect` + `@tls_write` + `@tls_read`.
+La reponse brute recue : `HTTP/1.1 400 Bad request ... server:
+HAProxy` (requete mal formee, mais **TLS fonctionne**).
+
+## Ce qui reste
+
+- **DNS `.hvn`** : `@net_connect` prend une IP, pas un hostname.
+  Il faut `dns_resolve` (stdlib/net/dns.hvn) pour resoudre avant.
+  Ou passer `host` a `@tls_connect` (SNI, fait) mais connect via IP.
+- **Requete Wikidata 400** : path `/sparql?query=...` trop long ou
+  User-Agent mal formate. Debug en session dediee.
+- **`http_get_https`** : wrapper dans `stdlib/net/http_client.hvn`
+  qui combine dns_resolve + net_connect + tls_connect + write + read.
+- **Tests offline** : fixture `"{\"a\":1}"` toujours fragile
+  (backslash-quote litteral). `poke_byte` reste le workaround.
+
+## Baseline
+
+ReleaseFast `--run-tests` = 0 fail apres TLS. wasm x2 = 0
+(les magics TLS sont exclus du freestanding).
+

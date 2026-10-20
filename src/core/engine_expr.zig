@@ -992,7 +992,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@tls_connect", "@tls_read", "@tls_write", "@tls_close" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1184,6 +1184,76 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         var buf: [1]u8 = .{byte};
         const sym = try store.interner.intern(&buf);
         return try store.lit(.{ .str = sym });
+    }
+
+    if (std.mem.eql(u8, op, "@tls_connect")) {
+        // @tls_connect fd hostname -> handle (i64 pointer to TlsConn)
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const fd_v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const host_v = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const fd_n = store.get(fd_v);
+        const host_n = store.get(host_v);
+        if (fd_n.tag != .lit or host_n.tag != .lit) return error.TypeError;
+        const fd_l = store.lits.items[fd_n.aux];
+        const host_l = store.lits.items[host_n.aux];
+        if (fd_l != .int or host_l != .str) return error.TypeError;
+        const fd: i64 = fd_l.int;
+        const host_str = store.interner.resolve(host_l.str);
+        const host_z = try engine.allocator.dupeZ(u8, host_str);
+        defer engine.allocator.free(host_z);
+        const tls = @import("tls");
+        const conn = tls.connect(fd, host_z.ptr) catch return error.InvalidInput;
+        const ptr = try engine.allocator.create(tls.TlsConn);
+        ptr.* = conn;
+        return try store.int(@intCast(@intFromPtr(ptr)));
+    }
+    if (std.mem.eql(u8, op, "@tls_write")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const h_v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const d_v = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const h_n = store.get(h_v);
+        const d_n = store.get(d_v);
+        if (h_n.tag != .lit or d_n.tag != .lit) return error.TypeError;
+        const h_l = store.lits.items[h_n.aux];
+        const d_l = store.lits.items[d_n.aux];
+        if (h_l != .int or d_l != .str) return error.TypeError;
+        const tls = @import("tls");
+        const conn: *tls.TlsConn = @ptrFromInt(@as(usize, @intCast(h_l.int)));
+        const data = store.interner.resolve(d_l.str);
+        const n = tls.write(conn, data) catch return error.InvalidInput;
+        return try store.int(@intCast(n));
+    }
+    if (std.mem.eql(u8, op, "@tls_read")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const h_v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const h_n = store.get(h_v);
+        if (h_n.tag != .lit) return error.TypeError;
+        const h_l = store.lits.items[h_n.aux];
+        if (h_l != .int) return error.TypeError;
+        const tls = @import("tls");
+        const conn: *tls.TlsConn = @ptrFromInt(@as(usize, @intCast(h_l.int)));
+        var buf: [65536]u8 = undefined;
+        var total: usize = 0;
+        while (total < buf.len) {
+            const n = tls.read(conn, buf[total..]) catch break;
+            if (n == 0) break;
+            total += n;
+        }
+        const sym = try store.interner.intern(buf[0..total]);
+        return try store.lit(.{ .str = sym });
+    }
+    if (std.mem.eql(u8, op, "@tls_close")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const h_v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const h_n = store.get(h_v);
+        if (h_n.tag != .lit) return error.TypeError;
+        const h_l = store.lits.items[h_n.aux];
+        if (h_l != .int) return error.TypeError;
+        const tls = @import("tls");
+        const conn: *tls.TlsConn = @ptrFromInt(@as(usize, @intCast(h_l.int)));
+        tls.close(conn);
+        engine.allocator.destroy(conn);
+        return try store.int(0);
     }
 
     if (std.mem.eql(u8, op, "@budget_left")) {

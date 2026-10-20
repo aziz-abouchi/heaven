@@ -43,10 +43,24 @@ pub fn build(b: *std.Build) void {
         @tagName(target.result.os.tag),
     });
 
+    // TLS (OpenSSL FFI, D-SH1). Cree AVANT platform_mod pour que
+    // les fonctions TLS soient accessibles a platform.tls.
+    const tls_mod = b.createModule(.{
+        .root_source_file = b.path("src/platform/tls.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    tls_mod.link_libc = true;
+    tls_mod.linkSystemLibrary("ssl", .{});
+    tls_mod.linkSystemLibrary("crypto", .{});
+
     const platform_mod = b.createModule(.{
         .root_source_file = b.path(platform_file),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{ .name = "tls", .module = tls_mod },
+        },
     });
 
     // Ajouter les include paths de tree-sitter
@@ -329,6 +343,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "pattern", .module = pattern_mod },
             .{ .name = "syntax_lower", .module = syntax_lower_mod },
+            .{ .name = "tls", .module = tls_mod },
         },
     });
 
