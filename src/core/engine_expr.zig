@@ -2990,15 +2990,15 @@ fn evalCmp(store: *Store, a: Id, b: Id, op: CmpOp) EvalError!Id {
         },
         .str => |sa| switch (lb) {
             .str => |sb| blk: {
-                // Les chaines sont internées : l'egalite des Sym suffit
-                // pour `eq` / `neq`. Pour l'ordre, on compare lexicographi-
-                // quement les bytes resolus.
+                // Comparer les BYTES resolus, pas les Sym IDs.
+                // Bug 2026-10-20 : `target_os` et `"linux"` peuvent
+                // avoir des Sym IDs differents (intern path).
                 const ra = store.interner.resolve(sa);
                 const rb = store.interner.resolve(sb);
                 const cmp = std.mem.order(u8, ra, rb);
                 break :blk switch (op) {
-                    .eq => sa == sb,
-                    .neq => sa != sb,
+                    .eq => std.mem.eql(u8, ra, rb),
+                    .neq => !std.mem.eql(u8, ra, rb),
                     .lt => cmp == .lt,
                     .gt => cmp == .gt,
                     .le => cmp != .gt,
