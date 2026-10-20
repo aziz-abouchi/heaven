@@ -144,3 +144,43 @@ dans la zone 677-694.
 
 ### Effort
 1 session .zig dediee. Pas faisable en fin de session longue.
+
+
+## Mise a jour 2026-10-20 (session B, 5 blocs, cutoff definitif)
+
+### Faits mesures (2e passe)
+    let linear n = 16 in n     -- KO (!= 16)
+    let erased n = 16 in 42    -- KO (!= 42)
+    let many   n = 16 in n + n -- KO (!= 32)
+    let n = 16 in n            -- OK (16)
+    let n = 16 in 42           -- OK (42)
+
+=> QTT est casse pour TOUS les cas LEGAUX. Ce n'est pas une
+   violation attendue (comme je le pensais en B-1) - c'est un bug.
+
+### Parser : correct (verifie 3 fois)
+- expr_parser.zig:677-694 : qtt_name = "n", qtt_val = "16", qtt_body
+  = parsed body.
+- expr_parser.zig:740-759 : bind(name_sym, val_id, b) retourne.
+- Identique au path sans QTT (expr_parser.zig:710-735).
+
+### Eval : deux comportements DIFFERENTS selon invocation
+- `heaven run` : error.ArityMismatch
+- `--run-test` : `!= <valeur attendue>` (valeur reelle inconnue)
+
+=> Deux chemins de code distincts. Hypothese : heaven_expr.zig:938
+   (eval) a SA PROPRE branche QTT ou son propre parser qui re-wrap le
+   node. Le parser expr_parser.zig est peut-etre court-circuite ou le
+   node est double-wrap.
+
+### Piste ULTRA precise pour session fraiche
+1. `grep -n "linear\|erased\|many" src/core/heaven_expr.zig` :
+   voir si heaven_expr.zig a une branche QTT parallele.
+2. Comparer les 2 graphes :
+   - `let n = 16 in n` (parse OK)
+   - `let linear n = 16 in n` (KO)
+   via `@egraph_snapshot` ou dump `store.nodes`.
+3. Si 2 bind nodes presents (double bind), c'est le wrap.
+
+### Effort
+1 session .zig. PRIORITE HAUTE - c'est la vision "memoire en Heaven".
