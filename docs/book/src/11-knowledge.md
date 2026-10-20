@@ -354,3 +354,44 @@ Les litteraux `"{"a":1}"` ne contiennent pas ce qu'on croit
 (`\"` reste litteral, cf. `_syntax_gaps.md`). Pour tester offline :
 `poke_byte` + `string_of_bytes` (cf. `tests/test_json_v1.hvn`).
 
+## 9. Ontologie live (Wikidata)
+
+Heaven peut interroger Wikidata en HTTPS (TLS + DNS + JSON), comme
+le montre `examples/open_data/wikidata_live.hvn`.
+
+### Ce qui marche
+
+    import "stdlib/net/http_client.hvn" as H
+    import "stdlib/json/parse.hvn" as J
+
+    -- fetch : TLS + HTTP, requete inline (pas de helper dynamique)
+    fetch ip _ = let cap = (cap_acquire "net:connect") in
+                 let fd = (@net_connect cap ip 443) in
+                 let h = (@tls_connect fd "www.wikidata.org") in
+                 let _ = (@tls_write h (req unit)) in
+                 let resp = (@tls_read h) in
+                 let _ = (@tls_close h) in
+                 let _ = (@net_close unit fd) in resp
+
+    -- Test : "HTTP/1.1 200 OK" dans la reponse brute.
+    test "wikidata_200":
+      (string_substring (fetch "185.15.58.224" unit) 9 3) == "200"
+
+Testé live (2026-10-20) : `HTTP/1.1 200 OK ... server: mw-web`.
+
+### Ce qui ne marche pas encore
+
+- **DNS `.hvn`** : `@net_connect` prend une IP, pas un hostname.
+  `dns_resolve_a_com(host, server)` retourne l'IP (testé sur
+  `www.wikidata.org` -> IP), mais passer le hostname directement
+  n'est pas supporte.
+- **JSON 1.5MB** : `@tls_read` lit (buffer dynamique, cap 16MB),
+  mais `json_as_obj_s` sur 1.5MB peut etre lent (pas testé).
+- **`wbgetentities`** : endpoint plus petit (~300 bytes), mais
+  retourne `labels:{}` vide (parametres a ajuster).
+
+### Pattern prouve
+
+`examples/open_data/wikidata_live.hvn` marche end-to-end : TLS
++ HTTP/1.1 200 OK depuis `.hvn`. C'est le jalon.
+

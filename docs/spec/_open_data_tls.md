@@ -85,3 +85,29 @@ HAProxy` (requete mal formee, mais **TLS fonctionne**).
 ReleaseFast `--run-tests` = 0 fail apres TLS. wasm x2 = 0
 (les magics TLS sont exclus du freestanding).
 
+## Niveau 1 livre (2026-10-20) : @tls_read dynamique
+
+`@tls_read` cap 16MB (chunks 16KB). TLS lit des reponses > 64KB
+(Wikidata entity data, HTML, gros JSON).
+
+## Niveau 3 (stream pur .hvn) -- TODO
+
+`@tls_read_chunk handle` -> un chunk, + `stream_map`/`stream_filter`
+en .hvn. Effort : 2 sessions. Debloque SSE, HTML parsing
+incremental, book ch. 7 (streams).
+
+## sexy_ontology -- KO (3 bugs cumules)
+
+Pattern cible : Wikidata Q42 -> JSON -> Kb -> query "Douglas Adams".
+Marche partiellement (13/15 tests). 3 bugs a resoudre :
+
+1. `req_of qid` (helper dynamique) retourne vide, alors que la
+   requete inline dans `wikidata_live.hvn` marche. Suspect :
+   concat profonde avec `qid` variable.
+2. `body_of` via `_find_json` cherche `{` brut dans les headers.
+   `User-Agent: heaven-ontology/0.1` n'en contient pas, mais le
+   pattern est fragile. Chercher `\r\n\r\n` d'abord.
+3. `wbgetentities` endpoint (plus petit que entity data) retourne
+   `labels:{}` vide. Parametres a ajuster : `props=labels` sans
+   `languages` separe, ou `formatversion=2`.
+
