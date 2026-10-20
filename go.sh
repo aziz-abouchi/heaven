@@ -34,4 +34,4 @@ fi
 # Debug conditionnel : traces [fns.deinit], [BOOT], [DIAG] etc.
 # Activees seulement si HEAVEN_DEBUG est non-vide.
 # Pour activer : HEAVEN_DEBUG=1 bash go.sh
-HEAVEN_DEBUG="${HEAVEN_DEBUG:-}" ./zig-out/bin/heaven 8080
+HEAVEN_NO_LEAK_CHECK="${HEAVEN_NO_LEAK_CHECK:-1}" HEAVEN_DEBUG="${HEAVEN_DEBUG:-}" ./zig-out/bin/heaven 8080

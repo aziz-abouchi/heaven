@@ -26,11 +26,8 @@ string_eq_from a b i =
 
 -- string_ends_with : 1 si s finit par suffix, 0 sinon.
 -- ATTENTION (2026-10-19) : SIGSEGV si utilise comme condition
--- d'un if dans un helper local. Workaround : utiliser == sur
--- string_substring(p, len(suffix), len(p)-len(suffix)) a la place,
--- ou tester la valeur hors du if. Voir _http_fullstack_plan.md
--- section "E4-D2bis".
+-- d'un if dans un helper local. Workaround : == sur substring.
 string_ends_with s suffix =
   if (> (string_length suffix) (string_length s)) then 0
-  else if (string_eq (string_substring s (- (string_length s) (string_length suffix)) (string_length suffix)) suffix) then 1
+  else if (string_substring s (- (string_length s) (string_length suffix)) (string_length suffix)) == suffix then 1
   else 0
