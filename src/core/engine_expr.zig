@@ -665,7 +665,29 @@ pub const Engine = struct {
                         continue :tco_loop;
                     }
 
-                    return result;
+                    // ─── Capture : substituer les params dans le resultat ───
+                    // Si le body retourne une lambda (ou apply qui contient
+                    // une lambda), les params sont dans new_env. Ce dernier
+                    // sera detruit par `defer new_env.unref()` a la sortie
+                    // de evalFunction -> la lambda retournee aurait des
+                    // variables libres non liees.
+                    //
+                    // Fix : substituer les params (bound_syms) par leurs
+                    // valeurs (new_env.get) dans le resultat avant de le
+                    // retourner. Meme technique que la beta-reduction
+                    // ligne 843.
+                    var final_result = result;
+                    if (bound_count > 0) {
+                        const rnode = store.get(result);
+                        if (rnode.tag == .lambda or rnode.tag == .apply) {
+                            for (bound_syms[0..bound_count]) |sym| {
+                                if (new_env.get(sym)) |val| {
+                                    final_result = try store.substSym(final_result, sym, val);
+                                }
+                            }
+                        }
+                    }
+                    return final_result;
                 }
                 // Clause non matchée : nettoyer les bindings ajoutés pendant le matching
                 for (bound_syms[0..bound_count]) |sym| {

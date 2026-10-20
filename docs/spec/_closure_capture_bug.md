@@ -60,3 +60,47 @@ Ecrire `profunctor.hvn` avec les lambdas en parametres directs
 (pas capturees) :
     dimap f g (MkProfunctor l r) = (MkProfunctor f g)
 puis composer a l'appel. Verbeux, perte de l'abstraction.
+
+## Section 2 -- bug residuel : ctor pattern 2-arg + ctor body (2026-10-20)
+
+Apres fix `bound_syms` (closure2 8/8, ctor_cap 4/4, Dcrash 2/2,
+wc A/B/C, H1min 8/8), un cas residuel SIGSEGV :
+
+    data B2 = MkB2 (Int -> Int) (Int -> Int)
+    mk_ds (MkB2 _ r) = (MkB2 r r)         -- SIGSEGV
+    ext_ds (MkB2 f g) = (g 0)
+    ((ext_ds (mk_ds (MkB2 id (lambda x -> (+ x 1))))) 0)
+
+Idem `mk_d (MkB2 _ r) = (MkB2 r (lambda x -> (r x)))`.
+
+**Ce qui marche** :
+- `Dcrash` : `mk_apply r _ = (lambda x -> (r x))` (pas de ctor
+  pattern) -> 6 OK.
+- `ctor_cap` : `wrap_add n _ = (MkWrap (lambda x -> (+ x n)))`
+  (1 sous-pattern) -> 8 OK.
+- `H1min/H1b` : `mkb_h1 f (MkB2 l r) = (MkB2 f r)` (2 sous-patterns,
+  var en body, PAS de lambda autour) -> 6 OK.
+- `wc` A/B/C : wildcard, bind var, `mk_c (MkB2 _ r) = (MkB2 r r)`
+  -> 6 OK (sans `ext_ds` pattern ctor).
+
+**Difference** : `mk_ds` combine ctor pattern 2-arg + ctor body
+avec la 2e var capturée + `ext_ds` (ctor pattern 2-arg). Une des
+trois choses casse.
+
+**Hypothese** : `bound_syms[bound_count]` accumule les syms des
+sous-patterns (f, r ou l, r), et `substSym` substitue la 2e var
+dans le body `(MkB2 r r)`. Si `substSym` sur `.apply` reconstruit
+un apply avec `span_a` malformé, le body résultant peut contenir
+un apply dont `payload` est le ctor `MkB2` et `span_a` = [r_val,
+r_val]. À l'éval, `MkB2 r_val r_val` où `r_val` est le lambda_id.
+Le ctor est évalué (ligne 1810, ctor_arity) et évalue chaque arg.
+Peut-être que l'arg `r_val` (lambda_id) est évalué deux fois et
+la 2e fois il est dangling.
+
+**Prochaine session** : reproduire `mk_ds` + `ext_ds` isolément,
+capturer le backtrace avec gdb, fixer dans `evalFunction` ou
+`substSym`. Effort : 1 session.
+
+**Priorite** : P1 (ne bloque pas Fantasy Land, Optics, Free,
+MaybeT ; bloque seulement `stdlib/profunctor.hvn` complet et
+`Classy Optics` rank-2 encode).
