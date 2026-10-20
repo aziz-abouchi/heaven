@@ -194,3 +194,25 @@ qualifié, et `string_ends_with` en condition.
 
 Voir `docs/spec/_http_fullstack_plan.md` section "E4-D2bis" pour
 le diagnostic chirurgical complet.
+
+### Mots reserves (collisions silencieuses)
+
+Les identifiants suivants sont interceptes par le parser avant l'eval
+de vos definitions. Une fonction du meme nom ne sera **jamais appelee**
+(silencieusement) :
+
+- `data`, `sig`, `theorem`, `prove`, `skill`, `module`, `import`,
+  `strict`, `export`, `class`, `instance` : declarations.
+- `type`, `green`, `help`, `stats`, `theorems`, `rules` : commandes REPL
+  (mais match exact, donc `helper` marche depuis le fix 2026-10-19).
+- `query` : pipeline kanren (heaven_expr.zig:1261). `query foo bar`
+  ajoute une requete au KB, n'appelle pas votre fonction.
+- `fact` : pipeline kanren. `fact 0 = 1` ajoute un fait, n'appelle pas
+  votre fonction.
+- `perform`, `handle`, `handle_rec`, `resume`, `yield` : effets.
+- `let`, `if`, `then`, `else`, `in` : mots-cles.
+
+**Workaround** : prefixer. `kb_query`, `my_fact`, `do_help`, etc.
+Voir `stdlib/ontology.hvn` (prefixe `kb_`) et `04-recursion.md`
+(`fac` au lieu de `fact`).
+

@@ -240,3 +240,65 @@ construire une structure de données récursive qui les simule.
 fonctionnent tels quels dans le REPL (voir `core/knowledge.hvn` et
 les tests associés).*
 
+## 7. En `.hvn` pur (2026-10-20)
+
+La theorie du chapitre est maintenant **du code qui tourne**. `stdlib/ontology.hvn`
+fournit une KB (liste de triples) en `.hvn` pur, sans TripleStore Zig.
+
+### Modelisation
+
+    data Triple = MkTriple String String String
+    data Kb = Knil | Kcons Triple Kb
+
+Un `Kb` est une liste de triples `(sujet, predicat, objet)`. Pas de
+RDF formel (pas d'IRI, pas de namespaces), juste des strings.
+
+### Usage
+
+    import "stdlib/ontology.hvn" as O
+
+    socrates _ = (O.Kcons
+      (O.MkTriple "socrate" "type" "homme")
+      (O.Kcons
+        (O.MkTriple "socrate" "age" "70")
+        O.Knil))
+
+    test "query": (O.kb_query (socrates unit) "socrate" "type") == "homme"
+    test "has":   (O.kb_has (socrates unit) "socrate" "age" "70") == true
+    test "count": (O.kb_count (socrates unit) "socrate" "type") == 1
+    test "size":  (O.kb_size (socrates unit)) == 2
+
+API : `subject`, `predicate`, `object`, `kb_size`, `filter_subj`,
+`filter_pred`, `kb_query`, `kb_count`, `kb_has`.
+
+### Contraintes parser
+
+- **`if ... then (if ...) else`** (parens inner) echoue. Ecrire
+  `if ... then if ... then ... else ... else ...` sans parens.
+- **Pattern `(Kcons (MkTriple s p o) rest) s p`** ne fait PAS
+  l'unification `s == s`. Comparer explicitement par `if`.
+- **`query`, `count`, `data`, `fact`, `sig`, ...** sont reserves.
+  Prefixer par `kb_` pour eviter les collisions.
+
+### Exemple complet
+
+`examples/ontology/socrates.hvn` : 10 triples Socrate -> Platon ->
+Aristote -> Alexandre, queries sur l'age, l'existence, le nombre.
+
+Sortie :
+
+    age_socrate: "70"
+    platon_homme: true
+    nb_socrate_triples: 3
+
+### Ce qui reste
+
+- **TripleStore Zig** (`src/knowledge/`) : existe, mais non branche dans
+  `Engine`. Le RDF formel (IRI, turtle parser, RDFS) reste Zig.
+- **Pont `.hvn` <-> TripleStore** : non implemente (magics `@kb_*` absents).
+- **Pour un usage reel** : garder `stdlib/ontology.hvn` (simple, testable)
+  et n'appeler TripleStore que si on a besoin du RDFS/turtle.
+
+Le module Zig `src/knowledge/` reste disponible pour un usage avance
+(parseur Turtle, requetes RDFS), mais n'est pas expose en `.hvn`.
+

@@ -279,3 +279,30 @@ Limit : capture de fonction dans lambda imbriquée SIGSEGV sur un
 cas résiduel (ctor pattern 2-arg + ctor body). Voir
 `_closure_capture_bug.md` §2.
 
+## `stdlib/ontology.hvn`
+
+**RDF/KB en `.hvn` pur**. 14/14 tests.
+
+    data Triple = MkTriple String String String
+    data Kb = Knil | Kcons Triple Kb
+
+| Fonction | Semantique |
+|---|---|
+| `subject t` | `s` de `MkTriple s p o` |
+| `predicate t` | `p` |
+| `object t` | `o` |
+| `kb_size kb` | nombre de triples |
+| `filter_subj s kb` | sous-KB avec sujet `s` |
+| `filter_pred p kb` | sous-KB avec predicat `p` |
+| `kb_query kb s p` | premier objet pour `(s, p)`, `""` sinon |
+| `kb_count kb s p` | nombre d'objets pour `(s, p)` |
+| `kb_has kb s p o` | `true` si le triple existe |
+
+**Mots reserves** : `query`, `count` sont des mots du pipeline kanren.
+On prefixe par `kb_` (`kb_query`, `kb_count`) pour eviter la collision
+silencieuse.
+
+**Contraintes parser** : voir B-erreurs (if imbrique, pattern non-unifiant).
+
+**Exemple** : `examples/ontology/socrates.hvn` (10 triples, 3 queries).
+

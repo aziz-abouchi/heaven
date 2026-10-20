@@ -1,0 +1,38 @@
+-- examples/ontology/socrates.hvn — KB Socrate (2026-10-20)
+--
+-- Demo : un petit graphe de connaissances en .hvn pur.
+-- Import : import "examples/ontology/socrates.hvn" as Soc
+
+import "stdlib/ontology.hvn" as O
+
+socrate _ = (O.Kcons
+  (O.MkTriple "socrate" "type" "homme")
+  (O.Kcons
+    (O.MkTriple "socrate" "age" "70")
+    (O.Kcons
+      (O.MkTriple "socrate" "teacherOf" "platon")
+      (O.Kcons
+        (O.MkTriple "platon" "type" "homme")
+        (O.Kcons
+          (O.MkTriple "platon" "age" "80")
+          (O.Kcons
+            (O.MkTriple "platon" "teacherOf" "aristote")
+            (O.Kcons
+              (O.MkTriple "aristote" "type" "homme")
+              (O.Kcons
+                (O.MkTriple "aristote" "teacherOf" "alexandre")
+                (O.Kcons
+                  (O.MkTriple "alexandre" "type" "roi")
+                  O.Knil)))))))))
+
+age_socrate _ = (O.kb_query (socrate unit) "socrate" "age")
+platon_homme _ = (O.kb_has (socrate unit) "platon" "type" "homme")
+socrate_triples _ = (O.filter_subj "socrate" (socrate unit))
+nb_socrate_triples _ = (O.kb_size (socrate_triples unit))
+
+(print "age_socrate:")
+(print (age_socrate unit))
+(print "platon_homme:")
+(print (platon_homme unit))
+(print "nb_socrate_triples:")
+(print (nb_socrate_triples unit))

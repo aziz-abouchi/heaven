@@ -1,0 +1,41 @@
+-- stdlib/ontology.hvn — RDF/KB en .hvn pur (2026-10-20)
+-- Contraintes parser connues :
+-- - `if ... then (if ...) else` (parens inner) = ExecutionFailed.
+--   Ecrire `if ... then if ... then ... else ... else ...`.
+-- - Le pattern `(Kcons (MkTriple s p o) rest) s p` ne fait PAS
+--   l'unification `s == s`. Comparer par `if`.
+-- - `query`, `count`, `data`, `fact`, `sig`, `theorem`, `module`,
+--   `import`, `class`, `instance`, `type`, `green`, `help`, `stats`,
+--   `meta`, `strict`, `export`, `skill` sont des mots reserves.
+--   Prefixer par `kb_` pour eviter les collisions.
+
+data Triple = MkTriple String String String
+data Kb = Knil | Kcons Triple Kb
+
+-- ═══ Accesseurs ═══
+subject (MkTriple s _ _) = s
+predicate (MkTriple _ p _) = p
+object (MkTriple _ _ o) = o
+
+-- ═══ Taille ═══
+kb_size Knil = 0
+kb_size (Kcons _ rest) = (+ 1 (kb_size rest))
+
+-- ═══ Filtres ═══
+filter_subj s Knil = Knil
+filter_subj s (Kcons (MkTriple s2 p o) rest) = if s2 == s then (Kcons (MkTriple s2 p o) (filter_subj s rest)) else (filter_subj s rest)
+
+filter_pred p Knil = Knil
+filter_pred p (Kcons (MkTriple s p2 o) rest) = if p2 == p then (Kcons (MkTriple s p2 o) (filter_pred p rest)) else (filter_pred p rest)
+
+-- ═══ kb_query : premier objet pour (s, p), "" si absent ═══
+kb_query Knil _ _ = ""
+kb_query (Kcons (MkTriple s2 p2 o) rest) s p = if s2 == s then if p2 == p then o else (kb_query rest s p) else (kb_query rest s p)
+
+-- ═══ kb_count : nombre d'objets pour (s, p) ═══
+kb_count Knil _ _ = 0
+kb_count (Kcons (MkTriple s2 p2 o) rest) s p = if s2 == s then if p2 == p then (+ 1 (kb_count rest s p)) else (kb_count rest s p) else (kb_count rest s p)
+
+-- ═══ kb_has : existence d'un triple (s, p, o) ═══
+kb_has Knil _ _ _ = false
+kb_has (Kcons (MkTriple s2 p2 o2) rest) s p o = if s2 == s then if p2 == p then if o2 == o then true else (kb_has rest s p o) else (kb_has rest s p o) else (kb_has rest s p o)
