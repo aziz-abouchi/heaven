@@ -1,0 +1,19 @@
+-- Lookup par predicat type (KB courte, 4 triplets)
+import "stdlib/ontology.hvn" as O
+
+kb _ = (O.Kcons
+  (O.MkTriple "socrate" "kind" "humain")
+  (O.Kcons
+    (O.MkTriple "platon" "kind" "humain")
+    (O.Kcons
+      (O.MkTriple "alex" "kind" "roi")
+      O.Knil)))
+
+kind k who = (O.kb_query k who "kind")
+
+test "kind_soc": (kind (kb unit) "socrate") == "humain"
+test "kind_pla": (kind (kb unit) "platon") == "humain"
+test "kind_alex": (kind (kb unit) "alex") == "roi"
+test "kind_none": (kind (kb unit) "inconnu") == ""
+test "has_soc": (O.kb_has (kb unit) "socrate" "kind" "humain") == true
+test "has_no": (O.kb_has (kb unit) "socrate" "kind" "roi") == false
