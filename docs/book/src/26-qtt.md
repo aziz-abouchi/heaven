@@ -170,9 +170,9 @@ en allocation.
 
 | Feature | État | Test |
 |---|---|---|
-| `let linear` | ✅ | `heaven run` |
-| `let erased` | ✅ | `heaven run` |
-| `let many` | ✅ | `heaven run` |
+| `let linear` | ⚠️ | parse OK, runtime via parser multi-S-expr bug |
+| `let erased` | ⚠️ | idem `linear` |
+| `let many` | ✅ | `heaven run` (sans contrainte, passe) |
 | `LinearViolation` | ⚠️ | `expr_parser.zig:742` (parse OK, non enforced au run) |
 | Vérificateur automatique | ❌ | — |
 | Injection `drop` | ❌ | — |

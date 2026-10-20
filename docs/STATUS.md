@@ -14,6 +14,7 @@ Légende :
 ---
 
 ## Progrès récents
+- **2026-10-20 (nuit)** : fix `evalCmp` bytes-strings (`target_os == "..."` avec parens). `lib/syscall/linux_x86_64.hvn` (getrandom/read/write/openat via `raw_syscall`, 100% .hvn). `lib/random.hvn` LCG + `rand_os_linux` (entropie OS, 8/8). MPST V0.5 projection binaire (10/10). Style infixe mpst `project_side`. P0 parser identifie : 2 S-expr colles `(print "a")(print "b")` = 2e ignore. Baseline native + wasm = 0.
 
 - **2026-10-20 (soir)** : TLS OpenSSL FFI (@tls_connect/read/write/close), HTTPS live depuis .hvn (Wikidata 200 OK). DNS parametre (dns_resolve_a_com host server). stdlib/effects.hvn + resume alias (5/5). stdlib/ontology.hvn (14/14) + example Socrate. urlencode (9/9). Fossile #4 documente. Baseline Debug=0, TEST=0, RF=0, wasm x2=0.
 - **2026-10-20 (suite)** : `stdlib/ontology.hvn` (RDF/KB en .hvn pur, 14/14 tests), example Socrate 10 triples. Mots reserves documentes (`query`, `count`, `fact` interceptes par kanren). Book ch. 11 §7 'En .hvn pur'. Closure §2 refute (test malforme). Baseline ReleaseFast = 0 fail.
@@ -116,7 +117,7 @@ depuis une string utilisateur, jamais d'evar dedans).
 |---|---|---|---|
 | `let linear/erased/many x = … in …` | ✅ | `countSymUses` + tests | — |
 | Shadowing correct | ✅ | test `let_bind_shadowing_*` | — |
-| `LinearViolation` | ⚠️ | non-branché sur `heaven run` | 3 tests `countSymUses` (expr.zig) |
+| `LinearViolation` | ✅ | 4 tests | — |
 | **Documentation QTT** | ❌ | — | **absent du book** |
 
 ## Effets algébriques

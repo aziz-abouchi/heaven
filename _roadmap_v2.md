@@ -86,3 +86,12 @@ en session dediee (priorite moyenne).
 - Un appel par ligne (`.hvn`)
 - Infixe `print (h 0)` sans parens externes
 - `HEAVEN_DEBUG=1` pour activer `platform.dbg`
+
+
+## Fails pre-existants (a fixer, session dediee)
+
+`zig build test` = 405/407 :
+- `tests.test_full_pipeline` : Node.js .wasm execution
+- `kernel.typechecker.test` : refl typechecks
+
+Pas causes par session 2026-10-20. A documenter + fixer.

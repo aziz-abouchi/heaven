@@ -353,3 +353,15 @@ RDF/KB en `.hvn` pur (McKenna-style). 41L. 3 commits
 Multiparty Session Types. Dualité + checker binaire. 62L.
 Magic `mpst_trace(pid)`. 10+3 tests (`tests/test_mpst.hvn`,
 `tests/test_mpst_runtime.hvn`). Plan v2a : multipartite + projection.
+
+
+## `lib/random.hvn`
+
+LCG deterministe portable (`lcg_next`, `rand_range`, `rand_bool`).
+`rand_os_linux` : entropie OS via `raw_syscall 318` (Linux only).
+8/8 tests.
+
+## `lib/syscall/linux_x86_64.hvn`
+
+Syscalls Linux via `raw_syscall` magic (pas de Zig). `getrandom`,
+`read`, `write`, `openat`, `close`. 100% `.hvn`.

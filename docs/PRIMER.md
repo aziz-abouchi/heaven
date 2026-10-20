@@ -97,3 +97,21 @@ Faux doublons de modules **deja auto-charges** :
 4. **Documenter** les ajouts dans `docs/STDLIB.md` + `docs/PRIMER.md`.
 5. Si un concept manque vraiment et merite d'etre socle : l'ajouter a
    `std_loader.zig` files ET a ce PRIMER.
+
+
+## Debug : `HEAVEN_DEBUG=1`
+
+`platform.dbg(...)` (`src/platform/io_console.zig:6`) est muet par defaut.
+`HEAVEN_DEBUG=1 ./zig-out/bin/heaven ...` active les logs d'instrumentation.
+Indispensable pour tracer `perform`/handler IO.
+
+## `lib/` : modules ecosystem
+
+Ne s'importent PAS automatiquement. A importer explicitement.
+
+| Module | Concept |
+|---|---|
+| `lib/random.hvn` | PRNG LCG + `rand_os_linux` (entropie OS) |
+| `lib/syscall/linux_x86_64.hvn` | getrandom/read/write/openat/close via `raw_syscall` |
+
+`lib/heaven_eval.hvn`, `lib/heaven_parse.hvn` : runtime meta, ne pas modifier.
