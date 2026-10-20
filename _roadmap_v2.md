@@ -66,3 +66,23 @@ triviale. Bloque :
 
 Effort : 1 session .zig, haute priorite. Piste dans
 _qtt_runtime_bug.md section "CORRECTION MAJEURE".
+
+
+## Mise a jour 2026-10-20 (fin session, P0 vu autrement)
+
+### P0 = parser S-expr multi-appels sur meme ligne
+Pas perform/evaluate/toStringInfix. Voir `_p0_parser_bug.md`.
+Effort : 5-15 lignes dans parse.zig. Priorite HAUTE.
+
+### Baseline : 2 fails pre-existants
+`zig build test` : 405/407. Fails :
+- `tests.test_full_pipeline` (Node.js .wasm execution)
+- `kernel.typechecker.test` (refl typechecks)
+
+PAS causes par les changements 2026-10-20. A documenter + fixer
+en session dediee (priorite moyenne).
+
+### Workaround actuel
+- Un appel par ligne (`.hvn`)
+- Infixe `print (h 0)` sans parens externes
+- `HEAVEN_DEBUG=1` pour activer `platform.dbg`
