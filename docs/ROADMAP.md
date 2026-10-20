@@ -1036,3 +1036,24 @@ wasm32-wasi = 0.
 
 Voir `_hkt_v1b_plan.md` (option A retenue, cf. D-HKT1).
 
+---
+
+## Session 2026-10-20 (matin) -- jalons
+
+- **HKT V1b** ✅ dispatch explicite (`map "List" f xs`). 11 tests.
+- **Fantasy Land** ✅ 10 classes (McKenna). 13 tests.
+- **Optics** ✅ Lens/Prism/Iso (Kmett). 12 tests.
+- **Free + MaybeT** ✅ (Lonsdorf, Wilson). 12 tests.
+- **`http_server.hvn` v1** ✅ routing infixe, 4 routes statiques 200 OK.
+- **REPL web** ✅ wasm + VFS chargés (0 fichier manquant).
+- **Closure fix** ✅ (partiel, cas résiduel tracé).
+
+## Chantiers restants (efforts réalistes)
+
+- **`_closure_capture_bug.md` §2** : ctor pattern 2-arg + ctor body SIGSEGV. 1 session.
+- **Actors à la Erlang + green threads** : 5-10 sessions (voir plan à venir).
+- **Effects-consolidation** (continuations, handle_rec, resume public) : 2-3 sessions.
+- **Scheduler préemptif complet** : 2-3 sessions.
+- **Livre Pony + preuves formelles** : 10+ sessions.
+- **Rank-2 vérifié** (`forall` explicite) : 5-7 sessions.
+

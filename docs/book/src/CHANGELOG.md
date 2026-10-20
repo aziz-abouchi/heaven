@@ -1,6 +1,49 @@
 # Changements récents
 
 
+## 2026-10-20 (matin) -- REPL, VFS, serveur HTTP pur, Fantasy Land, closure fix
+
+### Book / REPL web
+
+- **site-url="/heaven/"** : 404.html avec chemins absolus corrects
+- **iframe REPL** pointe vers `/repl/index.html` explicite
+- **VFS** : `/repl/core|stdlib|lib|tests/*.hvn` servis depuis leur vrai
+  chemin (pas depuis `public/`). 0 fichier manquant au chargement.
+- **cache-buster** : `extractHttpPath` strip `?` et `#` (`/repl/heaven.wasm?t=123` marche)
+
+### Serveur HTTP en Heaven pur
+
+- **`http_server.hvn` v1** : routing infixe (`if (string_ends_with p ".css") then ...`),
+  4 routes statiques (`/`, `/common.css`, `/repl.html`, `/heaven.wasm`) — 200 OK.
+- **`go.sh`** : `HEAVEN_NO_LEAK_CHECK=1` par défaut (threads démons).
+- **`HEAVEN_NO_REPL=1`** : mode serveur-only sans SIGTTOU.
+
+### Parser
+
+- **`parsePostfix .str`** : `if (fn arg "str") then` marche (P0 résolu).
+- **`string_ends_with`** retourne Bool (pas Int 0/1).
+
+### Stdlib (`.hvn` pur, HKT V1b)
+
+- **`fantasy_land.hvn`** : 10 classes Fantasy Land (McKenna) — Setoid, Ord,
+  Semigroup, Monoid, Functor, Apply, Applicative, Chain, Monad, Foldable.
+  13/13 tests.
+- **`optics.hvn`** : Lens/Prism/Iso (Kmett simplifié) — 12/12.
+- **`free.hvn`** : Free monad tag-encoded (Lonsdorf) — 6/6.
+- **`transformers.hvn`** : MaybeT (Wilson) — 6/6.
+- **`profunctor.hvn`** : partiel (dimap/lmap/rmap/pcompose).
+
+### Runtime (Zig)
+
+- **Capture de closure** : `mk_adder n _ = (lambda x -> (+ x n))` capture `n=3`.
+  Fix `bound_syms` dans `evalFunction`. 8/8, 4/4, 2/2, 3/3, 8/8 sur 5 tests.
+  Cas résiduel (ctor pattern 2-arg + ctor body) SIGSEGV, tracé.
+
+### Baseline
+
+ReleaseFast `--run-tests` = 0 fail. Debug = 0. wasm×2 = 0.
+
+
 ## 2026-10-19 (cloture) -- is_command, js_ollama_query, http_server.hvn v0
 
 ### Fix parser / evaluateur
