@@ -113,3 +113,4 @@ tests/local/
 # Exception : serveur HTTP Heaven v0 (E4). Fichier a la racine
 # documente dans ch. 25 du book, lanceable directement.
 !http_server.hvn
+tests/online/

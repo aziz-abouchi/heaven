@@ -1,0 +1,17 @@
+-- stdlib/net/https.hvn — HTTPS via TLS (OpenSSL FFI, natif uniquement)
+import "stdlib/net/http_client.hvn" as H
+
+https_get host port path =
+  let sock_cap = (cap_acquire "net:socket") in
+  let conn_cap = (cap_acquire "net:connect") in
+  let write_cap = (cap_acquire "net:write") in
+  let read_cap = (cap_acquire "net:read") in
+  let close_cap = (cap_acquire "net:close") in
+  let fd = (net_connect conn_cap host port) in
+  let h = (@tls_connect fd host) in
+  let req = (H.http_build_get_ua host path) in
+  let _w = (@tls_write h req) in
+  let resp = (@tls_read h) in
+  let _tc = (@tls_close h) in
+  let _nc = (net_close close_cap fd) in
+  resp

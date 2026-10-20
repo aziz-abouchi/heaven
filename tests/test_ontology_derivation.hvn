@@ -1,0 +1,32 @@
+-- test_ontology_derivation.hvn -- derivation transitive (2026-10-20)
+-- KB inline : evite le double import (fossile #4).
+-- Pattern let-in : requis pour recursion dans argument d'operateur.
+import "stdlib/ontology.hvn" as O
+
+kb _ = (O.Kcons
+  (O.MkTriple "socrate" "teacherOf" "platon")
+  (O.Kcons
+    (O.MkTriple "platon" "teacherOf" "aristote")
+    (O.Kcons
+      (O.MkTriple "aristote" "teacherOf" "alexandre")
+      O.Knil)))
+
+chain_length k t =
+  let nxt = (O.kb_query k t "teacherOf") in
+  if (= nxt "") then 0
+  else (+ 1 (chain_length k nxt))
+
+is_teacher_of k a b =
+  let nxt = (O.kb_query k a "teacherOf") in
+  if (= nxt "") then false
+  else if (= nxt b) then true
+  else (is_teacher_of k nxt b)
+
+test "chain_socrate_3": (chain_length (kb unit) "socrate") == 3
+test "chain_platon_2": (chain_length (kb unit) "platon") == 2
+test "chain_aristote_1": (chain_length (kb unit) "aristote") == 1
+test "chain_alexandre_0": (chain_length (kb unit) "alexandre") == 0
+test "socrate_avant_alexandre": (is_teacher_of (kb unit) "socrate" "alexandre") == true
+test "platon_avant_alexandre": (is_teacher_of (kb unit) "platon" "alexandre") == true
+test "socrate_avant_aristote": (is_teacher_of (kb unit) "socrate" "aristote") == true
+test "alexandre_pas_avant_socrate": (is_teacher_of (kb unit) "alexandre" "socrate") == false

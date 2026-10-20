@@ -27,6 +27,12 @@ L'utilisateur exécute et colle les sorties. Adapte selon ce que tu vois.
   `let ... in` doit être dans un helper HORS test.
 - Escape `\xNN`, `\"` non supportés (workaround poke_byte).
 
+- **Recursion dans argument d'operateur** : `(+ 1 (rec k (inner ...)))`
+  crash silencieusement dans `--run-test` (pas de Total). Workaround
+  obligatoire : `let nxt = (inner ...) in if ... else (+ 1 (rec k nxt))`.
+  Decouvert session 2026-10-20 (test_ontology_derivation.hvn).
+  Pattern proche du bug `011d934` selfrecursion.
+
 ## Pièges confirmés
 - Regex multi-ligne casse les corps indentés → remove_def par blocs.
 - Double import direct+transitif silencieusement KO (fossile #4) —
