@@ -37,6 +37,21 @@ colle les sorties. Tu adaptes selon ce que tu vois.
    - **Changement `.hvn` pur** : seul `--run-tests tests` (ReleaseFast)
      est requis (pas de `zig build`).
 
+## Usage du binaire (2026-10-20)
+
+| Commande | Effet |
+|---|---|
+| `bash go.sh` (TTY interactif) | REPL + serveur HTTP + tests |
+| `HEAVEN_NO_REPL=1 ./zig-out/bin/heaven 8080 &` | serveur-only, pas de SIGTTOU |
+| `printf 'expr\n' \| ./zig-out/bin/heaven` | mode serveur (pipe, pas de REPL) |
+
+- `HEAVEN_NO_LEAK_CHECK=1` recommande : les threads demons tiennent
+  des allocations au shutdown, `gpa.deinit` crash sinon. `go.sh`
+  le definit par defaut.
+- Le REPL interactif necessite un vrai TTY foreground. En pipe ou
+  arriere-plan, `isatty(stdin)=false` ou `HEAVEN_NO_REPL=1` ->
+  mode serveur-only.
+
 ## Méthodes critiques
 
 1. Toujours vérifier par lecture + bisect avant de patcher un bug supposé.
