@@ -492,10 +492,24 @@ pub fn main() !void {
     // ─── Nouveau REPL basé sur le Shell officiel ───
     bobLog("CORE", "Système prêt. Entrée dans le Shell.", .{});
 
-    var shell = shell_lib.Shell.init(allocator, &matrix, &heaven_engine, &uni_ingest, port);
-    defer shell.deinit();
+    // ─── Mode interactif ou serveur-only ───
+    // HEAVEN_NO_REPL=1 (ou stdin non-TTY) -> skip REPL. Evite SIGTTOU
+    // quand lance en arriere-plan (bash &, docker -d, systemd).
+    // Le REPL interactif necessite un TTY foreground.
+    const no_repl_env = std.posix.getenv("HEAVEN_NO_REPL");
+    const is_tty = std.posix.isatty(std.posix.STDIN_FILENO);
+    const is_interactive = (no_repl_env == null) and is_tty;
 
-    try shell.run();
+    if (is_interactive) {
+        var shell = shell_lib.Shell.init(allocator, &matrix, &heaven_engine, &uni_ingest, port);
+        defer shell.deinit();
+        try shell.run();
+    } else {
+        platform.io.print("[CORE] Mode serveur (REPL desactive: HEAVEN_NO_REPL=1 ou stdin non-TTY).\n", .{});
+        while (true) {
+            platform.Thread.sleep(500 * std.time.ns_per_ms);
+        }
+    }
 
     // 1. Signaler aux threads de s'arrêter
     exiting.store(true, .release);
