@@ -109,3 +109,38 @@ valide `uses == 1` mais ne produit pas le bon core node.
   f _ = let linear n = 16 in n    -- doit retourner 16 (1 usage OK)
 
 Actuellement : les deux echouent (ArityMismatch ou != attendu).
+
+
+## Mise a jour 2026-10-20 (session B, 3 blocs, cutoff)
+
+### Faits mesures
+- `c _ = let n = 16 in 42` -> OK (42)
+- `d _ = let n = 16 in n` -> OK (16)
+- `a _ = let linear n = 16 in 42` -> KO (pas 42)
+- `b _ = let linear n = 16 in n` -> KO (pas 16)
+
+=> le probleme est QTT-specifique, pas let-chain general.
+
+### Parser : correct
+`expr_parser.zig:677-694` : `qtt_name = tokens.items[2]` (= "n", pas
+"linear"), `qtt_val = "16"`, `qtt_body` parsed. Le parser fait ce qu'il
+doit.
+
+### Eval : KO
+`(print (let linear n = 16 in n))` -> `ArityMismatch`. Alors que sans
+`linear`, meme structure passe. Le node `.bind` cree par
+`bindSymWithBody` est identique dans les deux cas (meme fonction). Donc
+c'est l'appel qui differe : le `if (kw) |k|` du parser ajoute quelque
+chose (un wrapper ? un `.apply` supplementaire ?) qui n'est pas visible
+dans la zone 677-694.
+
+### Piste precise (prochaine session)
+1. Voir `expr_parser.zig` zone 690-710 (juste apres la branche QTT) :
+   y a-t-il un `addNode` supplementaire, un `.apply` wrap, un check
+   `error.LinearViolation` qui retourne un node au lieu de propager ?
+2. Instrumenter avec `std.debug.print` dans le `if (kw) |k|` : logger
+   `val_id`, `name_sym`, `body_id`, et le node retourne.
+3. Comparer les 2 graphes (avec/sans linear) via `@egraph_snapshot`.
+
+### Effort
+1 session .zig dediee. Pas faisable en fin de session longue.
