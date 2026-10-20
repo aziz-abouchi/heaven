@@ -75,3 +75,37 @@ sensible, baseline complete requise).
   f _ = let linear buf = (raw_alloc 16) in buf  -- doit marcher apres fix
 
 Actuellement : 1er OK, 2e ArityMismatch.
+
+
+## Mise a jour 2026-10-20 (apres tentative patch parser, rollback)
+
+Tentative de patch `qtt_val` multi-token (`expr_parser.zig:677`) :
+- Le patch build OK, mais **regression** : `let linear n = 16 in 42`
+  (val simple, body constant) echoue alors qu'il devait passer.
+- **Rollback** effectue. Le bug est **plus profond** que qtt_val.
+
+## Cause racine revue (hypothese)
+
+`linear` fausse le **bind lui-meme**, pas juste val. `let linear n = 16
+in 42` echoue : le body `42` n'est pas retourne. Test `(f 0) == 42` KO.
+
+Le bug est dans `bindSymWithBody` (expr.zig:1679) ou dans l'eval
+`.bind` (engine_expr.zig:939). Le parse-time check (`expr_parser.zig:742`)
+valide `uses == 1` mais ne produit pas le bon core node.
+
+## Fix propose (session dediee, ~2-3 blocs)
+
+1. Lire `bindSymWithBody` complet (expr.zig:1679).
+2. Lire l'eval `.bind` complet (engine_expr.zig:939).
+3. Instrumenter : `let linear n = 16 in 42` doit produire
+   `bind(sym(n), lit(16), lit(42))` et evaluer `42`.
+   Si le bind produit `bind(sym(linear), sym(n), ...)` ou autre chose,
+   c'est la source.
+4. Fix probable : `qtt_name` mal assigne a `linear` au lieu de `n`.
+
+## Test de confirmation
+
+  f _ = let linear n = 16 in 42   -- doit retourner 42
+  f _ = let linear n = 16 in n    -- doit retourner 16 (1 usage OK)
+
+Actuellement : les deux echouent (ArityMismatch ou != attendu).
