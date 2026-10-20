@@ -992,7 +992,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1127,6 +1127,63 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const head = try store.sym(resolved);
         const call = try store.apply(head, args_snap[3..]);
         return try evaluate(store, env, engine, call, depth + 1);
+    }
+
+    if (std.mem.eql(u8, op, "@store_node_count")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        return try store.int(@intCast(store.nodes.items.len));
+    }
+    if (std.mem.eql(u8, op, "@store_node_tag")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const n = store.get(v);
+        if (n.tag != .lit) return error.TypeError;
+        const i: u32 = @intCast(store.lits.items[n.aux].int);
+        if (i >= store.nodes.items.len) return error.InvalidInput;
+        const sym = try store.interner.intern(@tagName(store.nodes.items[i].tag));
+        return try store.lit(.{ .str = sym });
+    }
+    if (std.mem.eql(u8, op, "@store_node_payload")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const n = store.get(v);
+        if (n.tag != .lit) return error.TypeError;
+        const i: u32 = @intCast(store.lits.items[n.aux].int);
+        if (i >= store.nodes.items.len) return error.InvalidInput;
+        return try store.int(@intCast(store.nodes.items[i].payload));
+    }
+    if (std.mem.eql(u8, op, "@store_node_aux")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const n = store.get(v);
+        if (n.tag != .lit) return error.TypeError;
+        const i: u32 = @intCast(store.lits.items[n.aux].int);
+        if (i >= store.nodes.items.len) return error.InvalidInput;
+        return try store.int(@intCast(store.nodes.items[i].aux));
+    }
+    if (std.mem.eql(u8, op, "@store_interner_resolve")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const n = store.get(v);
+        if (n.tag != .lit) return error.TypeError;
+        const sym_id: u32 = @intCast(store.lits.items[n.aux].int);
+        if (sym_id >= store.interner.list.items.len) return error.InvalidInput;
+        const name = store.interner.resolve(@intCast(sym_id));
+        const sym = try store.interner.intern(name);
+        return try store.lit(.{ .str = sym });
+    }
+    if (std.mem.eql(u8, op, "@char_string")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const n = store.get(v);
+        if (n.tag != .lit) return error.TypeError;
+        const code = store.lits.items[n.aux];
+        if (code != .int) return error.TypeError;
+        const byte: u8 = @intCast(@as(u64, @intCast(code.int)) & 0xFF);
+        var buf: [1]u8 = .{byte};
+        const sym = try store.interner.intern(&buf);
+        return try store.lit(.{ .str = sym });
     }
 
     if (std.mem.eql(u8, op, "@budget_left")) {

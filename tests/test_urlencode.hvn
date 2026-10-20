@@ -1,0 +1,12 @@
+-- tests/test_urlencode.hvn
+import "stdlib/net/urlencode.hvn" as U
+
+test "plain": (U.url_encode "abc") == "abc"
+test "space": (U.url_encode "a b") == "a%20b"
+test "question": (U.url_encode "a?b") == "a%3Fb"
+test "equals": (U.url_encode "a=b") == "a%3Db"
+test "amp": (U.url_encode "a&b") == "a%26b"
+test "plus": (U.url_encode "a+b") == "a%2Bb"
+test "percent": (U.url_encode "a%b") == "a%25b"
+test "safe": (U.url_encode "a-b_c.d~e") == "a-b_c.d~e"
+test "sparql": (U.url_encode "?item wdt:P31") == "%3Fitem%20wdt%3AP31"

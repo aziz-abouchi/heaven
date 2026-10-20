@@ -1,0 +1,34 @@
+-- stdlib/net/urlencode.hvn — URL encoding (2026-10-20)
+-- RFC 3986 : garde [A-Za-z0-9-_.~], encode le reste en %XX.
+-- Contraintes parser :
+-- - if sur une ligne, pas d'else if indente.
+-- - @magic (@char_string) dans une branche if = ExecutionFailed.
+--   Contourner par helper (hex_low, hex_high, pct_ascii, pct_space,
+--   pct_hex).
+
+is_digit c = (and (>= c 48) (<= c 57))
+is_upper c = (and (>= c 65) (<= c 90))
+is_lower c = (and (>= c 97) (<= c 122))
+is_alnum c = if is_digit c then true else if is_upper c then true else (is_lower c)
+
+is_dash c = c == 45
+is_dot c = c == 46
+is_under c = c == 95
+is_tilde c = c == 126
+
+is_unreserved c = if is_alnum c then true else if is_dash c then true else if is_dot c then true else if is_under c then true else (is_tilde c)
+
+-- Helpers (@char_string hors if)
+hex_low n = (@char_string (+ 48 n))
+hex_high n = (@char_string (+ 55 n))
+pct_ascii c = (@char_string c)
+pct_space _ = "%20"
+pct_hex c = (string_concat "%" (string_concat (hex_digit (/ c 16)) (hex_digit (mod c 16))))
+
+hex_digit n = if n < 10 then (hex_low n) else (hex_high n)
+
+url_encode_char c = if is_unreserved c then (pct_ascii c) else if c == 32 then (pct_space unit) else (pct_hex c)
+
+url_encode_from s i acc = if i >= (string_length s) then acc else (url_encode_from s (+ i 1) (string_concat acc (url_encode_char (string_char_at s i))))
+
+url_encode s = (url_encode_from s 0 "")
