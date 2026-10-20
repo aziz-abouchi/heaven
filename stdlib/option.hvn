@@ -1,0 +1,14 @@
+-- stdlib/option.hvn — Maybe data + helpers (2026-10-20)
+-- Maybe Int : payload Int pour l'instant (HKT-V1c needed pour
+-- polymorphisme parametrique du payload).
+
+data Maybe = None | Some Int
+
+maybe_or d None = d
+maybe_or d (Some x) = x
+
+maybe_map f None = None
+maybe_map f (Some x) = (Some (f x))
+
+maybe_bind None f = None
+maybe_bind (Some x) f = (f x)

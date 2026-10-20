@@ -1,0 +1,81 @@
+-- stdlib/fantasy_land.hvn — Spec Fantasy Land (McKenna) via HKT V1b
+-- Dispatch explicite : map "List" f xs, chain "Maybe" m f, etc.
+-- Sans HKT : fmap_List, fmap_Maybe, fmap_Result... une par type.
+
+import "stdlib/option.hvn"
+
+-- ═══ Setoid ═══
+class Setoid a
+instance Setoid List
+instance Setoid Maybe
+equals_List a b = a == b
+equals_Maybe a b = a == b
+equals T a b = (@dispatch_instance "Setoid" T "equals" a b)
+
+-- ═══ Ord (lte seulement) ═══
+class Ord a
+instance Ord Int
+lte_Int a b = a <= b
+lte T a b = (@dispatch_instance "Ord" T "lte" a b)
+
+-- ═══ Semigroup ═══
+class Semigroup a
+instance Semigroup List
+concat_List nil ys = ys
+concat_List (cons x xs) ys = (cons x (concat_List xs ys))
+concat T a b = (@dispatch_instance "Semigroup" T "concat" a b)
+
+-- ═══ Monoid ═══
+class Monoid m
+instance Monoid List
+empty_List _ = nil
+empty T = (@dispatch_instance "Monoid" T "empty" unit)
+
+-- ═══ Functor ═══
+class Functor f
+instance Functor List
+instance Functor Maybe
+fmap_List f nil = nil
+fmap_List f (cons x xs) = (cons (f x) (fmap_List f xs))
+fmap_Maybe f None = None
+fmap_Maybe f (Some x) = (Some (f x))
+map T f xs = (@dispatch_instance "Functor" T "fmap" f xs)
+
+-- ═══ Apply ═══
+class Apply f
+instance Apply List
+ap_List nil ys = nil
+ap_List (cons f fs) ys = (concat_List (fmap_List f ys) (ap_List fs ys))
+ap T fs xs = (@dispatch_instance "Apply" T "ap" fs xs)
+
+-- ═══ Applicative ═══
+class Applicative a
+instance Applicative List
+instance Applicative Maybe
+of_List x = (cons x nil)
+of_Maybe x = (Some x)
+of T x = (@dispatch_instance "Applicative" T "of" x)
+
+-- ═══ Chain ═══
+class Chain c
+instance Chain List
+instance Chain Maybe
+chain_List nil f = nil
+chain_List (cons x xs) f = (concat_List (f x) (chain_List xs f))
+chain_Maybe None f = None
+chain_Maybe (Some x) f = (f x)
+chain T m f = (@dispatch_instance "Chain" T "chain" m f)
+
+-- ═══ Monad (Applicative + Chain) ═══
+class Monad m
+instance Monad List
+instance Monad Maybe
+
+-- ═══ Foldable ═══
+class Foldable f
+instance Foldable List
+reduce_List f acc nil = acc
+reduce_List f acc (cons x xs) = (reduce_List f (f acc x) xs)
+reduce T f acc xs = (@dispatch_instance "Foldable" T "reduce" f acc xs)
+
+-- ═══ Traversable : TODO (demande let imbrique, parser instable) ═══
