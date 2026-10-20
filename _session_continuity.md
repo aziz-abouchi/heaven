@@ -20,6 +20,11 @@ L'utilisateur exécute et colle les sorties. Adapte selon ce que tu vois.
 6. `--run-test` (singulier) fork par fichier, capture le Total.
    `--run-tests tests` global, timeout 30s possible (baseline via per-file).
 
+- **TOUJOURS infixe dans les .hvn ecrits** : `f x y == "p"`, `a + b`,
+  `if p then a else b`, `let x = v in body`. **JAMAIS** S-Expr
+  `(f x y)`, `(+ a b)`, `(let ...)`. Le "bug parser multi-ligne ~180b"
+  etait en fait du S-Expr mal forme, pas un bug parser. Verifie 2026-10-20.
+
 ## Style Heaven (infixe obligatoire)
 - `a + b` (pas `(+ a b)`), `if p then a else b`, `let x = v in body`.
 - `f = 42` est une fonction, PAS une valeur. `f _ = 42` puis `f 0 == 42`.

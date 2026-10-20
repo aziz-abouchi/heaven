@@ -1,36 +1,34 @@
--- Derivation transitive sur teacherOf (KB courte, 4 triplets)
+-- Derivation transitive sur teacherOf (infixe)
 import "stdlib/ontology.hvn" as O
 
-kb _ = (O.Kcons
-  (O.MkTriple "socrate" "teacherOf" "platon")
-  (O.Kcons
-    (O.MkTriple "platon" "teacherOf" "aristote")
-    (O.Kcons
-      (O.MkTriple "aristote" "teacherOf" "alex")
-      O.Knil)))
+kb _ =
+  O.Kcons (O.MkTriple "socrate" "teacherOf" "platon")
+    (O.Kcons (O.MkTriple "platon" "teacherOf" "aristote")
+      (O.Kcons (O.MkTriple "aristote" "teacherOf" "alex")
+        O.Knil))
 
 chain k t =
-  let nxt = (O.kb_query k t "teacherOf") in
-  if (= nxt "") then 0
-  else (+ 1 (chain k nxt))
+  let nxt = O.kb_query k t "teacherOf" in
+  if nxt == "" then 0
+  else 1 + chain k nxt
 
 lineage k t =
-  let nxt = (O.kb_query k t "teacherOf") in
-  if (= nxt "") then nil
-  else (cons nxt (lineage k nxt))
+  let nxt = O.kb_query k t "teacherOf" in
+  if nxt == "" then nil
+  else cons nxt (lineage k nxt)
 
 is_anc k a b =
-  let nxt = (O.kb_query k a "teacherOf") in
-  if (= nxt "") then false
-  else if (= nxt b) then true
-  else (is_anc k nxt b)
+  let nxt = O.kb_query k a "teacherOf" in
+  if nxt == "" then false
+  else if nxt == b then true
+  else is_anc k nxt b
 
-test "chain_soc": (chain (kb unit) "socrate") == 3
-test "chain_pla": (chain (kb unit) "platon") == 2
-test "chain_ari": (chain (kb unit) "aristote") == 1
-test "chain_alex": (chain (kb unit) "alex") == 0
-test "lin_len": (length (lineage (kb unit) "socrate")) == 3
-test "lin_head": (head (lineage (kb unit) "socrate")) == "platon"
-test "is_soc_alex": (is_anc (kb unit) "socrate" "alex") == true
-test "is_soc_ari": (is_anc (kb unit) "socrate" "aristote") == true
-test "is_alex_soc": (is_anc (kb unit) "alex" "socrate") == false
+test "chain_soc": chain (kb unit) "socrate" == 3
+test "chain_pla": chain (kb unit) "platon" == 2
+test "chain_ari": chain (kb unit) "aristote" == 1
+test "chain_alex": chain (kb unit) "alex" == 0
+test "lin_len": length (lineage (kb unit) "socrate") == 3
+test "lin_head": head (lineage (kb unit) "socrate") == "platon"
+test "is_soc_alex": is_anc (kb unit) "socrate" "alex" == true
+test "is_soc_ari": is_anc (kb unit) "socrate" "aristote" == true
+test "is_alex_soc": is_anc (kb unit) "alex" "socrate" == false

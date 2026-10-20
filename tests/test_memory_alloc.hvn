@@ -1,5 +1,3 @@
--- tests/test_memory_alloc.hvn -- allocation/liberation (2026-10-20)
 import "examples/memory/alloc_demo.hvn" as M
-
-test "roundtrip_abcd": (M.write_read_abcd 0) == 65666768
-test "alloc_free_clean": (M.alloc_free_clean 0) == 42
+test "roundtrip_abcd": M.write_read_abcd 0 == 65666768
+test "alloc_free_clean": M.alloc_free_clean 0 == 42
