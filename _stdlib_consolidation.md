@@ -61,3 +61,25 @@ est de convention, pas de capacité.
 - `core/` : 0 users live, chantier séparé (legacy ou revival)
 - Unification `lib/` vs `stdlib/` : `lib/heaven_eval`/`heaven_parse` sont core runtime, garder
 - Ajout de modules : après S1-S3, mesurer si l'API optics/free convient avant d'étendre
+
+
+## Mise a jour S2 (2026-10-20)
+
+`stdlib/optics.hvn` est un **faux doublon** : API `MkLens`/`lens_compose`
+distincte de `core/std/lens.hvn` (`lens_fst`/`set_via`, charge auto).
+`tests/test_lens.hvn` teste l'API core, pas optics. optics -> legacy.
+
+Piege identifie : `core/std/*.hvn` est charge implicitement (uni_ingest
+ou cache). Les fonctions `lens_fst`, `view`, `over`, `pair`, `fst`, `snd`
+sont disponibles SANS `import`. Ce n'est pas documente.
+
+
+## Mise a jour S3 (2026-10-20)
+
+`stdlib/free.hvn` (Free/FPure/FFree tag-encoded) = faux doublon.
+`tests/test_free.hvn` teste `core/std/free.hvn` (Push/Add/LogOp/run_stack,
+auto-load), API distincte. stdlib/free -> legacy.
+
+Constat general : `core/std/*.hvn` est charge implicitement pour les
+tests (`--run-test`). Tous les "0 users" de stdlib/* sont en fait des
+API alternatives mortes, jamais importees. Le canon est `core/std/`.
