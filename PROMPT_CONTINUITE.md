@@ -186,6 +186,34 @@ git status --short   # doit être propre sauf README.md (docgen) et *.bak
 - Closure §2 (`mk_ds`) refute : test malforme, pas un bug runtime.
   `_closure_capture_bug.md` clos.
 
+## 2026-10-20 (soir) -- TLS, DNS, open data, effects v0
+
+**TLS OpenSSL FFI** :
+- `src/platform/tls.zig` : SSL_CTX_new/SSL_new/SSL_set_fd/SSL_connect/
+  SSL_read/SSL_write/SSL_shutdown. SNI.
+- `src/platform/tls_stub.zig` (wasm, error.Unsupported).
+- 4 magics : `@tls_connect fd host`, `@tls_write h data`,
+  `@tls_read h` (buffer dynamique 16MB), `@tls_close h`.
+- Test live : `wikidata_live.hvn` -> `HTTP/1.1 200 OK`.
+
+**DNS parametre** :
+- `dns_qname(host)` generique, `dns_resolve_a_com(host, server)`.
+- 6/6 tests offline. Note : 8.8.8.8 bloque par la box, utiliser
+  192.168.1.1 ou 10.100.92.20.
+
+**Stdlib** :
+- `stdlib/effects.hvn` (resume alias, 5/5).
+- `stdlib/ontology.hvn` (14/14 + Socrate).
+- `stdlib/net/urlencode.hvn` (9/9).
+- `@char_string`, `@store_*` (5 magics).
+
+**Pieges connus** :
+- Magics non reexportes par `import "X" as E` (B-erreurs).
+- Fossile #4 : import transitif qualifie (self-contained workaround).
+
+**Baseline** : Debug=0, TEST=0, RF=0, wasm x2=0.
+`test_bigint_d20` isole KO (pre-existant, memoire 175 Mo).
+
 ## Chantiers ouverts (etat 2026-10-20 matin)
 
 **B3 (let-chain) — 3 bugs séparés, cutoff après 2 tentatives.**

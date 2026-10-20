@@ -1,6 +1,43 @@
 # Changements récents
 
 
+## 2026-10-20 (soir) -- TLS, DNS, open data, effects
+
+### TLS (OpenSSL FFI)
+
+- `src/platform/tls.zig` : SSL_CTX_new, SSL_new, SSL_set_fd,
+  SSL_connect, SSL_read, SSL_write, SSL_shutdown. SNI via SSL_ctrl.
+- 4 magics : `@tls_connect fd host`, `@tls_write h data`,
+  `@tls_read h`, `@tls_close h`.
+- `@tls_read` buffer dynamique (cap 16MB, chunks 16KB).
+- `src/platform/tls_stub.zig` pour wasm (error.Unsupported).
+- Test : `wikidata_live.hvn` retourne `HTTP/1.1 200 OK` (Wikidata).
+
+### DNS parametre
+
+- `dns_qname(host)` : encode generique (string_split + @char_string).
+- `dns_resolve_a_com(host, server)` : serveur explicite.
+- 6/6 tests offline (`test_dns_qname.hvn`).
+
+### Stdlib
+
+- `stdlib/effects.hvn` : `resume k v = (k v)` (alias .hvn).
+- `stdlib/ontology.hvn` : RDF/KB en .hvn pur. 14/14 tests + Socrate.
+- `stdlib/net/urlencode.hvn` : RFC 3986. 9/9 tests.
+- `@char_string`, `@store_*` (5 magics).
+
+### Book
+
+- ch. 6 §11 `resume` explicite.
+- ch. 11 §7 ontology .hvn, §8 open data, §9 ontologie live.
+- B-erreurs : magics non reexportes par import.
+
+### Baseline
+
+Debug=0, TEST=0, RF=0, wasm_freestanding=0, wasm_wasi=0.
+`test_bigint_d20` isolé KO (pre-existant, memoire 175 Mo).
+
+
 ## 2026-10-20 (matin) -- REPL, VFS, serveur HTTP pur, Fantasy Land, closure fix
 
 ### Book / REPL web

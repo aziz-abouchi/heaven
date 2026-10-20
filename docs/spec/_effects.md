@@ -283,3 +283,21 @@ D8 est donc une primitive générale, pas une fonctionnalité HTTP.
     D8
         → future continuation machine
         → fondation générale de suspension
+
+## Etat 2026-10-20 (soir) : facade v0 livree
+
+`stdlib/effects.hvn` + `tests/test_effects.hvn` 5/5 :
+- perform_handle, resume_alias, resume_one_shot, perform_loop.
+- `resume k v = (k v)` (def .hvn, 1 ligne).
+- Multi-line `test "x":` **fonctionne** (parser OK, faux probleme).
+- **Piege** : `import "X" as E` expose les defs (`E.resume`) mais
+  PAS les magics (`handle_rec`, `perform`, `yield`). Appel direct
+  obligatoire pour les magics.
+
+**Reste (session fraiche)** :
+1. Composition imbriquee (`handle_rec` dans `handle_rec`) : boucle
+   infinie. 1 session.
+2. Shallow vs deep handler : design, 1-2 sessions.
+3. `handle` simple (one-shot, sans handle_rec) : present mais
+   experimental.
+

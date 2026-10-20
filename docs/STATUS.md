@@ -15,6 +15,7 @@ Légende :
 
 ## Progrès récents
 
+- **2026-10-20 (soir)** : TLS OpenSSL FFI (@tls_connect/read/write/close), HTTPS live depuis .hvn (Wikidata 200 OK). DNS parametre (dns_resolve_a_com host server). stdlib/effects.hvn + resume alias (5/5). stdlib/ontology.hvn (14/14) + example Socrate. urlencode (9/9). Fossile #4 documente. Baseline Debug=0, TEST=0, RF=0, wasm x2=0.
 - **2026-10-20 (suite)** : `stdlib/ontology.hvn` (RDF/KB en .hvn pur, 14/14 tests), example Socrate 10 triples. Mots reserves documentes (`query`, `count`, `fact` interceptes par kanren). Book ch. 11 §7 'En .hvn pur'. Closure §2 refute (test malforme). Baseline ReleaseFast = 0 fail.
 - **2026-10-20 (matin)** : REPL web repare (VFS, cache-buster, site-url). http_server.hvn v1 (routing infixe, 4 routes 200 OK). Fantasy Land (10 classes McKenna) 13/13 en .hvn pur via HKT V1b. Optics (Lens/Prism/Iso) 12/12. Free monad (Lonsdorf) 6/6. MaybeT (Wilson) 6/6. Closure capture fix (bound_syms) 8/8. parsePostfix .str resolu. Baseline ReleaseFast = 0 fail.
 - **2026-10-19 (cloture)** : fix `is_command` (helper*/stats*/... manges), fix `js_ollama_query` (REPL book), `http_server.hvn` v0 (serveur HTTP Heaven pur, `hi` sur 8080), `string_ends_with` + warning, HKT V1b pas 3 (`.sym` accepte). Contraintes parser identifiees (`string_eq` SIGSEGV en `if`). B2 et B3 entierement refutes. Baseline ReleaseFast = 0 fail.
