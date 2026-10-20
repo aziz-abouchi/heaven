@@ -1,0 +1,29 @@
+-- tests/test_effects.hvn — facade effects (2026-10-20)
+-- NOTE : les MAGICS (handle_rec, perform, yield) ne sont PAS
+-- re-exportes par `import "X" as E`. Appel direct obligatoire.
+import "stdlib/effects.hvn" as E
+
+test "perform_handle":
+  (handle_rec
+    (lambda s -> (if s < 1 then 0 else (perform "tick" s)))
+    (lambda v k -> (k (- v 1)))
+    10) == 0
+
+test "resume_alias":
+  (handle_rec
+    (lambda s -> (if s < 1 then 0 else (perform "tick" s)))
+    (lambda v k -> (E.resume k (- v 1)))
+    10) == 0
+
+test "resume_one_shot":
+  (handle_rec
+    (lambda s -> (perform "once" s))
+    (lambda v k -> v)
+    42) == 42
+
+-- perform tant que s < 3, puis retourne s. Handler incremente.
+test "perform_loop":
+  (handle_rec
+    (lambda s -> (if s >= 3 then s else (perform "read" s)))
+    (lambda v k -> (k (+ v 1)))
+    0) == 3

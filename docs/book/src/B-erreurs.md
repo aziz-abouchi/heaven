@@ -216,3 +216,20 @@ de vos definitions. Une fonction du meme nom ne sera **jamais appelee**
 Voir `stdlib/ontology.hvn` (prefixe `kb_`) et `04-recursion.md`
 (`fac` au lieu de `fact`).
 
+### Magics non re-exportes par `import ... as X`
+
+`import "stdlib/effects.hvn" as E` rend accessibles les **defs**
+`.hvn` (ex. `E.resume`), mais PAS les **magics** globaux
+(`handle_rec`, `perform`, `yield`, `@prompt`, `@throw`, `@tls_*`,
+`@net_*`, `@char_string`, `@store_*`...). Ces magics s'appellent
+sans prefixe.
+
+    import "stdlib/effects.hvn" as E
+    test "ok":
+      (handle_rec (lambda s -> ...) (lambda v k -> (E.resume k v)) 0) == 0
+
+- `handle_rec` : magic global, pas de prefixe.
+- `perform` : magic global, pas de prefixe.
+- `E.resume` : def `.hvn`, prefixe obligatoire.
+
+Symptome : `E.handle_rec` retourne l'AST brut (non evalue).

@@ -1,0 +1,31 @@
+-- stdlib/effects.hvn — Facade effects (2026-10-20)
+-- Reexporte les magics effects avec noms stables.
+-- Voir book ch. 25 §3 (cible handle_rec) et _effects.md.
+
+-- ═══ perform : emet un signal, capture le handler ═══
+-- Magic direct. Usage : (perform "label" payload)
+-- perform = magic (reexport implicite, pas besoin de wrapper).
+
+-- ═══ handle_rec : intercepte perform ═══
+-- Magic direct. Usage :
+--   (handle_rec thunk handler init)
+--   thunk   : lambda s -> body (perform -> handler)
+--   handler : lambda v k -> body (k = continuation)
+--   init    : etat initial
+-- Attention : terminaison obligatoire (cas de base dans thunk).
+
+-- ═══ resume : alias explicite de (k v) ═══
+-- Dans un handler, (k v) reprend la computation.
+-- resume rend la reprendre explicite (lisible).
+resume k v = (k v)
+
+-- ═══ yield : suspend la tache courante (scheduler) ═══
+-- Magic direct. Usage : (yield new_state)
+
+-- ═══ @prompt / @throw : continuations delimitees ═══
+-- Magics directs.
+-- (@prompt (lambda k -> body)) ouvre une frontiere.
+-- (@throw v) jette vers la frontiere.
+
+-- ═══ @prompt_depth / @prompt_current : introspection ═══
+-- Magics directs.
