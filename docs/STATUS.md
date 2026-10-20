@@ -116,7 +116,7 @@ depuis une string utilisateur, jamais d'evar dedans).
 |---|---|---|---|
 | `let linear/erased/many x = … in …` | ✅ | `countSymUses` + tests | — |
 | Shadowing correct | ✅ | test `let_bind_shadowing_*` | — |
-| `LinearViolation` | ✅ | 4 tests | — |
+| `LinearViolation` | ⚠️ | non-branché sur `heaven run` | 3 tests `countSymUses` (expr.zig) |
 | **Documentation QTT** | ❌ | — | **absent du book** |
 
 ## Effets algébriques

@@ -306,3 +306,50 @@ silencieuse.
 
 **Exemple** : `examples/ontology/socrates.hvn` (10 triples, 3 queries).
 
+
+
+---
+
+# Modules FP / conceptuels (ajout 2026-10-20, recon R1)
+
+## `stdlib/fantasy_land.hvn`
+
+10 classes McKenna (Functor, Applicative, Monad, etc.) via HKT V1b.
+13/13 tests. Voir `tests/test_laws.hvn`, `tests/test_hkt_v1b_step*.hvn`.
+
+## `stdlib/effects.hvn`
+
+Facade `perform` / `handle` / `yield` / `resume`. Commit `e445f5d`.
+Tests `tests/test_effects.hvn`, `tests/test_effects_rec.hvn`.
+
+## `stdlib/free.hvn`
+
+Free monad (Lonsdorf). 6/6 tests. `tests/test_free.hvn`.
+Sépare syntaxe (description) et interprétation (handler).
+
+## `stdlib/option.hvn`
+
+`Option` type + helpers. 14L. Importé par `fantasy_land.hvn`.
+Test `tests/test_option.hvn`.
+
+## `stdlib/profunctor.hvn`
+
+Profunctor encoding (Kmett simplifié). 25L. Base de `optics.hvn`
+pour Prism/Iso. Rank-2 explicite non supporté (voir
+`docs/spec/_hkt_rank2_plan.md`).
+
+## `stdlib/transformers.hvn`
+
+MaybeT (Wilson). 6/6 tests. Base monad transformers.
+
+## `stdlib/ontology.hvn`
+
+RDF/KB en `.hvn` pur (McKenna-style). 41L. 3 commits
+(`873a302`, `43b6977`, `01c4e91`). Exemples `examples/open_data/*.hvn`
+(wikidata, dbpedia, openlibrary). Test `tests/test_ontology.hvn`.
+
+## `stdlib/mpst.hvn`
+
+Multiparty Session Types. Dualité + checker binaire. 62L.
+Magic `mpst_trace(pid)`. 10+3 tests (`tests/test_mpst.hvn`,
+`tests/test_mpst_runtime.hvn`). Plan v2a : multipartite + projection.
