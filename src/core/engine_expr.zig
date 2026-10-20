@@ -1232,14 +1232,19 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (h_l != .int) return error.TypeError;
         const tls = @import("tls");
         const conn: *tls.TlsConn = @ptrFromInt(@as(usize, @intCast(h_l.int)));
-        var buf: [65536]u8 = undefined;
+        // Buffer dynamique : pas de cap 64KB. Accumule jusqu'a EOF.
+        // Cap 16MB pour eviter OOM sur reponse malformee.
+        var resp = std.ArrayListUnmanaged(u8){};
+        defer resp.deinit(engine.allocator);
+        var chunk: [16384]u8 = undefined;
         var total: usize = 0;
-        while (total < buf.len) {
-            const n = tls.read(conn, buf[total..]) catch break;
+        while (total < 16 * 1024 * 1024) {
+            const n = tls.read(conn, &chunk) catch break;
             if (n == 0) break;
+            try resp.appendSlice(engine.allocator, chunk[0..n]);
             total += n;
         }
-        const sym = try store.interner.intern(buf[0..total]);
+        const sym = try store.interner.intern(resp.items);
         return try store.lit(.{ .str = sym });
     }
     if (std.mem.eql(u8, op, "@tls_close")) {
