@@ -118,7 +118,7 @@ git log --oneline -8
 git status --short   # doit être propre sauf README.md (docgen) et *.bak
 ```
 
-**Derniers commits connus (2026-10-19 fin de session)** :
+**Derniers commits connus (2026-10-20 matin)** :
 - `0ece80f` E5 — bridge.zig sans matrix/autofab
 - `1ba6aa4` HKT V1b pas 2 — @dispatch_instance
 - `62155ce` HKT V1b pas 1 — @resolve_instance
@@ -165,7 +165,17 @@ git status --short   # doit être propre sauf README.md (docgen) et *.bak
   `DECISIONS.md` (D-HTTP1, D-HTTP2, D-CI1), `status.json` (Progrès,
   Top priorités, journal 2026-10-19).
 
-## Chantiers ouverts (état 2026-10-19 fin de session)
+## Session 2026-10-20 (matin) — livré
+
+- REPL web repare (VFS, cache-buster, site-url).
+- `http_server.hvn` v1 : routing infixe, 4 routes statiques 200 OK.
+- Fantasy Land 10 classes (McKenna) 13/13 en `.hvn` pur.
+- Optics Lens/Prism/Iso (Kmett) 12/12.
+- Free monad (Lonsdorf) 6/6, MaybeT (Wilson) 6/6.
+- Closure capture fix `bound_syms` (8/8 cas courants, residuel trace).
+- `parsePostfix .str` resolu, `string_ends_with` Bool.
+
+## Chantiers ouverts (etat 2026-10-20 matin)
 
 **B3 (let-chain) — 3 bugs séparés, cutoff après 2 tentatives.**
 1. Let-chain top-level `heaven run` : **FIXÉ** (`66f0b32`,
@@ -209,15 +219,22 @@ basse. Voir `_runner_crashes_2026-10.md`.
 
 ## Ordre de priorité pour la suite
 
-1. **B3 #3** (pattern `_` + heaven run) — **1 session fraîche**,
-   discriminant avant tout. Bloque E4b.
-2. **E4b** (http_server.hvn) — après B3 #3. 2-3 blocs.
-3. **E5-bis** (bob_loop → runtime/, matrix → legacy) — 1 session.
-4. **effects-consolidation** (1-2 sessions).
-5. **HKT V1b pas 3** (dispatch sur sym) — 1 bloc.
-6. **quotients-expose** (2-3 sessions) — kernel prêt.
-7. **B3 #2** (let-chain helper via `convertLetIn`) — après E4b.
-8. **Debug-triage runner** — priorité basse.
+1. **_closure_capture_bug.md §2** (1 session) -- ctor pattern 2-arg
+   + ctor body SIGSEGV (`mk_ds`). Debloque Fantasy Land complet,
+   Classy Optics, stdlib/profunctor.hvn entier.
+2. **effects-consolidation** (2-3 sessions) -- `resume` public,
+   `stdlib/effects.hvn` facade, semantique `handle_rec` stable.
+   Debloque MPST-V2, A-3b-3, book ch. 25 §3.
+3. **scheduler preemptif** (2-3 sessions) -- budget, `.preempted`,
+   A3A-PREEMPT consolides. Debloque actors Phase 3.
+4. **Actors Erlang + green threads** (11-14 sessions, voir
+   `_actors_green_threads_plan.md`). Phase 1 = 2 sessions minimum.
+5. **HKT rank-2 verifie** (`forall`, kind polymorphism) 5-7 sessions.
+   Voir `_hkt_rank2_plan.md`. Debloque profunctor encoding complet.
+6. **Livre Pony + preuves formelles** (10+ sessions). Aucune session
+   dediee pour l'instant.
+7. **E4-final** (2-3 sessions) -- bascule `main.zig` -> `heaven.eval`,
+   suppression Vessel Zig. Bloque sur `@telemetry_json` UB.
 
 **Hors-scope court terme** : Cubical (multi-années,
 `_hott_cubical_plan.md`), DHCP (dépriorisé, SCTP/RTP/WebRTC avant),

@@ -111,3 +111,60 @@ résolution d'instance viendra.
 - Les HKT sont **l'outil** des algèbres : une `map` pour tous les
   `Functor`.
 - On emprunte ici à **Fantasy Land** (McKenna) et à **Haskell**.
+
+## 5. Fantasy Land en `.hvn` pur (2026-10-20)
+
+Le chapitre 19 présentait Fantasy Land comme cible. Avec V1b (dispatch
+structurel explicite), c'est maintenant **du code qui tourne**.
+
+### Une seule `map` pour tous les types
+
+    map "List" f xs
+    map "Maybe" f xs
+
+Sans HKT, il faudrait `map_list`, `map_maybe`, `map_result`... une par
+type. Avec V1b, une fonction générique par classe, dispatch par tag
+string.
+
+### Code réel (`stdlib/fantasy_land.hvn`)
+
+    class Functor f
+    instance Functor List
+    instance Functor Maybe
+
+    fmap_List f nil = nil
+    fmap_List f (cons x xs) = (cons (f x) (fmap_List f xs))
+    fmap_Maybe f None = None
+    fmap_Maybe f (Some x) = (Some (f x))
+
+    map T f xs = (@dispatch_instance "Functor" T "fmap" f xs)
+
+Test :
+
+    test "functor_list":
+      (map "List" (lambda x -> (+ x 1)) (cons 1 (cons 2 nil)))
+      == (cons 2 (cons 3 nil))
+
+10 classes Fantasy Land instanciées pour List et Maybe : Setoid, Ord,
+Semigroup, Monoid, Functor, Apply, Applicative, Chain, Monad,
+Foldable. 13/13 tests.
+
+### Ce qui marche
+
+- **Fantasy Land complet** (McKenna) en `.hvn` pur.
+- **Optics** (Kmett simplifié) : Lens, Prism, Iso, `view`/`set`/`over`.
+- **Free monad** (Lonsdorf) tag-encoded.
+- **MaybeT** (Wilson).
+
+### Ce qui reste
+
+- **Traversable** : demande let imbriqué stable (parser).
+- **Rank-2 vérifié** : profunctor encoding (Kmett) demande `forall`
+  explicite + kind polymorphism. Voir `_hkt_rank2_plan.md` (5-7
+  sessions).
+- **Classy Optics** (Wilson, Lonsdorf) : MonadReader/MonadState
+  demandent V1c (contraintes).
+
+V1c (contraintes `Functor f =>`) reste à faire : un checker simple
+après V1b.
+

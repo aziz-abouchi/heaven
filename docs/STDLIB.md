@@ -196,3 +196,86 @@ Serveur HTTP multi-client en `.hvn` pur, avec routing (v1, 2026-10-20).
 
 Routing (v1) en cours : voir `_http_fullstack_plan.md` section "E4-D2bis".
 NB : GitHub Pages n'utilise PAS ce serveur (statique).
+
+---
+
+## `stdlib/option.hvn`
+
+`data Maybe = None | Some Int`. Payload Int (HKT-V1c nécessaire pour
+polymorphisme paramétrique).
+
+- `maybe_or d m` : extrait ou défaut
+- `maybe_map f m` : Functor
+- `maybe_bind m f` : Monad
+
+## `stdlib/fantasy_land.hvn`
+
+**Spec Fantasy Land (McKenna)** en `.hvn` pur via HKT V1b
+(dispatch explicite). 13/13 tests.
+
+10 classes instanciées pour `List` et `Maybe` :
+
+| Classe | Op | Test |
+|---|---|---|
+| Setoid | `equals T a b` | 2 |
+| Ord | `lte T a b` | (Int) |
+| Semigroup | `concat T a b` | 1 |
+| Monoid | `empty T` | 1 |
+| Functor | `map T f xs` | 2 |
+| Apply | `ap T fs xs` | 1 |
+| Applicative | `of T x` | 2 |
+| Chain | `chain T m f` | 2 |
+| Monad | (Applicative + Chain) | — |
+| Foldable | `reduce T f acc xs` | 1 |
+
+Sans HKT : `fmap_List`, `fmap_Maybe`, `concat_List`... une par type.
+Avec V1b : `map "List" f xs`, `chain "Maybe" m f`, dispatch explicite
+par tag string.
+
+## `stdlib/optics.hvn`
+
+**Lens, Prism, Iso** (Kmett simplifié). 12/12 tests.
+
+    data Lens s a = MkLens (s -> a) (a -> s -> s)
+    data Prism s a = MkPrism (s -> Maybe_a) (a -> s)
+
+- `view`, `set`, `over`, `lens_compose`
+- `preview`, `review`, `iso`
+
+Piège : lens = 0-arg def (fonction), donc `(name_lens unit)`.
+
+Non implémenté : profunctor encoding (Kmett), rank-2 vérifié.
+Voir `_hkt_rank2_plan.md`.
+
+## `stdlib/free.hvn`
+
+**Free monad tag-encoded** (Lonsdorf). 6/6 tests.
+
+    data Free = FPure Int | FFree String Int
+
+- `free_pure x`, `free_bind m f`, `free_map tag f m`, `free_fold handler m`
+
+Tag string pour dispatch fmap (V1b). `Free f a` générique = rank-2.
+
+## `stdlib/transformers.hvn`
+
+**MaybeT** (Wilson). 6/6 tests.
+
+    data MaybeT = MT_Maybe Maybe | MT_List (List Maybe)
+
+- `mt_just tag x`, `mt_nothing`, `mt_run`, `mt_bind`
+
+StateT : stub.
+
+## `stdlib/profunctor.hvn`
+
+**Profunctor partiel** (Kmett). Partiel.
+
+    data Profunctor = MkProfunctor (Int -> Int) (Int -> Int)
+
+- `dimap f g p`, `lmap f p`, `rmap g p`, `pcompose p q`, `pid`
+
+Limit : capture de fonction dans lambda imbriquée SIGSEGV sur un
+cas résiduel (ctor pattern 2-arg + ctor body). Voir
+`_closure_capture_bug.md` §2.
+

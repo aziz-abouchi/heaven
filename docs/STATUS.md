@@ -1,6 +1,6 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-10-19
+Dernière mise à jour : 2026-10-20
 
 Ce document est **genere** depuis `docs/status.json` par
 `scripts/status_gen.py`. Ne pas editer a la main.
@@ -15,6 +15,7 @@ Légende :
 
 ## Progrès récents
 
+- **2026-10-20 (matin)** : REPL web repare (VFS, cache-buster, site-url). http_server.hvn v1 (routing infixe, 4 routes 200 OK). Fantasy Land (10 classes McKenna) 13/13 en .hvn pur via HKT V1b. Optics (Lens/Prism/Iso) 12/12. Free monad (Lonsdorf) 6/6. MaybeT (Wilson) 6/6. Closure capture fix (bound_syms) 8/8. parsePostfix .str resolu. Baseline ReleaseFast = 0 fail.
 - **2026-10-19 (cloture)** : fix `is_command` (helper*/stats*/... manges), fix `js_ollama_query` (REPL book), `http_server.hvn` v0 (serveur HTTP Heaven pur, `hi` sur 8080), `string_ends_with` + warning, HKT V1b pas 3 (`.sym` accepte). Contraintes parser identifiees (`string_eq` SIGSEGV en `if`). B2 et B3 entierement refutes. Baseline ReleaseFast = 0 fail.
 - **2026-10-19 (fin de session)** : HKT V1b pas 1+2 livres (`@resolve_instance`, `@dispatch_instance`, 8 tests). E5 partiel (`bridge.zig` sans matrix/autofab). B3 : let-chain top-level FIXE (`normalizeLetChain`), helper KO, 3e bug decouvert (pattern `_` + `heaven run`). Tuto `no_let_chain.md`. Baseline inchangee : Debug=0, `zig build test`=0, ReleaseFast `--run-tests`=0 fail, wasm=0/0.
 - **2026-10-19 (fin de session)** : HKT V1b pas 1+2 livres (`@resolve_instance`, `@dispatch_instance`, 8 tests). E5 partiel (`bridge.zig` sans matrix/autofab). B3 : let-chain top-level FIXE (`normalizeLetChain`), helper KO, 3e bug decouvert (pattern `_` + `heaven run`). Tuto `no_let_chain.md`. Baseline inchangee : Debug=0, `zig build test`=0, ReleaseFast `--run-tests`=0 fail, wasm=0/0.
@@ -434,3 +435,38 @@ Résultats de référence (`docs/spec/_bench.md`) :
 ### Baseline
 
 - Debug=0, `zig build test`=0, ReleaseFast `--run-tests`=0 fail, wasm32-freestanding=0, wasm32-wasi=0.
+
+
+## 2026-10-20 : REPL, serveur pur, Fantasy Land, closure
+
+### Book / REPL web
+
+- `site-url="/heaven/"` : 404.html chemins absolus corrects.
+- iframe REPL pointe vers `/repl/index.html` explicite.
+- VFS : `/repl/core|stdlib|lib|tests/*.hvn` depuis vrai chemin. 0 fichier manquant.
+- cache-buster : `extractHttpPath` strip `?` et `#`.
+
+### Serveur HTTP en Heaven pur
+
+- `http_server.hvn` v1 : routing infixe `if (string_ends_with p ".css") then ...`. 4 routes 200 OK.
+- `go.sh` : `HEAVEN_NO_LEAK_CHECK=1` par defaut.
+- `HEAVEN_NO_REPL=1` : mode serveur-only sans SIGTTOU.
+
+### Stdlib (`.hvn` pur, HKT V1b)
+
+- `fantasy_land.hvn` : 10 classes McKenna, 13/13.
+- `optics.hvn` : Lens/Prism/Iso Kmett, 12/12.
+- `free.hvn` : Free monad Lonsdorf, 6/6.
+- `transformers.hvn` : MaybeT Wilson, 6/6.
+- `profunctor.hvn` : partiel (dimap/lmap/rmap).
+
+### Runtime
+
+- Capture de closure : `bound_syms` dans `evalFunction`. 8/8, 4/4, 2/2, 3/3, 8/8.
+- Cas residuel ctor pattern 2-arg + ctor body SIGSEGV, trace.
+- parsePostfix `.str` : `if (fn arg "str")` marche.
+- `string_ends_with` retourne Bool.
+
+### Baseline
+
+- ReleaseFast `--run-tests` = 0 fail. Debug = 0. wasm x2 = 0.
