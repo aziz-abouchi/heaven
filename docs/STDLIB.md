@@ -186,10 +186,11 @@ Tests : `test_http_client` (7).
 
 ## `http_server.hvn` (racine, E4)
 
-Serveur HTTP multi-client en `.hvn` pur, 30 l. (commit `2c35724`).
+Serveur HTTP multi-client en `.hvn` pur, avec routing (v1, 2026-10-20).
 
 - `@net_listen` + loop récursive + `@net_accept` + `@net_read` + `@net_write` + `@net_close`.
-- v0 : répond `hi` à toute requête.
+- v1 : routing `"/"` -> index.html, `/foo.css` -> text/css, etc.
+  Statiques lus dans `src/vessel/public/` via `FS.fs_read_public`.
 - Lancement : `./zig-out/bin/heaven run http_server.hvn`
 - Test : `curl http://127.0.0.1:8080/` → `hi`
 

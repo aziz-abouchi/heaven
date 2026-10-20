@@ -176,3 +176,23 @@ curl de succes. Un seul essai, rollback.
 Test : `curl http://127.0.0.1:8080/` -> "hi". 24 commits pousses
 dans la session, v0 est un jalon propre.
 
+## E4-D2bis DONE (2026-10-20)
+
+**`http_server.hvn` v1** livre, commit `a_venir`. Serveur HTTP en
+`.hvn` pur avec routing statique (mime, path, build, send).
+
+**4 curls OK** : `/`, `/common.css`, `/repl.html`, `/heaven.wasm`.
+
+**Contraintes parser respectees** :
+- `if (string_ends_with p ".css") then ...` (infixe) -- OK apres
+  fix `parsePostfix .str` (commit `bb2b725`).
+- `let resp = ... in seq (...)` (1 let par helper) -- OK.
+- Helpers ordonnes (definis avant usage) -- OK.
+- `string_ends_with` retourne Bool -- fix `0ada8a0`.
+
+**Ce qui reste (E4-final)** :
+- E4c-B : `@telemetry_json` magic (module `telemetry_store` non
+  importable depuis `engine_expr`, approche build.zig).
+- Bascule `main.zig` -> `heaven.eval("(serve_listen 8080)")`.
+- Suppression Vessel Zig (routes statiques historiques).
+
