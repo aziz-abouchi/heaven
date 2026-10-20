@@ -142,12 +142,10 @@ fn handleHttp(args: HandlerArgs, request: []const u8) !void {
     defer arena.deinit();
     const aa = arena.allocator();
 
-    // /app/file.ext -> serveFile("file.ext") depuis public/.
-    // Necessaire car les HTML d'apps (/repl/, /ide/, etc.) utilisent
-    // des chemins relatifs (src="vfs.js") qui se resolvent en
-    // /repl/vfs.js cote navigateur. Sans ce strip, /repl/vfs.js
-    // matchait la route "GET /repl" (substring) et servait repl.html
-    // (d'ou : vfs.js SyntaxError, wasm magic word error).
+    // /app/vfs/<dir>/<file>.hvn -> <dir>/<file>.hvn (VFS).
+    // VFS charge /repl/core/*.hvn, /repl/stdlib/*.hvn, /repl/lib/*.hvn,
+    // /repl/tests/*.hvn. Ces fichiers ne sont PAS dans public/ (ils sont
+    // a la racine du repo). On les sert depuis leur vrai chemin.
     if (extractHttpPath(request)) |p| {
         const apps = [_][]const u8{
             "/repl/", "/ide/", "/dashboard/", "/docs/", "/test/",
@@ -155,7 +153,37 @@ fn handleHttp(args: HandlerArgs, request: []const u8) !void {
         };
         for (apps) |app| {
             if (std.mem.startsWith(u8, p, app) and p.len > app.len) {
-                serveFile(p[app.len..], args.conn.stream, args.allocator) catch {
+                const rest = p[app.len..];
+                const vfs_dirs = [_][]const u8{ "core/", "stdlib/", "lib/", "tests/" };
+                for (vfs_dirs) |dir| {
+                    if (std.mem.startsWith(u8, rest, dir) and
+                        std.mem.endsWith(u8, rest, ".hvn"))
+                    {
+                        // Sert le fichier depuis son vrai chemin (relatif
+                        // au cwd), pas depuis public/.
+                        const file = platform.fs.cwd().openFile(rest, .{}) catch {
+                            try respond(args.conn.stream, "404 Not Found", "text/plain", "not found");
+                            return;
+                        };
+                        defer file.close();
+                        const stat = file.stat() catch {
+                            try respond(args.conn.stream, "500 Internal", "text/plain", "stat");
+                            return;
+                        };
+                        const data = args.allocator.alloc(u8, stat.size) catch {
+                            try respond(args.conn.stream, "500 Internal", "text/plain", "oom");
+                            return;
+                        };
+                        defer args.allocator.free(data);
+                        _ = file.readAll(data) catch {
+                            try respond(args.conn.stream, "500 Internal", "text/plain", "read");
+                            return;
+                        };
+                        try respond(args.conn.stream, "200 OK", "text/plain", data);
+                        return;
+                    }
+                }
+                serveFile(rest, args.conn.stream, args.allocator) catch {
                     try respond(args.conn.stream, "404 Not Found", "text/plain", "not found");
                 };
                 return;
