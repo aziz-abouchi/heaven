@@ -33,6 +33,11 @@ L'utilisateur exécute et colle les sorties. Adapte selon ce que tu vois.
   Decouvert session 2026-10-20 (test_ontology_derivation.hvn).
   Pattern proche du bug `011d934` selfrecursion.
 
+- **QTT `let linear x = v in body` multi-token** : `v` multi-token
+  (`(raw_alloc 16)`) casse (`ArityMismatch`). `body` est OK car
+  accumule. Fix identifie : `expr_parser.zig:677` `qtt_val` 1 token
+  au lieu d'accumulation. Session dediee parser.
+
 ## Pièges confirmés
 - Regex multi-ligne casse les corps indentés → remove_def par blocs.
 - Double import direct+transitif silencieusement KO (fossile #4) —

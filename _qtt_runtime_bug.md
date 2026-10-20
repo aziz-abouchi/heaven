@@ -50,3 +50,28 @@ Pas de `linear` dans les exemples tant que Phase 2 n'est pas faite.
 - **Impact** : non bloquant, tests passent, `HEAVEN_NO_LEAK_CHECK=1` est
   déjà la norme (cf. `_session_continuity.md` règle 5).
 - **Decision** : documenter, passer à TLS/QTT, revenir si nécéssaire.
+
+
+## Cause identifiee (2026-10-20, 5 blocs de diagnostic)
+
+`expr_parser.zig:677` : `qtt_val = tokens.items[4]` -- **un seul
+token**. Si l'expression val est multi-token (`(raw_alloc 16)` ->
+`(`, `raw_alloc`, `16`, `)`), `qtt_val = "("`. `parseExpression("(")`
+retourne un Id invalide, `buf` n'est pas lie a `raw_alloc 16`, puis
+`(raw_free buf 16)` declenche `ArityMismatch`.
+
+Asymetrie confirmee : `body_buf` accumule tokens[6..] correctement,
+mais `qtt_val` prend un seul token.
+
+## Fix precis
+
+Mirror du `body_buf` logic sur `qtt_val` (accumuler entre `=` et `in`).
+~10 lignes dans `expr_parser.zig:677-695`. Session dediee (parser
+sensible, baseline complete requise).
+
+## Test de confirmation (si reprend en session dediee)
+
+  f _ = let linear buf = 16 in buf        -- doit marcher (val 1 token)
+  f _ = let linear buf = (raw_alloc 16) in buf  -- doit marcher apres fix
+
+Actuellement : 1er OK, 2e ArityMismatch.
