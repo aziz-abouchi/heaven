@@ -61,7 +61,7 @@ jobs:
           mkdir -p site
           cp -r docs/book/book/* site/
           WASM=zig-out/bin/heaven-freestanding.wasm
-          for pair in repl:repl.html ide:ide.html dashboard:dashboard.html docs:docs.html test:test.html egraph:egraph-viz.html process:process-frame.html debugger:debugger-frame.html; do
+          for pair in repl:repl.html ide:ide.html dashboard:dashboard.html docs:docs.html test:test.html process:process-frame.html debugger:debugger-frame.html; do
             app="${pair%:*}"
             html="${pair#*:}"
             mkdir -p "site/$app"
@@ -72,7 +72,7 @@ jobs:
           # test_suite.hvn attendu par test.html
           cp core/test_suite.hvn site/test/test_suite.hvn
           # VFS : copier les .hvn dans chaque app pour read_file
-          for app in repl ide test dashboard docs egraph process debugger; do
+          for app in repl ide test dashboard docs process debugger; do
             # Preserve la structure (core/std/list.hvn -> site/$app/core/std/list.hvn)
             find core lib stdlib tests -name '*.hvn' | while read -r f; do
               dst="site/$app/$f"

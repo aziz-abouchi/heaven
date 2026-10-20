@@ -154,7 +154,7 @@ Servir des fichiers en HTTP (100% Heaven) :
     $ ./zig-out/bin/heaven run serve.hvn
     # attendre ~8 secondes (chargement des modules std)
     # puis dans un autre terminal :
-    $ curl http://localhost:8080/egraph-viz/
+    $ curl http://localhost:8080/
 
 Le serveur est dans `core/http.hvn` (~80 lignes). Il utilise
 uniquement les magics IO natives (`raw_syscall6`, `io_read`,
@@ -252,7 +252,7 @@ _concurrency.md, _continuations.md, _ontology.md, _bench.md, _serialize.md).
 <!-- DOCGEN:tests_heaven -->133<!-- /DOCGEN --> tests Heaven
 (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN --> via `test-regression`
 + <!-- DOCGEN:test_files -->35/35<!-- /DOCGEN --> via `test-files`).
-Mesure <!-- DOCGEN:date -->2026-10-19<!-- /DOCGEN -->.
+Mesure <!-- DOCGEN:date -->2026-10-20<!-- /DOCGEN -->.
 
 ---
 

@@ -86,8 +86,17 @@
 
     function getColor(d) {
         if (d.tag === "Bob") return "#00ffcc";      // Cyan Bobiverse
-        if (d.tag === "SwarmTask") return "#ff0055";  // Rose Swarm actif
-        if (d.tag === "Symbol") return "#aaccff";     // Bleu stable
+        // Store tags (minuscules, depuis /telemetry)
+        if (d.tag === "sym") return "#e94560";       // Rouge symbole
+        if (d.tag === "lit") return "#4ecca3";       // Vert literal
+        if (d.tag === "apply") return "#3498db";     // Bleu application
+        if (d.tag === "bind") return "#9b59b6";      // Violet let
+        if (d.tag === "lambda") return "#f39c12";    // Orange lambda
+        if (d.tag === "relation") return "#1abc9c";  // Turquoise relation
+        if (d.tag === "hole") return "#888888";
+        // Legacy matrix tags (au cas ou)
+        if (d.tag === "SwarmTask") return "#ff0055";
+        if (d.tag === "Symbol") return "#aaccff";
         if (d.tag === 'SwarmResult') return '#00ff41';
         if (d.tag === 'Swarm') return '#ff8800';
         if (d.label && d.label.includes('RULE')) return '#ffae00';
@@ -97,11 +106,14 @@
     }
 
     function getRadius(d) {
+        if (d.tag === 'Bob') return 15;
+        if (d.tag === 'sym') return 12;
+        if (d.tag === 'apply') return 9;
+        if (d.tag === 'bind') return 10;
         if (d.tag === 'SwarmResult') return 10;
         if (d.tag === 'Swarm') return 8;
-        if (d.tag === 'Bob') return 15;
         if (d.label && d.label.includes('RULE')) return 14;
-        return 10;
+        return 8;
     }
 
     async function update() {

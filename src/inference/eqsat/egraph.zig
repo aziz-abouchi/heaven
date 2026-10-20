@@ -1017,11 +1017,8 @@ test "egraph — exportToJson génère un JSON valide" {
     try std.testing.expect(std.mem.indexOf(u8, json, "\"nodes\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, json, "\"merges\"") != null);
 
-    // Écriture directe dans le dossier public pour le serveur HTTP
-    const file_path = "src/vessel/public/egraph_data.json";
-    var file = try std.fs.cwd().createFile(file_path, .{});
-    defer file.close();
-    try file.writeAll(json);
-
-    std.debug.print("\n[egraph-viz] Fichier {s} généré ({d} bytes)\n", .{ file_path, json.len });
+    // Note (2026-10-20) : l'ecriture vers src/vessel/public/egraph_data.json
+    // a ete retiree. Ce fichier statique a ete supprime au profit de
+    // /telemetry (live Store), qui inclut label + couleurs par tag.
+    // Le test ne valide plus que le format JSON.
 }

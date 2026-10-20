@@ -5,6 +5,29 @@
 const std = @import("std");
 const expr = @import("expr");
 
+fn writeJsonEscaped(w: anytype, s: []const u8) !void {
+    for (s) |c| {
+        switch (c) {
+            '"' => try w.writeAll("\\\""),
+            '\\' => try w.writeAll("\\\\"),
+            '\n' => try w.writeAll("\\n"),
+            '\r' => try w.writeAll("\\r"),
+            '\t' => try w.writeAll("\\t"),
+            else => try w.writeByte(c),
+        }
+    }
+}
+
+// Label lisible pour un noeud. sym -> nom resolu, lit -> tag du literal,
+// autres -> tag du noeud (apply, bind, lambda, relation, ...).
+fn nodeLabel(store: *const expr.Store, node: expr.Node) []const u8 {
+    return switch (node.tag) {
+        .sym => store.interner.resolve(@intCast(node.payload)),
+        .lit => @tagName(std.meta.activeTag(store.lits.items[node.aux])),
+        else => @tagName(node.tag),
+    };
+}
+
 pub fn render(
     allocator: std.mem.Allocator,
     store: *const expr.Store,
@@ -46,9 +69,13 @@ pub fn render(
     const limit = @min(node_count, 500);
     for (store.nodes.items[0..limit], 0..) |node, i| {
         if (!first) try w.writeAll(",");
+        const label = nodeLabel(store, node);
+        const truncated = if (label.len > 64) label[0..64] else label;
         try std.fmt.format(w,
-            "{{\"id\": {d}, \"tag\": \"{s}\", \"payload\": {d}, \"aux\": {d}}}",
+            "{{\"id\": {d}, \"tag\": \"{s}\", \"payload\": {d}, \"aux\": {d}, \"label\": \"",
             .{ i, @tagName(node.tag), node.payload, node.aux });
+        try writeJsonEscaped(w, truncated);
+        try w.writeAll("\"}");
         first = false;
     }
 
