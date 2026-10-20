@@ -38,6 +38,14 @@ L'utilisateur exécute et colle les sorties. Adapte selon ce que tu vois.
   accumule. Fix identifie : `expr_parser.zig:677` `qtt_val` 1 token
   au lieu d'accumulation. Session dediee parser.
 
+- **25 fichiers auto-loadés au boot** : `src/main.zig:396-420`
+  (bootstrap, kernel, logic, prelude, io) + `src/core/std_loader.zig`
+  (20 fichiers `core/std/*` + `core/{stream,io_stream,http,bigint}.hvn`).
+  TOUT est dispo sans `import` (Lens, Free, Array, HashMap, string helpers,
+  BigInt...). `docs/PRIMER.md` documente le contrat complet. **Ne pas
+  creer de doublon dans `stdlib/` — verifier d'abord dans `core/std/`**.
+  Decouvert session 2026-10-20 apres 7 faux doublons en legacy.
+
 ## Pièges confirmés
 - Regex multi-ligne casse les corps indentés → remove_def par blocs.
 - Double import direct+transitif silencieusement KO (fossile #4) —
