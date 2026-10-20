@@ -2,3 +2,6 @@
 title = "Learn You Some Heaven for Great Good"
 authors = ["aziz-abouchi"]
 language = "en"
+
+[output.html]
+site-url = "/heaven/"
