@@ -2054,7 +2054,7 @@ const NativeParser = struct {
                     if (sep.kind == .rparen) break;
                     return error.InvalidSyntax;
                 }
-            } else if (t.kind == .ident or t.kind == .num) {
+            } else if (t.kind == .ident or t.kind == .num or t.kind == .str) {
                 // Mots-cles qui terminent une application : `then`,
                 // `else`, `in` ne sont jamais des arguments juxtaposes.
                 if (t.kind == .ident and
