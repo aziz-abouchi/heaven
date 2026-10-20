@@ -950,3 +950,33 @@ Une fois fixe, E4-D2bis (routing HTTP en `.hvn`) est 1 bloc.
 
 Voir `_http_fullstack_plan.md` section "E4-D2bis" pour le detail.
 
+## Fossile #4 -- import transitif qualifie (2026-10-20)
+
+Confirme reproductible. `stdlib/net/http_client.hvn` importe
+`stdlib/net/dns.hvn` (via `import "stdlib/net/dns.hvn" as dns`).
+Quand un utilisateur importe `http_client.hvn` puis appelle
+`H.dns.dns_resolve_a_com_parsed host server`, la fonction retourne
+vide. Le meme appel depuis `tests/test_dns_qname.hvn` (import direct
+de `dns.hvn`) marche.
+
+**Repro** :
+
+    -- fichier qui marche :
+    import "stdlib/net/dns.hvn" as D
+    (D.dns_resolve_a_com_parsed "www.wikidata.org" "192.168.1.1")
+
+    -- fichier qui echoue (via http_client.hvn) :
+    import "stdlib/net/http_client.hvn" as H
+    (H.dns.dns_resolve_a_com_parsed "www.wikidata.org" "192.168.1.1")
+
+**Workaround** : ne pas factoriser les fonctions DNS-dependantes
+dans une lib intermediaire. Ecrire l'appel direct dans l'utilisateur
+final (cf. `examples/open_data/wikidata_live.hvn`).
+
+**Impact** : `http_get_https` dans `http_client.hvn` retire.
+`wikidata_live.hvn` (self-contained) marche : test `HTTP/1.1 200 OK`
+sur Wikidata.
+
+**A investiguer** : meme famille que H1 (Sym qualifie normalise dans
+`exprStructuralEq`), mais cote dispatch de clause importee.
+
