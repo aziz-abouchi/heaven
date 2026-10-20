@@ -104,3 +104,23 @@ capturer le backtrace avec gdb, fixer dans `evalFunction` ou
 **Priorite** : P1 (ne bloque pas Fantasy Land, Optics, Free,
 MaybeT ; bloque seulement `stdlib/profunctor.hvn` complet et
 `Classy Optics` rank-2 encode).
+
+## Section 2 -- REFUTE (2026-10-20)
+
+Le "SIGSEGV" de `mk_ds` etait un **test malforme**, pas un bug
+runtime :
+
+    ext_ds (MkB2 f g) = (g 0)   -- retourne 1 (deja applique)
+    ((ext_ds (mk_ds ...)) 0)    -- (1 0) = erreur de type
+
+V1 (`mk1 (MkB2 _ r) = r`) et V2 (`mk2 (MkB2 _ r) = (MkB2 r r)`)
+passent 3/3 et 4/4. Test propre `(ext_ds (mk_ds ...)) == 1` passe.
+
+**Conclusion** : la closure capture fonctionne pour tous les cas
+testes. Pas de bug residuel. Section 2 close.
+
+`stdlib/profunctor.hvn` : les tests `lmap`/`rmap`/`pcompose` de
+`/tmp/pf_ok.hvn` echouent pour une **autre raison** (test malforme
+ou dispatch `@dispatch_instance` avec lambda en argument, a
+investiguer en session fraiche si prioritaire).
+
