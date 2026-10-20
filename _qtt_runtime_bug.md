@@ -184,3 +184,60 @@ dans la zone 677-694.
 
 ### Effort
 1 session .zig. PRIORITE HAUTE - c'est la vision "memoire en Heaven".
+
+
+## CORRECTION MAJEURE (2026-10-20, session B+)
+
+### Le bug n'est PAS QTT-specifique
+
+Test decisif :
+    f _ = let linear n = 16 in n
+    g _ = let n = 16 in n
+    (print "f:")(print (f 0))
+    (print "g:")(print (g 0))
+
+Resultat :
+    "f:"    -- OK
+            -- (print (f 0)) silencieux
+    "g:"    -- OK
+    [eval error] error.RecursionLimitExceeded   -- sur (print (g 0))
+
+=> `g` (SANS linear) echoue aussi. Donc le bug est `print` + expression
+   imbriquee, pas QTT.
+
+### Lien avec _time_wip.md
+
+Meme symptome : `(print (f 0))` ou f retourne raw_syscall 228 ->
+RecursionLimitExceeded. Ici : `(print (f 0))` ou f contient let-in ->
+silence ou RecursionLimitExceeded.
+
+=> C'est LE MEME BUG. Unifier les deux docs dans une session fraiche.
+
+### Pourquoi les tests `test "lin1": lin1 0 == 16` echouent
+
+`--run-test` utilise un chemin eval different de `heaven run`.
+- `heaven run` : print (f 0) -> silence ou crash
+- `--run-test` : (f 0) == 16 -> `!= 16` (valeur reelle inconnue)
+
+Les 2 chemins echouent sur `f 0` quand f contient let-in ou raw_syscall.
+Le parser et l'eval du bind sont corrects, c'est l'APPLICATION de `f 0`
+qui foire.
+
+### Piste pour session fraiche (PRIORITE HAUTE)
+
+Ne PAS regarder QTT. Regarder :
+1. `evaluate` dans engine_expr.zig, case `.apply` : que fait-il quand
+   le apply retourne une expression qui n'est pas un `.lit` ?
+2. `print` magic : comment il force l'eval de son arg ?
+3. Le `markArgDone` / `interpForAssert` / recursion detection :
+   `RecursionLimitExceeded` = compteur depth qui depasse. Pourquoi
+   sur `(print (g 0))` simple ?
+
+Test minimal pour reproduire (dans le chat frais) :
+    g _ = let n = 16 in n
+    (print (g 0))   -- crash
+
+    h _ = 42
+    (print (h 0))   -- OK probablement
+
+=> Diff entre fonction avec let-in et fonction simple.

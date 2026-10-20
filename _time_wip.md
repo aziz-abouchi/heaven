@@ -27,3 +27,12 @@ Si le premier marche et le second non : c'est le numero 228, pas le pattern.
 
 1 session .zig. Priorite : basse (getrandom suffit pour `lib/random.hvn`
 OS, time peut attendre).
+
+
+## LIEN avec _qtt_runtime_bug.md
+
+Meme bug unifie : `(print (f 0))` echoue si f contient let-in,
+raw_syscall, ou autre expression "complexe". Pas QTT, pas time,
+c'est `print` + application qui foire.
+
+Voir _qtt_runtime_bug.md section "CORRECTION MAJEURE".

@@ -52,3 +52,17 @@ Baseline complete requise (.zig touche).
 | S6.5 | Messages d'erreur enrichis | 1-2 sessions | ErrorKind + location + expr |
 | S6.6 | `target_os` fix (symbol/string) | 1 session | Voir _target_os_bug.md |
 
+
+
+## Vague 1.5 -- bug unifie `(print (f 0))` (URGENT)
+
+RecursionLimitExceeded ou silence quand `print` recoit une expression
+qui implique un `let-in`, `raw_syscall`, ou autre evaluation non
+triviale. Bloque :
+- QTT runtime (vision memoire)
+- lib/time.hvn
+- lib/random.hvn OS (print de debug)
+- Toute expression complexe a debugger
+
+Effort : 1 session .zig, haute priorite. Piste dans
+_qtt_runtime_bug.md section "CORRECTION MAJEURE".
