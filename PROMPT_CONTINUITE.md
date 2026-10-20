@@ -175,6 +175,17 @@ git status --short   # doit être propre sauf README.md (docgen) et *.bak
 - Closure capture fix `bound_syms` (8/8 cas courants, residuel trace).
 - `parsePostfix .str` resolu, `string_ends_with` Bool.
 
+## 2026-10-20 (suite) — ontology + closures refutees
+
+- `stdlib/ontology.hvn` : RDF/KB en `.hvn` pur, 14/14 tests.
+  `kb_query`, `kb_count`, `kb_has`, `filter_subj`, `filter_pred`.
+  Mots reserves prefixes (`query`, `count` collisionnent avec kanren).
+- `examples/ontology/socrates.hvn` : 10 triples Socrate -> Platon ->
+  Aristote -> Alexandre, 3 queries.
+- Book ch. 11 §7 "En .hvn pur", B-erreurs "Mots reserves".
+- Closure §2 (`mk_ds`) refute : test malforme, pas un bug runtime.
+  `_closure_capture_bug.md` clos.
+
 ## Chantiers ouverts (etat 2026-10-20 matin)
 
 **B3 (let-chain) — 3 bugs séparés, cutoff après 2 tentatives.**
