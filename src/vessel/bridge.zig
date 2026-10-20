@@ -135,7 +135,26 @@ fn handleHttp(args: HandlerArgs, request: []const u8) !void {
     defer arena.deinit();
     const aa = arena.allocator();
 
-    //platform.dbg("[handleHttp] request:{s}\n", .{request});
+    // /app/file.ext -> serveFile("file.ext") depuis public/.
+    // Necessaire car les HTML d'apps (/repl/, /ide/, etc.) utilisent
+    // des chemins relatifs (src="vfs.js") qui se resolvent en
+    // /repl/vfs.js cote navigateur. Sans ce strip, /repl/vfs.js
+    // matchait la route "GET /repl" (substring) et servait repl.html
+    // (d'ou : vfs.js SyntaxError, wasm magic word error).
+    if (extractHttpPath(request)) |p| {
+        const apps = [_][]const u8{
+            "/repl/", "/ide/", "/dashboard/", "/docs/", "/test/",
+            "/egraph/", "/process/", "/debugger/",
+        };
+        for (apps) |app| {
+            if (std.mem.startsWith(u8, p, app) and p.len > app.len) {
+                serveFile(p[app.len..], args.conn.stream, args.allocator) catch {
+                    try respond(args.conn.stream, "404 Not Found", "text/plain", "not found");
+                };
+                return;
+            }
+        }
+    }
 
     if (std.mem.indexOf(u8, request, "GET /telemetry") != null) {
         const telemetry = try args.bridge.serveTelemetry(aa);
