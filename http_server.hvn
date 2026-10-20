@@ -38,10 +38,18 @@ do_send client p _ =
   let file = (do_path_to_file p) in
   (do_send2 client file 0)
 
+do_send_json client body _ =
+  seq (@net_write unit client (do_build "application/json" body))
+      (@net_close unit client)
+
+do_route client p _ =
+  if p == "/telemetry" then (do_send_json client (@telemetry_json unit) 0)
+  else (do_send client p 0)
+
 do_respond client raw _ =
   let req = (H.parse_request raw) in
   let p = (H.req_path req) in
-  (do_send client p 0)
+  (do_route client p 0)
 
 do_one listen_fd _ =
   let client = (@net_accept unit listen_fd) in

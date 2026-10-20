@@ -970,7 +970,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@telemetry_json", "cap_acquire", "@go" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1105,6 +1105,109 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const head = try store.sym(resolved);
         const call = try store.apply(head, args_snap[3..]);
         return try evaluate(store, env, engine, call, depth + 1);
+    }
+
+    // ─── Store introspection (E4c-B, 2026-10-20) ───
+    // Primitives bas niveau pour ecrire /telemetry en .hvn.
+    if (std.mem.eql(u8, op, "@store_node_count")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        return try store.int(@intCast(store.nodes.items.len));
+    }
+    if (std.mem.eql(u8, op, "@store_node_tag")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const n = store.get(v);
+        if (n.tag != .lit) return error.TypeError;
+        const i: u32 = @intCast(store.lits.items[n.aux].int);
+        if (i >= store.nodes.items.len) return error.InvalidInput;
+        const sym = try store.interner.intern(@tagName(store.nodes.items[i].tag));
+        return try store.lit(.{ .str = sym });
+    }
+    if (std.mem.eql(u8, op, "@store_node_payload")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const n = store.get(v);
+        if (n.tag != .lit) return error.TypeError;
+        const i: u32 = @intCast(store.lits.items[n.aux].int);
+        if (i >= store.nodes.items.len) return error.InvalidInput;
+        return try store.int(@intCast(store.nodes.items[i].payload));
+    }
+    if (std.mem.eql(u8, op, "@store_node_aux")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const n = store.get(v);
+        if (n.tag != .lit) return error.TypeError;
+        const i: u32 = @intCast(store.lits.items[n.aux].int);
+        if (i >= store.nodes.items.len) return error.InvalidInput;
+        return try store.int(@intCast(store.nodes.items[i].aux));
+    }
+    if (std.mem.eql(u8, op, "@store_interner_resolve")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const n = store.get(v);
+        if (n.tag != .lit) return error.TypeError;
+        const sym_id: u32 = @intCast(store.lits.items[n.aux].int);
+        if (sym_id >= store.interner.list.items.len) return error.InvalidInput;
+        const name = store.interner.resolve(@intCast(sym_id));
+        const sym = try store.interner.intern(name);
+        return try store.lit(.{ .str = sym });
+    }
+
+    if (std.mem.eql(u8, op, "@char_string")) {
+        // @char_string code -> Str (1 byte, code 0-255).
+        // Utile pour " (34) sans \" qui n'est pas un escape supporte
+        // dans les litteraux Heaven.
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const n = store.get(v);
+        if (n.tag != .lit) return error.TypeError;
+        const code = store.lits.items[n.aux];
+        if (code != .int) return error.TypeError;
+        const byte: u8 = @intCast(@as(u64, @intCast(code.int)) & 0xFF);
+        var buf: [1]u8 = .{byte};
+        const sym = try store.interner.intern(&buf);
+        return try store.lit(.{ .str = sym });
+    }
+
+    if (std.mem.eql(u8, op, "@telemetry_json")) {
+        // Transition (2026-10-20) : magic Zig temporaire car (1) le parser
+        // ne gere pas `if (@magic arg) == "str"` (SIGSEGV) et (2) un module
+        // telemetry_store separe conflicte avec le module root (bridge.zig).
+        // TODO : reecrire en .hvn (stdlib/telemetry.hvn) et supprimer ce magic
+        // quand le parser sera fixe.
+        if (args_snap.len != 1) return error.ArityMismatch;
+        _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        var buf = std.ArrayListUnmanaged(u8){};
+        defer buf.deinit(engine.allocator);
+        const w = buf.writer(engine.allocator);
+        const nc = store.nodes.items.len;
+        const sc = store.interner.list.items.len;
+        const approx = nc * 64 + sc * 32;
+        try w.print("{{\"stats\":{{\"node_count\":{d},\"symbol_count\":{d},\"approx_bytes\":{d}}},\"nodes\":[", .{ nc, sc, approx });
+        try w.writeAll("{\"id\":99999,\"tag\":\"Bob\",\"label\":\"Bob:8080\",\"status\":\"active\"}");
+        const lim = @min(nc, 500);
+        for (store.nodes.items[0..lim], 0..) |node, i| {
+            try w.writeAll(",");
+            const label: []const u8 = switch (node.tag) {
+                .sym => store.interner.resolve(@intCast(node.payload)),
+                .lit => @tagName(std.meta.activeTag(store.lits.items[node.aux])),
+                else => @tagName(node.tag),
+            };
+            const trunc = if (label.len > 64) label[0..64] else label;
+            try w.print("{{\"id\":{d},\"tag\":\"{s}\",\"label\":\"", .{ i, @tagName(node.tag) });
+            for (trunc) |c| {
+                switch (c) {
+                    '"' => try w.writeAll("\\\""),
+                    '\\' => try w.writeAll("\\\\"),
+                    else => try w.writeByte(c),
+                }
+            }
+            try w.writeAll("\"}");
+        }
+        try w.writeAll("]}");
+        const sym = try store.interner.intern(buf.items);
+        return try store.lit(.{ .str = sym });
     }
 
     if (std.mem.eql(u8, op, "@budget_left")) {
