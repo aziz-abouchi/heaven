@@ -1,0 +1,17 @@
+-- examples/open_data/wikidata.hvn — Wikidata SPARQL (2026-10-20)
+-- API : https://query.wikidata.org/sparql?format=json&query=...
+--
+-- Blocage TLS : HTTPS uniquement. Attend D-SH1 (OpenSSL FFI).
+-- Meme pattern que openlibrary : parse JSON nested, extrait les bindings.
+--
+-- Contrainte supplementaire : Wikidata exige un User-Agent header,
+-- absent de http_build_get. Voir _open_data_tls.md.
+
+import "stdlib/net/http_client.hvn" as H
+import "stdlib/json/parse.hvn" as J
+import "stdlib/net/urlencode.hvn" as U
+
+first_label body = (J.jv_as_str (J.json_obj_get (J.jv_get (J.json_obj_get (J.json_obj_get (J.json_as_obj_s body) "results") "bindings") 0) "itemLabel"))
+
+sparql_paris = "SELECT ?item ?itemLabel WHERE { ?item wdt:P31 wd:Q5; wdt:P19 wd:Q90. SERVICE wikibase:label { bd:serviceParam wikibase:language \"en\". } } LIMIT 5"
+query_paris _ = (H.http_get "query.wikidata.org" 443 (string_concat "/sparql?format=json&query=" (U.url_encode sparql_paris)))

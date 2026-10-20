@@ -1,0 +1,19 @@
+-- examples/open_data/openlibrary.hvn — OpenLibrary (2026-10-20)
+-- API : https://openlibrary.org/search.json?q=... (JSON plat)
+--
+-- Test ONLINE uniquement : la fixture offline `"{\"docs\":...}"` echoue
+-- (backslash-quote non supporte dans les litteraux, cf. _syntax_gaps.md).
+-- Pour tester offline, utiliser poke_byte (cf. tests/test_json_v1.hvn).
+--
+-- Blocage TLS : http_get V0 ne fait pas TLS. OpenLibrary en HTTP (80)
+-- marche sur binaire natif, mais HTTPS (443) attend D-SH1 (OpenSSL FFI).
+-- Voir _open_data_tls.md.
+
+import "stdlib/net/http_client.hvn" as H
+import "stdlib/json/parse.hvn" as J
+import "stdlib/net/urlencode.hvn" as U
+
+first_title body = (J.jv_as_str (J.json_obj_get (J.jv_get (J.json_obj_get (J.json_as_obj_s body) "docs") 0) "title"))
+first_year body = (J.jv_as_int (J.json_obj_get (J.jv_get (J.json_obj_get (J.json_as_obj_s body) "docs") 0) "first_publish_year"))
+
+query q = (H.http_get "openlibrary.org" 80 (string_concat "/search.json?q=" (U.url_encode q)))

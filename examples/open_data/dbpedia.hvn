@@ -1,0 +1,12 @@
+-- examples/open_data/dbpedia.hvn — DBpedia SPARQL (2026-10-20)
+-- API : https://dbpedia.org/sparql?query=...&format=json
+--
+-- DBpedia supporte aussi HTTP (pas seulement HTTPS), donc
+-- http_get V0 (port 80) peut marcher. Test online uniquement.
+
+import "stdlib/net/http_client.hvn" as H
+import "stdlib/json/parse.hvn" as J
+import "stdlib/net/urlencode.hvn" as U
+
+sparql_berlin = "SELECT ?p ?o WHERE { <http://dbpedia.org/resource/Berlin> ?p ?o } LIMIT 5"
+query_berlin _ = (H.http_get "dbpedia.org" 80 (string.concat "/sparql?format=json&query=" (U.url_encode sparql_berlin)))
