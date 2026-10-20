@@ -1,0 +1,22 @@
+-- lib/random.hvn -- PRNG deterministe (LCG) en .hvn pur (2026-10-20)
+-- Aucun import requis (utilise + * % == if, tous auto-loades).
+-- Pas cryptographique. Pour crypto : /dev/urandom via @fs_read.
+
+seed s = if s == 0 then 1 else s
+
+lcg_next s = (s * 1103515245 + 12345) % 2147483648
+
+abs_pos n = if n < 0 then 0 - n else n
+
+rand_bound s bound =
+  let n = lcg_next s in
+  abs_pos n % bound
+
+rand_range s lo hi =
+  let n = lcg_next s in
+  let span = hi - lo + 1 in
+  lo + (abs_pos n % span)
+
+rand_bool s =
+  let n = lcg_next s in
+  abs_pos n % 2 == 0
