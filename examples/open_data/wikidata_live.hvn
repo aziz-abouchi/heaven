@@ -1,0 +1,38 @@
+-- examples/open_data/wikidata_live.hvn — Wikidata HTTPS live (2026-10-20)
+-- Necessite : TLS (commit 0e69244) + IP resolue (getent ahostsv4).
+-- Le DNS .hvn (dns_resolve_a_com_parsed) resout query.wikidata.org
+-- hardcode, mais @net_connect prend une IP : passer l'IP en argument.
+--
+-- Usage :
+--   WIKI_IP=$(getent ahostsv4 www.wikidata.org | awk '{print $1}' | head -1)
+--   sed "s/0.0.0.0/$WIKI_IP/" examples/open_data/wikidata_live.hvn > /tmp/w.hvn
+--   ./zig-out/bin/heaven run /tmp/w.hvn
+
+import "stdlib/json/parse.hvn" as J
+
+crlf _ = (string_concat (@char_string 13) (@char_string 10))
+req _ = (string_concat "GET /wiki/Special:EntityData/Q5.json HTTP/1.1"
+          (string_concat (crlf unit)
+            (string_concat "Host: www.wikidata.org"
+              (string_concat (crlf unit)
+                (string_concat "User-Agent: heaven-tls/0.1"
+                  (string_concat (crlf unit)
+                    (string_concat "Connection: close"
+                      (string_concat (crlf unit) (crlf unit)))))))))
+
+-- IP passee en argument (resolue cote shell).
+fetch ip _ =
+  let cap = (cap_acquire "net:connect") in
+  let fd = (@net_connect cap ip 443) in
+  let h = (@tls_connect fd "www.wikidata.org") in
+  let _ = (@tls_write h (req unit)) in
+  let resp = (@tls_read h) in
+  let _ = (@tls_close h) in
+  let _ = (@net_close unit fd) in
+  resp
+
+-- Verifie que la reponse commence par HTTP/1.1 200.
+is_ok resp = (string_substring resp 9 3) == "200"
+
+-- Extrait le body apres \r\n\r\n.
+body_of resp = (J.json_as_obj_s (string_substring resp 0 (string_length resp)))
