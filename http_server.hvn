@@ -1,16 +1,52 @@
--- http_server.hvn — serveur HTTP Heaven pur (v0, 2026-10-19)
+-- http_server.hvn — serveur HTTP Heaven pur (v1, 2026-10-20)
+-- Routing : "/" -> index.html, "/foo.css" -> text/css, "/foo.js" -> js, ...
+-- Statiques lus dans src/vessel/public/ via FS.fs_read_public.
 -- Lancement : ./zig-out/bin/heaven run http_server.hvn
--- Test       : curl http://127.0.0.1:8080/
---
--- Pas de routing, pas de statiques, pas de telemetry. Repond "hi"
--- a toute requete. Base pour E4 (routing en .hvn).
+-- Test : curl http://127.0.0.1:8080/
 
-do_respond client _ =
-  seq (@net_read unit client)
-    seq (@net_write unit client "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi")
-      seq (@net_close unit client) 0
+import "stdlib/string.hvn"
+import "stdlib/fs.hvn"
+import "stdlib/net/http.hvn" as H
 
-do_one listen_fd _ = (do_respond (@net_accept unit listen_fd) 0)
+do_path_to_file p =
+  if p == "/" then "index.html"
+  else (string_substring p 1 (- (string_length p) 1))
+
+do_mime p =
+  if (string_ends_with p ".css") then "text/css"
+  else if (string_ends_with p ".js") then "application/javascript"
+  else if (string_ends_with p ".wasm") then "application/wasm"
+  else if (string_ends_with p ".json") then "application/json"
+  else "text/html"
+
+do_build ct body =
+  (string_concat "HTTP/1.1 200 OK\r\nContent-Type: "
+    (string_concat ct
+      (string_concat "\r\nContent-Length: "
+        (string_concat (int_to_string (string_length body))
+          (string_concat "\r\n\r\n" body)))))
+
+do_send3 client file body _ =
+  let resp = (do_build (do_mime file) body) in
+  seq (@net_write unit client resp) (@net_close unit client)
+
+do_send2 client file _ =
+  let body = (fs_read_public file) in
+  (do_send3 client file body 0)
+
+do_send client p _ =
+  let file = (do_path_to_file p) in
+  (do_send2 client file 0)
+
+do_respond client raw _ =
+  let req = (H.parse_request raw) in
+  let p = (H.req_path req) in
+  (do_send client p 0)
+
+do_one listen_fd _ =
+  let client = (@net_accept unit listen_fd) in
+  let raw = (@net_read unit client) in
+  (do_respond client raw 0)
 
 serve listen_fd = (seq (do_one listen_fd 0) (serve listen_fd))
 
