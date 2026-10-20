@@ -75,10 +75,8 @@ labels (STChoice a b) = (labels a)
 
 project_side side STEnd = nil
 project_side side (STSend l rest) =
-  (if (= side "send") (cons l (project_side side rest)) (project_side side rest))
+  if side == "send" then cons l (project_side side rest) else project_side side rest
 project_side side (STRecv l rest) =
-  (if (= side "recv") (cons l (project_side side rest)) (project_side side rest))
-project_side side (STSeq a b) =
-  (append (project_side side a) (project_side side b))
-project_side side (STChoice a b) =
-  (project_side side a)
+  if side == "recv" then cons l (project_side side rest) else project_side side rest
+project_side side (STSeq a b) = append (project_side side a) (project_side side b)
+project_side side (STChoice a b) = project_side side a
