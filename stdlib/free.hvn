@@ -1,0 +1,19 @@
+-- stdlib/free.hvn — Free monad tag-encoded (Lonsdorf, 2026-10-20)
+-- En V1b (dispatch explicite), `Free f a` ne peut pas etre generique
+-- sur f. On encode avec un tag string : le tag sert de dispatch pour
+-- fmap. C'est verbeux mais ca permet de batir des DSL.
+
+data Free = FPure Int | FFree String Int
+
+free_pure x = (FPure x)
+
+free_bind (FPure x) f = (f x)
+free_bind (FFree tag inner) f = (FFree tag (free_bind inner f))
+
+free_map tag f (FPure x) = (FPure (f x))
+free_map tag f (FFree tg inner) = (FFree tg (free_map tag f inner))
+
+-- Interpretation : evalue un Free en appliquant un handler par tag.
+-- handler : tag -> Int -> Int
+free_fold handler (FPure x) = x
+free_fold handler (FFree tag inner) = (handler tag (free_fold handler inner))

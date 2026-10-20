@@ -1,0 +1,25 @@
+-- stdlib/profunctor.hvn — Profunctor partiel (Kmett, 2026-10-20)
+--
+-- ATTENTION : ceci fonctionne SEULEMENT si les fonctions sont
+-- passees en arguments directs (pas de closure capturee).
+-- `dimap f g (MkProfunctor l r)` avec l/r captures NE MARCHE PAS
+-- (bug runtime closure, voir _closure_capture_bug.md).
+--
+-- Pour l'instant : dimap/lmap/rmap/pcompose sont des constructeurs
+-- directs. Pas d'abstraction profoncteur utilisable avant le fix.
+
+data Profunctor = MkProfunctor (Int -> Int) (Int -> Int)
+
+-- dimap direct : pas de capture, retourne juste f et g.
+dimap f g _ = (MkProfunctor f g)
+
+pcompose (MkProfunctor l2 r2) (MkProfunctor l1 r1) =
+  (MkProfunctor (compose_fn l2 l1) (compose_fn r2 r1))
+
+compose_fn f g = (lambda x -> (f (g x)))
+
+pid _ = (MkProfunctor (lambda x -> x) (lambda x -> x))
+
+-- Note : compose_fn retourne une lambda qui capture f et g. Marche
+-- SI f et g sont des lambdas directes (pas des variables capturees
+-- plus haut).

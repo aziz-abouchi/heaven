@@ -1,0 +1,32 @@
+-- stdlib/transformers.hvn — MaybeT, StateT (Wilson, Lonsdorf, 2026-10-20)
+-- En V1b (dispatch explicite), `MaybeT m a` est encode avec un tag.
+-- Chaque combinaison (MaybeT List, MaybeT Maybe) est un constructeur.
+
+import "stdlib/option.hvn"
+import "stdlib/fantasy_land.hvn"
+
+-- ═══ MaybeT ═══
+-- MaybeT "Maybe" 5 = (Some 5) wrappe dans Maybe.
+-- MaybeT "List" xs = (List Maybe) : liste de Maybe.
+data MaybeT = MT_Maybe Maybe | MT_List (List Maybe)
+
+mt_just tag x = (MT_Maybe (Some x))
+mt_nothing _ = (MT_Maybe None)
+
+mt_run (MT_Maybe m) = m
+mt_run (MT_List xs) = xs
+
+-- bind : propage None (Maybe) ou filtre nil (List)
+mt_bind (MT_Maybe m) f =
+  if m == None then (MT_Maybe None)
+  else (f (maybe_or 0 m))
+mt_bind (MT_List xs) f =
+  (MT_List (chain_List xs f))
+
+-- ═══ StateT ═══
+-- StateT "Maybe" : state -> (Maybe a, state)
+data StateT = ST_Maybe (Int -> Maybe_a)
+
+st_run (ST_Maybe f) = f
+st_return tag x = (ST_Maybe (lambda s -> (Match s)))
+st_get _ = (ST_Maybe (lambda s -> (Match s)))
