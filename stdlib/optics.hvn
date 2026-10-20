@@ -1,0 +1,35 @@
+-- stdlib/optics.hvn — Lens, Prism, Iso (2026-10-20)
+-- Encodage simple : Lens s a = (getter, setter). Prism s a = (match, build).
+-- Composition via lens_compose.
+--
+-- Ce qui marche : view, set, over, compose, lens/ prism/ iso de base.
+-- Ce qui NE marche PAS : profunctor encoding (Kmett) = rank-2 explicite,
+-- necessite `forall p f. (Profunctor p, Functor f) => ...` — non supporte.
+-- Voir docs/spec/_hkt_rank2_plan.md (TODO).
+
+data Lens s a = MkLens (s -> a) (a -> s -> s)
+data Prism s a = MkPrism (s -> Maybe_a) (a -> s)
+data Maybe_a = NoMatch | Match Int
+
+-- ═══ Lens ═══
+view (MkLens g _) s = (g s)
+set (MkLens _ st) a s = (st a s)
+over (MkLens g st) f s = (st (f (g s)) s)
+
+lens_compose (MkLens g1 st1) (MkLens g2 st2) =
+  (MkLens (lambda s -> (g2 (g1 s)))
+          (lambda a s -> (st1 (st2 a (g1 s)) s)))
+
+-- ═══ Prism ═══
+preview (MkPrism m _) s = (m s)
+review (MkPrism _ b) a = (b a)
+
+-- ═══ Iso = Lens + Prism inversibles (simplifie) ═══
+iso (fwd) (bwd) = (MkLens fwd (lambda a _ -> (bwd a)))
+
+-- ═══ Usage ═══
+-- 0-arg def = fonction (piege recidivant). Toujours `name_lens _ =` et
+-- `(name_lens unit)` :
+--   test "x": (view (name_lens unit) (MkPerson "a" 30)) == "a"
+--   test "y": (set (age_lens unit) 31 (MkPerson "a" 30)) == ...
+
