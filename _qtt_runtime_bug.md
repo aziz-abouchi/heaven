@@ -11,7 +11,9 @@ Reproduce :
 
 Sans `linear`, la meme fonction retourne 42 correctement.
 
-## Bug 2 : leak pre-existant import.zig:228
+## Bug 2 : leak import (NON localise, investigation >4 blocs)
+
+
 
 `--run-test` sur tout fichier avec `import` leve `MEMORY LEAK` depuis
 `import.zig:228` (`allocator.dupe` du source jamais free). Independant
@@ -32,3 +34,19 @@ Fix : 1 bloc (ajouter `defer free`), session dediee.
 
 Pas de `linear` dans les exemples tant que Phase 2 n'est pas faite.
 `examples/memory/alloc_demo.hvn` documente le pattern sans `linear`.
+
+
+### Investigation (4 blocs, non conclusive)
+
+- `Heaven.deinit` (heaven_expr.zig:450-560) est **complet** : il free
+  `imported_files` (clés+valeurs), `loading_modules`, `type_aliases`,
+  `hidden_names`, `ctor_arities`, `fn_arities`, `ctor_parents`,
+  `fn_domains*`, `ctor_results`, `user_redefined_names`, `current_module`,
+  `last_eq_lhs`. Rien d'évident.
+- Les 5 leaks de 32 bytes espacés suggerent une ArrayList ou un HashMap
+  dans `engine` (probablement `engine.fns` : chaque import ajoute des
+  clauses via `getOrPut` avec `dupe(owned)` à import.zig:210).
+- `engine.deinit` non inspecté — prochain chantier si on veut le finir.
+- **Impact** : non bloquant, tests passent, `HEAVEN_NO_LEAK_CHECK=1` est
+  déjà la norme (cf. `_session_continuity.md` règle 5).
+- **Decision** : documenter, passer à TLS/QTT, revenir si nécéssaire.
