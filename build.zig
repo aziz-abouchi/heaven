@@ -45,14 +45,22 @@ pub fn build(b: *std.Build) void {
 
     // TLS (OpenSSL FFI, D-SH1). Cree AVANT platform_mod pour que
     // les fonctions TLS soient accessibles a platform.tls.
-    const tls_mod = b.createModule(.{
-        .root_source_file = b.path("src/platform/tls.zig"),
+    const is_wasm_target = target.result.cpu.arch == .wasm32;
+    const tls_mod = if (is_wasm_target) b.createModule(.{
+        .root_source_file = b.path("src/platform/tls_stub.zig"),
         .target = target,
         .optimize = optimize,
-    });
-    tls_mod.link_libc = true;
-    tls_mod.linkSystemLibrary("ssl", .{});
-    tls_mod.linkSystemLibrary("crypto", .{});
+    }) else blk: {
+        const m = b.createModule(.{
+            .root_source_file = b.path("src/platform/tls.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        m.link_libc = true;
+        m.linkSystemLibrary("ssl", .{});
+        m.linkSystemLibrary("crypto", .{});
+        break :blk m;
+    };
 
     const platform_mod = b.createModule(.{
         .root_source_file = b.path(platform_file),
@@ -1475,6 +1483,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "continuation", .module = continuation_mod },
             .{ .name = "scheduler", .module = scheduler_mod },
+            .{ .name = "tls", .module = tls_mod },
         },
     }) });
 

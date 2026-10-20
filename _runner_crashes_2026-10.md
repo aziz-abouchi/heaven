@@ -53,3 +53,24 @@ Triage Debug-only si priorise. Un fichier a la fois :
 Ou : valgrind / ASan si dispo, sinon bisect sur 82b7835.
 Priorite basse : ReleaseFast est la cible de prod et de CI.
 
+## Extension 2026-10-20 : test_bigint_d20 crash aussi en ReleaseFast
+
+`tests/test_bigint_d20.hvn` crashe (SIGSEGV) en `--run-test` isole
+en ReleaseFast, sur HEAD **et** sur `10816ce` (avant `@tls_read`
+dynamique). C'est **pre-existant**, pas une regression TLS.
+
+Le fichier dit : "forte consommation memoire (175 Mo pour 2 tests),
+le runner cree un subprocess par fichier -> budget memoire frais".
+Voir `docs/spec/_bigint_d20_stack.md` (D20).
+
+Les 3 crashes Debug-only connus (`test_parser`, `test_hashmap`,
+`test_bigint_d20`) s'etalent donc a 4 en ReleaseFast isole pour
+`test_bigint_d20`. A investiguer en session `runner-triage` :
+- stack overflow (bdiv/bmod recursif profond) ?
+- ulimit memoire du shell ?
+- OOM ?
+
+Workaround CI : `--run-tests tests` sur l'ensemble passe (le runner
+fork par fichier, un crash n'arrete pas la suite). En RF, total
+visible = 1 fail (test_bigint_d20) mais le reste passe.
+

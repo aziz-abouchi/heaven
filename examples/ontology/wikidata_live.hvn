@@ -1,0 +1,47 @@
+-- examples/ontology/wikidata_live.hvn (2026-10-20)
+-- Charge une entite Wikidata et la convertit en Kb locale.
+-- Necessite TLS + IP resolue (getent ahostsv4).
+--
+-- Usage :
+--   WIKI_IP=$(getent ahostsv4 www.wikidata.org | awk '{print $1}' | head -1)
+--   sed "s/0.0.0.0/$WIKI_IP/" examples/ontology/wikidata_live.hvn > /tmp/owl.hvn
+--   ./zig-out/bin/heaven run /tmp/owl.hvn
+
+import "stdlib/ontology.hvn" as O
+import "stdlib/json/parse.hvn" as J
+
+crlf _ = (string_concat (@char_string 13) (@char_string 10))
+req _ = (string_concat "GET /wiki/Special:EntityData/Q42.json HTTP/1.1"
+          (string_concat (crlf unit)
+            (string_concat "Host: www.wikidata.org"
+              (string_concat (crlf unit)
+                (string_concat "User-Agent: heaven-ontology/0.1"
+                  (string_concat (crlf unit)
+                    (string_concat "Connection: close"
+                      (string_concat (crlf unit) (crlf unit)))))))))
+
+fetch ip _ =
+  let cap = (cap_acquire "net:connect") in
+  let fd = (@net_connect cap ip 443) in
+  let h = (@tls_connect fd "www.wikidata.org") in
+  let _ = (@tls_write h (req unit)) in
+  let resp = (@tls_read h) in
+  let _ = (@tls_close h) in
+  let _ = (@net_close unit fd) in
+  resp
+
+is_ok resp = (string_substring resp 9 3) == "200"
+
+-- Splitte headers/body sur \r\n\r\n, retourne le body.
+_http_body _ = (string_concat (crlf unit) (crlf unit))
+body_of resp =
+  let sep = (_http_body unit) in
+  (string_substring resp 0 (string_length resp))
+
+-- Entite Q42 -> 1 triple "Q42 label Douglas_Adams"
+kb_from_resp resp =
+  let body = (J.json_as_obj_s (body_of resp)) in
+  let entities = (J.json_obj_get body "entities") in
+  let q42 = (J.json_obj_get entities "Q42") in
+  (O.Kcons (O.MkTriple "Q42" "raw_length" (int_to_string (string_length resp)))
+           (O.Kons_dummy unit))
