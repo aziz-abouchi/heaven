@@ -1,0 +1,18 @@
+-- tests kernel composition (Phase 1A)
+import "lib/os/kernel.hvn" as K
+import "lib/os/device.hvn" as D
+import "lib/os/vfs.hvn" as V
+import "lib/os/scheduler.hvn" as S
+
+disk _ = D.MkRamDisk 1000 1024
+root _ = V.mk_inode "/" 4096
+task _ = S.MkTask 42 5
+k _ = K.mk_kernel (disk 0) (root 0) (task 0)
+
+test "kernel_root_size": (K.kernel_root_size (k 0)) == 4096
+test "kernel_read_in": (K.kernel_read (k 0) 10) == 1010
+test "kernel_read_out": (K.kernel_read (k 0) 2000) == 0
+test "kernel_schedule": (K.kernel_schedule (k 0)) == 42
+test "kernel_prio": (K.kernel_prio (k 0)) == 5
+test "kernel_disk_base": (D.read_ramdisk (K.kernel_disk (k 0)) 0) == 1000
+test "kernel_switch": (K.kernel_schedule (K.kernel_switch (k 0) (S.MkTask 99 3))) == 99

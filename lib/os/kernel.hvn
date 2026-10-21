@@ -1,0 +1,34 @@
+-- lib/os/kernel.hvn -- composition abstraite (2026-10-21)
+-- Assemble Device + Scheduler + VFS dans une structure Kernel.
+-- Montre que les abstractions se composent sans nouveau mecanisme.
+import "lib/os/device.hvn" as D
+import "lib/os/scheduler.hvn" as S
+import "lib/os/vfs.hvn" as V
+
+data Kernel = MkKernel D.RamDisk V.Inode S.Task
+  -- (disk, root, current_task)
+
+-- accesseurs
+kernel_disk (MkKernel d _ _) = d
+kernel_root (MkKernel _ r _) = r
+kernel_current (MkKernel _ _ t) = t
+
+-- construction
+mk_kernel disk root task = MkKernel disk root task
+
+-- operations composees
+
+-- read sur le disque du kernel
+kernel_read (MkKernel d _ _) off = D.read_ramdisk d off
+
+-- size du root inode
+kernel_root_size (MkKernel _ r _) = V.size_of r
+
+-- changer de tache courante
+kernel_switch (MkKernel d r _) new_task = MkKernel d r new_task
+
+-- scheduler du kernel (une seule tache)
+kernel_schedule (MkKernel _ _ t) = S.task_id t
+
+-- priorite de la tache courante
+kernel_prio (MkKernel _ _ t) = S.prio t
