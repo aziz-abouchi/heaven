@@ -1,10 +1,12 @@
 -- lib/mcp/server.hvn -- MCP dispatcher (2026-10-21)
--- Workaround dispatch : wrapper local par methode (qualifié direct
--- dans if = ExecutionFailed, voir _lsp_server_wip.md).
+-- Pattern "precalcul + pick" : evaluer toutes les reponses AVANT le
+-- dispatch (aucun appel de fonction qualifie dans le if).
+-- Voir _lsp_server_wip.md pour le bug "M.foo dans branche if".
 import "stdlib/string.hvn"
 import "lib/lsp/stdio.hvn" as IO
 import "lib/lsp/frame.hvn" as F
 import "lib/mcp/handlers.hvn" as M
+import "lib/mcp/tools.hvn" as TT
 
 q _ = @char_string 34
 id_pat _ = (q 0) + "id" + (q 0) + ":"
@@ -39,18 +41,22 @@ extract_method s =
   if (find_str_from s (method_pat 0) 0) < 0 then ""
   else method_val s (find_str_from s (method_pat 0) 0)
 
--- Wrappers locaux (contournent le bug dispatch)
-w_init i = M.init_body i
-w_list i = M.tools_list_body i
-w_call i = M.tool_call_body i "result"
-
-dispatch m i =
-  if m == "initialize" then w_init i
-  else if m == "tools/list" then w_list i
-  else if m == "tools/call" then w_call i
+-- Dispatch par pick (aucun appel qualifie dans le if)
+pick m i l c =
+  if m == "initialize" then i
+  else if m == "tools/list" then l
+  else if m == "tools/call" then c
   else ""
 
-handle body = dispatch (extract_method body) (extract_id body)
+build body =
+  let m = extract_method body in
+  let i = extract_id body in
+  let r_init = M.init_body i in
+  let r_list = M.tools_list_body i in
+  let r_call = TT.handle_tools_call i body in
+  pick m r_init r_list r_call
+
+handle body = build body
 
 serve_once n =
   IO.write_stdout (F.frame (handle (F.parse_body (IO.read_stdin n))))

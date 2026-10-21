@@ -1,20 +1,14 @@
 # LSP server status (2026-10-21)
 
-## RESOLU : workaround wrapper local
+## RESOLU : pattern "precalcul + pick" (voir _mcp_wip.md)
 
-Bug : `if m == "x" then M.foo i else ...` (qualifié direct) = ExecutionFailed.
-Fix : wrapper local `w i = M.foo i` puis `if m == "x" then w i else ...`.
-
-Test :
-    w_init i = M.init_body i
-    d m i = if m == 1 then w_init i else "none"
-    -- OK
+Test : dispatch multi-branches OK si tous les appels evalues AVANT if.
 
 ## Fait
-- lib/lsp/server.hvn : dispatch 4 branches (initialize, shutdown, didSave, didOpen)
-- lib/mcp/server.hvn : dispatch 3 branches (initialize, tools/list, tools/call)
-- 3 tests E2E pipe OK (MCP init, MCP list, LSP init)
+- lib/lsp/server.hvn : MVP initialize (dispatch simple)
+- lib/mcp/server.hvn : dispatch 3 methodes (precalcul+pick, E2E complet)
 
 ## Reste
-- Loop serve (read_stdin bloque, EOF detect)
-- Fix .zig dispatch qualifié (cosmétique, workaround marche)
+- Appliquer precalcul+pick dans lib/lsp/server.hvn (4 methodes)
+- Loop serve (read_stdin bloque)
+- didOpen avec vrai parsing (linter)
