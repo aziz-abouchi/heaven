@@ -365,3 +365,45 @@ LCG deterministe portable (`lcg_next`, `rand_range`, `rand_bool`).
 
 Syscalls Linux via `raw_syscall` magic (pas de Zig). `getrandom`,
 `read`, `write`, `openat`, `close`. 100% `.hvn`.
+
+## `lib/time.hvn`
+
+Temps Unix via `raw_syscall 228` (clock_gettime). `now_sec`, `now_ms`,
+`now_us`, `mono_ns`. 7/7 tests. Linux/Android uniquement (raw_syscall).
+
+## `lib/json_rpc.hvn`
+
+Framing JSON-RPC 2.0. `request`, `notification`, `response`, `response_err`.
+Construit via `+` sur strings (`@char_string 34` pour guillemets). 13/13 tests.
+
+## `lib/lsp/` — serveur LSP MVP
+
+| Module | Contenu |
+|---|---|
+| `stdio.hvn` | `read_stdin`, `write_stdout` via syscalls 0/1 |
+| `frame.hvn` | encode `Content-Length: N\r\n\r\n<body>` + decode (8/8) |
+| `handlers.hvn` | initialize, shutdown, didSave, didOpen (JSON valide) |
+| `server.hvn` | `serve_once` (initialize E2E via pipe) |
+
+Pattern : `precalcul + pick` contourne le bug dispatch qualifié.
+
+## `lib/mcp/` — serveur MCP fonctionnel (5 tools)
+
+| Module | Contenu |
+|---|---|
+| `handlers.hvn` | initialize, tools/list, tools/call |
+| `tools.hvn` | echo, time_now, time_ms, fs_read, count_chars (E2E) |
+| `server.hvn` | `serve_once` 3 méthodes (initialize/list/call) |
+
+E2E vérifiés : `initialize`, `tools/list` (5 tools), `tools/call` pour
+chaque tool. `fs_read /etc/hostname` → `"devilHope"`.
+
+## `lib/web/ontology.hvn` — ontologie DBpedia live
+
+`lookup_label "Socrate"` → `"Socrate"` (via HTTPS live lookup.dbpedia.org).
+13/13 tests. Utilise `stdlib/net/https.hvn` (fix mapping IPv4 + `http_build_get_ua`).
+
+## `lib/syscall/linux_x86_64.hvn` — syscalls en .hvn
+
+`getrandom` (318), `read` (0), `write` (1), `openat` (257), `close` (3).
+100% `.hvn`, aucun Zig custom. Linux x86_64 uniquement.

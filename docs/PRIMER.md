@@ -115,3 +115,14 @@ Ne s'importent PAS automatiquement. A importer explicitement.
 | `lib/syscall/linux_x86_64.hvn` | getrandom/read/write/openat/close via `raw_syscall` |
 
 `lib/heaven_eval.hvn`, `lib/heaven_parse.hvn` : runtime meta, ne pas modifier.
+
+
+## Debug `.zig` : `std.debug.print` vs `platform.dbg`
+
+`platform.dbg(...)` (io_console.zig:6) est **muet** sans `HEAVEN_DEBUG=1`.
+Pour instrumenter un bug, utiliser `std.debug.print` (natif seulement,
+wasm KO — protéger avec `comptime target.os != .wasm32`).
+
+Leçon session 2026-10-21 : 3 blocs perdus à cause de `platform.dbg` muet.
+Toujours préfixer l'instrumentation par `HEAVEN_DEBUG=1 ./zig-out/bin/heaven ...`
+ou utiliser `std.debug.print` natif-only.

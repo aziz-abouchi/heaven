@@ -19,3 +19,18 @@ regle normale : `cons x xs` (pas de parens).
 - Magics 0-arg : `(target_os)`, `(@budget_left)` -- S-expr obligatoire.
 - Tuples : `(a, b)` -- S-expr.
 - Patterns constructeurs : `f (Kcons x xs) = ...` -- parens obligatoires.
+
+
+## Fichiers créés 2026-10-20/21 (à scanner)
+- lib/time.hvn, lib/random.hvn, lib/syscall/linux_x86_64.hvn
+- lib/json_rpc.hvn, lib/lsp/{stdio,frame,handlers,server}.hvn
+- lib/mcp/{handlers,tools,server,server_loop}.hvn
+- lib/web/ontology.hvn
+- tests/test_time, test_random, test_lsp, test_mcp, test_mcp_tools, test_web_ontology
+
+Note : tous ces fichiers utilisent l'infixe. Un scan
+`grep -E '\((\+|-|\*|=|<|>)\s'` sur ces paths confirmerait.
+
+## Lecon 2026-10-21
+Les S-expr résiduels ne sont pas critiques (ils fonctionnent) mais
+alourdissent la lecture. À corriger en batch un jour. Priorité basse.
