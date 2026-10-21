@@ -51,6 +51,18 @@ L'utilisateur exécute et colle les sorties. Adapte selon ce que tu vois.
   creer de doublon dans `stdlib/` — verifier d'abord dans `core/std/`**.
   Decouvert session 2026-10-20 apres 7 faux doublons en legacy.
 
+- **`let x = v in <recursive-call>`** = `ExecutionFailed` silencieux
+  (découvert session LSP). Split en helper : `f x = if cond then base
+  else f_step x (arg)` puis `f_step x a = <expr + f a>`.
+- **`s = "hello"`** = fonction 0-arg (pas valeur). `string_substring s`
+  passe le SYMBOLE. Fix : `s _ = "hello"` + `(s 0)`.
+- **`\"` dans strings** = parser rejette. Fix : `@char_string 34` + `+`.
+- **`{` et `}` littéraux** dans strings cassent std_loader (le split
+  par `\n` avale la suite). Fix : `@char_string 123` / `@char_string 125`.
+- **`(lt a b)` en S-expr dans `if`** casse. Fix : `<` `>` infixe.
+- **`> 0 - 1` dans `test "..."`** refuse (seul `==` accepté). Fix :
+  helper `contains s pat = (find_str_from ...) >= 0`.
+
 ## Pièges confirmés
 - Regex multi-ligne casse les corps indentés → remove_def par blocs.
 - Double import direct+transitif silencieusement KO (fossile #4) —
