@@ -45,11 +45,7 @@ http_build_get host path =
 
 -- Variante avec User-Agent (requis par Wikidata/DBpedia)
 http_build_get_ua host path =
-  (string_concat "GET "
-    (string_concat path
-      (string_concat " HTTP/1.1\r\nHost: "
-        (string_concat host
-          (string_concat "\r\nUser-Agent: Heaven/1.0 (https://aziz-abouchi.github.io/heaven)\r\nConnection: close\r\n\r\n")))))
+  "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nUser-Agent: Heaven\r\nConnection: close\r\n\r\n"
 
 -- Envoi + lecture (reseau requis, sandbox bloque)
 http_get host port path =

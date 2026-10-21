@@ -1,13 +1,20 @@
--- stdlib/net/https.hvn — HTTPS via TLS (OpenSSL FFI, natif uniquement)
+-- stdlib/net/https.hvn -- HTTPS via TLS (OpenSSL FFI, natif)
+-- FIX 2026-10-21 : @net_connect attend IPv4, pas hostname.
+-- Mapping hardcode pour hosts connus (DNS self-hosted = session dediee).
 import "stdlib/net/http_client.hvn" as H
 
+-- mapping host -> IPv4 (session: DNS .hvn casse, on hardcode)
+resolve_host host =
+  if host == "dbpedia.org" then "31.134.204.180"
+  else if host == "lookup.dbpedia.org" then "134.155.98.109"
+  else if host == "query.wikidata.org" then "208.80.155.142"
+  else "0.0.0.0"
+
 https_get host port path =
-  let sock_cap = (cap_acquire "net:socket") in
+  let ip = (resolve_host host) in
   let conn_cap = (cap_acquire "net:connect") in
-  let write_cap = (cap_acquire "net:write") in
-  let read_cap = (cap_acquire "net:read") in
   let close_cap = (cap_acquire "net:close") in
-  let fd = (net_connect conn_cap host port) in
+  let fd = (@net_connect conn_cap ip port) in
   let h = (@tls_connect fd host) in
   let req = (H.http_build_get_ua host path) in
   let _w = (@tls_write h req) in

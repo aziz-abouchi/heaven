@@ -2,6 +2,7 @@
 import "stdlib/string.hvn"
 import "lib/time.hvn" as T
 import "lib/mcp/handlers.hvn" as M
+import "lib/web/ontology.hvn" as WO
 
 q _ = @char_string 34
 
@@ -70,3 +71,28 @@ run_tool body = precalc body
 
 handle_tools_call i body = M.tool_call_body i (run_tool body)
 
+
+
+-- Tool web_lookup (DBpedia live)
+run_web_lookup body = WO.lookup_label (extract_text body)
+w_web body = run_web_lookup body
+
+-- Override precalc/pick pour 6 tools
+precalc body =
+  let n = extract_name body in
+  let e = w_echo body in
+  let t = w_time_sec body in
+  let m = w_time_ms body in
+  let f = w_fs body in
+  let c = w_count body in
+  let w = w_web body in
+  pick6 n e t m f c w
+
+pick6 n e t m f c w =
+  if n == "echo" then e
+  else if n == "time_now" then t
+  else if n == "time_ms" then m
+  else if n == "fs_read" then f
+  else if n == "count_chars" then c
+  else if n == "web_lookup" then w
+  else "unknown tool"

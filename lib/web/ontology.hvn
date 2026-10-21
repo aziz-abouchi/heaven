@@ -1,0 +1,48 @@
+-- lib/web/ontology.hvn -- DBpedia Lookup en .hvn (2026-10-21)
+import "stdlib/net/https.hvn" as S
+import "stdlib/net/http_client.hvn" as H
+import "stdlib/string.hvn"
+
+q _ = @char_string 34
+label_arr_pat _ = (q 0) + "label" + (q 0) + ":[" + (q 0)
+
+find_str_from s pat i =
+  if i + (string_length pat) > (string_length s) then 0 - 1
+  else if (string_matches_at s i pat) then i
+  else find_str_from s pat (i + 1)
+
+find_quote_from s i =
+  if i >= (string_length s) then 0 - 1
+  else if (peek_byte (string_ptr s) i) == 34 then i
+  else find_quote_from s (i + 1)
+
+find_lt_from s i =
+  if i >= (string_length s) then 0 - 1
+  else if (peek_byte (string_ptr s) i) == 60 then i
+  else find_lt_from s (i + 1)
+
+strip_b_prefix s =
+  if (string_matches_at s 0 "<B>") then string_substring s 3 ((string_length s) - 3)
+  else s
+
+strip_close_tag s =
+  let p = (find_lt_from s 0) in
+  if p < 0 then s
+  else string_substring s 0 p
+
+strip_b_tags s = strip_close_tag (strip_b_prefix s)
+
+str_val_2 s vs =
+  if (find_quote_from s vs) < 0 then ""
+  else string_substring s vs ((find_quote_from s vs) - vs)
+
+extract_first_label raw =
+  if (find_str_from raw (label_arr_pat 0) 0) < 0 then ""
+  else strip_b_tags (str_val_2 raw ((find_str_from raw (label_arr_pat 0) 0) + (string_length (label_arr_pat 0))))
+
+lookup_raw name =
+  let path = "/api/search?query=" + name + "&format=json" in
+  S.https_get "lookup.dbpedia.org" 443 path
+
+lookup_label name = extract_first_label (lookup_raw name)
+lookup_raw_body name = lookup_raw name

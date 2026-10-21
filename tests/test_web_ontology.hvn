@@ -1,0 +1,20 @@
+import "stdlib/string.hvn"
+import "lib/web/ontology.hvn" as WO
+
+q _ = @char_string 34
+qstr s = (q 0) + s + (q 0)
+
+find_str_from s pat i =
+  if i + (string_length pat) > (string_length s) then 0 - 1
+  else if (string_matches_at s i pat) then i
+  else find_str_from s pat (i + 1)
+contains s pat = (find_str_from s pat 0) >= 0
+
+socrate_lbl _ = WO.lookup_label (qstr "Socrate")
+platon_lbl _ = WO.lookup_label (qstr "Platon")
+
+test "socrate_nonempty": (string_length (socrate_lbl 0)) > 0 == true
+test "socrate_starts_s": (string_matches_at (socrate_lbl 0) 0 "S") == true
+test "platon_nonempty": (string_length (platon_lbl 0)) > 0 == true
+test "platon_starts_p": (string_matches_at (platon_lbl 0) 0 "P") == true
+test "no_b_tags_socrate": contains (socrate_lbl 0) "<B>" == false
