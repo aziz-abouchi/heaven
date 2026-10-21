@@ -1191,6 +1191,31 @@ pub const Heaven = struct {
                     return try expr.toStringInfix(self.store, result, self.allocator);
                 } else |_| {}
             }
+            // P0 diag 2026-10-21 -- detect multi-S-expr sur une ligne
+            if (trimmed.len > 0 and trimmed[0] == '(') {
+                var depth: i32 = 0;
+                var split_pos: ?usize = null;
+                var si: usize = 0;
+                while (si < trimmed.len) : (si += 1) {
+                    if (trimmed[si] == '(') {
+                        depth += 1;
+                    } else if (trimmed[si] == ')') {
+                        depth -= 1;
+                        if (depth == 0 and si + 1 < trimmed.len) {
+                            const next = std.mem.trimLeft(u8, trimmed[si + 1 ..], " \t\n\r");
+                            if (next.len > 0 and next[0] == '(') { split_pos = si + 1; break; }
+                        }
+                    }
+                }
+                if (split_pos) |sp| {
+                    const head = std.mem.trim(u8, trimmed[0..sp], " \t\n\r");
+                    const tail = std.mem.trim(u8, trimmed[sp..], " \t\n\r");
+                    if (head.len > 0) {
+                        _ = try self.eval(head);
+                    }
+                    if (tail.len > 0) return self.eval(tail);
+                }
+            }
             // Autres S-expr : parse + engine.eval direct
             // Fix 2026-09-25 : utiliser parseExpression (pas bridge.importExpr).
             // Le bridge a son propre parser qui ne gere pas les lambdas
