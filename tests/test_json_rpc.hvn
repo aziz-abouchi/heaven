@@ -1,0 +1,19 @@
+import "lib/json_rpc.hvn" as R
+
+-- Pas de littéraux { } ni " dans les tests (parser les rejette).
+-- Tests structurels : longueur, char de début.
+
+long_enough s = gt (string_length s) 30
+first_is_brace s = peek_byte (string_ptr s) 0 == 123
+
+req _ = R.request 1 "foo" "[]"
+notif _ = R.notification "init" "null"
+resp _ = R.response 5 "42"
+err_r _ = R.response_err 2 32601 "nope"
+
+test "request_long": long_enough (req 0) == true
+test "request_starts_brace": first_is_brace (req 0) == true
+test "notification_long": long_enough (notif 0) == true
+test "response_long": long_enough (resp 0) == true
+test "response_starts_brace": first_is_brace (resp 0) == true
+test "err_resp_long": long_enough (err_r 0) == true

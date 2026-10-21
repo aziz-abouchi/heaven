@@ -1,0 +1,36 @@
+-- lib/json_rpc.hvn -- JSON-RPC 2.0 framing (2026-10-21)
+-- Construit via + sur strings (fix evalBinary 2026-10-21).
+-- Pas de littéral {, } ni d'escape \" (parser les rejette).
+-- @char_string 34 = guillemet, 123 = {, 125 = }, 58 = :
+
+-- magics 0-arg : appeler avec (f 0), pas f nu (symbole).
+q _ = @char_string 34
+ob _ = @char_string 123
+cb _ = @char_string 125
+
+qstr s = (q 0) + s + (q 0)
+n2s n = int_to_string n
+
+request i m p =
+  (ob 0) + qstr "jsonrpc" + ":" + qstr "2.0" + "," +
+  qstr "id" + ":" + n2s i + "," +
+  qstr "method" + ":" + qstr m + "," +
+  qstr "params" + ":" + p + (cb 0)
+
+notification m p =
+  (ob 0) + qstr "jsonrpc" + ":" + qstr "2.0" + "," +
+  qstr "method" + ":" + qstr m + "," +
+  qstr "params" + ":" + p + (cb 0)
+
+response i r =
+  (ob 0) + qstr "jsonrpc" + ":" + qstr "2.0" + "," +
+  qstr "id" + ":" + n2s i + "," +
+  qstr "result" + ":" + r + (cb 0)
+
+response_err i code msg =
+  (ob 0) + qstr "jsonrpc" + ":" + qstr "2.0" + "," +
+  qstr "id" + ":" + n2s i + "," +
+  qstr "error" + ":" + (ob 0) +
+    qstr "code" + ":" + n2s code + "," +
+    qstr "message" + ":" + qstr msg +
+  (cb 0) + (cb 0)
