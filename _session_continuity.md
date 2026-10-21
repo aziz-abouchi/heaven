@@ -132,3 +132,61 @@ L'utilisateur exécute et colle les sorties. Adapte selon ce que tu vois.
 - Signaler tunnel > 3 blocs sur un diagnostic. Proposer rollback + doc.
 - Ne pas prétendre faisable si session de conception. Dire « 2 sessions ».
 - Demander la sortie après CHAQUE bloc, ne pas supposer.
+
+## Session 2026-10-21 (suite -- découvertes majeures)
+
+### Bug `let-in-if` = SEGV parser (pas let+recursion)
+Probes discriminants (tous via `--eval-file`):
+- P_A `if > 0 then let x = n+1 in x+1 else 0` -> SEGV (non recursif)
+- P_E `if > 0 then 1 else let x = 2 in x` -> SEGV (else aussi)
+- P_G `if > 0 then (let x = 1 in x) else 0` -> SEGV (parenthesifie)
+- P_F hoisted helper dans if -> **OK** (contournement valide)
+- P_C recursif sans let -> OK
+- P_D let corps de fonction -> OK
+
+**Regle** : JAMAIS de `let` dans `then` ni `else`. Helper hoiste obligatoire.
+Le label historique "let+recursion" etait trompeur -- c'est `let-in-if`.
+
+### SEGV runner accumulation
+- `--run-test fichier` SEGV a ~23 statements.
+- Chaque test isole passe via `--eval-file`.
+- `splitTopLevelEq` (heaven_expr.zig:3690) est CORRECT, ne pas blamer.
+- Cause : pas de reset arena/env entre `heaven.eval()` dans
+  `src/runtime/test_runner.zig`. Fragmentation -> SEGV sur parse_file profond.
+- Fix (session Zig dediee) : fork par test OU reset arena.
+- `tests/test_parser.hvn.skip` documente ce blocage.
+
+### read_stdin / write_stdout : jamais exerces E2E avant cette session
+Deux panics Zig en serie :
+1. `evalMagic:1688` `@intCast` sur read negatif quand `read_stdin 0`
+   (raw_alloc 0 + raw_syscall read 0 -> -EFAULT -> cast negatif).
+2. `F.parse_body ""` assert sur EOF (string vide).
+`serve_once` traite 1 frame, crash au 2e (EOF).
+`lib/mcp/server_loop.hvn` reste stub. Doc `_mcp_loop_wip.md`.
+
+### MCP : seuls `TT.handle_tools_call` et `M.tool_call_body` accessibles
+`TT.run_echo`, `TT.run_tool`, `TT.extract_text` -> UnboundVariable.
+Tests par chemin public : `TT.handle_tools_call id body`.
+`web_lookup` incompatible precalc+pick (I/O reseau x7 par call).
+Doc `_mcp_tools_wip.md`.
+
+### Pieges confirmes
+- `a = MkTask 1 5` en top-level = fonction 0-arg. `(a 0)` = ArityMismatch.
+  Utiliser inline `(MkTask 1 5)` ou helper `mk _ = (MkTask 1 5)`.
+- `--run-test <dir>` = error.IsDir. CI doit iterer `tests/*.hvn`.
+- `heaven parse <file>` est un stub tree-sitter (tous prints commentes).
+
+### Livre cette session
+- commit c1294e1 : skip test_parser.hvn (SEGV runner, doc complete)
+- commit 7df7a01 : scheduler run_n (5/5) -- boucle via drop_id helper
+- commit 0552fde : doc MCP web_lookup WIP
+- commit fb2098d : kernel multi-taches (KernelQ, 6/6)
+
+### Prochaines sessions (ordre)
+1. **Zig dedie** : fix `let-in-if` parser SEGV + fix runner arena reset
+   (les deux sont localises, ~30-50 lignes cumulees).
+2. **Zig dedie** : fix `read_stdin 0` + `F.parse_body ""` (MCP loop E2E).
+3. Apres Zig : dispatch direct `if m then M.foo` (debloque web_lookup,
+   MCP loop propre, QTT runtime).
+4. En .hvn pur en attendant : OS Phase 1B MPST instances (Disk/Net/Timer),
+   `lib/os/ipc.hvn` etendu.

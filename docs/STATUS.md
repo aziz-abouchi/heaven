@@ -474,3 +474,8 @@ Résultats de référence (`docs/spec/_bench.md`) :
 ### Baseline
 
 - ReleaseFast `--run-tests` = 0 fail. Debug = 0. wasm x2 = 0.
+
+## 2026-10-21 (session 3)
+- 4 commits: skip parser, scheduler run_n, doc MCP wip, kernel multi-taches
+- Regle let-in-if documentee, SEGV runner localise, MCP loop 2 panics
+- Baseline 10/10 fichiers .hvn verts
