@@ -1,0 +1,6 @@
+-- lib/lsp/frame.hvn -- LSP Content-Length framing encode (2026-10-21)
+-- Encode OK. Decode = session dediee (recursion + peek_byte dans let-chain
+-- pose probleme, voir _lsp_wip.md).
+
+content_length n = "Content-Length: " + int_to_string n + "\r\n\r\n"
+frame body = content_length (string_length body) + body

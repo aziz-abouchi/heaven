@@ -1,0 +1,12 @@
+-- lib/lsp/stdio.hvn -- stdio raw (syscalls 0/1) pour LSP
+
+read_stdin n =
+  let b = raw_alloc n in
+  let c = raw_syscall 0 0 b n in
+  let s = string_of_bytes b c in
+  let _f = raw_free b n in
+  s
+
+write_stdout s =
+  let n = string_length s in
+  raw_syscall 1 1 (string_ptr s) n
