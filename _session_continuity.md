@@ -190,3 +190,26 @@ Doc `_mcp_tools_wip.md`.
    MCP loop propre, QTT runtime).
 4. En .hvn pur en attendant : OS Phase 1B MPST instances (Disk/Net/Timer),
    `lib/os/ipc.hvn` etendu.
+
+## Session 2026-10-21 (soir) -- build macOS debloque
+
+### Fix platform aarch64_macos.zig
+Le shim etait minimal (io_console stub, io stub, time/fs/net stubs inline)
+-> manquait `target`, `getenv`, `Thread`, `parser_ts`, `debug`, `fs`,
+`process`, `spawnProcess`, `profiler`, `net_sockets`, etc. Cascade.
+
+Reecrit en repliquant x86_64_linux.zig (62 lignes), sauf :
+- `profiler = @import("profiler_darwin.zig")`
+- `readEnergyUJ` -> retourne 0 (RAPL Linux-only)
+
+### Resultat
+- `zig build` = 0 sur macOS aarch64.
+- Baseline .hvn 9/10 verts sur macOS.
+- `test_mcp_tools` fail sur macOS : `lib/time.hvn` = `raw_syscall 228`
+  (Linux-only, clock_gettime). Chantier separe : `@time_now` portable
+  en .zig + .hvn, puis re-test.
+
+### Chantier separe (prochaine session)
+- `lib/time.hvn` portable : magic `@time_now clockid` en Zig natif
+  (std.posix.clock_gettime sur Darwin, raw_syscall 228 sur Linux).
+- En attendant, `lib/time.hvn` documente comme Linux-only.

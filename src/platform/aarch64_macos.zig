@@ -1,78 +1,62 @@
-// HEAVEN:io_console shim cross-cible (API minimale).
-pub const io_console = struct {
-    pub var debug_enabled: bool = false;
-};
-
 const std = @import("std");
+pub const target = @import("target.zig");
+const builtin = @import("builtin");
+const queue_mod = @import("queue");
+pub const MessageQueue = queue_mod.MessageQueue;
+pub const rtc = @import("webrtc.zig");
 
-pub fn args(alloc: std.mem.Allocator) ![][]const u8 {
-    return std.process.argsAlloc(alloc)[1..];
+pub const io_console = @import("io_console.zig");
+pub const dbg = io_console.dbg;
+pub const getenv = io_console.getenv;
+pub const ConsoleRawMode = io_console.ConsoleRawMode;
+pub const enableRawMode = io_console.enableRawMode;
+pub const disableRawMode = io_console.disableRawMode;
+pub const initConsole = io_console.initConsole;
+pub const writeStdout = io_console.writeStdout;
+pub const readStdin = io_console.readStdin;
+pub const io = io_console.io;
+pub const readLine = io_console.readLine;
+
+pub const process = @import("process.zig");
+pub const spawnProcess = process.spawnProcess;
+pub const ProcessResult = process.ProcessResult;
+pub const time = @import("time.zig");
+pub const profiler = @import("profiler_darwin.zig");
+pub const posix = std.posix;
+pub const os = std.os;
+
+pub const net_sockets = @import("net_sockets.zig");
+pub const net = net_sockets.net;
+pub const setNonBlocking = net_sockets.setNonBlocking;
+
+pub const parser_ts = @import("parser_ts.zig");
+pub const ts = parser_ts.ts;
+pub const tree_sitter_heaven = parser_ts.tree_sitter_heaven;
+pub const tree_sitter_pie = parser_ts.tree_sitter_pie;
+pub const tree_sitter_c = parser_ts.tree_sitter_c;
+pub const tree_sitter_zig = parser_ts.tree_sitter_zig;
+
+pub const Thread = std.Thread;
+pub const fs = std.fs;
+
+pub fn readFileAllocCwd(alloc: std.mem.Allocator, path: []const u8, max: usize) ![]u8 {
+    return std.fs.cwd().readFileAlloc(alloc, path, max);
 }
 
-pub fn initConsole() void {
-    // Pas d'init spéciale sur macOS
+pub const debug = std.debug;
+
+pub fn allocator() std.mem.Allocator {
+    return std.heap.page_allocator;
 }
 
-pub const io = struct {
-    pub fn print(comptime fmt: []const u8, args_: anytype) void {
-        std.debug.print(fmt, args_);
-    }
-    pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
-        const stdin = std.io.getStdIn().reader();
-        return try stdin.readUntilDelimiterAlloc(alloc, '\n', 4096);
-    }
-};
+pub const shell_parser_types = parser_ts.shell_parser_types;
+pub const ShellParser = parser_ts.ShellParser;
+pub const MultiParser = parser_ts.MultiParser;
 
-pub const allocator = std.heap.page_allocator;
-
-pub const ShellParser = @import("shell_parser");
-
-pub const time = struct {
-    pub fn timestampMs() i64 {
-        return std.time.milliTimestamp();
-    }
-};
-
-pub const fs = struct {
-    pub const cwd = struct {
-        pub fn readFileAlloc(alloc: std.mem.Allocator, path: []const u8) ![]u8 {
-            return std.fs.cwd().readFileAlloc(alloc, path, 1024 * 1024);
-        }
-        pub fn createFile(path: []const u8, data: []const u8) !void {
-            try std.fs.cwd().writeFile(.{ .sub_path = path, .data = data });
-        }
-    };
-};
-
-pub fn getEnv(alloc: std.mem.Allocator, key: []const u8) !?[]u8 {
-    return std.process.getEnvVarOwned(alloc, key) catch |e| switch (e) {
-        error.EnvironmentVariableNotFound => return null,
-        else => return e,
-    };
+pub fn streamRead(stream: std.net.Stream, buffer: []u8) std.net.Stream.ReadError!usize {
+    return stream.read(buffer);
 }
 
-pub const net = struct {
-
-    // D-SH4 : socket/connect TCP client. Pas de support en V0
-    // sur cette cible. Voir _selfhosting_roadmap.md.
-
-    // D-SH4 : UDP raw syscalls. Pas de support en V0.
-
-    pub fn setRecvTimeout(_: i64, _: u64) void {}
-
-    pub fn socketUdp() i64 { return -1; }
-    pub fn sendtoUdp(_: i64, _: []const u8, _: u16, _: []const u8) i64 { return -1; }
-    pub fn recvfromUdp(_: i64, _: []u8) i64 { return -1; }
-
-    pub fn socketTcp() i64 {
-        return -1;
-    }
-
-    pub fn connectTcp(_: []const u8, _: u16) !i64 {
-        return error.NotSupported;
-    }
-
-    pub fn listenTcp(port: u16) !std.net.Server {
-        return std.net.Address.initIp4(.{ 127, 0, 0, 1 }, port).listen(.{});
-    }
-};
+pub fn readEnergyUJ() !u64 {
+    return 0;
+}
