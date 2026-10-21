@@ -1,26 +1,25 @@
-# MCP tools -- status (2026-10-21)
+# MCP tools status (2026-10-21)
 
-## Fait (5 tools E2E, COMMIT 7aebe51)
-- echo, time_now, time_ms, fs_read, count_chars
+## Fonctionnels E2E (5 tools, MCP server)
+echo, time_now, time_ms, fs_read, count_chars
 
-## Tentative parse_hvn (KO, rollback)
-`lib/heaven_parse.hvn` expose `lex` qui retourne un type `Toks`
-(TNil | TCons Tok Toks), pas une API `parse`/`expr_count`.
-Pas de tool simple sans écrire un wrapper qui compte les tokens.
+## web_lookup : MODULE OK, MCP tool KO
+- `lib/web/ontology.hvn` : lookup_label marche (Socrate/Platon/Paris E2E)
+- `tests/test_web_ontology.hvn` : 13/13
+- Integration MCP : KO (ArityMismatch) car `precalc` a maintenant 7
+  let-chain, au-dela de la limite detectee (~5-6).
 
-## Piste future (parse_hvn)
-    import "lib/heaven_parse.hvn" as HP
-    toks_len TNil = 0
-    toks_len (TCons _ rest) = 1 + toks_len rest
-    -- parse_hvn body = int_to_string (toks_len (HP.lex (extract_text body)))
+## Test manuel web_lookup (contourne MCP)
+    import "lib/web/ontology.hvn" as WO
+    q _ = @char_string 34
+    (print (WO.lookup_label ((q 0) + "Socrate" + (q 0))))
+    -> "Socrate"
 
-Necessite de matcher le constructeur `TCons` qui est dans HP (peut
-necessiter `import "lib/heaven_parse.hvn"` sans alias pour acceder
-aux constructeurs en pattern).
+## Pistes
+- fix .zig let-chain + arity (debloque 6e tool et loop)
+- Ou dispatch alternatif (pas de precalc, dispatch direct avec fix qualifie)
+- Ou MCP server tools/call specialise par sous-process
 
-## Bloque : loop multi-frame, parse_hvn tool
-- Loop : let+recursion .zig (voir _mcp_loop_wip.md)
-- parse_hvn : API HP inadequat, wrapper 5+ lignes
-
-## Next
-Fix .zig let+recursion (debloque loop + QTT + plus)
+## Autres
+- DNS .hvn `dns_resolve_a_com` : UDP timeout / Type Error, a fixer (session dediee)
+- Pour l'instant `resolve_host` = mapping hardcode pour dbpedia/wikidata
