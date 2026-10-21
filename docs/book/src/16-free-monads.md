@@ -18,6 +18,8 @@ bibliothèques d'Edward Kmett.
 Ce chapitre présente l'idée et son implémentation minimale en Heaven,
 avec les penseurs qui l'ont rendue pensable.
 
+![Structure Free](images/16-free-structure.svg)
+
 ## 1. Le problème : programme = exécution
 
 En 1958, la philosophe **Hannah Arendt** (1906-1975) publie *The

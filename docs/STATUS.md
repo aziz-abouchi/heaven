@@ -14,6 +14,7 @@ Légende :
 ---
 
 ## Progrès récents
+- **2026-10-21 (nuit)** : `lib/web/ontology.hvn` DBpedia Lookup live (13/13). `resolve_host` mapping IPv4 + `http_build_get_ua` fix. MCP 5 tools stables E2E. Diagnostic `let+recursion` (5 discriminants, pas collision/shadow). Livre restructuré 4 parties + version 0.5 + 66 illustrations (0 orpheline).
 - **2026-10-20 (nuit)** : fix `evalCmp` bytes-strings (`target_os == "..."` avec parens). `lib/syscall/linux_x86_64.hvn` (getrandom/read/write/openat via `raw_syscall`, 100% .hvn). `lib/random.hvn` LCG + `rand_os_linux` (entropie OS, 8/8). MPST V0.5 projection binaire (10/10). Style infixe mpst `project_side`. P0 parser identifie : 2 S-expr colles `(print "a")(print "b")` = 2e ignore. Baseline native + wasm = 0.
 
 - **2026-10-20 (soir)** : TLS OpenSSL FFI (@tls_connect/read/write/close), HTTPS live depuis .hvn (Wikidata 200 OK). DNS parametre (dns_resolve_a_com host server). stdlib/effects.hvn + resume alias (5/5). stdlib/ontology.hvn (14/14) + example Socrate. urlencode (9/9). Fossile #4 documente. Baseline Debug=0, TEST=0, RF=0, wasm x2=0.

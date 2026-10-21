@@ -16,6 +16,8 @@ existe avant de voir *comment* il fonctionne.
 Si tu es déjà développeur, tu peux sauter directement au chapitre 1.
 Reviens ici si tu te demandes un jour « mais pourquoi tout ça ? ».
 
+![Règle vs calcul](images/00-regle-vs-calcul.svg)
+
 ## Une question ancienne
 
 Quand tu poses 3 + 4 sur une feuille de papier, que fais-tu ?

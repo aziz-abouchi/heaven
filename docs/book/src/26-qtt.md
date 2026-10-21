@@ -1,5 +1,7 @@
 # QTT — gestion de la mémoire
 
+![Trois régimes QTT](images/26-qtt-regimes.svg)
+
 ## 1. Le problème : qui libère ?
 
 Un langage fonctionnel pur alloue. `map f xs` produit une

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" font-family="serif" font-size="14">
+  <text x="250" y="25" text-anchor="middle" font-size="18" font-weight="bold">TCP : le triple handshake</text>
+  <text x="80" y="60" text-anchor="middle" font-weight="bold">Client</text>
+  <text x="420" y="60" text-anchor="middle" font-weight="bold">Serveur</text>
+  <line x1="80" y1="70" x2="80" y2="240" stroke="#333" stroke-width="2"/>
+  <line x1="420" y1="70" x2="420" y2="240" stroke="#333" stroke-width="2"/>
+  <path d="M 85 95 L 415 95" stroke="#06c" stroke-width="2" marker-end="url(#a)"/>
+  <text x="250" y="88" text-anchor="middle" font-size="13">1. SYN (je veux parler)</text>
+  <path d="M 415 140 L 85 140" stroke="#0a0" stroke-width="2" marker-end="url(#a)"/>
+  <text x="250" y="133" text-anchor="middle" font-size="13">2. SYN-ACK (d'accord)</text>
+  <path d="M 85 185 L 415 185" stroke="#06c" stroke-width="2" marker-end="url(#a)"/>
+  <text x="250" y="178" text-anchor="middle" font-size="13">3. ACK (confirmé)</text>
+  <text x="250" y="225" text-anchor="middle" font-size="13" font-style="italic" fill="#666">Trois messages = une connexion fiable</text>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/></marker></defs>
+</svg>

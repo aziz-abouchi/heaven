@@ -1,5 +1,7 @@
 # Stdlib — HTTP, réseau, FS
 
+![Carte stdlib](images/25-stdlib-map.svg)
+
 Ce chapitre montre ce qui **marche aujourd'hui** (testé en CI)
 et ce qui est **la cible** (streams + effets algébriques).
 

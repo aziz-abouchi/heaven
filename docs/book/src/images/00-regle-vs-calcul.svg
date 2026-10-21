@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 260" font-family="serif" font-size="16">
+  <text x="300" y="30" text-anchor="middle" font-size="20" font-weight="bold">Suivre une règle vs calculer</text>
+  <rect x="30" y="70" width="160" height="100" fill="#f5f5f5" stroke="#333" stroke-width="1.5"/>
+  <text x="110" y="100" text-anchor="middle" font-style="italic">3 + 4</text>
+  <text x="110" y="140" text-anchor="middle" font-size="13">sur une feuille</text>
+  <path d="M 195 120 L 240 120" stroke="#333" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="245" y="70" width="160" height="100" fill="#fff8e0" stroke="#c80" stroke-width="1.5"/>
+  <text x="325" y="100" text-anchor="middle" font-style="italic">règle d'addition</text>
+  <text x="325" y="140" text-anchor="middle" font-size="13">apprise enfant</text>
+  <path d="M 410 120 L 455 120" stroke="#333" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="460" y="70" width="110" height="100" fill="#e8f8e8" stroke="#383" stroke-width="1.5"/>
+  <text x="515" y="110" text-anchor="middle" font-size="22" font-weight="bold">7</text>
+  <text x="515" y="140" text-anchor="middle" font-size="13">sans pensée</text>
+  <text x="300" y="200" text-anchor="middle" font-size="13" font-style="italic">Le sens d'un mot : dans l'usage qu'on en fait</text>
+  <text x="300" y="220" text-anchor="middle" font-size="12" fill="#666">— Wittgenstein, jeux de langage</text>
+  <text x="300" y="245" text-anchor="middle" font-size="13">Heaven formalise ces règles, pas les pensées qui les accompagnent</text>
+  <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/></marker></defs>
+</svg>

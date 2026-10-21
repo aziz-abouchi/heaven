@@ -1,5 +1,7 @@
 # Chapitre 24 — Réseau : parler au monde
 
+![TCP handshake](images/24-tcp-handshake.svg)
+
 Jusqu'ici, Heaven vivait seul. Il calculait, prouvait, mais ne
 parlait à personne. Ce chapitre change cela : le langage sort
 de sa bulle.

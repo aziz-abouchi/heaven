@@ -1,4 +1,12 @@
-# Vision Heaven
+# Heaven — Vision
+
+> **Version actuelle : Heaven 0.5** (2026-10-21)
+>
+> Ce qu'on a : serveurs LSP + MCP fonctionnels en `.hvn` pur, DBpedia live,
+> `raw_syscall`, 25 fichiers auto-chargés. Ce qui manque pour 1.0 :
+> QTT runtime enforced, HoTT, auto-hébergement complet.
+> Voir [le livre, section Versions](../book/src/SUMMARY.md#versions).
+
 
 > Statut : **document de vision**. Ce que Heaven cherche a devenir.
 > Pas une roadmap (voir docs/ROADMAP.md), pas une liste de

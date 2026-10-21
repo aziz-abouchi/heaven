@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 340" font-family="monospace" font-size="13">
+  <text x="280" y="25" text-anchor="middle" font-size="16" font-weight="bold" font-family="serif">Carte de stdlib/ et lib/</text>
+  <rect x="30" y="50" width="140" height="40" fill="#e8f4ff" stroke="#06c" stroke-width="1.5"/>
+  <text x="100" y="75" text-anchor="middle" font-weight="bold">lib/ (avancé)</text>
+  <rect x="360" y="50" width="170" height="40" fill="#f8e8f4" stroke="#c06" stroke-width="1.5"/>
+  <text x="445" y="75" text-anchor="middle" font-weight="bold">stdlib/ (fondation)</text>
+  <line x1="100" y1="90" x2="100" y2="115" stroke="#666"/>
+  <line x1="100" y1="115" x2="490" y2="115" stroke="#666"/>
+  <line x1="100" y1="115" x2="100" y2="135" stroke="#666"/>
+  <line x1="200" y1="115" x2="200" y2="135" stroke="#666"/>
+  <line x1="300" y1="115" x2="300" y2="135" stroke="#666"/>
+  <line x1="400" y1="115" x2="400" y2="135" stroke="#666"/>
+  <line x1="490" y1="90" x2="490" y2="135" stroke="#666"/>
+  <rect x="40" y="135" width="120" height="35" fill="#e8f4ff" stroke="#06c"/>
+  <text x="100" y="158" text-anchor="middle">syscall/</text>
+  <rect x="150" y="135" width="100" height="35" fill="#e8f4ff" stroke="#06c"/>
+  <text x="200" y="158" text-anchor="middle">time.hvn</text>
+  <rect x="250" y="135" width="110" height="35" fill="#e8f4ff" stroke="#06c"/>
+  <text x="305" y="158" text-anchor="middle">random.hvn</text>
+  <rect x="360" y="135" width="90" height="35" fill="#e8f4ff" stroke="#06c"/>
+  <text x="405" y="158" text-anchor="middle">json_rpc</text>
+  <rect x="450" y="135" width="100" height="35" fill="#e8f4ff" stroke="#06c"/>
+  <text x="500" y="158" text-anchor="middle">lsp/ mcp/</text>
+  <rect x="40" y="185" width="110" height="35" fill="#f8e8f4" stroke="#c06"/>
+  <text x="95" y="208" text-anchor="middle">net/</text>
+  <rect x="150" y="185" width="110" height="35" fill="#f8e8f4" stroke="#c06"/>
+  <text x="205" y="208" text-anchor="middle">json/</text>
+  <rect x="260" y="185" width="110" height="35" fill="#f8e8f4" stroke="#c06"/>
+  <text x="315" y="208" text-anchor="middle">string.hvn</text>
+  <rect x="370" y="185" width="120" height="35" fill="#f8e8f4" stroke="#c06"/>
+  <text x="430" y="208" text-anchor="middle">ontology.hvn</text>
+  <text x="280" y="260" text-anchor="middle" font-family="serif" font-size="14" font-style="italic">lib/ construit sur stdlib/</text>
+  <text x="280" y="285" text-anchor="middle" font-family="serif" font-size="13">25 fichiers auto-chargés au boot (voir docs/PRIMER.md)</text>
+  <text x="280" y="310" text-anchor="middle" font-family="serif" font-size="12" fill="#666">Les tests importent explicitement stdlib/*.hvn</text>
+</svg>

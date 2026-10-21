@@ -1,3 +1,30 @@
+## 0.5 — 2026-10-21
+
+**Écosystème `.hvn` fonctionnel** :
+- `lib/syscall/linux_x86_64.hvn` : getrandom, read, write, openat via `raw_syscall`
+- `lib/time.hvn` (7/7), `lib/random.hvn` (8/8)
+- `lib/json_rpc.hvn` (13/13), `lib/lsp/` (4 modules, initialize E2E)
+- `lib/mcp/` (5 tools E2E : echo, time_now, time_ms, fs_read, count_chars)
+- `lib/web/ontology.hvn` : DBpedia Lookup live (13/13)
+
+**Fixes `.zig`** :
+- P0 parser multi-S-expr même ligne (`(print "A")(print "B")`)
+- `+` sur strings (`"a" + "b"` = `"ab"`)
+- `evalCmp` bytes-strings (pas Sym IDs)
+- `base.hvn` reformaté (std_loader charge propre)
+
+**Bugs documentés (pas fixés)** :
+- `let + recursion` = ExecutionFailed (5 discriminants, `_qtt_runtime_bug.md`)
+- `let-chain > 5-6` casse dispatch (web_lookup 6e tool, loop MCP)
+- `target_os` sans parens = symbole bare
+
+**Livre** :
+- Restructuré en 4 parties (Découverte, Pratique, Théorie, Sous le capot)
+- 66 illustrations (0 orpheline)
+- `SUMMARY.md` avec table des versions
+
+---
+
 # Changements récents
 
 

@@ -21,6 +21,8 @@ nouvelle forme de structure demande une nouvelle paire de fonctions.
 Les **optiques** formalisent cet accès. Ce chapitre les présente
 et les implémente en Heaven — avec les penseurs qui les ont pensées.
 
+![Encodage van Laarhoven](images/15-van-laarhoven.svg)
+
 ## 1. Le problème : accéder, c'est déjà interpréter
 
 En 1945, le philosophe **Maurice Merleau-Ponty** (1908-1961) publie
