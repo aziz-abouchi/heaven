@@ -1,0 +1,30 @@
+-- lib/json_rpc.hvn -- JSON-RPC 2.0 framing (2026-10-21)
+-- Encodage/deco minimal pour LSP/MCP.
+-- Request: {"jsonrpc":"2.0","id":N,"method":"...","params":...}
+-- Response: {"jsonrpc":"2.0","id":N,"result":...}
+-- Notification: pas de "id".
+
+-- Request avec params string brut (JSON serialise par appelant)
+request i m p =
+  string_concat "{\"jsonrpc\":\"2.0\",\"id\":"
+    (string_concat (int_to_string i)
+      (string_concat ",\"method\":\"" (string_concat m
+        (string_concat "\",\"params\":" (string_concat p "}")))))
+
+-- Notification sans id
+notification m p =
+  string_concat "{\"jsonrpc\":\"2.0\",\"method\":\""
+    (string_concat m (string_concat "\",\"params\":" (string_concat p "}")))
+
+-- Response success avec result brut
+response i r =
+  string_concat "{\"jsonrpc\":\"2.0\",\"id\":"
+    (string_concat (int_to_string i)
+      (string_concat ",\"result\":" (string_concat r "}")))
+
+-- Response error : code, message (message echappe par appelant)
+response_err i code msg =
+  string_concat "{\"jsonrpc\":\"2.0\",\"id\":"
+    (string_concat (int_to_string i)
+      (string_concat ",\"error\":{\"code\":" (string_concat (int_to_string code)
+        (string_concat ",\"message\":\"" (string_concat msg "\"}}")))))

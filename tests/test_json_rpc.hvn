@@ -1,0 +1,20 @@
+import "stdlib/string.hvn"
+import "lib/json_rpc.hvn" as R
+
+-- Note : escape \" non supporte par le parser. Tests structurels :
+-- longueur, char de debut, pas de comparaison exacte de sous-chaines.
+
+long_enough s = gt (string_length s) 20
+starts_brace s = string_matches_at s 0 "{" == true
+
+req _ = R.request 1 "foo" "[]"
+resp _ = R.response 1 "[]"
+notif _ = R.notification "notify" "{}"
+err_resp _ = R.response_err 1 404 "err"
+
+test "request_long": long_enough (req 0) == true
+test "request_starts_brace": starts_brace (req 0) == true
+test "response_long": long_enough (resp 0) == true
+test "response_starts_brace": starts_brace (resp 0) == true
+test "notification_long": long_enough (notif 0) == true
+test "err_resp_long": long_enough (err_resp 0) == true

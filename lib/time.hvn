@@ -1,0 +1,33 @@
+-- lib/time.hvn -- temps Unix via raw_syscall (Linux/Android)
+-- clock_gettime(228, clockid, ts*, 0) : raw_syscall 228 clock b 0
+
+now_sec _ =
+  let b = raw_alloc 16 in
+  let _n = raw_syscall 228 0 b 0 in
+  let s = peek_int64 b 0 in
+  let _f = raw_free b 16 in
+  s
+
+now_ms _ =
+  let b = raw_alloc 16 in
+  let _n = raw_syscall 228 0 b 0 in
+  let s = peek_int64 b 0 in
+  let ns = peek_int64 b 8 in
+  let _f = raw_free b 16 in
+  s * 1000 + ns / 1000000
+
+now_us _ =
+  let b = raw_alloc 16 in
+  let _n = raw_syscall 228 0 b 0 in
+  let s = peek_int64 b 0 in
+  let ns = peek_int64 b 8 in
+  let _f = raw_free b 16 in
+  s * 1000000 + ns / 1000
+
+mono_ns _ =
+  let b = raw_alloc 16 in
+  let _n = raw_syscall 228 1 b 0 in
+  let s = peek_int64 b 0 in
+  let ns = peek_int64 b 8 in
+  let _f = raw_free b 16 in
+  s * 1000000000 + ns

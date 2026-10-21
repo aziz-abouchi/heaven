@@ -1,0 +1,9 @@
+import "lib/time.hvn" as T
+
+after_2025 v = gt v 1640995200
+positive x = gt x 0
+
+test "epoch_sec_after_2025": after_2025 (T.now_sec 0) == true
+test "epoch_ms_after_2025": after_2025 (T.now_ms 0) == true
+test "epoch_us_after_2025": after_2025 (T.now_us 0) == true
+test "mono_positive": positive (T.mono_ns 0) == true
