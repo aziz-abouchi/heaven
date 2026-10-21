@@ -277,3 +277,57 @@ echoue TOUJOURS (ExecutionFailed). Le bug n'est pas le delete sauvage.
 ## Effort reste
 1 session .zig dediee, cutoff 3 blocs, baseline 4/4.
 Ne pas tenter en fin de session.
+
+
+## Diagnostic final 2026-10-21 (5 blocs, cutoff)
+
+### Faits mesures (discriminants)
+    f x = x + 10
+    g n = let x = n - 1 in f x
+    -> 14 (OK)
+
+    f x = x + 1
+    g x = f x + 1
+    h n = let y = g n in y + 1
+    -> 13 (OK, 2 niveaux)
+
+    rec n = if n > 0 then rec (n - 1) else 0
+    -> 0 (OK, recursion directe sans let)
+
+    rec n = if n > 0 then let m = n - 1 in rec m else 0
+    -> ExecutionFailed (KO, LET + RECURSION, variable 'm')
+
+    rec n = if n > 0 then let x = n - 1 in n + rec x else 0
+    -> ExecutionFailed (KO, let + recursion + +)
+
+    rec n = if n > 0 then let n = n - 1 in rec n else 0
+    -> ExecutionFailed (KO, shadow meme nom)
+
+### Conclusion
+Le bug n'est PAS :
+- la collision de noms (A/B/C KO avec noms differents)
+- le shadow (test C KO identique)
+- le `+` final (B KO avec + sans +)
+- un let-chain profond (2 lets imbriques marchent, C test)
+- le delete sauvegarder/restaurer (teste rollback, KO)
+
+C'est specifiquement : **`let x = ... in <recursive call>`**. Un let dans le corps
+d'une fonction qui s'appelle elle-meme -> ExecutionFailed.
+
+### Hypothese restante (a instrumenter)
+Le `let` cree un `.bind` node. Quand `rec` s'appelle lui-meme dans le body
+du bind, le `env.put`/`env.delete` de la frame parent interferent avec
+la frame enfant. Pas de collision de noms, mais peut-etre un probleme
+de `env` partage entre frames.
+
+### Instrumentation session fraiche
+1. Ajouter `std.debug.print` (PAS platform.dbg, muet) dans :
+   - `.bind` eval (engine_expr.zig:939) : print depth, payload
+   - `.apply` eval : print op, args.len
+2. Voir si `evaluate(rec x)` dans le body du bind atteint `.bind` une
+   2eme fois (depth augmente) ou si le crash est avant.
+3. Si depth > 1000 : c'est le budget recursion.
+   Si ArityMismatch : c'est dans `.apply` de `rec`.
+
+### Effort
+1 session .zig dediee, cutoff 3 blocs, baseline 4/4.
