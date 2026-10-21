@@ -1,0 +1,17 @@
+-- test_os_kernel_q.hvn -- kernel multi-taches (Phase 1B, 2026-10-21)
+import "lib/os/kernel.hvn" as K
+import "lib/os/device.hvn" as D
+import "lib/os/vfs.hvn" as V
+import "lib/os/scheduler.hvn" as S
+
+mk3 _ = (cons (S.MkTask 42 5) (cons (S.MkTask 99 9) (cons (S.MkTask 7 2) nil)))
+disk _ = D.MkRamDisk 1000 1024
+root _ = V.mk_inode "/" 4096
+k _ = K.mk_kernel_q (disk 0) (root 0) (mk3 0)
+
+test "kq_current": (K.kernel_q_current (k 0)) == 42
+test "kq_tick1": (K.kernel_q_current (K.kernel_q_tick (k 0) 1)) == 42
+test "kq_tick2": (K.kernel_q_current (K.kernel_q_tick (k 0) 2)) == 7
+test "kq_disk_size": (K.kernel_q_disk_size (k 0)) == 1024
+test "kq_disk_access": (D.read_ramdisk (K.kernel_q_disk (k 0)) 5) == 1005
+test "kq_empty": (K.kernel_q_current (K.kernel_q_tick (k 0) 3)) == (0 - 1)

@@ -32,3 +32,22 @@ kernel_schedule (MkKernel _ _ t) = S.task_id t
 
 -- priorite de la tache courante
 kernel_prio (MkKernel _ _ t) = S.prio t
+
+-- Phase 1B : kernel multi-taches
+data KernelQ = MkKernelQ D.RamDisk V.Inode (List S.Task)
+  -- (disk, root, tasks)
+
+mk_kernel_q disk root tasks = MkKernelQ disk root tasks
+kernel_q_disk (MkKernelQ d _ _) = d
+kernel_q_root (MkKernelQ _ r _) = r
+kernel_q_tasks (MkKernelQ _ _ ts) = ts
+
+-- execute N ticks : retire N taches par ordre de priorite decroissante
+kernel_q_tick (MkKernelQ d r ts) n = MkKernelQ d r (S.run_n ts n)
+
+-- tache courante (head de la liste)
+kernel_q_current (MkKernelQ _ _ (cons t _)) = S.task_id t
+kernel_q_current (MkKernelQ _ _ nil) = 0 - 1
+
+-- taille du disque
+kernel_q_disk_size (MkKernelQ (D.MkRamDisk _ size) _ _) = size
