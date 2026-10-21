@@ -1,6 +1,5 @@
--- lib/lsp/server.hvn -- LSP single-shot dispatcher (2026-10-21)
--- Limite : dispatch multi-branches avec appels de fonction pose probleme
--- (T3 KO, voir _lsp_server_wip.md). MVP : initialize seulement.
+-- lib/lsp/server.hvn -- LSP dispatcher (2026-10-21)
+-- Workaround dispatch : wrapper local par methode.
 import "stdlib/string.hvn"
 import "lib/lsp/stdio.hvn" as IO
 import "lib/lsp/frame.hvn" as F
@@ -8,6 +7,7 @@ import "lib/lsp/handlers.hvn" as H
 
 q _ = @char_string 34
 id_pat _ = (q 0) + "id" + (q 0) + ":"
+method_pat _ = (q 0) + "method" + (q 0) + ":"
 
 find_str_from s pat i =
   if i + (string_length pat) > (string_length s) then 0 - 1
@@ -25,9 +25,33 @@ extract_id s =
   if (find_str_from s (id_pat 0) 0) < 0 then 1
   else parse_id_from s ((find_str_from s (id_pat 0) 0) + (string_length (id_pat 0))) 0
 
--- MVP : initialize seulement. didOpen/didSave/shutdown = session dediee.
-handle_init body = H.init_body (extract_id body)
+find_quote_from s i =
+  if i >= (string_length s) then 0 - 1
+  else if (peek_byte (string_ptr s) i) == 34 then i
+  else find_quote_from s (i + 1)
+method_val_2 s start =
+  if start >= (string_length s) then ""
+  else if (peek_byte (string_ptr s) start) != 34 then ""
+  else string_substring s (start + 1) ((find_quote_from s (start + 1)) - (start + 1))
+method_val s p = method_val_2 s (p + (string_length (method_pat 0)))
+extract_method s =
+  if (find_str_from s (method_pat 0) 0) < 0 then ""
+  else method_val s (find_str_from s (method_pat 0) 0)
 
--- serve_once lit un frame, dispatche, ecrit la reponse
+-- Wrappers locaux (contournent le bug dispatch)
+w_init i = H.init_body i
+w_shutdown i = H.shutdown_resp i
+w_save i = H.didsave_ack i
+w_open i = H.didopen_ack i
+
+dispatch m i =
+  if m == "initialize" then w_init i
+  else if m == "shutdown" then w_shutdown i
+  else if m == "textDocument/didSave" then w_save i
+  else if m == "textDocument/didOpen" then w_open i
+  else ""
+
+handle body = dispatch (extract_method body) (extract_id body)
+
 serve_once n =
-  IO.write_stdout (F.frame (handle_init (F.parse_body (IO.read_stdin n))))
+  IO.write_stdout (F.frame (handle (F.parse_body (IO.read_stdin n))))

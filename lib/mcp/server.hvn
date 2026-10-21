@@ -1,6 +1,6 @@
--- lib/mcp/server.hvn -- MCP single-shot dispatcher (2026-10-21)
--- MVP : initialize seulement. Voir _lsp_server_wip.md pour la limite
--- dispatch multi-branches (bloque LSP comme MCP).
+-- lib/mcp/server.hvn -- MCP dispatcher (2026-10-21)
+-- Workaround dispatch : wrapper local par methode (qualifié direct
+-- dans if = ExecutionFailed, voir _lsp_server_wip.md).
 import "stdlib/string.hvn"
 import "lib/lsp/stdio.hvn" as IO
 import "lib/lsp/frame.hvn" as F
@@ -8,6 +8,7 @@ import "lib/mcp/handlers.hvn" as M
 
 q _ = @char_string 34
 id_pat _ = (q 0) + "id" + (q 0) + ":"
+method_pat _ = (q 0) + "method" + (q 0) + ":"
 
 find_str_from s pat i =
   if i + (string_length pat) > (string_length s) then 0 - 1
@@ -25,7 +26,31 @@ extract_id s =
   if (find_str_from s (id_pat 0) 0) < 0 then 1
   else parse_id_from s ((find_str_from s (id_pat 0) 0) + (string_length (id_pat 0))) 0
 
-handle_init body = M.init_body (extract_id body)
+find_quote_from s i =
+  if i >= (string_length s) then 0 - 1
+  else if (peek_byte (string_ptr s) i) == 34 then i
+  else find_quote_from s (i + 1)
+method_val_2 s start =
+  if start >= (string_length s) then ""
+  else if (peek_byte (string_ptr s) start) != 34 then ""
+  else string_substring s (start + 1) ((find_quote_from s (start + 1)) - (start + 1))
+method_val s p = method_val_2 s (p + (string_length (method_pat 0)))
+extract_method s =
+  if (find_str_from s (method_pat 0) 0) < 0 then ""
+  else method_val s (find_str_from s (method_pat 0) 0)
+
+-- Wrappers locaux (contournent le bug dispatch)
+w_init i = M.init_body i
+w_list i = M.tools_list_body i
+w_call i = M.tool_call_body i "result"
+
+dispatch m i =
+  if m == "initialize" then w_init i
+  else if m == "tools/list" then w_list i
+  else if m == "tools/call" then w_call i
+  else ""
+
+handle body = dispatch (extract_method body) (extract_id body)
 
 serve_once n =
-  IO.write_stdout (F.frame (handle_init (F.parse_body (IO.read_stdin n))))
+  IO.write_stdout (F.frame (handle (F.parse_body (IO.read_stdin n))))

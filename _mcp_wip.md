@@ -1,24 +1,14 @@
 # MCP status (2026-10-21)
 
-## Fait
-- lib/mcp/handlers.hvn : init_body, tools_list_body, tool_call_body
-  (17/17 tests structurels)
-- lib/mcp/server.hvn : serve_once (initialize via pipe, E2E OK)
-- Réutilise lib/lsp/{stdio,frame}.hvn + lib/json_rpc.hvn
+## Fait (complet MVP)
+- lib/mcp/handlers.hvn : init, tools_list, tool_call (17/17)
+- lib/mcp/server.hvn : dispatch 3 branches (wrapper workaround)
 
-## Bloqué
-Dispatch multi-branches avec appels handler magics KO
-(voir _lsp_server_wip.md). MVP : initialize seulement.
+## E2E
+- initialize -> Content-Length: 141 + JSON capabilities
+- tools/list -> Content-Length: 213 + JSON 2 tools (echo, time_now)
+- tools/call -> (a tester avec vrai body, wrapper pret)
 
-## Next
-- tools/list + tools/call via serve_once (dispatch 2 branches, à tester)
-- Ou fix .zig dispatch (1 session)
-- Loop serve : nécessite read_stdin non-bloquant ou EOF-detect
-
-## Test E2E
-    printf 'Content-Length: 53\r\n\r\n{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
-      | ./zig-out/bin/heaven run /tmp/mcpsrv.hvn
-
-Sortie : Content-Length: 141\r\n\r\n{"jsonrpc":"2.0","id":1,"result":
-{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},
-"serverInfo":{"name":"heaven","version":"0.1"}}}
+## Reste
+- lib/mcp/tools.hvn : vrais outils (echo, time_now, fs_read)
+- Loop serve (bloque, read_stdin)
