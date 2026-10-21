@@ -1,0 +1,9 @@
+-- test_scheduler_run.hvn -- run_n multi-taches (2026-10-21)
+import "lib/os/scheduler.hvn" as S
+mk2 _ = (cons (MkTask 1 5) (cons (MkTask 2 9) (cons (MkTask 3 2) nil)))
+
+test "pick_first": (S.task_id (S.pick_task (mk2 0))) == 2
+test "run_1": (S.task_id (S.pick_task (S.run_n (mk2 0) 1))) == 1
+test "run_2": (S.task_id (S.pick_task (S.run_n (mk2 0) 2))) == 3
+test "run_3_empty": (S.run_n (mk2 0) 3) == nil
+test "drop_id_absent": (S.pick_task (S.drop_id 99 (mk2 0))) == (MkTask 2 9)

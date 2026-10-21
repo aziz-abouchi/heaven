@@ -28,3 +28,12 @@ random_task seed =
 
 -- schedule_first : prend une liste de tasks, retourne l'id de la gagnante
 schedule_first lst = task_id (pick_task lst)
+
+-- Phase 1B : boucle multi-taches (contourne let-in-if, probe C)
+drop_id x (cons t rest) =
+  if (task_id t) == x then rest
+  else (cons t (drop_id x rest))
+drop_id x nil = nil
+
+run_n nil n = nil
+run_n lst n = if n > 0 then run_n (drop_id (task_id (pick_task lst)) lst) (n - 1) else lst
