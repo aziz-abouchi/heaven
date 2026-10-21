@@ -1,3 +1,19 @@
+-- tests/test_parser.hvn.skip
+--
+-- ATTENTION : exclu du run CI via extension .skip.
+--
+-- SEGV (139) non-déterministe dans le runner de tests sur
+-- accumulation d'état entre statements (~23 statements).
+-- Diagnostic 2026-10-21 : pas de reset d'arène/env entre
+-- les appels heaven.eval() dans src/runtime/test_runner.zig.
+-- Fragmentation mémoire → SEGV dans parse_file (récursion profonde).
+--
+-- Fix propre : forker un sous-processus par test (comme
+-- src/commands/run.zig le fait déjà), ou ajouter un reset
+-- d'arène explicite. Chantier .zig, session dédiée.
+--
+-- Ce fichier sera réintégré quand le runner sera corrigé.
+
 -- tests/test_parser.hvn (Jalon 3, phase B)
 import "lib/heaven_parse.hvn" as HP
 
