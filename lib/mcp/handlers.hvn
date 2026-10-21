@@ -30,8 +30,7 @@ tools_list_inner _ =
   (tool_def "time_now" "Unix timestamp seconds") + "," +
   (tool_def "time_ms" "Unix timestamp milliseconds") + "," +
   (tool_def "fs_read" "Read file by path") + "," +
-  (tool_def "count_chars" "Count chars in text") + "," +
-  (tool_def "web_lookup" "DBpedia label by name") +
+  (tool_def "count_chars" "Count chars in text") +
   "]}"
 tools_list_body i = resp i (tools_list_inner 0)
 
