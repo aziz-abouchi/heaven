@@ -1,0 +1,30 @@
+-- lib/os/scheduler.hvn -- scheduler cooperatif minimal (2026-10-21)
+-- Reutilise lib/time.hvn (mono_ns) et lib/random.hvn.
+-- Pas de let+recursion, pas de and infixe, pas de commentaire inline.
+import "lib/time.hvn" as T
+import "lib/random.hvn" as R
+
+data Task = MkTask Int Int
+  -- MkTask id priority
+
+task_id (MkTask i _) = i
+prio (MkTask _ p) = p
+
+-- pick_higher : garde la tache de plus haute priorite
+pick_higher t1 t2 = if (prio t1) >= (prio t2) then t1 else t2
+
+-- pick_task : max de priorite dans la liste
+-- recursion dans argument sans let -> OK (pattern test G)
+pick_task (cons t nil) = t
+pick_task (cons t rest) = pick_higher t (pick_task rest)
+
+-- un tour d'horloge : retourne un int stable (mono_ns)
+tick _ = T.mono_ns 0
+
+-- pseudo_random_task : cree une tache id = random_bound, prio = id % 10
+random_task seed =
+  let n = R.rand_bound seed 1000 in
+  MkTask n (n % 10)
+
+-- schedule_first : prend une liste de tasks, retourne l'id de la gagnante
+schedule_first lst = task_id (pick_task lst)

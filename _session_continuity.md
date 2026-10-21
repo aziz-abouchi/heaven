@@ -63,6 +63,12 @@ L'utilisateur exécute et colle les sorties. Adapte selon ce que tu vois.
 - **`> 0 - 1` dans `test "..."`** refuse (seul `==` accepté). Fix :
   helper `contains s pat = (find_str_from ...) >= 0`.
 
+- **Commentaire `--` inline dans `else if`** = `ArityMismatch` silencieux
+  (découvert session OS). `else if off == 1 then 1  -- comment` casse.
+  Fix : commentaire sur ligne séparée (au-dessus) ou supprimé.
+- **`and`/`or` infixe KO** : `a and b` = `UnknownSymbol`. `(and a b)`
+  S-expr OK. Idem `or`. Ne pas utiliser en infixe.
+
 ## Pièges confirmés
 - Regex multi-ligne casse les corps indentés → remove_def par blocs.
 - Double import direct+transitif silencieusement KO (fossile #4) —

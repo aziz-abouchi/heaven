@@ -1,0 +1,34 @@
+-- lib/os/device.hvn -- abstraction Device via HKT V1a (2026-10-21)
+-- Un device = mémoire adressable avec read/write. HKT V1a déclaratif :
+-- class Device a / instance Device <Concrete>.
+-- V1b (dispatch @dispatch_instance) viendra quand on aura besoin
+-- d'appeler read/write polymorphes.
+
+-- Classe Device (HKT V1a déclaratif)
+class Device a
+
+-- UART : registre 0 = data, registre 1 = status
+data Uart = MkUart Int
+instance Device Uart
+
+-- RamDisk : buffer brut + taille
+data RamDisk = MkRamDisk Int Int
+instance Device RamDisk
+
+-- read/write "concrets" par device (pas encore polymorphe)
+read_uart (MkUart reg) off =
+  if off == 0 then reg
+  else if off == 1 then 1
+  else 0
+
+write_uart (MkUart _) off val =
+  if off == 0 then val
+  else 0
+
+read_ramdisk (MkRamDisk base size) off =
+  if (and (>= off 0) (< off size)) then base + off
+  else 0
+
+write_ramdisk (MkRamDisk base size) off val =
+  if (and (>= off 0) (< off size)) then val
+  else 0

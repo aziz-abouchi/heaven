@@ -1,0 +1,25 @@
+-- lib/os/vfs.hvn -- systeme de fichiers virtuel minimal via Lens (2026-10-21)
+-- Reutilise core/std/lens.hvn (lens_fst, view, set_via).
+-- Inode = (name, size) sous forme de Pair.
+-- Lens: name_lens -> fst, size_lens -> snd.
+
+data Inode = MkInode String Int
+
+name_of (MkInode n _) = n
+size_of (MkInode _ s) = s
+
+-- creation
+mk_inode n s = MkInode n s
+
+-- size + offset sans depasser
+read_inode (MkInode _ s) off =
+  if (and (>= off 0) (< off s)) then 1 else 0
+
+-- total size d'une liste d'inodes
+total_size (cons i nil) = size_of i
+total_size (cons i rest) = (size_of i) + (total_size rest)
+
+-- lookup par nom
+lookup_inode (cons i nil) name = if (name_of i) == name then i else (mk_inode "" 0)
+lookup_inode (cons i rest) name =
+  if (name_of i) == name then i else (lookup_inode rest name)

@@ -1,0 +1,35 @@
+-- tests formels Phase 0 (device + scheduler + vfs + ipc)
+import "lib/os/device.hvn" as D
+import "lib/os/scheduler.hvn" as S
+import "lib/os/vfs.hvn" as V
+import "stdlib/mpst.hvn" as M
+
+-- Device
+u _ = D.MkUart 42
+rd _ = D.MkRamDisk 1000 64
+
+test "uart_read_reg0": (D.read_uart (u 0) 0) == 42
+test "uart_read_reg1": (D.read_uart (u 0) 1) == 1
+test "ram_read_in": (D.read_ramdisk (rd 0) 10) == 1010
+test "ram_read_out": (D.read_ramdisk (rd 0) 100) == 0
+
+-- Scheduler
+t1 _ = S.MkTask 1 5
+t2 _ = S.MkTask 2 10
+t3 _ = S.MkTask 3 7
+lst _ = cons (t1 0) (cons (t2 0) (cons (t3 0) nil))
+test "sched_winner": (S.schedule_first (lst 0)) == 2
+test "sched_prio_t2": (S.prio (t2 0)) == 10
+
+-- VFS
+a _ = V.mk_inode "readme.txt" 100
+b _ = V.mk_inode "config.sys" 42
+vfs_lst _ = cons (a 0) (cons (b 0) nil)
+test "vfs_total": (V.total_size (vfs_lst 0)) == 142
+test "vfs_lookup_config": (V.size_of (V.lookup_inode (vfs_lst 0) "config.sys")) == 42
+test "vfs_read_in": (V.read_inode (a 0) 50) == 1
+test "vfs_read_out": (V.read_inode (a 0) 150) == 0
+
+-- IPC (test direct, is_dual retire du module)
+test "ipc_valid": (M.check (M.STSend "read" (M.STRecv "data" M.STEnd)) (M.trace_of_string "read,data")) == true
+test "ipc_invalid": (M.check (M.STSend "read" M.STEnd) (M.trace_of_string "data")) == false

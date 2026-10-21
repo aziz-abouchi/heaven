@@ -1,0 +1,15 @@
+-- lib/os/ipc.hvn -- protocoles IPC verifies via MPST (2026-10-21)
+-- Reutilise stdlib/mpst.hvn (STEnd, STSend, STRecv, check, dual).
+-- Un driver respecte un protocole binaire client <-> driver.
+import "stdlib/mpst.hvn" as M
+
+-- Protocole driver : client envoie "read", recoit "data", termine.
+proto_client _ = M.STSend "read" (M.STRecv "data" M.STEnd)
+proto_driver _ = M.STRecv "read" (M.STSend "data" M.STEnd)
+
+-- Verifie un trace (sequence de labels) contre un protocole
+verify proto labels = M.check proto (M.trace_of_string labels)
+
+-- Note : is_dual a ete retire. Tester directement :
+--   M.check (M.dual (proto_client 0)) (M.trace_of_string "read,data")
+-- marche, mais en composition dans une fonction module = KO.
