@@ -1,0 +1,25 @@
+import "stdlib/string.hvn"
+import "lib/mcp/handlers.hvn" as M
+
+init _ = M.init_body 1
+list _ = M.tools_list_body 2
+call _ = M.tool_call_body 3 "hello"
+
+long_enough s = gt (string_length s) 40
+first_is_brace s = peek_byte (string_ptr s) 0 == 123
+
+find_str_from s pat i =
+  if i + (string_length pat) > (string_length s) then 0 - 1
+  else if (string_matches_at s i pat) then i
+  else find_str_from s pat (i + 1)
+
+contains s pat = (find_str_from s pat 0) >= 0
+
+test "init_long": long_enough (init 0) == true
+test "init_brace": first_is_brace (init 0) == true
+test "init_heaven": contains (init 0) "heaven" == true
+test "list_long": long_enough (list 0) == true
+test "list_echo": contains (list 0) "echo" == true
+test "list_time": contains (list 0) "time_now" == true
+test "call_long": long_enough (call 0) == true
+test "call_text": contains (call 0) "hello" == true
