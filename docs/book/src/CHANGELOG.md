@@ -873,3 +873,24 @@ sont déjà intégrées dans les chapitres :
 
 ### Book
 - Chapitre 24 : Reseau.
+
+## 2026-10-21 (session OS Phase 1B + diagnostics Zig)
+
+### Modules `lib/` livrés
+- `lib/os/scheduler.hvn` : +`drop_id`, +`run_n` (5/5 tests).
+- `lib/os/kernel.hvn` : +`KernelQ`, `kernel_q_tick`/`_current`/`_disk_size`
+  (6/6 tests). Régression Kernel 1A intacte (12/12).
+
+### Diagnostics Zig (sessions dédiées à venir)
+- **`let-in-if`** : SEGV parser dès qu'un `let` est en `then` ou `else`
+  (non-récursif confirmé). Helper hoisté = OK. Règle documentée.
+- **Runner** : SEGV ~23 statements, `heaven.eval` sans reset arena.
+  `test_parser.hvn.skip` documente, `splitTopLevelEq` innocenté.
+- **MCP loop** : `read_stdin 0` → `@intCast` sur errno négatif ;
+  `F.parse_body ""` → assert sur EOF. `serve_once` = 1 frame.
+- **MCP `web_lookup`** : incompatible `precalc+pick` (I/O réseau x7).
+
+### Baseline
+- 10/10 fichiers `tests/*.hvn` verts (éval, meta, parser lit,
+  selfparse, mcp, mcp_tools, scheduler, kernel 1A, kernel Q).
+- 5 commits : `c1294e1`, `7df7a01`, `0552fde`, `fb2098d`, `8a97df9`.

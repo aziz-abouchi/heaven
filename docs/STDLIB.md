@@ -398,6 +398,37 @@ Pattern : `precalcul + pick` contourne le bug dispatch qualifié.
 E2E vérifiés : `initialize`, `tools/list` (5 tools), `tools/call` pour
 chaque tool. `fs_read /etc/hostname` → `"devilHope"`.
 
+## `lib/os/` — abstractions OS composables (Phase 1A/1B)
+
+### `device.hvn` — Device via HKT V1a
+- `data Uart`, `data RamDisk`, `instance Device ...`
+- `read_uart`, `write_uart`, `read_ramdisk`, `write_ramdisk`
+
+### `scheduler.hvn` — ordonnanceur cooperatif
+- `data Task = MkTask id priority`
+- `pick_higher`, `pick_task`, `tick`, `random_task`
+- `drop_id x lst` — retire la tache d'id x
+- `run_n lst n` — execute n ticks (retire n taches par priorite decroissante)
+- `schedule_first lst` — id de la tache gagnante
+
+### `vfs.hvn` — inodes minimaux
+- `data Inode`, `mk_inode`, `size_of`, `lookup_inode`, `total_size`
+
+### `ipc.hvn` — protocoles MPST
+- `proto_client`, `proto_driver`
+
+### `kernel.hvn` — composition Kernel + KernelQ
+- `Kernel = MkKernel disk root task` (mono-tache)
+- `mk_kernel`, `kernel_read`, `kernel_root_size`, `kernel_switch`, `kernel_schedule`, `kernel_prio`
+- `KernelQ = MkKernelQ disk root tasks` (multi-taches, Phase 1B)
+- `mk_kernel_q`, `kernel_q_tick`, `kernel_q_current`, `kernel_q_disk_size`
+
+**Contraintes** : pas de `let` dans un `if` (SEGV parser), pas de
+`M.foo` qualifie dans une branche `if`. Recursion OK dans argument.
+
+**Tests** : `test_os_kernel.hvn` (7), `test_os_kernel_q.hvn` (6),
+`test_scheduler_run.hvn` (5).
+
 ## `lib/web/ontology.hvn` — ontologie DBpedia live
 
 `lookup_label "Socrate"` → `"Socrate"` (via HTTPS live lookup.dbpedia.org).

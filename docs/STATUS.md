@@ -475,7 +475,30 @@ Résultats de référence (`docs/spec/_bench.md`) :
 
 - ReleaseFast `--run-tests` = 0 fail. Debug = 0. wasm x2 = 0.
 
-## 2026-10-21 (session 3)
-- 4 commits: skip parser, scheduler run_n, doc MCP wip, kernel multi-taches
-- Regle let-in-if documentee, SEGV runner localise, MCP loop 2 panics
-- Baseline 10/10 fichiers .hvn verts
+## 2026-10-21 (session 3 — cloture)
+
+### Livre
+- `lib/os/scheduler.hvn` : `drop_id` + `run_n` (5/5 tests).
+- `lib/os/kernel.hvn` : `KernelQ` + `kernel_q_tick/current/disk_size` (6/6).
+- Baseline 10/10 fichiers `.hvn` verts, 0 regression.
+
+### Diagnostics Zig (5 cibles localisees, session dediee)
+1. `let-in-if` parser SEGV (then ET else, non-recursif confirme).
+   Contournement : helper hoiste (probe F OK).
+2. Runner : SEGV ~23 statements, arena non reset. `test_parser.hvn.skip`.
+3. MCP loop : `read_stdin 0` -> `@intCast` errno negatif.
+4. MCP loop : `F.parse_body ""` assert EOF (2e frame).
+5. `web_lookup` : `precalc+pick` x7 I/O reseau, incompatible.
+
+### Commits
+- `c1294e1` skip test_parser.hvn (SEGV runner)
+- `7df7a01` scheduler run_n (5/5)
+- `0552fde` doc _mcp_tools_wip.md
+- `fb2098d` kernel multi-taches (6/6)
+- `8a97df9` _session_continuity.md v2
+
+### Docs
+- `docs/STDLIB.md` : section `lib/os/` complete.
+- `docs/book/src/CHANGELOG.md` : entree 2026-10-21.
+- `_session_continuity.md` : v2 (+60 lignes).
+- `docs/spec/_mcp_loop_wip.md`, `_mcp_tools_wip.md` : WIP documentes.
