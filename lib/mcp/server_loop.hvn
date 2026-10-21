@@ -1,0 +1,6 @@
+-- lib/mcp/server_loop.hvn -- WIP (voir _mcp_loop_wip.md)
+-- Loop multi-frame bloque : let + recursion + appel dans process_frame_*.
+-- Le serveur single-shot (server.hvn) reste la voie stable.
+--
+-- Fonctions presentes : process_frame_*, serve_loop. Non fonctionnel
+-- actuellement (ExecutionFailed silencieux). A fixer en session .zig.

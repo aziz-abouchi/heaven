@@ -29,3 +29,17 @@ parse_body s = parse_body_at s (find_sep s 0)
 parse_body_at s p =
   if p < 0 then ""
   else string_substring s (p + 4) ((string_length s) - (p + 4))
+
+-- Helpers offset (pour loop multi-frame dans un buffer)
+parse_len_from s off =
+  if off + 20 > (string_length s) then 0
+  else parse_len_from_rec s (off + 16) 0
+parse_len_from_rec s i acc =
+  if i >= (string_length s) then acc
+  else if (digit_val (peek_byte (string_ptr s) i)) < 0 then acc
+  else parse_len_from_rec s (i + 1) (acc * 10 + (digit_val (peek_byte (string_ptr s) i)))
+
+find_sep_from s off =
+  if off + 4 > (string_length s) then 0 - 1
+  else if (string_matches_at s off "\r\n\r\n") then off
+  else find_sep_from s (off + 1)
