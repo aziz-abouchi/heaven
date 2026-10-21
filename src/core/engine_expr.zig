@@ -2928,6 +2928,22 @@ fn evalBinary(store: *Store, a: Id, b: Id, op: BinOp) EvalError!Id {
             },
             else => return error.TypeError,
         },
+        .str => |sa| switch (lb) {
+            .str => |sb| switch (op) {
+                .add => blk: {
+                    const ra = store.interner.resolve(sa);
+                    const rb = store.interner.resolve(sb);
+                    const joined = try store.allocator.alloc(u8, ra.len + rb.len);
+                    defer store.allocator.free(joined);
+                    @memcpy(joined[0..ra.len], ra);
+                    @memcpy(joined[ra.len..], rb);
+                    const sym = try store.interner.intern(joined);
+                    break :blk .{ .str = sym };
+                },
+                else => return error.TypeError,
+            },
+            else => return error.TypeError,
+        },
         else => return error.TypeError,
     };
 
