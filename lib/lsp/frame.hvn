@@ -1,6 +1,31 @@
--- lib/lsp/frame.hvn -- LSP Content-Length framing encode (2026-10-21)
--- Encode OK. Decode = session dediee (recursion + peek_byte dans let-chain
--- pose probleme, voir _lsp_wip.md).
+import "stdlib/string.hvn"
 
+-- lib/lsp/frame.hvn -- LSP Content-Length framing complet (2026-10-21)
+-- Workaround : PAS de let-chain autour des calls recursifs (voir
+-- _session_continuity : let + recursif = ExecutionFailed silencieux).
+
+-- Encodage
 content_length n = "Content-Length: " + int_to_string n + "\r\n\r\n"
 frame body = content_length (string_length body) + body
+
+-- Décodage longueur (recursion via helper, sans let)
+digit_val b = if b < 48 then 0 - 1 else if b > 57 then 0 - 1 else b - 48
+parse_len_rec s i acc =
+  if i >= (string_length s) then acc
+  else parse_len_step s i acc
+parse_len_step s i acc =
+  if (digit_val (peek_byte (string_ptr s) i)) < 0 then acc
+  else parse_len_rec s (i + 1) (acc * 10 + (digit_val (peek_byte (string_ptr s) i)))
+parse_len s = parse_len_rec s 16 0
+
+-- Position du séparateur (recursion simple, if/else direct)
+find_sep s i =
+  if i + 4 > (string_length s) then 0 - 1
+  else if (string_matches_at s i "\r\n\r\n") then i
+  else find_sep s (i + 1)
+
+-- Extraction body via helper split (pas de let-chain)
+parse_body s = parse_body_at s (find_sep s 0)
+parse_body_at s p =
+  if p < 0 then ""
+  else string_substring s (p + 4) ((string_length s) - (p + 4))

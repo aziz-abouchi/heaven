@@ -1,0 +1,25 @@
+-- lib/lsp/handlers.hvn -- LSP method handlers (2026-10-21)
+-- Pas de \" escapes (parser rejette). Construit via json_rpc helpers.
+
+-- Local quote pour construire les cles JSON
+q _ = @char_string 34
+qstr s = (q 0) + s + (q 0)
+
+-- Response initialize : capabilities minimales
+init_caps _ =
+  "{" +
+  qstr "capabilities" + ":{" +
+    qstr "textDocumentSync" + ":1" +
+  "}}"
+
+init_body i = "{" + qstr "jsonrpc" + ":" + qstr "2.0" + "," + qstr "id" + ":" + int_to_string i + "," + qstr "result" + ":" + (init_caps 0) + "}"
+
+-- Acks simples (notification cote client)
+didsave_ack i = "{" + qstr "jsonrpc" + ":" + qstr "2.0" + "," + qstr "id" + ":" + int_to_string i + "," + qstr "result" + ":null}"
+
+didopen_ack i = "{" + qstr "jsonrpc" + ":" + qstr "2.0" + "," + qstr "id" + ":" + int_to_string i + "," + qstr "result" + ":null}"
+
+shutdown_resp i = "{" + qstr "jsonrpc" + ":" + qstr "2.0" + "," + qstr "id" + ":" + int_to_string i + "," + qstr "result" + ":null}"
+
+-- Reponse generique (reutilisable)
+ok_null i = "{" + qstr "jsonrpc" + ":" + qstr "2.0" + "," + qstr "id" + ":" + int_to_string i + "," + qstr "result" + ":null}"

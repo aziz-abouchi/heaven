@@ -1,0 +1,10 @@
+import "lib/lsp/frame.hvn" as F
+
+fr _ = F.frame "HELLO"
+fr_long _ = F.frame "a longer body 123"
+
+test "frame_has_header": string_matches_at (fr 0) 0 "Content-Length: 5" == true
+test "parse_len_5": F.parse_len (fr 0) == 5
+test "parse_body_hello": F.parse_body (fr 0) == "HELLO"
+test "parse_len_17": F.parse_len (fr_long 0) == 17
+test "parse_body_long": F.parse_body (fr_long 0) == "a longer body 123"
