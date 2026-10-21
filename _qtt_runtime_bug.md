@@ -241,3 +241,39 @@ Test minimal pour reproduire (dans le chat frais) :
     (print (h 0))   -- OK probablement
 
 => Diff entre fonction avec let-in et fonction simple.
+
+
+## Tentative fix 2026-10-21 (rollback)
+
+Hypothese : `.bind` fait `env.put` puis `env.delete` sans sauvegarder
+l'ancien binding. Recursion profonde -> suppression de la variable
+parent -> ExecutionFailed.
+
+Patch tenté : save/restore dans `.bind` et `.letrec` :
+    const saved = env.get(node.payload);
+    try env.put(node.payload, val);
+    ... eval body ...
+    if (saved) |old| try env.put(node.payload, old) else env.delete(...);
+
+Resultat : `rec n = if n <= 0 then 0 else let x = n-1 in n + rec x`
+echoue TOUJOURS (ExecutionFailed). Le bug n'est pas le delete sauvage.
+
+## Prochaines pistes (session fraiche)
+
+1. Instrumenter la recursion : `platform.dbg` au debut et a la fin de
+   chaque `.bind` eval (print node.payload, val, result).
+2. Verifier si `let` cree un nouveau `env` scope ou partage l'env.
+   (Voir `env` type dans expr.zig ou engine_expr.zig)
+3. Verifier si c'est la combinaison `let x = ... in <recursive call>`
+   ou plus specifiquement `<let-body containing a call>` qui casse.
+4. Test ultra-minimal :
+       rec n = if n > 0 then let x = n - 1 in rec x else 0
+       -- Sans le `+` qui ajoute une expression.
+   Si ceci marche, le bug est dans l'eval de `n + rec x` avec let.
+   Si KO, c'est le let+recursion pur.
+5. Instrumenter `evaluate` au case `.apply` : voir si le `rec` recursive
+   est traite comme lambda-call ou fallback.
+
+## Effort reste
+1 session .zig dediee, cutoff 3 blocs, baseline 4/4.
+Ne pas tenter en fin de session.
