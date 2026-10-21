@@ -1,32 +1,30 @@
 # MCP status (2026-10-21) -- COMPLET
 
 ## Fait (fonctionnel E2E)
-- lib/mcp/handlers.hvn : init, tools_list, tool_call (17/17)
-- lib/mcp/tools.hvn : echo, time_now (16/16)
-- lib/mcp/server.hvn : dispatch 3 methodes (precalcul + pick)
+- lib/mcp/handlers.hvn : init, tools_list (5 tools), tool_call
+- lib/mcp/tools.hvn : echo, time_now, time_ms, fs_read, count_chars
+- lib/mcp/server.hvn : dispatch 3 methodes (precalcul+pick)
+
+## 5 tools (tous verifies E2E)
+- echo           : retourne le "text" recu
+- time_now       : timestamp Unix (secondes)
+- time_ms        : timestamp Unix (millisecondes)
+- fs_read        : lit fichier via @fs_read (ex /etc/hostname -> "devilHope")
+- count_chars    : longueur du "text"
 
 ## Pattern "precalcul + pick" (debloque dispatch)
-Bug : `if m == "x" then M.foo i else ...` (qualifie direct) = KO.
-Fix : evaluer TOUTES les branches AVANT le if, puis pick :
-    build body =
-      let r_init = M.init_body i in
-      let r_list = M.tools_list_body i in
-      let r_call = TT.handle_tools_call i body in
-      pick m r_init r_list r_call
-    pick m i l c =
-      if m == "initialize" then i
-      else if m == "tools/list" then l
-      else if m == "tools/call" then c
-      else ""
-Zero appel qualifie dans le if.
+EvaluER toutes les branches AVANT le if, puis pick par methode.
+Zero appel qualifie dans le if (bug see _lsp_server_wip.md).
 
 ## E2E verifies
-- initialize -> Content-Length: 141 + JSON capabilities
-- tools/list -> Content-Length: 213 + 2 tools (echo, time_now)
-- tools/call echo -> "text":"hi"
-- tools/call time_now -> "text":"1792597960"
+- initialize    -> capabilities
+- tools/list    -> 5 tools, 483 chars JSON
+- tools/call echo "hi"        -> "hi"
+- tools/call count_chars      -> "5"
+- tools/call fs_read /etc/... -> "devilHope"
+- tools/call time_now         -> "1792..."
 
 ## Reste
-- Loop serve (read_stdin bloque)
-- Plus de tools (fs_read, parse, etc.)
+- Loop multi-frame (voir _mcp_loop_wip.md, bloque .zig)
+- Plus de tools (parse_hvn, eval_expr, ...)
 - LSP : appliquer precalcul+pick pour 4 methodes

@@ -25,24 +25,47 @@ str_val s start =
 
 text_pat _ = (q 0) + "text" + (q 0) + ":"
 name_pat _ = (q 0) + "name" + (q 0) + ":"
+path_pat _ = (q 0) + "path" + (q 0) + ":"
 
-extract_text body =
-  if (find_str_from body (text_pat 0) 0) < 0 then ""
-  else str_val body ((find_str_from body (text_pat 0) 0) + (string_length (text_pat 0)))
+extract_at body pat_str =
+  if (find_str_from body pat_str 0) < 0 then ""
+  else str_val body ((find_str_from body pat_str 0) + (string_length pat_str))
+extract_text body = extract_at body (text_pat 0)
+extract_name body = extract_at body (name_pat 0)
+extract_path body = extract_at body (path_pat 0)
 
-extract_name body =
-  if (find_str_from body (name_pat 0) 0) < 0 then ""
-  else str_val body ((find_str_from body (name_pat 0) 0) + (string_length (name_pat 0)))
-
+-- Tool implementations
 run_echo body = extract_text body
-run_time _ = int_to_string (T.now_sec 0)
+run_time_sec _ = int_to_string (T.now_sec 0)
+run_time_ms _ = int_to_string (T.now_ms 0)
+run_fs_read body = @fs_read "fs:read" (extract_path body)
+run_count body = int_to_string (string_length (extract_text body))
 
+-- Wrappers locaux (evite le bug qualifie-direct dans if)
 w_echo body = run_echo body
-w_time body = run_time 0
+w_time_sec body = run_time_sec 0
+w_time_ms body = run_time_ms 0
+w_fs body = run_fs_read body
+w_count body = run_count body
 
-run_tool body =
-  if (extract_name body) == "echo" then w_echo body
-  else if (extract_name body) == "time_now" then w_time body
+-- Dispatch "precalcul + pick" (contourne le bug dispatch)
+precalc body =
+  let n = extract_name body in
+  let e = w_echo body in
+  let t = w_time_sec body in
+  let m = w_time_ms body in
+  let f = w_fs body in
+  let c = w_count body in
+  pick n e t m f c
+
+pick n e t m f c =
+  if n == "echo" then e
+  else if n == "time_now" then t
+  else if n == "time_ms" then m
+  else if n == "fs_read" then f
+  else if n == "count_chars" then c
   else "unknown tool"
+
+run_tool body = precalc body
 
 handle_tools_call i body = M.tool_call_body i (run_tool body)

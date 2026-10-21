@@ -4,22 +4,23 @@ import "lib/mcp/tools.hvn" as TT
 q _ = @char_string 34
 qstr s = (q 0) + s + (q 0)
 
--- Construit le body JSON sans escape \"
-echo_body _ = "{" + qstr "name" + ":" + qstr "echo" + "," + qstr "arguments" + ":{" + qstr "text" + ":" + qstr "hi" + "}}"
-time_body _ = "{" + qstr "name" + ":" + qstr "time_now" + "," + qstr "arguments" + ":{" + "}}"
-unk_body _ = "{" + qstr "name" + ":" + qstr "other" + "," + qstr "arguments" + ":{" + "}}"
-
 find_str_from s pat i =
   if i + (string_length pat) > (string_length s) then 0 - 1
   else if (string_matches_at s i pat) then i
   else find_str_from s pat (i + 1)
 contains s pat = (find_str_from s pat 0) >= 0
 
-echo_res _ = TT.handle_tools_call 1 (echo_body 0)
-time_res _ = TT.handle_tools_call 2 (time_body 0)
-unk_res _ = TT.handle_tools_call 3 (unk_body 0)
+echo_body _ = "{" + qstr "name" + ":" + qstr "echo" + "," + qstr "arguments" + ":{" + qstr "text" + ":" + qstr "hi" + "}}"
+count_body _ = "{" + qstr "name" + ":" + qstr "count_chars" + "," + qstr "arguments" + ":{" + qstr "text" + ":" + qstr "hello" + "}}"
+time_body _ = "{" + qstr "name" + ":" + qstr "time_now" + "," + qstr "arguments" + ":{" + "}}"
+unk_body _ = "{" + qstr "name" + ":" + qstr "other" + "," + qstr "arguments" + ":{" + "}}"
 
-test "echo_has_result": contains (echo_res 0) "result" == true
-test "echo_has_hi": contains (echo_res 0) "hi" == true
-test "time_has_result": contains (time_res 0) "result" == true
-test "unk_has_unknown": contains (unk_res 0) "unknown" == true
+echo_res _ = TT.handle_tools_call 1 (echo_body 0)
+count_res _ = TT.handle_tools_call 2 (count_body 0)
+time_res _ = TT.handle_tools_call 3 (time_body 0)
+unk_res _ = TT.handle_tools_call 4 (unk_body 0)
+
+test "echo_hi": contains (echo_res 0) "hi" == true
+test "count_5": contains (count_res 0) "5" == true
+test "time_nonempty": contains (time_res 0) "result" == true
+test "unknown_tool": contains (unk_res 0) "unknown" == true

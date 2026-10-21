@@ -1,19 +1,13 @@
 -- lib/mcp/handlers.hvn -- MCP method handlers (2026-10-21)
--- Pas de dispatch (bloque LSP-server, voir _lsp_server_wip.md).
--- Chaque handler retourne un body JSON standalone.
-
 q _ = @char_string 34
 qstr s = (q 0) + s + (q 0)
 n2s n = int_to_string n
 
--- Response wrapper : {"jsonrpc":"2.0","id":N,"result":<result>}
 resp i r =
   "{" + qstr "jsonrpc" + ":" + qstr "2.0" + "," +
   qstr "id" + ":" + n2s i + "," +
   qstr "result" + ":" + r + "}"
 
--- MCP initialize result :
---   {"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"heaven","version":"0.1"}}
 init_result _ =
   "{" +
     qstr "protocolVersion" + ":" + qstr "2024-11-05" + "," +
@@ -23,32 +17,26 @@ init_result _ =
       qstr "version" + ":" + qstr "0.1" +
     "}" +
   "}"
-
 init_body i = resp i (init_result 0)
 
--- tools/list result : {"tools":[{tool1},{tool2}]}
--- MVP : 2 tools (echo, time_now)
+tool_def name desc =
+  "{" + qstr "name" + ":" + qstr name + "," +
+  qstr "description" + ":" + qstr desc + "," +
+  qstr "inputSchema" + ":{" + qstr "type" + ":" + qstr "object" + "}}"
+
 tools_list_inner _ =
   "{" + qstr "tools" + ":[" +
-    "{" +
-      qstr "name" + ":" + qstr "echo" + "," +
-      qstr "description" + ":" + qstr "Echoes input" + "," +
-      qstr "inputSchema" + ":{" + qstr "type" + ":" + qstr "object" + "}" +
-    "}," +
-    "{" +
-      qstr "name" + ":" + qstr "time_now" + "," +
-      qstr "description" + ":" + qstr "Current Unix timestamp" + "," +
-      qstr "inputSchema" + ":{" + qstr "type" + ":" + qstr "object" + "}" +
-    "}" +
+  (tool_def "echo" "Echoes text") + "," +
+  (tool_def "time_now" "Unix timestamp seconds") + "," +
+  (tool_def "time_ms" "Unix timestamp milliseconds") + "," +
+  (tool_def "fs_read" "Read file by path") + "," +
+  (tool_def "count_chars" "Count chars in text") +
   "]}"
-
 tools_list_body i = resp i (tools_list_inner 0)
 
--- tools/call result : {"content":[{"type":"text","text":"<output>"}]}
 tool_result txt =
   "{" + qstr "content" + ":[{" +
     qstr "type" + ":" + qstr "text" + "," +
     qstr "text" + ":" + qstr txt +
   "}]}"
-
 tool_call_body i txt = resp i (tool_result txt)
