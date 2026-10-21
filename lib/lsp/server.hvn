@@ -1,0 +1,33 @@
+-- lib/lsp/server.hvn -- LSP single-shot dispatcher (2026-10-21)
+-- Limite : dispatch multi-branches avec appels de fonction pose probleme
+-- (T3 KO, voir _lsp_server_wip.md). MVP : initialize seulement.
+import "stdlib/string.hvn"
+import "lib/lsp/stdio.hvn" as IO
+import "lib/lsp/frame.hvn" as F
+import "lib/lsp/handlers.hvn" as H
+
+q _ = @char_string 34
+id_pat _ = (q 0) + "id" + (q 0) + ":"
+
+find_str_from s pat i =
+  if i + (string_length pat) > (string_length s) then 0 - 1
+  else if (string_matches_at s i pat) then i
+  else find_str_from s pat (i + 1)
+
+digit_val b = if b < 48 then 0 - 1 else if b > 57 then 0 - 1 else b - 48
+parse_id_from s i acc =
+  if i >= (string_length s) then acc
+  else parse_id_step s i acc
+parse_id_step s i acc =
+  if (digit_val (peek_byte (string_ptr s) i)) < 0 then acc
+  else parse_id_from s (i + 1) (acc * 10 + (digit_val (peek_byte (string_ptr s) i)))
+extract_id s =
+  if (find_str_from s (id_pat 0) 0) < 0 then 1
+  else parse_id_from s ((find_str_from s (id_pat 0) 0) + (string_length (id_pat 0))) 0
+
+-- MVP : initialize seulement. didOpen/didSave/shutdown = session dediee.
+handle_init body = H.init_body (extract_id body)
+
+-- serve_once lit un frame, dispatche, ecrit la reponse
+serve_once n =
+  IO.write_stdout (F.frame (handle_init (F.parse_body (IO.read_stdin n))))
