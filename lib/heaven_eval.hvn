@@ -16,7 +16,11 @@ eval (HP.EApply f a) env = (eval_apply f a env)
 eval (HP.ELambda p b) env = (VClosure p b env)
 eval (HP.EBind n b) env = (eval_bind n b env)
 
-eval_sym s env = (if (= s "+") (VPrim "+") (if (= s "-") (VPrim "-") (if (= s "*") (VPrim "*") (if (= s "=") (VPrim "=") (if (= s "<") (VPrim "<") (env_lookup s env))))))
+prim_ops _ = (cons "+" (cons "-" (cons "*" (cons "=" (cons "<" (cons "==" (cons "!=" (cons ">" (cons "<=" (cons ">=" nil)))))))))) 
+in_list s (cons x rest) = (if (= s x) 1 (in_list s rest))
+in_list s nil = 0
+
+eval_sym s env = (if (= (in_list s (prim_ops 0)) 1) (VPrim s) (env_lookup s env))
 
 env_lookup name EnvNil = (VErr "symbole non lie")
 env_lookup name (EnvCons n v rest) = (if (= n name) v (env_lookup name rest))
@@ -40,7 +44,8 @@ eval_prim op a env = (eval_prim2 op (eval a env))
 eval_prim2 op (VInt x) = (VPrim1 op x)
 eval_prim2 op v = (VErr "prim attend un entier")
 
-prim_fin op x (VInt y) = (if (= op "+") (VInt (+ x y)) (if (= op "-") (VInt (- x y)) (if (= op "*") (VInt (* x y)) (if (= op "=") (if (= x y) (VInt 1) (VInt 0)) (if (= op "<") (if (< x y) (VInt 1) (VInt 0)) (VErr "prim inconnue"))))))
+prim_cmp op x y = (if (= op "==") (if (= x y) (VInt 1) (VInt 0)) (if (= op "!=") (if (= x y) (VInt 0) (VInt 1)) (if (= op ">") (if (< y x) (VInt 1) (VInt 0)) (if (= op "<=") (if (< y x) (VInt 0) (VInt 1)) (if (= op ">=") (if (< x y) (VInt 0) (VInt 1)) (VErr "prim inconnue"))))))
+prim_fin op x (VInt y) = (if (= op "+") (VInt (+ x y)) (if (= op "-") (VInt (- x y)) (if (= op "*") (VInt (* x y)) (if (= op "=") (if (= x y) (VInt 1) (VInt 0)) (if (= op "<") (if (< x y) (VInt 1) (VInt 0)) (prim_cmp op x y))))))
 prim_fin op x v = (VErr "prim attend un entier")
 
 eval_bind n (HP.ELambda p b) env = (VRecClosure n p b env)
