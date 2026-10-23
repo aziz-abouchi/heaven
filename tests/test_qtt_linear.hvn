@@ -1,0 +1,17 @@
+-- test_qtt_linear.hvn -- facade QTT linear tracker (2026-10-24)
+import "lib/qtt/linear.hvn" as L
+
+d1 _ = L.MkDecl "x" 1
+d2 _ = L.MkDecl "x" 0
+d3 _ = L.MkDecl "z" 2
+u1 _ = L.incr_used "x" (L.incr_used "x" nil)
+u2 _ = L.incr_used "y" nil
+
+test "one_used_twice_violated": (L.check_all (cons (d1 0) nil) (u1 0)) == 0
+test "zero_unused_ok": (L.check_all (cons (d2 0) nil) (u2 0)) == 1
+test "zero_used_violated": (L.check_all (cons (d2 0) nil) (u1 0)) == 0
+test "many_ok": (L.check_all (cons (d3 0) nil) (u2 0)) == 1
+test "lookup_x": (L.lookup_used "x" (u1 0)) == 2
+test "empty_ok": (L.check_all nil nil) == 1
+test "lookup_absent": (L.lookup_used "z" (u1 0)) == 0
+test "one_used_once_ok": (L.check_all (cons (L.MkDecl "y" 1) nil) (u2 0)) == 1

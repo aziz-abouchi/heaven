@@ -1,0 +1,26 @@
+-- lib/qtt/linear.hvn -- QTT linear tracker facade .hvn (2026-10-24)
+-- Reproduit LinearChecker (types.zig:145) en pur .hvn.
+-- Quantities : 0=zero, 1=one, 2=many (usage).
+-- declare name qty : qty attendu (0=jamais, 1=une fois, 2=plusieurs)
+-- use name : incremente le compteur d'usage
+-- check_all : 1 si toutes les declarations respectees, 0 sinon
+
+data Decl = MkDecl String Int
+data Used = MkUsed String Int
+
+lookup_used name (cons (MkUsed n c) rest) =
+  if n == name then c else lookup_used name rest
+lookup_used name nil = 0
+
+incr_used name (cons (MkUsed n c) rest) =
+  if n == name then cons (MkUsed n (c + 1)) rest
+  else cons (MkUsed n c) (incr_used name rest)
+incr_used name nil = cons (MkUsed name 1) nil
+
+check_decl (MkDecl n 0) used = if (lookup_used n used) == 0 then 1 else 0
+check_decl (MkDecl n 1) used = if (lookup_used n used) == 1 then 1 else 0
+check_decl (MkDecl n _) used = 1
+
+check_all (cons d rest) used =
+  if (check_decl d used) == 1 then check_all rest used else 0
+check_all nil used = 1
