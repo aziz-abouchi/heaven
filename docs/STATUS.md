@@ -502,3 +502,14 @@ Résultats de référence (`docs/spec/_bench.md`) :
 - `docs/book/src/CHANGELOG.md` : entree 2026-10-21.
 - `_session_continuity.md` : v2 (+60 lignes).
 - `docs/spec/_mcp_loop_wip.md`, `_mcp_tools_wip.md` : WIP documentes.
+
+## 2026-10-23 (session 1 -- OS Phase 1B .hvn)
+
+### Livre
+- `lib/os/device.hvn` : +Net, +Timer (9/9 tests).
+- `lib/os/ipc.hvn` : +3 protocoles Disk/Net/Timer (9/9 tests).
+- Baseline 12/12 fichiers `.hvn` verts.
+
+### Commits
+- `67990ad` device Net + Timer
+- `b6f413b` ipc Disk/Net/Timer

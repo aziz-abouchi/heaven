@@ -401,8 +401,10 @@ chaque tool. `fs_read /etc/hostname` → `"devilHope"`.
 ## `lib/os/` — abstractions OS composables (Phase 1A/1B)
 
 ### `device.hvn` — Device via HKT V1a
-- `data Uart`, `data RamDisk`, `instance Device ...`
+- `data Uart`, `data RamDisk`, `data Net`, `data Timer`
+- `instance Device ...` pour les 4
 - `read_uart`, `write_uart`, `read_ramdisk`, `write_ramdisk`
+- `read_net`, `write_net`, `read_timer`, `write_timer`
 
 ### `scheduler.hvn` — ordonnanceur cooperatif
 - `data Task = MkTask id priority`
@@ -415,7 +417,11 @@ chaque tool. `fs_read /etc/hostname` → `"devilHope"`.
 - `data Inode`, `mk_inode`, `size_of`, `lookup_inode`, `total_size`
 
 ### `ipc.hvn` — protocoles MPST
-- `proto_client`, `proto_driver`
+- `proto_client`, `proto_driver` (read/data)
+- `proto_disk_client/driver` (blk_read/blk_data)
+- `proto_net_client/driver` (send/ack)
+- `proto_timer_client/driver` (wait/tick)
+- `verify proto labels` — verifie un trace via M.check
 
 ### `kernel.hvn` — composition Kernel + KernelQ
 - `Kernel = MkKernel disk root task` (mono-tache)
