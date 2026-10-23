@@ -66,7 +66,13 @@ pick n e t m f c =
   else if n == "count_chars" then c
   else "unknown tool"
 
-run_tool body = precalc body
+run_tool body =
+  if (extract_name body) == "echo" then (w_echo body)
+  else if (extract_name body) == "time_now" then (w_time_sec body)
+  else if (extract_name body) == "time_ms" then (w_time_ms body)
+  else if (extract_name body) == "fs_read" then (w_fs body)
+  else if (extract_name body) == "count_chars" then (w_count body)
+  else "unknown tool"
 
 handle_tools_call i body = M.tool_call_body i (run_tool body)
 
