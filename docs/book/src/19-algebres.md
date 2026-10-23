@@ -86,7 +86,7 @@ algèbres : écrire une fois, réutiliser partout.
 ## 4. Ce qui manque pour V1
 
 - **Classes de types** (`class Monoid m where ...`) — pas encore
-  dans Heaven V0.5. Voir chapitre 20.
+  dans Heaven V0.6. Voir chapitre 20.
 - **Contraintes** (`Monoid m => ...`) — idem.
 - **Instances multiples** (un type peut être `Monoid` de plusieurs
   façons). Résolu en V1 par un système de `newtype`.

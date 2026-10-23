@@ -9,7 +9,7 @@ Prenez `map`. Elle fonctionne sur les listes, mais aussi sur les
 structures partagent une forme commune : elles **contiennent** des
 valeurs. Comment écrire une seule `map` qui marche pour toutes ?
 
-Heaven V0.5 accepte un constructeur de type en **position
+Heaven V0.6 accepte un constructeur de type en **position
 d'argument** :
 
     sig wrap : (f : Type) -> (a : Type) -> f a -> f a
@@ -28,7 +28,7 @@ paramétré. C'est un **type d'ordre supérieur** (HKT).
 - `f a` est l'application : `List Int`, `Maybe String`, etc.
 - Le constructeur `f` apparaît en tête — c'est ça, un HKT.
 
-Heaven V0.5 accepte cette signature. **15 tests verts** dans
+Heaven V0.6 accepte cette signature. **15 tests verts** dans
 `tests/test_hkt.hvn`.
 
 ## 2. Autres cas supportés
@@ -98,7 +98,7 @@ sont **l'outil** qui rend possible l'écriture des classes :
 Sans HKT, on écrirait `map_list`, `map_option`, `map_result` — une
 par type. Avec, une seule `map`.
 
-Heaven V0.5 est à mi-chemin : la syntaxe HKT est prête, la
+Heaven V0.6 est à mi-chemin : la syntaxe HKT est prête, la
 résolution d'instance viendra.
 
 ## Ce qu'on a appris
