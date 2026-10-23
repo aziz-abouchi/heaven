@@ -1,3 +1,18 @@
+## 0.6 — 2026-10-24
+
+**Emancipation : parseur infixe en `.hvn` (E1.1).**
+
+- `lib/parse/infix.hvn` : parseur infixe minimal (`+ - *`, parens,
+  precedence). 12 tests. Pipeline `.hvn infixe -> HP.lex -> AST S-Expr
+  -> heaven_eval`.
+- `lib/qtt/linear.hvn` : facade QTT (0/1/omega), 8 tests.
+- `lib/hott/path.hvn` : facade Path rank-1 (refl/sym/trans/ap), 14 tests.
+- Grammar tree-sitter : `path_constructor` (HIT HoTT).
+- `lib/syscall/linux_x86_64.hvn` : constantes litterales, `write_str`.
+- `docs/spec/_emancipation_roadmap.md` : 10 phases E1->E10.
+- Decision : surface = infixe uniquement, S-Expr = interne.
+- E1.2 (`if/then/else`) bloque (cycle `parse_atom`/`parse_if`).
+
 ## 0.5 — 2026-10-21
 
 **Écosystème `.hvn` fonctionnel** :
@@ -27,6 +42,43 @@
 
 # Changements récents
 
+## 2026-10-24 (emancipation + E1.1)
+
+### Livre
+- `lib/parse/infix.hvn` (E1.1) : parseur infixe minimal, 12 tests.
+- `lib/qtt/linear.hvn` : facade QTT (0/1/w), 8 tests.
+- `lib/hott/path.hvn` : facade Path rank-1, 14 tests.
+- Grammar tree-sitter : `path_constructor` (HIT HoTT).
+- `lib/syscall/linux_x86_64.hvn` : constantes litterales, `write_str`.
+
+### Decision
+- Surface = infixe uniquement, S-Expr = interne.
+- Pipeline : .hvn infixe -> HP.lex -> AST S-Expr -> heaven_eval.
+- `docs/spec/_emancipation_roadmap.md` : 10 phases (E1->E10).
+
+### Bloque
+- E1.2 (if/then/else) : cycle parse_atom/parse_if. Audit 8 blocs.
+
+## 2026-10-21 (session OS Phase 1B + diagnostics Zig)
+
+### Modules `lib/` livrés
+- `lib/os/scheduler.hvn` : +`drop_id`, +`run_n` (5/5 tests).
+- `lib/os/kernel.hvn` : +`KernelQ`, `kernel_q_tick`/`_current`/`_disk_size`
+  (6/6 tests). Régression Kernel 1A intacte (12/12).
+
+### Diagnostics Zig (sessions dédiées à venir)
+- **`let-in-if`** : SEGV parser dès qu'un `let` est en `then` ou `else`
+  (non-récursif confirmé). Helper hoisté = OK. Règle documentée.
+- **Runner** : SEGV ~23 statements, `heaven.eval` sans reset arena.
+  `test_parser.hvn.skip` documente, `splitTopLevelEq` innocenté.
+- **MCP loop** : `read_stdin 0` → `@intCast` sur errno négatif ;
+  `F.parse_body ""` → assert sur EOF. `serve_once` = 1 frame.
+- **MCP `web_lookup`** : incompatible `precalc+pick` (I/O réseau x7).
+
+### Baseline
+- 10/10 fichiers `tests/*.hvn` verts (éval, meta, parser lit,
+  selfparse, mcp, mcp_tools, scheduler, kernel 1A, kernel Q).
+- 5 commits : `c1294e1`, `7df7a01`, `0552fde`, `fb2098d`, `8a97df9`.
 
 ## 2026-10-20 (soir) -- TLS, DNS, open data, effects
 
@@ -63,7 +115,6 @@
 
 Debug=0, TEST=0, RF=0, wasm_freestanding=0, wasm_wasi=0.
 `test_bigint_d20` isolé KO (pre-existant, memoire 175 Mo).
-
 
 ## 2026-10-20 (matin) -- REPL, VFS, serveur HTTP pur, Fantasy Land, closure fix
 
@@ -106,7 +157,6 @@ Debug=0, TEST=0, RF=0, wasm_freestanding=0, wasm_wasi=0.
 ### Baseline
 
 ReleaseFast `--run-tests` = 0 fail. Debug = 0. wasm×2 = 0.
-
 
 ## 2026-10-19 (cloture) -- is_command, js_ollama_query, http_server.hvn v0
 
@@ -158,7 +208,6 @@ ReleaseFast `--run-tests` = 0 fail. Debug = 0. wasm×2 = 0.
   test_parser, test_hashmap, test_bigint_d20).
 - wasm32-freestanding = 0, wasm32-wasi = 0.
 
-
 ## 2026-10-19 (fin de session) -- HKT V1b 1+2, E5, B3 cutoff
 
 ### HKT V1b (matching structurel)
@@ -194,7 +243,6 @@ ReleaseFast `--run-tests` = 0 fail. Debug = 0. wasm×2 = 0.
 - Debug=0, `zig build test`=0, ReleaseFast `--run-tests`=0 fail,
   wasm32-freestanding=0, wasm32-wasi=0.
 
-
 ## 2026-10-19 -- HTTP fullstack E3, JSON objects, baseline ReleaseFast
 
 ### Vessel / HTTP
@@ -225,6 +273,28 @@ ReleaseFast `--run-tests` = 0 fail. Debug = 0. wasm×2 = 0.
   ReleaseFast `--run-tests` = 0 fail, wasm32-freestanding = 0,
   wasm32-wasi = 0.
 
+## 2026-10-15 (soir) -- Self-hosting : TCP, UDP, bitstrings P3
+
+### Decisions
+- **D-SH4** : pas de Zig std dans le code portable.
+  `raw_syscall` ou `std.os.linux.syscall` uniquement.
+- **D-SH1/2/3** : TLS via OpenSSL FFI, persistance Bitcask-like,
+  IA via ONNX FFI.
+
+### Livre
+- **N1** : TCP client (@net_socket, @net_connect). Tests 5/5.
+- **N1bis** : listen/accept/read/write raw syscalls. HTTP 13/13.
+- **P3 bitstrings** : non aligne + /little + rest:bits. 74/74.
+- **N2** : UDP socket (@net_socket_udp, @net_sendto, @net_recvfrom).
+  DNS pur Heaven en cours (bloque par escape \x).
+
+### Specs
+- _selfhosting_roadmap.md : plan 9 etapes.
+- _magic_0arg_gap.md : magics 0-arg strippes en RHS de let.
+- _string_escape_gap.md : escapes \x non supportes.
+
+### Book
+- Chapitre 24 : Reseau.
 
 ## 2026-10-15 -- VFS, WASM 8 apps, book, fix type
 
@@ -255,7 +325,6 @@ ReleaseFast `--run-tests` = 0 fail. Debug = 0. wasm×2 = 0.
   concatenait `"loadcore/std/list.hvn"`).
 - **`File.content` + `Dir.openFile`** branches sur le VFS.
 
-
 ## 2026-10-14 -- C3 preemptif (D31), A-3a
 
 ### C3 -- Scheduler preemptif
@@ -282,7 +351,6 @@ ReleaseFast `--run-tests` = 0 fail. Debug = 0. wasm×2 = 0.
 ### Tests
 
 - scheduler 3/3, preemptive 12/12, coop 4/4, split 3/3.
-
 
 ## 2026-10-09 (soir) -- Série Kmett + first-class + hex
 
@@ -348,6 +416,19 @@ Permet de voir la viz egraph-viz (Qwen) en local, 100% Heaven.
 - Changelog avant les annexes (pas en préambule).
 - Under the Hood en dernier chapitre (18).
 - 8 transitions narratives ajoutées entre chapitres.
+
+## 2026-10-09 — Chantier D21 : Unification du Lowering (100% complété)
+
+### Pont Tree-sitter → Expr.Store
+- **Statut** : ✅ COMPLÉTÉ
+- **Nœuds supportés** : identifier, int, binary, call, pattern, simple_expr, var_decl, lambda
+- **Commits** : `440a002` (let ... in), commit lambda
+- **Impact** : Le pipeline principal peut désormais utiliser exclusivement le pont Tree-sitter pour toutes les primitives de base
+
+### Lambdas
+- Support du style classique : `\x. body`
+- Curryfication automatique pour multi-paramètres
+- Intégré dans : `03-syntax-in-functions.md` (à enrichir)
 
 ## 2026-10-08 (suite)
 
@@ -837,78 +918,3 @@ sont déjà intégrées dans les chapitres :
   `06-effects.md`, `09-real-world.md`.
 - QTT (`let linear/erased/many x = ... in ...`) — mention dans le
   book, à enrichir.
-
-## 2026-10-09 — Chantier D21 : Unification du Lowering (100% complété)
-
-### Pont Tree-sitter → Expr.Store
-- **Statut** : ✅ COMPLÉTÉ
-- **Nœuds supportés** : identifier, int, binary, call, pattern, simple_expr, var_decl, lambda
-- **Commits** : `440a002` (let ... in), commit lambda
-- **Impact** : Le pipeline principal peut désormais utiliser exclusivement le pont Tree-sitter pour toutes les primitives de base
-
-### Lambdas
-- Support du style classique : `\x. body`
-- Curryfication automatique pour multi-paramètres
-- Intégré dans : `03-syntax-in-functions.md` (à enrichir)
-
-## 2026-10-15 (soir) -- Self-hosting : TCP, UDP, bitstrings P3
-
-### Decisions
-- **D-SH4** : pas de Zig std dans le code portable.
-  `raw_syscall` ou `std.os.linux.syscall` uniquement.
-- **D-SH1/2/3** : TLS via OpenSSL FFI, persistance Bitcask-like,
-  IA via ONNX FFI.
-
-### Livre
-- **N1** : TCP client (@net_socket, @net_connect). Tests 5/5.
-- **N1bis** : listen/accept/read/write raw syscalls. HTTP 13/13.
-- **P3 bitstrings** : non aligne + /little + rest:bits. 74/74.
-- **N2** : UDP socket (@net_socket_udp, @net_sendto, @net_recvfrom).
-  DNS pur Heaven en cours (bloque par escape \x).
-
-### Specs
-- _selfhosting_roadmap.md : plan 9 etapes.
-- _magic_0arg_gap.md : magics 0-arg strippes en RHS de let.
-- _string_escape_gap.md : escapes \x non supportes.
-
-### Book
-- Chapitre 24 : Reseau.
-
-## 2026-10-21 (session OS Phase 1B + diagnostics Zig)
-
-### Modules `lib/` livrés
-- `lib/os/scheduler.hvn` : +`drop_id`, +`run_n` (5/5 tests).
-- `lib/os/kernel.hvn` : +`KernelQ`, `kernel_q_tick`/`_current`/`_disk_size`
-  (6/6 tests). Régression Kernel 1A intacte (12/12).
-
-### Diagnostics Zig (sessions dédiées à venir)
-- **`let-in-if`** : SEGV parser dès qu'un `let` est en `then` ou `else`
-  (non-récursif confirmé). Helper hoisté = OK. Règle documentée.
-- **Runner** : SEGV ~23 statements, `heaven.eval` sans reset arena.
-  `test_parser.hvn.skip` documente, `splitTopLevelEq` innocenté.
-- **MCP loop** : `read_stdin 0` → `@intCast` sur errno négatif ;
-  `F.parse_body ""` → assert sur EOF. `serve_once` = 1 frame.
-- **MCP `web_lookup`** : incompatible `precalc+pick` (I/O réseau x7).
-
-### Baseline
-- 10/10 fichiers `tests/*.hvn` verts (éval, meta, parser lit,
-  selfparse, mcp, mcp_tools, scheduler, kernel 1A, kernel Q).
-- 5 commits : `c1294e1`, `7df7a01`, `0552fde`, `fb2098d`, `8a97df9`.
-
-## 2026-10-24 (emancipation + E1.1)
-
-### Livre
-- `lib/parse/infix.hvn` (E1.1) : parseur infixe minimal, 12 tests.
-- `lib/qtt/linear.hvn` : facade QTT (0/1/w), 8 tests.
-- `lib/hott/path.hvn` : facade Path rank-1, 14 tests.
-- Grammar tree-sitter : `path_constructor` (HIT HoTT).
-- `lib/syscall/linux_x86_64.hvn` : constantes litterales, `write_str`.
-
-### Decision
-- Surface = infixe uniquement, S-Expr = interne.
-- Pipeline : .hvn infixe -> HP.lex -> AST S-Expr -> heaven_eval.
-- `docs/spec/_emancipation_roadmap.md` : 10 phases (E1->E10).
-
-### Bloque
-- E1.2 (if/then/else) : cycle parse_atom/parse_if. Audit 8 blocs.
-
