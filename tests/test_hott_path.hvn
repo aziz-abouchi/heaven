@@ -1,0 +1,24 @@
+-- test_hott_path.hvn -- façade Path rank-1 (2026-10-23)
+import "lib/hott/path.hvn" as P
+
+refl0 _ = P.refl 42
+ab _ = P.MkPath 1 10 20
+bc _ = P.MkPath 2 20 30
+bad _ = P.MkPath 1 10 99
+id_f x = x
+inc x = x + 1
+
+test "refl_witness": (P.path_witness (refl0 0)) == 0
+test "refl_start": (P.path_start (refl0 0)) == 42
+test "refl_end": (P.path_end (refl0 0)) == 42
+test "sym_witness": (P.path_witness (P.sym (ab 0))) == (0 - 1)
+test "sym_start": (P.path_start (P.sym (ab 0))) == 20
+test "sym_end": (P.path_end (P.sym (ab 0))) == 10
+test "trans_witness": (P.path_witness (P.trans (ab 0) (bc 0))) == 4
+test "trans_start": (P.path_start (P.trans (ab 0) (bc 0))) == 10
+test "trans_end": (P.path_end (P.trans (ab 0) (bc 0))) == 30
+test "trans_bad_witness": (P.path_witness (P.trans (ab 0) (bad 0))) == 0
+test "ap_id_witness": (P.path_witness (P.ap id_f (ab 0))) == 1
+test "ap_inc_start": (P.path_start (P.ap inc (ab 0))) == 11
+test "ap_inc_end": (P.path_end (P.ap inc (ab 0))) == 21
+test "trans3_witness": (P.path_witness (P.trans3 (ab 0) (bc 0) (P.MkPath 3 30 40))) == 8

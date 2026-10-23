@@ -1,0 +1,32 @@
+-- lib/hott/path.hvn -- Path (HoTT rank-1 façade, 2026-10-23)
+-- Pas de typechecking formel (DependentChecker reste stub dans types.zig).
+-- Representation : MkPath witness start end.
+-- witness = entier symbolique (refl=0, sym=-w, trans=w1+w2+1).
+-- Convention : paths entre valeurs de Type_0 (Int, String, ADT).
+
+data Path = MkPath Int Int Int
+
+path_witness (MkPath w _ _) = w
+path_start (MkPath _ s _) = s
+path_end (MkPath _ _ e) = e
+
+-- Constructeur : reflexivity
+refl a = MkPath 0 a a
+
+-- Symetrie : inverse le witness et swap start/end
+sym (MkPath w s e) = MkPath (0 - w) e s
+
+-- Transitivite (chaine non connexe -> witness 0, signal d'erreur)
+trans (MkPath w1 s1 e1) (MkPath w2 s2 e2) =
+  if e1 == s2 then MkPath (w1 + w2 + 1) s1 e2
+  else MkPath 0 s1 e2
+
+-- Application d'une fonction a un path
+ap f (MkPath w s e) = MkPath w (f s) (f e)
+
+-- Transport : applique P a l'endpoint de droite
+transport P (MkPath _ _ e) x = P e
+
+-- Compositions utiles
+trans3 p q r = trans (trans p q) r
+refl_eq p = trans p (sym p)
