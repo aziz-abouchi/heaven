@@ -259,3 +259,14 @@ peut etre un stack overflow qui met ~10s a atteindre la guard page.
 `ulimit -s 64` discrimine : si instantane = stack overflow, si pareil
 = boucle CPU pure. `gdb -nx` (sans init Python) + core dump est la
 methode fiable.
+
+## Session 2026-10-23 (nuit) -- HoTT path.hvn
+
+lib/hott/path.hvn : MkPath witness start end, refl/sym/trans/ap/
+transport/trans3/refl_eq. 14 tests verts. Facade rank-1.
+
+Etat typechecker : DependentChecker et TypeEnv.infer sont STUBS.
+elabDataDecl ignore tparams. lambda = GAP parser (contournement
+id_f x = x). Roadmap 5-6 sessions dans docs/spec/_hott_roadmap.md.
+
+Q1(a) + Q2(A) actees. Baseline 15/15 fichiers .hvn verts.

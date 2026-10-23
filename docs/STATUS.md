@@ -523,3 +523,8 @@ Résultats de référence (`docs/spec/_bench.md`) :
 
 ### Commit
 - `1672ce8` fix(parser): let-in-if -- parseLetExpr manquant
+
+## 2026-10-23 (session 3 -- HoTT path.hvn)
+
+- lib/hott/path.hvn (14 tests) + _hott_roadmap.md
+- Commit efa9458
