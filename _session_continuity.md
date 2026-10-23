@@ -313,3 +313,26 @@ PAS au niveau atome. parse_atom ne connait pas if.
 4. E3 (--meta).
 5. Axe 1 QTT ensuite.
 
+
+## Session 2026-10-24 (WE) -- primitives + nettoyage
+
+### Livre
+- lib/heaven_eval.hvn : +primitives == != > <= >= via table plate
+  (prim_ops + in_list). prim_fin delegue a prim_cmp. Cascade de 10
+  if remplacee, test_eval ne crashe plus a 134.
+- tests/test_heaven_eval_prims.hvn : 16/16 (5 nouvelles + regressions).
+- Nettoyage : 8 .bak supprimes, /tmp vide, 1 branche mergee supprimee.
+  2 branches non mergees gardees (backup-wip-20260914, physical-telemetry).
+
+### Bloque
+parse_cmp dans infix.hvn : SEGV au chargement (meme famille que
+le cycle E1.2 parse_atom/parse_if). Rollback, primitives prêtes.
+Doc : docs/spec/_cascade_if_bug.md (nouveau).
+
+### Commits
+- ff3c591 feat(heaven_eval): primitives etendues (refactor plat)
+- 1644b99 test(heaven_eval): 16/16 tests
+- fc75d94 docs(spec): cascade if > 5-6 niveaux
+
+### Baseline
+18/18 fichiers .hvn verts. zig build test 404/407 preserve.

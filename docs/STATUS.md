@@ -550,3 +550,15 @@ E1.2 (if/then/else) : cycle de definitions parse_atom/parse_if.
 
 ### Baseline
 17/17 fichiers .hvn verts. zig build test 404/407.
+
+## 2026-10-24 (session WE)
+
+### Livre
+- heaven_eval : primitives == != > <= >= (table plate, 16 tests)
+- Nettoyage : 8 .bak, /tmp, 1 branche mergee
+
+### Bloque
+- parse_cmp : SEGV (famille cascade if, doc _cascade_if_bug.md)
+
+### Baseline
+18/18 fichiers .hvn verts, zig build test 404/407.

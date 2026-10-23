@@ -12,6 +12,11 @@
 - `docs/spec/_emancipation_roadmap.md` : 10 phases E1->E10.
 - Decision : surface = infixe uniquement, S-Expr = interne.
 - E1.2 (`if/then/else`) bloque (cycle `parse_atom`/`parse_if`).
+- `lib/heaven_eval.hvn` : +primitives `== != > <= >=` via table plate
+  (`prim_ops` + `in_list`). 16 tests (`test_heaven_eval_prims`).
+- `docs/spec/_cascade_if_bug.md` : cascade `if` > 5-6 niveaux crash
+  le parser (3 cas : `eval_sym`, `is_cmp`, cycle E1.2).
+- Nettoyage : 8 `.bak` supprimes, `/tmp` vide.
 
 ## 0.5 — 2026-10-21
 

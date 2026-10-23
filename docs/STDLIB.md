@@ -475,3 +475,10 @@ chaque tool. `fs_read /etc/hostname` → `"devilHope"`.
 - Tests : tests/test_hott_path.hvn (14 tests)
 - Pas de typechecking formel (DependentChecker stub). Roadmap :
   docs/spec/_hott_roadmap.md (5-6 sessions).
+
+### Primitives etendues (heaven_eval.hvn, 2026-10-24)
+- `==`, `!=`, `>`, `<=`, `>=` : comparaisons entieres.
+- Implementation : `prim_ops` (liste) + `in_list` (lookup), evite la
+  cascade if > 5-6 niveaux (voir docs/spec/_cascade_if_bug.md).
+- `prim_cmp` : sous-fonction pour les comparaisons non-arithmetiques.
+- Tests : tests/test_heaven_eval_prims.hvn (16/16).
