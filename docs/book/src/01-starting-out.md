@@ -150,7 +150,7 @@ sens de `inc`, c'est ce que `inc` fait. Deux points de vue
 
 Voici une fonction qui calcule la factorielle d'un nombre :
 
-    heaven> fac n = if (== n 0) 1 (* n (fac (- n 1)))
+    heaven> fac n = if n == 0 then 1 else n * fac (n - 1)
     ✓ clause enregistrée pour 'fac'
 
     heaven> fac 5
