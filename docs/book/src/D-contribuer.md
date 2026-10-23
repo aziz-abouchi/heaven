@@ -45,3 +45,4 @@ formule obscure, un exemple faux : corrigez.
 ```bash
 cd docs/book
 mdbook serve --open
+```

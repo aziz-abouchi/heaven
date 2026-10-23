@@ -118,10 +118,10 @@ Les litteraux negatifs doivent s'ecrire `(- 0 100)`, pas `-100`.
 **Correctif** : utiliser un chemin relatif (`"foo.txt"`) ou quoter
 le chemin (`(quote "/tmp/foo.txt")`).
 
-### `(let x "string" x)` affiche verbatim
+### `(let x "string" x)` -- **corrige 2026-10-23**
 
-Un `let` dont la valeur est une chaine est renvoye tel quel (bug
-parser). Workaround : lier la chaine a un symbole.
+`(let x "a" x)` retourne `"a"`. Fix `let-in-if` (commit `1672ce8`)
+corrigeait le parseur natif. Plus de contournement necessaire.
 
 ### Préfixes réservés (BUG corrigé 2026-10-19)
 
@@ -146,23 +146,17 @@ marchent maintenant.
 **Fixé** : `heaven run script.hvn` avec let-chain 2-3 niveaux
 (`66f0b32`, `normalizeLetChain`).
 
-**Toujours cassé** :
-- `.hvn` helper `f _ = (let a = 1 in let b = 2 in body)`.
-- `let` en argument de S-expr : `(+ (let a 1 in a) (let b 2 in b))`.
-- **Pattern `_` dans une def + `heaven run`** : `helper _ = 42`
-  puis `(helper 0)` -> `ArityMismatch`. Bloque E4b (serveur HTTP
-  en `.hvn`).
+**Corriges 2026-10-23** (commit `1672ce8`, `parseLetExpr` fixe) :
+- `.hvn` helper `f _ = let a = 1 in let b = 2 in a + b` -> `3` OK.
+- **Pattern `_` dans une def** : `helper _ = 42` puis `(helper 0)`
+  -> `42` OK.
+- `let ... in` multi-lignes : OK.
 
-**Workarounds** :
-- Écrire `fn` + `seq` : `fn f _ = (seq e1 (seq e2 e3))`.
-- Ou S-expr nested : `(let a 1 (let b 2 body))`.
-- Voir `docs/tutorials/no_let_chain.md` (tuto complet) et
-  `docs/spec/_let_chain_bug.md` (diagnostic).
+**Toujours casse** :
+- `let` en argument de S-expr : `(+ (let a 1 in a) (let b 2 in b))`
+  -> expression brute, non evaluee.
 
-### `let ... in` multi-lignes
-
-Le body d'une equation doit etre sur **une seule ligne** ou etre
-un S-expr parenthese.
+Voir `docs/spec/_let_chain_bug.md` pour l'historique complet.
 
     read_all u =
       let fd = io_open "f" in     -- ✗ multi-lignes

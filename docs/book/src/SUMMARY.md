@@ -1,6 +1,6 @@
 # Summary
 
-> **Heaven 0.5** — État au 2026-10-21. Voir [Versions](#versions) en fin
+> **Heaven 0.6** — État au 2026-10-24. Voir [Versions](#versions) en fin
 > de page pour la grille complète.
 
 ## Partie I — Découverte (lecteur littéraire bienvenu)

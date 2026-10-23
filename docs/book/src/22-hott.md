@@ -25,11 +25,13 @@ Trois propriétés distinguent CIC de HoTT :
   `a = b` sont identifiables. En HoTT, c'est faux.
 - **Pas de types de chemins** : `a = b` est une proposition. En
   HoTT, c'est un type.
-- **Pas de HITs** (Higher Inductive Types) : un `data` produit un
-  inductif simple, sans constructeurs de chemin.
+- **HITs partiels** (2026-10-24) : la grammaire accepte les
+  path constructors (`data S1 = Base | Loop : Base = Base`),
+  mais `elab.zig` ignore encore les champs `from`/`to`. Parse
+  seulement, pas encore d'éliminateur.
 
-Ces trois propriétés sont **compatibles** avec CIC et
-**incompatibles** avec HoTT.
+UIP et absence de types de chemins restent vrais, mais HIT n'est
+plus totalement absent.
 
 ## 2. Pourquoi V0 n'est PAS HoTT
 
@@ -96,7 +98,8 @@ des cas pratiques sans toucher au noyau.
 ## Ce qu'on a appris
 
 - Heaven V0 est **CIC standard**, pas HoTT.
-- Trois propriétés distinguent : UIP, pas de chemins, pas de HITs.
+- UIP et absence de chemins typés restent vrais. HIT partiel
+  (path_constructor parse depuis 2026-10-24, pas encore éliminé).
 - HoTT demande une **refonte du noyau** (Voie A : axiomes ;
   Voie B : cubical).
 - Les **quotients** se font par **setoïdes** en V0, sans toucher

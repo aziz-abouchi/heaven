@@ -223,12 +223,13 @@ Trois bugs séparés, voir `docs/spec/_let_chain_bug.md` :
 
 1. **Fixé** (`66f0b32`) : `heaven run script.hvn` avec let-chain
    top-level.
-2. **KO** : let-chain dans un helper `.hvn` (`f _ = (let ... in
-   let ... in body)`). C'est ce qui casse `http_get` et
-   `core/http_server.hvn`.
-3. **KO** : pattern `_` + `heaven run` — `helper _ = 42` puis
-   `(helper 0)` -> `ArityMismatch`. **Bloque E4b** (serveur HTTP
-   en `.hvn`).
+2. **Fixé 2026-10-23** (`1672ce8`) : let-chain dans helper `.hvn`.
+   `f _ = let a = 1 in let b = 2 in a + b` -> `3` OK.
+3. **Fixé 2026-10-23** (`1672ce8`) : pattern `_` + appel. `helper _ = 42`
+   puis `(helper 0)` -> `42` OK. Débloque E4b (serveur HTTP en `.hvn`).
+
+**Toujours cassé** : `let` en argument de S-expr
+(`(+ (let a 1 in a) (let b 2 in b))`).
 
 ### Workarounds (testés)
 
