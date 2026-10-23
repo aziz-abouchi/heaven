@@ -150,21 +150,21 @@ sens de `inc`, c'est ce que `inc` fait. Deux points de vue
 
 Voici une fonction qui calcule la factorielle d'un nombre :
 
-    heaven> fact n = if (== n 0) 1 (* n (fact (- n 1)))
-    ✓ clause enregistrée pour 'fact'
+    heaven> fac n = if (== n 0) 1 (* n (fac (- n 1)))
+    ✓ clause enregistrée pour 'fac'
 
-    heaven> fact 5
+    heaven> fac 5
     120
 
-Regarde bien la définition. `fact` appelle `fact`. La fonction se
+Regarde bien la définition. `fac` appelle `fac`. La fonction se
 définit **en s'appelant elle-même**. C'est ce qu'on appelle la
 **récursion**.
 
 Wittgenstein, dans les *Investigations philosophiques* (§185-§242),
 a longuement médité sur ce phénomène étrange : comment sais-tu que
-`fact 5` doit s'arrêter ? Rien dans la définition ne dit
+`fac 5` doit s'arrêter ? Rien dans la définition ne dit
 « arrête-toi après 5 étapes ». Pourtant, la fonction s'arrête.
-Parce que tu as posé une **règle de base** : `fact 0 = 1`. Sans
+Parce que tu as posé une **règle de base** : `fac 0 = 1`. Sans
 cette règle, la définition tournerait à l'infini, comme un serpent
 qui se mord la queue sans jamais se dévorer complètement.
 
