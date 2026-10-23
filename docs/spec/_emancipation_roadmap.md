@@ -56,3 +56,17 @@ S-Expr = representation interne (desucrage, AST, eval).
 **Ordre revise** : E1 (parse_infix) -> E3 (meta) -> E2 (C) -> E4..E10
 E3 avant E1 = S-expr only = violate la regle.
 
+
+## E1.2 -- if/then/else (BLOQUE, 2026-10-24)
+
+Tentative ajout if/then/else a infix.hvn : rollback.
+Symptome : import infix.hvn crash silencieusement (aucun print,
+exit 0). Meme "start" n apparait pas.
+
+Cause probable : is_kw (HP.TSymTok tk) s = (= tk s) -- pattern match
+sur TSymTok avec deux args au lieu d un. Ou parse_if boucle.
+
+A reprendre session fraiche : tester is_kw seul, puis parse_if
+incrementalement (parse_if sur "if 1 then 2 else 3" sans l import
+global, un cas a la fois).
+
