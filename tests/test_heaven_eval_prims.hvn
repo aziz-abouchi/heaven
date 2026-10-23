@@ -1,0 +1,19 @@
+-- test_heaven_eval_prims.hvn -- primitives etendues (2026-10-24)
+import "lib/heaven_eval.hvn" as HE
+
+gi (VInt n) = n
+gi _ = 0 - 999
+ev e = HE.run_expr "" e
+
+test "eq_true": gi (ev "(== 1 1)") == 1
+test "eq_false": gi (ev "(== 1 2)") == 0
+test "neq_true": gi (ev "(!= 1 2)") == 1
+test "neq_false": gi (ev "(!= 1 1)") == 0
+test "gt_true": gi (ev "(> 2 1)") == 1
+test "gt_false": gi (ev "(> 1 2)") == 0
+test "le_true": gi (ev "(<= 2 2)") == 1
+test "le_false": gi (ev "(<= 3 2)") == 0
+test "ge_true": gi (ev "(>= 3 2)") == 1
+test "ge_false": gi (ev "(>= 1 2)") == 0
+test "add_still_ok": gi (ev "(+ 1 2)") == 3
+test "lt_still_ok": gi (ev "(< 1 2)") == 1
