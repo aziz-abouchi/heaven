@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 340" font-family="Georgia, serif">
   <rect width="500" height="340" fill="#faf7f2"/>
   <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
-    Le triangle de Frege
+    Le triangle de Frege (Sinn und Bedeutung, 1892)
   </text>
   <!-- Triangle -->
   <polygon points="250,80 100,260 400,260" fill="none" stroke="#2c2c2c" stroke-width="1.5"/>
