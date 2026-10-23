@@ -2083,6 +2083,14 @@ const NativeParser = struct {
         return try buf.toOwnedSlice(self.allocator);
     }
 
+    /// `lambda x body` -> `(lambda x body)`.
+    fn parseLambdaExpr(self: *NativeParser) NativeError![]u8 {
+        const name_tok = try self.lex.next();
+        if (name_tok.kind != .ident) return error.InvalidSyntax;
+        const body = try self.parseExpr(0);
+        return std.fmt.allocPrint(self.allocator, "(lambda {s} {s})", .{ name_tok.text, body });
+    }
+
     /// `let x = v in body` -> `((lambda x body) v)`.
     fn parseLetExpr(self: *NativeParser) NativeError![]u8 {
         const name_tok = try self.lex.next();
@@ -2115,6 +2123,7 @@ const NativeParser = struct {
             .ident => {
                 if (eq(t.text, "if")) return self.parseIfExpr();
                 if (eq(t.text, "let")) return self.parseLetExpr();
+                if (eq(t.text, "lambda")) return self.parseLambdaExpr();
                 return self.allocator.dupe(u8, t.text);
             },
             .lparen => {
