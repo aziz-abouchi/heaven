@@ -37,3 +37,14 @@ drop_id x nil = nil
 
 run_n nil n = nil
 run_n lst n = if n > 0 then run_n (drop_id (task_id (pick_task lst)) lst) (n - 1) else lst
+
+-- run_all : vide la liste completement (retourne nil)
+run_all nil = nil
+run_all lst = run_all (drop_id (task_id (pick_task lst)) lst)
+
+-- run_until_prio : retire tant que la tete a prio >= seuil
+run_until_prio nil t = nil
+run_until_prio lst t =
+  if (prio (pick_task lst)) >= t then
+    run_until_prio (drop_id (task_id (pick_task lst)) lst) t
+  else lst

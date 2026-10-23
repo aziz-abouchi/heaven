@@ -1,0 +1,12 @@
+-- test_os_scheduler_ext.hvn -- run_all + run_until_prio (2026-10-23)
+import "lib/os/scheduler.hvn" as S
+mk _ = cons (S.MkTask 1 5) (cons (S.MkTask 2 9) (cons (S.MkTask 3 2) (cons (S.MkTask 4 7) nil)))
+safe_pick nil = S.MkTask (0 - 1) 0
+safe_pick lst = S.pick_task lst
+
+test "until_prio_6": (S.task_id (S.pick_task (S.run_until_prio (mk 0) 6))) == 1
+test "until_prio_3": (S.task_id (S.pick_task (S.run_until_prio (mk 0) 3))) == 3
+test "until_prio_high_keeps_all": (S.task_id (safe_pick (S.run_until_prio (mk 0) 100))) == 2
+test "run_all_empty": (S.task_id (safe_pick (S.run_all (mk 0)))) == (0 - 1)
+test "regression_run_n3": (S.task_id (S.pick_task (S.run_n (mk 0) 3))) == 3
+test "regression_pick": (S.task_id (S.pick_task (mk 0))) == 2
