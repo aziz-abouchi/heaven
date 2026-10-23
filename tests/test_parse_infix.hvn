@@ -1,0 +1,15 @@
+-- test_parse_infix.hvn -- infixe -> S-expr -> eval (2026-10-24)
+import "lib/parse/infix.hvn" as I
+import "lib/heaven_eval.hvn" as HE
+
+ev e = HE.eval (I.parse_infix e) HE.EnvNil
+get_int (VInt n) = n
+get_int _ = 0 - 999
+
+test "add": get_int (ev "1 + 2") == 3
+test "mul": get_int (ev "3 * 4") == 12
+test "prec_mul": get_int (ev "1 + 2 * 3") == 7
+test "parens": get_int (ev "(1 + 2) * 3") == 9
+test "assoc_sub": get_int (ev "10 - 3 - 2") == 5
+test "neg_zero": get_int (ev "0 - 5") == (0 - 5)
+test "deep": get_int (ev "((1 + 2) * (3 + 4))") == 21

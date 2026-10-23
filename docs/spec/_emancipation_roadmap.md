@@ -44,3 +44,15 @@ E1 depend de : types.zig non-stub (DependentChecker), fix poke/peek
 - Pas de Lustre avant E9 (multi-plateforme)
 - Pas de Zig auto-heberge avant E2 (C backend) valide
 
+
+## Decision E1 (2026-10-24)
+
+**Regle** : surface utilisateur = infixe uniquement.
+S-Expr = representation interne (desucrage, AST, eval).
+
+**Pipeline** :
+  .hvn (infixe) -> [lib/parse/infix.hvn] -> AST S-Expr -> [lib/heaven_eval.hvn] -> Valeur
+
+**Ordre revise** : E1 (parse_infix) -> E3 (meta) -> E2 (C) -> E4..E10
+E3 avant E1 = S-expr only = violate la regle.
+

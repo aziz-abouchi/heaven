@@ -1,0 +1,44 @@
+-- lib/parse/infix.hvn -- parseur infixe minimal (E1.1, 2026-10-24)
+-- Surface = infixe. S-Expr = interne (HP.Expr).
+-- Pipeline : .hvn -> HP.lex -> HP.Expr (consomme par heaven_eval).
+-- Scope E1.1 : int, str, sym, + - * (precedence * > + -), chaines, parens.
+-- Erreur : ESym "PARSE_ERR" (meme convention que HP.parse_one).
+
+import "lib/heaven_parse.hvn" as HP
+
+data IRes = IOk HP.Expr HP.Toks | IErr Str
+
+mk_apply op a b = HP.EApply (HP.EApply (HP.ESym op) a) b
+
+parse_atom (HP.TCons (HP.TIntTok n) rest) = IOk (HP.ELitI n) rest
+parse_atom (HP.TCons (HP.TStrTok s) rest) = IOk (HP.ELitS s) rest
+parse_atom (HP.TCons (HP.TSymTok s) rest) = IOk (HP.ESym s) rest
+parse_atom (HP.TCons HP.TLParen rest) = open_paren rest
+parse_atom _ = IErr "atom expected"
+
+open_paren toks = close_paren (parse_add toks)
+close_paren (IOk e (HP.TCons HP.TRParen rest)) = IOk e rest
+close_paren (IOk _ _) = IErr "expected close paren"
+close_paren (IErr e) = IErr e
+
+step_mul a (HP.TCons (HP.TSymTok "*") rest) = continue_mul a (parse_atom rest)
+step_mul a rest = IOk a rest
+continue_mul a (IOk b rest) = step_mul (mk_apply "*" a b) rest
+continue_mul _ (IErr e) = IErr e
+parse_mul toks = start_mul (parse_atom toks)
+start_mul (IOk a rest) = step_mul a rest
+start_mul (IErr e) = IErr e
+
+step_add a (HP.TCons (HP.TSymTok "+") rest) = continue_add "+" a (parse_mul rest)
+step_add a (HP.TCons (HP.TSymTok "-") rest) = continue_add "-" a (parse_mul rest)
+step_add a rest = IOk a rest
+continue_add op a (IOk b rest) = step_add (mk_apply op a b) rest
+continue_add _ _ (IErr e) = IErr e
+parse_add toks = start_add (parse_mul toks)
+start_add (IOk a rest) = step_add a rest
+start_add (IErr e) = IErr e
+
+to_expr (IOk e HP.TNil) = e
+to_expr (IOk _ _) = HP.ESym "PARSE_ERR"
+to_expr (IErr _) = HP.ESym "PARSE_ERR"
+parse_infix src = to_expr (parse_add (HP.lex src))
