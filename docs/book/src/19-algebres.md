@@ -66,7 +66,7 @@ qui vérifie mécaniquement chaque loi :
     test "Monad associativity":
       (chain g (chain f m)) == (chain (lambda x -> chain g (f x)) m)
 
-Ces tests sont dans `tests/test_laws.hvn` — **34 tests verts**
+Ces tests sont dans `tests/test_laws.hvn` — **28 tests verts**
 aujourd'hui. Chaque fois que vous ajoutez une instance d'algèbre
 pour un nouveau type, les mêmes lois s'appliquent, et vous pouvez
 les vérifier.

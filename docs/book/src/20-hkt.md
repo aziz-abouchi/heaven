@@ -28,8 +28,8 @@ paramétré. C'est un **type d'ordre supérieur** (HKT).
 - `f a` est l'application : `List Int`, `Maybe String`, etc.
 - Le constructeur `f` apparaît en tête — c'est ça, un HKT.
 
-Heaven V0.6 accepte cette signature. **15 tests verts** dans
-`tests/test_hkt.hvn`.
+Heaven V0.6 accepte cette signature. **21 tests verts** repartis dans
+les 5 fichiers `tests/test_hkt*.hvn`.
 
 ## 2. Autres cas supportés
 

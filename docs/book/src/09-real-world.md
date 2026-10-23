@@ -221,7 +221,7 @@ stable, les extensions sont progressives.
 - **`readFile`** et **`writeFile`** sont des effets simples mais
   puissants. Un fichier peut changer entre deux lectures — c'est un
   performatif.
-- Un **serveur HTTP** complet peut s'écrire en 80 lignes de Heaven
+- Un **serveur HTTP** complet peut s'écrire en 90 lignes de Heaven
   pur (`core/http.hvn`).
 - Le **modèle d'acteurs** (Hewitt 1973, Armstrong 1986) évite les
   verrous par construction. Trois primitives : `spawn`, `tell`,
