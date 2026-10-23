@@ -70,3 +70,31 @@ A reprendre session fraiche : tester is_kw seul, puis parse_if
 incrementalement (parse_if sur "if 1 then 2 else 3" sans l import
 global, un cas a la fois).
 
+
+## E1.2 -- if/then/else : cycle de definitions (2026-10-24, audit 8 blocs)
+
+Bisection complete :
+A. import HP + I = OK
+B. + is_kw + mk_if (definitions pures) = OK
+C. I.parse_add sur tokens then/else = OK
+D. I.IOk qualifie en pattern = OK
+E. IOk non-qualifie en pattern = OK
+F. parse_if + pif_* charges sans branchement = OK (12/12)
+G. parse_atom_sym (appel parse_if) = crash silencieux
+H. parse_atom inline -> parse_if = crash silencieux
+
+Conclusion : cycle de definitions mutuelles
+parse_atom -> parse_if -> parse_add -> parse_mul -> parse_atom
+casse le loader .hvn, meme si chaque brique seule marche.
+
+Strategies de reprise (session fraiche) :
+A. parse_if AVANT parse_add, parse_expr = if|parse_add. parse_atom sans if.
+B. Comprendre le cycle cote loader (session Zig + instrumentation)
+C. if traite au niveau top-level (parse_top), pas au niveau atome
+
+Option A recommandee : if est une forme d expression, pas un atome.
+parse_expr toks = si premier token est "if" -> parse_if, sinon parse_add.
+parse_if : parse_expr pour cond (mais on skip if-prefix), parse_add pour cond
+puis then/else -> parse_expr.
+Cycle evite : parse_atom ne connait pas if.
+
