@@ -90,7 +90,7 @@ Un `Vec<n, a>` est une liste de longueur `n` connue à la
 compilation. `append : Vec<m, a> -> Vec<n, a> -> Vec<m+n, a>`.
 La preuve de `m+n` est erased. Le runtime n'a qu'à concaténer.
 
-    append : (m : Nat) -> (n : Nat) -> 1 (Vec m a) -> 1 (Vec n a) -> 1 (Vec (+ m n) a)
+    append : (m : Nat) -> (n : Nat) -> 1 (Vec m a) -> 1 (Vec n a) -> 1 (Vec m+n a)
 
 `m` et `n` sont erased (ils vivent dans les types). Les deux
 `Vec` sont linear (chaque cellule consommée une fois).

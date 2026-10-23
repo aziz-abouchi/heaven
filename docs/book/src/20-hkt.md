@@ -143,7 +143,7 @@ string.
 Test :
 
     test "functor_list":
-      (map "List" (lambda x -> (+ x 1)) (cons 1 (cons 2 nil)))
+      (map "List" (lambda x -> x + 1) (cons 1 (cons 2 nil)))
       == (cons 2 (cons 3 nil))
 
 10 classes Fantasy Land instanciées pour List et Maybe : Setoid, Ord,

@@ -56,7 +56,7 @@ Et voici la version avec l'**intention** de logger :
 
     process x =
       let _ = (perform "Log" x) in
-      (* x 2)
+      x * 2
 
 `perform "Log" x` dit : « je veux logger `x` ». Pas *comment*. C'est
 un signal, pas une action. Le code reste pur tant que personne
@@ -119,7 +119,7 @@ Regardons ce que ça permet. Voici un programme qui émet un signal :
 
     process x =
       let _ = (perform "Log" x) in
-      (* x 2)
+      x * 2
 
 Ce programme est **pur**. Il ne fait rien quand on l'évalue seul. Il
 se contente d'**émettre une intention** que quelqu'un pourra

@@ -183,9 +183,9 @@ La solution est **récursive**, et elle est d'une élégance rare :
     ✓ clause enregistrée pour 'hanoi'
 
     heaven> hanoi n from to via =
-              append (hanoi (- n 1) from via to)
+              append (hanoi (n - 1) from via to)
                      (cons (pair from to)
-                           (hanoi (- n 1) via to from))
+                           hanoi (n - 1) via to from)
     ✓ clause enregistrée pour 'hanoi'
 
 Trois idées, en une définition :
@@ -197,7 +197,7 @@ Trois idées, en une définition :
 4. Redéplacer `n - 1` disques de `via` vers `to`, en utilisant
    `from` comme intermédiaire.
 
-Chaque appel à `hanoi (- n 1)` fait exactement la même chose, sur un
+Chaque appel à `hanoi (n - 1)` fait exactement la même chose, sur un
 problème plus petit. La **récursion** divise le problème en
 sous-problèmes identiques, mais plus petits. C'est la stratégie
 *diviser pour régner* — *divide et impera* — déjà décrite par

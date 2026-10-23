@@ -101,8 +101,8 @@ En Heaven :
 
     heaven> actor Counter state =
               recv (lambda msg.
-                tell (pair "count" (+ state 1))
-                (Counter (+ state 1)))
+                tell (pair "count" (state + 1))
+                (Counter (state + 1)))
 
 L'acteur `Counter` reçoit un message, incrémente son état, répond
 avec `tell`, et se relance. Trois primitives : `spawn` (créer),

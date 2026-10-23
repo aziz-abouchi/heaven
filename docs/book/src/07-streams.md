@@ -52,19 +52,19 @@ Comment retarde-t-on un calcul ? Avec deux magics : `delay` et
 en attente. `force` la déclenche. Le résultat est **mémorisé** : un
 thunk n'est calculé qu'une fois, même si on le force plusieurs fois.
 
-    heaven> let t = (delay (+ 1 2)) in
+    heaven> let t = (delay (1 + 2)) in
               (+ (force t) (force t))
     6
 
 Déroulons :
 
-- `delay (+ 1 2)` crée un thunk qui contient le calcul, pas son
+- `delay (1 + 2)` crée un thunk qui contient le calcul, pas son
   résultat. Rien n'est encore calculé.
-- `(force t)` la première fois évalue `(+ 1 2)`, obtient 3, **stocke**
+- `(force t)` la première fois évalue `1 + 2`, obtient 3, **stocke**
   ce 3 dans le thunk.
 - `(force t)` la seconde fois voit que le thunk est déjà évalué, et
   rend directement le 3 sans recalculer.
-- `(+ 3 3) = 6`.
+- `3 + 3 = 6`.
 
 C'est le principe de la **memoization** : un calcul n'est jamais
 répété deux fois. Une forme de paresse **associée à la mémoire**.
@@ -87,7 +87,7 @@ n'est pas évalué immédiatement. C'est un `delay` implicite.
 
 Voici un stream infini — la suite des entiers naturels :
 
-    heaven> nat n = (Cons n (delay (nat (+ n 1))))
+    heaven> nat n = (Cons n (delay (nat (n + 1))))
     ✓ clause enregistrée pour 'nat'
 
     heaven> nat 0
@@ -109,7 +109,7 @@ Un stream infini ne se termine jamais, mais on peut en prendre un
     ✓ clause enregistrée pour 'streamTake'
 
     heaven> streamTake n (Cons x rest) =
-              (cons x (streamTake (- n 1) (force rest)))
+              cons x (streamTake (n - 1) (force rest))
     ✓ clause enregistrée pour 'streamTake'
 
     heaven> streamTake 3 (nat 0)

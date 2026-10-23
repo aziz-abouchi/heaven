@@ -73,7 +73,7 @@ Quatre magics, une seule idée : *coopérer explicitement*.
 
 Comptons jusqu'à 5, en cédant la main à chaque étape :
 
-    heaven> body s = (if (eq s 5) s (yield (+ s 1)))
+    heaven> body s = (if (eq s 5) s (yield (s + 1)))
     ✓ clause enregistrée pour 'body'
 
     heaven> main u =
@@ -91,7 +91,7 @@ Déroulons :
 - `schedule 1000` lance le scheduler avec un budget de 1000
   réductions.
 - La tâche `body` s'exécute. À chaque étape, elle vérifie `(eq s 5)`.
-  Si non, elle `yield` avec `(+ s 1)`.
+  Si non, elle `yield` avec `s + 1`.
 - Quand `s = 5`, la tâche retourne `5`.
 - `task_state t` lit l'état final.
 
@@ -112,10 +112,10 @@ dérivé du précédent. Le scheduler de Heaven suit cette intuition.
 
 Voici un exemple plus intéressant : deux tâches qui alternent :
 
-    heaven> b1 s = (if (eq s 3) 99 (yield (+ s 1)))
+    heaven> b1 s = (if (eq s 3) 99 (yield (s + 1)))
     ✓ clause enregistrée pour 'b1'
 
-    heaven> b2 s = (if (eq s 5) 99 (yield (+ s 1)))
+    heaven> b2 s = (if (eq s 5) 99 (yield (s + 1)))
     ✓ clause enregistrée pour 'b2'
 
     heaven> main u =

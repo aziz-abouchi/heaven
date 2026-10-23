@@ -118,7 +118,7 @@ Exemple : générer les entiers de 0 à 2, puis les compter.
     ✓ clause enregistrée pour 'ana_step'
     heaven> ana_step f (some (pair x next)) = cons x (ana f next)
     ✓ clause enregistrée pour 'ana_step'
-    heaven> gen n = (if (< n 3) (some (pair n (+ n 1))) none)
+    heaven> gen n = (if (< n 3) (some (pair n (n + 1))) none)
     ✓ clause enregistrée pour 'gen'
     heaven> length_f _ acc = acc + 1
     ✓ clause enregistrée pour 'length_f'
@@ -161,7 +161,7 @@ est directement la valeur finale.
 
 Exemple : la somme des entiers de 0 à 4.
 
-    hylo_gen n = (if (< n 5) (some (pair n (+ n 1))) none)
+    hylo_gen n = (if (< n 5) (some (pair n (n + 1))) none)
     sum_f x acc = x + acc
     resultat = (hylo sum_f 0 hylo_gen 0)   -- 0+1+2+3+4 = 10
 
