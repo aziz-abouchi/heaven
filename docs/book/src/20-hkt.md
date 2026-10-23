@@ -69,7 +69,8 @@ Deux magics :
 Le type `T` est passé en argument **string**. Pas d'inférence de
 type. Écriture typique :
 
-    fmap T f xs = (@dispatch_instance "Functor" T "fmap" f xs)
+    -- (V1b, à venir, @dispatch_instance pas implémenté)
+-- fmap T f xs = (@dispatch_instance "Functor" T "fmap" f xs)
     fmap "List" inc (HCons 1 HNil)   -- -> (HCons 2 HNil)
 
 Testé sur `List` (empty/one/multi). Voir

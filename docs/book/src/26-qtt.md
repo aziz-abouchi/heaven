@@ -26,13 +26,15 @@ Trois régimes suffisent :
 
 Syntaxe actuelle (testée, `heaven run`) :
 
-    let linear x = 42 in x + 1
+    -- (syntaxe proposée, pas encore acceptée par le parser)
+-- let linear x = 42 in x + 1
     -- x utilisé une fois, propriétaire unique
 
     let erased proof = (big_computation 0) in 42
     -- proof jamais lu, effacé au runtime
 
-    let many x = 42 in x + x
+    -- (syntaxe proposée, pas encore acceptée par le parser)
+-- let many x = 42 in x + x
     -- x utilisé deux fois, comportement standard
 
 Les trois formes évaluent correctement :

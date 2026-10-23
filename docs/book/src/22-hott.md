@@ -122,7 +122,7 @@ emancipation (`docs/spec/_emancipation_roadmap.md`).
 
 En attendant l'eliminateur HoTT, une facade rank-1 existe :
 
-    data Path = MkPath witness start end
+    data Path = MkPath Int Int Int   -- (witness, start, end)
     refl a                     -- MkPath 0 a a
     sym (MkPath w s e)         -- MkPath (-w) e s
     trans p q                  -- composition
