@@ -444,3 +444,34 @@ chaque tool. `fs_read /etc/hostname` → `"devilHope"`.
 
 `getrandom` (318), `read` (0), `write` (1), `openat` (257), `close` (3).
 100% `.hvn`, aucun Zig custom. Linux x86_64 uniquement.
+
+## `lib/parse/` -- parseurs infixes (E1)
+
+### `infix.hvn` -- parseur infixe minimal (E1.1)
+- `parse_infix src` -> AST S-Expr (HP.Expr), consomme par heaven_eval
+- Scope : int, str, sym, + - * (precedence * > + -), parens
+- Pipeline : .hvn infixe -> HP.lex -> AST S-Expr -> heaven_eval
+- Erreur : ESym "PARSE_ERR" (convention HP)
+- Tests : tests/test_parse_infix.hvn (7 tests)
+- E1.2 (if/then/else) : cycle parse_atom/parse_if, voir roadmap
+
+## `lib/qtt/` -- QTT multiplicités (facade)
+
+### `linear.hvn` -- tracker linear (2026-10-24)
+- `data Decl = MkDecl String Int` (name, qty attendu 0/1/2)
+- `data Used = MkUsed String Int` (name, compteur usage)
+- `incr_used name used`, `lookup_used name used`
+- `check_all decls used` -> 1 (conforme) / 0 (violation)
+- Tests : tests/test_qtt_linear.hvn (8 tests)
+- Reproduit LinearChecker (types.zig:145) en .hvn. Pas de syntaxe
+  let-linear branchee (cmdQTT shell only).
+
+## `lib/hott/` -- Homotopy Type Theory (facade)
+
+### `path.hvn` -- Path rank-1 (2026-10-23)
+- `data Path = MkPath witness start end`
+- `refl a`, `sym p`, `trans p q`, `ap f p`, `transport P p x`
+- `trans3 p q r`, `refl_eq p`
+- Tests : tests/test_hott_path.hvn (14 tests)
+- Pas de typechecking formel (DependentChecker stub). Roadmap :
+  docs/spec/_hott_roadmap.md (5-6 sessions).

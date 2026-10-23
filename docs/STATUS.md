@@ -528,3 +528,25 @@ Résultats de référence (`docs/spec/_bench.md`) :
 
 - lib/hott/path.hvn (14 tests) + _hott_roadmap.md
 - Commit efa9458
+
+## 2026-10-24 (session emancipation + E1.1)
+
+### Livre
+- lib/parse/infix.hvn : parseur infixe minimal (+ - *, parens). 12 tests.
+- lib/qtt/linear.hvn : facade QTT. 8 tests.
+- lib/hott/path.hvn : facade Path rank-1. 14 tests.
+- grammar path_constructor (HIT HoTT).
+- lib/syscall : constantes litterales + write_str.
+- docs/spec/_emancipation_roadmap.md : 10 phases E1-E10.
+
+### Decision
+Surface utilisateur = infixe uniquement. S-Expr = interne.
+Pipeline : .hvn infixe -> HP.lex -> AST S-Expr -> heaven_eval.
+Ordre : E1 -> E3 -> E2 -> E4..E10.
+
+### Bloque
+E1.2 (if/then/else) : cycle de definitions parse_atom/parse_if.
+3 strategies documentees, A recommandee (if au niveau expr, pas atome).
+
+### Baseline
+17/17 fichiers .hvn verts. zig build test 404/407.

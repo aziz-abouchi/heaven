@@ -894,3 +894,21 @@ sont déjà intégrées dans les chapitres :
 - 10/10 fichiers `tests/*.hvn` verts (éval, meta, parser lit,
   selfparse, mcp, mcp_tools, scheduler, kernel 1A, kernel Q).
 - 5 commits : `c1294e1`, `7df7a01`, `0552fde`, `fb2098d`, `8a97df9`.
+
+## 2026-10-24 (emancipation + E1.1)
+
+### Livre
+- `lib/parse/infix.hvn` (E1.1) : parseur infixe minimal, 12 tests.
+- `lib/qtt/linear.hvn` : facade QTT (0/1/w), 8 tests.
+- `lib/hott/path.hvn` : facade Path rank-1, 14 tests.
+- Grammar tree-sitter : `path_constructor` (HIT HoTT).
+- `lib/syscall/linux_x86_64.hvn` : constantes litterales, `write_str`.
+
+### Decision
+- Surface = infixe uniquement, S-Expr = interne.
+- Pipeline : .hvn infixe -> HP.lex -> AST S-Expr -> heaven_eval.
+- `docs/spec/_emancipation_roadmap.md` : 10 phases (E1->E10).
+
+### Bloque
+- E1.2 (if/then/else) : cycle parse_atom/parse_if. Audit 8 blocs.
+
