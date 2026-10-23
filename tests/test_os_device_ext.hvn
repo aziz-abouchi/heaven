@@ -1,0 +1,15 @@
+-- test_os_device_ext.hvn -- Net + Timer (2026-10-23)
+import "lib/os/device.hvn" as D
+
+net _ = D.MkNet 8080 0
+timer _ = D.MkTimer 500 3
+
+test "net_port": (D.read_net (net 0) 0) == 8080
+test "net_off1_zero": (D.read_net (net 0) 1) == 0
+test "net_write_accum": (D.write_net (net 0) 1 100) == 100
+test "net_write_oob": (D.write_net (net 0) 5 99) == 0
+test "timer_interval": (D.read_timer (timer 0) 0) == 500
+test "timer_count": (D.read_timer (timer 0) 1) == 3
+test "timer_write": (D.write_timer (timer 0) 1 7) == 10
+test "uart_still_ok": (D.read_uart (D.MkUart 42) 0) == 42
+test "ramdisk_still_ok": (D.read_ramdisk (D.MkRamDisk 1000 1024) 10) == 1010

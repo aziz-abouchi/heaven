@@ -32,3 +32,31 @@ read_ramdisk (MkRamDisk base size) off =
 write_ramdisk (MkRamDisk base size) off val =
   if (and (>= off 0) (< off size)) then val
   else 0
+
+-- Net : socket abstrait (port, bytes_sent)
+data Net = MkNet Int Int
+instance Device Net
+
+read_net (MkNet port _) off =
+  if off == 0 then port
+  else if off == 1 then 0
+  else 0
+
+write_net (MkNet port n) off val =
+  if off == 0 then val
+  else if off == 1 then n + val
+  else 0
+
+-- Timer : (interval_ms, tick_count)
+data Timer = MkTimer Int Int
+instance Device Timer
+
+read_timer (MkTimer interval count) off =
+  if off == 0 then interval
+  else if off == 1 then count
+  else 0
+
+write_timer (MkTimer interval count) off val =
+  if off == 0 then val
+  else if off == 1 then count + val
+  else 0
