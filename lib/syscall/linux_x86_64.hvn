@@ -5,24 +5,32 @@
 -- getrandom(2) : buf, len, flags -> bytes remplis (ou -errno)
 sys_getrandom = 318
 
-getrandom buf len flags = raw_syscall sys_getrandom buf len flags
+getrandom buf len flags = raw_syscall 318 buf len flags
 
 -- read(2) : fd, buf, count -> n
 sys_read = 0
-read fd buf count = raw_syscall sys_read fd buf count
+read fd buf count = raw_syscall 0 fd buf count
 
 -- write(2) : fd, buf, count -> n
 sys_write = 1
-write fd buf count = raw_syscall sys_write fd buf count
+write fd buf count = raw_syscall 1 fd buf count
+sp s = string_ptr s
+sl s = string_length s
+write_str fd s = raw_syscall 1 fd (sp s) (sl s)
 
 -- openat(2) : dirfd, path, flags, mode -> fd
 sys_openat = 257
-openat dirfd path flags mode = raw_syscall sys_openat dirfd path flags mode
+openat dirfd path flags mode = raw_syscall 257 dirfd path flags mode
 
 -- close(2) : fd -> 0
 sys_close = 3
-close fd = raw_syscall sys_close fd 0 0
+close fd = raw_syscall 3 fd 0 0
 
 -- exit_group(2) : code -> jamais
 sys_exit = 231
-exit_group code = raw_syscall sys_exit code 0 0
+exit_group code = raw_syscall 231 code 0 0
+
+-- Process control (Phase 1B runner .hvn)
+fork _ = raw_syscall 57 0 0 0
+execve path argv envp = raw_syscall 59 path argv envp
+wait4 pid status opts rusage = raw_syscall6 61 pid status opts rusage 0 0
