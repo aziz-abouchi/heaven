@@ -19,7 +19,7 @@
 ## Chantiers (5-6 sessions)
 
 1. (FAIT) path.hvn facade -- 14 tests
-2. elab.zig : data avec path constructors
+2. (FAIT 2026-10-23) grammar : path_constructor. elab.zig ignore from/to (a faire)
 3. DependentChecker reel : piType/sigmaType non-stub
 4. Typechecker HIT : verifier loop : base = base
 5. Eliminateur + computation rules (ap_loop, transport_loop)
