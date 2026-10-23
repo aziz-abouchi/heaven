@@ -168,3 +168,38 @@ Foldable. 13/13 tests.
 V1c (contraintes `Functor f =>`) reste à faire : un checker simple
 après V1b.
 
+
+## Dans Heaven aujourd'hui (2026-10-24)
+
+Heaven implémente HKT **V1a déclaratif** — pas encore de dispatch
+polymorphe. La syntaxe est :
+
+    class Device a
+    data Uart = MkUart Int
+    instance Device Uart
+    data RamDisk = MkRamDisk Int Int
+    instance Device RamDisk
+
+Cela déclare quels types appartiennent à la classe. Utilisation
+concrète dans `lib/os/device.hvn` :
+
+    data Uart = MkUart Int
+    instance Device Uart
+    data RamDisk = MkRamDisk Int Int
+    instance Device RamDisk
+    data Net = MkNet Int Int
+    instance Device Net
+    data Timer = MkTimer Int Int
+    instance Device Timer
+
+Chaque instance a ses fonctions **concrètes** (`read_uart`, `write_uart`,
+`read_net`, etc.) — pas d'appel polymorphe `read x` qui dispatche
+selon le type. C'est V1a : déclaratif, pas opérationnel.
+
+**V1b** (`@dispatch_instance`) viendra quand on aura besoin d'appels
+polymorphes. Le blocage actuel est le fix `let-in-if` de Zig
+(résolu 2026-10-23) plus la sémantique de dispatch runtime.
+
+Tests actuels : `tests/test_os_device_ext.hvn` (9 tests, dont Uart et
+RamDisk en régression). Voir `lib/os/device.hvn` (62 lignes).
+

@@ -224,3 +224,32 @@ pas encore. La syntaxe est en place.
 Le chapitre 02 a posé la **théorie** (Girard, Atkey, Perceus).
 Ce chapitre a montré la **pratique** : comment écrire du code
 annoté. Le vérificateur automatique est la prochaine étape.
+
+## Dans Heaven aujourd'hui (2026-10-24)
+
+`LinearChecker` (`src/core/types.zig:145`) implémente la vérification
+QTT basique : trois multiplicités (`Quantity` = `zero` / `one` /
+`many`), `declare name qty`, `use name`, `check`. Il est branché sur
+la commande shell `cmdQTT` (`src/runtime/shell/commands.zig:874`)
+mais **pas** sur le parser `.hvn` — pas de syntaxe `let linear`
+pour l'instant.
+
+### Façade `.hvn` (`lib/qtt/linear.hvn`)
+
+Pour prototyper le tracking en `.hvn`, une façade reproduit le
+comportement de `LinearChecker` :
+
+    data Decl = MkDecl String Int   -- name, qty attendu (0/1/2)
+    data Used = MkUsed String Int   -- name, compteur usage
+
+    incr_used name used     -- marque un usage
+    lookup_used name used   -- compte les usages
+    check_all decls used    -- 1 = conforme, 0 = violation
+
+Convention : `qty 0` = jamais utilisé, `qty 1` = exactement une fois,
+`qty 2` = au moins une fois (linéaire au sens large). 8 tests dans
+`tests/test_qtt_linear.hvn`.
+
+La propagation de QTT vers `elab.zig` → MIR → backends (QBE/WASM)
+reste à faire — axe 1 de la roadmap émancipation.
+

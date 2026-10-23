@@ -102,3 +102,34 @@ des cas pratiques sans toucher au noyau.
 - Les **quotients** se font par **setoïdes** en V0, sans toucher
   au noyau.
 - HoTT est un **chantier de plusieurs années** — pas un oubli.
+
+## Dans Heaven aujourd'hui (2026-10-24)
+
+Le parser accepte les **path constructors** depuis le 24 octobre 2026 :
+
+    data S1 = Base | Loop : Base = Base
+
+La grammaire tree-sitter (`vendor/tree-sitter-heaven/grammar.js`)
+produit un `data_constructor` avec champs `from` et `to`. L'AST est
+correct, mais `elab.zig` **ignore encore** ces champs — le path est
+parse, pas elaboré. C'est l'etape E1/E2 de la roadmap
+emancipation (`docs/spec/_emancipation_roadmap.md`).
+
+### Facade Path rank-1 (`lib/hott/path.hvn`)
+
+En attendant l'eliminateur HoTT, une facade rank-1 existe :
+
+    data Path = MkPath witness start end
+    refl a                     -- MkPath 0 a a
+    sym (MkPath w s e)         -- MkPath (-w) e s
+    trans p q                  -- composition
+    ap f p                     -- application
+    transport P p x            -- P e
+
+Le `witness` est un entier symbolique (0 = refl, -w = sym, w1+w2+1 =
+trans). Pas de typechecking formel — `DependentChecker` est encore
+stub dans `types.zig`. 14 tests dans `tests/test_hott_path.hvn`.
+
+Voir aussi : `docs/spec/_hott_roadmap.md` (5-6 sessions pour HIT
+complet, eliminateur, rank-2).
+
