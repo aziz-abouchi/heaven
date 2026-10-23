@@ -70,7 +70,7 @@ La somme d'une liste, en REPL :
     ✓ clause enregistrée pour 'cata'
     heaven> cata f z (cons x xs) = f x (cata f z xs)
     ✓ clause enregistrée pour 'cata'
-    heaven> sum_f x acc = (+ x acc)
+    heaven> sum_f x acc = x + acc
     ✓ clause enregistrée pour 'sum_f'
     heaven> (cata sum_f 0 (cons 1 (cons 2 (cons 3 nil))))
     6
@@ -78,12 +78,12 @@ La somme d'une liste, en REPL :
 Trois clauses suffisent pour définir `cata`, puis une ligne pour la
 somme. La longueur :
 
-    length_f _ acc = (+ acc 1)
+    length_f _ acc = acc + 1
     length xs = (cata length_f 0 xs)
 
 Le produit :
 
-    product_f x acc = (* x acc)
+    product_f x acc = x * acc
     product xs = (cata product_f 1 xs)
 
 Trois fonctions, un seul squelette. C'est ça, l'intérêt.
@@ -120,7 +120,7 @@ Exemple : générer les entiers de 0 à 2, puis les compter.
     ✓ clause enregistrée pour 'ana_step'
     heaven> gen n = (if (< n 3) (some (pair n (+ n 1))) none)
     ✓ clause enregistrée pour 'gen'
-    heaven> length_f _ acc = (+ acc 1)
+    heaven> length_f _ acc = acc + 1
     ✓ clause enregistrée pour 'length_f'
     heaven> cata _ z nil = z
     ✓ clause enregistrée pour 'cata'
@@ -162,7 +162,7 @@ est directement la valeur finale.
 Exemple : la somme des entiers de 0 à 4.
 
     hylo_gen n = (if (< n 5) (some (pair n (+ n 1))) none)
-    sum_f x acc = (+ x acc)
+    sum_f x acc = x + acc
     resultat = (hylo sum_f 0 hylo_gen 0)   -- 0+1+2+3+4 = 10
 
 **Note V0** : dans un langage avec fusion automatique (comme GHC
@@ -195,9 +195,8 @@ d'une liste tant qu'un prédicat est vrai. Avec `cata`, impossible :
 on n'a jamais accès à la queue *telle quelle*, seulement à sa
 version déjà consommée. Avec `para`, on peut :
 
-    para_count_f _ _ acc = (+ acc 1)
-    para_sum_f x _ acc = (+ x acc)
-
+    para_count_f _ _ acc = acc + 1
+    para_sum_f x _ acc = x + acc
 Chaque fonction de `para` peut *ignorer* la queue si elle n'en a
 pas besoin — auquel cas `para` se comporte exactement comme `cata`.
 La queue est là, disponible, mais on choisit.
@@ -208,7 +207,7 @@ Vérification en REPL :
     ✓ clause enregistrée pour 'para'
     heaven> para f z (cons x xs) = f x xs (para f z xs)
     ✓ clause enregistrée pour 'para'
-    heaven> para_count_f _ _ acc = (+ acc 1)
+    heaven> para_count_f _ _ acc = acc + 1
     ✓ clause enregistrée pour 'para_count_f'
     heaven> (para para_count_f 0 (cons 1 (cons 2 (cons 3 nil))))
     3

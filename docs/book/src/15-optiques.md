@@ -127,7 +127,7 @@ quand le système de types s'enrichira.
 L'implémentation de `lens.hvn` **ne marchait pas** avant un fix
 précis. Ce code :
 
-    g x = (+ x 1)
+    g x = x + 1
     mkl _ = (pair g 0)
     ((fst (mkl 0)) 5)
 

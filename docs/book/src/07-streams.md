@@ -151,7 +151,7 @@ paresseux de bout en bout : rien n'est calculé à l'avance.
 
 Prenons la suite des entiers, multipliés par 2 :
 
-    heaven> double x = (* x 2)
+    heaven> double x = x * 2
     ✓ clause enregistrée pour 'double'
 
     heaven> streamTake 3 (streamMap double (nat 0))

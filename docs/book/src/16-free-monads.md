@@ -37,8 +37,7 @@ objet qui existe, qu'on peut examiner, réinterpréter, transformer.
 Supposons qu'on veuille écrire une petite machine à pile. En style
 direct :
 
-    calc_direct _ = (+ 10 20)
-
+    calc_direct _ = 10 + 20
 Cette fonction fait le calcul. Rien à redire. Mais :
 
 - Impossible de **la tester** sans l'exécuter.

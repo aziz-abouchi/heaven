@@ -185,7 +185,7 @@ sans avoir **le même type** :
     heaven> 42
     42
 
-    heaven> (+ 40 2)
+    heaven> 40 + 2
     42
 
 Les deux évaluent à `42`. Mais l'une est un `Int` direct, l'autre
@@ -256,8 +256,7 @@ il est nommé, puis oublié.
 
 Et une fonction qui l'utilise exactement une fois :
 
-    heaven> inc x = (+ x 1)
-
+    heaven> inc x = x + 1
 **Une fois**.
 
 Ces trois situations — zéro, une, plusieurs — correspondent à

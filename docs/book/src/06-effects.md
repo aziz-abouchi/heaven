@@ -86,7 +86,7 @@ Pour donner un sens au signal, on utilise `handle`. Il prend deux
 arguments : une expression contenant des `perform`, et un **handler**
 qui sait quoi faire de ces signaux.
 
-    heaven> logHandler msg = (+ msg 100)
+    heaven> logHandler msg = msg + 100
     ✓ clause enregistrée pour 'logHandler'
 
     heaven> handle (perform "Log" 42) logHandler
