@@ -270,3 +270,46 @@ elabDataDecl ignore tparams. lambda = GAP parser (contournement
 id_f x = x). Roadmap 5-6 sessions dans docs/spec/_hott_roadmap.md.
 
 Q1(a) + Q2(A) actees. Baseline 15/15 fichiers .hvn verts.
+
+## Session 2026-10-24 -- emancipation E1.1
+
+### Livre
+- lib/parse/infix.hvn (E1.1) : + - * parens, 12 tests.
+- lib/qtt/linear.hvn : facade QTT 0/1/w, 8 tests.
+- lib/hott/path.hvn : facade Path rank-1, 14 tests.
+- Grammar tree-sitter : path_constructor (HIT HoTT).
+- lib/syscall : constantes litterales + write_str.
+- docs/spec/_emancipation_roadmap.md : 10 phases E1-E10.
+
+### Decision actee
+Surface utilisateur = INFIXE uniquement. S-Expr = INTERNE.
+Pipeline : .hvn infixe -> HP.lex -> AST S-Expr -> heaven_eval.
+Ordre revise : E1 (parse_infix) -> E3 (--meta) -> E2 (C) -> E4..E10.
+E3 avant E1 = impossible : --meta ne peut pas evaluer .hvn infixe
+sans parseur infixe en .hvn.
+
+### E1.2 (if/then/else) -- BLOQUE
+Bisection 8 blocs. is_kw, mk_if, parse_if, pif_* marchent SEULS.
+Mais cycle de definitions parse_atom -> parse_if -> parse_add ->
+parse_mul -> parse_atom casse le loader .hvn (silence, exit 0).
+3 strategies documentees dans _emancipation_roadmap.md.
+Option A recommandee : if au niveau expression (parse_expr),
+PAS au niveau atome. parse_atom ne connait pas if.
+
+### Bugs Zig ouverts (session dediee)
+- poke_int64/peek_int64 : poison 0xAAAA (mem adressable casse).
+- wait4 : status pas ecrit (fork+exit OK, status KO).
+- --eval-file vs --run-test mode-dependent (imports resolus differemment).
+- F.parse_body "" assert EOF (MCP loop 2e frame).
+- Runner arena reset (~23 statements, test_parser.hvn.skip).
+
+### Baseline
+17/17 fichiers .hvn verts. zig build test 404/407 (preserve).
+
+### Prochaine session
+1. E1.2 option A (if au niveau expr). 1-2 blocs si methode OK.
+2. E1.3-E1.7 (let, lambda, application, comparaisons, data/import).
+3. E2 (backend C en .hvn).
+4. E3 (--meta).
+5. Axe 1 QTT ensuite.
+

@@ -1,11 +1,14 @@
 # Heaven — Vision
 
-> **Version actuelle : Heaven 0.5** (2026-10-21)
+> **Version actuelle : Heaven 0.6** (2026-10-24)
 >
-> Ce qu'on a : serveurs LSP + MCP fonctionnels en `.hvn` pur, DBpedia live,
-> `raw_syscall`, 25 fichiers auto-chargés. Ce qui manque pour 1.0 :
-> QTT runtime enforced, HoTT, auto-hébergement complet.
-> Voir [le livre, section Versions](../book/src/SUMMARY.md#versions).
+> Ce qu'on a : OS Phase 1B (device/ipc/vfs/kernel multi-tâches), HoTT Path
+> facade, QTT facade, grammar HIT (path constructors), E1.1 parseur infixe
+> en `.hvn`, fixes `let-in-if` + `lambda`. Serveurs LSP + MCP fonctionnels.
+> Ce qui manque pour 1.0 : E1 complet, backends `.hvn` (C/WASM/JS/BEAM/JVM),
+> auto-hébergement, QTT runtime enforced, HoTT complet, Lustre-like.
+> Voir [le livre, section Versions](../book/src/SUMMARY.md#versions)
+> et [roadmap émancipation](spec/_emancipation_roadmap.md).
 
 
 > Statut : **document de vision**. Ce que Heaven cherche a devenir.
