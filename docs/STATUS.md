@@ -513,3 +513,13 @@ Résultats de référence (`docs/spec/_bench.md`) :
 ### Commits
 - `67990ad` device Net + Timer
 - `b6f413b` ipc Disk/Net/Timer
+
+## 2026-10-23 (session 2 -- FIX let-in-if)
+
+### Livre
+- `src/core/expr.zig` : `parseLetExpr` (desucrage lambda). 14 lignes.
+- Cause racine : NativeParser sans `let`, boucle infinie parsePostfix.
+- Debloque : dispatch direct, web_lookup, MCP loop, QTT, KernelQ.
+
+### Commit
+- `1672ce8` fix(parser): let-in-if -- parseLetExpr manquant

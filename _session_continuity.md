@@ -213,3 +213,49 @@ Reecrit en repliquant x86_64_linux.zig (62 lignes), sauf :
 - `lib/time.hvn` portable : magic `@time_now clockid` en Zig natif
   (std.posix.clock_gettime sur Darwin, raw_syscall 228 sur Linux).
 - En attendant, `lib/time.hvn` documente comme Linux-only.
+
+## Session 2026-10-23 (soir) -- FIX let-in-if LIVRE
+
+### Cause racine confirmee (backtrace core dump)
+`gdb -nx -batch ./zig-out/bin/heaven /tmp/core` puis `bt 20` :
+`#13 expr.NativeParser.parsePostfix (self=0x0)` -- SEGV par stack
+overflow (pas self null, gdb lit dans la guard page).
+
+**Cause reelle** : `NativeParser` de `src/core/expr.zig` **n'avait
+AUCUNE gestion de `let`**. `parsePrimary` case `.ident` ne gerait que
+`if`, tout le reste tombait dans `dupe(t.text)`. `let x = v in body`
+produisait un symbole brut `"let"` puis `parsePostfix` bouclait sur
+`x`, `=`, `in`, `body` a l'infini -> stack overflow.
+
+### Fix livre (commit 1672ce8)
+Ajout `parseLetExpr` + case `.ident "let"` dans `parsePrimary`.
+Desucrage `let x = v in body` -> `((lambda x body) v)`, evalue par
+le moteur existant. 14 lignes de `.zig`, 0 changement eval.
+
+### Probes validees
+- A (let-in-then) : 5 OK
+- E (let-in-else) : 2 OK
+- G (let-in-then paren) : 1 OK
+- F (helper hoiste) : 5 OK
+- rec (let-in-if recursif) : 0 OK
+- Baseline .hvn 14/14, `zig build test` 0 (404/407 preserve)
+
+### Chantiers debloques par ce fix
+1. `dispatch direct if m then M.foo` (supprime precalc+pick)
+2. `web_lookup` 6e tool MCP (plus de x7 I/O reseau)
+3. `MCP loop` multi-frame (parse_body EOF + read_stdin 0 restent,
+   mais le dispatch direct contourne `precalc+pick`)
+4. `QTT runtime` (`linear` enforced)
+5. `KernelQ` dispatch polymorphe (plus besoin de helpers hoistes)
+
+### Outillage : ATTENTION ulimit
+`ulimit -s 512` (test stack overflow) **fixe la limite hard aussi**.
+Impossible de remonter dans le meme terminal ni via `prlimit`.
+**Fermer le terminal** et en ouvrir un neuf (limite revient a 8 MB).
+
+### Lecon methodo
+Un SEGV `timeout 124` sur `--eval-file` n'est pas forcement un hang :
+peut etre un stack overflow qui met ~10s a atteindre la guard page.
+`ulimit -s 64` discrimine : si instantane = stack overflow, si pareil
+= boucle CPU pure. `gdb -nx` (sans init Python) + core dump est la
+methode fiable.
