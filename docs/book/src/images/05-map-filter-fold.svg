@@ -26,7 +26,7 @@
     <text x="50" y="330" font-size="12" font-style="italic" fill="#2c2c2c">foldl (+) 0</text>
     <text x="50" y="350" font-size="10" fill="#666">resumer en une valeur</text>
     <rect x="200" y="320" width="100" height="40" fill="#faf7f2" stroke="#7a3b3b" stroke-width="2"/>
-    <text x="250" y="345" text-anchor="middle" font-size="14" fill="#2c2c2c">10</text>
+    <text x="250" y="345" text-anchor="middle" font-size="14" fill="#2c2c2c">6</text>
   </g>
   <!-- Phrase -->
   <text x="250" y="385" text-anchor="middle" font-size="10" fill="#2c2c2c">

@@ -1,33 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 400" font-family="Georgia, serif">
   <rect width="500" height="400" fill="#faf7f2"/>
   <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
-    La pile d'appels : fact 4
+    La pile d'appels : fac 4
   </text>
   <!-- Pile empilee -->
   <g font-family="Georgia, serif">
-    <!-- Niveau 1 : fact 4 en attente -->
+    <!-- Niveau 1 : fac 4 en attente -->
     <rect x="100" y="60" width="300" height="45" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
-    <text x="250" y="80" text-anchor="middle" font-size="12" fill="#7a3b3b">fact 4</text>
+    <text x="250" y="80" text-anchor="middle" font-size="12" fill="#7a3b3b">fac 4</text>
     <text x="250" y="97" text-anchor="middle" font-size="11" fill="#2c2c2c">attend : 4 * ...</text>
 
-    <!-- Niveau 2 : fact 3 en attente -->
+    <!-- Niveau 2 : fac 3 en attente -->
     <rect x="100" y="115" width="300" height="45" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
-    <text x="250" y="135" text-anchor="middle" font-size="12" fill="#7a3b3b">fact 3</text>
+    <text x="250" y="135" text-anchor="middle" font-size="12" fill="#7a3b3b">fac 3</text>
     <text x="250" y="152" text-anchor="middle" font-size="11" fill="#2c2c2c">attend : 3 * ...</text>
 
-    <!-- Niveau 3 : fact 2 en attente -->
+    <!-- Niveau 3 : fac 2 en attente -->
     <rect x="100" y="170" width="300" height="45" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
-    <text x="250" y="190" text-anchor="middle" font-size="12" fill="#7a3b3b">fact 2</text>
+    <text x="250" y="190" text-anchor="middle" font-size="12" fill="#7a3b3b">fac 2</text>
     <text x="250" y="207" text-anchor="middle" font-size="11" fill="#2c2c2c">attend : 2 * ...</text>
 
-    <!-- Niveau 4 : fact 1 en attente -->
+    <!-- Niveau 4 : fac 1 en attente -->
     <rect x="100" y="225" width="300" height="45" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
-    <text x="250" y="245" text-anchor="middle" font-size="12" fill="#7a3b3b">fact 1</text>
+    <text x="250" y="245" text-anchor="middle" font-size="12" fill="#7a3b3b">fac 1</text>
     <text x="250" y="262" text-anchor="middle" font-size="11" fill="#2c2c2c">attend : 1 * ...</text>
 
     <!-- Niveau 5 : cas de base -->
     <rect x="100" y="280" width="300" height="45" fill="#faf7f2" stroke="#7a3b3b" stroke-width="2"/>
-    <text x="250" y="300" text-anchor="middle" font-size="12" fill="#7a3b3b" font-weight="bold">fact 0</text>
+    <text x="250" y="300" text-anchor="middle" font-size="12" fill="#7a3b3b" font-weight="bold">fac 0</text>
     <text x="250" y="317" text-anchor="middle" font-size="11" fill="#2c2c2c">cas de base : retourne 1</text>
   </g>
   <!-- Remontee -->

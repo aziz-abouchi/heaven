@@ -118,13 +118,13 @@ ce compte qui la termine.
 
 ![La pile d'appels](images/04-stack.svg)
 
-Regardez la pile d'appels pour `fact 4`. Chaque appel à `fact`
+Regardez la pile d'appels pour `fac 4`. Chaque appel à `fac`
 **empile** un niveau. Le niveau 4 attend le résultat du niveau 3,
 qui attend le niveau 2, qui attend le niveau 1, qui attend le
 niveau 0 (cas de base). Puis tout se **dépile** en multipliant.
 
-C'est joli, mais ça coûte de la mémoire. Pour `fact 1000`, on
-empile 1000 niveaux. Pour `fact 100000`, on déborde la pile
+C'est joli, mais ça coûte de la mémoire. Pour `fac 1000`, on
+empile 1000 niveaux. Pour `fac 100000`, on déborde la pile
 (*stack overflow*).
 
 La **récursion terminale** évite ce problème. Une fonction

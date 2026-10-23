@@ -10,7 +10,7 @@
     <text x="130" y="125" text-anchor="middle" font-size="10" fill="#666">ce qui calcule</text>
     <text x="130" y="160" text-anchor="middle" font-size="12" fill="#2c2c2c">inc x = x + 1</text>
     <text x="130" y="180" text-anchor="middle" font-size="12" fill="#2c2c2c">map f xs</text>
-    <text x="130" y="200" text-anchor="middle" font-size="12" fill="#2c2c2c">fact 5 = 120</text>
+    <text x="130" y="200" text-anchor="middle" font-size="12" fill="#2c2c2c">fac 5 = 120</text>
     <text x="130" y="235" text-anchor="middle" font-size="10" fill="#666" font-style="italic">toujours le meme resultat</text>
     <text x="130" y="255" text-anchor="middle" font-size="10" fill="#666" font-style="italic">pour la meme entree</text>
   </g>
