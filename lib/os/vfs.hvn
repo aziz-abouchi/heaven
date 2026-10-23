@@ -23,3 +23,10 @@ total_size (cons i rest) = (size_of i) + (total_size rest)
 lookup_inode (cons i nil) name = if (name_of i) == name then i else (mk_inode "" 0)
 lookup_inode (cons i rest) name =
   if (name_of i) == name then i else (lookup_inode rest name)
+
+-- write_inode : retourne un nouvel inode avec size mis a jour
+write_inode (MkInode n _) new_size = MkInode n new_size
+
+-- count_inodes : nombre d'inodes dans la liste
+count_inodes nil = 0
+count_inodes (cons _ rest) = 1 + (count_inodes rest)

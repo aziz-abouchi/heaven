@@ -1,0 +1,11 @@
+-- test_os_vfs_ext.hvn -- write_inode + count_inodes (2026-10-23)
+import "lib/os/vfs.hvn" as V
+i0 _ = V.mk_inode "a" 100
+lst _ = (cons (V.mk_inode "a" 100) (cons (V.mk_inode "b" 200) (cons (V.mk_inode "c" 300) nil)))
+
+test "write_size": (V.size_of (V.write_inode (i0 0) 999)) == 999
+test "write_keeps_name": (V.name_of (V.write_inode (i0 0) 999)) == "a"
+test "count_3": (V.count_inodes (lst 0)) == 3
+test "count_empty": (V.count_inodes nil) == 0
+test "total_still_ok": (V.total_size (lst 0)) == 600
+test "lookup_still_ok": (V.size_of (V.lookup_inode (lst 0) "b")) == 200
