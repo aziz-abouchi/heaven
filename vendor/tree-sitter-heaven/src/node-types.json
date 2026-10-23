@@ -5175,7 +5175,44 @@
   {
     "type": "data_constructor",
     "named": true,
-    "fields": {},
+    "fields": {
+      "from": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "prim_type",
+            "named": true
+          },
+          {
+            "type": "type_name",
+            "named": true
+          }
+        ]
+      },
+      "to": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "prim_type",
+            "named": true
+          },
+          {
+            "type": "type_name",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
       "required": true,

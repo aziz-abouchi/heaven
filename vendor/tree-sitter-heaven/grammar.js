@@ -416,7 +416,11 @@ data_decl: ($) => seq(
 
 data_constructor: ($) => seq(
   choice($.type_name, $.prim_type),
-  repeat($.ctor_arg_type)
+  choice(
+    seq(":", field("from", choice($.type_name, $.prim_type, $.identifier)),
+             "=", field("to", choice($.type_name, $.prim_type, $.identifier))),
+    repeat($.ctor_arg_type)
+  )
 ),
 
 ctor_arg_type: ($) => choice(
