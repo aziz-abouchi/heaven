@@ -13,3 +13,14 @@ verify proto labels = M.check proto (M.trace_of_string labels)
 -- Note : is_dual a ete retire. Tester directement :
 --   M.check (M.dual (proto_client 0)) (M.trace_of_string "read,data")
 -- marche, mais en composition dans une fonction module = KO.
+
+-- Phase 1B : protocoles additionnels (Disk, Net, Timer)
+-- client envoie l'operation, recoit l'ack, termine.
+proto_disk_client _ = M.STSend "blk_read" (M.STRecv "blk_data" M.STEnd)
+proto_disk_driver _ = M.STRecv "blk_read" (M.STSend "blk_data" M.STEnd)
+
+proto_net_client _ = M.STSend "send" (M.STRecv "ack" M.STEnd)
+proto_net_driver _ = M.STRecv "send" (M.STSend "ack" M.STEnd)
+
+proto_timer_client _ = M.STSend "wait" (M.STRecv "tick" M.STEnd)
+proto_timer_driver _ = M.STRecv "wait" (M.STSend "tick" M.STEnd)

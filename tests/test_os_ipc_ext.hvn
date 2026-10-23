@@ -1,0 +1,12 @@
+-- test_os_ipc_ext.hvn -- protocoles Disk/Net/Timer (2026-10-23)
+import "lib/os/ipc.hvn" as I
+
+test "disk_client": I.verify (I.proto_disk_client 0) "blk_read,blk_data" == true
+test "disk_driver": I.verify (I.proto_disk_driver 0) "blk_read,blk_data" == true
+test "net_client": I.verify (I.proto_net_client 0) "send,ack" == true
+test "net_driver": I.verify (I.proto_net_driver 0) "send,ack" == true
+test "timer_client": I.verify (I.proto_timer_client 0) "wait,tick" == true
+test "timer_driver": I.verify (I.proto_timer_driver 0) "wait,tick" == true
+test "disk_client_bad": I.verify (I.proto_disk_client 0) "blk_read,other" == false
+test "proto_client_still_ok": I.verify (I.proto_client 0) "read,data" == true
+test "proto_driver_still_ok": I.verify (I.proto_driver 0) "read,data" == true
