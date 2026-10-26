@@ -224,3 +224,49 @@ Le fix vaut 1 session Zig gdb.
 - 3 tests discriminants (tous passent, donc cas de bord)
 - Doc precise pour session Zig
 - ROLLBACK propre, 18/18 preserve, tree propre
+
+## Mise à jour 2026-10-26 (session 2) -- 8 tests discriminants
+
+### Tests executés (tous CHARGEENT, EXIT=0)
+1. `test_construct x = HP.TCons x HP.TNil` OK
+2. `f a = if (= a 1) then 0 else 1` OK
+3. `data Foo = MkFoo Int ; test_construct2 x = MkFoo x` OK
+4. `step_app f x = continue_app f x ; continue_app f x = f` (forward ref) OK
+5. `step_app f (TCons tk rest) = if (is_atom (TCons tk rest)) == 1 then ...` OK
+6. `full_min.hvn` (4 HP.TCons + 3 appels imbriques + data IRes) OK
+7. `no_step.hvn` (parse_app + is_atom_start + continue_app + IRes) OK
+8. `rec_app.hvn` (continue_app recursive) OK
+
+### Conclusion
+Le crash N'EST PAS reproductible en fichier minimal. Il necessite le
+CONTEXTE COMPLET de infix.hvn avec parse_app :
+- Toutes les clauses (parse_atom, open_paren, parse_mul, parse_add,
+  is_atom_start, step_app, continue_app, parse_app, to_expr)
+- Les imports (heaven_parse.hvn, HP.TCons, HP.Toks, HP.Expr, HP.ELitI)
+- Le contexte du loader qui charge les 30+ clauses
+
+### Hypothese restante
+Le crash est peut-etre :
+- Une interaction entre evalEquation et l'accumulation multi-lignes du
+  loader (la clause step_app est sur 2 lignes, avec indentation)
+- Une profondeur de recursion de eval qui depasse la limite quand
+  combinee avec les autres clauses
+- Un cycle de definitions non detecte (mais 5 triviales OK, 8 complexes
+  isolees OK)
+- Un etat partage entre clauses (env, interner)
+
+### Prochain bloc (session Zig gdb, 1 session)
+1. Lancer gdb sur `heaven --eval-file infix_with_parse_app.hvn`
+2. Attendre le SEGV (arrive au chargement, ~1-2s)
+3. `bt 20` pour voir la stack (fonction + profondeur)
+4. Si c'est evalEquation : instrumenter evalEquation (quelle clause)
+5. Si c'est evaluate : profondeur de recursion
+6. Le test discriminant minimal ne suffit pas -- il faut le contexte
+   complet, donc gdb est obligatoire (instrumentation print = noyer).
+
+### Bilan (12 blocs loader, 0 fix)
+- 14 hypotheses eliminees (clause step_app, TCons construction, if,
+  ADT, forward ref, appels imbriques, combinaisons isolees)
+- 8 tests discriminants (tous passent, sauf le fichier complet)
+- Le bug est dans le CONTEXTE COMPLET, pas dans une clause isolee
+- gdb + core dump sur infix.hvn complet est la seule voie
