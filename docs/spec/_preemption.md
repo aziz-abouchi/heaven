@@ -241,3 +241,50 @@ gdb + core dump sur test_eval, ET une inspection de la liste magics.
 3. bt 20 pour voir la fonction exacte au SEGV (init du magics ?)
 4. Si c est un helper (releasePendingCapture), le deplacer ou le fixer
 5. Si c est la liste magics, la rendre runtime (std.StringHashMap)
+
+## Diagnostic DEFINITIF @schedule_processes (2026-10-26, nuit)
+
+### Test discriminant : @foo dummy
+Ajout magic `@foo` (retourne unitLit) dans la liste magics.
+Resultat : 13/13 test_eval, 7/7 test_meta_if, AUCUNE regression.
+
+Conclusion : la liste magics n est PAS fragile. `@schedule_processes`
+est specifiquement le probleme.
+
+### Ce que ca elimine
+- Taille de la liste magics (91 entrees, @foo passe)
+- Init comptime (dummy case trivial passe)
+- Duplicate dans la liste (aucun)
+
+### Vraie cause
+Le code du case `@schedule_processes` corrompt l etat Engine.
+Probablement :
+- swap engine.env = new_env perturbe pending_capture
+- releasePendingCapture appele au mauvais moment
+- evalWithBudget + processes = double free ou UAF
+- ou l interaction avec `@arm_preempt` / preempt_flag
+
+### 3 versions tentees, 3 SEGV
+v1 : sans swap env -> SEGV (new_env non utilise, handlers perdus)
+v2 : swap env -> SEGV (UAF pending_capture)
+v3 : swap + releasePendingCapture -> SEGV (meme)
+
+### Prochain bloc (session gdb, OBLIGATOIRE)
+1. `gdb -nx` + core dump sur test_eval AVEC `@schedule_processes`
+   dans la liste (magic jamais execute, mais SEGV init)
+2. `bt 20` pour voir la fonction exacte
+3. Si c est Engine.init / evalMagic init : le champ expr_eval
+   ou le case ajoute une collision
+4. Si c est dans eval : le swap env est le coupable
+
+### Acquis (acteurs partiels, sans @schedule_processes)
+- spawn handler init : Process avec mailbox
+- tell pid msg : push mailbox
+- recv pid : pop mailbox
+- run pid : PREEMPTIF (evalWithBudget + requeue sur suspend)
+- 1 actor a la fois, pilotage manuel
+
+### Fix possible (a tester en session fraiche)
+Ne PAS utiliser evalWithBudget (qui interagit avec pending_capture).
+Utiliser evaluate direct + catch SuspendRequested + save/restore.
+~20 lignes, sans capture de continuation.
