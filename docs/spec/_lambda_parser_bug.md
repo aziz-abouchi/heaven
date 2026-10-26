@@ -280,3 +280,36 @@ NE PAS toucher parseLambdaExpr, parsePrimary, evaluateExpr.
 
 ### Vraie couche : interpForAssert case 2b, condition lam_args.len == 3
 ### Fix estimé : 5-10 lignes dans heaven_expr.zig:3341
+
+## Tentative fix case 2b (2026-10-26) -- build casse
+
+Ajout case 2b bis pour lam_args.len == 5 (body aplati) :
+  [lambda, param, a1, op, a2] -> apply(op, [a1, a2])
+Build 0 la 1re fois (non curryfie), mais T2 toujours brut
+(interpForAssert echec silencieux, catch id).
+2e tentative (curryfie + catch |e|) : BUILD FAIL (type mismatch).
+
+### Ce que le DUMP a prouve
+T1 : [lambda, x, x]         -> 5 OK (case 3 fire)
+T2 : [lambda, x, x, +, 1]   -> brut (case 3 ne fire pas, len=5)
+
+Le parser APLATIT le body en span. T1 a un body trivial (sym),
+T2 a un body infixe aplati en 5 elements.
+
+### Prochaine session (PRECIS)
+1. Le build casse a cause de catch |e| return id -- corriger le type
+   (interpForAssert retourne HeavenError!Id, catch doit retourner Id
+   pas error). Probablement : `catch { return id; }` sans binding e.
+2. Si le case 2b curryfie marche, T2 -> 6 et let inline -> 6.
+3. Si interpForAssert(body) echoue sur UnboundVariable(x), c'est
+   que l'env n'est pas propage -- chercher pourquoi.
+
+### NE PAS
+- NE PAS toucher parseLambdaExpr, parsePrimary, evaluateExpr
+- Le fix est UNIQUEMENT dans interpForAssert case 2b (heaven_expr.zig)
+- Corriger le build AVANT de retester T2 (binaire actuel = ancien)
+
+### 8 hypotheses eliminees au total
+Toutes les autres couches sont innocentes. Le bug est dans
+interpForAssert case 2b, structure [lambda, param, a1, op, a2].
+Fix = 8-12 lignes, build correct, cutoff 3 blocs session dediee.
