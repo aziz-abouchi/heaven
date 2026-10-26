@@ -460,3 +460,40 @@ cachent le flow. Le vrai fix est l'extraction (P1 _zig_debt.md).
 ### Pivot : cleanup stubs + jumbos
 L'utilisateur demande nettoyage stubs et reduction jumbos.
 On arrete le bug lambda. Focus sur ce qui est demande.
+
+## Fix PARTIEL 2026-10-26 : T2 top-level OK
+
+### Fix livre (commit 0dbdab8)
+interpForAssert case 2b bis (lam_args.len == 5) : reconstruire le
+body en MULTI-ARG apply(sym_+, [args[0], 1]) -- pas curryfie.
+Multi-arg reduit a 6, curryfie reste partiel.
+
+### Ce qui marche maintenant
+- ((lambda x x + 1) 5) top-level -> 6 OK
+- map (lambda x x + 1) [1,2] -> [2,3] OK
+- f = lambda x x + 1 ; (f 5) -> 6 OK
+- ((lambda x x) 5) -> 5 (case 3, regression preservee)
+
+### Ce qui reste casse (2 bugs distincts)
+1. (print ((lambda x x) 5)) -> brut
+   print est traite comme apply(sym_print, [X]). L'argument X
+   est evalue via evaluateExpr (engine), qui echoue sur lambda.
+   Fix = interpForAssert case apply pour sym_print : evaluer
+   l'argument via interpForAssert (pas evaluateExpr).
+   ~5-10 lignes, case apply (pas case 2b).
+
+2. (lambda x -> x + 1) -> InvalidSyntax
+   Le parser ne gere pas la fleche `->`. parseLambdaExpr attend
+   `lambda x body`, pas `lambda x -> body`.
+   Fix = parsePrimary case lambda : accepter `->` optionnel apres
+   le param. ~5 lignes.
+
+### Livre
+Les 22 occurrences lambda du livre utilisent `lambda x -> body`
+(ch6, ch19, ch20, ch25). Elles restent KO jusqu'au fix `->`.
+Les occurrences sans fleche fonctionnent.
+
+### Prochaine session (2 blocs, pas 15)
+1. interpForAssert case apply : print avec argument non-trivial.
+2. parsePrimary case lambda : accepter `->` optionnel.
+Chacun est localise (case apply, case lambda). Pas de tunnel.
