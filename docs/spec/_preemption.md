@@ -44,3 +44,32 @@ syscall/handler/check, puis tests.
 Le scheduler n'est PAS le problème. Le bug loader (.hvn, 2e import
 coupe l'eval) est le vrai blocage pour A. Pour B, c'est
 l'exposition syscalls + handler Zig.
+
+## Tentative B2 (2026-10-26) -- rollback, patch partiel
+
+### APIs confirmees (Zig 0.15.2)
+- `std.posix.sigaction(sig: u8, act: ?*const Sigaction, oact: ?*Sigaction) void`
+- `std.os.linux.SIG.ALRM = 14`
+- `std.os.linux.sigemptyset() sigset_t`
+- `std.os.linux.syscall3(.setitimer, which, itimerval_ptr, old_ptr)`
+- `Sigaction{ .handler = .{.handler = fn}, .mask = ..., .flags = 0 }`
+
+### Patch tente (rollback)
+1. Flag global `preempt_flag` + handler `sigalrmHandler` callconv(.c). BUILD OK.
+2. Struct `Itimerval{ interval, value }` (2x Timeval i64). BUILD OK.
+3. `Engine.armPreemption()` : sigaction + setitimer 10ms. BUILD OK.
+4. `evaluate` : check flag tous les 1000 appels -> SuspendRequested. BUILD OK.
+5. Magic `@arm_preempt` dans la liste : OK.
+6. Case `@arm_preempt` dans evalMagic : ECHEC (pattern CASE introuvable).
+   -> Magic declare mais jamais traite -> code mort. Rollback.
+
+### Cause de l echec
+Le case `raw_alloc` n est pas le bon marker dans evalMagic. Il faut
+localiser le case `@char_string` ou `@tls_connect` (voisins dans la
+liste des magics) et ajouter `@arm_preempt` a cote.
+
+### Prochain bloc (session fraiche, 1 bloc)
+- Localiser evalMagic case `@char_string` (grep).
+- Ajouter case `@arm_preempt` (5 lignes). Build, test.
+- Test preemption : `(@arm_preempt 0)` puis recursion infinie ->
+  doit etre interrompu a 10ms (SuspendRequested), pas hang.
