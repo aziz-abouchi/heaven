@@ -10,9 +10,17 @@ un GC — efficace mais imprévisible — ou un refcount — prévisible
 mais coûteux.
 
 QTT (*Quantitative Type Theory*, Atkey 2018) propose une
-troisième voie : **la signature dit qui possède quoi**. Le
-compilateur sait, à la compilation, quand libérer, quoi effacer,
-et ce qui peut être réutilisé.
+troisième voie : **la signature dit qui possède quoi**. La cible
+est que le compilateur sache, à la compilation, quand libérer, quoi
+effacer, et ce qui peut être réutilisé.
+
+> **État réel (2026-10-26).** La syntaxe `let linear`/`let erased`/
+> `let many` est reconnue par le parser, mais aucun vérificateur ne
+> contrôle le nombre d'usages. `LinearChecker` (`types.zig:145`)
+> est branché sur `cmdQTT` shell uniquement, pas sur le pipeline
+> d'élaboration. Les exemples ci-dessous **passent** parce que le
+> parser les accepte ; ils ne **prouvent** rien sur la multiplicité.
+> Voir `docs/spec/_claims_vs_reality.md`.
 
 Trois régimes suffisent :
 
@@ -37,7 +45,8 @@ Syntaxe actuelle (testée, `heaven run`) :
 -- let many x = 42 in x + x
     -- x utilisé deux fois, comportement standard
 
-Les trois formes évaluent correctement :
+Les trois formes s'analysent et s'évaluent, **sans contrainte de
+multiplicité** :
 
     heaven> let linear x = 42 in x + 1
     "43"
@@ -45,6 +54,10 @@ Les trois formes évaluent correctement :
     "42"
     heaven> let many x = 42 in x + x
     "84"
+
+**Attention** : `let linear x = 42 in x + x` (deux usages, violation
+de linéarité) passe **aussi** sans erreur — c'est précisément ce que
+« pas enforced » signifie. Voir section « Ce qui manque ».
 
 **Ce n'est pas qu'une annotation.** Le compilateur peut exploiter
 la multiplicité :
@@ -105,9 +118,10 @@ Quand le propriétaire consomme la valeur, elle disparaît.
         (io_close fd)
 
 `fd` est linéaire. Il est ouvert une fois, lu une fois, fermé
-une fois. Le compilateur peut vérifier **à la compilation** que
-`io_close` est bien appelé. Pas besoin de finalizer, pas de
-`defer` explicite.
+une fois. **Cible** : le compilateur vérifie à la compilation que
+`io_close` est bien appelé — pas besoin de finalizer, pas de
+`defer` explicite. **État réel** : aucune vérification n'est faite
+aujourd'hui (voir section suivante).
 
 ### Ce qui manque aujourd'hui
 
@@ -119,8 +133,16 @@ d'usages. Voir `src/core/expr_parser.zig:642-720` (branches
 
 Ce qui est **livré** :
 
-- Syntaxe : `let linear`/`let erased`/`let many` (testé).
-- Erreur `LinearViolation` sur violation (testé).
+- Syntaxe : `let linear`/`let erased`/`let many` (reconnue par le
+  parser).
+- Erreur `LinearViolation` : **parsée** mais **non enforced** au
+  runtime. `expr_parser.zig:742` produit le tag, mais aucun
+  vérificateur ne déclenche l'erreur sur violation réelle.
+
+> **Attention** : le fait qu'un test nommé `LinearViolation` passe
+> ne prouve **pas** que la violation est détectée. Il prouve au
+> mieux que le parser accepte la syntaxe. La vérification réelle
+> est dans « Ce qui reste » ci-dessous.
 
 Ce qui **reste** (2-3 sessions) :
 

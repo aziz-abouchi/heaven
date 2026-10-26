@@ -26,7 +26,7 @@ Distinguer "non implémenté" (absent) de "non vérifié" (pas examiné).
 | status.json source de vérité | STATUS.md généré | oui | 1 implémentée et testée | fichier généré | aucun | aucune |
 | HoTT / Path rank-1 | livre ch.22 | `Path = MkPath Int Int Int`, pas `Path A a b` | 3 prototype (sans règles de calcul) | tests/test_hott_path.hvn | livre dit "façade Path" | ch.22 : "représentation symbolique sans règles de calcul" |
 | HIT path_constructor | livre ch.22 | grammar parse `Loop : Base = Base`, elab.zig ignore from/to | 5 silent discard | grep from/to dans elab.zig | livre dit "HIT partiels" | ch.22 : "parse, n élabore pas" |
-| QTT enforced | livre ch.26 | LinearChecker (types.zig:145) branché sur cmdQTT shell seulement | 2 partiel (façade) | lib/qtt/linear.hvn 8/8 | ch.26 contradictions internes | ch.26 : "façade, pas enforced" |
+| QTT enforced | livre ch.26 | LinearChecker branché sur cmdQTT shell seulement | 2 partiel (façade) | lib/qtt/linear.hvn 8/8 | corrigé 2026-10-26 | ch.26 : 4 patches (intro, exemples, peut vérifier, livré) |
 | Holes (`_`) | livre ch.2 | tous les `_` partagent l id 0 | 5 absent | pas de test holes | livre présente comme feature | ch.2 : retirer ou marquer "spécification" |
 | TCO mutuelle | livre ch.4 | limitations SCC | 4 spécification | pas de test TCO mutuel | livre présente comme acquis | ch.4 : "TCO simple OK, mutuelle à démontrer" |
 | Table des versions | SUMMARY.md | 0.5 historique, 0.6 ACTUEL | 1 corrigé 2026-10-26 | grep ACTUEL = 1 ligne | résolu | commit 7f08c57 + SUMMARY fix |
