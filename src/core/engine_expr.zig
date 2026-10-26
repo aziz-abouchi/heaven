@@ -297,17 +297,22 @@ const Itimerval = extern struct { interval: Timeval, value: Timeval };
 
 fn armPreemption(engine: *Engine) void {
     if (engine.preempt_armed) return;
-    var act = std.posix.Sigaction{
-        .handler = .{ .handler = sigalrmHandler },
-        .mask = std.mem.zeroes(std.posix.sigset_t),
-        .flags = 0,
-    };
-    std.posix.sigaction(std.os.linux.SIG.ALRM, &act, null);
-    const it = Itimerval{
-        .interval = .{ .sec = 0, .usec = 10_000 },
-        .value = .{ .sec = 0, .usec = 10_000 },
-    };
-    _ = std.os.linux.syscall3(.setitimer, 0, @intFromPtr(&it), 0);
+    // Pas de SIGALRM sur wasm32-freestanding / wasi. Le flag reste
+    // inactif, preempt_flag ne sera jamais set, pas de preemption
+    // sur wasm pour l'instant (voir _preemption.md).
+    if (comptime !@import("builtin").target.cpu.arch.isWasm()) {
+        var act = std.posix.Sigaction{
+            .handler = .{ .handler = sigalrmHandler },
+            .mask = std.mem.zeroes(std.posix.sigset_t),
+            .flags = 0,
+        };
+        std.posix.sigaction(std.os.linux.SIG.ALRM, &act, null);
+        const it = Itimerval{
+            .interval = .{ .sec = 0, .usec = 10_000 },
+            .value = .{ .sec = 0, .usec = 10_000 },
+        };
+        _ = std.os.linux.syscall3(.setitimer, 0, @intFromPtr(&it), 0);
+    }
     engine.preempt_armed = true;
 }
 
