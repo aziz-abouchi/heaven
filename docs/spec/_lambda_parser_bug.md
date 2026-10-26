@@ -52,3 +52,21 @@ B. Changer l'évaluateur (accepter curryfié) - 15-20 lignes, risque moyen
 C. Changer le contrat parser (Id au lieu de string) - refactor massif
 
 P1 est une session dédiée, pas un quick win. Rollback, doc, P2.
+
+
+## Résolution 2026-10-26 : prefix dispatch
+
+Patch appliqué dans src/core/expr.zig : if/let/lambda déplacés de
+parsePrimary (.ident) vers parseUnary (haut). Casse le cycle
+parse_atom -> parse_if -> parse_add -> ... -> parse_atom.
+
+Résultats :
+- lambda en def : 5 OK
+- ((lambda x x) 5) : 5 OK (P1 résolu)
+- if inline : 10 OK (bonus, if inline ne marchait pas avant)
+- let inline : expression brute (KO, bug séparé)
+- régression 18/18 verte
+
+let inline reste cassé : parseLetExpr ne consomme probablement pas
+'in' correctement quand let est dans des parenthèses. Doc séparée
+à créer.

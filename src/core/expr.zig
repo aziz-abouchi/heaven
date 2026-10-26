@@ -1964,6 +1964,23 @@ const NativeParser = struct {
 
     fn parseUnary(self: *NativeParser) NativeError![]u8 {
         const t = try self.lex.peek();
+        // Prefix dispatch : if/let/lambda au niveau expression, pas atome.
+        // Casse le cycle parse_atom -> parse_if -> parse_add -> ... -> parse_atom
+        // (voir docs/spec/_cascade_if_bug.md, pattern 3).
+        if (t.kind == .ident) {
+            if (eq(t.text, "if")) {
+                _ = try self.lex.next();
+                return self.parseIfExpr();
+            }
+            if (eq(t.text, "let")) {
+                _ = try self.lex.next();
+                return self.parseLetExpr();
+            }
+            if (eq(t.text, "lambda")) {
+                _ = try self.lex.next();
+                return self.parseLambdaExpr();
+            }
+        }
         if (t.kind == .op and eq(t.text, "-")) {
             _ = try self.lex.next();
             // Nombre négatif direct : -5
@@ -2121,9 +2138,9 @@ const NativeParser = struct {
         switch (t.kind) {
             .num, .str => return self.allocator.dupe(u8, t.text),
             .ident => {
-                if (eq(t.text, "if")) return self.parseIfExpr();
-                if (eq(t.text, "let")) return self.parseLetExpr();
-                if (eq(t.text, "lambda")) return self.parseLambdaExpr();
+                // if/let/lambda sont dispatches au niveau parseUnary
+                // (prefix expression). Les garder ici recree le cycle
+                // parse_atom -> parse_if -> parse_add -> ... -> parse_atom.
                 return self.allocator.dupe(u8, t.text);
             },
             .lparen => {
