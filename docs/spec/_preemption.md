@@ -180,3 +180,31 @@ Aucun double-SuspendRequested.
 
 ### Commit
 e27eb35 feat(engine): preemption temps portable -- fallback mono_ns
+
+## Tentative @schedule_processes v2 (2026-10-26, soir) -- rollback
+
+### Approche v2
+Swap engine.env = new_env avant evalWithBudget, restore apres.
+~60 lignes. BUILD OK.
+
+### Resultat
+Regression : test_eval et test_meta_if SEGV (139). Meme si
+actors2 (run pid) marche, le scheduler global casse le reste.
+
+### Cause probable
+Use-after-free entre :
+- defer new_env.unref() (fin de scope for)
+- pending_capture quand evalWithBudget suspend (garde une ref a new_env)
+Le pending_capture n est pas nettoye -> il pointe vers du vide.
+
+Quand le prochain evalWithBudget lit pending_capture, SEGV.
+
+### Fix (1 bloc, session fraiche)
+Option A : releasePendingCapture(engine) apres chaque .suspended
+  (comme run() le fait).
+Option B : ne pas detruire new_env tant que pending_capture existe.
+  Creer un pool d envs par process.
+Option C : evalWithBudget sans capture de continuation (eval direct
+  avec catch SuspendRequested + state save/restore).
+
+A est le plus simple (2 lignes). A tester en session fraiche.
