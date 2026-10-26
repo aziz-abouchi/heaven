@@ -34,3 +34,8 @@ exit_group code = raw_syscall 231 code 0 0
 fork _ = raw_syscall 57 0 0 0
 execve path argv envp = raw_syscall 59 path argv envp
 wait4 pid status opts rusage = raw_syscall6 61 pid status opts rusage 0 0
+
+-- Signal handling (preemption SIGALRM, 2026-10-26)
+sig_alarm = 14
+setitimer which val ptr = raw_syscall 38 which val ptr
+sigaction signum act oldact = raw_syscall 13 signum act oldact
