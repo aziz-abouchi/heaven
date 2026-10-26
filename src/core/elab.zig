@@ -241,8 +241,31 @@ pub const Elaborator = struct {
     fn elabAssign(self: *Elaborator, node: ts.TSNode) ElabError!Id {
         const target = try self.elaborate(namedChild(node, 0));
         const value = try self.elaborate(namedChild(node, 1));
-        // TODO: désucrer += -= *= /= en assign(target, target op value)
-        return self.store.call("assign", &.{ target, value });
+        // Detecter l'operateur (anonyme dans la grammar : "=", "+=", etc.)
+        const n = ts.ts_node_child_count(node);
+        var op: []const u8 = "=";
+        var i: u32 = 0;
+        while (i < n) : (i += 1) {
+            const c = ts.ts_node_child(node, i);
+            const k = kind(c);
+            if (std.mem.eql(u8, k, "=") or std.mem.eql(u8, k, "+=") or
+                std.mem.eql(u8, k, "-=") or std.mem.eql(u8, k, "*=") or
+                std.mem.eql(u8, k, "/="))
+            {
+                op = k;
+                break;
+            }
+        }
+        if (std.mem.eql(u8, op, "=")) {
+            return self.store.call("assign", &.{ target, value });
+        }
+        // Desucrer a += b -> assign(a, add(a, b))
+        const op_name: []const u8 = if (std.mem.eql(u8, op, "+=")) "add"
+            else if (std.mem.eql(u8, op, "-=")) "sub"
+            else if (std.mem.eql(u8, op, "*=")) "mul"
+            else "div";
+        const combined = try self.store.call(op_name, &.{ target, value });
+        return self.store.call("assign", &.{ target, combined });
     }
 
     // ─── Contrôle de flux ───
