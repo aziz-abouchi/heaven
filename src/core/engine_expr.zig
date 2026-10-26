@@ -638,6 +638,13 @@ pub const Engine = struct {
         }
 
         tco_loop: while (true) {
+            // Fuel + preempt check : le TCO ne passe pas par evaluate()
+            // a chaque iteration, donc on decremente ici aussi.
+            if (self.fuel == 0) return error.RecursionLimitExceeded;
+            self.fuel -= 1;
+            if (self.fuel % 1000 == 0 and self.preempt_armed) {
+                if (preempt_flag.swap(false, .seq_cst)) return error.SuspendRequested;
+            }
             self.tco_args_len = 0;
 
             for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
