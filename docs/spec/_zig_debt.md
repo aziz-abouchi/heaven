@@ -164,3 +164,19 @@ DependentChecker (P5) reste 2-3 sessions.
 
 **Verdict** : B pour cette session terminé. Ne pas implémenter un
 demi-typechecker sans typechecker qui le consomme (théâtre).
+
+## Mise à jour 2026-10-26 : elab.zig tparams extraits
+
+### elabDataDecl + elabAxiomDecl
+Les tparams (`data Box (A: Type) = MkBox A`, `axiom f (A: Type) : ...`)
+sont maintenant **extraits et bindés comme symboles** dans le Store.
+`sym(A)` existe dans le Store, les constructeurs peuvent le référencer.
+
+**Limite** : sans `DependentChecker` (P5), les tparams ne sont pas
+**typés** (on ne peut pas vérifier `MkBox : A -> Box A`). Mais
+`data Box (A: Type) = MkBox A` charge sans erreur.
+
+**Action** : les 2 TODO tparams sont résolus (bind sans typer).
+Le typage réel reste P5.
+
+**Verdict** : P2 (elab.zig tparams) terminé pour cette session.

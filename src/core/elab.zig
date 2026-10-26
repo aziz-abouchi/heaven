@@ -474,7 +474,19 @@ pub const Elaborator = struct {
             if (std.mem.eql(u8, kind(child), "data_constructor")) {
                 try ctors.append(self.allocator, try self.elaborate(child));
             }
-            // TODO: tparams ignoré pour l'instant — pas utilisé dans kernel.hvn actuel
+            }
+        // Extraire les tparams (A: Type, B: Type, ...) et les binder
+        // comme symboles dans le Store. Sans DependentChecker (P5),
+        // on ne peut pas les typer, mais on peut les nommer pour que
+        // les constructeurs puissent les référencer.
+        var j: u32 = 0;
+        while (j < n) : (j += 1) {
+            const child = namedChild(node, j);
+            if (std.mem.eql(u8, kind(child), "tparam")) {
+                const tp_name_node = field(child, "name") orelse namedChild(node, 0);
+                const tp_name = self.text(tp_name_node);
+                _ = try self.store.sym(tp_name);
+            }
         }
         const body = try self.store.call("data", ctors.items);
         return self.store.bind(name, body);
@@ -519,7 +531,16 @@ pub const Elaborator = struct {
         if (n < 2) return ElabError.MissingField;
         const name = self.text(namedChild(node, 0));
         const ty = try self.elaborate(namedChild(node, n - 1));
-        // TODO: tparams ignoré (idem data_decl)
+        // tparams : voir elabDataDecl. Binder sans typer (P5).
+        var j: u32 = 0;
+        while (j < n) : (j += 1) {
+            const child = namedChild(node, j);
+            if (std.mem.eql(u8, kind(child), "tparam")) {
+                const tp_name_node = field(child, "name") orelse namedChild(node, 0);
+                const tp_name = self.text(tp_name_node);
+                _ = try self.store.sym(tp_name);
+            }
+        }
         return self.store.bind(name, ty);
     }
 
