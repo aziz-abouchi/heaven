@@ -2388,7 +2388,34 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 if (p2.tag == .sym) try new_env.put(p2.payload, msg_val);
             }
 
-            current_state = try evaluate(store, new_env, engine, clause.body, depth + 1);
+            // Preemptif : budget par message (10k reductions).
+            // Si .suspended (SIGALRM ou budget), requeue le message
+            // au front et break. Le process est pret pour le prochain run.
+            const outcome = engine.evalWithBudget(clause.body, 10_000) catch |err| {
+                // Erreur reelle : let it crash. Requeue le message pour
+                // qu'un superviseur puisse le retraiter, et marque le
+                // process comme crash. Pour l'instant : requeue + abort.
+                if (engine.processes.getPtr(pid_u32)) |p_err| {
+                    p_err.mailbox.insert(engine.allocator, 0, msg_val) catch {};
+                }
+                return err;
+            };
+            switch (outcome) {
+                .done => |new_state| {
+                    current_state = new_state;
+                },
+                .suspended => {
+                    // Requeue le message au front (il n'a pas ete traite).
+                    if (engine.processes.getPtr(pid_u32)) |p_sus| {
+                        p_sus.mailbox.insert(engine.allocator, 0, msg_val) catch {};
+                    }
+                    // Sauve l'etat courant (avant ce message).
+                    if (engine.processes.getPtr(pid_u32)) |p_sus| {
+                        p_sus.state = current_state;
+                    }
+                    return current_state;
+                },
+            }
         }
 
         if (engine.processes.getPtr(pid_u32)) |p3| {
