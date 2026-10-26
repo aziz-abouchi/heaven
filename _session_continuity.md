@@ -406,3 +406,42 @@ documents de référence à consulter AVANT toute décision nouvelle :
 **Règle** : toute nouvelle décision architecturale se réfère à
 ces documents. Si elle les contredit, elle doit expliquer
 pourquoi le contexte a changé.
+
+## Session 2026-10-26 (lundi) -- vrai diagnostic loader
+
+### Bug racine identifié
+Le loader .hvn ne gère PAS les cycles de >= 4 fonctions mutuellement
+récursives. Test f <-> g (cycle 2) passe. Boucle Pratt
+parse_expr -> loop -> continue_loop -> parse_expr (cycle 4) crashe
+au CHARGEMENT (pas à l'exécution).
+
+### Conséquence
+- P2 (parse_cmp dans infix.hvn) : 3 tentatives, 3 SEGV
+- P2-option B (réécriture non-récursive) : squelette OK, boucle
+  Pratt KO
+- E1.2 (if/then/else en .hvn) : même bug
+- E1.4 (lambda en .hvn) : même bug
+
+### Prochaine session : OPTION A (Zig, instrumentation loader)
+Lire `docs/spec/_loader_cycle_bug.md` EN PREMIER.
+Session Zig dédiée : gdb -nx + core dump sur un fichier .hvn avec
+boucle Pratt (4 fonctions mutuellement récursives). Cutoff 3 blocs.
+Le fix débloque P2 + E1.2 + E1.4 d'un coup.
+
+### Livré lundi (17 commits)
+- P1 : prefix dispatch lambda/if (`eadcd9a`) -- lambda et if
+  inline fonctionnent
+- P3 : EImport -> VErr explicite (`77250a2`)
+- 5 docs gravés : _decisions.md (278L), _security_methodology.md
+  (205L), _backend_strategy.md (81L), _vision_strategic.md (125L),
+  _loader_cycle_bug.md (121L)
+- P0b : 5 chapitres du livre corrigés
+- README.md homepage
+
+### Bugs encore documentés, prêts
+- let inline -> évaluateur (_lambda_parser_bug.md)
+- imports -> pre-pass Zig (_import_resolution.md)
+- loader cycles >= 4 -> session Zig (_loader_cycle_bug.md)
+
+### Baseline
+18/18 fichiers .hvn verts. zig build test 404/407. Tree propre.
