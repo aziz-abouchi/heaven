@@ -314,3 +314,52 @@ le probleme. C'est AVANT evaluate.
   formatJudgment, 4 dead patterns)
 - 16 docs graves
 - 18/18 baseline preservee, tree propre
+
+## Localisation finale (2026-10-26, print evalEquation)
+
+Avec print dans evalEquation : [EQ step_app] apparait (lhs='step_app
+f (HP.TCons tk rest)', rhs=128 chars) puis SEGV immediat.
+
+### Le crash est dans le corps de evalEquation sur step_app
+Suspects identifies (lignes relatives dans evalEquation) :
+- L.116 : `const id = try self.parseExpression(tok)` -- parse des
+  tokens du LHS (avec HP.TCons imbrique)
+- L.128 : `expr.nativeToSExpr(gs, self.allocator)` -- conversion
+  du guard (le RHS contient `== 1` a profondeur 0)
+- L.137/154/157 : `parseExpression(sexpr/out/gs)` -- parse du guard
+
+### Hypotheses
+1. `parseExpression` sur `step_app f (HP.TCons tk rest)` : le parser
+   natif (nativeToSExpr / NativeParser) crashe sur le pattern
+   HP.TCons imbrique 2 niveaux.
+2. `nativeToSExpr` sur le RHS `if (is_atom_start (HP.TCons tk rest))
+   == 1 then ... else ...` : le `==` a profondeur 0 (dans le then)
+   est peut-etre mal splitte, ou le parser crashe sur l'imbrication.
+3. `splitTopLevelEq` sur le RHS : le `== 1` est a profondeur 2
+   (dans if (...)), donc splitTopLevelEq ne devrait pas le voir.
+   Mais le `if` est infixe, le parser natif peut traiter mal.
+
+### Prochaine session (gdb OBLIGATOIRE)
+1. gdb -nx + core dump sur infix.hvn avec parse_app
+2. `bt 20` au SEGV : quelle fonction de parseExpression/nativeToSExpr
+3. Si nativeToSExpr : instrumenter le lexer (quel token)
+4. Si splitTopLevelEq : verifier le toggle in_str sur `== 1`
+5. Le fix est dans parseExpression ou nativeToSExpr (parser natif),
+   pas dans le loader ni dans evaluate.
+
+### Bilan loader (17 blocs, 0 fix)
+- 16 hypotheses eliminees (clause step_app, TCons construction, if,
+  ADT, forward ref, appels imbriques, evaluate, runtime)
+- Crash dans evalEquation sur step_app, dans parseExpression ou
+  nativeToSExpr (parsing des tokens/guard, pas eval)
+- gdb + core dump est la seule voie (le parser crashe sur une forme
+  qu'on n'a pas encore identifiee -- probablement HP.TCons imbrique
+  dans un argument de ==, ou le if infixe avec == a profondeur 2)
+
+### Ce qui a ete livre cette session
+- 10 fixes reels (P1 if, P2 tparams, T2 lambda body multi-arg,
+  arrow lexer, compound assignment, annotation type, 3 stubs TODO,
+  formatJudgment, 4 dead patterns)
+- 18 docs graves
+- 18/18 baseline preservee, tree propre
+- 16 hypotheses loader eliminees, diagnostic jusqu'a evalEquation
