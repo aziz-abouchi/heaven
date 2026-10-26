@@ -53,6 +53,7 @@ eval_bind n b env = (eval b env)
 
 eval_file HP.ENil env = env
 eval_file (HP.ECons e rest) env = (eval_file rest (eval_top e env))
+eval_top (HP.EImport _ _) env = (VErr "EImport: resolution non supportee en .hvn (voir _import_resolution.md)")
 eval_top (HP.EBind n b) env = (EnvCons n (eval_bind n b env) env)
 eval_top (HP.EData _ ctors) env = (eval_top_data ctors env)
 eval_top e env = (eval e env)
