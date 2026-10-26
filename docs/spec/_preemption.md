@@ -345,14 +345,33 @@ Preemption fallback mono_ns valide native (meme code), non verifiee WASI
 directement car wasm_entry accepte une seule expression (pas de
 --eval-file, pas de multi-ligne).
 
-### Manque pour tester la preemption WASI
-Etendre wasm_entry pour supporter --eval-file / --run-test (1 bloc, ~30 lignes)
-OU definir un acteur via une expression unique (Y-combinator).
+
+### Validation WASI (2026-10-26)
+
+`wasi_main.zig` supporte désormais `--eval-file <path>` et `--fuel <n>`.
+Le point d'entrée WASI est `src/vessel/wasi_main.zig` (pas `wasm_entry.zig`,
+qui sert à wasm32-freestanding).
+
+Test :
+```
+wasmtime --dir=. zig-out/bin/heaven-wasi.wasm --eval-file preempt_v2.hvn
+```
+avec `preempt_v2.hvn` = `(@arm_preempt 0)` puis `count 100000`
+(récursion TCO user).
+
+Résultat : `[eval error] error.SuspendRequested` — identique au natif.
+La préemption WASI passe par le fallback horloge (`hasClock()` = true
+pour `wasm32-wasi`, seul `freestanding` le désactive). Contrôles :
+- sans `@arm_preempt`, `count 1000` termine (retourne `0`)
+- avec `@arm_preempt` + `(+ 1 2)`, pas de suspension (retourne `3`)
+
+Note : WASI sandbox n'accepte pas les chemins absolus ; utiliser des
+chemins relatifs (`--dir=.`) ou `--dir=<preopen>` côté wasmtime.
 
 ### Etat multi-plateforme
 | Plateforme | Compile | Evalue | Preemption |
 | native Linux | OK | OK | SIGALRM + fallback temps |
-| wasm32-wasi | OK | OK | fallback temps (code valide native) |
+| wasm32-wasi | OK | OK | fallback temps (vérifié 2026-10-26) |
 | wasm32-freestanding | OK | IDE web | coopératif (fuel) |
 | macOS/BSD | OK (CI) | OK | SIGALRM |
 | Windows | OK (CI) | OK | fallback temps |
