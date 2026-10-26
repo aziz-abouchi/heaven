@@ -73,3 +73,30 @@ liste des magics) et ajouter `@arm_preempt` a cote.
 - Ajouter case `@arm_preempt` (5 lignes). Build, test.
 - Test preemption : `(@arm_preempt 0)` puis recursion infinie ->
   doit etre interrompu a 10ms (SuspendRequested), pas hang.
+
+## Mise a jour 2026-10-26 (soir) -- preemption armee
+
+### Patch livre (commit suivant)
+- flag `preempt_flag` + handler `sigalrmHandler` callconv(.c)
+- struct `Itimerval` (2x Timeval i64)
+- fn libre `armPreemption(engine)` : sigaction + setitimer 10ms
+- check dans `evaluate` : `fuel % 1000 == 0 and preempt_armed`
+- magic `@arm_preempt` + case evalMagic
+- BUILD OK, 18/18 vert
+
+### Test TCO faux positif
+`rec n = rec n` : timeout 3s (EXIT=143), PAS interrompu.
+Cause : self-tail-call optimise par TCO. La boucle TCO ne
+decremente PAS fuel -> le check ne fire pas.
+
+### Ce qui reste (2 blocs)
+1. Fix TCO : decrementer `fuel` dans la boucle self-tail-call
+   (~5 lignes, localiser `tco_name` / `tco_spine_buf` dans evaluate)
+2. Test non-TCO : `f n = if n > 0 then (f (n + 1)) + 1 else 0`
+   (recursion NON terminale, fuel decremente normalement) -> doit
+   etre interrompu a 10ms
+
+### Vraie preemption : 2 blocs restants
+Le patch est arme, le check est la, 18/18 vert. Il manque :
+- Test non-TCO pour valider la preemption sur recursion normale
+- Fix TCO pour la preemption sur self-tail-calls
