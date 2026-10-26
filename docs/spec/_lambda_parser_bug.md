@@ -527,3 +527,33 @@ La session a livre 5 fixes reels. Ce 6e n'est pas un patch de 5 min.
 lambda x -> body fonctionne. Les 22 occurrences du livre qui
 utilisent `->` marchent pour map/filter/binding. C'est le gain
 reel de la session sur lambda.
+
+## Print : 17e tentative (callback expr_eval) -- rollback
+
+Approche : ajouter un callback `engine.expr_eval` (vers
+Heaven.evaluateExpr) pour que `perform` reduise les args non
+triviaux avant d'appeler le handler IO.
+
+Echec : le champ `io_handler` n'existe pas sous la forme attendue
+dans engine_expr.zig (assertion FIELD). Le wiring heaven_expr a
+casse 3 erreurs de build (references a expr_mod, engine_expr
+non importes dans le scope).
+
+Rollback des 2 fichiers, 12/12 restaure.
+
+### 17 hypotheses eliminees sur lambda/print
+Le bug print est structurel : perform/io_handler/interpForAssert
+sont dans 3 fichiers differents, avec des frontieres floues. Le
+fix demande une session fraiche dediee (extraction interpForAssert
+P1, puis wiring propre).
+
+### Fix court livre cette session
+- `->` lexer (366d609) : lambda x -> body marche
+- lambda body multi-arg (0dbdab8) : ((lambda x x+1) 5) = 6
+- += -= *= /= (60b7c18) : compound assignment
+- let x: T (1fbc691) : annotation type vs valeur
+- 3 stubs TODO, formatJudgment, 4 dead patterns
+
+### Prochain bloc : P1 (extraction interpForAssert)
+Le vrai fix de print ET lambda body (2-3 sessions). Pas de 18e
+patch local.
