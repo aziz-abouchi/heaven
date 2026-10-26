@@ -65,3 +65,69 @@ TypeEnv.infer réel (après DependentChecker).
 
 - `_claims_vs_reality.md` : RFC-0001 modules partiels
 - `_decisions.md` : D5 (parseurs fusionnés), D7 (Result explicite)
+
+## Catégorisation précise (2026-10-26, après inventaire)
+
+### types.zig — 15 stubs, le vrai chantier
+- Lignes 39-66 : `DependentChecker` (piType/sigmaType/vecType retournent 0)
+- Ligne 96 : `infer` retourne `"Int"` pour tout
+- Lignes 209, 259 : `_ = self` (TypeEnv)
+**Verdict** : bloc P5 (DependentChecker réel). Déjà dans la roadmap.
+**Coût** : 2-3 sessions. Pas de raccourci.
+
+### elab.zig — 5 TODO structurels
+- 234 : annotation type vs valeur
+- 244 : désucrer `+= -= *= /=`
+- 477, 522 : `tparams` ignorés (data + class)
+- 1018 : extraire `GlobalProtocol` depuis l'Id
+**Verdict** : bloc P2 (élaboration). Chacun 1-2 blocs.
+**Coût** : 5-10 blocs total. Pas prioritaire.
+
+### heaven_expr.zig — 1 TODO critique
+- 2842 : `ProofTerm` verify (extraction + traduction + verify)
+**Verdict** : P1 (proof), bloqué par kernel CIC réel.
+**Coût** : session dédiée après P5.
+
+### Réseau / WebRTC / WASM — 5 TODO
+- webrtc.zig:50 (router handlers)
+- wasm32_freestanding.zig:399 (JSON JavaScript)
+- signaling_server.zig:80 (map connexions)
+- network/handlers.zig:134 (Tree-sitter vers Id)
+- engine_expr.zig:2560 (egraph connect)
+**Verdict** : P2-P3, dépendent de dépendances externes (WebRTC, tree-sitter).
+
+### Connaissance / MLCPD — 5 TODO
+- turtle_parser.zig:449 (datatype custom)
+- mlcpd_equiv.zig:297, 309, 323, 385
+**Verdict** : P3, recherche.
+
+### Stubs légitimes (ne pas toucher)
+- wasm32_freestanding.zig : 14 `_ = self` (interface WASM)
+- shell_parser_types.zig : générique
+- abi/metric.zig : interface
+- inference/forge/engine.zig : interface
+- syntax/ast.zig : helpers
+
+### Stubs à examiner (faux positifs probables)
+- kernel/typechecker.zig (2 `_ = self`)
+- kernel/conversion.zig
+- runtime/shell/interactive.zig
+- runtime/shell/run.zig
+- runtime/shell/commands.zig
+- runtime/autofab.zig
+
+**Verdict** : à grep ligne par ligne, pas urgent.
+
+## Plan de nettoyage par ordre
+
+1. **P1 (1 session)** : extraction `interpForAssert` → `interp.zig` (bloqué par couplage 7 méthodes, voir session 2026-10-26)
+2. **P2 (1 session)** : elab.zig `tparams` (2 TODO, 477 + 522)
+3. **P3 (1 bloc)** : `_ = self` faux positifs (grep + vérifier)
+4. **P5 (2-3 sessions)** : `types.zig` DependentChecker réel
+5. **Hors priorité** : TODO réseau, connaissance, MLCPD
+
+## Contrainte
+
+**Un fichier par session, 18/18 après.**
+**Pas de nettoyage cosmétique sans test.**
+**Pas de refactor en fin de session.**
