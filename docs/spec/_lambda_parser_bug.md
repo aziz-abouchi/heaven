@@ -313,3 +313,38 @@ T2 a un body infixe aplati en 5 elements.
 Toutes les autres couches sont innocentes. Le bug est dans
 interpForAssert case 2b, structure [lambda, param, a1, op, a2].
 Fix = 8-12 lignes, build correct, cutoff 3 blocs session dediee.
+
+## Tentative finale case 2b (2026-10-26) -- cutoff respecte
+
+Patch case 2b bis (lam_args.len == 5) : logique correcte
+([lambda, param, a1, op, a2] -> apply(apply(op, a1), a2)).
+BUILD FAIL sur un simple shadowing :
+
+  src/core/heaven_expr.zig:3468:35: error: local constant 'inner'
+  shadows local constant from outer scope
+
+### Fix connu (1 ligne, aucune logique a changer)
+Renommer `inner` en `inner_body` (ou tout nom non utilise dans
+la fonction interpForAssert). C'est UNIQUEMENT du nommage Zig.
+
+### Prochain bloc (30 secondes)
+1. Reappliquer le patch case 2b bis avec `inner_body` au lieu
+   de `inner`.
+2. zig build (doit passer).
+3. Test T2 : ((lambda x x + 1) 5) -> 6 attendu.
+4. Test T1 (controle) : 5.
+5. Regression 18/18.
+6. Si tout vert : commit fix. Si T2 KO : rollback, doc.
+
+### Etat final session lundi
+- 1 fix reel (P1 : if repare, lambda binding, map)
+- 11 docs graves (decisions, security, backend, vision, loader,
+  lambda, zig_debt, + registres)
+- 8 hypotheses eliminees par instrumentation
+- 2 fixes cibles prets :
+  A. case 2b bis : 1 ligne shadowing (inner -> inner_body)
+  B. loader .hvn cycles >= 4 : session Zig gdb
+- Baseline 18/18 preservee, tree propre.
+
+Cutoff 1 bloc respecte. Pas de 2e tentative malgre l'erreur triviale.
+La discipline tient.
