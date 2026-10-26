@@ -336,3 +336,53 @@ Doc : docs/spec/_cascade_if_bug.md (nouveau).
 
 ### Baseline
 18/18 fichiers .hvn verts. zig build test 404/407 preserve.
+
+## Session 2026-10-26 (lundi) -- P0b livre + P1 diagnostic
+
+### Livre (P0b) -- 5 chapitres corrigés
+- ch8 (preuves) : sections État réel (piType/sigmaType stub, quotients ❌, irrelevance ❌). 4bf4869
+- ch2 (types) : encadré État réel (TypeEnv.infer retourne Int toujours). 7236cc0
+- ch26 (QTT) : 4 patches (façade, pas enforced, test≠preuve). 1bcced2
+- ch18 (primitives) : 5 câblées + relation spécifiée. 0c72819
+- ch22 (HoTT) : déjà corrigé 2026-10-24, registre marqué. 6a8a454
+
+### Registre (P0a)
+- docs/spec/_claims_vs_reality.md : 14 entrées, 5 marquées corrigées.
+- Règle 5 statuts : implémentée/testée, partielle, prototype, spécification, non vérifiée.
+
+### P1 (fix lambda) -- parqué avec diagnostic enrichi
+- 3 cas : argument KO, appliqué KO, RHS def OK.
+- Bug = interaction argument, pas parseLambdaExpr seul.
+- Fix = 1 session dédiée (3 options documentées : string, évaluateur, contrat).
+- Doc : docs/spec/_lambda_parser_bug.md (e51280a).
+
+### Décisions actées semaine précédente
+- D0 Cubical HoTT (CCHM 2018)
+- D1 noyau Zig d abord
+- D2 isolation totale V1
+- D3 QTT façade -> enforced après D12-bis
+- D4 backend C après P5
+- D5 parseurs fusionnés dans NativeParser
+- D6 modules minimaux
+- D7 Result explicite
+- D8 ID model Option C (u32 + hash-128)
+- D9 Heaven DB interne
+- D10 LLM orchestration + FFI
+- D11 comptime non, normalisateur oui
+- D12 Heaven-first + benchmarks
+- D12-bis QTT enforced après P5
+- D13 QBE first, LLVM si besoin
+- D14 backend Heaven natif long terme
+- D15 OTP-light après P5
+- D16 BEAM backend secondaire
+- D17 JVM backend tertiaire
+- D18 stratégie backend (QBE -> Cranelift -> LLVM)
+
+### Prochain bloc (P2)
+- Fix parse_cmp (cascade if > 6 -> SEGV).
+- Doc : docs/spec/_cascade_if_bug.md (prête).
+- Option A : if au niveau expression, pas atome (parse_atom sans if).
+- 1 session dédiée. Cutoff 3 blocs.
+
+### Baseline
+18/18 fichiers .hvn verts. zig build test 404/407.
