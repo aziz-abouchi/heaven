@@ -119,3 +119,28 @@ mutuelle profonde.
 
 Option A (session Zig, instrumenter le loader) devient OBLIGATOIRE.
 Cutoff 3 blocs respecté (squelette OK, boucle Pratt KO, rollback).
+
+## Mise à jour 2026-10-26 : E1.5 (parse_app) échoue aussi
+
+### Ce qui a été testé
+- Cycle de 5 fonctions **triviales** (f->g->h->i->j->f) : CHARGE OK
+- Cycle de 5 fonctions **avec corps complexe** (parse_app avec
+  HP.TCons, if, appels) : SILENCE au chargement (crash)
+
+### Conclusion affinée
+Le loader .hvn ne casse PAS sur le nombre de fonctions mutuellement
+récursives (5 charge en trivial). Il casse sur la COMPLEXITÉ du corps
+(pattern matching HP.TCons, if imbriqués, appels avec arguments).
+
+C'est probablement la profondeur de récursion de `resolve` pendant
+le chargement, ou un cycle non détecté dans les dépendances de
+patterns (les clauses HP.TCons créent des dépendances transitives).
+
+### Impact
+E1.5 (parse_app) est bloqué par le même bug que E1.2, E1.3, E1.4,
+E1.6, P2. Le fix loader est encore plus critique que prévu.
+
+### Prochain bloc : loader .hvn (session Zig gdb)
+Le test discriminant (cycle 5 trivial vs cycle 5 complexe) donne
+une piste : instrumenter `resolve` dans le loader pour voir à
+quelle profondeur il crashe sur infix.hvn avec parse_app.
