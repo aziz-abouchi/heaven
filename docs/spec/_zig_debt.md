@@ -180,3 +180,15 @@ sont maintenant **extraits et bindés comme symboles** dans le Store.
 Le typage réel reste P5.
 
 **Verdict** : P2 (elab.zig tparams) terminé pour cette session.
+
+## Mise à jour 2026-10-26 : TODO 234 (annotation type vs valeur)
+
+### elab.zig:234 -- let x: T vs let x: T = e
+elabVarDecl cherche '=' dans les children. Sans '=', binde unitLit.
+Avec '=', prend le dernier named child (la valeur), type ignore.
+
+Avant : let x: Int bindait Int comme valeur (bug).
+Apres : let x: Int -> x = unitLit. let x: Int = 42 -> x = 42.
+
+**Verdict** : TODO 234 resolu.
+Reste 1018 (GlobalProtocol, depend de MPST reel -- P5+).
