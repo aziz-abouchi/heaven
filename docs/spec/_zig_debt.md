@@ -131,3 +131,23 @@ TypeEnv.infer réel (après DependentChecker).
 **Un fichier par session, 18/18 après.**
 **Pas de nettoyage cosmétique sans test.**
 **Pas de refactor en fin de session.**
+
+## Mise à jour 2026-10-26 : 3 stubs vides identifiés
+
+### commands.zig : cmdQuery, cmdRun, cmdInject
+Ces 3 commandes shell sont **complètement vides** (`_ = self; _ = arg;`
+puis rien). Elles ne font rien quand appelées (`:query foo`,
+`:run file.hvn`, `:inject code` → no-op silencieux).
+
+**Action** : TODO(stub) ajoutés dans le code. À implémenter ou à
+retirer du dispatcher.
+
+**Verdict** : stubs réels, pas faux positifs. Coût : 1 bloc chacun
+si on implémente, 5 min si on retire du dispatcher.
+
+### 6 autres `_ = self` sont légitimes
+typechecker.zig, conversion.zig, interactive.zig (×2), run.zig,
+autofab.zig : méthodes qui n'utilisent pas `self` (API stable,
+délégation). Ne pas toucher -- Zig exige `_ = self` pour compiler.
+
+**Verdict** : faux positifs confirmés.

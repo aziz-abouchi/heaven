@@ -130,6 +130,7 @@ pub fn cmdTrace(self: *Shell, name: []const u8) void {
 }
 
 pub fn cmdQuery(self: *Shell, name: []const u8) void {
+    // TODO(stub): query KB pour les faits de `name`. Voir _zig_debt.md.
     _ = self;
     _ = name;
 }
@@ -168,11 +169,13 @@ pub fn cmdLoad(self: *Shell, input: []const u8) void {
 }
 
 pub fn cmdRun(self: *Shell, arg: ?[]const u8) void {
+    // TODO(stub): executer fichier .hvn. Voir _zig_debt.md.
     _ = self;
     _ = arg;
 }
 
 pub fn cmdInject(self: *Shell, code: []const u8) void {
+    // TODO(stub): injecter code dans le REPL. Voir _zig_debt.md.
     _ = self;
     _ = code;
 }
