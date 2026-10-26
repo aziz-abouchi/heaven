@@ -60,3 +60,25 @@ B. if/cmp au niveau expression, parse_atom sans if ni cmp
 C. Session Zig : instrumenter le cycle (gdb + core dump)
 
 Rollback. Session dédiée.
+
+## Tentative 3 (2026-10-26) : parse_cmp sans toucher open_paren
+
+open_paren reste sur parse_add, parse_infix appelle parse_cmp.
+Résultat : SEGV au chargement (test_parse_infix:139), silence
+sur le test c2 (comparaisons). Même échec que les 2 tentatives
+précédentes.
+
+Conclusion : le SEGV n'est PAS le cycle open_paren -> parse_cmp
+(open_paren n'appelle pas parse_cmp). Il est ailleurs -- probablement
+une interaction entre step_cmp/continue_cmp (récursion mutuelle
+avec parse_add) et le loader .hvn.
+
+3 tentatives, 3 SEGV identiques. P2 est bloqué au niveau du
+loader .hvn, pas du code parse_cmp. Options :
+A. Session Zig : instrumenter le loader (gdb + core dump sur
+   infix.hvn avec parse_cmp)
+B. Réécrire infix.hvn en style non-récursif (flat token stream,
+   puis parse en une passe) -- refactor
+C. Attendre E1 complet et réécrire infix.hvn en même temps
+
+Rollback. Cutoff 3 blocs respecté.
