@@ -144,3 +144,41 @@ E1.6, P2. Le fix loader est encore plus critique que prévu.
 Le test discriminant (cycle 5 trivial vs cycle 5 complexe) donne
 une piste : instrumenter `resolve` dans le loader pour voir à
 quelle profondeur il crashe sur infix.hvn avec parse_app.
+
+## Clause fautive identifiee (2026-10-26, instrument flush)
+
+Avec FLUSH instrumente, la derniere clause avant SEGV (EXIT=139) est :
+
+  step_app f (HP.TCons tk rest) =
+    if (is_atom_start (HP.TCons tk rest)) == 1
+    then (continue_app f (parse_atom (HP.TCons tk rest)))
+    else (IOk f (HP.TCons tk rest))
+
+### Particularites de cette clause
+1. HP.TCons tk rest apparait 3 fois dans le CORPS (construction, pas
+   pattern match). Les clauses precedentes utilisent TCons en pattern
+   (parse_atom (HP.TCons (HP.TIntTok n) rest) = ...).
+2. (is_atom_start (HP.TCons tk rest)) == 1 : appel de fonction avec
+   construction en argument, compare a 1.
+3. (continue_app f (parse_atom (HP.TCons tk rest))) : appel imbrique
+   3 niveaux.
+
+### Hypotheses (a confirmer session Zig)
+- Le loader ne sait pas CONSTRUIRE TCons dans le corps (seulement
+  matcher en pattern). Test : une clause simple `f x = (HP.TCons x nil)`.
+- Ou `== 1` sur un appel de fonction pose probleme (peu probable,
+  test_parse_infix utilise `==` sur nombres).
+
+### Test discriminant (prochain bloc)
+  test_construct x = HP.TCons x HP.TNil
+  (print "loaded")
+Si ce fichier crashe : confirmation que TCons en construction KO.
+Fix : soit le loader doit construire les ADT (plus profond), soit
+step_app doit etre reecrit sans construction (utiliser un helper
+pattern-matche).
+
+### Impact
+E1.5 (parse_app) est bloque par ce bug. Le fix loader doit gerer
+la construction d'ADT dans le corps, pas seulement le pattern match.
+C'est plus profond que prevu -- probablement dans evalEquation ou
+le type-checker (P5).
