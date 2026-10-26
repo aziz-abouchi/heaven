@@ -151,3 +151,16 @@ autofab.zig : méthodes qui n'utilisent pas `self` (API stable,
 délégation). Ne pas toucher -- Zig exige `_ = self` pour compiler.
 
 **Verdict** : faux positifs confirmés.
+
+## Mise à jour 2026-10-26 : formatJudgment explicite
+
+### types.zig formatJudgment
+Retourne maintenant `"[STUB] judgment non verifie (DependentChecker stub)"`
+au lieu de `"Judgment stub"`. Les commandes shell `:dep Vec/Pi/Sigma`
+affichent maintenant clairement l'état réel (stub, pas vérifié).
+
+**Action** : la commande `:dep` est honnête (affiche STUB). Le vrai
+DependentChecker (P5) reste 2-3 sessions.
+
+**Verdict** : B pour cette session terminé. Ne pas implémenter un
+demi-typechecker sans typechecker qui le consomme (théâtre).

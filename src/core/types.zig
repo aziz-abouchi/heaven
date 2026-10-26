@@ -67,7 +67,10 @@ pub const DependentChecker = struct {
     }
     pub fn formatJudgment(vt: u32, allocator: std.mem.Allocator) ![]u8 {
         _ = vt;
-        return allocator.dupe(u8, "Judgment stub") catch return error.OutOfMemory;
+        // STUB : DependentChecker n'implemente aucun typage reel.
+        // Voir docs/spec/_zig_debt.md (P5). Le jugement retourne est
+        // symbolique, pas verifie.
+        return allocator.dupe(u8, "[STUB] judgment non verifie (DependentChecker stub)") catch return error.OutOfMemory;
     }
 };
 
