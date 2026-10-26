@@ -348,3 +348,48 @@ la fonction interpForAssert). C'est UNIQUEMENT du nommage Zig.
 
 Cutoff 1 bloc respecte. Pas de 2e tentative malgre l'erreur triviale.
 La discipline tient.
+
+## 9e hypothese (case 2b bis) -- build OK, T2 KO
+
+Patch case 2b bis avec noms distincts (param_node5, body_inner,
+body_full) : BUILD=0, regression 18/18 verte, mais T2 toujours brut.
+let inline toujours brut.
+
+### Conclusion
+Soit le case 2b bis ne fire pas (lam_args.len != 5 apres le
+renommage ?), soit il fire mais interpForAssert(body_full)
+echoue silencieusement (catch id).
+
+### 9 hypotheses eliminees sur ce bug
+1. case 2b manquant
+2. parseLambdaExpr body non parentheses
+3. interpForAssert cases 2/3 morts
+4. double-parens body
+5. bug dans parseLambdaExpr (jamais appele)
+6. bug dans parsePrimary .lparen (lambda n'y arrive pas)
+7. print case (n'existe pas)
+8. case 2b bis 1re version (shadowing)
+9. case 2b bis 2e version (build OK, T2 KO)
+
+### Le vrai probleme (a accepter)
+Le bug lambda body binaire est PLUS PROFOND que le case 2b.
+Il faut soit :
+- Instrumenter le case 2b bis (2-3 prints : fire ?, body_full.tag ?,
+  interpForAssert result ?), 1 bloc read-only.
+- OU accepter que le fix est structurel : extraire interpForAssert
+  dans un fichier separe (P1 _zig_debt.md), avec tests unitaires.
+
+### Prochain bloc (session fraiche)
+Option A (rapide) : 3 prints dans case 2b bis, cutoff 3 blocs.
+Option B (structurel) : extraction interpForAssert -> interp.zig,
+puis tests unitaires sur les 5 cas lam_args.len.
+
+Option B est le vrai fix -- 5498 lignes dans heaven_expr.zig
+cachent le comportement. Option A donne la reponse en 1 bloc
+mais probablement pour trouver une 10e cause.
+
+### Etat final
+- 1 fix reel (P1 : if repare, lambda binding, map)
+- 11 docs
+- 9 hypotheses eliminees
+- Baseline 18/18, tree propre.
