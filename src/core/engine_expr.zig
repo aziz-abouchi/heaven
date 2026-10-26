@@ -316,6 +316,10 @@ fn armPreemption(engine: *Engine) void {
     engine.preempt_armed = true;
 }
 
+inline fn hasClock() bool {
+    return @import("builtin").os.tag != .freestanding;
+}
+
 pub const Engine = struct {
     allocator: std.mem.Allocator,
     store: *Store,
@@ -345,6 +349,9 @@ pub const Engine = struct {
     in_handle: bool = false,
     fuel: u64 = 1_000_000,
     preempt_armed: bool = false,
+    /// Fallback coopératif temps : timestamp du dernier SuspendRequested
+    /// par le check temps (10ms). Porte sur wasm (pas de SIGALRM).
+    last_preempt_ms: i64 = 0,
     /// Safepoint budget. Decremente a chaque appel de evaluate().
     /// A 0 -> error.SuspendRequested (abort cooperatif).
     /// Par defaut = maxInt (jamais suspendu) sauf via evalWithBudget.
@@ -459,6 +466,13 @@ pub const Engine = struct {
         self.fuel -= 1;
         if (self.fuel % 1000 == 0 and self.preempt_armed) {
             if (preempt_flag.swap(false, .seq_cst)) return error.SuspendRequested;
+            if (comptime hasClock()) {
+                const now = std.time.milliTimestamp();
+                if (now - self.last_preempt_ms >= 10) {
+                    self.last_preempt_ms = now;
+                    return error.SuspendRequested;
+                }
+            }
         }
         return evaluate(store, env, self, id, 0);
     }
@@ -649,6 +663,13 @@ pub const Engine = struct {
             self.fuel -= 1;
             if (self.fuel % 1000 == 0 and self.preempt_armed) {
                 if (preempt_flag.swap(false, .seq_cst)) return error.SuspendRequested;
+                if (comptime hasClock()) {
+                    const now = std.time.milliTimestamp();
+                    if (now - self.last_preempt_ms >= 10) {
+                        self.last_preempt_ms = now;
+                        return error.SuspendRequested;
+                    }
+                }
             }
             self.tco_args_len = 0;
 
