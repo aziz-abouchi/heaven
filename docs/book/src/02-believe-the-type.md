@@ -97,6 +97,14 @@ Parce que `+` est une fonction qui, appliquée à deux `Int`, rend un
 `Int`. Et `1` est un `Int`. Donc `x + 1` est un `Int`. Donc `inc x`
 est un `Int`. Donc `inc` prend un `Int` et rend un `Int`.
 
+> **État réel (2026-10-26).** L'inférence décrite ici est la
+> **cible**. Dans le code actuel, `TypeEnv.infer`
+> (`src/core/types.zig:266`) retourne `"Int"` pour toute expression —
+> c'est un stub. `DependentChecker.piType` et `sigmaType` retournent
+> `0`. L'exemple `inc x = x + 1` donne `Int -> Int` par convention
+> (et parce que `+` est câblé), pas par une inférence Hindley-Milner
+> réelle. Voir `docs/spec/_claims_vs_reality.md`.
+
 Cette déduction se fait **sans que tu aies à l'écrire**. C'est un
 des apports majeurs de Haskell et de ses successeurs (dont Idris,
 Agda, et Heaven). Le langage **devine** le type le plus général qui
@@ -441,8 +449,10 @@ C'est pour cela que QTT n'est pas un détail de typage : c'est
   classer les valeurs, pas une essence cachée.
 - Heaven a **cinq types de base** : `Int`, `Float`, `String`,
   `Bool`, `Unit`.
-- Le langage **infère** les types : `inc x = x + 1` donne
-  `Int -> Int` sans qu'on ait rien écrit.
+- **Cible** : le langage infère les types (`inc x = x + 1` donne
+  `Int -> Int`). **État réel** : `TypeEnv.infer` est un stub qui
+  retourne `"Int"` pour tout. L'exemple fonctionne par convention,
+  pas par inférence réelle.
 - Les **types paramétrés** (`List a`, `Option a`, `Pair a b`)
   ont des places vides qu'on remplit plus tard.
 - Frege distinguait **sens** (Sinn) et **référence**

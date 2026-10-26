@@ -30,3 +30,4 @@ Distinguer "non implémenté" (absent) de "non vérifié" (pas examiné).
 | Holes (`_`) | livre ch.2 | tous les `_` partagent l id 0 | 5 absent | pas de test holes | livre présente comme feature | ch.2 : retirer ou marquer "spécification" |
 | TCO mutuelle | livre ch.4 | limitations SCC | 4 spécification | pas de test TCO mutuel | livre présente comme acquis | ch.4 : "TCO simple OK, mutuelle à démontrer" |
 | Table des versions | SUMMARY.md | 0.5 historique, 0.6 ACTUEL | 1 corrigé 2026-10-26 | grep ACTUEL = 1 ligne | résolu | commit 7f08c57 + SUMMARY fix |
+| Inférence de types (inc -> Int -> Int) | livre ch.2 | TypeEnv.infer retourne "Int" toujours | 5 stub | types.zig:266 | ch.2 présente comme acquise | corrigé 2026-10-26 : sections "État réel" |
