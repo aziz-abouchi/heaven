@@ -240,3 +240,43 @@ le dispatch lambda/let.
 - NE PAS patcher interpForAssert
 - NE PAS patcher parsePrimary .lparen
 - Instrumenter heaven.eval EN PREMIER, 3 prints, cutoff 3 blocs.
+
+## Diagnostic précis final (2026-10-26)
+
+grep '"print"' dans heaven_expr.zig = VIDE. print n'est pas un case
+string. T1 et T2 sont des expressions NUES (pas (print ...)),
+retournées par eval.
+
+Trace instrumentée (interpForAssert + fix2b) :
+- T1 ((lambda x x) 5) :
+    node=apply fnode=apply args=2
+    fix2b: payload.tag=sym span.len=3  -> 5 OK
+- T2 ((lambda x x + 1) 5) :
+    node=apply fnode=apply args=2
+    fix2b: payload.tag=sym span.len=5  -> brut
+
+### Cause
+interpForAssert case 2b (heaven_expr.zig:3329-3345) :
+  const lam_args = self.store.spanSliceConst(fnode.span_a);
+  if (lam_args.len == 3) { ... }  // [lambda, param, body]
+
+Attend span.len == 3. T1 matche (3). T2 a span.len == 5 (body
+aplati : [param, body_head, body_arg1, op, lit] ou similaire),
+donc case 2b ne fire pas. Fallback -> evaluateExpr -> id brut.
+
+### Le fix (session dédiée)
+Dans interpForAssert case 2b : accepter lam_args.len >= 3 et
+reconstruire le body depuis lam_args[2..]. ~5-10 lignes.
+NE PAS toucher parseLambdaExpr, parsePrimary, evaluateExpr.
+
+### 7 hypothèses éliminées (2 blocs instrumentation)
+1. case 2b manquant -- FAUX (fnode.tag=apply)
+2. body non parenthésé -- FAUX
+3. interpForAssert cases 2/3 morts -- FAUX
+4. double-parens -- FAUX
+5. parseLambdaExpr -- FAUX (jamais appelé)
+6. parsePrimary .lparen -- FAUX (lambda n'y arrive pas)
+7. print case -- FAUX (n'existe pas)
+
+### Vraie couche : interpForAssert case 2b, condition lam_args.len == 3
+### Fix estimé : 5-10 lignes dans heaven_expr.zig:3341
