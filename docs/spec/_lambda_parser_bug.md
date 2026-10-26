@@ -169,3 +169,35 @@ Prochaine session : instrumenter evaluateExpr (memes 3 prints),
 voir ou x + 1 echoue. Cutoff 3 blocs.
 
 NE PAS patcher interpForAssert. Le bug est dans evaluateExpr.
+
+## Instrumentation parseLambdaExpr (2026-10-26) -- dispatch casse
+
+Print [LAM] ajouté dans parseLambdaExpr (body_str + result).
+Test T2 ((lambda x x + 1) 5) : le print n'apparait PAS.
+
+### Conclusion
+parseLambdaExpr n'est JAMAIS appele pour ((lambda x x + 1) 5).
+Le dispatch lambda se perd avant parseLambdaExpr -- probablement
+dans parsePrimary .lparen (traite lambda comme ident ordinaire)
+ou parsePostfix (avale lambda comme argument).
+
+### Ce qui a ete elimine (5 hypotheses)
+1. case 2b manquant dans interpForAssert -- FAUX (fnode.tag=apply)
+2. parseLambdaExpr body non parentheses -- FAUX (ne change rien)
+3. bug dans interpForAssert cases 2/3 -- FAUX (ne firent jamais)
+4. double-parens body -- FAUX (ne change rien)
+5. bug dans parseLambdaExpr -- FAUX (jamais appele)
+
+### Vrai point d'entree (prochain session)
+Instrumenter parsePrimary .lparen (case next) et parsePostfix
+(pourquoi lambda n'est pas traite comme primary). 3 prints,
+cutoff 3 blocs. NE PAS toucher parseLambdaExpr ni interpForAssert.
+
+### Etat
+- T1 ((lambda x x) 5) -> 5 (marche par chance, chemin engine)
+- T2 ((lambda x x + 1) 5) -> brut (parseLambdaExpr jamais appele)
+- let inline -> brut (meme cause, parseLetExpr similaire ?)
+- if inline -> 10 OK (dispatch if fonctionne)
+- map + lambda simple -> OK (chemin different)
+
+5 hypotheses eliminees, 1 vraie couche identifiee (dispatch parser).
