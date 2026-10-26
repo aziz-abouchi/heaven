@@ -1408,7 +1408,13 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             if (t.state == .preempted) t.state = .ready;
         }
 
+        // Deadline : eviter hang si une task loop infiniment.
+        // budget = budget total (pas par task). Chaque iteration
+        // consomme 1 du budget total.
+        var total_iter: u64 = budget * 10;  // 10x budget per-task
         while (true) {
+            if (total_iter == 0) break;
+            total_iter -= 1;
             const task = engine.scheduler.next() orelse break;
             task.state = .running;
             const body_fn_id: Id = @intCast(task.body_fn orelse {
