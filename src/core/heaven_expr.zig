@@ -3350,6 +3350,16 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
                             return self.interpForAssert(lam_args[2]) catch id;
                         }
                     }
+                    if (lam_args.len == 5) { // [lambda, param, a1, op, a2] flat infix body
+                        const pn5 = self.store.get(lam_args[1]);
+                        const on5 = self.store.get(lam_args[3]);
+                        if (pn5.tag == .sym and on5.tag == .sym) {
+                            // Substituer x par args[0]. MULTI-ARG apply(sym_+, [5, 1])
+                            // reduit direct a 6 (vs curryfie qui reste partiel).
+                            const bf5 = try self.store.apply(lam_args[3], &.{args[0], lam_args[4]});
+                            return self.interpForAssert(bf5) catch id;
+                        }
+                    }
                 }
             }
         }
