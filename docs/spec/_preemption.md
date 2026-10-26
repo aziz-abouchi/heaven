@@ -389,6 +389,26 @@ par iteration, la tache est preemptee/rejouee en boucle et ne progresse
 pas. La reprise exacte demanderait A-3b (capture + restauration de pile,
 cf. `_capture_eval.md`).
 
+
+### @disarm_preempt (2026-10-26)
+
+`@arm_preempt` est global a l'engine et n'etait pas reversible. Ajout de
+`@disarm_preempt` (symetrique, idempotent, prend un arg ignore comme
+`@arm_preempt`) :
+
+    (@arm_preempt 0)
+    ...           -- calcul interrompu a chaque safepoint
+    (@disarm_preempt 0)
+    ...           -- plus d'interruption
+
+Implementation : `disarmPreemption(engine)` remet `preempt_armed = false`
+et `last_preempt_ms = 0`. Le `preempt_flag` (SIGALRM) est consomme au
+prochain check s'il etait set ; sans check arme, il reste inerte (pas
+de stale state dangereux).
+
+Test : `test_abort_relaunch.hvn` T5 (post-disarm, 2 taches CPU-bound
+terminent normalement, sans timeout).
+
 ### Etat multi-plateforme
 | Plateforme | Compile | Evalue | Preemption |
 | native Linux | OK | OK | SIGALRM + fallback temps |
