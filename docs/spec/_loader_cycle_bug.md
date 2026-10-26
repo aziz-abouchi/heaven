@@ -101,3 +101,21 @@ ratio de toute la roadmap E1.
 - `_lambda_parser_bug.md` : P1 résolu (Zig), let inline KO (évaluateur)
 - `_emancipation_roadmap.md` : E1.2-E1.7
 - `_import_resolution.md` : P3 (pre-pass Zig)
+
+## Mise à jour 2026-10-26 : option B échoue aussi
+
+Réécriture non-récursive de infix.hvn tentée (squelette + boucle Pratt) :
+- Squelette (parse_expr = parse_atom, pas de boucle) : charge, parse 42.
+- Boucle Pratt (parse_expr -> loop -> continue_loop -> parse_expr) :
+  même le chargement crashe (silence sur les 4 tests).
+
+Conclusion : le loader .hvn ne gère PAS les cycles de >= 4 fonctions
+mutuellement récursives. Le test cycle 2 (f <-> g) passait, mais un
+cycle de 4 casse. Ce n'est pas infix.hvn, c'est le loader.
+
+Options B (réécrire infix.hvn) = MORTE. Le problème n'est pas la
+structure du parser, c'est le loader qui ne supporte pas la récursion
+mutuelle profonde.
+
+Option A (session Zig, instrumenter le loader) devient OBLIGATOIRE.
+Cutoff 3 blocs respecté (squelette OK, boucle Pratt KO, rollback).
