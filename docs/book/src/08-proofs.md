@@ -83,6 +83,15 @@ Heaven n'expose pas le CIC directement au programmeur. Il fournit
 une **surface** plus accessible : `theorem`, `prove`, tactiques,
 etc. Le CIC est le moteur sous le capot.
 
+> **État réel (2026-10-26).** Le noyau CIC est présent
+> structurellement (`src/core/kernel.zig`, ~780 lignes), mais son
+> type-checking est limité. `DependentChecker.piType` et
+> `sigmaType` (`src/core/types.zig:33-73`) retournent `0` — ce sont
+> des stubs. Les types quotients et la proof irrelevance sont
+> absents (`STATUS.md` : ❌). Tant que le noyau n'est pas complet,
+> les théorèmes sont **acceptés** par convention, pas **vérifiés**
+> indépendamment. Voir `docs/spec/_claims_vs_reality.md`.
+
 ## 4. Théorème et tactiques
 
 En Heaven, un **théorème** est une affirmation. Une **preuve** est
@@ -132,12 +141,19 @@ La tactique `simplify` ne dit pas « c'est vrai, croyez-moi » — elle
 transforme l'équation jusqu'à ce que les deux côtés soient
 *identiques*, ce qui est vérifiable mécaniquement.
 
-Le noyau CIC **ne fait pas confiance** aux tactiques. Il vérifie
-chaque étape. Si une tactique produit une étape invalide, la preuve
-est rejetée.
+**Cible** : le noyau CIC ne fait pas confiance aux tactiques. Il
+vérifie chaque étape. Si une tactique produit une étape invalide, la
+preuve est rejetée.
 
-*Vérifiable : les théorèmes `add_zero`, `t1`, `deux_plus_deux` et
-`add_comm` fonctionnent tels quels dans le REPL.*
+**État réel (2026-10-26)** : les tactiques fonctionnent, mais la
+vérification indépendante par le noyau n'est pas encore effective
+(`piType`/`sigmaType` = stub). Les théorèmes sont acceptés, pas
+re-vérifiés par un noyau séparé des tactiques.
+
+*Acceptés par le REPL : les théorèmes `add_zero`, `t1`,
+`deux_plus_deux` et `add_comm` s'exécutent sans erreur. Ce n'est
+pas la même chose que « vérifiés par un noyau indépendant » — voir
+la section « État réel » plus haut.*
 
 
 ## 5. Trou et raffinement
