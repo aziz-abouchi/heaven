@@ -137,3 +137,35 @@ est pris pour ((lambda x x + 1) 5). Session Zig dédiée, cutoff
 3 blocs. NE PAS refaire 2 tentatives aveugles.
 
 Rollback. Cutoff 3/3 respecté. 2 tentatives, 2 échecs, on arrête.
+
+## Instrumentation 2026-10-26 (3 prints) -- bug dans l'engine
+
+Trace T1 ((lambda x x) 5) :
+  [I4A] entry id=5739 node.tag=apply fnode.tag=apply args_len=2
+  [I4A] entry id=5736 node.tag=sym fnode.tag=sym args_len=0
+  -> 5
+
+Trace T2 ((lambda x x + 1) 5) :
+  [I4A] entry id=5741 node.tag=apply fnode.tag=apply args_len=2
+  (rien)
+  -> brut
+
+### Observations
+1. fnode.tag == apply, PAS lambda. Hypothese case 2b etait fausse.
+2. case 2 (apply(sym lambda, ...)) ne fire jamais.
+3. case 3 (env-bound) ne fire jamais.
+4. Les deux passent par le fallback engine (evaluateExpr ligne ~3490).
+
+### Difference T1/T2
+- T1 : engine evalue une sous-expression (sym) -> 5 OK
+- T2 : engine n'evalue AUCUNE sous-expression -> brut
+
+### Conclusion
+Le bug n'est PAS dans interpForAssert (cases 2/3). Il est dans
+le fallback engine (evaluateExpr) qui reussit sur body trivial (x)
+et echoue sur body binaire (x + 1).
+
+Prochaine session : instrumenter evaluateExpr (memes 3 prints),
+voir ou x + 1 echoue. Cutoff 3 blocs.
+
+NE PAS patcher interpForAssert. Le bug est dans evaluateExpr.
