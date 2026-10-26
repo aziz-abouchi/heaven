@@ -434,3 +434,29 @@ Arret. Le bug lambda body binaire est STRUCTUREL, pas local.
 l'extraction (Option B), pas un 11e patch.
 
 Cutoff absolu. Cloture.
+
+## Tentatives case 5 (2026-10-26) -- 13 tentatives, pivot
+
+### Ce qui marche
+- Fix 2b ATTEINT avec marker unique (pas erreur metho cette fois)
+- Trace : [F2B] enter fix2b + [F2B] lam_args.len=5
+- Substitution x -> args[0] : ((+ 5) 1) au lieu de ((lambda x x+1) 5)
+
+### Ce qui ne marche pas
+- interpForAssert(bf5) retourne ((+ 5) 1) SANS reduire
+- evaluateExpr(bf5) echoue (brut)
+- Le body apply(apply(sym_+, [5]), [1]) n'est pas evalue a 6
+
+### Cause probable
+Le body curried apply(apply(sym_+, [5]), [1]) n'est pas reconnu
+par l'engine. Soit il faut multi-arg apply(sym_+, [5, 1]),
+soit in_interp bloque l'appel recursif, soit le body doit etre
+construit en string et passe a evalSExpr (heaven_eval.hvn).
+
+### 13 hypotheses eliminees au total
+Voir sections precedentes. Le bug est structurel : 5498 lignes
+cachent le flow. Le vrai fix est l'extraction (P1 _zig_debt.md).
+
+### Pivot : cleanup stubs + jumbos
+L'utilisateur demande nettoyage stubs et reduction jumbos.
+On arrete le bug lambda. Focus sur ce qui est demande.
