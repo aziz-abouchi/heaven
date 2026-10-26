@@ -30,3 +30,25 @@ Fonction nommee : inc x = x + 1 ; map inc xs
 
 ## Impact livre
 22 occurrences lambda dans les .md. Documentees, non converties.
+
+## Mise à jour 2026-10-26 (diagnostic complémentaire)
+
+3 cas discriminants exécutés :
+1. `(print (lambda x x))` -> expression brute (KO)
+2. `(print ((lambda x x) 5))` -> expression brute (KO)
+3. `id_l _ = lambda x x` + `((id_l 0) 5)` -> 5 (OK)
+
+Conclusion : le bug n'est PAS dans parseLambdaExpr (qui produit la
+bonne string), ni dans l'évaluateur seul. C'est l'interaction en
+contexte argument.
+
+Le fix identifié ("store.apply au lieu d'allocPrint") ne suffit pas :
+parseLambdaExpr a pour contrat de retourner une string. Changer ça =
+refactor du contrat parser.
+
+3 options réelles :
+A. Changer la string ("(lambda (x) body)") - 2-3 lignes, faible risque
+B. Changer l'évaluateur (accepter curryfié) - 15-20 lignes, risque moyen
+C. Changer le contrat parser (Id au lieu de string) - refactor massif
+
+P1 est une session dédiée, pas un quick win. Rollback, doc, P2.
