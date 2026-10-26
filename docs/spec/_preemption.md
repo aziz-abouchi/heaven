@@ -288,3 +288,40 @@ v3 : swap + releasePendingCapture -> SEGV (meme)
 Ne PAS utiliser evalWithBudget (qui interagit avec pending_capture).
 Utiliser evaluate direct + catch SuspendRequested + save/restore.
 ~20 lignes, sans capture de continuation.
+
+## Diagnostic FINAL v4 (2026-10-26, nuit profonde) -- evalMagic size
+
+### v4 : evaluate direct (pas evalWithBudget)
+Case ~60 lignes, evaluate() direct, catch SuspendRequested manuel.
+PAS de swap env (on passe new_env directement a evaluate).
+BUILD OK, MAIS test_eval SEGV identique a v2/v3.
+
+### LE finding decisif (comparer avec @foo)
+@foo : 3 lignes dans evalMagic, 18/18 vert, aucune regression.
+@schedule_processes : ~60 lignes, SEGV test_eval/13 tests casses.
+LES DEUX ne sont jamais executees (test_eval n appelle pas ces magics).
+
+### Cause : evalMagic est trop gros
+evalMagic contient maintenant 91+ cases sur ~1000 lignes.
+Ajouter 60 lignes fait exploser un seuil (compilateur, codegen, ou
+stack frame des appels recursifs de evaluate). Le SEGV est silencieux
+(pas de message) et n apparais PAS avec 3 lignes.
+
+### Fix propre (1 bloc session fraiche)
+Extraire chaque case en helper fonction :
+  fn magic_schedule_processes(store, env, engine, args, depth) !Id { ... }
+Puis dans evalMagic : if (eql(op, "@schedule_processes")) return try
+  magic_schedule_processes(store, env, engine, args, depth);
+evalMagic revient a ~5 lignes par case. Test : +60 lignes en helper,
+pas de SEGV.
+
+### Bonus CI : proto2_run_drains fail (pre-existant)
+Test_suite.hvn CI : proto1 OK, proto2 (run p != 8) fail.
+Cause : run pid caller-driven ne propage pas bien le state final.
+Meme famille que @schedule_processes (env swap). Voir doc print.
+
+### Ordre de priorite post-session
+1. Extraction helpers evalMagic (P1 _zig_debt.md, 2-3 sessions)
+2. @schedule_processes (1 bloc apres extraction)
+3. Loader .hvn (session gdb)
+4. print (env propagation, meme famille que proto2)
