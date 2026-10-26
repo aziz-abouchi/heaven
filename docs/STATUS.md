@@ -562,3 +562,24 @@ E1.2 (if/then/else) : cycle de definitions parse_atom/parse_if.
 
 ### Baseline
 18/18 fichiers .hvn verts, zig build test 404/407.
+
+## Mise à jour 2026-10-26 (session préemption + selfparse)
+
+### Validé cette session
+- Préemption WASI : `SuspendRequested` sous `wasmtime` (`858c008`).
+  `wasi_main.zig` supporte `--eval-file <path>` et `--fuel <n>`.
+- `test_selfparse.hvn` : 3/3 actifs (`42b2cda`). B-v1 documenté.
+- Abort-relaunch (A-3a) : validé (`556f2c1`, `e95a63b`).
+- `@disarm_preempt` : ajouté (`e7582d9`).
+
+### Tests scheduler (non-régression)
+- `test_scheduler.hvn` : 3/3
+- `test_preemptive.hvn` : 12/12
+- `test_preemptive_split.hvn` : 3/3
+- `test_preemptive_coop.hvn` : 4/4
+- `test_abort_relaunch.hvn` : 11/11
+
+### CI connue (pré-existante)
+- `core/test_suite.hvn` : `proto2_run_drains` et
+  `proto2_two_procs_run` échouent (caller-driven env propagation).
+

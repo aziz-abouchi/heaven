@@ -148,7 +148,7 @@ centralisé. Le scheduler est un tel ordre.
 Un point technique important : le scheduler de Heaven V0 est
 **redémarrable**. Quand le budget d'une tâche est épuisé, la tâche
 n'est **pas** reprise exactement là où elle s'était arrêtée — elle
-repart de son état initial, en rejouant les étapes déjà effectuées.
+repart de son dernier état cédé — `current_state`, qui vaut `init_state` tant qu'aucun `yield` n'a eu lieu — en rejouant les étapes déjà effectuées.
 
 C'est une **limitation** du modèle — mais depuis A-3a (2026-10-14),
 une tâche suspendue par budget insuffisant n'est plus **perdue** :
@@ -222,8 +222,8 @@ ne supervise.
   la main explicitement (`yield`).
 - Quatre magics suffisent : `add_task`, `schedule`, `yield`,
   `task_state`.
-- Le modèle est **redémarrable** : les tâches repartent de leur état
-  initial après un budget épuisé (limitation V0).
+- Le modèle est **redémarrable** : les tâches repartent de leur dernier
+  `yield` (ou de `init_state` si aucun yield n'a eu lieu) après un budget épuisé.
 - Le **calcul par étapes** (Kleene, 1936) est un état, pas un bloc.
 - L'**ordre spontané** (Hayek) émerge de règles locales.
 - La **continuité psychologique** (Parfit, 1984) éclaire la reprise

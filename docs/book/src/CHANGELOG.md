@@ -1,3 +1,32 @@
+## 2026-10-26 (session préemption + selfparse)
+
+### Préemption WASI (Option A)
+- `wasi_main.zig` : `--eval-file <path>`, `--fuel <n>`.
+  Point d'entrée WASI réel (`wasm_entry.zig` = freestanding).
+- `(@arm_preempt 0)` + `count 100000` → `SuspendRequested` sous wasmtime.
+  Mécanisme : fallback horloge (`hasClock()` = true pour `wasm32-wasi`).
+
+### test_selfparse.hvn (Option C.1)
+- 3/3 actifs. Ajout `equation simple` (`foo x = x` → `EBind`).
+  `pattern imbrique` `-- SKIPPED` (`B-v1` : patterns imbriqués non
+  supportés par `heaven_parse.hvn`).
+
+### Scheduler abort-relaunch (Option B)
+- A-3a validé : `current_state` préservé sur préemption
+  (`.suspended` sans `pending_capture` → `.preempted` sans reset).
+- `tests/test_abort_relaunch.hvn` (5 cas dont T4 discriminant).
+- Limitation : stall si calcul > budget par itération (reprise
+  exacte = A-3b, cf. `_capture_eval.md`).
+
+### @disarm_preempt (bonus)
+- Magic symétrique de `@arm_preempt`. Reset `preempt_armed` et
+  `last_preempt_ms`.
+
+### CI connue (pré-existante)
+- `core/test_suite.hvn` : `proto2_run_drains` et
+  `proto2_two_procs_run` échouent (`run` caller-driven env
+  propagation). Non introduit cette session.
+
 ## 0.6 — 2026-10-24
 
 **Emancipation : parseur infixe en `.hvn` (E1.1).**

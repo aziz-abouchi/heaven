@@ -71,3 +71,17 @@ Tests d'integration `.hvn` couvrent la fonction.
 
 **A-3b (prochain)** : reprise exacte via `captureCont`.
 Effort 2-3 sessions. Voir les 4 obstacles chiffres ci-dessus.
+
+## Status 2026-10-26
+
+- **A-2** (hook `engine.capturing` + push/pop conditionnel) : livré
+  (2026-10-14).
+- **A-3a** (abort-relaunch) : **validé** cette session. Une tâche
+  préemptée (`.preempted`) garde son `current_state` (dernier yield)
+  et est relancée depuis cet état au prochain `schedule`. Test :
+  `tests/test_abort_relaunch.hvn`.
+- **A-3b** (reprise exacte, capture + restauration de pile) :
+  toujours en attente. Design dans ce document. Débloque la
+  reprise sans replay et lève la limitation « stall si calcul >
+  budget par itération ».
+

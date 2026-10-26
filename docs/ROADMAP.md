@@ -1057,3 +1057,22 @@ Voir `_hkt_v1b_plan.md` (option A retenue, cf. D-HKT1).
 - **Livre Pony + preuves formelles** : 10+ sessions.
 - **Rank-2 vérifié** (`forall` explicite) : 5-7 sessions.
 
+
+## Mise à jour 2026-10-26
+
+### Terminé cette session
+- A-3a (abort-relaunch) : validé, testé (`test_abort_relaunch.hvn`).
+- `@disarm_preempt` : ajouté (symétrique de `@arm_preempt`).
+- Préemption WASI : validée (`SuspendRequested` sous wasmtime).
+- `test_selfparse.hvn` : 3/3 actifs (B-v1 documenté).
+
+### Restant
+- **A-3b** : reprise exacte (capture + restauration de pile).
+  Spec : `_capture_eval.md`. Multi-sessions.
+- **B-v1** : patterns imbriqués dans `heaven_parse.hvn`.
+  Débloque le self-parse complet. Multi-sessions.
+- **Unification acteurs ↔ scheduler** : `spawn/tell/recv` et
+  `add_task/schedule` coexistent sans se parler.
+- **CI proto2** : `proto2_run_drains` et `proto2_two_procs_run`
+  échouent (pré-existant). `run` caller-driven env propagation.
+

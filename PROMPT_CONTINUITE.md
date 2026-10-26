@@ -337,3 +337,26 @@ Le CI échoue si un chiffre est périmé (`--check` sur `docgen.py`).
 ---
 
 Colle ce prompt au début de la prochaine session.
+
+## Session 2026-10-26 close (préemption + selfparse)
+
+### Acquis
+- Préemption WASI validée (`SuspendRequested` sous wasmtime).
+- `wasi_main.zig` : `--eval-file <path>`, `--fuel <n>`.
+- `test_selfparse.hvn` : 3/3 actifs (B-v1 documenté).
+- Abort-relaunch (A-3a) validé + `test_abort_relaunch.hvn`.
+- `@disarm_preempt` ajouté.
+
+### État CI (à vérifier avant de pousser)
+- `core/test_suite.hvn` : `proto2_run_drains` et
+  `proto2_two_procs_run` échouent (pré-existant, non introduit).
+- Le reste est vert : scheduler (3+12+3+4+11), docgen (91 files,
+  131 tests Heaven, 406 tests Zig).
+
+### Priorités suggérées pour la prochaine session
+1. **Vérifier le CI** : les deux échecs proto2 sont-ils tolérés
+   (skip explicite) ou faut-il les corriger ? Décision à prendre.
+2. **A-3b** : reprise exacte (gros chantier, `_capture_eval.md`).
+3. **Unification acteurs ↔ scheduler** (1-2 sessions).
+4. **B-v1** : patterns imbriqués dans `heaven_parse.hvn`.
+
