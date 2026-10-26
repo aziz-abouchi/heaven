@@ -134,3 +134,26 @@ Pour de vrais acteurs :
 Commencer par (1) : scheduler catch SuspendRequested, requeue.
 Coût 1-2 blocs. Donne des acteurs cooperatifs abort-and-retry.
 Puis (2) si besoin de vrai suspend (4-5 blocs).
+
+## Tentative @schedule_processes (2026-10-26) -- rollback
+
+### Approche
+Magic `@schedule_processes budget` : boucle sur les processus, evalWithBudget
+par message, requeue sur suspend. ~60 lignes.
+
+### Resultat
+BUILD OK apres 1 fix (var -> const). MAIS regression : test_eval
+et test_meta_if SEGV (139). Cause inconnue (probablement corruption
+memoire dans la boucle, ou interaction avec les Env crees/defer).
+
+### Ce qui est livre (sans @schedule_processes)
+- `spawn handler init` : cree Process (mailbox, state, handler)
+- `tell pid msg` : push mailbox
+- `recv pid` : pop mailbox (FIFO)
+- `run pid` : **preemptif** (evalWithBudget + requeue sur suspend)
+- `(run pid)` traite les messages un par un, requeue sur suspend
+
+### Ce qui manque (1 bloc session fraiche)
+`@schedule_processes` : boucle globale sur les process, deadline,
+requeue. Le bug a trouver : SEGV sur test_eval/test_meta_if (probablement
+le `defer new_env.unref()` dans le for, ou un des pids_buf en heap).
