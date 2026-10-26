@@ -157,3 +157,26 @@ memoire dans la boucle, ou interaction avec les Env crees/defer).
 `@schedule_processes` : boucle globale sur les process, deadline,
 requeue. Le bug a trouver : SEGV sur test_eval/test_meta_if (probablement
 le `defer new_env.unref()` dans le for, ou un des pids_buf en heap).
+
+## Mise a jour 2026-10-26 (soir) : preemption portable
+
+### Etat par plateforme
+| Plateforme | Mecanisme | Statut |
+| Linux/macOS/BSD | SIGALRM + setitimer 10ms | OK |
+| wasm32-wasi | fallback mono_ns 10ms | OK |
+| wasm32-freestanding | fallback mono_ns (host clock) | OK |
+| Windows | fallback mono_ns | OK (a tester CI) |
+
+### Double-check idempotent
+SIGALRM fire -> return avant check temps. Si SIGALRM absent
+(wasm, windows sans sigaction), le check temps prend le relais.
+Aucun double-SuspendRequested.
+
+### Ce qui manque
+1. Test CI Windows (fallback mono_ns).
+2. wasm32-freestanding timer : import env.set_timer du host JS
+   (1 bloc + host, cooperatif suffit pour l instant).
+3. FFI bloquant (net_read, TLS_read) non preemptible sans thread.
+
+### Commit
+e27eb35 feat(engine): preemption temps portable -- fallback mono_ns
