@@ -1,0 +1,42 @@
+-- tests/test_abort_relaunch.hvn (A-3a : abort-relaunch)
+--
+-- Verifie que le scheduler preserve le dernier yield d'une tache
+-- preemptee et la relance depuis cet etat, pas depuis init_state.
+-- Modele "abort-relaunch" (cf. docs/spec/_preemption.md).
+--
+-- Note : @arm_preempt est global a l'engine et persiste jusqu'a la
+-- fin du fichier. Les tests "sans preemption" doivent donc etre
+-- places AVANT l'armement, sinon leur calcul intermediaire est
+-- interrompu a chaque iteration (limitation documentee :
+-- stall si calcul > budget par iteration).
+
+iter3 x = (if (= x 3) 3 (yield (+ x 1)))
+
+test "T1 sans preemption : 3 yields -> state 3":
+  (let t (add_task iter3 0)
+    (let _ (schedule 10000)
+      (task_state t))) == 3
+
+test "T2 split budget : (+ 1 2) preempte puis fini":
+  (let t (add_task (lambda s -> (+ 1 2)) 0)
+    (let _ (schedule 1)
+      (let _ (schedule 100)
+        (task_state t)))) == 3
+
+slow x = (if (= x 0) x (slow (- x 1)))
+iter3_slow x = (if (= x 3) 3 (yield (slow (+ x 1))))
+
+test "T3 yields + slow sans preemption : task_state = 3":
+  (let t (add_task iter3_slow 0)
+    (let _ (schedule 10000)
+      (task_state t))) == 3
+
+(@arm_preempt 0)
+
+spin x = (spin x)
+iter3_spin x = (if (= x 2) (spin 2) (yield (+ x 1)))
+
+test "T4 preemption au 3e yield : task_state = 2 (dernier yield)":
+  (let t (add_task iter3_spin 0)
+    (let _ (schedule 10000)
+      (task_state t))) == 2

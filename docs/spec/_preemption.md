@@ -368,6 +368,27 @@ pour `wasm32-wasi`, seul `freestanding` le désactive). Contrôles :
 Note : WASI sandbox n'accepte pas les chemins absolus ; utiliser des
 chemins relatifs (`--dir=.`) ou `--dir=<preopen>` côté wasmtime.
 
+### Validation abort-relaunch (2026-10-26)
+
+Le modele "abort-relaunch" (A-3a) est **implemente et valide** :
+
+- `TaskState.preempted` distinct de `.blocked` (terminal).
+- Au debut de chaque `(schedule budget)`, les taches `.preempted` sont
+  remises `.ready` (engine_expr.zig ~l.1433).
+- Sur preemption budget/clock (branche `.suspended` sans `pending_capture`),
+  `task.current_state` n'est **pas** reset a `init_state` — il reste au
+  dernier yield reussi.
+- La relance appelle `body(current_state)` : re-execute le calcul depuis
+  le dernier yield, pas depuis le debut.
+
+Tests : `tests/test_abort_relaunch.hvn` (4 cas) + `tests/test_preemptive_split.hvn`
+(3 cas) + `tests/test_preemptive.hvn` (T4 yield+CPU).
+
+Limitation assumee : si le calcul entre deux yields depasse le budget
+par iteration, la tache est preemptee/rejouee en boucle et ne progresse
+pas. La reprise exacte demanderait A-3b (capture + restauration de pile,
+cf. `_capture_eval.md`).
+
 ### Etat multi-plateforme
 | Plateforme | Compile | Evalue | Preemption |
 | native Linux | OK | OK | SIGALRM + fallback temps |
