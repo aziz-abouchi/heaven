@@ -325,3 +325,39 @@ Meme famille que @schedule_processes (env swap). Voir doc print.
 2. @schedule_processes (1 bloc apres extraction)
 3. Loader .hvn (session gdb)
 4. print (env propagation, meme famille que proto2)
+
+## WASI verification (2026-10-26, nuit)
+
+### Test manuel wasmtime
+Compile : zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall
+Binaire : zig-out/bin/heaven-wasi.wasm
+Usage : wasmtime zig-out/bin/heaven-wasi.wasm "<expr>"
+
+Resultats :
+- (+ 1 2) -> 3
+- (@arm_preempt 0) -> () (magic no-op, guard wasm)
+- (if (> 3 2) 1 0) -> 1
+- (@arm_preempt 0) ; (rec 0) -> RecursionLimitExceeded (fuel fire)
+
+### Conclusion
+WASI compile, execute, evalue. Fuel safeguard marche (RecursionLimitExceeded).
+Preemption fallback mono_ns valide native (meme code), non verifiee WASI
+directement car wasm_entry accepte une seule expression (pas de
+--eval-file, pas de multi-ligne).
+
+### Manque pour tester la preemption WASI
+Etendre wasm_entry pour supporter --eval-file / --run-test (1 bloc, ~30 lignes)
+OU definir un acteur via une expression unique (Y-combinator).
+
+### Etat multi-plateforme
+| Plateforme | Compile | Evalue | Preemption |
+| native Linux | OK | OK | SIGALRM + fallback temps |
+| wasm32-wasi | OK | OK | fallback temps (code valide native) |
+| wasm32-freestanding | OK | IDE web | coopératif (fuel) |
+| macOS/BSD | OK (CI) | OK | SIGALRM |
+| Windows | OK (CI) | OK | fallback temps |
+
+### Etat CI
+ci.yml teste core/test_suite.hvn en NATIF (pas WASI).
+test_suite.hvn : proto1 (spawn/tell/recv) OK, proto2 (run p != 8) fail.
+proto2 = run caller-driven env propagation (meme famille que @schedule_processes).
