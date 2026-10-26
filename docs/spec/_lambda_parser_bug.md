@@ -110,3 +110,30 @@ dans un binding (f = ...).
 C'est UN SEUL bug dans heaven_expr.zig (évaluation des corps
 binaires en position argument/top-level), pas plusieurs. Fix
 estimé 10-20 lignes. Session dédiée, cutoff 3 blocs.
+
+## Tentatives de fix évaluateur (2026-10-26) -- échec
+
+2 hypothèses testées pour le bug "corps binaire en argument" :
+
+### Hypothèse 1 : case 2b manquant dans interpForAssert
+Ajout case `fnode.tag == .lambda and args.len == 1` avant case 3.
+Résultat : ne fire pas. Le parser ne produit pas `apply(.lambda_node,
+[arg])`, il produit une structure imbriquée différente.
+
+### Hypothèse 2 : parseLambdaExpr body non parenthésé
+Changement `(lambda {s} {s})` -> `(lambda {s} ({s}))`.
+Résultat : ne change rien. Build OK, régression 18/18, mais T2
+reste brut et let inline reste brut.
+
+### Conclusion
+Le bug n'est ni dans le case lambda de interpForAssert, ni dans
+le format de la string de parseLambdaExpr. Il est dans la chaîne
+d'évaluation des arguments (evaluateExpr / interpForAssert) qui
+ne traite pas les corps binaires en position argument.
+
+Prochaine étape : instrumenter avec std.debug.print dans
+interpForAssert (3-4 prints) pour voir exactement quel chemin
+est pris pour ((lambda x x + 1) 5). Session Zig dédiée, cutoff
+3 blocs. NE PAS refaire 2 tentatives aveugles.
+
+Rollback. Cutoff 3/3 respecté. 2 tentatives, 2 échecs, on arrête.
