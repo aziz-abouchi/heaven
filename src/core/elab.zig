@@ -230,9 +230,19 @@ pub const Elaborator = struct {
     fn elabVarDecl(self: *Elaborator, node: ts.TSNode) ElabError!Id {
         const name_node = field(node, "name") orelse return ElabError.MissingField;
         const name = self.text(name_node);
+        // Chercher "=" dans les children pour distinguer let x: T (sans valeur)
+        // de let x = e et let x: T = e. Sans "=", on binde unitLit (pas le type).
+        const nc = ts.ts_node_child_count(node);
+        var has_eq = false;
+        var i: u32 = 0;
+        while (i < nc) : (i += 1) {
+            if (std.mem.eql(u8, kind(ts.ts_node_child(node, i)), "=")) {
+                has_eq = true;
+                break;
+            }
+        }
+        if (!has_eq) return self.store.bind(name, try self.store.unitLit());
         const n = namedChildCount(node);
-        // TODO: distinguer annotation de type vs valeur — pour l'instant on prend
-        // juste le dernier enfant nommé comme valeur (couvre let x = e et let x: T = e).
         if (n <= 1) return self.store.bind(name, try self.store.unitLit());
         const value = try self.elaborate(namedChild(node, n - 1));
         return self.store.bind(name, value);
