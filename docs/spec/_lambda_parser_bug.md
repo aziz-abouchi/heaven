@@ -85,3 +85,28 @@ qui sont des let/lambda), pas dans expr.zig (parser).
 
 Session dédiée : instrumenter heaven_expr.zig sur
 (print (let x = 5 in x + 1)). Cutoff 3 blocs.
+
+## État réel post-P1 (2026-10-26)
+
+Testés 6 snippets du livre + 5 cas discriminants. Résultats :
+
+### Débloqué par P1 (prefix dispatch)
+- `if` S-expr `(if (< 1 2) 10 20)` → 10 ✅
+- `if` infixe `(if 1 < 2 then 10 else 20)` → 10 ✅
+- `map inc (cons 1 (cons 2 nil))` → (cons 2 (cons 3 nil)) ✅
+- `f = lambda x x + 1` puis `(f 5)` → 6 ✅
+- `f _ = let x = 5 in x + 1` puis `(f 0)` → 6 ✅
+
+### Reste cassé (bug évaluateur, pas parser)
+- `((lambda x x + 1) 5)` top-level → brut
+- `apply_l (lambda x x + 1) 5` → brut
+- `let x = 5 in x + 1` top-level → syntax error in let
+- `(print (let x = 5 in x + 1))` → brut
+
+Pattern : l'évaluateur ne traite pas les corps binaires de
+lambda/let en position argument ou top-level direct. Il les traite
+dans un binding (f = ...).
+
+C'est UN SEUL bug dans heaven_expr.zig (évaluation des corps
+binaires en position argument/top-level), pas plusieurs. Fix
+estimé 10-20 lignes. Session dédiée, cutoff 3 blocs.
