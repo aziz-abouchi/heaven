@@ -386,3 +386,23 @@ Doc : docs/spec/_cascade_if_bug.md (nouveau).
 
 ### Baseline
 18/18 fichiers .hvn verts. zig build test 404/407.
+
+## Docs consolidés (gravés 2026-10-26)
+
+Les sessions de conception 2026-10-20 → 2026-10-26 ont produit 4
+documents de référence à consulter AVANT toute décision nouvelle :
+
+- `docs/spec/_decisions.md` : 19 décisions actées (D0-D18) +
+  4 reports avec déclencheur. Ne pas rediscuter sans raison
+  nouvelle.
+- `docs/spec/_security_methodology.md` : 6 niveaux (capabilities,
+  Store, mémoire R1-R4, fuzzing, warnings, supply chain, audit
+  chaîne) + 13 CVE 2026 cités.
+- `docs/spec/_backend_strategy.md` : QBE → Cranelift → LLVM →
+  BEAM/JVM → Heaven natif. Compromis viable par étape.
+- `docs/spec/_vision_strategic.md` : positionnement, premier
+  utilisateur (question ouverte), HoTT, DB, LLM, performance.
+
+**Règle** : toute nouvelle décision architecturale se réfère à
+ces documents. Si elle les contredit, elle doit expliquer
+pourquoi le contexte a changé.
