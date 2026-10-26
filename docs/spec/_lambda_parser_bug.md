@@ -393,3 +393,44 @@ mais probablement pour trouver une 10e cause.
 - 11 docs
 - 9 hypotheses eliminees
 - Baseline 18/18, tree propre.
+
+## 10e tentative (instrumentation case 2b) -- erreur methodo
+
+Patch avec print [C2B] ajoute via s.replace(old, new, 1).
+Resultat : aucun print [C2B] pour T2.
+
+### Cause de l'echec du patch
+Le pattern `if (lam_args.len == 3)` existe dans DEUX endroits :
+- Fix 2a (fnode.tag == .lambda)
+- Fix 2b (fnode.tag == .apply + sym lambda)
+
+s.replace(old, new, 1) a remplace la PREMIERE occurrence
+(Fix 2a), pas Fix 2b. Pour T2, fnode.tag=apply, donc Fix 2a
+ne fire pas, print n'apparait pas.
+
+### Erreur methodologique
+Le patch a vise le mauvais endroit. C'est EXACTEMENT ce que le
+cutoff 3 blocs doit arreter. Pas de 11e tentative.
+
+### 10 hypotheses eliminees
+1-9 : voir sections precedentes
+10 : print dans mauvais case (erreur methodo, pas bug)
+
+### Le vrai fix (session fraiche, Option B)
+Extraire interpForAssert dans interp.zig (P1 _zig_debt.md).
+Une fois isole (500 lignes), les 5 cas lam_args.len sont testables
+unitairement. Le bug sera visible en 1 bloc. 5498 lignes dans
+heaven_expr.zig cachent le comportement -- c'est le vrai probleme.
+
+### Etat final (definitif)
+- 1 fix reel (P1 : if repare, lambda binding, map)
+- 11 docs
+- 10 hypotheses eliminees (dont 1 erreur methodo)
+- Baseline 18/18, tree propre.
+
+### Decision
+Arret. Le bug lambda body binaire est STRUCTUREL, pas local.
+3 sessions de tentatives locales ont echoue. La reponse est
+l'extraction (Option B), pas un 11e patch.
+
+Cutoff absolu. Cloture.
