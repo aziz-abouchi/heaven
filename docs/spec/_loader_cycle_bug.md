@@ -182,3 +182,45 @@ E1.5 (parse_app) est bloque par ce bug. Le fix loader doit gerer
 la construction d'ADT dans le corps, pas seulement le pattern match.
 C'est plus profond que prevu -- probablement dans evalEquation ou
 le type-checker (P5).
+
+## Mise à jour 2026-10-26 (tests discriminants) -- cas de bord
+
+### 3 tests executés (tous CHARGEENT)
+1. `test_construct x = HP.TCons x HP.TNil` : loaded OK
+2. `f a = if (= a 1) then 0 else 1` : loaded OK
+3. `data Foo = MkFoo Int ; test_construct2 x = MkFoo x` : loaded OK
+
+### Conclusion affinee
+Ce n'est PAS :
+- TCons en construction dans le corps (test 1)
+- if + == sur appel (test 2)
+- ADT construction en general (test 3)
+
+C'est la COMBINAISON specifique de step_app :
+- 2 parametres dont un pattern imbrique (HP.TCons tk rest)
+- 3 appels imbriques (continue_app -> parse_atom -> TCons)
+- construction TCons entre parentheses en argument :
+  (is_atom_start (HP.TCons tk rest))
+- if ... then ... else avec les 2 branches qui contiennent
+  la construction
+
+C'est un cas de bord du loader, pas une cause simple isolable.
+
+### Fix (session Zig gdb, 1 session)
+1. gdb -nx + core dump sur infix.hvn avec step_app
+2. bt pour voir la stack au SEGV (profondeur, fonction)
+3. Identifier si c'est :
+   - evalEquation (parsing du corps de clause)
+   - evalBinary (== sur appel)
+   - apply (3 niveaux imbriques)
+4. Fix + test E1.5
+
+### Le loader .hvn est le goulot #1 du projet
+6 chantiers bloques : E1.2, E1.3, E1.4, E1.5, E1.6, P2 (parse_cmp).
+Le fix vaut 1 session Zig gdb.
+
+### Bilan session lundi (8 blocs loader, 0 fix)
+- 8 hypotheses eliminees (clause step_app, TCons, if, ADT)
+- 3 tests discriminants (tous passent, donc cas de bord)
+- Doc precise pour session Zig
+- ROLLBACK propre, 18/18 preserve, tree propre
