@@ -201,3 +201,42 @@ cutoff 3 blocs. NE PAS toucher parseLambdaExpr ni interpForAssert.
 - map + lambda simple -> OK (chemin different)
 
 5 hypotheses eliminees, 1 vraie couche identifiee (dispatch parser).
+
+## 6 hypotheses eliminees, couche finale : heaven.eval
+
+Print [LPAREN] dans parsePrimary .lparen. Test T2 :
+7 prints, TOUS du prelude (arena_used, arena_cap, <=, +, if,
+pair, pair). AUCUN pour ((lambda x x + 1) 5).
+
+### Conclusion
+L'expression n'entre PAS dans parsePrimary .lparen. Le print est
+dispatché AVANT -- probablement heaven.eval a un case "print"
+special qui n'appelle pas NativeParser pour l'argument.
+
+### 6 hypotheses eliminees (2 blocs instrumentation)
+1. case 2b manquant interpForAssert -- FAUX (fnode.tag=apply)
+2. parseLambdaExpr body non parentheses -- FAUX (ne change rien)
+3. interpForAssert cases 2/3 -- FAUX (ne firent jamais)
+4. double-parens body -- FAUX (ne change rien)
+5. bug dans parseLambdaExpr -- FAUX (jamais appele)
+6. bug dans parsePrimary .lparen -- FAUX (lambda n'y arrive pas)
+
+### Vraie couche : heaven.eval dispatch
+Le prochain fix doit instrumenter heaven.eval (la fonction top-level)
+pour voir comment "(print X)" est traite. Si elle a un case "print"
+qui ne parse pas X via NativeParser, c'est la qu'il faut ajouter
+le dispatch lambda/let.
+
+### Etat (post-P1)
+- if inline -> 10 OK (dispatch if marche)
+- map + lambda simple -> OK
+- lambda en binding -> OK
+- ((lambda x x) 5) -> 5 (engine par chance)
+- ((lambda x x + 1) 5) -> brut (dispatch)
+- let inline -> brut (meme cause probable)
+
+### NE PAS refaire
+- NE PAS patcher parseLambdaExpr
+- NE PAS patcher interpForAssert
+- NE PAS patcher parsePrimary .lparen
+- Instrumenter heaven.eval EN PREMIER, 3 prints, cutoff 3 blocs.
