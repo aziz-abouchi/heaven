@@ -263,10 +263,6 @@ pub fn cmdToC(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
     self.heaven.ensureInit();
 
-    var wrap_buf: [512]u8 = undefined;
-    const wrapped = std.fmt.bufPrint(&wrap_buf, "_result = {s}", .{input}) catch return;
-    _ = wrapped;
-
     const id = self.heaven.importExpr(input) catch {
         platform.debug.print("  parse error\n", .{});
         return;
@@ -504,9 +500,6 @@ pub fn cmdAwait(self: *Shell, input: []const u8) void {
 }
 
 pub fn cmdSwarm(self: *Shell, input: []const u8) void {
-    const swarm_proto = @import("../../scut/swarm/protocol_swarm.zig");
-    _ = swarm_proto;
-
     if (input.len == 0) {
         const stats = self.swarm.formatStats(self.allocator) catch return;
         defer self.allocator.free(stats);
@@ -1275,12 +1268,11 @@ pub fn cmdParseFile(self: *Shell, path: []const u8) void {
     }
 
     if (lang == .heaven) {
-        const id = self.heaven.importExpr(content) catch {
+        _ = self.heaven.importExpr(content) catch {
             platform.debug.print("parse failed for {s}\n", .{path});
             return;
         };
         platform.debug.print("✓ parsed and evaluated {s} as heaven\n", .{path});
-        _ = id;
         return;
     }
 
@@ -1435,8 +1427,7 @@ pub fn cmdParseFileWithLanguage(self: *Shell, path: []const u8) ![]u8 {
         const id = self.heaven.importExpr(content) catch {
             return std.fmt.allocPrint(self.allocator, "parse failed for {s}", .{path});
         };
-        const result = self.heaven.evaluateExpr(id) catch id;
-        _ = result;
+        _ = self.heaven.evaluateExpr(id) catch id;
         return std.fmt.allocPrint(self.allocator, "✓ parsed and evaluated {s} as heaven", .{path});
     }
 
