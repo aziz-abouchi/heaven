@@ -70,3 +70,18 @@ Résultats :
 let inline reste cassé : parseLetExpr ne consomme probablement pas
 'in' correctement quand let est dans des parenthèses. Doc séparée
 à créer.
+
+## Mise à jour 2026-10-26 (let inline)
+
+3 cas : top-level def OK (6), parens KO (brut), def helper OK (6).
+
+Diagnostic : parseLetExpr produit la bonne string, mais l'évaluateur
+ne sait pas évaluer (let ...) en argument de print. Bug évaluateur,
+pas parser. Le patch .lparen (dispatch let/lambda dans parsePrimary
+case .lparen) ne résout rien -- rollback.
+
+Le fix est dans heaven_expr.zig (évaluation des arguments de print
+qui sont des let/lambda), pas dans expr.zig (parser).
+
+Session dédiée : instrumenter heaven_expr.zig sur
+(print (let x = 5 in x + 1)). Cutoff 3 blocs.
