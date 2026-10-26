@@ -31,3 +31,4 @@ Distinguer "non implémenté" (absent) de "non vérifié" (pas examiné).
 | TCO mutuelle | livre ch.4 | limitations SCC | 4 spécification | pas de test TCO mutuel | livre présente comme acquis | ch.4 : "TCO simple OK, mutuelle à démontrer" |
 | Table des versions | SUMMARY.md | 0.5 historique, 0.6 ACTUEL | 1 corrigé 2026-10-26 | grep ACTUEL = 1 ligne | résolu | commit 7f08c57 + SUMMARY fix |
 | Inférence de types (inc -> Int -> Int) | livre ch.2 | TypeEnv.infer retourne "Int" toujours | 5 stub | types.zig:266 | ch.2 présente comme acquise | corrigé 2026-10-26 : sections "État réel" |
+| Six primitives (lit/sym/apply/bind/lambda/relation) | livre ch.18 | tags réels : apply/sym/lit/bind/lambda/other | 2 partiel (5 câblées, relation spécifiée) | grep relation expr.zig = 0 | livre liste relation comme primitive | corrigé 2026-10-26 : encadré + légende + conclusion |

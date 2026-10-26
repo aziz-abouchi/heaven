@@ -36,6 +36,10 @@ le reste — `if`, `let`, `+`, `*`, les listes, les types dépendants
 
 ![Les six primitives du noyau](images/18-six-primitives.svg)
 
+*Figure : les six primitives **spécifiées**. Dans l'implémentation
+actuelle, cinq sont câblées dans `expr.zig` ; `relation` est
+spécifiée mais absente du Store (voir encadré plus bas).*
+
 Voici les six formes irréductibles de Heaven :
 
 1. **`lit`** : un littéral (entier, flottant, chaîne, booléen).
@@ -43,7 +47,16 @@ Voici les six formes irréductibles de Heaven :
 3. **`apply`** : une application (`f a`).
 4. **`bind`** : une liaison (`let x = e in body`).
 5. **`lambda`** : une abstraction (`λx. body`).
-6. **`relation`** : une relation (`Eq(a, b)`).
+6. **`relation`** : une relation (`Eq(a, b)`). **Spécifié, non
+   implémenté** dans `expr.zig` — voir encadré ci-dessous.
+
+> **État réel (2026-10-26).** Les tags effectivement présents dans
+> `src/core/expr.zig` sont : `apply`, `sym`, `lit`, `bind`,
+> `lambda`, et `other` (fallback). Le tag `relation` **n'existe
+> pas** dans le Store — il est documenté comme primitive mais pas
+> encore câblé. Les relations passent aujourd'hui par `apply` sur
+> un symbole relationnel (ex. `(eq a b)` devient
+> `apply(sym("eq"), [a, b])`). Voir `docs/spec/_claims_vs_reality.md`.
 
 Tout le reste se désucre. Par exemple, `(+ 1 2)` devient
 `apply(sym("+"), [lit(1), lit(2)])`. `if cond then a else b`
@@ -67,7 +80,7 @@ preuves), mais l'esprit est identique.
 Toutes les expressions sont stockées dans un **Store**, un grand
 tableau de nœuds. Chaque nœud a :
 
-- un **tag** (parmi les six primitives)
+- un **tag** (parmi les primitives du noyau — voir encadré)
 - un **payload** (un index ou une valeur)
 - une **span** (une plage dans un pool d'arguments)
 
@@ -109,7 +122,9 @@ Elle a six branches, une par tag :
 - `apply` : évalue l'opérateur et les arguments, dispatch.
 - `bind` : lie une valeur à un nom, évalue le corps.
 - `lambda` : retourne tel quel (c'est une valeur).
-- `relation` : évalue les deux côtés, retourne un booléen.
+- `relation` : **spécifié** (évalue les deux côtés, retourne un
+  booléen). Non implémenté comme tag dans `expr.zig` — voir
+  encadré section 2.
 
 Le **dispatch** de `apply` est là où tout se joue. Selon l'opérateur,
 on appelle une fonction utilisateur, un opérateur magique (`+`, `if`,
@@ -500,7 +515,8 @@ réactivité des systèmes modernes.
 Vous avez traversé dix-huit chapitres. Vous savez écrire des
 fonctions, manipuler des listes et des streams, gérer des effets,
 prouver des théorèmes. Vous savez aussi comment tout ça tient
-ensemble — six primitives, un Store, un noyau de preuve, un
+ensemble — cinq primitives câblées (relation spécifiée), un Store,
+un noyau de preuve, un
 pipeline de compilation, et une discipline de séparation entre
 strates.
 
