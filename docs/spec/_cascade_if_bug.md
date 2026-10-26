@@ -44,3 +44,19 @@ Piste : separer la collecte de tokens (flat) du parsing (recursif).
 ## References
 - docs/spec/_lambda_parser_bug.md (cycle lambda)
 - docs/spec/_emancipation_roadmap.md E1.2 (cycle parse_atom/parse_if)
+
+## Mise à jour 2026-10-26 (tentative table plate)
+
+Patch parse_cmp en table plate (cmp_ops + in_cmp), même pattern
+que eval_sym. Résultat : SEGV au chargement identique à la cascade.
+
+Cause : récursion croisée parse_cmp -> parse_add -> parse_mul ->
+parse_atom -> open_paren -> parse_cmp. La table plate résout les
+cascades if (eval_sym), pas les cycles de parseurs.
+
+Pattern 3 (dispatch par listes) non résolu. Options restantes :
+A. Séparer collecte tokens (flat) du parsing (récursif)
+B. if/cmp au niveau expression, parse_atom sans if ni cmp
+C. Session Zig : instrumenter le cycle (gdb + core dump)
+
+Rollback. Session dédiée.
