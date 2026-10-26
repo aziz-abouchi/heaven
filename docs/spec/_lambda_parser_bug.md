@@ -497,3 +497,33 @@ Les occurrences sans fleche fonctionnent.
 1. interpForAssert case apply : print avec argument non-trivial.
 2. parsePrimary case lambda : accepter `->` optionnel.
 Chacun est localise (case apply, case lambda). Pas de tunnel.
+
+## Diagnostic print (2026-10-26) -- bug eval, pas patch
+
+io_handler.zig:23 handler Print :
+  const s = expr.toStringInfix(store, a, store.allocator);
+  platform.debug.print("{s}\n", .{s});
+
+Le handler convertit l'argument en STRING INFIXE (toStringInfix)
+au lieu de l'EVALUER. Pour ((lambda x x) 5), toStringInfix retourne
+((lambda x x) 5), pas 5.
+
+Le fix n'est pas dans io_handler.zig (signature : store, label, arg
+-- pas de env/engine). Il faut soit :
+A. perform evalue l'argument avant d'appeler le handler (engine_expr)
+B. print x = perform "Print" (eval x) -- mais eval n'est pas expose
+C. interpForAssert case apply pour perform/print
+
+C'est ENCORE un bug d'eval profond (16e hypothèse sur cette famille).
+La session a livre 5 fixes reels. Ce 6e n'est pas un patch de 5 min.
+
+### Prochaine session
+1. Lire perform dans engine_expr.zig (comment il evalue ses args)
+2. Si perform evalue deja : le handler recoit l'AST (bug toStringInfix)
+3. Si perform n'evalue pas : fix perform (evaluer arg avant handler)
+4. Sinon : cas apply interpForAssert pour perform/print
+
+### Fix `->` livre (commit 366d609)
+lambda x -> body fonctionne. Les 22 occurrences du livre qui
+utilisent `->` marchent pour map/filter/binding. C'est le gain
+reel de la session sur lambda.
