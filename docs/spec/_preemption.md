@@ -208,3 +208,36 @@ Option C : evalWithBudget sans capture de continuation (eval direct
   avec catch SuspendRequested + state save/restore).
 
 A est le plus simple (2 lignes). A tester en session fraiche.
+
+## Tentative @schedule_processes v3 (2026-10-26, nuit) -- rollback DEFINITIF
+
+### Approche v3
+releasePendingCapture + new_env.unref() apres chaque .suspended/.done.
+~60 lignes. BUILD OK.
+
+### Resultat
+MEME SEGV que v2 sur test_eval et test_meta_if, MEME si actors3/4
+echouent a FileNotFound (magic jamais execute).
+
+### Diagnostic clair
+Le SEGV est cause par la SIMPLE PRESENCE de @schedule_processes dans
+la liste magics, PAS par son execution. Bug d initialisation, pas
+d execution. Probablement :
+- la liste magics comptime est utilisee ailleurs avec index-based lookup
+- ou un des helpers (releasePendingCapture, hasClock) cree une collision
+
+### Decision
+STOP. 3 tentatives, 3 SEGV. Le fix demande une session Zig dediee avec
+gdb + core dump sur test_eval, ET une inspection de la liste magics.
+
+### Ce qui marche (acquis de la session)
+- spawn / tell / recv / run pid (PREEMPTIF avec requeue sur suspend)
+- prerequis : @arm_preempt + fallback temps portable
+- 4 formes de preemption validees (TCO, non-TCO, borne, boucle)
+
+### Prochain bloc (session fraiche)
+1. gdb -nx + core dump sur test_eval SANS @schedule_processes (baseline)
+2. Ajouter le magic dans la liste, rebuild, gdb + core dump
+3. bt 20 pour voir la fonction exacte au SEGV (init du magics ?)
+4. Si c est un helper (releasePendingCapture), le deplacer ou le fixer
+5. Si c est la liste magics, la rendre runtime (std.StringHashMap)
