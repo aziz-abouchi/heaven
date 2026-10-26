@@ -270,3 +270,47 @@ Le crash est peut-etre :
 - 8 tests discriminants (tous passent, sauf le fichier complet)
 - Le bug est dans le CONTEXTE COMPLET, pas dans une clause isolee
 - gdb + core dump sur infix.hvn complet est la seule voie
+
+## Diagnostic DEFINITIF (2026-10-26, session 2, print conditionnel)
+
+Print conditionnel ajoute dans `evaluate` (`if depth % 100 == 0`).
+Test avec infix.hvn + parse_app : SEGV immediat, AUCUN [EVAL].
+
+### Conclusion DEFINITIVE
+Le crash n'est PAS dans `evaluate`. `evaluate` n'est jamais appele
+avant le SEGV. Le crash est dans **`evalEquation`** (parsing et
+compilation de la clause) ou dans le **parser tree-sitter**.
+
+### Ce que ca elimine
+- Stack overflow par recursion runtime (evaluate jamais appele)
+- Cycle de definitions au runtime
+- Bug dans perform/handle (pas dans evaluate)
+- Toute modification de `evaluate` (callback expr_eval, etc.)
+
+### Le vrai point d'entree
+- `evalEquation` dans heaven_expr.zig (parse et eval d'une clause)
+- Ou le parser natif (NativeParser) qui produit l'AST
+- Ou tree-sitter si la clause est mal parsée
+
+### Prochaine session (session Zig gdb, OBLIGATOIRE)
+1. gdb -nx + core dump sur infix.hvn avec parse_app
+2. `bt 20` pour voir la fonction exacte au SEGV
+3. Si evalEquation : instrumenter le parsing de la clause
+4. Si tree-sitter : verifier la grammar pour la ligne step_app
+
+Le test discriminant minimal ne suffit pas, et `evaluate` n'est pas
+le probleme. C'est AVANT evaluate.
+
+### Bilan loader (13 blocs, 0 fix)
+- 14 hypotheses eliminees (clause, TCons, if, ADT, forward ref)
+- 8 tests discriminants (tous OK sauf contexte complet)
+- Print conditionnel confirme : evaluate jamais appele
+- **Le crash est dans evalEquation / parser, pas evaluate**
+- gdb obligatoire pour la suite
+
+### Ce qui a ete livre cette session
+- 10 fixes reels (P1 if, P2 tparams, T2 lambda body multi-arg,
+  arrow lexer, compound assignment, annotation type, 3 stubs TODO,
+  formatJudgment, 4 dead patterns)
+- 16 docs graves
+- 18/18 baseline preservee, tree propre
