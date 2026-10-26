@@ -67,7 +67,7 @@
 | 0.2 | Types dépendants, kernel, proofs | historique |
 | 0.3 | HKT V1a, optics, fantasy_land, MPST V0.5 | historique |
 | 0.4 | stdlib net (IP/TCP/UDP/DNS/HTTP), TLS FFI, effects, QTT parse | historique |
-| **0.5** | **`lib/syscall/`, `lib/time`, `lib/random`, `lib/json_rpc`, `lib/lsp/` (4 modules), `lib/mcp/` (5 tools), `lib/web/` (DBpedia live)** | **ACTUEL** |
+| **0.5** | **`lib/syscall/`, `lib/time`, `lib/random`, `lib/json_rpc`, `lib/lsp/` (4 modules), `lib/mcp/` (5 tools), `lib/web/` (DBpedia live)** | historique |
 | **0.6** | **OS Phase 1B (device/ipc/vfs/kernel), HoTT Path facade, QTT facade, grammar HIT, E1.1 parseur infixe `.hvn`, fix `let-in-if` + `lambda`** | **ACTUEL** |
 | 0.7 | E1 parseur infixe complet, backend C en `.hvn` (E2), `--meta` (E3) | prochain |
 | 0.8 | WASM/WASI/JS backends `.hvn`, bootstrap 500 lignes | à planifier |
