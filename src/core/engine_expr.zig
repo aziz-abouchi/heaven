@@ -287,6 +287,30 @@ fn checkCap(engine: *Engine, cap_id: u32, kind: CapKind, resource: []const u8) !
     }
 }
 
+// ═══ Preemption (SIGALRM, 2026-10-26) ═══
+var preempt_flag = std.atomic.Value(bool).init(false);
+fn sigalrmHandler(_: i32) callconv(.c) void {
+    preempt_flag.store(true, .seq_cst);
+}
+const Timeval = extern struct { sec: i64, usec: i64 };
+const Itimerval = extern struct { interval: Timeval, value: Timeval };
+
+fn armPreemption(engine: *Engine) void {
+    if (engine.preempt_armed) return;
+    var act = std.posix.Sigaction{
+        .handler = .{ .handler = sigalrmHandler },
+        .mask = std.mem.zeroes(std.posix.sigset_t),
+        .flags = 0,
+    };
+    std.posix.sigaction(std.os.linux.SIG.ALRM, &act, null);
+    const it = Itimerval{
+        .interval = .{ .sec = 0, .usec = 10_000 },
+        .value = .{ .sec = 0, .usec = 10_000 },
+    };
+    _ = std.os.linux.syscall3(.setitimer, 0, @intFromPtr(&it), 0);
+    engine.preempt_armed = true;
+}
+
 pub const Engine = struct {
     allocator: std.mem.Allocator,
     store: *Store,
@@ -315,6 +339,7 @@ pub const Engine = struct {
     io_handler: ?IOHandler = null,
     in_handle: bool = false,
     fuel: u64 = 1_000_000,
+    preempt_armed: bool = false,
     /// Safepoint budget. Decremente a chaque appel de evaluate().
     /// A 0 -> error.SuspendRequested (abort cooperatif).
     /// Par defaut = maxInt (jamais suspendu) sauf via evalWithBudget.
@@ -427,6 +452,9 @@ pub const Engine = struct {
         const env = self.env;
         if (self.fuel == 0) return error.RecursionLimitExceeded;
         self.fuel -= 1;
+        if (self.fuel % 1000 == 0 and self.preempt_armed) {
+            if (preempt_flag.swap(false, .seq_cst)) return error.SuspendRequested;
+        }
         return evaluate(store, env, self, id, 0);
     }
 
@@ -992,7 +1020,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@tls_connect", "@tls_read", "@tls_write", "@tls_close" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@tls_connect", "@tls_read", "@tls_write", "@tls_close" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1172,6 +1200,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const name = store.interner.resolve(@intCast(sym_id));
         const sym = try store.interner.intern(name);
         return try store.lit(.{ .str = sym });
+    }
+    if (std.mem.eql(u8, op, "@arm_preempt")) {
+        armPreemption(engine);
+        return try store.unitLit();
     }
     if (std.mem.eql(u8, op, "@char_string")) {
         if (args_snap.len != 1) return error.ArityMismatch;
