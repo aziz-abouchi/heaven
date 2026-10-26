@@ -24,8 +24,8 @@ Distinguer "non implémenté" (absent) de "non vérifié" (pas examiné).
 | RFC-0001 modules extraits | STATUS.md | import.zig, etc. | 2 partiel | pas de test indépendant | livre décrit monolithique | ch.18 : mettre à jour |
 | Acteurs séquentiels mono-thread | livre ch.13 | prototype, mailbox FIFO | 3 prototype | lib/os/scheduler.hvn coopératif | livre présente "plateforme uniforme" | ch.13 : dire "prototype séquentiel" |
 | status.json source de vérité | STATUS.md généré | oui | 1 implémentée et testée | fichier généré | aucun | aucune |
-| HoTT / Path rank-1 | livre ch.22 | `Path = MkPath Int Int Int`, pas `Path A a b` | 3 prototype (sans règles de calcul) | tests/test_hott_path.hvn | livre dit "façade Path" | ch.22 : "représentation symbolique sans règles de calcul" |
-| HIT path_constructor | livre ch.22 | grammar parse `Loop : Base = Base`, elab.zig ignore from/to | 5 silent discard | grep from/to dans elab.zig | livre dit "HIT partiels" | ch.22 : "parse, n élabore pas" |
+| HoTT / Path rank-1 | livre ch.22 | MkPath Int Int Int | 3 prototype (sans règles) | test_hott_path 14/14 | corrigé 2026-10-24 | ch.22 : sections "Dans Heaven aujourd hui" |
+| HIT path_constructor | livre ch.22 | grammar parse, elab.zig ignore from/to | 5 silent discard | grep from/to elab.zig | corrigé 2026-10-24 | ch.22 : "parse, pas éliminateur" |
 | QTT enforced | livre ch.26 | LinearChecker branché sur cmdQTT shell seulement | 2 partiel (façade) | lib/qtt/linear.hvn 8/8 | corrigé 2026-10-26 | ch.26 : 4 patches (intro, exemples, peut vérifier, livré) |
 | Holes (`_`) | livre ch.2 | tous les `_` partagent l id 0 | 5 absent | pas de test holes | livre présente comme feature | ch.2 : retirer ou marquer "spécification" |
 | TCO mutuelle | livre ch.4 | limitations SCC | 4 spécification | pas de test TCO mutuel | livre présente comme acquis | ch.4 : "TCO simple OK, mutuelle à démontrer" |
