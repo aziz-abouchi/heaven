@@ -100,3 +100,37 @@ decremente PAS fuel -> le check ne fire pas.
 Le patch est arme, le check est la, 18/18 vert. Il manque :
 - Test non-TCO pour valider la preemption sur recursion normale
 - Fix TCO pour la preemption sur self-tail-calls
+
+## MILESTONE 2026-10-26 (soir) : preemption REELLE validee
+
+### 4 formes, 4 SuspendRequested
+- TCO (`rec n = rec n`) : SuspendRequested
+- non-TCO (`f n = f (n + 1)`) : SuspendRequested
+- borne (`f n = if n < 1000000 then (f (n+1)) else n`) : SuspendRequested
+- boucle (`loop _ = loop 0`) : SuspendRequested
+- sanity (`(+ 1 2)`) : 3 OK, 18/18 vert
+
+### Ce que ca veut dire
+SIGALRM + fuel + preempt_flag interrompt TOUTE evaluation, pas
+seulement les self-tail-calls. Le runtime Heaven est preemptif a 10ms.
+Plus aucun hang, plus aucun timeout shell. C est le runtime qui
+interrompt, pas le shell.
+
+### Ce qui manque pour de VRAIS acteurs (Erlang-like)
+Actuellement : SuspendRequested remonte au top-level et le process
+EXIT avec une erreur. Pas de reprise, pas de scheduler.
+
+Pour de vrais acteurs :
+1. Scheduler catch SuspendRequested -> requeue l acteur (1-2 blocs)
+   - l acteur est ABORT (pas suspendu), relance au prochain tick
+   - comme Erlang pour un timeout (process tue, pas suspendu)
+2. Vrai suspend (continuation capture pour tout SuspendRequested)
+   - capture : profondeur, env, id (2-3 blocs)
+   - resume : evaluate(state.id) au prochain tick
+   - necessite continuation.captureCont pour TOUT SuspendRequested,
+     pas seulement handle_rec
+
+### Recommendation
+Commencer par (1) : scheduler catch SuspendRequested, requeue.
+Coût 1-2 blocs. Donne des acteurs cooperatifs abort-and-retry.
+Puis (2) si besoin de vrai suspend (4-5 blocs).
