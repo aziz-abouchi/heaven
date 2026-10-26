@@ -1879,7 +1879,7 @@ const Lexer = struct {
         // Opérateurs 2 chars
         if (self.pos + 1 < self.src.len) {
             const two = self.src[self.pos .. self.pos + 2];
-            const two_ops = [_][]const u8{ "==", "!=", "<=", ">=", "&&", "||" };
+            const two_ops = [_][]const u8{ "==", "!=", "<=", ">=", "&&", "||", "->" };
             for (two_ops) |o| {
                 if (std.mem.eql(u8, two, o)) {
                     self.pos += 2;
@@ -2104,6 +2104,11 @@ const NativeParser = struct {
     fn parseLambdaExpr(self: *NativeParser) NativeError![]u8 {
         const name_tok = try self.lex.next();
         if (name_tok.kind != .ident) return error.InvalidSyntax;
+        // Accepter `->` optionnel (style Haskell/ML, utilisé dans le livre).
+        const maybe_arrow = try self.lex.peek();
+        if (maybe_arrow.kind == .op and eq(maybe_arrow.text, "->")) {
+            _ = try self.lex.next();
+        }
         const body = try self.parseExpr(0);
         return std.fmt.allocPrint(self.allocator, "(lambda {s} {s})", .{ name_tok.text, body });
     }
