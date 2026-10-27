@@ -1,0 +1,24 @@
+-- tests/test_smocker.hvn (Smocker v1, DI)
+import "core/std/smocker.hvn" as S
+
+-- Fonction sous test : prend son effet en parametre
+process http_get url = (http_get url)
+
+-- Test : stub retourne une valeur fixe
+test "smocker_fixed": (process (S.fixed "FAKE") "http://x") == "FAKE"
+
+-- Test : fixed2 avec 2 arguments
+test "smocker_fixed2": (let many f = (S.fixed2 42) in (f "a" "b")) == 42
+
+-- Test : fixed3 avec 3 arguments
+test "smocker_fixed3": (let many f = (S.fixed3 7) in (f "a" "b" "c")) == 7
+
+-- Test : fixed ignore son argument
+test "smocker_fixed_ignores_arg": (let many stub = (S.fixed "X") in (stub 999)) == "X"
+
+-- Test : const_fn equivaut a fixed
+test "smocker_const_fn": (let many f = (S.const_fn "OK") in (f "anything")) == "OK"
+
+-- Test : la fonction sous test n'appelle pas le vrai http_get
+-- (ici, `process` appelle simplement son parametre)
+test "smocker_di_isolation": (process (S.fixed 200) "http://ignored") == 200
