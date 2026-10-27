@@ -280,3 +280,51 @@ dans un helper local (SIGSEGV), utiliser `==` infixe.
 
 NB : GitHub Pages n'utilise PAS ce serveur (hébergement statique).
 C'est pour déploiement local/VPS.
+
+## 3ter. Serveur natif `--http-serve` (2026-10-27)
+
+Variante validée en `E4/3.2a`, qui charge le serveur depuis
+`core/http_server.hvn` (Heaven pur) sans passer par `startVesselServer`.
+
+    ./zig-out/bin/heaven --http-serve 18080
+
+Dans `src/main.zig`, le flag instancie un `Heaven` dédié et appelle
+`runHttpServer(18080)`, qui :
+
+1. lit `core/http_server.hvn` (2488 o) ;
+2. le découpe en 14 statements via `splitStatements`, évalue chacun ;
+3. arme le fuel (`@set_fuel 0`, infini) ;
+4. évalue `(hvn_http_serve_v2 18080)`.
+
+`hvn_http_serve_v2` :
+
+    hvn_http_serve_v2 port =
+      let cap = (cap_acquire (string_concat "net:listen:" (int_to_string port))) in
+      let listen_fd = (net_listen cap port) in
+      let _ = (print (string_concat "🌌 Heaven HTTP on http://127.0.0.1:" (int_to_string port))) in
+      (server_loop cap listen_fd)
+
+    server_loop cap listen_fd =
+      (if (@exiting) unit (server_loop_step cap listen_fd))
+
+`@exiting` (flag atomique dans `src/core/exiting.zig`) sera levé par
+le futur `@signalfd` (Phase B, Linux) / `kernel32` (Windows). Aujourd'hui
+`Ctrl-C` tue le process brutalement ; le shutdown propre est **dette
+Phase B**.
+
+**Mesures validées** (Linux x86_64, Debug) :
+
+| Route              | Code | Taille  | Content-Type        |
+|--------------------|------|---------|---------------------|
+| `/repl.html`       | 200  | 38261 o | `text/html`         |
+| `/heaven.wasm`     | 200  | 584755o | `application/wasm`  |
+
+3 requêtes successives + un `HEAD` sur le wasm → 5 `@net_accept`,
+process VIVANT, pas de fuite mémoire observée.
+
+**Pré-requis Debug** : `HEAVEN_NO_LEAK_CHECK=1`, à cause d'un
+`assert(!gop.found_existing)` préexistant (heap corruption, voir
+`docs/spec/_http_debug_crash.md`). En ReleaseFast, non requis.
+
+**Dette** : `hvn_http_serve_v2` est encore récursif manuel (pas de
+scheduler/acteurs/`handle_rec`). Réécriture prévue en 3.3a.

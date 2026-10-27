@@ -1,7 +1,8 @@
 # Summary
 
-> **Heaven 0.6** — État au 2026-10-24. Voir [Versions](#versions) en fin
-> de page pour la grille complète.
+> **Heaven 0.6.1** — État au 2026-10-27. Voir [Versions](#versions) en fin
+> de page pour la grille complète. Cette version corrige la syntaxe lambda
+> (seul `\x. body` est validé) et documente la préemption multi-mode.
 
 ## Partie I — Découverte (lecteur littéraire bienvenu)
 
@@ -68,7 +69,8 @@
 | 0.3 | HKT V1a, optics, fantasy_land, MPST V0.5 | historique |
 | 0.4 | stdlib net (IP/TCP/UDP/DNS/HTTP), TLS FFI, effects, QTT parse | historique |
 | **0.5** | **`lib/syscall/`, `lib/time`, `lib/random`, `lib/json_rpc`, `lib/lsp/` (4 modules), `lib/mcp/` (5 tools), `lib/web/` (DBpedia live)** | historique |
-| **0.6** | **OS Phase 1B (device/ipc/vfs/kernel), HoTT Path facade, QTT facade, grammar HIT, E1.1 parseur infixe `.hvn`, fix `let-in-if` + `lambda`** | **ACTUEL** |
+| 0.6 | OS Phase 1B (device/ipc/vfs/kernel), HoTT Path facade, QTT facade, grammar HIT, E1.1 parseur infixe `.hvn`, fix `let-in-if` + `lambda` | historique |
+| **0.6.1** | **Serveur HTTP natif `--http-serve` (curl /repl.html 200 / /heaven.wasm 200), `@arm_preempt` multi-mode (fuel/timer/both), audit syntaxe + fix `parseLetExpr` (`0471a6b`)** | **ACTUEL** |
 | 0.7 | E1 parseur infixe complet, backend C en `.hvn` (E2), `--meta` (E3) | prochain |
 | 0.8 | WASM/WASI/JS backends `.hvn`, bootstrap 500 lignes | à planifier |
 | 1.0 | HoTT/Cubical, QTT runtime enforced, auto-hébergement complet, Lustre-like | vision |

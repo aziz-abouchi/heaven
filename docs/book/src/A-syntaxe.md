@@ -79,11 +79,19 @@ plus lisible dans votre contexte.
 
 ## Lambda
 
-    \x -> x + 1
-    λx.x + 1
-    lambda x -> x + 1
+    \x. x + 1
 
-Les trois formes sont acceptées. Le `\` est l'ASCII-friendly.
+**Seule forme validée : `\x. body`** (backslash + point). Le `\` est
+l'ASCII-friendly. En interne, `λx. body` produit la même chose.
+
+**Formes buggées (audit 3.4a, 2026-10-27)** — à corriger en 3.4 :
+
+    lambda x -> x + 1        -- parse échoue
+    lambda x : x + 1         -- parse échoue
+    (fn x = x)               -- parse comme ((= (fn x) x)
+
+Ne pas s'y fier tant que ces bugs ne sont pas fixés. Voir
+`docs/spec/_syntax_audit.md`.
 
 ## Bitstrings
 
@@ -118,15 +126,18 @@ cas d'usage (parsing de protocoles).
 
 Liaison locale. Le nom est visible dans la partie après `in`.
 
-**Limitations connues (B3, 2026-10-19)** :
-- `let` chaîné (`let a = 1 in let b = 2 in body`) : fixé en
-  `heaven run` top-level (`66f0b32`), mais **toujours cassé** dans
-  les helpers `.hvn` et les arguments de S-expr.
+**Limitations connues (état 2026-10-27, après fix 0471a6b)** :
+- `let` chaîné (`let a = 1 in let b = 2 in body`) : **fixé** en
+  3.4b (commit `0471a6b`). `parseLetExpr` route le corps via
+  `parseSExpr` quand il ne commence pas par `let`.
+- `let x = (f a) in x > 0` (corps **non parenthésé** + RHS
+  application) : **encore cassé** — parse échoue à 0.13 ms.
+  Dette 3.4b-ter.
+- `let x = (@magic ...) in (x > 0)` (RHS magic) : **encore cassé** —
+  `let` bind `x` comme thunk non forcé. Dette 3.4b-bis.
+  Workaround actuel : `let many x = ... in (x > 0)` (force + parens).
 - Pattern `_` + `heaven run` : `helper _ = 42` puis `(helper 0)`
-  -> `ArityMismatch`.
-- Workarounds : `fn`/`seq`, ou S-expr nested
-  `(let a 1 (let b 2 body))`. Voir
-  `docs/tutorials/no_let_chain.md`.
+  -> `ArityMismatch` (statut inchangé).
 
 ## if
 

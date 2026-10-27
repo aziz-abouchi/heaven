@@ -273,3 +273,25 @@ Limitation assumée : si le calcul entre deux `yield` dépasse le budget
 par itération, la tâche est ré-exécutée en boucle sans progresser.
 La reprise exacte demanderait des continuations (A-3b, cf.
 `docs/spec/_capture_eval.md`).
+
+### Modes de préemption (2026-10-27)
+
+Depuis `E4/3.3-pre`, `@arm_preempt` accepte un mode explicite :
+
+    (@arm_preempt)              -- 0 arg = "both" (compat historique)
+    (@arm_preempt "both")       -- timer + fuel (defaut)
+    (@arm_preempt "fuel")       -- quota fuel seul (portable partout)
+    (@arm_preempt "timer")      -- setitimer/SIGALRM (Linux seulement)
+
+**`.fuel`** : aucune horloge, aucun signal. À chaque safepoint
+(`fuel % 1000 == 0`), le moteur décrémente le budget de la tâche
+courante ; si zéro, `SuspendRequested`. C'est **la seule voie
+portable** pour WASI, wasm-freestanding, iOS, Android.
+
+**`.timer`** : `setitimer`/`SIGALRM` à 10 ms en natif Linux, no-op
+sur wasm (garde comptime). Donne une vraie préemption entre deux
+safepoints, mais dépend de l'OS.
+
+**Régression connue** : `(@arm_preempt 0)` (ancienne forme) retourne
+désormais `error.TypeError`, car l'argument doit être une string.
+Compat 0 → `.both` à rétablir en dette 3.4b-bis.
