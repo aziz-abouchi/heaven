@@ -40,6 +40,17 @@ au-delà de toute expression raisonnable). `parseExpression` et
 Les 3 crashes fuzzer renvoient maintenant `error.InvalidInput`
 (ou autre erreur) au lieu de SIGSEGV/SIGABRT.
 
+## Fix 2 : depth -|= 1 (2026-10-27)
+
+`crash_24` : panic `integer overflow` sur `depth -= 1` (ligne 2210).
+Le tokenizer compte les parenthèses dans un nom d'identifiant muté
+contenant `)` orpheline → `depth` unsigned descend sous 0.
+
+Fix : tous les sites `depth -= 1` non protégés deviennent
+`depth -|= 1` (soustraction saturante Zig : `0 -|= 1 = 0`). 10 sites
+(1203, 1630, 1655, 1739, 1970, 2081, 2210, 2640, 4203, 4223).
+Les sites déjà protégés par `if (depth > 0)` restent inchangés.
+
 ## Analyse (backlog session dédiée)
 
 - Minimiser chaque crash (retirer octets jusqu'au minimum qui crashe).

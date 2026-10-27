@@ -1200,7 +1200,7 @@ pub const Heaven = struct {
                     if (trimmed[si] == '(') {
                         depth += 1;
                     } else if (trimmed[si] == ')') {
-                        depth -= 1;
+                        depth -|= 1;
                         if (depth == 0 and si + 1 < trimmed.len) {
                             const next = std.mem.trimLeft(u8, trimmed[si + 1 ..], " \t\n\r");
                             if (next.len > 0 and next[0] == '(') { split_pos = si + 1; break; }
@@ -1627,7 +1627,7 @@ pub const Heaven = struct {
                 cursor += 1;
                 var depth: usize = 1;
                 while (cursor < head.len and depth > 0) : (cursor += 1) {
-                    if (head[cursor] == '(') depth += 1 else if (head[cursor] == ')') depth -= 1;
+                    if (head[cursor] == '(') depth += 1 else if (head[cursor] == ')') depth -|= 1;
                 }
                 if (depth != 0)
                     return self.allocator.dupe(u8, "syntax error: '(' non fermée dans params");
@@ -1652,7 +1652,7 @@ pub const Heaven = struct {
                 cursor += 1;
                 var depth: usize = 1;
                 while (cursor < head.len and depth > 0) : (cursor += 1) {
-                    if (head[cursor] == '<') depth += 1 else if (head[cursor] == '>') depth -= 1;
+                    if (head[cursor] == '<') depth += 1 else if (head[cursor] == '>') depth -|= 1;
                 }
                 if (depth != 0)
                     return self.allocator.dupe(u8, "syntax error: '<' non fermée dans params");
@@ -1736,7 +1736,7 @@ pub const Heaven = struct {
                     const arg_start = i;
                     i += 1;
                     while (i < ctor_str.len and depth > 0) : (i += 1) {
-                        if (ctor_str[i] == '(') depth += 1 else if (ctor_str[i] == ')') depth -= 1;
+                        if (ctor_str[i] == '(') depth += 1 else if (ctor_str[i] == ')') depth -|= 1;
                     }
                     const arg_raw = ctor_str[arg_start..i];
                     // Resolution alias : `data D = C Age` traite Age
@@ -1967,7 +1967,7 @@ pub const Heaven = struct {
         while (i < line.len) : (i += 1) {
             if (line[i] == '(') depth += 1;
             if (line[i] == ')') {
-                depth -= 1;
+                depth -|= 1;
                 if (depth == 0) { end = i + 1; break; }
             }
         }
@@ -2207,7 +2207,7 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
                 }
                 depth += 1;
             } else if (c == ')') {
-                depth -= 1;
+                depth -|= 1;
                 if (depth == 0 and in_token) {
                     try tokens.append(self.allocator, lhs_eff[start .. i + 1]);
                     in_token = false;
@@ -2637,7 +2637,7 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
                     i += 1;
                     continue;
                 }
-                depth -= 1;
+                depth -|= 1;
                 if (depth < MaxDepth and is_tuple[depth]) {
                     try buf.insertSlice(allocator, open_pos[depth] + 1, "tuple ");
                 }
@@ -4200,7 +4200,7 @@ fn extractBinderType(s: []const u8) []const u8 {
     var depth: usize = 1;
     var i: usize = 1;
     while (i < t.len and depth > 0) : (i += 1) {
-        if (t[i] == '(') depth += 1 else if (t[i] == ')') depth -= 1;
+        if (t[i] == '(') depth += 1 else if (t[i] == ')') depth -|= 1;
     }
     if (i < 2) return t;
     const inner = t[1 .. i - 1];
@@ -4220,7 +4220,7 @@ fn extractHeadName(s: []const u8) []const u8 {
         var depth: usize = 1;
         i += 1;
         while (i < s.len and depth > 0) : (i += 1) {
-            if (s[i] == '(') depth += 1 else if (s[i] == ')') depth -= 1;
+            if (s[i] == '(') depth += 1 else if (s[i] == ')') depth -|= 1;
         }
         if (i > open + 1 and i - 1 <= s.len) {
             const inner = s[open + 1 .. i - 1];
