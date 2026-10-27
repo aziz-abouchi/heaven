@@ -313,12 +313,17 @@ fn sigalrmHandler(_: i32) callconv(.c) void {
 const Timeval = extern struct { sec: i64, usec: i64 };
 const Itimerval = extern struct { interval: Timeval, value: Timeval };
 
-fn armPreemption(engine: *Engine) void {
+pub const PreemptMode = enum { both, fuel, timer };
+
+/// Arme la preemption. 2026-10-27 (E4 3.3-pre) : ajout du mode.
+///  - .both  : timer (si dispo) + quota fuel (comportement historique)
+///  - .fuel  : quota fuel seul (portable : wasm, iOS, Android, WASI)
+///  - .timer : timer seul (no-op sur wasm, warning si pas Linux)
+/// Le quota fuel est deja checke dans `evaluate` (fuel % 1000 == 0).
+fn armPreemption(engine: *Engine, mode: PreemptMode) void {
     if (engine.preempt_armed) return;
-    // Pas de SIGALRM sur wasm32-freestanding / wasi. Le flag reste
-    // inactif, preempt_flag ne sera jamais set, pas de preemption
-    // sur wasm pour l'instant (voir _preemption.md).
-    if (comptime !@import("builtin").target.cpu.arch.isWasm()) {
+    const want_timer = mode == .both or mode == .timer;
+    if (want_timer and comptime !@import("builtin").target.cpu.arch.isWasm()) {
         var act = std.posix.Sigaction{
             .handler = .{ .handler = sigalrmHandler },
             .mask = std.mem.zeroes(std.posix.sigset_t),
@@ -914,6 +919,13 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                 const exiting_mod = @import("exiting");
                 return try store.lit(.{ .boolean = exiting_mod.exiting.load(.acquire) });
             }
+            // @arm_preempt nu (zero-arg) : compat historique, mode .both.
+            // Le parser reduit (@arm_preempt) a une sym, donc le dispatch
+            // apply ne passe pas. Meme pattern que @exiting. 2026-10-27 (E4).
+            if (std.mem.eql(u8, name, "@arm_preempt")) {
+                armPreemption(engine, .both);
+                return try store.unitLit();
+            }
             if (isMagicSymbol(name)) return id;
             if (env.get(node.payload)) |bound| {
                 //platform.dbg("[DEBUG eval] sym '{s}' trouvé dans env, valeur={d}\n", .{ name, bound });
@@ -1102,7 +1114,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@set_fuel", "@exiting", "@tls_connect", "@tls_read", "@tls_write", "@tls_close" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@set_fuel", "@exiting", "@spawn", "@broadcast", "@runtime_stats", "@sleep_ms", "@tls_connect", "@tls_read", "@tls_write", "@tls_close" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1284,7 +1296,22 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return try store.lit(.{ .str = sym });
     }
     if (std.mem.eql(u8, op, "@arm_preempt")) {
-        armPreemption(engine);
+        // @arm_preempt [mode] ou mode = "fuel" | "timer" | "both"
+        // 0 arg -> .both (compat historique)
+        var mode: PreemptMode = .both;
+        if (args_snap.len >= 1) {
+            const mv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+            const mn = store.get(mv);
+            if (mn.tag != .lit) return error.TypeError;
+            const ml = store.lits.items[mn.aux];
+            if (ml != .str) return error.TypeError;
+            const s = store.interner.resolve(@intCast(ml.str));
+            if (std.mem.eql(u8, s, "fuel")) mode = .fuel
+            else if (std.mem.eql(u8, s, "timer")) mode = .timer
+            else if (std.mem.eql(u8, s, "both")) mode = .both
+            else return error.InvalidInput;
+        }
+        armPreemption(engine, mode);
         return try store.unitLit();
     }
     if (std.mem.eql(u8, op, "@disarm_preempt")) {
@@ -3061,11 +3088,22 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@spawn")) {
-        // @spawn cap thunk -> Int (ID d'acteur dummy)
-        if (args_snap.len != 2) return error.ArityMismatch;
-        _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
-        _ = try evaluate(store, env, engine, args_snap[1], depth + 1); // thunk
-        return try store.lit(.{ .int = 1 }); // ID d'acteur dummy
+        // @spawn thunk -> TaskId (2026-10-27, E4 3.3-pre rev2)
+        // Pas de cap : le modele acteur `spawn` (sans @) n'en a pas
+        // non plus, et `cap_acquire "spawn"` n'est pas dans
+        // parseCapKind. Signature alignee sur le modele sous-jacent.
+        // Le thunk (lambda) est garde brut (PAS eager-eval) : sinon
+        // on aurait la valeur 42 et store.apply(42_id, ...) echouerait.
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const task_id: u64 = engine.next_task_id;
+        engine.next_task_id += 1;
+        try engine.scheduler.add(.{
+            .id = task_id,
+            .body_fn = @intCast(args_snap[0]),
+            .current_state = @intCast(try store.unitLit()),
+            .state = .ready,
+        });
+        return try store.int(@intCast(task_id));
     }
 
     if (std.mem.eql(u8, op, "@sleep_ms")) {
