@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340" font-family="monospace" font-size="12">
+  <style>
+    .box { fill:#fff; stroke:#333; stroke-width:1.5; rx:4; }
+    .heaven { fill:#e8f4ff; stroke:#06c; stroke-width:2; }
+    .hybrid { fill:#fff8e8; stroke:#c90; stroke-width:2; }
+    .core { fill:#efe; stroke:#090; stroke-width:2; }
+    .lbl { fill:#333; }
+    .dim { fill:#666; font-size:11px; }
+    .arr { stroke:#333; stroke-width:1.5; fill:none; marker-end:url(#a); }
+    .ttl { font-weight:bold; font-size:13px; }
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker></defs>
+  <text x="10" y="20" class="ttl">Trois outils de test, trois niveaux</text>
+
+  <rect x="20" y="45" width="200" height="70" class="box heaven"/>
+  <text x="30" y="63" class="lbl">Smocker</text>
+  <text x="30" y="79" class="dim">core/std/smocker.hvn</text>
+  <text x="30" y="95" class="dim">100% Heaven</text>
+  <text x="30" y="109" class="dim">fixed, const_fn (DI)</text>
+
+  <rect x="260" y="45" width="200" height="70" class="box heaven"/>
+  <text x="270" y="63" class="lbl">Quickchecker</text>
+  <text x="270" y="79" class="dim">core/std/quickcheck.hvn</text>
+  <text x="270" y="95" class="dim">100% Heaven</text>
+  <text x="270" y="109" class="dim">PRNG pur, gen_*, check</text>
+
+  <rect x="500" y="45" width="200" height="70" class="box hybrid"/>
+  <text x="510" y="63" class="lbl">Fuzzer</text>
+  <text x="510" y="79" class="dim">scripts/fuzz.sh</text>
+  <text x="510" y="95" class="dim">hybride bash + corpus</text>
+  <text x="510" y="109" class="dim">mutation + rc&gt;128</text>
+
+  <rect x="200" y="180" width="320" height="55" class="box core"/>
+  <text x="210" y="198" class="lbl">test_suite.hvn / tests/*.hvn</text>
+  <text x="210" y="214" class="dim">98/98 + 93 fichiers</text>
+  <text x="210" y="228" class="dim">zig build test-files</text>
+
+  <path d="M120,115 L240,180" class="arr"/>
+  <path d="M360,115 L360,180" class="arr"/>
+  <path d="M600,115 L480,180" class="arr"/>
+
+  <text x="20" y="270" class="ttl">Chacun a un doc de design</text>
+  <text x="20" y="288" class="lbl">_smocker.md · _quickcheck.md · _fuzzer.md</text>
+  <text x="20" y="304" class="dim">v1 livrée, v2 en backlog (label-aware, shrinking, grammaire)</text>
+  <text x="20" y="322" class="dim">Fuzzer a trouvé 4 bugs parser le 2026-10-27 (corrigés)</text>
+</svg>

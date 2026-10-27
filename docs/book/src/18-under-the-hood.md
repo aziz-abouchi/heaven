@@ -480,6 +480,8 @@ Trois principes structurent Heaven dans cet esprit :
 
 ## 14. Outils de test (2026-10)
 
+![Trois outils de test](images/18-test-tools.svg)
+
 Trois outils complètent `test_suite.hvn` et `zig build test` :
 
 - **Smocker** (`core/std/smocker.hvn`, 100 % Heaven) : stubs de
