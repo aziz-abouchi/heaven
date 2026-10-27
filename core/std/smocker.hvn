@@ -4,25 +4,25 @@
 -- stubs deterministes (dependency injection).
 --
 -- Approche : la fonction sous test prend ses effets en parametre.
--- Exemple :
+--
+-- Exemple (arite 1) :
 --   process http_get url = (http_get url)
 --   test "process" : (process (S.fixed "FAKE") "http://x") == "FAKE"
 --
--- Limite v1 : pas de mock "label-aware" (perform "Log" 42 n'est pas
--- distinguable de perform "Other" 42 dans handle_rec). Voir
--- docs/spec/_smocker.md pour la v2 (perform label-aware).
+-- Limites v1 :
+--   - `fixed` ne couvre que l'arite 1 (le cas le plus frequent).
+--   - fixed2/fixed3 (curry a 2+ niveaux) sont retires : le parser
+--     infixe ne gere pas `(f "a" "b")` sur une lambda curryfie, et
+--     cela provoque une evaluation silencieusement abandonnee
+--     (runner sans erreur, sans total).
+--   - Pour une arite > 1, utiliser `lambda _a -> lambda _b -> value`
+--     directement dans le test, ou curryfier manuellement avec
+--     `fixed` (ex. `(S.fixed (S.fixed value))`).
 --
 -- 0 ligne Zig : utilise le curry + lambda, deja dans le noyau.
 
 -- fixed : stub d'arite 1 qui ignore son argument et retourne `value`.
 fixed value = lambda _ -> value
 
--- fixed2 : stub d'arite 2 (curry).
-fixed2 value = lambda _a -> lambda _b -> value
-
--- fixed3 : stub d'arite 3 (curry).
-fixed3 value = lambda _a -> lambda _b -> lambda _c -> value
-
--- const_fn : stub nomme reutilisable (equivalent de `fixed` mais
--- utilisable dans plusieurs tests via import).
+-- const_fn : alias nomme de `fixed`, pour lisibilite.
 const_fn value = lambda _ -> value
