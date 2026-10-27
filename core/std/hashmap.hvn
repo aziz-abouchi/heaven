@@ -15,42 +15,42 @@ map_ptr (MkMap ptr _ _) = ptr
 -- zero_init : remplit n i64 a partir de ptr avec 0.
 map_zero_body ptr i n =
   let _ = (poke_int64 ptr i 0) in
-  (map_zero ptr (+ i 1) n)
+  (map_zero ptr (i + 1) n)
 
 map_zero ptr i n =
-  (if (< i n)
+  (if (i < n)
     (map_zero_body ptr i n)
     ptr)
 
 -- map_new cap : alloue cap*3 i64, zero-init, retourne MkMap ptr 0 cap.
 map_new cap =
-  let c = (if (< cap 1) 1 cap) in
-  let n = (* c 3) in
-  let bytes = (* n 8) in
+  let c = (if (cap < 1) 1 cap) in
+  let n = (c * 3) in
+  let bytes = (n * 8) in
   let ptr = (raw_alloc bytes) in
   let _ = (map_zero ptr 0 n) in
   (MkMap ptr 0 c)
 
 -- Liberation : symetrie avec array_free. Une seule fois, derniere vue.
-map_free (MkMap ptr _ cap) = (raw_free ptr (* (* cap 3) 8))
+map_free (MkMap ptr _ cap) = (raw_free ptr ((cap * 3) * 8))
 
 -- ─── Lecture / ecriture de slot ───
 -- Slot i occupe les i64 [i*3, i*3+1, i*3+2] = [key, value, flag].
-map_slot_key ptr i = (peek_int64 ptr (* i 3))
-map_slot_value ptr i = (peek_int64 ptr (+ (* i 3) 1))
-map_slot_flag ptr i = (peek_int64 ptr (+ (* i 3) 2))
+map_slot_key ptr i = (peek_int64 ptr (i * 3))
+map_slot_value ptr i = (peek_int64 ptr ((i * 3) + 1))
+map_slot_flag ptr i = (peek_int64 ptr ((i * 3) + 2))
 
 map_slot_write ptr i k v =
-  let base = (* i 3) in
+  let base = (i * 3) in
   let _ = (poke_int64 ptr base k) in
-  let _ = (poke_int64 ptr (+ base 1) v) in
-  let _ = (poke_int64 ptr (+ base 2) 1) in
+  let _ = (poke_int64 ptr (base + 1) v) in
+  let _ = (poke_int64 ptr (base + 2) 1) in
   ptr
 
 -- ─── Lookup par probing lineaire ───
 -- 4 helpers nommes pour eviter if multi-ligne avec conditions imbriquees.
 map_get_next ptr k cap i count =
-  (map_get_helper ptr k cap (% (+ i 1) cap) (+ count 1))
+  (map_get_helper ptr k cap ((i + 1) % cap) (count + 1))
 
 map_get_match ptr k cap i count =
   (if (eq (map_slot_key ptr i) k)
@@ -65,22 +65,22 @@ map_get_check ptr k cap i count =
       (map_get_match ptr k cap i count)))
 
 map_get_helper ptr k cap i count =
-  (if (>= count cap)
+  (if (count >= cap)
     0
     (map_get_check ptr k cap i count))
 
 -- Hash normalise : ramene toute cle (meme negative) dans [0, cap).
-map_hash k cap = (% (+ (% k cap) cap) cap)
+map_hash k cap = (((k % cap) + cap) % cap)
 
 map_get (MkMap ptr _ cap) k =
   (map_get_helper ptr k cap (map_hash k cap) 0)
 
 -- ─── Insertion par probing lineaire ───
 -- On cherche soit le slot contenant deja k (update), soit un slot vide (insert).
-map_first_tomb t i = (if (< t 0) i t)
+map_first_tomb t i = (if (t < 0) i t)
 
 map_put_next ptr size k v cap t i count =
-  (map_put_helper ptr size k v cap t (% (+ i 1) cap) (+ count 1))
+  (map_put_helper ptr size k v cap t ((i + 1) % cap) (count + 1))
 
 map_put_match ptr size k v cap t i count =
   (if (eq (map_slot_key ptr i) k)
@@ -91,13 +91,13 @@ map_put_match ptr size k v cap t i count =
 -- Reutiliser une tombe n'incremente pas size (slot deja compte) :
 -- map_length reste exact apres des del.
 map_put_wall ptr size k v cap t i =
-  (if (< t 0)
-    (MkMap (map_slot_write ptr i k v) (+ size 1) cap)
+  (if (t < 0)
+    (MkMap (map_slot_write ptr i k v) (size + 1) cap)
     (MkMap (map_slot_write ptr t k v) size cap))
 
 -- Tombe croisee : memoriser la premiere, continuer a chercher la cle.
 map_put_tomb ptr size k v cap t i count =
-  (map_put_helper ptr size k v cap (map_first_tomb t i) (% (+ i 1) cap) (+ count 1))
+  (map_put_helper ptr size k v cap (map_first_tomb t i) ((i + 1) % cap) (count + 1))
 
 map_put_check ptr size k v cap t i count =
   (if (eq (map_slot_flag ptr i) 0)
@@ -108,40 +108,40 @@ map_put_check ptr size k v cap t i count =
 
 -- Sondage epuise : table pleine de vivants+tombes ; la tombe est dans t.
 map_put_helper ptr size k v cap t i count =
-  (if (>= count cap)
-    (if (< t 0)
+  (if (count >= cap)
+    (if (t < 0)
       (MkMap ptr size cap)
       (MkMap (map_slot_write ptr t k v) size cap))
     (map_put_check ptr size k v cap t i count))
 
 -- map_put_no_grow : insertion sans resize.
 map_put_no_grow map k v =
-  (map_put_helper (map_ptr map) (map_length map) k v (map_capacity map) (- 0 1) (map_hash k (map_capacity map)) 0)
+  (map_put_helper (map_ptr map) (map_length map) k v (map_capacity map) (0 - 1) (map_hash k (map_capacity map)) 0)
 
 -- ─── Resize automatique ───
 -- Load factor : on resize si size * 4 >= cap * 3 (0.75).
-map_should_grow size cap = (>= (* size 4) (* cap 3))
+map_should_grow size cap = ((size * 4) >= (cap * 3))
 
 -- Rehash : parcourt tous les slots de l'ancien ptr, reinsere dans new_map.
 map_rehash new_map old_ptr i cap =
-  (if (>= i cap)
+  (if (i >= cap)
     new_map
     (map_rehash_slot new_map old_ptr i cap))
 
 map_rehash_slot new_map old_ptr i cap =
   (if (eq (map_slot_flag old_ptr i) 1)
     (map_rehash_insert new_map old_ptr i cap)
-    (map_rehash new_map old_ptr (+ i 1) cap))
+    (map_rehash new_map old_ptr (i + 1) cap))
 
 map_rehash_insert new_map old_ptr i cap =
   let nm = (map_put_no_grow new_map (map_slot_key old_ptr i) (map_slot_value old_ptr i)) in
-  (map_rehash nm old_ptr (+ i 1) cap)
+  (map_rehash nm old_ptr (i + 1) cap)
 
 map_resize map =
-  let new_cap = (* (map_capacity map) 2) in
+  let new_cap = ((map_capacity map) * 2) in
   let new_map = (map_new new_cap) in
   let rehashed = (map_rehash new_map (map_ptr map) 0 (map_capacity map)) in
-  let _ = (raw_free (map_ptr map) (* (* (map_capacity map) 3) 8)) in
+  let _ = (raw_free (map_ptr map) (((map_capacity map) * 3) * 8)) in
   rehashed
 
 -- ─── map_put : resize conditionnel puis insertion ───
@@ -154,7 +154,7 @@ map_put map k v =
 
 -- ─── map_has : presence d'une cle (independant de la valeur) ───
 map_has_next ptr k cap i count =
-  (map_has_helper ptr k cap (% (+ i 1) cap) (+ count 1))
+  (map_has_helper ptr k cap ((i + 1) % cap) (count + 1))
 
 map_has_match ptr k cap i count =
   (if (eq (map_slot_key ptr i) k)
@@ -169,7 +169,7 @@ map_has_check ptr k cap i count =
       (map_has_match ptr k cap i count)))
 
 map_has_helper ptr k cap i count =
-  (if (>= count cap)
+  (if (count >= cap)
     0
     (map_has_check ptr k cap i count))
 
@@ -179,7 +179,7 @@ map_has (MkMap ptr _ cap) k =
 -- ─── map_del : tombstones (flag 2) ───
 -- Une tombe n'est ni un mur ni un match. Retourne 1 si supprime, 0 sinon.
 map_del_next ptr k cap i count =
-  (map_del_helper ptr k cap (% (+ i 1) cap) (+ count 1))
+  (map_del_helper ptr k cap ((i + 1) % cap) (count + 1))
 
 map_del_match ptr k cap i count =
   (if (eq (map_slot_key ptr i) k)
@@ -187,7 +187,7 @@ map_del_match ptr k cap i count =
     (map_del_next ptr k cap i count))
 
 map_del_do ptr i =
-  let _ = (poke_int64 ptr (+ (* i 3) 2) 2) in
+  let _ = (poke_int64 ptr ((i * 3) + 2) 2) in
   1
 
 map_del_check ptr k cap i count =
@@ -198,7 +198,7 @@ map_del_check ptr k cap i count =
       (map_del_match ptr k cap i count)))
 
 map_del_helper ptr k cap i count =
-  (if (>= count cap)
+  (if (count >= cap)
     0
     (map_del_check ptr k cap i count))
 
@@ -219,12 +219,12 @@ smap_ptr (MkSMap p _ _) = p
 smap_size (MkSMap _ n _) = n
 smap_cap (MkSMap _ _ c) = c
 
-smap_hash_step h b = (mod (* (- (bor h b) (band h b)) 16777619) 1000000007)
+smap_hash_step h b = (mod (((bor h b) - (band h b)) * 16777619) 1000000007)
 
 smap_hash_from s i h =
-  (if (= i (string_length s))
+  (if (i == (string_length s))
     h
-    (smap_hash_from s (+ i 1) (smap_hash_step h (peek_byte (string_ptr s) i))))
+    (smap_hash_from s (i + 1) (smap_hash_step h (peek_byte (string_ptr s) i))))
 
 smap_hash s = (smap_hash_from s 0 2166136261)
 
@@ -234,39 +234,39 @@ smap_e_next e = (peek_int64 e 0)
 smap_e_hash e = (peek_int64 e 1)
 smap_e_len e = (peek_int64 e 2)
 smap_e_val e = (peek_int64 e 3)
-smap_e_byte e i = (peek_int64 e (+ 4 i))
+smap_e_byte e i = (peek_int64 e (4 + i))
 
 smap_eq_from e sp n i =
-  (if (= i n)
+  (if (i == n)
     true
-    (if (= (smap_e_byte e i) (peek_byte sp i))
-      (smap_eq_from e sp n (+ i 1))
+    (if ((smap_e_byte e i) == (peek_byte sp i))
+      (smap_eq_from e sp n (i + 1))
       false))
 
 smap_eq e s =
-  (if (= (smap_e_len e) (string_length s))
+  (if ((smap_e_len e) == (string_length s))
     (smap_eq_from e (string_ptr s) (string_length s) 0)
     false)
 
 smap_find e s =
-  (if (= e 0)
+  (if (e == 0)
     0
     (if (smap_eq e s)
       e
       (smap_find (smap_e_next e) s)))
 
 smap_copy_do sp e i =
-  let _ = (poke_int64 e (+ 4 i) (peek_byte sp i)) in
-  (smap_copy sp e (+ i 1))
+  let _ = (poke_int64 e (4 + i) (peek_byte sp i)) in
+  (smap_copy sp e (i + 1))
 
 smap_copy sp e i =
-  (if (= i (smap_e_len e))
+  (if (i == (smap_e_len e))
     e
     (smap_copy_do sp e i))
 
 smap_new_entry s v =
   let n = (string_length s) in
-  let e = (raw_alloc (* (+ 4 n) 8)) in
+  let e = (raw_alloc ((4 + n) * 8)) in
   let _ = (poke_int64 e 0 0) in
   let _ = (poke_int64 e 1 (smap_hash s)) in
   let _ = (poke_int64 e 2 n) in
@@ -274,8 +274,8 @@ smap_new_entry s v =
   (smap_copy (string_ptr s) e 0)
 
 smap_new cap =
-  let c = (if (< cap 1) 1 cap) in
-  let ptr = (raw_alloc (* c 8)) in
+  let c = (if (cap < 1) 1 cap) in
+  let ptr = (raw_alloc (c * 8)) in
   let _ = (map_zero ptr 0 c) in
   (MkSMap ptr 0 c)
 
@@ -288,26 +288,26 @@ smap_insert m s v =
   let e = (smap_new_entry s v) in
   let _ = (poke_int64 e 0 (peek_int64 (smap_ptr m) b)) in
   let _ = (poke_int64 (smap_ptr m) b e) in
-  (MkSMap (smap_ptr m) (+ (smap_size m) 1) (smap_cap m))
+  (MkSMap (smap_ptr m) ((smap_size m) + 1) (smap_cap m))
 
 smap_put m s v =
   let e = (smap_find (smap_bucket m s) s) in
-  (if (= e 0)
+  (if (e == 0)
     (smap_insert m s v)
     (smap_update m e v))
 
 smap_get m s =
   let e = (smap_find (smap_bucket m s) s) in
-  (if (= e 0)
+  (if (e == 0)
     0
     (smap_e_val e))
 
 smap_has m s =
-  (if (= (smap_find (smap_bucket m s) s) 0)
+  (if ((smap_find (smap_bucket m s) s) == 0)
     0
     1)
 
-smap_free_entry e = (raw_free e (* (+ 4 (smap_e_len e)) 8))
+smap_free_entry e = (raw_free e ((4 + (smap_e_len e)) * 8))
 
 smap_unlink_head m b e =
   let _ = (poke_int64 (smap_ptr m) b (smap_e_next e)) in
@@ -320,10 +320,10 @@ smap_unlink_mid prev e =
   1
 
 smap_del_from m b e prev s =
-  (if (= e 0)
+  (if (e == 0)
     0
     (if (smap_eq e s)
-      (if (= prev 0)
+      (if (prev == 0)
         (smap_unlink_head m b e)
         (smap_unlink_mid prev e))
       (smap_del_from m b (smap_e_next e) e s)))
@@ -332,7 +332,7 @@ smap_del m s =
   (smap_del_from m (mod (smap_hash s) (smap_cap m)) (smap_bucket m s) 0 s)
 
 smap_free_chain e =
-  (if (= e 0)
+  (if (e == 0)
     0
     (smap_free_chain_do e))
 
@@ -342,14 +342,14 @@ smap_free_chain_do e =
   (smap_free_chain nxt)
 
 smap_free_buckets m i =
-  (if (= i (smap_cap m))
+  (if (i == (smap_cap m))
     0
     (smap_free_buckets_do m i))
 
 smap_free_buckets_do m i =
   let _ = (smap_free_chain (peek_int64 (smap_ptr m) i)) in
-  (smap_free_buckets m (+ i 1))
+  (smap_free_buckets m (i + 1))
 
 smap_free m =
   let _ = (smap_free_buckets m 0) in
-  (raw_free (smap_ptr m) (* (smap_cap m) 8))
+  (raw_free (smap_ptr m) ((smap_cap m) * 8))
