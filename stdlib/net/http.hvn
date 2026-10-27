@@ -22,6 +22,20 @@ resp_status  (pair s _) = s
 resp_body    (pair _ (pair b _)) = b
 resp_headers (pair _ (pair _ h)) = h
 
+-- Variante avec Content-Type explicite (2026-10-27, E4).
+format_response_ct (pair status (pair ctype (pair body nil))) =
+  let status_text = (if (eq status 200) "OK" "Not Found") in
+  let body_len = (int_to_string (string_length body)) in
+  (string_concat "HTTP/1.1 "
+    (string_concat (int_to_string status)
+      (string_concat " "
+        (string_concat status_text
+          (string_concat "\r\nContent-Type: "
+            (string_concat ctype
+              (string_concat "\r\nContent-Length: "
+                (string_concat body_len
+                  (string_concat "\r\nConnection: close\r\n\r\n" body)))))))))
+
 format_response (pair status (pair body _)) =
   let status_text = (if (eq status 200) "OK" "Not Found") in
   let body_len = (int_to_string (string_length body)) in

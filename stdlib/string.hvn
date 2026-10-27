@@ -24,10 +24,9 @@ string_eq a b =
     (string_eq_from a b 0)
     false)
 
+string_starts_with s prefix = (if (> (string_length prefix) (string_length s)) false ((string_substring s 0 (string_length prefix)) == prefix))
+
 -- string_ends_with : true si s finit par suffix, false sinon.
 -- Retourne Bool (comme string_eq, string_matches_at), pas Int,
 -- pour etre utilisable directement dans `if (string_ends_with ...)`.
-string_ends_with s suffix =
-  if (> (string_length suffix) (string_length s)) then false
-  else if (string_substring s (- (string_length s) (string_length suffix)) (string_length suffix)) == suffix then true
-  else false
+string_ends_with s suffix = (if (> (string_length suffix) (string_length s)) false ((string_substring s (- (string_length s) (string_length suffix)) (string_length suffix)) == suffix))

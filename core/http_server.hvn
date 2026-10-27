@@ -7,20 +7,34 @@ import "stdlib/fs.hvn"
 
 -- Note : on evite `if COND (let ...) (let ...)` (bug parser
 -- if-multiligne-let-in). Chaque branche est une fonction a part.
+-- Routing (2026-10-27, E4-D2bis) : fullstack Heaven natif,
+-- remplace Vessel. Sert REPL, IDE, TESTS, DOCS + assets (JS/CSS/WASM).
+-- Note : on garde les URLs explicites avec extension (.html) pour
+-- eviter la resolution d'extension (pas de string_index_of fiable).
+
+content_type path = (if (string_ends_with path ".wasm") "application/wasm" (if (string_ends_with path ".js") "application/javascript" (if (string_ends_with path ".css") "text/css" (if (string_ends_with path ".json") "application/json" "text/html"))))
+
+strip_slash p =
+  (if (string_starts_with p "/")
+    (string_substring p 1 (- (string_length p) 1))
+    p)
+
 handle_request req =
   let p = (req_path req) in
-  let is_api = (string_eq p "/api/egraph") in
+  let is_api = (p == "/api/egraph") in
   (if is_api (handle_api p) (handle_static p))
 
 handle_api _ =
   let cap = (cap_acquire "egraph:snapshot") in
   let json = (@egraph_snapshot cap) in
-  (pair 200 (pair json nil))
+  (pair 200 (pair "application/json" (pair json nil)))
 
 handle_static p =
-  let path = (if (string_eq p "/") "index.html" p) in
+  let path0 = (if (p == "/") "index.html" p) in
+  let path = (strip_slash path0) in
+  let ctype = (content_type path) in
   let body = (fs_read_public path) in
-  (pair 200 (pair body nil))
+  (pair 200 (pair ctype (pair body nil)))
 
 -- En V0, @spawn est un dummy (retourne un id sans executer le
 -- thunk). On traite donc le client sequentiellement, un a la fois.
@@ -33,7 +47,7 @@ handle_one_client cap client_fd =
   let raw = (net_read cap client_fd) in
   let req = (parse_request raw) in
   let resp = (handle_request req) in
-  let _ = (net_write cap client_fd (format_response resp)) in
+  let _ = (net_write cap client_fd (format_response_ct resp)) in
   (net_close cap client_fd)
 
 server_loop cap listen_fd =
