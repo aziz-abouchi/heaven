@@ -33,7 +33,7 @@ const bob_loop = @import("runtime/bob_loop.zig");
 
 var bob_identity: []const u8 = "Bob:Unknown";
 var my_origin: u64 = 0;
-var exiting = std.atomic.Value(bool).init(false);
+const exiting: *std.atomic.Value(bool) = &@import("exiting").exiting;
 
 fn bobLog(comptime level: []const u8, comptime fmt: []const u8, args: anytype) void {
     if (std.mem.eql(u8, level, "SATURATION")) return;
@@ -460,7 +460,7 @@ pub fn main() !void {
         ) void {
             vessel_lib.startVesselServer(hv, p, ex);
         }
-    }.wrapper, .{ vessel_heaven, port, &exiting });
+    }.wrapper, .{ vessel_heaven, port, exiting });
     // v_thread n'est pas jointe car elle peut être détachée
     // Si besoin de la joindre, décommenter : v_thread.join();
 
@@ -469,12 +469,12 @@ pub fn main() !void {
 
     // On ne lance les threads réseau QUE si on n'est pas en local
     if (!is_local) {
-        net_thread = try platform.Thread.spawn(.{}, bob_loop.run, .{ &matrix, &reaction_engine, allocator, &last_processed_id, &msg_queue, &my_egraph, &exiting });
+        net_thread = try platform.Thread.spawn(.{}, bob_loop.run, .{ &matrix, &reaction_engine, allocator, &last_processed_id, &msg_queue, &my_egraph, exiting });
         //_ = net_thread;
     }
 
     // Signal server (en dehors du bloc pour être accessible à la fin)
-    var signal_server = signaling.SignalingServer.init(allocator, 9000, &exiting);
+    var signal_server = signaling.SignalingServer.init(allocator, 9000, exiting);
     const signal_thread = try platform.Thread.spawn(.{}, struct {
         fn wrapper(s: *signaling.SignalingServer) void {
             s.run() catch {};
@@ -485,7 +485,7 @@ pub fn main() !void {
         fn wrapper(e: *heaven_lib.Engine, m: *matrix_lib.Matrix, ex: *const std.atomic.Value(bool)) void {
             loop.runLoop(e, m, ex);
         }
-    }.wrapper, .{ &heaven_engine, &matrix, &exiting });
+    }.wrapper, .{ &heaven_engine, &matrix, exiting });
     loop_thread.detach();
 
     // Shell

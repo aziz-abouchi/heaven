@@ -1214,6 +1214,7 @@ pub fn build(b: *std.Build) void {
                     .{ .name = "lowering", .module = lowering_mod },
                     .{ .name = "matrix_lib", .module = matrix_mod },
                     .{ .name = "platform", .module = platform_mod },
+                       .{ .name = "exiting", .module = exiting_mod },
                     .{ .name = "triple_store", .module = triple_store_mod },
                     .{ .name = "turtle_parser", .module = turtle_parser_mod },
                     .{ .name = "proof", .module = proof_mod },
