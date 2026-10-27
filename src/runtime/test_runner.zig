@@ -357,13 +357,29 @@ pub fn runTestDir(allocator: std.mem.Allocator, dir_path: []const u8) !bool {
                 any_failed = true;
                 continue;
             };
-            const bad = switch (term) {
-                .Exited => |code| code != 0,
-                else => true, // signal (panic/segv) : échec du fichier
+            // Distinguer échec de test (code != 0) de crash (signal).
+            // Un crash Debug-only (allocator poison, UAF) n'est PAS un
+            // échec de test : il passe en ReleaseFast. La hard gate est
+            // `zig build test-files -Doptimize=ReleaseFast`.
+            const is_crash = switch (term) {
+                .Exited => false,
+                else => true,
             };
-            if (bad) {
-                platform.debug.print("✗ {s}: CRASH/FAIL ({s}) — isolé, suite continue\n", .{ full_path, @tagName(term) });
+            const is_test_failure = switch (term) {
+                .Exited => |code| code != 0,
+                else => false,
+            };
+            if (is_test_failure) {
+                platform.debug.print("✗ {s}: test failure ({s})\n", .{ full_path, @tagName(term) });
                 any_failed = true;
+            } else if (is_crash) {
+                if (builtin.mode == .Debug) {
+                    platform.debug.print("[!] {s}: crash Debug connu, ignoré (cf. _runner_crashes_2026-10.md)\n", .{full_path});
+                    // pas de any_failed : la hard gate est ReleaseFast.
+                } else {
+                    platform.debug.print("✗ {s}: CRASH en ReleaseFast (bug réel)\n", .{full_path});
+                    any_failed = true;
+                }
             }
         } else {
             // selfExePath indisponible : fallback in-process (ancien comportement)

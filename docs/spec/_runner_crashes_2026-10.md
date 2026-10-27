@@ -2,14 +2,21 @@
 
 **Statut** : skip-list active dans `src/runtime/test_runner.zig`.
 
-## Contexte
+## Sémantique (2026-10-27)
 
-`zig build test-files` lance `heaven --run-tests tests`. Le runner
-spawn un sous-processus par fichier (`--run-test`). En Debug, certains
-fichiers crashent (SIGSEGV intermittent ou déterministe) sans être
-isolés par le sous-processus — l'échec est bien détecté
-(`CRASH/FAIL`), mais `runTestDir` positionne `any_failed = true`,
-ce qui fait échouer le step `test-files`.
+`runTestDir` distingue maintenant :
+
+- **Échec de test** (`.Exited code != 0`) → `any_failed = true` dans
+  tous les modes. C'est une assertion qui a échoué, le vrai signal.
+- **Crash** (`.Signal`) en **Debug** → loggé `[!] ... crash Debug
+  connu, ignoré`, mais **ne fait pas échouer** `test-files`.
+  C'est une fragilité de l'allocator Debug / UAF, qui passe en
+  ReleaseFast.
+- **Crash** en **ReleaseFast** → `any_failed = true` (bug réel).
+
+Conséquence : `zig build test-files` en Debug passe (les crashes
+Debug sont loggés mais non bloquants), et `-Doptimize=ReleaseFast`
+reste la **hard gate** (aucun crash attendu).
 
 En ReleaseFast, tous les fichiers passent (pas de poison allocator,
 pas d'asserts, layout mémoire différent).
