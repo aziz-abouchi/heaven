@@ -2424,9 +2424,13 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             }
 
             // Preemptif : budget par message (10k reductions).
-            // Si .suspended (SIGALRM ou budget), requeue le message
-            // au front et break. Le process est pret pour le prochain run.
+            // FIX 2026-10-27 : evaluer le body du handler avec new_env
+            // (qui contient les bindings state/msg), PAS engine.env
+            // (env global) — sinon UnboundVariable sur state/msg.
+            const SAVED_ENV = engine.env;
+            engine.env = new_env;
             const outcome = engine.evalWithBudget(clause.body, 10_000) catch |err| {
+                engine.env = SAVED_ENV;
                 // Erreur reelle : let it crash. Requeue le message pour
                 // qu'un superviseur puisse le retraiter, et marque le
                 // process comme crash. Pour l'instant : requeue + abort.
@@ -2435,6 +2439,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 }
                 return err;
             };
+            engine.env = SAVED_ENV;
             switch (outcome) {
                 .done => |new_state| {
                     current_state = new_state;
