@@ -250,3 +250,24 @@ toutes les formes de récursion en quelques lignes.
 `task_state` fonctionnent tels quels dans le REPL.
 `tests/test_scheduler.hvn` (3/3) confirme.*
 
+## La préemption (2026-10)
+
+Le scheduler coopératif décrit ci-dessus ne peut pas interrompre une
+tâche qui ne rend jamais la main. Depuis octobre 2026, Heaven dispose
+d'une **préemption best-effort** :
+
+- `(@arm_preempt 0)` active la préemption. À chaque safepoint
+  (`fuel % 1000 == 0`), le moteur vérifie un flag (`SIGALRM` en natif,
+  ou l'horloge après 10 ms en WASI) et lève `error.SuspendRequested`.
+- `(@disarm_preempt 0)` désactive la préemption (symétrique,
+  réversible).
+- Une tâche préemptée passe `.preempted` (distinct de `.blocked`) et
+  est **relancée depuis son dernier `yield`** au prochain `schedule`
+  — pas depuis `init_state`. C'est le modèle *abort-relaunch*.
+- Validé sur native (SIGALRM + horloge) et WASI (`wasmtime`, fallback
+  horloge ; `hasClock()` est `true` pour `wasm32-wasi`).
+
+Limitation assumée : si le calcul entre deux `yield` dépasse le budget
+par itération, la tâche est ré-exécutée en boucle sans progresser.
+La reprise exacte demanderait des continuations (A-3b, cf.
+`docs/spec/_capture_eval.md`).
