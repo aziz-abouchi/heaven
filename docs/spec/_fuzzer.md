@@ -24,6 +24,22 @@ Mécanisme : tous sont des mutations de `tests/test_arithmetic.hvn`
 (424 octets) par insertion de 20 octets urandom à des positions
 différentes. Reproductibles (même input → même crash).
 
+## Fix 1 : depth guard (2026-10-27)
+
+Cause racine trouvée (gdb backtrace) : récursion infinie
+`parseExpression ↔ parseSExpr` sur des identifiants non-ASCII.
+Exemple minimal : `f = a é(g 0)` — `é(g 0)` tokenize en `["é(g 0)"]`,
+puis `parseSExpr` rappelle `parseExpression` qui rappelle
+`parseSExpr`, etc. ~1300 frames → stack overflow.
+
+Fix : `parse_depth: u32` dans `ExprParser`, garde à 500 (bien
+au-delà de toute expression raisonnable). `parseExpression` et
+`parseSExpr` incrémentent/décrémentent, retournent
+`error.InvalidInput` au-delà.
+
+Les 3 crashes fuzzer renvoient maintenant `error.InvalidInput`
+(ou autre erreur) au lieu de SIGSEGV/SIGABRT.
+
 ## Analyse (backlog session dédiée)
 
 - Minimiser chaque crash (retirer octets jusqu'au minimum qui crashe).

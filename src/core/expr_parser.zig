@@ -14,6 +14,10 @@ const Store = expr.Store;
 const Id = expr.Id;
 
 pub const ExprParser = struct {
+    /// Depth guard anti-recursion infinie (fuzzer 2026-10-27).
+    /// Empeche parseExpression <-> parseSExpr de cycler sur des
+    /// identifiants non-ASCII (ex. 'é(g 0)' -> 1300 frames -> segfault).
+    parse_depth: u32 = 0,
     store: *Store,
     allocator: std.mem.Allocator,
     hole_state: *hole_mod.HoleState,
@@ -117,6 +121,10 @@ pub const ExprParser = struct {
     }
 
     pub fn parseExpression(self: *ExprParser, input: []const u8) anyerror!Id {
+        self.parse_depth += 1;
+        defer self.parse_depth -= 1;
+        if (self.parse_depth > 500) return error.InvalidInput;
+
         const trimmed = std.mem.trim(u8, input, " \t");
         if (trimmed.len == 0) return error.InvalidInput;
 
@@ -433,6 +441,9 @@ pub const ExprParser = struct {
     }
 
     fn parseSExpr(self: *ExprParser, inner: []const u8) anyerror!Id {
+        self.parse_depth += 1;
+        defer self.parse_depth -= 1;
+        if (self.parse_depth > 500) return error.InvalidInput;
         // Forme infixe `if cond then a else b` : on delegue au parser
         // natif (Lexer + NativeParser) qui sait gerer if/then/else.
         // Sans ceci, parseSExpr tokenize `if`, `then`, `else` comme
