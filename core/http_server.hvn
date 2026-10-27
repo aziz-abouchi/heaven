@@ -51,8 +51,9 @@ handle_one_client cap client_fd =
   (net_close cap client_fd)
 
 server_loop cap listen_fd =
-  let _ = (handle_client cap listen_fd) in
-  (server_loop cap listen_fd)
+  if (@exiting) then unit else (
+    let _ = (handle_client cap listen_fd) in
+    (server_loop cap listen_fd))
 
 http_serve port =
   let cap = (cap_acquire (string_concat "net:listen:" (int_to_string port))) in
