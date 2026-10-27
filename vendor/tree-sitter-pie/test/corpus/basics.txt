@@ -1,0 +1,214 @@
+==================
+Basic literals
+==================
+
+42
+'atom
+zero
+
+---
+
+(source_file
+  (expression (number))
+  (expression (atom_literal (symbol)))
+  (expression (type_constructor)))
+
+==================
+Type constructors
+==================
+
+Nat
+Atom
+U
+
+---
+
+(source_file
+  (expression (type_constructor))
+  (expression (type_constructor))
+  (expression (type_constructor)))
+
+==================
+Simple claim and define
+==================
+
+(claim x Nat)
+(define x 5)
+
+---
+
+(source_file
+  (expression
+    (parenthesized_expr (symbol) (expression (type_constructor))))
+  (expression
+    (parenthesized_expr (symbol) (expression (number)))))
+
+==================
+Lambda expression
+==================
+
+(lambda (x) x)
+(λ (x) x)
+
+---
+
+(source_file
+  (expression
+    (parenthesized_expr (symbol) (expression (symbol))))
+  (expression
+    (parenthesized_expr (symbol) (expression (symbol)))))
+
+==================
+The expression
+==================
+
+(the Nat 5)
+
+---
+
+(source_file
+  (expression
+    (parenthesized_expr (expression (type_constructor)) (expression (number)))))
+
+==================
+Function application
+==================
+
+(foo 5)
+(+ 1 2)
+
+---
+
+(source_file
+  (expression
+    (parenthesized_expr (expression (symbol)) (expression (number))))
+  (expression
+    (parenthesized_expr (expression (symbol)) (expression (number)) (expression (number)))))
+
+==================
+Arrow type
+==================
+
+(-> Nat Nat)
+(-> Nat Nat Nat)
+
+---
+
+(source_file
+  (expression
+    (parenthesized_expr (expression (type_constructor)) (expression (type_constructor))))
+  (expression
+    (parenthesized_expr (expression (type_constructor)) (expression (type_constructor)) (expression (type_constructor)))))
+
+==================
+Pi type
+==================
+
+(Pi ((x Nat)) Nat)
+(Π ((x Nat)) Nat)
+
+---
+
+(source_file
+  (expression
+    (parenthesized_expr (symbol) (expression (type_constructor)) (expression (type_constructor))))
+  (expression
+    (parenthesized_expr (symbol) (expression (type_constructor)) (expression (type_constructor)))))
+
+==================
+Sigma type
+==================
+
+(Sigma ((x Nat)) Nat)
+(Σ ((x Nat)) Nat)
+
+---
+
+(source_file
+  (expression
+    (parenthesized_expr (symbol) (expression (type_constructor)) (expression (type_constructor))))
+  (expression
+    (parenthesized_expr (symbol) (expression (type_constructor)) (expression (type_constructor)))))
+
+==================
+Cons and car/cdr
+==================
+
+(cons 1 2)
+(car (cons 1 2))
+(cdr (cons 1 2))
+
+---
+
+(source_file
+  (expression
+    (parenthesized_expr (expression (number)) (expression (number))))
+  (expression
+    (parenthesized_expr
+      (expression
+        (parenthesized_expr (expression (number)) (expression (number))))))
+  (expression
+    (parenthesized_expr
+      (expression
+        (parenthesized_expr (expression (number)) (expression (number)))))))
+
+==================
+Comments
+==================
+
+; This is a line comment
+(claim x Nat) ; inline comment
+
+#| This is a 
+   block comment |#
+(define x 5)
+
+---
+
+(source_file
+  (comment)
+  (expression
+    (parenthesized_expr (symbol) (expression (type_constructor))))
+  (comment)
+  (comment)
+  (expression
+    (parenthesized_expr (symbol) (expression (number)))))
+
+==================
+Check-same
+==================
+
+(check-same Nat 5 5)
+
+---
+
+(source_file
+  (expression
+    (parenthesized_expr (expression (type_constructor)) (expression (number)) (expression (number)))))
+
+==================
+Nested expressions
+==================
+
+(claim double (-> Nat Nat))
+(define double
+  (lambda (x)
+    (+ x x)))
+
+---
+
+(source_file
+  (expression
+    (parenthesized_expr
+      (symbol)
+      (expression
+        (parenthesized_expr (expression (type_constructor)) (expression (type_constructor))))))
+  (expression
+    (parenthesized_expr
+      (symbol)
+      (expression
+        (parenthesized_expr
+          (symbol)
+          (expression
+            (parenthesized_expr (expression (symbol)) (expression (symbol)) (expression (symbol)))))))))
+

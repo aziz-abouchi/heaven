@@ -1,0 +1,34 @@
+; Example pie program demonstrating basic features
+
+; Define natural number type
+(claim one Nat)
+(define one (add1 zero))
+
+(claim two Nat)
+(define two (add1 one))
+
+; Define addition function
+(claim + (-> Nat Nat Nat))
+(define +
+  (lambda (n m)
+    (iter-Nat n
+      m
+      (lambda (sum) (add1 sum)))))
+
+; Define pair operations
+(claim first-of-two (-> Nat Nat Nat))
+(define first-of-two
+  (lambda (a b) a))
+
+; Example with the
+(claim example-nat Nat)
+(define example-nat
+  (the Nat 42))
+
+; Atom examples
+(claim my-atom Atom)
+(define my-atom 'hello)
+
+; Check some equalities
+(check-same Nat (add1 zero) one)
+(check-same Nat (+ one one) two)

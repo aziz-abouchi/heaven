@@ -1,0 +1,36 @@
+; More comprehensive pie examples
+
+; Identity function
+(claim id (Pi ((A U)) (-> A A)))
+(define id
+  (lambda (A x) x))
+
+; Dependent pair
+(claim example-pair (Sigma ((x Nat)) Nat))
+(define example-pair
+  (cons zero (add1 zero)))
+
+; List operations
+(claim my-list (List Atom))
+(define my-list
+  (cons 'a (cons 'b (cons 'c nil))))
+
+; Vector with explicit length
+(claim vec3 (Vec Nat 3))
+
+; Equality proof
+(claim same-zero (= Nat zero zero))
+(define same-zero (same zero))
+
+; Using which-Nat
+(claim is-zero? (-> Nat Atom))
+(define is-zero?
+  (lambda (n)
+    (which-Nat n
+      'yes
+      (lambda (pred) 'no))))
+
+; Using ind-Nat for addition proof
+(claim plus-comm-proof
+  (Pi ((n Nat) (m Nat))
+    (= Nat (+ n m) (+ m n))))
