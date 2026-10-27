@@ -1,0 +1,23 @@
+-- tests/test_quickcheck.hvn (Quickchecker v1)
+import "core/std/quickcheck.hvn" as Q
+
+-- PRNG déterministe : même seed -> même valeur.
+test "qc_next_deterministic": (= (Q.next 42) (Q.next 42)) == true
+
+-- gen_int produit des entiers non-négatifs.
+test "qc_int_non_negative":
+  (Q.check (lambda x -> (>= x 0)) (lambda s -> (Q.gen_int s)) 100) == true
+
+-- gen_range reste dans [lo, hi].
+test "qc_range_bounds":
+  (Q.check (lambda x -> (and (>= x 10) (<= x 20)))
+           (lambda s -> (Q.gen_range 10 20 s)) 100) == true
+
+-- Propriété : x + 0 = x sur 100 entiers générés.
+test "qc_add_identity_right":
+  (Q.check (lambda x -> (= (+ x 0) x)) (lambda s -> (Q.gen_int s)) 100) == true
+
+-- Propriété : x + 1 = 1 + x sur 100 entiers générés.
+test "qc_add_comm_1":
+  (Q.check (lambda x -> (= (+ x 1) (+ 1 x)))
+           (lambda s -> (Q.gen_int s)) 100) == true
