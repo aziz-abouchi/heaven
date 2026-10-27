@@ -1,3 +1,55 @@
+# ÉTAT AU 2026-10-27 SOIR — fin de session E4
+
+## Acquis solides (commits)
+- `4a9bc11` E4/3.2a : serveur HTTP Heaven natif (--http-serve N, curl
+  /repl.html 200 38261 o, /heaven.wasm 200 584755 o application/wasm).
+  Loader multi-clauses via splitStatements (14 statements). 5 @net_accept
+  successifs sans crash. REQUIS : HEAVEN_NO_LEAK_CHECK=1 en Debug
+  (heap corruption preexistante, cf. _http_debug_crash.md).
+- `a7d82ec` E4/3.3-pre : @arm_preempt multi-mode (fuel/timer/both) 4/4.
+  Fix racine isMagicSymbol (@spawn, @broadcast, @runtime_stats, @sleep_ms
+  etaient absents -> jamais dispatches).
+- `88eb097` E4/3.4a : audit syntaxe (docs/spec/_syntax_audit.md).
+  4 bugs documentes + inventaire S-expr (98 lignes).
+- `0471a6b` E4/3.4b : fix parseLetExpr (4/8 tests rouges -> verts).
+
+## Dettes identifiees (ordre de traitement)
+1. **3.4c** : migration S-expr -> infixe (chacun test_suite garde-fou).
+   Ordre : array -> memory/free/string -> bigint -> heaven_parse
+   -> json/parse -> test_suite EN DERNIER.
+   Regle : operateurs purs seulement. `if` S-expr reporte.
+2. **3.4b-bis** : `let` bind thunk non force quand RHS = magic
+   (@spawn). Preuve : via_let_parens passe, spawn_* echoue.
+3. **3.4b-ter** : corps `let` non parenthese + RHS application
+   echoue a 0.13ms (parse, pas eval).
+4. **3.3a** : http_server.hvn reecrit en scheduler/effects/acteurs
+   (apres 3.4c).
+5. **Phase B** : signaux via @signalfd (Linux) + kernel32 (Windows).
+   Syscalls via Heaven, PAS de std.posix dans main.
+6. **Phase 6** : multi-plateformes (macOS, iOS, Android, WASI, WEB).
+   Tester WASI/WEB/Linux/macOS/Windows/iOS/Android via build.sh matrix.
+
+## Bugs langage connus
+- Syntaxe lambda : SEULE forme valide = `\x. body`.
+  `lambda x : body`, `lambda x -> body` buggees.
+  `(fn x = x)` parse comme `((= (fn x) x)` (= infixe casse fn).
+- `((\x. x) 5) > 0` echoue silencieusement (0.1ms, pas d'eval).
+- `@spawn` : task creee, body_fn tag .lambda, id croissant — MAIS
+  retour non lisible via let + operateur (voir dette 2).
+
+## Environnement
+- Machine devilHope, zig 0.15.2, GOP gpa (pas page_allocator).
+- Stash : `stash@{0}: f4-wip` preexistant, NE PAS TOUCHER.
+- `bash build.sh` OK (tests_zig 406/407, 1 skip preexistant).
+- `test_suite.hvn` : 98/98 stable.
+
+## Prochaine action immediate
+3.4c / etape 1 : `core/std/array.hvn`. 10 occurrences S-expr,
+7 operateurs purs convertibles. NE PAS toucher aux `if` S-expr.
+Diff + rebuild + test_suite. Si 98/98 -> commit par fichier.
+
+---
+
 # HEAVEN — Prompt de continuité (2026-10-19, après E3 Vessel + H1/H2 clos)
 
 ## Rôle de l'agent

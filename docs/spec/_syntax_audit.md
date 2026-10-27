@@ -96,3 +96,48 @@ Contournement actuel : `let many x = e in (body-op)` (forces + parens).
 - `tests/test_bigint.hvn` : 11
 - `tests/test_base.hvn` : 1
 - `tests/test_continuations.hvn` : 1
+
+---
+
+## Mise à jour 3.4b (2026-10-27 soir)
+
+### Fix applique (commit 0471a6b)
+`src/core/parse.zig:741` — corps de `let` route via `parseSExpr`
+(avec fallback `parseLetExpr` pour `let` imbrique). Avant : seul
+`parseLetExpr` ; tout corps non-`let` tombait dans `sym(body_str)`.
+
+### Tests qui passent maintenant (4/8)
+- `(let y = ((\x. x) 5) in (y > 0))`              == true  OK
+- `(let a = 5 in let b = 6 in (a + b))`          == 11    OK
+- `(let a = 5 in let b = 6 in a + b)`            == 11    OK
+- `(let x = 5 in x > 0)`                         == true  OK
+
+### Tests qui restent rouges (4/8) — causes DISTINCTES
+1. `via_let_noparens` — `(let y = ((\x. x) 5) in y > 0)`
+   Parse echoue a 0.13ms (pas d'eval). Corps non parenthese +
+   RHS application : cas limite. Fix risque (distingue corps
+   simple vs corps application). A traiter en 3.4b-ter.
+2. `spawn_gt / spawn_eq_1 / spawn_task_runs` — corps `(tid > 0)`
+   parenthese, parse OK, mais `let` bind `tid` comme thunk NON
+   FORCE quand RHS = magic (@spawn). `via_let_parens` passe
+   (RHS = application pure, evaluee eager). A traiter en 3.4b-bis.
+
+### Decision d'ordre
+3.4b-bis/ter reportes apres 3.4c. Raison : migration S-expr
+mecanique, sans ambiguite, detectee par test_suite (98 tests).
+Les fixes `let`+magic et corps non parenthese sont subtils
+et risquent de faire boucler.
+
+## Plan de migration S-expr -> infixe (3.4c)
+Ordre de risque croissant (chacun test_suite en garde-fou) :
+1. `core/std/array.hvn` (10 S-expr)
+2. `core/std/memory.hvn` (6)
+3. `core/std/free.hvn`, `core/std/string.hvn` (10)
+4. `core/bigint.hvn` (40)
+5. `lib/heaven_parse.hvn` (34)
+6. `stdlib/json/parse.hvn` (30)
+7. `core/test_suite.hvn` (49) — en DERNIER (c'est le garde-fou)
+
+Regle : convertir UNIQUEMENT les operateurs purs (`(* a b)` ->
+`a * b`, `(+ a b)` -> `a + b`). Les `if` S-expr restent tels
+quels tant que le bug `if-multiligne-let-in` n'est pas fixe.

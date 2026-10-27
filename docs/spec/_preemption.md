@@ -421,3 +421,25 @@ terminent normalement, sans timeout).
 ci.yml teste core/test_suite.hvn en NATIF (pas WASI).
 test_suite.hvn : proto1 (spawn/tell/recv) OK, proto2 (run p != 8) fail.
 proto2 = run caller-driven env propagation (meme famille que @schedule_processes).
+
+---
+
+## @arm_preempt multi-mode (2026-10-27, E4 3.3-pre)
+
+Signature : `(@arm_preempt [mode])` ou `mode ∈ {"fuel", "timer", "both"}`.
+Sans argument : `.both` (compat historique).
+
+- `.fuel`  : quota fuel seul. Portable wasm/iOS/Android/WASI.
+             Le check se fait dans `evaluate` : `fuel % 1000 == 0`
+             -> `SuspendRequested`. Aucun syscall, aucun signal.
+- `.timer` : `setitimer`/`SIGALRM` (Linux seulement). 10 ms.
+             No-op sur wasm (garde comptime).
+- `.both`  : timer + fuel. Defaut.
+
+Sur freestanding, seul `.fuel` a un effet.
+
+Traite aussi en bare-sym (`@arm_preempt` nu, sans parenthese) :
+le parser reduit `(@arm_preempt)` a une sym, handler ajoute dans
+`evaluate` (case `.sym`), meme pattern que `@exiting`.
+
+Tests : `/tmp/t_arm.hvn` 4/4 (les 4 modes).
