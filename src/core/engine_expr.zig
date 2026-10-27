@@ -399,6 +399,10 @@ pub const Engine = struct {
     captures: std.AutoHashMapUnmanaged(u32, CaptureRecord) = .{},
     next_capture_id: u32 = 0,
     capabilities: std.AutoHashMapUnmanaged(u32, struct { kind: CapKind, resource: []const u8 }) = .{},
+    /// Reverse cache idempotent : "kind_id:resource" -> cap id.
+    /// Evite la croissance illimitee de `capabilities` sur N requetes
+    /// HTTP (2026-10-27, fix DebugAllocator panic).
+    cap_cache: std.StringHashMapUnmanaged(u32) = .{},
     next_cap_id: u32 = 1,
     active_cap: ?u32 = null,
     /// Scheduler cooperatif (D8 3a-3-c).
@@ -454,7 +458,19 @@ pub const Engine = struct {
         self.capture_stack.deinit();
         self.prompts.deinit();
         self.scheduler.deinit();
-    }
+    
+        // Free capabilities et cap_cache (2026-10-27)
+        var cap_it = self.capabilities.iterator();
+        while (cap_it.next()) |entry| {
+            self.allocator.free(entry.value_ptr.resource);
+        }
+        self.capabilities.deinit(self.allocator);
+        var cache_it = self.cap_cache.keyIterator();
+        while (cache_it.next()) |k| {
+            self.allocator.free(k.*);
+        }
+        self.cap_cache.deinit(self.allocator);
+}
 
     // Contexte factice pour les tests (ne sera jamais utilisé)
     var test_ctx_dummy: u8 = 0;
@@ -2655,12 +2671,19 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             }
         }
         const kind = parseCapKind(kind_s) orelse return error.InvalidInput;
+        // Idempotent : meme (kind, resource) -> meme id (2026-10-27).
+        var key_buf: [512]u8 = undefined;
+        const key = std.fmt.bufPrint(&key_buf, "{d}:{s}", .{ @intFromEnum(kind), resource }) catch return error.InvalidInput;
+        if (engine.cap_cache.get(key)) |cached_id| {
+            return try store.lit(.{ .int = @intCast(cached_id) });
+        }
         const id = engine.next_cap_id;
         engine.next_cap_id += 1;
         try engine.capabilities.put(engine.allocator, id, .{
             .kind = kind,
             .resource = try engine.allocator.dupe(u8, resource),
         });
+        try engine.cap_cache.put(engine.allocator, try engine.allocator.dupe(u8, key), id);
         return try store.lit(.{ .int = @intCast(id) });
     }
 
