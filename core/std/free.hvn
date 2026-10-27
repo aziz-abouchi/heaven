@@ -27,10 +27,10 @@ logop s k = (LogOp s k)
 run_eval (Pure _) stack = (if (null stack) 0 (head stack))
 run_eval (Push n rest) stack = (run_eval rest (cons n stack))
 run_eval (Add rest) stack =
-  (run_eval rest (cons (+ (head stack) (head (tail stack)))
+  (run_eval rest (cons ((head stack) + (head (tail stack)))
                        (tail (tail stack))))
 run_eval (Mul rest) stack =
-  (run_eval rest (cons (* (head stack) (head (tail stack)))
+  (run_eval rest (cons ((head stack) * (head (tail stack)))
                        (tail (tail stack))))
 run_eval (LogOp _ rest) stack = (run_eval rest stack)
 
