@@ -2096,14 +2096,14 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             }
             vals[i] = l.int;
         }
-        const n: std.os.linux.SYS = @enumFromInt(@as(u32, @intCast(vals[0])));
-        const r = std.os.linux.syscall3(
-            n,
-            @as(usize, @bitCast(vals[1])),
-            @as(usize, @bitCast(vals[2])),
-            @as(usize, @bitCast(vals[3])),
+        // 2026-10-28 (règle plateforme) : délègue à platform.intrinsics.
+        // std.os.linux.syscall3 reste dans src/platform/ uniquement.
+        const r = platform.intrinsics.rawSyscall(
+            @bitCast(vals[0]),
+            3,
+            .{ @bitCast(vals[1]), @bitCast(vals[2]), @bitCast(vals[3]), 0, 0, 0 },
         );
-        return try store.int(@bitCast(r));
+        return try store.int(r);
     }
     if (std.mem.eql(u8, op, "raw_syscall6")) {
         if (comptime platform.target.os != .linux) return error.UnknownSymbol;
@@ -2122,17 +2122,14 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             }
             vals[i] = l.int;
         }
-        const n: std.os.linux.SYS = @enumFromInt(@as(u32, @intCast(vals[0])));
-        const r = std.os.linux.syscall6(
-            n,
-            @as(usize, @bitCast(vals[1])),
-            @as(usize, @bitCast(vals[2])),
-            @as(usize, @bitCast(vals[3])),
-            @as(usize, @bitCast(vals[4])),
-            @as(usize, @bitCast(vals[5])),
-            @as(usize, @bitCast(vals[6])),
+        // 2026-10-28 : délègue à platform.intrinsics.
+        const r = platform.intrinsics.rawSyscall(
+            @bitCast(vals[0]),
+            6,
+            .{ @bitCast(vals[1]), @bitCast(vals[2]), @bitCast(vals[3]),
+               @bitCast(vals[4]), @bitCast(vals[5]), @bitCast(vals[6]) },
         );
-        return try store.int(@bitCast(r));
+        return try store.int(r);
     }
 
     // ═══ 0. CONSTRUCTEURS ═══
@@ -2781,6 +2778,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     // HEAVEN:MAGIC_NET_CONNECT — client TCP
     if (std.mem.eql(u8, op, "@net_socket")) {
+        if (comptime platform.target.os != .linux) return error.NotSupported;
         if (args_snap.len != 0) return error.ArityMismatch;
         const fd = platform.net.socketTcp();
         return try store.lit(.{ .int = fd });
@@ -2789,6 +2787,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // HEAVEN:MAGIC_UDP
     // 1-arg (dummy ignore) pour eviter le strip parser des 0-arg magics
     if (std.mem.eql(u8, op, "@net_socket_udp")) {
+        if (comptime platform.target.os != .linux) return error.NotSupported;
         if (args_snap.len != 1) return error.ArityMismatch;
         const cv = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const cn = store.get(cv);
@@ -2800,6 +2799,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_sendto")) {
+        if (comptime platform.target.os != .linux) return error.NotSupported;
         if (args_snap.len != 5) return error.ArityMismatch;
         const cv = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const cn = store.get(cv);
@@ -2829,6 +2829,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_recvfrom")) {
+        if (comptime platform.target.os != .linux) return error.NotSupported;
         if (args_snap.len != 2) return error.ArityMismatch;
         const cv = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const cn = store.get(cv);
@@ -2871,6 +2872,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_connect")) {
+        if (comptime platform.target.os != .linux) return error.NotSupported;
         if (args_snap.len != 3) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
         const ip_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
@@ -2888,6 +2890,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_listen")) {
+        if (comptime platform.target.os != .linux) return error.NotSupported;
         if (args_snap.len != 2) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const port_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
@@ -2905,6 +2908,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_accept")) {
+        if (comptime platform.target.os != .linux) return error.NotSupported;
         if (args_snap.len != 2) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
@@ -2917,6 +2921,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_read")) {
+        if (comptime platform.target.os != .linux) return error.NotSupported;
         if (args_snap.len != 2) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
@@ -2963,6 +2968,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
 
     if (std.mem.eql(u8, op, "@net_write")) {
+        if (comptime platform.target.os != .linux) return error.NotSupported;
         if (args_snap.len != 3) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
@@ -2978,6 +2984,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_close")) {
+        if (comptime platform.target.os != .linux) return error.NotSupported;
         if (args_snap.len != 2) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);

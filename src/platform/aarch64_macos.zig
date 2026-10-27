@@ -60,3 +60,17 @@ pub fn streamRead(stream: std.net.Stream, buffer: []u8) std.net.Stream.ReadError
 pub fn readEnergyUJ() !u64 {
     return 0;
 }
+
+// 2026-10-28 (macOS) : no-op pour compiler engine_expr.zig.
+// TODO: implementer avec sigaction + setitimer POSIX (meme API
+// qu'x86_64_linux.zig). Pour l'instant, seul le quota fuel
+// preempte sur macOS. Dette Phase 6.
+pub fn armPreemptTimer(_: *const fn (i32) callconv(.c) void) void {}
+
+// 2026-10-28 : isatty via std.posix (macOS est POSIX).
+pub fn isatty() bool {
+    return std.posix.isatty(std.posix.STDIN_FILENO);
+}
+
+// 2026-10-28 : rawSyscall portable (Linux-only, -1 ailleurs).
+pub const intrinsics = @import("intrinsics.zig");

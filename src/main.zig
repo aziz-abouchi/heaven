@@ -354,6 +354,11 @@ pub fn main() !void {
     // 3.2a-1 : serveur HTTP Heaven natif (test isolation avant
     // bascule par defaut en 3.2b). Charge core/http_server.hvn,
     // evalue (http_serve port), sort sur @exiting (SIGINT/SIGTERM).
+    // 2026-10-28 : --http-serve sans port -> usage + exit propre.
+    if (std.mem.eql(u8, args[1], "--http-serve") and args.len < 3) {
+        platform.debug.print("Usage: heaven --http-serve <port>\n", .{});
+        std.process.exit(2);
+    }
     if (std.mem.eql(u8, args[1], "--http-serve") and args.len >= 3) {
         if (platform.getenv("HEAVEN_DEBUG_HTTP") != null) std.debug.print("[main] --http-serve block entered port={s}\n", .{args[2]});
         const port = std.fmt.parseInt(u16, args[2], 10) catch |err| {
@@ -392,6 +397,11 @@ pub fn main() !void {
         if (std.mem.eql(u8, args[1], "repl")) break :blk "0";
         break :blk args[1];
     };
+    // 2026-10-28 : rejette tout flag -xxx non matche plus haut.
+    if (args.len >= 2 and args[1].len > 0 and args[1][0] == '-') {
+        platform.debug.print("Unknown option: {s}\n", .{args[1]});
+        std.process.exit(2);
+    }
     const is_local = std.mem.eql(u8, port_str, "0");
     bob_identity = try std.fmt.allocPrint(allocator, "Bob:{s}", .{port_str});
     defer allocator.free(bob_identity);

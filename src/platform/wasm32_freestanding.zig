@@ -662,3 +662,6 @@ pub const js_env = struct {
     pub const js_emit_metrics = _top_js_emit_metrics;
     pub fn js_broadcast_proof_request(_: [*]const u8, _: usize) void {}
 };
+
+// 2026-10-28 : rawSyscall portable (Linux-only, -1 ailleurs).
+pub const intrinsics = @import("intrinsics.zig");
