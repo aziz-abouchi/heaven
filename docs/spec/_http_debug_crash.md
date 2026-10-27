@@ -65,6 +65,20 @@ dangling (elles peuvent encore vivre dans l'arène d'un éval parent).
 C'est **la réponse architecturale** au "Heaven doit gérer sa mémoire
 plus finement que Zig". Voir `docs/spec/_memory.md` ch. 26.
 
+## Workaround (vérifié 2026-10-27)
+
+En Debug, le serveur HTTP fonctionne avec `HEAVEN_NO_LEAK_CHECK=1`
+(10/10 requêtes, sha wasm identique). Cette variable désactive le
+`DebugAllocator` leak-check et évite le panic `!gop.found_existing`.
+
+- Serveur en **Debug** : `HEAVEN_NO_LEAK_CHECK=1 ./zig-out/bin/heaven ...`
+- Serveur en **ReleaseFast** : pas besoin (fonctionne nativement)
+- Le bug reste latent : c'est un **double-free/UAF** quelque part,
+  pas un leak. Le panic se déplace avec l'ordre d'allocation.
+- Valgrind sur le serveur : non concluant (serveur trop lent à
+  démarrer, SIGTERM avant la 1ère requête). À relancer avec timeout
+  long (≥120s) ou `heaptrack` via nix-shell.
+
 ## Recommandation
 
 Pour débloquer le serveur en Debug rapidement : **Niveau 1 (arena
