@@ -583,3 +583,12 @@ E1.2 (if/then/else) : cycle de definitions parse_atom/parse_if.
 - `core/test_suite.hvn` : `proto2_run_drains` et
   `proto2_two_procs_run` échouent (caller-driven env propagation).
 
+
+## fix(run) — 2026-10-27
+
+- `engine_expr.zig` : `run()` utilise `new_env` (state/msg) au lieu de
+  `engine.env` (global) pour évaluer le body du handler.
+- `core/test_suite.hvn` : 98/98. proto1 et proto2 verts.
+- Non-régression : scheduler 3+12+3+4+11, selfparse 3/3.
+- Cause racine documentée dans le commit `8c64a31`.
+

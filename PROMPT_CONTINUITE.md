@@ -377,3 +377,21 @@ Colle ce prompt au début de la prochaine session.
 - Ordre suggéré : smocker → quickchecker → fuzzer.
 - Détail dans `docs/ROADMAP.md` section « Outils de test qualité ».
 
+
+## proto2 corrigé (2026-10-27)
+
+Priorité 1 de la session précédente **résolue** : `proto2_run_drains`
+et `proto2_two_procs_run` passent (`test_suite.hvn` 98/98).
+Fix : `run()` doit évaluer le body du handler avec `new_env`
+(state/msg), pas `engine.env` (global). Commit `8c64a31`.
+
+### Priorités suivantes
+1. **Smocker** (backlog noté 2026-10-27) — débloque les tests
+   `http_get`/`serve`/acteurs sans réseau.
+2. **Quickchecker** — property-based testing sur les lois des
+   algèbres (`tests/test_laws.hvn`), round-trip parser.
+3. **Fuzzer** — entrées aléatoires pour trouver les panics du
+   parser/évaluateur.
+4. **A-3b** (reprise exacte) — multi-sessions, `_capture_eval.md`.
+5. **B-v1** — patterns imbriqués dans `heaven_parse.hvn`.
+
