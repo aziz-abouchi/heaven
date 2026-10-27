@@ -21,7 +21,7 @@ const heaven_lib = @import("runtime/heaven.zig");
 const universal_lib = @import("inference/forge/universal.zig");
 const autofab_lib = @import("runtime/autofab.zig");
 const react_lib = @import("core/react.zig");
-const network = @import("scut/network.zig");
+const network = if (@import("builtin").os.tag == .windows) @import("scut/network_windows.zig") else @import("scut/network.zig");
 const SRG = @import("runtime/symbolResolutionGraph.zig").SRG;
 const EQSATPlanner = @import("runtime/eQSATPlanner.zig").EQSATPlanner;
 const shell_lib = @import("runtime/shell/mod.zig");
@@ -518,8 +518,8 @@ pub fn main() !void {
     // HEAVEN_NO_REPL=1 (ou stdin non-TTY) -> skip REPL. Evite SIGTTOU
     // quand lance en arriere-plan (bash &, docker -d, systemd).
     // Le REPL interactif necessite un TTY foreground.
-    const no_repl_env = std.posix.getenv("HEAVEN_NO_REPL");
-    const is_tty = std.posix.isatty(std.posix.STDIN_FILENO);
+    const no_repl_env = platform.getenv("HEAVEN_NO_REPL");
+    const is_tty = platform.isatty();
     const is_interactive = (no_repl_env == null) and is_tty;
 
     if (is_interactive) {

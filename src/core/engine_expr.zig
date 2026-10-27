@@ -323,18 +323,12 @@ pub const PreemptMode = enum { both, fuel, timer };
 fn armPreemption(engine: *Engine, mode: PreemptMode) void {
     if (engine.preempt_armed) return;
     const want_timer = mode == .both or mode == .timer;
-    if (want_timer and comptime !@import("builtin").target.cpu.arch.isWasm()) {
-        var act = std.posix.Sigaction{
-            .handler = .{ .handler = sigalrmHandler },
-            .mask = std.mem.zeroes(std.posix.sigset_t),
-            .flags = 0,
-        };
-        std.posix.sigaction(std.os.linux.SIG.ALRM, &act, null);
-        const it = Itimerval{
-            .interval = .{ .sec = 0, .usec = 10_000 },
-            .value = .{ .sec = 0, .usec = 10_000 },
-        };
-        _ = std.os.linux.syscall3(.setitimer, 0, @intFromPtr(&it), 0);
+    if (want_timer) {
+        // 2026-10-27 (E4 Windows) : timer delegue a la couche
+        // platform. Linux installe SIGALRM+setitimer, Windows et
+        // wasm sont no-op. sigalrmHandler (ci-dessus) pose
+        // preempt_flag, ce qui reste dans le scope core.
+        platform.armPreemptTimer(&sigalrmHandler);
     }
     engine.preempt_armed = true;
 }

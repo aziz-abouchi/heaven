@@ -10,7 +10,7 @@ pub fn dbg(comptime fmt: []const u8, args: anytype) void {
 }
 
 pub fn getenv(key: []const u8) ?[]const u8 {
-    if (target.is_windows) {
+    if (comptime target.is_windows) {
         return std.process.getEnvVarOwned(std.heap.page_allocator, key) catch null;
     } else {
         return std.posix.getenv(key);
@@ -24,6 +24,9 @@ pub const ConsoleRawMode = struct {
 
 /// Passe le terminal en mode raw. Retourne null si stdin n'est pas un TTY.
 pub fn enableRawMode() !?ConsoleRawMode {
+    // 2026-10-27 (E4 Windows) : pas de termios sur Windows.
+    // Mode raw gere par readkey.zig (kernel32).
+    if (comptime target.is_windows) return null;
     const fd = std.posix.STDIN_FILENO;
     if (!std.posix.isatty(fd)) return null;
     var termios = try std.posix.tcgetattr(fd);
@@ -41,6 +44,7 @@ pub fn enableRawMode() !?ConsoleRawMode {
 
 /// Restaure les attributs termios originaux.
 pub fn disableRawMode(state: ConsoleRawMode) void {
+    if (comptime target.is_windows) return;
     _ = std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, state.original) catch {};
 }
 
@@ -58,7 +62,9 @@ pub fn writeStdout(buf: []const u8) !usize {
 }
 
 pub fn readStdin(buf: []u8) !usize {
-    return std.posix.read(std.posix.STDIN_FILENO, buf);
+    // 2026-10-27 (E4 Windows) : std.fs.File.stdin().read() est
+    // cross-platform (fd_t = HANDLE sur Windows, i32 sur Linux).
+    return std.fs.File.stdin().read(buf);
 }
 
 // --- I/O ABSTRACTION (deplace depuis x86_64_linux.zig) ---
@@ -75,7 +81,7 @@ pub const io = struct {
 
 pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
     var buf: [4096]u8 = undefined;
-    const n = try std.posix.read(0, &buf);
+    const n = try std.fs.File.stdin().read(&buf);
 
     if (n == 0) return error.EndOfStream;
     const line = buf[0..n];

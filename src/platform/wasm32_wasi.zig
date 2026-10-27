@@ -273,3 +273,8 @@ pub fn initConsole() void {}
 pub fn streamRead(stream: anytype, buffer: []u8) !usize {
     return stream.read(buffer);
 }
+
+// 2026-10-27 (E4 Windows) : WASI has isatty.
+pub fn isatty() bool {
+    return std.posix.isatty(std.posix.STDIN_FILENO);
+}

@@ -38,7 +38,7 @@ pub const WebBridge = struct {
     }
 
     pub fn serveTelemetry(self: *WebBridge, allocator: std.mem.Allocator) ![]u8 {
-        const net2 = @import("../scut/network.zig");
+        const net2 = if (@import("builtin").os.tag == .windows) @import("../scut/network_windows.zig") else @import("../scut/network.zig");
         var ports = std.ArrayListUnmanaged(u16){};
         defer ports.deinit(allocator);
         for (net2.known_peers.items) |peer| {

@@ -1,5 +1,5 @@
 const std = @import("std");
-const net = @import("../../scut/network.zig");
+const net = if (@import("builtin").os.tag == .windows) @import("../../scut/network_windows.zig") else @import("../../scut/network.zig");
 const proto = @import("../../scut/swarm/protocol_swarm.zig");
 const platform = @import("platform");
 

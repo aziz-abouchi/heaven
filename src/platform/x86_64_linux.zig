@@ -7,6 +7,34 @@ pub const rtc = @import("webrtc.zig");
 
 pub const io_console = @import("io_console.zig");
 pub const dbg = io_console.dbg;
+
+// 2026-10-27 (E4 Windows) : isatty cross-platform.
+pub fn isatty() bool {
+    return std.posix.isatty(std.posix.STDIN_FILENO);
+}
+
+// 2026-10-27 (E4 Windows) : timer SIGALRM déplacé ici depuis
+// engine_expr.zig pour permettre un stub Windows. Sur Linux,
+// installe SIGALRM + setitimer ; le flag preempt_flag est
+// posé côté engine_expr par le handler passé en paramètre.
+const Itimerval = extern struct {
+    interval: extern struct { sec: i64, usec: i64 },
+    value: extern struct { sec: i64, usec: i64 },
+};
+
+pub fn armPreemptTimer(handler: *const fn (i32) callconv(.c) void) void {
+    var act = std.posix.Sigaction{
+        .handler = .{ .handler = handler },
+        .mask = std.mem.zeroes(std.posix.sigset_t),
+        .flags = 0,
+    };
+    std.posix.sigaction(std.os.linux.SIG.ALRM, &act, null);
+    const it = Itimerval{
+        .interval = .{ .sec = 0, .usec = 10_000 },
+        .value = .{ .sec = 0, .usec = 10_000 },
+    };
+    _ = std.os.linux.syscall3(.setitimer, 0, @intFromPtr(&it), 0);
+}
 pub const getenv = io_console.getenv;
 pub const ConsoleRawMode = io_console.ConsoleRawMode;
 pub const enableRawMode = io_console.enableRawMode;

@@ -10,7 +10,8 @@ const builtin = @import("builtin");
 /// getenv portable : en freestanding (wasm), retourne null.
 fn getenvSafe(key: []const u8) ?[]const u8 {
     if (comptime builtin.os.tag == .freestanding) return null;
-    return std.posix.getenv(key);
+    // 2026-10-27 (E4 Windows) : cross-platform.
+    return std.process.getEnvVarOwned(std.heap.page_allocator, key) catch null;
 }
 const mir = @import("mir");
 

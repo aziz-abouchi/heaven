@@ -6,14 +6,9 @@ const Heaven = @import("heaven_expr").Heaven;
 const eval = @import("eval.zig");
 
 fn readStdinByte(buf: []u8) !usize {
-    if (platform.target.is_windows) {
-        const handle = try std.os.windows.GetStdHandle(
-            std.os.windows.STD_INPUT_HANDLE,
-        );
-        return std.os.windows.ReadFile(handle, buf, null);
-    } else {
-        return platform.posix.read(platform.posix.STDIN_FILENO, buf);
-    }
+    // 2026-10-27 (E4 Windows) : cross-platform via platform.readStdin.
+    // HANDLE sur Windows, fd sur Linux (via std.fs.File.stdin().read).
+    return platform.readStdin(buf);
 }
 
 const KEY_EVENT: u16 = 0x0001;
@@ -45,7 +40,7 @@ const INPUT_RECORD = extern struct {
 };
 
 extern "kernel32" fn ReadConsoleInputA(
-    hConsoleInput: std.os.windows.HANDLE,
+    hConsoleInput: std.fs.File.Handle,  // cross-platform : HANDLE Win, fd_t Linux
     lpBuffer: *INPUT_RECORD,
     nLength: u32,
     lpNumberOfEventsRead: *u32,

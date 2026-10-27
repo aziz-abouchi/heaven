@@ -358,6 +358,9 @@ pub fn readLine(alloc: std.mem.Allocator) ![]u8 {
 // DEBUG ABSTRACTION (WASM Web - console.error)
 // ═══════════════════════════════════════════════════════════
 
+// 2026-10-27 (E4 Windows) : no-op sur wasm.
+pub fn armPreemptTimer(_: *const fn (i32) callconv(.c) void) void {}
+
 pub const debug = struct {
     pub fn assert(condition: bool) void {
         if (!condition) {

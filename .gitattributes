@@ -1,0 +1,9 @@
+# Forcer LF pour les sources — évite 'comment contains invalid byte: \r'
+# sur Windows (Zig refuse \r dans les commentaires).
+*.zig  text eol=lf
+*.hvn  text eol=lf
+*.zon  text eol=lf
+*.md   text eol=lf
+*.sh   text eol=lf
+*.py   text eol=lf
+.gitattributes text eol=lf

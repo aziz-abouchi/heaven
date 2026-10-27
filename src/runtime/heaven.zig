@@ -6,7 +6,7 @@ const EQSATPlanner = @import("eQSATPlanner.zig").EQSATPlanner;
 const Forge = @import("../inference/forge/engine.zig").ForgeEngine;
 const AutoFab = @import("autofab.zig").AutoFab;
 
-const network = @import("../scut/network.zig");
+const network = if (@import("builtin").os.tag == .windows) @import("../scut/network_windows.zig") else @import("../scut/network.zig");
 const TaskQueue = @import("task").TaskQueue;
 const platform = @import("platform");
 const egraph_mod = @import("egraph");

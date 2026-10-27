@@ -46,7 +46,11 @@ pub fn build(b: *std.Build) void {
     // TLS (OpenSSL FFI, D-SH1). Cree AVANT platform_mod pour que
     // les fonctions TLS soient accessibles a platform.tls.
     const is_wasm_target = target.result.cpu.arch == .wasm32;
-    const tls_mod = if (is_wasm_target) b.createModule(.{
+    // 2026-10-27 (E4 Windows) : stub TLS sur Windows en attendant
+    // SChannel/OpenSSL local (dette Phase 6, cf. _platform.md).
+    // Linux/macOS gardent le vrai TLS.
+    const needs_tls_stub = is_wasm_target or target.result.os.tag == .windows;
+    const tls_mod = if (needs_tls_stub) b.createModule(.{
         .root_source_file = b.path("src/platform/tls_stub.zig"),
         .target = target,
         .optimize = optimize,

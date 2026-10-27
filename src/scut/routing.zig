@@ -1,5 +1,5 @@
 const std = @import("std");
-const network = @import("network.zig");
+const network = if (@import("builtin").os.tag == .windows) @import("network_windows.zig") else @import("network.zig");
 const platform = @import("platform");
 
 fn peerScore(p: network.Peer, now: i64) f64 {

@@ -5,7 +5,7 @@ const egraph_mod = @import("egraph");
 const codec = @import("codec");
 const network_queue = @import("queue");
 const react_lib = @import("../core/react.zig");
-const network = @import("../scut/network.zig");
+const network = if (@import("builtin").os.tag == .windows) @import("../scut/network_windows.zig") else @import("../scut/network.zig");
 
 pub fn run(
     m: *matrix_lib.Matrix,

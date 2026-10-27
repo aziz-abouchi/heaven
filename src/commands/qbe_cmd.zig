@@ -14,7 +14,7 @@ const builtin = @import("builtin");
 /// getenv portable : en freestanding (wasm), retourne null.
 fn getenvSafe(key: []const u8) ?[]const u8 {
     if (comptime builtin.os.tag == .freestanding) return null;
-    return std.posix.getenv(key);
+    return std.process.getEnvVarOwned(std.heap.page_allocator, key) catch null;
 }
 const expr = @import("expr");
 const parse = @import("parse");
@@ -218,7 +218,9 @@ pub fn runCompileQbe(
     // Le bit executable n'est pas conserve par writeFile.
     const out_file = try std.fs.cwd().openFile(out_path, .{});
     defer out_file.close();
-    try out_file.chmod(0o755);
+    if (comptime @import("builtin").os.tag != .windows) {
+        try out_file.chmod(0o755);
+    }
 
     platform.debug.print("[COMPILE-QBE] {s} -> {s}\n", .{ src_path, out_path });
 }
