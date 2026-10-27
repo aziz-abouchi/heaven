@@ -1076,3 +1076,47 @@ Voir `_hkt_v1b_plan.md` (option A retenue, cf. D-HKT1).
 - **CI proto2** : `proto2_run_drains` et `proto2_two_procs_run`
   échouent (pré-existant). `run` caller-driven env propagation.
 
+
+## Outils de test qualité (backlog, note 2026-10-27)
+
+Trois outils à ajouter pour durcir la qualité du langage
+et attraper les régressions que les tests unitaires manquent :
+
+### Quickchecker (property-based testing)
+- Inspiré de QuickCheck (Claessen & Hughes, 2000).
+- Génère des valeurs aléatoires, vérifie des propriétés
+  universelles (`forall x. reverse(reverse x) == x`).
+- En Heaven : module `core/std/quickcheck.hvn` + magics de
+  génération (`@gen_int`, `@gen_list`).
+- Cas d'usage : lois des algèbres (déjà testées à la main dans
+  `tests/test_laws.hvn`), invariants du Store, lois de
+  `normalizeLetChain`, round-trip parser/printer.
+
+### Smocker (mocking / stubbing)
+- Remplace les effets (IO, réseau, acteurs) par des doubles
+  contrôlés pendant les tests.
+- Débloque les tests d'`http_get`, `serve`, et des acteurs
+  sans dépendance à un vrai réseau.
+- En Heaven : handler d'effets qui enregistre les `perform`
+  et les rejoue (`handle_rec` + un mock store).
+- Cas d'usage : `test_suite.hvn` proto1/proto2 sans vrai
+  réseau, tests de `@net_*` en isolation.
+
+### Fuzzer (couverture par entrées aléatoires)
+- Inspiré d'AFL / libFuzzer.
+- Génère des entrées syntaxiquement valides ou presque
+  (grammaire Heaven) pour trouver des crashes du parser
+  ou de l'évaluateur.
+- Détecte les panics (pas les échecs de test — un panic
+  est toujours un bug).
+- En Heaven : générateur de tokens + `--fuzz N iterations`
+  dans `main.zig`.
+- Cas d'usage : parser (`parseSExpr`, `normalizeLetChain`),
+  évaluateur (profondeur, TCO), sérialisation.
+
+Ordre suggéré : smocker → quickchecker → fuzzer.
+Le smocker débloque le plus de valeur immédiate (tests
+réseau/acteurs), le quickchecker consolide les lois
+existantes, le fuzzer est un investissement plus long
+mais attrape une classe entière de bugs.
+

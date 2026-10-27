@@ -360,3 +360,20 @@ Colle ce prompt au début de la prochaine session.
 3. **Unification acteurs ↔ scheduler** (1-2 sessions).
 4. **B-v1** : patterns imbriqués dans `heaven_parse.hvn`.
 
+
+## Backlog session 2026-10-27
+
+### Priorité 1 (cette session)
+- CI `proto2_run_drains` et `proto2_two_procs_run` : clarifier
+  (corriger `run` ou `-- SKIPPED` explicite).
+
+### Backlog outils test qualité (noté 2026-10-27)
+- **Quickchecker** : property-based testing (lois des algèbres,
+  round-trip parser, invariants Store).
+- **Smocker** : mock des effets (IO, réseau, acteurs) pour
+  débloquer les tests de `http_get`/`serve`/proto1/proto2.
+- **Fuzzer** : entrées aléatoires pour trouver les panics du
+  parser/évaluateur.
+- Ordre suggéré : smocker → quickchecker → fuzzer.
+- Détail dans `docs/ROADMAP.md` section « Outils de test qualité ».
+
