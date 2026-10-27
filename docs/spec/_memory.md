@@ -6,6 +6,26 @@
 + Perceus/FBIP, et tracer le chemin de la couche actuelle vers le
 bootstrap complet.
 
+
+## Roadmap mémoire 3 niveaux (2026-10-27)
+
+Déclencheur : crash Debug du serveur HTTP natif sous charge
+(`!gop.found_existing` dans debug_allocator = heap corruption,
+pas un leak). Détail : `docs/spec/_http_debug_crash.md`.
+
+- **Niveau 1** — Arena par requête HTTP (band-aid, ~40 lignes) :
+  masque le symptôme, ne fixe pas les slices dangling du pool.
+- **Niveau 2** — Arena par éval (band-aid, ~50 lignes) :
+  réduit la surface, préserve "expression pure = tout disparaît".
+- **Niveau 3** — QTT (fix réel, multi-sessions, D19) :
+  `linear`/`erased`/`many` vérifiés statiquement, `store.pool`
+  linéaire (plus de réallocation sous slice tenue), drop-reuse / FBIP.
+
+C'est le Niveau 3 qui répond à l'exigence "Heaven gère sa mémoire
+plus finement que Zig" : le langage cesse d'emprunter les patterns
+Zig bas niveau (interner long-vivant, ArrayListUnmanaged growable,
+slices brutes) et utilise ses propres multiplicités.
+
 ## Principe
 
 En mode **bootstrap complet** (Heaven bare-metal, auto-hébergé),
