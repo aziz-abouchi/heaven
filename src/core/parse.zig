@@ -737,7 +737,14 @@ pub const Parser = struct {
                 const name = std.mem.trim(u8, lhs_str[0..eq], " \t");
                 const rhs_str = std.mem.trim(u8, lhs_str[eq + 1 ..], " \t");
                 const rhs_id = if (self.parseLambda(rhs_str)) |id| id else |_| try self.parseSExpr(rhs_str);
-                const body_id = try self.parseLetExpr(body_str);
+                // Fix 3.4b : corps du let = n'importe quelle expression
+                // (infixe, application, litteral, lambda), pas seulement
+                // un let imbrique. Avant : parseLetExpr(body_str) seul
+                // -> sym(body_str) pour tout corps non-let (bug).
+                const body_id = if (std.mem.startsWith(u8, body_str, "let "))
+                    try self.parseLetExpr(body_str)
+                else
+                    try self.parseSExpr(body_str);
                 return self.store.letIn(name, rhs_id, body_id);
             }
         }
