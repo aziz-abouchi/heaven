@@ -26,7 +26,7 @@ arena_new cap = (MkArena (alloc cap) 0 cap)
 arena_base (MkArena b _ _) = b
 arena_used (MkArena _ u _) = u
 arena_cap  (MkArena _ _ c) = c
-arena_remaining a = (- (arena_cap a) (arena_used a))
+arena_remaining a = (arena_cap a) - (arena_used a)
 
 -- Retourne (pair ptr arena'). Sans alignement explicite : l'appelant
 -- doit s'assurer que size est multiple de 8 s'il utilise peek_int64.
@@ -36,9 +36,9 @@ arena_alloc a size =
   (let b = (arena_base a) in
    let u = (arena_used a) in
    let c = (arena_cap a) in
-   let ok = (<= (+ u size) c) in
+   let ok = ((u + size) <= c) in
    (if ok
-     (pair (+ b u) (MkArena b (+ u size) c))
+     (pair (b + u) (MkArena b (u + size) c))
      (pair 0 a)))
 
 -- Reset : remet used a 0, garde cap et base. Reutilisable.
@@ -55,5 +55,5 @@ memcpy64 src dst n =
     (memcpy64_step src dst n))
 
 memcpy64_step src dst n =
-  (let _ = (poke_int64 dst (- n 1) (peek_int64 src (- n 1))) in
-   (memcpy64 src dst (- n 1)))
+  (let _ = (poke_int64 dst (n - 1) (peek_int64 src (n - 1))) in
+   (memcpy64 src dst (n - 1)))
