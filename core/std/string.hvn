@@ -1,36 +1,37 @@
 -- core/std/string.hvn (Jalon 2)
 -- String utils via peek_byte + string_ptr + string_of_bytes.
--- Tous les corps en S-expr parenthese (parser infix fragile).
+-- 2026-10-28 (3.4c) : opérateurs binaires migrés en infixe.
+-- `if` reste parenthésé, forme validée (test_suite 98/98).
 
 char_code c = (peek_byte (string_ptr c) 0)
 string_char_at s i = (peek_byte (string_ptr s) i)
 
 string_index_of_from s i c =
-  (if (= i (string_length s))
-    (- 0 1)
-    (if (= (string_char_at s i) c)
+  (if (i == (string_length s))
+    -1
+    (if ((string_char_at s i) == c)
       i
-      (string_index_of_from s (+ i 1) c)))
+      (string_index_of_from s (i + 1) c)))
 
 string_index_of s c = (string_index_of_from s 0 c)
 
 string_starts_with_from s prefix i plen =
-  (if (= i plen)
+  (if (i == plen)
     true
-    (if (= (string_char_at s i) (string_char_at prefix i))
-      (string_starts_with_from s prefix (+ i 1) plen)
+    (if ((string_char_at s i) == (string_char_at prefix i))
+      (string_starts_with_from s prefix (i + 1) plen)
       false))
 
 string_starts_with s prefix =
-  (if (> (string_length prefix) (string_length s))
+  (if ((string_length prefix) > (string_length s))
     false
     (string_starts_with_from s prefix 0 (string_length prefix)))
 
 -- Copy en self-tail : le poke en ARGUMENT du tail-call
 -- (le bounce évalue les args avant le saut, preuve : countb 10000)
 string_copy_range src_ptr src_start dst_ptr i len dummy =
-  (if (< i len)
-    (string_copy_range src_ptr src_start dst_ptr (+ i 1) len (poke_byte dst_ptr i (peek_byte src_ptr (+ src_start i))))
+  (if (i < len)
+    (string_copy_range src_ptr src_start dst_ptr (i + 1) len (poke_byte dst_ptr i (peek_byte src_ptr (src_start + i))))
     dst_ptr)
 
 -- Substring (dédoublonné, une seule définition)
