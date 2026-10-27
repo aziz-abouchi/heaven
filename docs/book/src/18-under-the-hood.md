@@ -477,6 +477,30 @@ Trois principes structurent Heaven dans cet esprit :
 3. **Iso-fonctionnalité.** Le natif et le web font la même chose.
    Le test `test_suite.hvn` tourne dans les deux.
 
+
+## 14. Outils de test (2026-10)
+
+Trois outils complètent `test_suite.hvn` et `zig build test` :
+
+- **Smocker** (`core/std/smocker.hvn`, 100 % Heaven) : stubs de
+  test par dependency injection. `fixed value` renvoie une valeur
+  constante, `const_fn` est un alias. Usage : la fonction sous test
+  prend son effet en paramètre, le test passe un stub. Limite v1 :
+  arité 1 seulement (le curry à 2+ niveaux casse dans le parser
+  infixe — cf. backlog `_smocker.md`).
+- **Quickchecker** (`core/std/quickcheck.hvn`, 100 % Heaven) :
+  property-based testing. PRNG pur (Lehmer MINSTD, déterministe),
+  générateurs `gen_int`/`gen_bool`/`gen_range`, combinateur `check`.
+  Pas de shrinking en v1 (backlog `_quickcheck.md`).
+- **Fuzzer** (`scripts/fuzz.sh`, hybride) : mutation de corpus
+  valide par insertion d'octets aléatoires, capture `rc>128`. A déjà
+  trouvé 4 bugs du parser (recursion infinie sur identifiants
+  non-ASCII, `depth -= 1` overflow, 2 sites `depth -|= 1`) corrigés
+  le 2026-10-27. Corpus de régression dans `tests/fuzz_crashes/`.
+
+Chacun a un document de design (`_smocker.md`, `_quickcheck.md`,
+`_fuzzer.md`) qui distingue v1 livrée et v2 en backlog.
+
 ## 13. Ce qui reste à faire
 
 Heaven est un projet jeune. Il reste :
