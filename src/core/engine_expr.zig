@@ -886,6 +886,16 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
         .sym => {
             const name = store.interner.resolve(node.payload);
             if (isFrontendExtension(name)) return error.ExtensionNotLowered;
+            // @exiting en position nue : lecture du flag global.
+            // Le parser reduit `(@exiting)` a une simple sym, donc le
+            // dispatch 0-arg doit se faire ici, avant isMagicSymbol.
+            // La forme apply `(@exiting 1)` reste traitee plus bas
+            // (dispatch par chaine op, args_snap.len == 1).
+            // 2026-10-27 (E4). Voir src/core/exiting.zig.
+            if (std.mem.eql(u8, name, "@exiting")) {
+                const exiting_mod = @import("exiting");
+                return try store.lit(.{ .boolean = exiting_mod.exiting.load(.acquire) });
+            }
             if (isMagicSymbol(name)) return id;
             if (env.get(node.payload)) |bound| {
                 //platform.dbg("[DEBUG eval] sym '{s}' trouvé dans env, valeur={d}\n", .{ name, bound });
@@ -1074,7 +1084,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@tls_connect", "@tls_read", "@tls_write", "@tls_close" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@set_fuel", "@exiting", "@tls_connect", "@tls_read", "@tls_write", "@tls_close" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -1261,6 +1271,36 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
     if (std.mem.eql(u8, op, "@disarm_preempt")) {
         disarmPreemption(engine);
+        return try store.unitLit();
+    }
+
+    // @set_fuel n : regle le budget de reductions du moteur.
+    // n = 0 -> maxInt (boucle serveur infinie). 2026-10-27 (E4).
+    // @exiting : 0 arg -> lit flag (Bool). 1 arg -> set flag.
+    // 2026-10-27 (E4). Voir src/core/exiting.zig.
+    if (std.mem.eql(u8, op, "@exiting")) {
+        const exiting_mod = @import("exiting");
+        if (args_snap.len == 0) {
+            const b = exiting_mod.exiting.load(.acquire);
+            return try store.lit(.{ .boolean = b });
+        }
+        if (args_snap.len == 1) {
+            _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
+            exiting_mod.exiting.store(true, .release);
+            return try store.unitLit();
+        }
+        return error.ArityMismatch;
+    }
+
+    if (std.mem.eql(u8, op, "@set_fuel")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const fv = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const fn_ = store.get(fv);
+        if (fn_.tag != .lit) return error.TypeError;
+        const fl = store.lits.items[fn_.aux];
+        if (fl != .int) return error.TypeError;
+        const n: u64 = @intCast(fl.int);
+        engine.fuel = if (n == 0) std.math.maxInt(u64) else n;
         return try store.unitLit();
     }
     if (std.mem.eql(u8, op, "@char_string")) {

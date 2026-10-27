@@ -340,6 +340,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // Module exiting : flag global partage main <-> moteur (E4, 2026-10-27).
+
+
+    const exiting_mod = b.createModule(.{
+        .root_source_file = b.path("src/core/exiting.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const engine_expr_mod = b.createModule(.{
         .root_source_file = b.path("src/core/engine_expr.zig"),
         .target = target,
@@ -352,6 +361,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "pattern", .module = pattern_mod },
             .{ .name = "syntax_lower", .module = syntax_lower_mod },
             .{ .name = "tls", .module = tls_mod },
+            .{ .name = "exiting", .module = exiting_mod },
         },
     });
 
