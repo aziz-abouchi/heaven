@@ -2078,7 +2078,7 @@ fn convertLetIn(self: *Heaven, src: []const u8) HeavenError![]u8 {
                 continue;
             }
             if (c == '(') depth += 1;
-            if (c == ')') depth -= 1;
+            if (c == ')') depth -|= 1;
             // Chercher " in" suivi de whitespace ou fin de chaine.
             // (le body peut suivre sur la ligne suivante : 'let x = 5 in\n  x')
             if (depth == 0 and j + 3 <= trimmed.len and

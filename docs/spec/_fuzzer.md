@@ -47,9 +47,10 @@ Le tokenizer compte les parenthèses dans un nom d'identifiant muté
 contenant `)` orpheline → `depth` unsigned descend sous 0.
 
 Fix : tous les sites `depth -= 1` non protégés deviennent
-`depth -|= 1` (soustraction saturante Zig : `0 -|= 1 = 0`). 10 sites
-(1203, 1630, 1655, 1739, 1970, 2081, 2210, 2640, 4203, 4223).
-Les sites déjà protégés par `if (depth > 0)` restent inchangés.
+`depth -|= 1` (soustraction saturante Zig : `0 -|= 1 = 0`). 10 sites non protégés : 1203, 1630, 1655, 1739, 1970, 2081, 2210,
+2640, 4203, 4223. 9 patchés par script, le 10e (L2081) par sed
+manuel (pattern avec `if` inline). Les sites déjà protégés par
+`if (depth > 0)` restent inchangés.
 
 ## Analyse (backlog session dédiée)
 
