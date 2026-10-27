@@ -256,6 +256,8 @@ Le scheduler coopératif décrit ci-dessus ne peut pas interrompre une
 tâche qui ne rend jamais la main. Depuis octobre 2026, Heaven dispose
 d'une **préemption best-effort** :
 
+![Préemption : arm → safepoint → SuspendRequested → relance](images/13-preemption-timeline.svg)
+
 - `(@arm_preempt 0)` active la préemption. À chaque safepoint
   (`fuel % 1000 == 0`), le moteur vérifie un flag (`SIGALRM` en natif,
   ou l'horloge après 10 ms en WASI) et lève `error.SuspendRequested`.
