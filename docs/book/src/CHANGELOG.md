@@ -22,10 +22,13 @@
 - Magic symétrique de `@arm_preempt`. Reset `preempt_armed` et
   `last_preempt_ms`.
 
-### CI connue (pré-existante)
+### proto2 corrigé le 2026-10-27
 - `core/test_suite.hvn` : `proto2_run_drains` et
-  `proto2_two_procs_run` échouent (`run` caller-driven env
-  propagation). Non introduit cette session.
+  `proto2_two_procs_run` **passent** (98/98). Cause racine : `run()`
+  construisait `new_env` (state/msg) mais évaluait le body du handler
+  avec `engine.env` (global) → `UnboundVariable` masqué par
+  `catch id` dans `interpForAssert`. Fix : swap `engine.env` autour
+  de `evalWithBudget`. Commit `8c64a31`.
 
 ## 0.6 — 2026-10-24
 
