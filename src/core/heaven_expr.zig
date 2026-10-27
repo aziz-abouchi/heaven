@@ -1,5 +1,23 @@
 //! Frontend Heaven - intégration du moteur de simplification EGraph
 const std = @import("std");
+const _is_freestanding: bool = @import("builtin").target.os.tag == .freestanding;
+
+/// Log toujours actif sur natif, no-op sur freestanding. Le `comptime`
+/// est essentiel : sans lui, Zig analyse std.debug.print qui pull-in
+/// std.posix/std.Thread — interdits sur wasm32-freestanding. 2026-10-27 (E4).
+inline fn debugPrint(comptime fmt: []const u8, args: anytype) void {
+    if (comptime _is_freestanding) return;
+    platform.debug.print(fmt, args);
+}
+
+/// Trace conditionnelle (HEAVEN_DEBUG_HTTP=1), no-op freestanding.
+inline fn debugTrace(comptime fmt: []const u8, args: anytype) void {
+    if (comptime _is_freestanding) return;
+    if (platform.getenv("HEAVEN_DEBUG_HTTP") == null) return;
+    platform.debug.print(fmt, args);
+}
+
+
 const expr = @import("expr");
 const hole_mod = @import("hole");
 const engine_expr = @import("engine_expr");
@@ -112,6 +130,62 @@ pub const HoleInfo = struct {
 
 // ImportState extrait dans import.zig (RFC-0001 5/5).
 // Alias local ci-dessous : const ImportState = import_mod.ImportState;
+
+// ─── Statement splitter (2026-10-27, E4 3.2a-fix) ───
+// Dupliqué depuis src/runtime/test_runner.zig (lui-même local).
+// TODO : extraire dans src/core/script.zig et faire pointer les deux
+// call sites dessus. En attendant : duplication VISIBLE, pas un
+// workaround caché. Le splitter est volontairement naïf sur les
+// strings/commentaires mid-ligne — suffisant pour http_server.hvn.
+pub fn isSkippable(stmt: []const u8) bool {
+    const t = std.mem.trim(u8, stmt, " \t\r\n");
+    if (t.len == 0) return true;
+    if (t[0] == '#') return true;
+    if (std.mem.startsWith(u8, t, ";;")) return true;
+    if (std.mem.startsWith(u8, t, "--")) return true;
+    if (std.mem.startsWith(u8, t, "//")) return true;
+    return false;
+}
+
+pub fn splitStatements(
+    allocator: std.mem.Allocator,
+    content: []const u8,
+    out: *std.ArrayListUnmanaged([]const u8),
+) !void {
+    var buffer = std.ArrayListUnmanaged(u8){};
+    defer buffer.deinit(allocator);
+    var brace_depth: i32 = 0;
+    var line_iter = std.mem.splitScalar(u8, content, '\n');
+    while (line_iter.next()) |line| {
+        const trimmed = std.mem.trim(u8, line, " \t\r");
+        if (trimmed.len == 0) continue;
+        if (trimmed[0] == '#') continue;
+        if (std.mem.startsWith(u8, trimmed, "--")) continue;
+        if (std.mem.startsWith(u8, trimmed, "//")) continue;
+        if (std.mem.startsWith(u8, trimmed, ";;")) continue;
+
+        const is_indented = line.len > 0 and (line[0] == ' ' or line[0] == '\t');
+        const in_block = brace_depth > 0;
+        const is_clause_continuation = is_indented and
+            trimmed.len > 0 and trimmed[0] == '|';
+
+        if (buffer.items.len > 0 and (!is_indented or is_clause_continuation) and !in_block) {
+            try out.append(allocator, try allocator.dupe(u8, buffer.items));
+            buffer.clearRetainingCapacity();
+        }
+        if (buffer.items.len > 0 and !is_clause_continuation) {
+            try buffer.append(allocator, ' ');
+        }
+        try buffer.appendSlice(allocator, trimmed);
+        for (trimmed) |c| {
+            if (c == '{') brace_depth += 1;
+            if (c == '}') brace_depth -= 1;
+        }
+    }
+    if (buffer.items.len > 0) {
+        try out.append(allocator, try allocator.dupe(u8, buffer.items));
+    }
+}
 
 pub const Heaven = struct {
     allocator: std.mem.Allocator,
@@ -398,7 +472,9 @@ pub const Heaven = struct {
             var i: u8 = 0;
             while (i < def.num_clauses) : (i += 1) {
                 const clause = def.clauses[i];
-                self.registerClause(name, clause.patterns[0..clause.num_patterns], clause.body) catch {};
+                self.registerClause(name, clause.patterns[0..clause.num_patterns], clause.body) catch |err| {
+                    debugPrint("[registerClause] '{s}' failed: {any}\n", .{name, err});
+                };
             }
         }
 
@@ -2545,6 +2621,69 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         const rule_id = try self.store.relation("=>", &.{ lhs_canon, rhs_canon }, &.{});
         try self.kb.rules.append(self.allocator, rule_id);
         return self.allocator.dupe(u8, "✓ rule added");
+    }
+
+    /// Charge core/http_server.hvn puis evalue (http_serve port).
+    /// Bloque jusqu'a ce que @exiting soit true (via server_loop).
+    /// Appele depuis un thread dedie en remplacement de
+    /// startVesselServer (transition Lustre-Heaven, suppression de
+    /// Vessel). 2026-10-27 (E4, bloc 3.2a).
+    pub fn runHttpServer(self: *Heaven, port: u16) HeavenError!void {
+        const alloc = self.allocator;
+        debugPrint("[runHttp] step=1 before readFileAlloc\n", .{});
+        const src = std.fs.cwd().readFileAlloc(
+            alloc,
+            "core/http_server.hvn",
+            4 * 1024 * 1024,
+        ) catch |err| {
+            debugPrint("[http_run] read http_server.hvn failed: {any}\n", .{err});
+            return;
+        };
+        defer alloc.free(src);
+        debugPrint("[runHttp] step=2 before eval(src) len={d}\n", .{src.len});
+        // Loader multi-clauses : même sémantique que runEvalFile.
+        var statements: std.ArrayListUnmanaged([]const u8) = .{};
+        defer {
+            for (statements.items) |s| alloc.free(s);
+            statements.deinit(alloc);
+        }
+        splitStatements(alloc, src, &statements) catch |err| {
+            debugPrint("[http_run] split failed: {any}\n", .{err});
+            return;
+        };
+        var loaded: usize = 0;
+        for (statements.items) |stmt| {
+            if (isSkippable(stmt)) continue;
+            const payload = std.mem.trim(u8, stmt, " \t\r\n");
+            if (payload.len == 0) continue;
+            const r = self.eval(payload) catch |err| {
+                debugPrint("[http_run] eval stmt failed: {any} stmt={s}\n", .{err, payload});
+                continue;
+            };
+            alloc.free(r);
+            loaded += 1;
+        }
+        debugPrint("[http_run] loaded {d} statements from http_server.hvn\n", .{loaded});
+        debugPrint("[runHttp] step=3 before set_fuel\n", .{});
+        {
+            const r = self.eval("(@set_fuel 0)") catch |err| {
+                debugPrint("[http_run] set_fuel failed: {any}\n", .{err});
+                return;
+            };
+            self.allocator.free(r);
+        }
+        debugPrint("[runHttp] step=4 before http_serve call\n", .{});
+        var buf: [64]u8 = undefined;
+        const call = std.fmt.bufPrint(&buf, "(hvn_http_serve_v2 {d})", .{port}) catch return;
+        {
+            const r = self.eval(call) catch |err| {
+                debugPrint("[http_run] http_serve failed: {any}\n", .{err});
+                return;
+            };
+            debugPrint("[http_run] http_serve result: {s}\n", .{r});
+            self.allocator.free(r);
+        }
+        debugPrint("[http_run] server_loop returned (exiting)\n", .{});
     }
 
     pub fn simplify(self: *Heaven, input: []const u8) HeavenError![]u8 {
@@ -5501,7 +5640,7 @@ test "toutes les fixtures d'import existent" {
     };
     for (fixtures) |f| {
         std.fs.cwd().access(f, .{}) catch |err| {
-            std.debug.print("Fixture d'import manquante : {s} ({})\n", .{ f, err });
+            debugPrint("Fixture d'import manquante : {s} ({})\n", .{ f, err });
             return error.TestUnexpectedResult;
         };
     }

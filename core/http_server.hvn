@@ -41,7 +41,7 @@ handle_static p =
 -- C'est suffisant pour servir les fichiers statiques.
 handle_client cap listen_fd =
   let client_fd = (net_accept cap listen_fd) in
-  (handle_one_client cap client_fd)
+  (if (>= client_fd 0) (handle_one_client cap client_fd) unit)
 
 handle_one_client cap client_fd =
   let raw = (net_read cap client_fd) in
@@ -50,12 +50,13 @@ handle_one_client cap client_fd =
   let _ = (net_write cap client_fd (format_response_ct resp)) in
   (net_close cap client_fd)
 
-server_loop cap listen_fd =
-  if (@exiting) then unit else (
-    let _ = (handle_client cap listen_fd) in
-    (server_loop cap listen_fd))
+server_loop_step cap listen_fd =
+  (seq (handle_client cap listen_fd) (server_loop cap listen_fd))
 
-http_serve port =
+server_loop cap listen_fd =
+  (if (@exiting) unit (server_loop_step cap listen_fd))
+
+hvn_http_serve_v2 port =
   let cap = (cap_acquire (string_concat "net:listen:" (int_to_string port))) in
   let listen_fd = (net_listen cap port) in
   let _ = (print (string_concat "🌌 Heaven HTTP on http://127.0.0.1:" (int_to_string port))) in

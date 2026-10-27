@@ -1495,6 +1495,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "continuation", .module = continuation_mod },
             .{ .name = "scheduler", .module = scheduler_mod },
             .{ .name = "tls", .module = tls_mod },
+            .{ .name = "exiting", .module = exiting_mod },
         },
     }) });
 

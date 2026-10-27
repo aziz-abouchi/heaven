@@ -153,12 +153,20 @@ pub fn main() !void {
     }
     const allocator = if (no_leak_check) std.heap.page_allocator else gpa.allocator();
 
+
     var msg_queue = network_queue.MessageQueue.init(allocator, 1024);
     const webrtc_bridge = @import("runtime/webrtc_bridge.zig");
     webrtc_bridge.global_queue = &msg_queue;
     webrtc_bridge.global_allocator = allocator;
 
     const args = std.process.argsAlloc(allocator) catch return error.OutOfMemory;
+
+    if (platform.getenv("HEAVEN_DEBUG_ARGS") != null) {
+        std.debug.print("[args] len={d}\n", .{args.len});
+        for (args, 0..) |a, i| std.debug.print("[args {d}]={s}\n", .{i, a});
+    }
+    // HEAVEN_DEBUG_ARGS_DUMP
+
     defer std.process.argsFree(allocator, args);
     if (args.len > 1 and std.mem.eql(u8, args[1], "--completions")) {
         const keywords = [_][]const u8{ "theorem", "prove", "transform", "let", "fun", "simplify", "type", "latex", "derive", "integrate", "solve", "help", "stats", "theorems", "load" };
@@ -341,6 +349,20 @@ pub fn main() !void {
     if (std.mem.eql(u8, args[1], "--eval-file") and args.len >= 3) {
         const test_runner = @import("runtime/test_runner.zig");
         try test_runner.runEvalFile(allocator, args[2]);
+        return;
+    }
+    // 3.2a-1 : serveur HTTP Heaven natif (test isolation avant
+    // bascule par defaut en 3.2b). Charge core/http_server.hvn,
+    // evalue (http_serve port), sort sur @exiting (SIGINT/SIGTERM).
+    if (std.mem.eql(u8, args[1], "--http-serve") and args.len >= 3) {
+        if (platform.getenv("HEAVEN_DEBUG_HTTP") != null) std.debug.print("[main] --http-serve block entered port={s}\n", .{args[2]});
+        const port = std.fmt.parseInt(u16, args[2], 10) catch |err| {
+            platform.debug.print("invalid port '{s}': {any}\n", .{ args[2], err });
+            return error.InvalidPort;
+        };
+        var http_heaven = try heaven_expr.Heaven.init(allocator);
+        defer http_heaven.deinit();
+        try http_heaven.runHttpServer(port);
         return;
     }
     if (std.mem.eql(u8, args[1], "test") and args.len >= 3) {

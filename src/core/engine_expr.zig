@@ -1,4 +1,22 @@
 const std = @import("std");
+const _is_freestanding: bool = @import("builtin").target.os.tag == .freestanding;
+
+/// Log toujours actif sur natif, no-op sur freestanding. Le `comptime`
+/// est essentiel : sans lui, Zig analyse std.debug.print qui pull-in
+/// std.posix/std.Thread — interdits sur wasm32-freestanding. 2026-10-27 (E4).
+inline fn debugPrint(comptime fmt: []const u8, args: anytype) void {
+    if (comptime _is_freestanding) return;
+    platform.debug.print(fmt, args);
+}
+
+/// Trace conditionnelle (HEAVEN_DEBUG_HTTP=1), no-op freestanding.
+inline fn debugTrace(comptime fmt: []const u8, args: anytype) void {
+    if (comptime _is_freestanding) return;
+    if (platform.getenv("HEAVEN_DEBUG_HTTP") == null) return;
+    platform.debug.print(fmt, args);
+}
+
+
 const pattern_mod = @import("pattern");
 const Allocator = std.mem.Allocator;
 const canon = @import("canon");
@@ -2701,6 +2719,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const scope_lit = store.lits.items[scope_node.aux];
         if (scope_lit != .str) return error.TypeError;
         const scope = store.interner.resolve(@intCast(scope_lit.str));
+        debugPrint("[cap_acquire] trace scope={s}\n", .{scope});
         const i = std.mem.indexOfScalar(u8, scope, ':');
         var kind_s: []const u8 = scope;
         var resource: []const u8 = "";
@@ -2853,7 +2872,13 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const port_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
         const port_node = store.get(port_val);
         if (port_node.tag != .lit) return error.TypeError;
-        const port: u16 = @intCast(store.lits.items[port_node.aux].int);
+        const port_lit = store.lits.items[port_node.aux];
+        debugPrint("[@net_listen] port_lit={any} aux={d}\n", .{ port_lit, port_node.aux });
+        if (port_lit != .int) return error.TypeError;
+        const port: u16 = @intCast(port_lit.int);
+        if (platform.getenv("HEAVEN_DEBUG_NET") != null) {
+            debugPrint("[@net_listen] port={d}\n", .{port});
+        }
         const fd = try platform.net.listenTcp(port);
         return try store.lit(.{ .int = fd });
     }
@@ -2865,6 +2890,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const fd_node = store.get(fd_val);
         if (fd_node.tag != .lit) return error.TypeError;
         const fd: i64 = store.lits.items[fd_node.aux].int;
+        debugPrint("[@net_accept] fd={d}\n", .{fd});
         const client_fd = try platform.net.accept(fd);
         return try store.lit(.{ .int = client_fd });
     }
