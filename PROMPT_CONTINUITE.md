@@ -849,6 +849,74 @@ Prochaines étapes :
 - check-v2 : unbound variables (filet complet)
 - captureCont : N=1000 quickcheck
 
+
+
+## TODO 2026-10-29 — Vérifier et compléter
+
+### A. Triade test dynamique en Heaven pur
+
+Objectif : `quickcheck` / `smocker` / `fuzzer` forment un pipeline complet
+(PBT → isolation → stress). Tous en `.hvn`, zéro Zig.
+
+| Module | État supposé | À vérifier | À ajouter |
+|---|---|---|---|
+| `quickcheck.hvn` | générateurs + check (validé O2.3) | shrinking présent ? | `shrink` (réduction contre-exemple) |
+| `smocker.hvn` | mock + seq + verify (validé O2.3) | enregistre-t-il les effets algébriques (`perform`/`handle`) ? | `expect_effect`, `verify_effects` |
+| `fuzzer.hvn` | génération de listes (validé O2.3) | mutationnel (corrompu/tronqué/limite) ? | `mutate`, `truncate`, `bitflip` |
+
+**Décision** : ajouter ce qui manque, ou documenter les limites réelles.
+Priorité : `quickcheck.shrink` (utile pour tous les tests d'invariant).
+
+### B. 4 axes de refactoring par réflexivité
+
+Idée : appliquer à Heaven ses propres principes pour réduire le Zig
+(~96 % du code) et faire du langage son propre outil.
+
+1. **I/O unifiés sous effets algébriques**
+   - `src/platform/` devient un handler unique (`handle-rec`).
+   - Les I/O sont des `perform "Syscall" (Write fd buf len)`.
+   - Gain : mocker tout le système dans des tests `.hvn`.
+   - **Vérif préalable** : combien de `perform` sont déjà dans `platform/` ?
+     L'évaluateur appelle-t-il `platform.*` directement ou via handler ?
+
+2. **Lowering strict aux 6 primitives (`Store.lower()`)**
+   - Vérifier D21 et RFC-0001 dans `docs/spec/`.
+   - Les backends (QBE, WASM, C) ne consomment que les 6 primitives
+     (`lit`, `sym`, `apply`, `bind`, `lambda`, `relation`).
+   - Gain : supprimer les cas particuliers des codegens.
+   - **Vérif préalable** : les codegens voient-ils déjà l'AST abaissé,
+     ou du sucre (`if`, `let`, `data`) ?
+
+3. **Linter/Formatter via E-Graphs + miniKanren**
+   - `fmt`, `check`, refactoring comme règles de réécriture déclaratives.
+   - Utiliser `egraph` + `kanren_expr` (existent déjà).
+   - Gain : le moteur de réécriture devient son propre refactoring.
+   - **Vérif préalable** : `egraph_rewriter.zig` est-il branché sur `fmt` ?
+
+4. **Auto-hébergement (`lib/parse/infix.hvn`)**
+   - Transférer la passe infixe vers `.hvn`.
+   - Zig réduit à TCB (moteur 6 primitives).
+   - Gain : maintenance centralisée dans la stdlib.
+   - **Vérif préalable** : combien de lignes dans `heaven_expr.zig` pour
+     le parsing infixe ? Peut-on déjà l'écrire en `.hvn` ?
+
+**Ordre suggéré** : 1 (I/O effects) > 2 (lowering) > 3 (egraphs) > 4
+(self-hosting). Le #1 débloque `smocker` sur les vrais effets. Le #2
+est le plus gros gain Zig.
+
+### C. Dettes runtime (priorité fix)
+
+Voir `docs/spec/_runtime_gaps.md`. Priorité :
+1. `run` multi-message (STATUS.md:303) — 2 sessions Zig
+2. thunks top-level — 1 session
+3. `(f a b)` curryfication — 1 session
+
+### D. Continuation
+
+- O4.3 app Hab complète (après fix runtime #1 idéalement)
+- check-v2 scope tracking (UnboundVariable)
+- captureCont (débloque N=1000 quickcheck)
+
 ## OTP — COMPLET (2026-10-28)
 
 Tags : otp-o1, otp-o2.0, otp-o2.1, otp-o2.2, otp-o2.3, otp-o2.4.
