@@ -814,3 +814,23 @@ Fix : `run()` doit évaluer le body du handler avec `new_env`
 4. **A-3b** (reprise exacte) — multi-sessions, `_capture_eval.md`.
 5. **B-v1** — patterns imbriqués dans `heaven_parse.hvn`.
 
+## OTP (TODO, voir docs/spec/_otp.md)
+
+Spec complète : `docs/spec/_otp.md`.
+
+Portage OTP en Heaven pur (7 étapes, ~7 sessions) :
+- O1 GenServer (spawn/call/cast/info)
+- O2 link/monitor/trap_exit dans le scheduler Zig
+- O3 supervisor one_for_one (compteur restarts)
+- O4 rest_for_one, one_for_all, simple_one_for_one
+- O5 application (démarrage ordonné, deps)
+- O6 intégration Hab : composant = gen_server supervisé
+
+Vision : Hab + OTP = Lustre + Erlang en un langage. Un composant
+Heaven tourne client (wasm) ou serveur (HTTP natif) ou distribué
+(Swarm), supervisé côté serveur, dégradé côté client.
+
+Décisions à acter (dans _otp.md) : gen_server_call sync via effet
+ou polling, links table dans scheduler, EXIT comme message normal,
+restart counter dans supervisor, app single-niveau.
+
