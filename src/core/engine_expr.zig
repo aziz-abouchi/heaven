@@ -45,18 +45,39 @@ fn collectTailSpine(store: *const Store, node_id: Id, fn_name: []const u8, out: 
     const op_node = store.get(node.payload);
     if (op_node.tag != .sym) return;
     const op_name = store.interner.resolve(op_node.payload);
+    // Self-call direct : tail-call.
     if (std.mem.eql(u8, op_name, fn_name)) {
         out[out_len.*] = node_id;
         out_len.* += 1;
         return;
     }
-    if (std.mem.eql(u8, op_name, "if")) {
-        const args = store.applyArgs(node);
-        if (args.len == 3) {
-            collectTailSpine(store, args[1], fn_name, out, out_len);
-            collectTailSpine(store, args[2], fn_name, out, out_len);
-        }
+    // Traversée des formes qui préservent la position de queue.
+    // 2026-10-28 (Phase 7) : ajout de let, seq, block. Avant, seul if
+    // était géré → `let _ = A in (self-call)` et `(seq A (self-call))`
+    // n'étaient pas TCO'd (stack overflow à ~500 iters).
+    const args = store.applyArgs(node);
+    if (std.mem.eql(u8, op_name, "if") and args.len == 3) {
+        // if cond then A else B : A et B en queue, cond non-tail.
+        collectTailSpine(store, args[1], fn_name, out, out_len);
+        collectTailSpine(store, args[2], fn_name, out, out_len);
+        return;
     }
+    // NOTE Phase 7b : `let` + self-call N'EST PAS TCO'd malgré la
+    // collecte — le handler let crash (SIGSEGV ~500 iters, cause non
+    // isolée : markArgDone ou propagation TCO_BOUNCE). Retiré pour
+    // ne pas induire en erreur. Contournement : self-call DIRECT en
+    // queue (force en arg) ou via `seq`. Dette Phase 7b.
+    if (std.mem.eql(u8, op_name, "seq") and args.len == 2) {
+        // (seq A B) : B en queue, A non-tail.
+        collectTailSpine(store, args[1], fn_name, out, out_len);
+        return;
+    }
+    if (std.mem.eql(u8, op_name, "block") and args.len >= 1) {
+        // (block A B ... C) : C en queue.
+        collectTailSpine(store, args[args.len - 1], fn_name, out, out_len);
+        return;
+    }
+    // Autres apply : opérandes non-tail, pas de collecte.
 }
 
 const log = std.log.scoped(.engine);
