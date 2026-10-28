@@ -1129,7 +1129,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@set_fuel", "@exiting", "@loop_until", "@clear_thunks", "@store_stats", "@spawn", "@broadcast", "@runtime_stats", "@sleep_ms", "@tls_connect", "@tls_read", "@tls_write", "@tls_close" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@set_fuel", "@exiting", "@clear_thunks", "@store_stats", "@spawn", "@broadcast", "@runtime_stats", "@sleep_ms", "@tls_connect", "@tls_read", "@tls_write", "@tls_close" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -3167,26 +3167,6 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // de cond, si vrai -> return, sinon evaluation de body puis re-loop.
     // Zero stack growth, 10000 requetes OK.
     // Remplace `(let _ = handle in (server_loop ...))` dans http_server.hvn.
-    // 2026-10-28 v2 : args sont des LAMBDAS evaluees UNE FOIS, puis
-    // APPLIQUEES a unit a chaque iteration. v1 evaluait les lambdas
-    // directement comme booleens -> TypeError.
-    if (std.mem.eql(u8, op, "@loop_until")) {
-        if (args_snap.len != 2) return error.ArityMismatch;
-        const cond_fn = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        const body_fn = try evaluate(store, env, engine, args_snap[1], depth + 1);
-        const unit_id = try store.unitLit();
-        while (true) {
-            const cond_call = store.apply(cond_fn, &.{unit_id}) catch return error.TypeError;
-            const cond_val = try evaluate(store, env, engine, cond_call, depth + 1);
-            const cn = store.get(cond_val);
-            if (cn.tag != .lit) return error.TypeError;
-            const cl = store.lits.items[cn.aux];
-            if (cl != .boolean) return error.TypeError;
-            if (cl.boolean) return try store.unitLit();
-            const body_call = store.apply(body_fn, &.{unit_id}) catch return error.TypeError;
-            _ = try evaluate(store, env, engine, body_call, depth + 1);
-        }
-    }
 
     if (std.mem.eql(u8, op, "@sleep_ms")) {
         if (args_snap.len != 1) return error.ArityMismatch;
