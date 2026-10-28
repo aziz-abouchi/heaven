@@ -1,6 +1,6 @@
 # Summary
 
-> **Heaven 0.6.1** — État au 2026-10-27. Voir [Versions](#versions) en fin
+> **Heaven 0.6.1** — État au 2026-10-27. Voir la section « Versions » en fin
 > de page pour la grille complète. Cette version corrige la syntaxe lambda
 > (seul `\x. body` est validé) et documente la préemption multi-mode.
 
