@@ -1,0 +1,5 @@
+test "match2_hit_p2":
+  (match2 2 1 10 2 20 99) == 20
+
+test "match2_default":
+  (match2 7 1 10 2 20 99) == 99

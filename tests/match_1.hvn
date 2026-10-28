@@ -1,0 +1,5 @@
+test "match1_hit":
+  (match1 1 1 10 99) == 10
+
+test "match1_default":
+  (match1 5 1 10 99) == 99

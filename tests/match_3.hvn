@@ -1,0 +1,7 @@
+test "match_list_hit":
+  (let many pairs = (cons (pair 1 100) (cons (pair 2 200) nil)) in
+   (match_list 2 pairs 0)) == 200
+
+test "match_list_default":
+  (let many pairs = (cons (pair 1 100) (cons (pair 2 200) nil)) in
+   (match_list 9 pairs 0)) == 0

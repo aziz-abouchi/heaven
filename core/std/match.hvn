@@ -1,0 +1,9 @@
+-- core/std/match.hvn — pattern matching (if + = prefix, pas == infixe)
+match1 x p1 r1 default = (if (= x p1) r1 default)
+match2 x p1 r1 p2 r2 default =
+  (if (= x p1) r1 (if (= x p2) r2 default))
+match3 x p1 r1 p2 r2 p3 r3 default =
+  (if (= x p1) r1 (if (= x p2) r2 (if (= x p3) r3 default)))
+match_list x nil default = default
+match_list x (cons pr rest) default =
+  (if (= x (fst pr)) (snd pr) (match_list x rest default))
