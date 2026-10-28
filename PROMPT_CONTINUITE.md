@@ -1,3 +1,126 @@
+# ÉTAT AU 2026-10-28 (mise à jour)
+
+## Milestone : HTTP natif Heaven sur 3 plateformes
+
+`heaven --http-serve N` sert /repl.html + /heaven.wasm sur Linux,
+macOS ET Windows — serveur écrit en Heaven pur (core/http_server.hvn),
+aucun code spécifique par plateforme.
+
+Commit `681ed7c` (Phase 6b) : HTTP natif Windows.
+
+Tests validés :
+  Linux   : 200 /repl.html (38261 o), 200 /heaven.wasm (584755 o)
+  macOS   : 200 /repl.html (38261 o), 200 /heaven.wasm (460811 o)
+  Windows : 200 /repl.html (39299 o), 200 /heaven.wasm (592034 o)
+            500 requêtes séquentielles OK, rotation 180 assets OK
+
+## Bugs corrigés en Phase 6b (commit 681ed7c)
+
+1. `std.posix.socket_t` : i32 sur POSIX, *SOCKET__opaque sur
+   Windows. Helpers `handleFromI64`/`handleToI64`.
+2. `std.posix.read/write` : ReadFile/WriteFile (HANDLE fichiers),
+   pas sockets. Sur Windows → `ws2_32.recv`/`ws2_32.send`.
+3. `std.posix.close` : CloseHandle, pas closesocket. Sur Windows
+   → `ws2_32.closesocket`.
+4. `setsockopt SO_REUSEADDR` : buggé sur Windows (TigerBeetle
+   issue). Skip sur Windows.
+5. `WSAStartup` obligatoire : `ensureWsaInit()` one-time dans
+   socket/bind/listen/accept.
+6. Erreurs `std.posix.*` (AddressError, SocketError) hors EvalError :
+   wrapper `catch return error.InvalidInput` dans net_sockets.zig.
+7. Stub Windows retiré : `x86_64_windows.zig` importe le vrai
+   `net_sockets.zig`. 10 guards `@net_*` : Windows retiré,
+   wasm/freestanding restent.
+
+## État des 3 plateformes (build + tests)
+
+| Plateforme | build | test_suite | --http-serve |
+|---|---|---|---|
+| Linux x86_64 | ✓ | 98/98 | 200 /repl.html |
+| macOS aarch64 | ✓ | 98/98 | 200 /repl.html |
+| Windows x86_64 | ✓ | 98/98 | 200 /repl.html |
+
+Règle `src/platform/` : 0 violation (audit `grep` automatique).
+
+## Piège Windows MINGW64 (à documenter)
+
+`python3` sur MINGW64 = stub Windows Store qui ne s'exécute pas
+(retourne 0 silencieusement). Avoir toujours :
+
+    PY=""
+    for py in /c/Users/<user>/AppData/Local/Programs/Python/Python3XX/python.exe python3 python; do
+        "$py" --version 2>/dev/null | grep -q "Python 3" && PY="$py" && break
+    done
+
+Sans ça, les scripts Python échouent silencieusement (`git commit`
+disait « nothing to commit » alors que le patch n'avait pas été
+appliqué).
+
+## Acquis session précédente (rappel)
+
+Phase 6f (`3abc8a9`) : serveur HTTP stable 500+ requêtes
+  - `@loop_until` (boucle Zig native) car TCO ne traverse ni `let`
+    ni `seq` (tests `loop_let_500`/`loop_if_seq_500` SIGSEGV).
+  - `@clear_thunks`, `@store_stats` (diagnostic cross-requête).
+
+Phase 6a (`128cd0b`) : net_sockets cross-platform POSIX (Linux+macOS).
+
+E4 macOS (`b14da6a`) : règle plateforme respectée.
+
+E4 Windows (`232b130`) : build Windows débloqué (tls_stub, x86_64_windows
+  réécrit, network_windows stub, .gitattributes LF).
+
+Migration S-expr 3.4c (5 fichiers) :
+  array.hvn (7), memory.hvn (5), free.hvn (2), string.hvn (11),
+  hashmap.hvn (60). Tous verts.
+
+## Dettes Phase 7 (ordre proposé)
+
+1. **TCO `let`/`seq`** (`engine_expr.zig`)
+   - Étendre la détection self-tail-call pour traverser
+     `let _ = e in call` et `(seq e call)`
+   - Bénéfice : supprime `@loop_until`, permet server_loop récursif
+   - Complexité : moyenne
+
+2. **Audit `*Node` retenus** à travers `evaluate()` (vrai fix du
+   crash 43 requêtes)
+   - Workaround actuel : `ensureTotalCapacity` 200K/50K/100K
+   - Vrai fix : snapshot des pointeurs ou re-get après eval
+   - Complexité : élevée
+
+3. **Scheduler préemptif 3.3a** : server_loop devient une tâche
+   scheduler, supprime `@loop_until`
+
+## Dettes Phase 6 (rappel)
+
+- **Phase 6c** : TLS macOS (OpenSSL brew ou tls_stub) + Windows
+  (SChannel/wolfSSL). tls_stub Windows est en place, macOS garde le
+  vrai TLS via OpenSSL FFI (dépend de brew install openssl).
+- **Phase 6d** : `build.sh` Windows/macOS (QBE download sans
+  cc/make), `go.sh` Python PATH (stub Windows Store).
+- **Phase 6e** : CI matrix Linux/macOS/Windows/WASI/WEB.
+
+## Dettes langage
+
+- **3.4b-ter** : `if cond then a else b` multi-ligne sans
+  parenthèses (parser). Bloque migration complète de test_suite.hvn,
+  bigint.hvn, heaven_parse.hvn, json/parse.hvn.
+- **3.4b-bis** : `let` bind thunk non forcé sur magic RHS
+  (`@spawn` non lisible via `let tid = @spawn ... in tid > 0`).
+- **Migration S-expr restante** : ~13 fichiers.
+
+## Environnement
+
+- Machine devilHope (Linux x86_64) + laptop macOS aarch64
+  + PC Windows (MINGW64)
+- Zig 0.15.2 (Linux/macOS : Homebrew/store ; Windows : winget)
+- `HEAVEN_NO_LEAK_CHECK=1` requis en Debug (heap corruption
+  préexistante, cf. `_http_debug_crash.md`)
+- `test_suite` : 98/98 stable sur les 3 plateformes
+- HEAD : `681ed7c` (origin/main)
+
+---
+
 # ÉTAT AU 2026-10-28 — Session plateformes + HTTP stable
 
 ## Acquis (commits poussés sur origin/main)
