@@ -3866,6 +3866,43 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
         return null;
     }
 
+const ArityDiagKind = enum { arity, non_fn, partial };
+const ArityDiag = struct {
+    kind: ArityDiagKind,
+    name: []const u8,
+    expected: u32,
+    found: u32,
+};
+
+fn checkCallArity(store: *Store, engine: *engine_expr.Engine, id: expr.Id) ?ArityDiag {
+    if (id >= store.len()) return null;
+    const node = store.get(id);
+    if (node.tag == .lambda) {
+        return .{ .kind = .partial, .name = "lambda", .expected = 0, .found = 0 };
+    }
+    if (node.tag != .apply) return null;
+    const fn_id = node.payload;
+    if (fn_id >= store.len()) return null;
+    const fn_node = store.get(fn_id);
+    const slice = store.spanSliceConst(node.span_a);
+    const args_len: u32 = if (slice.len > 0) @intCast(slice.len - 1) else 0;
+    if (fn_node.tag == .lit) {
+        return .{ .kind = .non_fn, .name = "litteral", .expected = 0, .found = args_len };
+    }
+    if (fn_node.tag == .sym) {
+        const name = store.interner.resolve(fn_node.payload);
+        if (engine.fns.get(name)) |fn_def| {
+            if (fn_def.num_clauses > 0) {
+                const expected: u32 = fn_def.clauses[0].num_patterns;
+                if (expected != args_len) {
+                    return .{ .kind = .arity, .name = name, .expected = expected, .found = args_len };
+                }
+            }
+        }
+    }
+    return null;
+}
+
     fn evalAssertionNative(self: *Heaven, input: []const u8) HeavenError![]u8 {
         // ─── test "name": body ───
         if (std.mem.startsWith(u8, input, "test \"")) {
@@ -3891,6 +3928,21 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
 
             const lhs = try self.parseOrDispatch(sp.a);
             const rhs = try self.parseOrDispatch(sp.b);
+
+            if (checkCallArity(self.store, &self.engine, lhs)) |d| {
+                return switch (d.kind) {
+                    .arity => std.fmt.allocPrint(self.allocator, "✗ test {s}: arity '{s}': expected {d}, found {d}", .{ name, d.name, d.expected, d.found }),
+                    .non_fn => std.fmt.allocPrint(self.allocator, "✗ test {s}: apply non-function '{s}'", .{ name, d.name }),
+                    .partial => std.fmt.allocPrint(self.allocator, "✗ test {s}: test body is a lambda (partial application?)", .{ name }),
+                };
+            }
+            if (checkCallArity(self.store, &self.engine, rhs)) |d| {
+                return switch (d.kind) {
+                    .arity => std.fmt.allocPrint(self.allocator, "✗ test {s}: arity '{s}': expected {d}, found {d}", .{ name, d.name, d.expected, d.found }),
+                    .non_fn => std.fmt.allocPrint(self.allocator, "✗ test {s}: apply non-function '{s}'", .{ name, d.name }),
+                    .partial => std.fmt.allocPrint(self.allocator, "✗ test {s}: test body is a lambda (partial application?)", .{ name }),
+                };
+            }
             const ls = try self.interpForAssert(lhs);
             const rs = try self.interpForAssert(rhs);
             const ls_simp = try self.math.simplifyBasic(ls);

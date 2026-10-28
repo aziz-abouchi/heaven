@@ -46,3 +46,27 @@ Sémantiquement correct, erreur peu claire.
 L'actor mailbox (`component_actor_spawn` + `component_dispatch`) est
 bloqué par 2+3+4. On expose l'API pure (`dispatch_from`, `lens`) qui
 contourne 4 et permet le state-threading côté appelant.
+
+
+## Check v1 (2026-10-28) — détection minimale
+
+Hook dans `evalAssertionNative` (heaven_expr.zig) : walk AST `.apply`
+avant évaluation. Attrape :
+
+| Cas | Message |
+|---|---|
+| `(f 1)` où f prend 2 | `arity 'f': expected 2, found 1` |
+| `(f 1 2 3)` où f prend 2 | `arity 'f': expected 2, found 3` |
+| corps = lambda | `test body is a lambda (partial application?)` |
+
+**Dette n3** : `(0 unit)` est détecté (échoue) mais avec message cryptique
+`(0 unit) != 0` au lieu de `apply non-function '0'`. Raison : `(0 unit)`
+produit `.apply(fn_id=apply(...), ...)` — le head n'est pas `.sym` ni `.lit`
+mais `.apply` (curryfié). À améliorer en check-v2.
+
+**Dette non-implémentée** : `UnboundVariable` (f non défini). Pour ça il
+faut un scope tracking complet, pas juste `engine.fns.get`.
+
+**Structure AST** : le parser produit `.apply` (payload=fn_id,
+span_a=[fn_id, ...args]) — PAS `.call(name, args)`. Découverte qui a
+coûté 3 itérations.
