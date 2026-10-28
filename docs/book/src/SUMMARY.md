@@ -30,6 +30,7 @@
 - [Stdlib — HTTP, réseau, FS](25-stdlib-net-http.md)
 - [Validation](23-validation.md)
 - [QTT — gestion de la mémoire](26-qtt.md)
+- [Hab — Heaven Web natif](27-hab.md)
 
 ## Partie III — Théorie et abstraction
 
