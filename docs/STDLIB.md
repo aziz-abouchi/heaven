@@ -482,3 +482,17 @@ chaque tool. `fs_read /etc/hostname` → `"devilHope"`.
   cascade if > 5-6 niveaux (voir docs/spec/_cascade_if_bug.md).
 - `prim_cmp` : sous-fonction pour les comparaisons non-arithmetiques.
 - Tests : tests/test_heaven_eval_prims.hvn (16/16).
+
+## Outils de test (core/std/, 2026-10-28)
+
+Cinq modules de test en Heaven pur, zéro Zig. 43 tests verts au total.
+
+| Module | Rôle | Tests |
+|---|---|---|
+| `core/std/mocker.hvn` | DI minimale (`fixed`, `const_fn`) | 4 |
+| `core/std/smocker.hvn` | Spy (mock, call, result, count, verify, seq) | 6 |
+| `core/std/quickcheck.hvn` | Property testing (next, gen_int, gen_range, check) | 6 |
+| `core/std/fuzzer.hvn` | Fuzz (gen_msg, gen_msg_list, fuzz_apply_list) | 4 |
+| `core/std/loadtest.hvn` | Charge in-process (loadtest_run, loadtest_iter, max 50) | 4 |
+
+Voir ch. 23 (Validation) du livre pour l'usage détaillé.
