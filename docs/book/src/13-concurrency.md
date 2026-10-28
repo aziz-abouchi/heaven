@@ -295,3 +295,27 @@ safepoints, mais dépend de l'OS.
 **Régression connue** : `(@arm_preempt 0)` (ancienne forme) retourne
 désormais `error.TypeError`, car l'argument doit être une string.
 Compat 0 → `.both` à rétablir en dette 3.4b-bis.
+
+### Boucle native `@loop_until` (2026-10-28)
+
+Le TCO de Heaven (self-tail-call detection dans `engine_expr.zig`)
+traverse `if/then/else` mais **ni `let` ni `seq`**. Conséquence :
+`server_loop` ne peut pas être une récursion terminale. Tests :
+
+    loop_if_then_else 500   → OK     (if pur est TCO'd)
+    loop_let_500            → SIGSEGV (`let _ = A in B` casse le TCO)
+    loop_if_seq_500         → SIGSEGV (`seq` casse le TCO)
+
+Pour les boucles serveur, on utilise `@loop_until(cond_thunk, body_thunk)`,
+un magic qui implémente une **vraie boucle Zig** (while), zéro
+stack growth. Premier client : `core/http_server.hvn` (500 requêtes
+HTTP sans crash).
+
+    server_loop cap listen_fd =
+      (@loop_until (lambda _ (@exiting)) (lambda _ (handle_client cap listen_fd)))
+
+Le **vrai fix** (Phase 7) = étendre la détection TCO pour traverser
+`let` et `seq`. `@loop_until` est un contournement **documenté**,
+pas un workaround caché. Voir aussi `core/std/loadtest.hvn` limité à
+50 iters et `core/std/fuzzer.hvn` qui utilise `Q.check` au lieu d'une
+récursion manuelle — même dette.

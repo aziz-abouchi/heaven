@@ -328,3 +328,39 @@ process VIVANT, pas de fuite mémoire observée.
 
 **Dette** : `hvn_http_serve_v2` est encore récursif manuel (pas de
 scheduler/acteurs/`handle_rec`). Réécriture prévue en 3.3a.
+
+### 3quater. Trois plateformes + `strip_query` (2026-10-28)
+
+`--http-serve` sert `/repl.html` et `/heaven.wasm` sur **Linux x86_64,
+macOS aarch64 ET Windows x86_64**, sans code spécifique dans
+`core/http_server.hvn`. Détails par plateforme :
+
+- **Linux/macOS** : `net_sockets.zig` utilise `std.posix` + `std.net.Address`
+  (plus de `std.os.linux.syscall*`).
+- **Windows** : `std.posix.socket/bind/listen` marchent, mais
+  `std.posix.read/write/close` ne marchent **pas** sur un SOCKET —
+  ce sont `ReadFile`/`WriteFile`/`CloseHandle` pour des HANDLE
+  fichiers. `net_sockets.zig` dispatche sur `ws2_32.recv/send/closesocket`
+  + `WSAStartup` one-time. `SO_REUSEADDR` skippé (bug ws2_32).
+
+Fix **`strip_query`** dans `handle_static` : un serveur HTTP doit
+ignorer le query string (`?t=123`, cache-buster). Sans ça,
+`fs_read_public "heaven.wasm?t=..."` échoue et le navigateur plante
+(`WebAssembly.instantiate: expected magic word, found ERROR`).
+
+    strip_query s =
+      let i = (string_index_of s 63) in  -- 63 = '?'
+      (if (< i 0) s (string_substring s 0 i))
+
+Validation :
+
+| Route | Linux | macOS | Windows |
+|---|---|---|---|
+| `/repl.html` | 200, 38261 o | 200, 38261 o | 200, 39299 o |
+| `/heaven.wasm` | 200, 584755 o | 200, 460811 o | 200, 592034 o |
+| `?t=123` | 200 (strip) | 200 (strip) | 200 (strip) |
+| 500 requêtes | OK | OK | OK |
+
+Règle `src/platform/` : zéro `std.os`/`std.posix`/`std.Thread` hors
+de `src/platform/` (audit `grep` automatique). `net_sockets.zig` est
+dans `src/platform/` — c'est le seul endroit autorisé à voir `std.posix`.
