@@ -2778,7 +2778,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     // HEAVEN:MAGIC_NET_CONNECT — client TCP
     if (std.mem.eql(u8, op, "@net_socket")) {
-        if (comptime platform.target.os == .windows or platform.target.os == .freestanding) return error.NotSupported;
+        if (comptime platform.target.os == .freestanding) return error.NotSupported;
         if (args_snap.len != 0) return error.ArityMismatch;
         const fd = platform.net.socketTcp();
         return try store.lit(.{ .int = fd });
@@ -2787,7 +2787,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // HEAVEN:MAGIC_UDP
     // 1-arg (dummy ignore) pour eviter le strip parser des 0-arg magics
     if (std.mem.eql(u8, op, "@net_socket_udp")) {
-        if (comptime platform.target.os == .windows or platform.target.os == .freestanding) return error.NotSupported;
+        if (comptime platform.target.os == .freestanding) return error.NotSupported;
         if (args_snap.len != 1) return error.ArityMismatch;
         const cv = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const cn = store.get(cv);
@@ -2799,7 +2799,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_sendto")) {
-        if (comptime platform.target.os == .windows or platform.target.os == .freestanding) return error.NotSupported;
+        if (comptime platform.target.os == .freestanding) return error.NotSupported;
         if (args_snap.len != 5) return error.ArityMismatch;
         const cv = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const cn = store.get(cv);
@@ -2829,7 +2829,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_recvfrom")) {
-        if (comptime platform.target.os == .windows or platform.target.os == .freestanding) return error.NotSupported;
+        if (comptime platform.target.os == .freestanding) return error.NotSupported;
         if (args_snap.len != 2) return error.ArityMismatch;
         const cv = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const cn = store.get(cv);
@@ -2872,7 +2872,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_connect")) {
-        if (comptime platform.target.os == .windows or platform.target.os == .freestanding) return error.NotSupported;
+        if (comptime platform.target.os == .freestanding) return error.NotSupported;
         if (args_snap.len != 3) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1); // cap
         const ip_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
@@ -2890,7 +2890,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_listen")) {
-        if (comptime platform.target.os == .windows or platform.target.os == .freestanding) return error.NotSupported;
+        if (comptime platform.target.os == .freestanding) return error.NotSupported;
         if (args_snap.len != 2) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const port_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
@@ -2908,7 +2908,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_accept")) {
-        if (comptime platform.target.os == .windows or platform.target.os == .freestanding) return error.NotSupported;
+        if (comptime platform.target.os == .freestanding) return error.NotSupported;
         if (args_snap.len != 2) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
@@ -2921,7 +2921,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_read")) {
-        if (comptime platform.target.os == .windows or platform.target.os == .freestanding) return error.NotSupported;
+        if (comptime platform.target.os == .freestanding) return error.NotSupported;
         if (args_snap.len != 2) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
@@ -2968,7 +2968,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
 
     if (std.mem.eql(u8, op, "@net_write")) {
-        if (comptime platform.target.os == .windows or platform.target.os == .freestanding) return error.NotSupported;
+        if (comptime platform.target.os == .freestanding) return error.NotSupported;
         if (args_snap.len != 3) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
@@ -2984,7 +2984,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     }
 
     if (std.mem.eql(u8, op, "@net_close")) {
-        if (comptime platform.target.os == .windows or platform.target.os == .freestanding) return error.NotSupported;
+        if (comptime platform.target.os == .freestanding) return error.NotSupported;
         if (args_snap.len != 2) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
         const fd_val = try evaluate(store, env, engine, args_snap[1], depth + 1);

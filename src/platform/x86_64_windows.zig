@@ -32,26 +32,13 @@ pub const time = @import("time.zig");
 // setNonBlocking en local, avec les mêmes signatures publiques.
 // Le serveur HTTP (platform.net.listenTcp) utilise std.net.Address
 // qui est cross-platform — ça marche sans net_sockets.zig.
-pub const net_sockets = struct {
-    // 2026-10-27 (E4 Windows) : stub exhaustif de net_sockets.net.
-    pub const net = struct {
-        pub fn listenTcp(_: u16) !i64 { return error.NotSupported; }
-        pub fn accept(_: i64) !i64 { return error.NotSupported; }
-        pub fn read(_: i64, _: []u8) !usize { return error.NotSupported; }
-        pub fn write(_: i64, _: []const u8) !usize { return error.NotSupported; }
-        pub fn close(_: i64) void {}
-        pub fn socketTcp() i64 { return -1; }
-        pub fn socketUdp() i64 { return -1; }
-        pub fn sendtoUdp(_: i64, _: []const u8, _: u16, _: []const u8) i64 { return -1; }
-        pub fn setRecvTimeout(_: i64, _: u64) void {}
-        pub fn recvfromUdp(_: i64, _: []u8) i64 { return -1; }
-        pub fn connectTcp(_: []const u8, _: u16) !i64 { return error.NotSupported; }
-    };
-};
+// 2026-10-28 : vraie implémentation cross-platform via std.posix
+// + std.net.Stream. Windows supporte socket/bind/listen/accept/close/
+// connect (WSAStartup auto dans std.posix.socket), et les E/S passent
+// par std.net.Stream (recv/send natifs).
+pub const net_sockets = @import("net_sockets.zig");
 pub const net = net_sockets.net;
-pub fn setNonBlocking(_: posix.socket_t) !void {
-    return error.Unsupported;
-}
+// setNonBlocking : voir net_sockets.zig
 
 pub const parser_ts = @import("parser_ts.zig");
 pub const ts = parser_ts.ts;
