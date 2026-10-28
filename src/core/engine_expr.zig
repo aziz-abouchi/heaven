@@ -1148,7 +1148,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
     };
 }
 
-fn isMagicSymbol(name: []const u8) bool {
+pub fn isMagicSymbol(name: []const u8) bool {
     const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@set_fuel", "@exiting", "@clear_thunks", "@store_stats", "@spawn", "@broadcast", "@runtime_stats", "@sleep_ms", "@tls_connect", "@tls_read", "@tls_write", "@tls_close", "@hole", "@is_hole", "@assert_no_hole" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;

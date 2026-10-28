@@ -70,3 +70,24 @@ faut un scope tracking complet, pas juste `engine.fns.get`.
 **Structure AST** : le parser produit `.apply` (payload=fn_id,
 span_a=[fn_id, ...args]) — PAS `.call(name, args)`. Découverte qui a
 coûté 3 itérations.
+
+
+## Check v2 (TODO) — UnboundVariable + thunks top-level
+
+Non-implémenté en v1. Nécessite un **scope tracking** complet :
+
+- `let many x = ... in` → ajouter `x` au scope local
+- `fn f(a, b) = ...` → ajouter `a, b` au scope local
+- `.lambda x ->` → ajouter `x` au scope local
+- Sinon → `.apply(head=sym)` où `head ∉ scope ∪ engine.fns ∪ magics` = unbound
+
+**Effort** : ~150 lignes Zig, 1 session. Attrape `(undefined x)` et
+`(counter_comp unit)` sur thunk top-level (dette #3).
+
+Préparation faite : `engine_expr.isMagicSymbol` est `pub` (utilisable).
+
+**Tests à ajouter** (TDD inversé) :
+- `(undefined_fn 5)` → `unbound 'undefined_fn'`
+- `let x = 5 in x` → OK (x local)
+- `fn f(a, b) = a + b` → OK (a, b locaux)
+- `(let x = 5 in (x 1))` → OK (x trouvé, mais checkCallArity détecte apply-non-fn)
