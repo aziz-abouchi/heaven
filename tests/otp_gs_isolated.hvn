@@ -1,0 +1,6 @@
+-- O1 : acteur isolé, N=90 (sous le seuil SIGALRM ~10ms).
+inc x = x + 1
+test "gs_isolated_90":
+  (let many p = (gen_server_spawn 90) in
+   (let many _ = (gen_server_cast p inc) in
+    (gen_server_call p inc))) == 92

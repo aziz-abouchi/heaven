@@ -1,0 +1,8 @@
+-- O1 : état persistant, fonction nommée (pas de lambda dans la mailbox).
+inc  x = x + 1
+same x = x
+test "gs_persist_same":
+  (let many p = (gen_server_spawn 10) in
+   (let many _ = (gen_server_cast p inc) in
+    (let many _ = (gen_server_cast p inc) in
+     (gen_server_call p same)))) == 12

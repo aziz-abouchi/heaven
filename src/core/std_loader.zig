@@ -29,6 +29,7 @@ pub const files = [_][]const u8{
     "core/std/string.hvn",
     "core/std/hashmap.hvn",
     "core/std/recursion.hvn",
+    "core/std/otp/gen_server.hvn",
     "core/std/lens.hvn",
     "core/std/free.hvn",
     "core/std/base.hvn",

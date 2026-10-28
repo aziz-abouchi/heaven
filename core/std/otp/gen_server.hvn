@@ -1,38 +1,23 @@
--- core/std/otp/gen_server.hvn
--- GenServer coopératif (O1) – Heaven pur, syntaxe infixe.
--- Scheduler préemptif (SIGALRM + fuel-check) : `recv` suspend l'acteur,
--- le scheduler reprend un autre runnable. Préemption réelle sur linux-x86_64
--- (armPreemptTimer) ; fuel-only sur macOS-ARM / Windows / WASM.
--- O2 (links/monitors) ajoutera task_crashed + trap_exit côté Zig.
+-- core/std/otp/gen_server.hvn — O1 (GenServer drain-coopératif, infixe)
+--
+-- Note parser : `lambda a b. body` ne parse PAS en lambda à 2 params
+-- (devient 3 lambdas imbriqués). Utiliser `fn name(a, b) = body`, comme
+-- dans src/vessel/public/test_suite.hvn (counterHandler).
+--
+-- Préemption SIGALRM + fuel-check existe, sans captureCont (STATUS.md:303).
+-- `run pid` reste nécessaire pour drainer. O2 (3a-3b) retirera `run`.
+--
+-- Protocole (MPST biparti) :
+--   Client → Server : cast(f)          -- !Cast
+--   Client → Server : call(f)          -- !Call
+--   Server → Client : état résultant   -- !Reply (via run)
 
--- Handler de base : state -> msg -> state
--- msg = ("cast" f)  ou  ("call" reply_pid f)
--- f : state -> state
-gen_server_step state msg =
-  let tag  = head msg in
-  let rest = tail msg in
-  if (= tag "cast") then
-    let f = head rest in
-    f state
-  else if (= tag "call") then
-    let reply_pid = head rest in
-    let f = head (tail rest) in
-    let new_state = f state in
-    let _ = tell reply_pid new_state in
-    new_state
-  else
-    state
+fn gen_server_step(state, msg) = msg state
 
--- Spawn d’un GenServer avec un état initial.
-gen_server_spawn init =
-  spawn (lambda state msg. gen_server_step state msg) init
+gen_server_spawn init = spawn gen_server_step init
 
--- Cast : envoie une fonction de transition sans réponse.
-gen_server_cast pid f =
-  tell pid (cons "cast" (cons f nil))
+gen_server_cast pid f = tell pid f
 
--- Call : envoie une fonction, attend la réponse.
 gen_server_call pid f =
-  let reply_pid = spawn (lambda x. x) 0 in
-  let _ = tell pid (cons "call" (cons reply_pid (cons f nil))) in
-  recv reply_pid
+  let _ = tell pid f in
+  run pid

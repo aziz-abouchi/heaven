@@ -1,0 +1,7 @@
+-- O1 : 2 casts + 1 call inc. Syntaxe canonique (cf. test_suite.hvn).
+inc x = x + 1
+test "gs_cast_call_inc":
+  (let many p = (gen_server_spawn 0) in
+   (let many _ = (gen_server_cast p inc) in
+    (let many _ = (gen_server_cast p inc) in
+     (gen_server_call p inc)))) == 3

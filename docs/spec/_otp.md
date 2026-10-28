@@ -193,3 +193,43 @@ biparti :
 Le dual côté serveur est `?Cast.μX. ?Call.(!Reply.X)` — c'est ce que
 `gen_server_step` implémente. La vérification statique de ce type
 viendra en O4 (MPST branché dans `engine_types.zig`).
+
+
+## O1 FERMÉ (2026-10-28)
+
+Protocole GenServer minimal, infixe pur, sans S-expr :
+
+    fn gen_server_step(state, msg) = msg state
+    gen_server_spawn init           = spawn gen_server_step init
+    gen_server_cast pid f           = tell pid f
+    gen_server_call pid f           = let _ = tell pid f in run pid
+
+Sémantique : `call` = `cast` suivi d'un drain par `run`, qui retourne
+l'état final. `run` applique les messages dans l'ordre FIFO, avec
+état threadé.
+
+Tests verts (`tests/otp_gs_*.hvn`, un fichier par scénario) :
+- `gs_cast_call_inc`  : 2 casts + 1 call inc  == 3
+- `gs_persist_same`   : 10 + 2 inc + 1 same   == 12
+- `gs_isolated_90`    : 90 + 1 inc + 1 call   == 92
+
+## Pièges syntaxiques (les vrais, pas le parser)
+
+Trois erreurs de syntaxe ont causé 2 jours de faux positifs en O1 :
+
+1. **`print` est variadic.** `print v` suivi de `v == N` produit
+   `(print v v)` : `print` avale la comparaison. **Jamais de `print`
+   dans un test.**
+
+2. **Parenthéser les applications.** `gen_server_spawn 0 in ...`
+   produit `(gen_server_spawn 0 in ...)` — le `in` est dans l'appel
+   variadic. La forme correcte est `(gen_server_spawn 0) in ...`.
+   Idem `(tell p inc)`, `(run p)`.
+
+3. **`let many x = (expr) in ...`** — QTT. `let x = ...` nu ne
+   s'emboîte pas de la même façon. Convention : toujours `let many`
+   (avec `_` pour l'unité), toujours parenthéser tout l'arbre.
+
+Ces trois règles sont documentées dans `src/vessel/public/test_suite.hvn`
+par l'exemple. Le contrat "prelude auto + test one-liner" est
+maintenu, mais **tout est parenthésé**.
