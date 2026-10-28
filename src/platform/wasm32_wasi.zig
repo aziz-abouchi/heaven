@@ -278,3 +278,6 @@ pub fn streamRead(stream: anytype, buffer: []u8) !usize {
 pub fn isatty() bool {
     return std.posix.isatty(std.posix.STDIN_FILENO);
 }
+
+// 2026-10-28 : rawSyscall portable (Linux-only, -1 ailleurs).
+pub const intrinsics = @import("intrinsics.zig");

@@ -139,3 +139,6 @@ pub fn readEnergyUJ() !u64 {
     const len = try file.read(&buf);
     return std.fmt.parseInt(u64, std.mem.trim(u8, buf[0..len], "\n"), 10);
 }
+
+// 2026-10-28 : rawSyscall portable (Linux-only, -1 ailleurs).
+pub const intrinsics = @import("intrinsics.zig");

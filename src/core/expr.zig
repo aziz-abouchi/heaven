@@ -591,13 +591,27 @@ pub const Store = struct {
     interner: StringInterner,
 
     pub fn init(allocator: Allocator) Store {
-        return .{
+        // 2026-10-28 : WORKAROUND documenté (dette, pas fix).
+        // Crash SIGSEGV à ~43 requêtes HTTP : ArrayListUnmanaged
+        // realloc à 2048->4096 nœuds fait pendant qu'un *Node
+        // retenu (cf. get() call sites) devient dangling = UAF.
+        // Le commentaire "Snapshot d'une slice d'Ids... À utiliser
+        // AVANT tout appel qui peut réallouer" (voir snapshot()
+        // ci-dessous) confirme que le problème est connu. Le vrai
+        // fix = audit des pointeurs retenus à travers evaluate().
+        // En attendant : pre-allocation suffisante pour ~1000
+        // requêtes serveur. Voir dette Phase 7.
+        var s = Store{
             .allocator = allocator,
             .nodes = .{},
             .pool = .{},
             .lits = .{},
             .interner = StringInterner.init(allocator),
         };
+        s.nodes.ensureTotalCapacity(allocator, 200_000) catch {};
+        s.pool.ensureTotalCapacity(allocator, 50_000) catch {};
+        s.lits.ensureTotalCapacity(allocator, 100_000) catch {};
+        return s;
     }
 
     pub fn deinit(self: *Store) void {

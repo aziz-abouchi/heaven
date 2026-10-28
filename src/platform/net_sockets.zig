@@ -1,4 +1,9 @@
 // HEAVEN:net_sockets — extraction sockets (refactor plateforme)
+// 2026-10-28 (Phase 6) : refactor cross-platform via std.posix
+// + std.net.Address. Plus de std.os.linux.syscall* : ces syscalls
+// sont Linux-only et SIGSYS sur macOS. std.posix dispatch par OS.
+// Windows garde son stub dans x86_64_windows.zig (WSAStartup +
+// ws2_32 à implémenter en Phase 6).
 const std = @import("std");
 const builtin = @import("builtin");
 const target = @import("target.zig");
@@ -10,7 +15,6 @@ pub fn setNonBlocking(socket: std.posix.socket_t) !void {
     } else {
         const fd = socket;
         const flags = try std.posix.fcntl(fd, std.posix.F.GETFL, 0);
-        // Sur macOS, O.NONBLOCK est dans un packed struct ; on utilise la constante POSIX
         const O_NONBLOCK = switch (builtin.os.tag) {
             .macos, .ios, .tvos, .watchos, .visionos => @as(u32, 0x0004),
             .linux => @as(u32, 0o4000),
@@ -20,190 +24,93 @@ pub fn setNonBlocking(socket: std.posix.socket_t) !void {
     }
 }
 
-/// Reseau : interface uniforme cross-platform.
-/// En natif, wrappe std.net + std.posix. En wasm, stubs qui
-/// retournent error.NotSupported. Toute dependance std.net /
-/// std.posix.sockaddr est confinee ici.
 pub const net = struct {
-    // HEAVEN:LISTEN_RAW — syscalls Linux (D-SH4)
-    // bind(49), listen(50), accept(43), read(0), write(1), close(3),
-    // setsockopt(54) pour SO_REUSEADDR.
+    fn socketTcpImpl() !std.posix.socket_t {
+        return std.posix.socket(std.posix.AF.INET, std.posix.SOCK.STREAM, 0);
+    }
 
-    /// bind + listen sur 127.0.0.1:port. Retourne fd (>=0) ou -1.
     pub fn listenTcp(port: u16) !i64 {
-        const fd_i = socketTcp();
-        if (fd_i < 0) return error.InvalidInput;
-        const fd: usize = @intCast(fd_i);
+        const fd = socketTcpImpl() catch return error.InvalidInput;
 
-        // SO_REUSEADDR (level=1, optname=2, val=1)
-        var on: c_int = 1;
-        _ = std.os.linux.syscall5(.setsockopt, fd, 1, 2, @intFromPtr(&on), @sizeOf(c_int));
+        const one: c_int = 1;
+        std.posix.setsockopt(fd, std.posix.SOL.SOCKET, std.posix.SO.REUSEADDR, std.mem.asBytes(&one)) catch {};
 
-        // sockaddr_in 127.0.0.1:port
-        var sa: [16]u8 = [_]u8{0} ** 16;
-        sa[0] = 2; sa[1] = 0;
-        sa[2] = @intCast((port >> 8) & 0xFF);
-        sa[3] = @intCast(port & 0xFF);
-        sa[4] = 127; sa[5] = 0; sa[6] = 0; sa[7] = 1;
-
-        const br = std.os.linux.syscall3(.bind, fd, @intFromPtr(&sa), 16);
-        if (@as(isize, @bitCast(br)) < 0) {
-            _ = std.os.linux.syscall1(.close, fd);
+        const addr = std.net.Address.initIp4(.{ 127, 0, 0, 1 }, port);
+        std.posix.bind(fd, &addr.any, addr.getOsSockLen()) catch {
+            std.posix.close(fd);
             return error.InvalidInput;
-        }
-        // backlog = 128
-        const lr = std.os.linux.syscall2(.listen, fd, 128);
-        if (@as(isize, @bitCast(lr)) < 0) {
-            _ = std.os.linux.syscall1(.close, fd);
+        };
+
+        std.posix.listen(fd, 128) catch {
+            std.posix.close(fd);
             return error.InvalidInput;
-        }
-        return fd_i;
+        };
+
+        return @intCast(fd);
     }
 
-    /// accept(fd, NULL, NULL). Retourne fd client (>=0) ou -1.
-    pub fn accept(fd: i64) !i64 {
-        const ufd: usize = @intCast(fd);
-        const r = std.os.linux.syscall3(.accept, ufd, 0, 0);
-        const signed: isize = @bitCast(r);
-        if (signed < 0) return error.InvalidInput;
-        return @intCast(signed);
+    pub fn accept(fd_i: i64) !i64 {
+        const fd: std.posix.socket_t = @intCast(fd_i);
+        const client = std.posix.accept(fd, null, null, 0) catch return error.InvalidInput;
+        return @intCast(client);
     }
 
-    pub fn read(fd: i64, buf: []u8) !usize {
-        const ufd: usize = @intCast(fd);
-        const r = std.os.linux.syscall3(.read, ufd, @intFromPtr(buf.ptr), buf.len);
-        const signed: isize = @bitCast(r);
-        if (signed < 0) return error.InvalidInput;
-        return @intCast(signed);
+    pub fn read(fd_i: i64, buf: []u8) !usize {
+        const fd: std.posix.socket_t = @intCast(fd_i);
+        return std.posix.read(fd, buf) catch return error.InvalidInput;
     }
 
-    pub fn write(fd: i64, data: []const u8) !usize {
-        const ufd: usize = @intCast(fd);
-        const r = std.os.linux.syscall3(.write, ufd, @intFromPtr(data.ptr), data.len);
-        const signed: isize = @bitCast(r);
-        if (signed < 0) return error.InvalidInput;
-        return @intCast(signed);
+    pub fn write(fd_i: i64, data: []const u8) !usize {
+        const fd: std.posix.socket_t = @intCast(fd_i);
+        return std.posix.write(fd, data) catch return error.InvalidInput;
     }
 
-    pub fn close(fd: i64) void {
-        const ufd: usize = @intCast(fd);
-        _ = std.os.linux.syscall1(.close, ufd);
+    pub fn close(fd_i: i64) void {
+        const fd: std.posix.socket_t = @intCast(fd_i);
+        std.posix.close(fd);
     }
 
-    // HEAVEN:NET_CONNECT_RAW — syscalls Linux directs (D-SH4)
-    // Pas de std.posix : ABI Linux x86_64.
-    // socket(41), connect(42), close(3).
-    // Autorise : std.mem / std.fmt (computation pure).
-    // Interdit : std.posix.*, std.net.*, std.fs.* (wrappers portables).
-
-    /// Parse "1.2.3.4" en 4 bytes (pure computation).
-    fn parseIpv4(s: []const u8) ?[4]u8 {
-        var bytes: [4]u8 = undefined;
-        var it = std.mem.splitScalar(u8, s, '.');
-        var idx: usize = 0;
-        while (it.next()) |p| {
-            if (idx >= 4) return null;
-            bytes[idx] = std.fmt.parseInt(u8, p, 10) catch return null;
-            idx += 1;
-        }
-        if (idx != 4) return null;
-        return bytes;
-    }
-
-    /// socket(AF_INET, SOCK_STREAM, 0). Retourne fd (>=0) ou -1.
     pub fn socketTcp() i64 {
-        const result = std.os.linux.syscall3(.socket, 2, 1, 0);
-        const signed: isize = @bitCast(result);
-        if (signed < 0) return -1;
-        return @intCast(signed);
+        const fd = socketTcpImpl() catch return -1;
+        return @intCast(fd);
     }
 
-    // HEAVEN:UDP_RAW — syscalls UDP (D-SH4)
-    // socket(AF_INET, SOCK_DGRAM), sendto, recvfrom.
-
-    /// socket(AF_INET, SOCK_DGRAM, 0). Retourne fd (>=0) ou -1.
     pub fn socketUdp() i64 {
-        const result = std.os.linux.syscall3(.socket, 2, 2, 0);
-        const signed: isize = @bitCast(result);
-        if (signed < 0) return -1;
-        return @intCast(signed);
+        const fd = std.posix.socket(std.posix.AF.INET, std.posix.SOCK.DGRAM, 0) catch return -1;
+        return @intCast(fd);
     }
 
-    /// Envoie un datagramme vers ip:port. Retourne nb bytes envoyes
-    /// (>=0) ou -1.
-    pub fn sendtoUdp(fd: i64, ip: []const u8, port: u16, data: []const u8) i64 {
-        const bytes = parseIpv4(ip) orelse return -1;
-        const ufd: usize = @intCast(fd);
-
-        var sa: [16]u8 = [_]u8{0} ** 16;
-        sa[0] = 2; sa[1] = 0;
-        sa[2] = @intCast((port >> 8) & 0xFF);
-        sa[3] = @intCast(port & 0xFF);
-        sa[4] = bytes[0]; sa[5] = bytes[1]; sa[6] = bytes[2]; sa[7] = bytes[3];
-
-        const r = std.os.linux.syscall6(.sendto, ufd,
-            @intFromPtr(data.ptr), data.len, 0,
-            @intFromPtr(&sa), 16);
-        const signed: isize = @bitCast(r);
-        if (signed < 0) return -1;
-        return @intCast(signed);
+    pub fn sendtoUdp(fd_i: i64, ip: []const u8, port: u16, data: []const u8) i64 {
+        const fd: std.posix.socket_t = @intCast(fd_i);
+        const addr = std.net.Address.parseIp4(ip, port) catch return -1;
+        const n = std.posix.sendto(fd, data, 0, &addr.any, addr.getOsSockLen()) catch return -1;
+        return @intCast(n);
     }
 
-    /// Ajoute un timeout de reception a une socket (SO_RCVTIMEO).
-    /// timeout_ns en nanosecondes.
-    pub fn setRecvTimeout(fd: i64, timeout_ns: u64) void {
-        // struct timeval x86_64 : tv_sec (8) + tv_usec (8) = 16 bytes
-        const sec: u64 = timeout_ns / 1_000_000_000;
-        const usec: u64 = (timeout_ns % 1_000_000_000) / 1000;
+    pub fn setRecvTimeout(fd_i: i64, timeout_ns: u64) void {
+        if (comptime target.is_windows) return;
+        const sec: i64 = @intCast(timeout_ns / 1_000_000_000);
+        const usec: i64 = @intCast((timeout_ns % 1_000_000_000) / 1000);
         var tv: [16]u8 = [_]u8{0} ** 16;
-        @memcpy(tv[0..8], &@as([8]u8, @bitCast(sec)));
-        @memcpy(tv[8..16], &@as([8]u8, @bitCast(usec)));
-        const ufd: usize = @intCast(fd);
-        // level=SOL_SOCKET (1), optname=SO_RCVTIMEO (20)
-        _ = std.os.linux.syscall5(.setsockopt, ufd, 1, 20,
-            @intFromPtr(&tv), 16);
+        @memcpy(tv[0..8], std.mem.asBytes(&sec));
+        @memcpy(tv[8..16], std.mem.asBytes(&usec));
+        const fd: std.posix.socket_t = @intCast(fd_i);
+        std.posix.setsockopt(fd, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &tv) catch {};
     }
 
-    /// Recoit un datagramme. Retourne nb bytes recus (>=0) ou -1.
-    /// Bloque jusqu'a reception (fd non-bloquant non gere en V0).
-    pub fn recvfromUdp(fd: i64, buf: []u8) i64 {
-        const ufd: usize = @intCast(fd);
-        const r = std.os.linux.syscall6(.recvfrom, ufd,
-            @intFromPtr(buf.ptr), buf.len, 0, 0, 0);
-        const signed: isize = @bitCast(r);
-        if (signed < 0) return -1;
-        return @intCast(signed);
+    pub fn recvfromUdp(fd_i: i64, buf: []u8) i64 {
+        const fd: std.posix.socket_t = @intCast(fd_i);
+        const n = std.posix.recvfrom(fd, buf, 0, null, null) catch return -1;
+        return @intCast(n);
     }
 
-    /// connect(fd, sockaddr_in, 16). Retourne fd (>=0) ou -1.
     pub fn connectTcp(ip: []const u8, port: u16) !i64 {
-        const bytes = parseIpv4(ip) orelse return error.InvalidInput;
-
-        // sockaddr_in (16 bytes) :
-        //   [0..2] family = AF_INET (2) little-endian
-        //   [2..4] port  big-endian
-        //   [4..8] addr  network order
-        //   [8..16] zero
-        var sa: [16]u8 = [_]u8{0} ** 16;
-        sa[0] = 2;
-        sa[1] = 0;
-        sa[2] = @intCast((port >> 8) & 0xFF);
-        sa[3] = @intCast(port & 0xFF);
-        sa[4] = bytes[0];
-        sa[5] = bytes[1];
-        sa[6] = bytes[2];
-        sa[7] = bytes[3];
-
-        const fd_i = socketTcp();
-        if (fd_i < 0) return error.InvalidInput;
-        const fd: usize = @intCast(fd_i);
-
-        const r = std.os.linux.syscall3(.connect, fd, @intFromPtr(&sa), 16);
-        const signed: isize = @bitCast(r);
-        if (signed < 0) {
-            _ = std.os.linux.syscall1(.close, fd);
+        const addr = std.net.Address.parseIp4(ip, port) catch return error.InvalidInput;
+        const fd = socketTcpImpl() catch return error.InvalidInput;
+        std.posix.connect(fd, &addr.any, addr.getOsSockLen()) catch {
+            std.posix.close(fd);
             return error.ConnectFailed;
-        }
-        return fd_i;
+        };
+        return @intCast(fd);
     }
 };

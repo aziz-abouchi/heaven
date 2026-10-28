@@ -206,3 +206,6 @@ pub fn isatty() bool {
 // 2026-10-27 (E4 Windows) : SIGALRM indisponible, no-op.
 // Le preempt_flag reste false -> pas de preemption timer.
 pub fn armPreemptTimer(_: *const fn (i32) callconv(.c) void) void {}
+
+// 2026-10-28 : rawSyscall portable (Linux-only, -1 ailleurs).
+pub const intrinsics = @import("intrinsics.zig");

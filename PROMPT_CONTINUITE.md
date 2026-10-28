@@ -1,3 +1,122 @@
+# ÉTAT AU 2026-10-28 — Session plateformes + HTTP stable
+
+## Acquis (commits poussés sur origin/main)
+
+`3abc8a9` Phase 6f : **serveur HTTP stable, 500+ requêtes**
+  - `@loop_until(cond_thunk, body_thunk)` : boucle Zig native (while)
+  - Remplace la récursion `server_loop` (TCO cassé par `let`/`seq`)
+  - Tests : 500 requêtes `/repl.html` OK, rotation 180 assets × 10 OK
+  - `@clear_thunks`, `@store_stats` (diagnostic cross-requête)
+
+`128cd0b` Phase 6a : **net_sockets cross-platform**
+  - 209 → 116 lignes, `std.os.linux.syscallN` (15 sites) → `std.posix`
+  - HTTP natif `--http-serve` fonctionne **Linux + macOS** (plus Windows)
+  - 200 /repl.html (38261 o), 200 /heaven.wasm (460811 o)
+
+`b14da6a` E4/macos : **règle plateforme respectée**
+  - `intrinsics.zig` : `rawSyscall` portable (`-1` hors Linux)
+  - 10 guards `@net_*` → `NotSupported` propre (plus de SIGSYS)
+  - `isatty`, `armPreemptTimer` (no-op macOS)
+  - Audit règle plateforme : 0 violation
+
+`232b130` E4/windows : **build Windows débloqué**
+  - `x86_64_windows.zig` réécrit (~280 lignes, modèle Linux)
+  - `network_windows.zig` stub swarm P2P, `tls_stub` Windows
+  - `.gitattributes` : `eol=lf` (CRLF → SIGSEGV sur 2ᵉ build)
+
+`752ccb5` vendor tree-sitter-pie
+
+Migration S-expr (3.4c partiel) :
+  - `58aa425` array.hvn (7 conversions)
+  - `3bfec6f` memory.hvn (5)
+  - `c3075ad` free.hvn (2)
+  - `a863237` string.hvn (11)
+  - `hashmap.hvn` non commité mais migré (60 conversions, tests 15/15 puis SIGSEGV préexistant)
+
+## État des 3 plateformes
+
+| Plateforme | build | test_suite | --http-serve |
+|---|---|---|---|
+| Linux x86_64 | ✓ | 98/98 | 200 /repl.html |
+| macOS aarch64 | ✓ | 98/98 | 200 /repl.html (500 req OK) |
+| Windows x86_64 | ✓ | 98/98 | NotSupported (WSAStartup) |
+
+Règle `src/platform/` : 0 violation (vérifié `grep`).
+
+## Découvertes majeures
+
+**TCO partiel** :
+  - `if/then/else` TCO'd à 500+ (test `loop_if_then_else`)
+  - `let _ = A in B` **casse le TCO** (`loop_let_500` SIGSEGV)
+  - `seq A B` **casse le TCO** (`loop_if_seq_500` SIGSEGV)
+  - Conséquence : `server_loop` ne PEUT PAS être self-récursif en TCO
+  - Fix pragmatique : `@loop_until` (while Zig natif)
+
+**UAF latent sur `*Node`** :
+  - Crash HTTP à 43 requêtes = `ArrayListUnmanaged` realloc (~2048)
+  - Workaround : `Store.init` prealloc 200K/50K/100K
+  - Vrai fix : audit des `*Node` retenus à travers `evaluate()` (Phase 7)
+
+## Dettes Phase 7 (nouvelles, prioritaires)
+
+1. **TCO `let`/`seq`** dans `engine_expr.zig`
+   - Étendre la détection self-tail-call pour traverser `let _ = e in call`
+     et `(seq e call)`
+   - Bénéfice : supprime `@loop_until`, permet `server_loop` self-récursif
+   - Complexité : moyenne (2-3 jours)
+
+2. **Audit `*Node` retenus** (vrai fix du crash 43)
+   - Pattern : `const n = store.get(id); ... evaluate(...); n.tag`
+   - Rechercher tous les sites, snapshot ou re-get après eval
+   - Bénéfice : supprime `ensureTotalCapacity` workaround
+   - Complexité : élevée (audit exhaustif, refactor profond)
+
+3. **Scheduler préemptif** (3.3a)
+   - `server_loop` devient une tâche scheduler (`schedule`/`yield`)
+   - Supprime `@loop_until` (le scheduler boucle nativement)
+   - C'est la voie Lustre Heaven
+
+## Dettes antérieures (rappel)
+
+- **Phase 6b** : Windows sockets (`WSAStartup` + ws2_32 → HTTP Windows)
+- **Phase 6c** : TLS macOS (OpenSSL brew ou stub) + Windows (SChannel)
+- **3.4b-ter** : `if cond then a else b` multi-ligne sans parenthèses
+  (bloque migration S-expr complète, notamment `test_suite.hvn`)
+- **3.4b-bis** : `let` bind thunk non forcé sur magic RHS
+  (`@spawn` retour non lisible via `let tid = @spawn ... in tid > 0`)
+- **Migration S-expr** : ~13 fichiers restants (`core/test_suite.hvn`,
+  `core/bigint.hvn`, `lib/heaven_parse.hvn`, `stdlib/json/parse.hvn`,
+  `stdlib/net/http_client.hvn`, ...)
+
+## Ordre proposé pour la prochaine session
+
+1. **3.4b-ter** — fix `if` infixe multi-ligne (parser)
+   - Débloque la migration S-expr complète
+   - Prérequis pour réécrire `test_suite.hvn` en infixe
+
+2. **Migration S-expr restante** (3.4c suite)
+   - `core/bigint.hvn` (40), `lib/heaven_parse.hvn` (34),
+     `stdlib/json/parse.hvn` (30), `stdlib/net/http_client.hvn` (14)
+   - `core/test_suite.hvn` en **dernier** (garde-fou)
+
+3. **Phase 6b** — Windows sockets
+   - `WSAStartup`, `net_sockets` → ws2_32
+   - Suppression stub `x86_64_windows.zig`
+
+4. **Phase 7** — TCO + audit `*Node`
+   - Plus profond, à faire quand le reste est stable
+
+## Environnement
+
+- Machine devilHope (Linux x86_64) + laptop macOS aarch64
+- Zig 0.15.2
+- `HEAVEN_NO_LEAK_CHECK=1` requis en Debug (heap corruption
+  préexistante, cf. `_http_debug_crash.md`)
+- `test_suite` : 98/98 stable
+- Commit HEAD : `3abc8a9`
+
+---
+
 # ÉTAT AU 2026-10-27 SOIR — fin de session E4
 
 ## Acquis solides (commits)
