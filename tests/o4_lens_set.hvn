@@ -1,0 +1,3 @@
+import "hab/component_actor.hvn" as A
+test "lens_set_view":
+  (A.lens_mvu_get (A.lens_mvu_set 99 (pair 0 5))) == 99

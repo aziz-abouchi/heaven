@@ -1,0 +1,5 @@
+import "hab/component_actor.hvn" as A
+counter_update s m = (s + m)
+test "dispatch_from_2":
+  (let many s1 = (A.dispatch_from counter_update 0 3) in
+   (A.dispatch_from counter_update s1 4)) == 7

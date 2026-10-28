@@ -1,0 +1,22 @@
+-- hab/component_actor.hvn — O4.1 (lens + dispatch_from pur)
+-- L'actor mailbox est bloqué par 3 dettes runtime (cf. _runtime_gaps.md) :
+--   1. run multi-message perd des messages (STATUS.md:303)
+--   2. top-level `x = (mk_component ...)` crée un thunk non-déballable
+--   3. `force` sur fonction 2-params ne curryfie pas en application
+-- On expose donc l'API pure : lens + dispatch_from (state-threadé par
+-- l'appelant). L'actor mailbox reviendra quand 1+2+3 seront fixés.
+
+-- ═══ Lens(State, MvuState) — lois testées ═══
+lens_mvu_get s = (snd s)
+lens_mvu_set v s = (pair (fst s) v)
+lens_mvu_over f s = (pair (fst s) (f (snd s)))
+
+-- ═══ dispatch_from : pur, sans mailbox ═══
+dispatch_from update_fn mvu msg =
+  (let many u = (force update_fn) in
+   (u mvu msg))
+
+-- ═══ Helpers de sequence (bout-en-bout pur) ═══
+dispatch_list update_fn mvu nil = mvu
+dispatch_list update_fn mvu (cons msg rest) =
+  (dispatch_list update_fn (dispatch_from update_fn mvu msg) rest)

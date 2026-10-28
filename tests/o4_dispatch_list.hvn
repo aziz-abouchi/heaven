@@ -1,0 +1,4 @@
+import "hab/component_actor.hvn" as A
+counter_update s m = (s + m)
+test "dispatch_list_3":
+  (A.dispatch_list counter_update 0 (cons 1 (cons 2 (cons 3 nil)))) == 6

@@ -1,0 +1,48 @@
+# Runtime gaps (OTP + Hab, 2026-10-28)
+
+Dettes identifiées pendant O4.1. Bloquent l'actor mailbox Hab.
+
+## 1. `heaven check` est un stub
+
+    $ ./zig-out/bin/heaven check /tmp/bad.hvn
+    ROOT=source_file children=1
+    CHILD[0] ERROR
+
+Aucune vérification d'arité, de scope, de type. `parse` échoue même sur
+`fn f(x, y) = (x + y)` en top-level (tree-sitter-heaven ne gère pas
+`fn` à 2 params hors contexte). Voir `_type_magic_gap.md`.
+
+## 2. `run` multi-message perd des messages
+
+Voir STATUS.md:303. Contournement : 1 message par `tell` + `run`.
+
+## 3. Thunks top-level non-déballables
+
+    counter_comp = (H.mk_component ...)    -- thunk
+    (H.component_init counter_comp)       -- échoue silencieusement
+
+Fix : `counter_comp _ = (H.mk_component ...)` puis `(counter_comp unit)`.
+Cf. `hab/apps/counter.hvn` v3.
+
+## 4. `(f a b)` ne curryfie pas
+
+    f x y = (x + y)
+    (f 1 2)        -- retourne lambda partielle, pas 3
+    (((force f) 1) 2)  -- pas mieux
+    ((f 1) 2)      -- OK (curry explicite)
+
+Fix : passer la fonction à `dispatch_from` qui fait `(force fn mvu msg)`
+en inline — c'est le pattern qui marche.
+
+## 5. QTT `erased` = 0 usage strict
+
+    (let erased _ = 5 in 42) == 42       -- OK
+    (let erased x = 5 in x == 5)         -- LinearViolation
+
+Sémantiquement correct, erreur peu claire.
+
+## Impact O4.1
+
+L'actor mailbox (`component_actor_spawn` + `component_dispatch`) est
+bloqué par 2+3+4. On expose l'API pure (`dispatch_from`, `lens`) qui
+contourne 4 et permet le state-threading côté appelant.

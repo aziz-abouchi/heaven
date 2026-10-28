@@ -1,0 +1,3 @@
+import "hab/component_actor.hvn" as A
+test "lens_view_over":
+  (A.lens_mvu_get (A.lens_mvu_over (lambda x -> (x + 10)) (pair 0 5))) == 15

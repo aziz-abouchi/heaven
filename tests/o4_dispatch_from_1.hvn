@@ -1,0 +1,4 @@
+import "hab/component_actor.hvn" as A
+counter_update s m = (s + m)
+test "dispatch_from_1":
+  (A.dispatch_from counter_update 0 5) == 5

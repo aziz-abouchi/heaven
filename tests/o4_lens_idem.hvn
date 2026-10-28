@@ -1,0 +1,4 @@
+import "hab/component_actor.hvn" as A
+test "lens_idempotent":
+  (let many s = (pair 0 42) in
+   (A.lens_mvu_get (A.lens_mvu_set (A.lens_mvu_get s) s))) == 42
