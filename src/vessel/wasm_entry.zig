@@ -216,6 +216,26 @@ export fn heavenEval(len: u32) u32 {
     return output_len;
 }
 
+// 2026-10-28 : heavenEvalRaw — évaluation directe via h.eval (pas
+// cmds.eval). Utilisé par hab_runtime.js pour le prelude car
+// cmds.define ne gère pas les patterns (counter_view state = ...).
+// Équivalent de ce que fait --eval-file : splitStatements + h.eval.
+export fn heavenEvalRaw(len: u32) u32 {
+    if (heaven == null) { setOutput("error"); return 5; }
+    const line = std.mem.trim(u8, input_buf[0..len], " \t\r\n");
+    if (line.len == 0) { setOutput("()"); return output_len; }
+    var h = heaven orelse return 0;
+    const result = h.eval(line) catch |err| {
+        var buf: [128]u8 = undefined;
+        const msg = std.fmt.bufPrint(&buf, "error: {s}", .{@errorName(err)}) catch "error";
+        setOutput(msg);
+        return 5;
+    };
+    defer allocator.free(result);
+    setOutput(result);
+    return output_len;
+}
+
 export fn heavenSimplify(len: u32) u32 {
     var h = heaven orelse return 0;
     const result = h.simplify(input_buf[0..len]) catch {

@@ -3126,7 +3126,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // structure grandit par requete (diagnostic crash 43).
     if (std.mem.eql(u8, op, "@store_stats")) {
         if (args_snap.len != 0) return error.ArityMismatch;
-        std.debug.print("[stats] nodes={d} lits={d} pool={d} interner={d} thunks={d} caps={d} cap_cache={d}\n", .{
+        debugPrint("[stats] nodes={d} lits={d} pool={d} interner={d} thunks={d} caps={d} cap_cache={d}\n", .{
             store.nodes.items.len,
             store.lits.items.len,
             store.pool.items.len,
