@@ -1,3 +1,53 @@
+# ÉTAT AU 2026-10-28 NUIT — Phase 7a, Hab W1b, 3 plateformes
+
+## Phase 7a validée (commit fda410b)
+
+- collectTailSpine étendu : if/seq/block/force (5000 iters OK)
+- **@loop_until retiré** de server_loop (récursion TCO native)
+- HTTP 500 req natif, sans @loop_until
+- loadtest 100/500/1000 OK (avant : max 50)
+- @loop_until dead code retiré (commit suivant)
+
+## Phase 7b (dettes, prochaine session)
+
+1. **let + self-call → SIGSEGV ~500**
+   Handler let casse la propagation TCO_BOUNCE (cause non isolée :
+   markArgDone, depth, ou interaction env.delete).
+   Contournement actuel : self-call direct via (force ...) ou seq.
+   Fichier : engine_expr.zig, fonction evalMagic, branche "let".
+
+2. **loadtest 10000 → SIGSEGV l.1048 (UAF)**
+   Stack : engine_expr.zig:1048, `for (args, 0..) |a_, i_|`
+   `args` est un slice sur store.pool.items (ou nodes). Si evaluate
+   réalloue le pool pendant la boucle, args.ptr devient dangling.
+   À 1000 iters pas de realloc, à 10000 oui.
+   Fix probable : snapshot args (comme args_snap dans evalFunction),
+   ~5 lignes.
+
+## État session (12+ commits poussés)
+
+- HTTP natif 3 plateformes (Linux/macOS/Windows, 500 req)
+- Hab W1b navigateur : bouton 0→18 (MVU Heaven pur, wasm)
+- 5 outils test Heaven : mocker (4), smocker (6), quickcheck (6),
+  fuzzer (4), loadtest (4). 43 tests.
+- Livre : ch.13 @loop_until+TCO, ch.23 5 outils, ch.25 3 plateformes,
+  ch.27 Hab. SUMMARY.md à jour.
+- test_suite 98/98 partout.
+
+## Environnement
+
+HEAD : fda410b (+ cleanup à venir). origin/main à jour.
+PROMPT_CONTINUITE a 3 headers empilés (nettoyer au prochain commit).
+
+## Prochaines étapes (ordre suggéré)
+
+1. Phase 7b UAF (loadtest 10000, 5 lignes) — rapide, satisfaisant.
+2. Phase 7b let (complexe, markArgDone ?).
+3. 3.4b-ter : if cond then a else b multi-ligne (parser).
+4. W1c Hab : serialize_tree, todo.hvn, test headless.
+
+---
+
 # ÉTAT AU 2026-10-28 SOIR — Hab W1b VALIDÉ
 
 ## Milestone : Hab tourne dans un vrai navigateur
