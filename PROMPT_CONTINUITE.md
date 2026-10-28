@@ -860,9 +860,9 @@ Objectif : `quickcheck` / `smocker` / `fuzzer` forment un pipeline complet
 
 | Module | État supposé | À vérifier | À ajouter |
 |---|---|---|---|
-| `quickcheck.hvn` | générateurs + check (validé O2.3) | shrinking présent ? | `shrink` (réduction contre-exemple) |
-| `smocker.hvn` | mock + seq + verify (validé O2.3) | enregistre-t-il les effets algébriques (`perform`/`handle`) ? | `expect_effect`, `verify_effects` |
-| `fuzzer.hvn` | génération de listes (validé O2.3) | mutationnel (corrompu/tronqué/limite) ? | `mutate`, `truncate`, `bitflip` |
+| `quickcheck.hvn` (37 l.) | check + 1 `shrink` déjà là | `shrink` fonctionnel ou juste déclaré ? | `shrinkIter` récursif + tests |
+| `smocker.hvn` (34 l.) | mock/seq/verify OK (O2.3) | 0 `perform`/`handle` — n'enregistre PAS les effets | `expect_effect`, `verify_effects`, `effect_trace` |
+| `fuzzer.hvn` (30 l.) | génération de listes | 0 `mutate`/`truncate` — purement génératif | `mutate`, `truncate`, `bitflip`, `boundary` |
 
 **Décision** : ajouter ce qui manque, ou documenter les limites réelles.
 Priorité : `quickcheck.shrink` (utile pour tous les tests d'invariant).
@@ -876,16 +876,18 @@ Idée : appliquer à Heaven ses propres principes pour réduire le Zig
    - `src/platform/` devient un handler unique (`handle-rec`).
    - Les I/O sont des `perform "Syscall" (Write fd buf len)`.
    - Gain : mocker tout le système dans des tests `.hvn`.
-   - **Vérif préalable** : combien de `perform` sont déjà dans `platform/` ?
-     L'évaluateur appelle-t-il `platform.*` directement ou via handler ?
+   - **Fait vérifié (2026-10-28)** : `grep -c "perform|handle_rec|handler"`
+     sur `platform/*.zig` = **0 partout**. Appels directs confirmés.
+     Chantier complet à faire.
 
 2. **Lowering strict aux 6 primitives (`Store.lower()`)**
-   - Vérifier D21 et RFC-0001 dans `docs/spec/`.
-   - Les backends (QBE, WASM, C) ne consomment que les 6 primitives
-     (`lit`, `sym`, `apply`, `bind`, `lambda`, `relation`).
-   - Gain : supprimer les cas particuliers des codegens.
-   - **Vérif préalable** : les codegens voient-ils déjà l'AST abaissé,
-     ou du sucre (`if`, `let`, `data`) ?
+   - **Fait vérifié (2026-10-28)** : `Store.lower()` existe déjà
+     (`expr.zig:1215`) et `Store.lowerRec()` (`expr.zig:1363`).
+     RFC-0001 en cours (« ImportState extrait dans import.zig
+     (RFC-0001 5/5) »). D21 à relire.
+   - **À vérifier** : les codegens (QBE, WASM, C) consomment-ils
+     vraiment l'AST abaissé, ou voient-ils encore du sucre ?
+   - **Chantier** : brancher les codegens sur `lowerRec()` si pas fait.
 
 3. **Linter/Formatter via E-Graphs + miniKanren**
    - `fmt`, `check`, refactoring comme règles de réécriture déclaratives.
@@ -900,9 +902,7 @@ Idée : appliquer à Heaven ses propres principes pour réduire le Zig
    - **Vérif préalable** : combien de lignes dans `heaven_expr.zig` pour
      le parsing infixe ? Peut-on déjà l'écrire en `.hvn` ?
 
-**Ordre suggéré** : 1 (I/O effects) > 2 (lowering) > 3 (egraphs) > 4
-(self-hosting). Le #1 débloque `smocker` sur les vrais effets. Le #2
-est le plus gros gain Zig.
+**Ordre suggéré** : 1 (I/O effects → débloque `smocker`) > 3 (egraphs → `fmt`) > 4 (self-hosting). Le #2 (lowering) est surtout une **vérification** de branchement, pas une implémentation.
 
 ### C. Dettes runtime (priorité fix)
 
