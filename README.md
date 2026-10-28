@@ -10,12 +10,13 @@
 | `otp-o3` | MPST runtime (check_dual, check_protocol) | 3 |
 | `tdd-v1`, `tdd-v1.1` | holes + refine_tdd + match helpers | 12 |
 | `hab-o4.1` | Hab lens MVU + dispatch_from | 6 |
+| `hab-o4.2` | Hab superviseur one_for_one (n enfants) | 4 |
 | `check-v1` | arity + literal + partial-lambda | 4 |
 
 **Théorèmes prouvés** (par tests) : HKT, Endofunctor, invariant |S(c)|=|c|,
 lois optiques, dualité MPST, QTT erased/linear/many.
 
-**Livres** : chapitres 28 (OTP), 29 (MPST), 30 (TDD) + 2 SVG.
+**Livres** : chapitres 28 (OTP), 29 (MPST), 30 (TDD), 31 (Hab MVU) + 2 SVG.
 
 **Dettes runtime** documentées dans `docs/spec/_runtime_gaps.md`.
 

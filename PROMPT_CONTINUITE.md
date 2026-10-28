@@ -823,13 +823,14 @@ Fix : `run()` doit évaluer le body du handler avec `new_env`
 ## 2026-10-28 — Bilan OTP/Hab
 
 Tags : otp-o1, otp-o2.0..4, otp-o3, tdd-v1, tdd-v1.1, hab-o4.1, check-v1.
-Total : 10 tags, ~52 tests verts.
+Total : 11 tags, ~56 tests verts.
 
 Livrés :
 - OTP complet (GenServer, links, 3 stratégies polling+event-driven)
 - MPST runtime (check_dual, check_protocol sur mpst_trace)
 - TDD runtime (@hole, @is_hole, @assert_no_hole, refine_tdd, match1/2/3/list)
 - Hab lens MVU (lens_mvu_get/set/over + dispatch_from + dispatch_list)
+- Hab superviseur one_for_one (hab/supervisor.hvn, tick_all)
 - Check v1 (arité, literal-as-function, partial-lambda)
 
 Dettes documentées (`docs/spec/_runtime_gaps.md`) :
@@ -841,8 +842,10 @@ Dettes documentées (`docs/spec/_runtime_gaps.md`) :
 6. heaven check = stub (utilise tree-sitter incomplet)
 
 Prochaines étapes :
-- O4.2 : supervision Hab (parent → n enfants via dispatch_from)
-- O4.3 : app complète (counter supervisé)
+- O4.3 : app Hab complète (N enfants supervisés + chapitre livre 32)
+- Fix runtime #1 : run multi-message (bloque actor mailbox)
+- Fix runtime #2 : thunks top-level
+- Fix runtime #3 : (f a b) curryfication
 - check-v2 : unbound variables (filet complet)
 - captureCont : N=1000 quickcheck
 
