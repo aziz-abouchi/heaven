@@ -820,6 +820,32 @@ Fix : `run()` doit évaluer le body du handler avec `new_env`
   avec quickcheck/fuzzer (core/std).
 - O2 (links/monitors) : modifier `src/runtime/scheduler/scheduler.zig`.
 
+## 2026-10-28 — Bilan OTP/Hab
+
+Tags : otp-o1, otp-o2.0..4, otp-o3, tdd-v1, tdd-v1.1, hab-o4.1, check-v1.
+Total : 10 tags, ~52 tests verts.
+
+Livrés :
+- OTP complet (GenServer, links, 3 stratégies polling+event-driven)
+- MPST runtime (check_dual, check_protocol sur mpst_trace)
+- TDD runtime (@hole, @is_hole, @assert_no_hole, refine_tdd, match1/2/3/list)
+- Hab lens MVU (lens_mvu_get/set/over + dispatch_from + dispatch_list)
+- Check v1 (arité, literal-as-function, partial-lambda)
+
+Dettes documentées (`docs/spec/_runtime_gaps.md`) :
+1. run multi-message perd des messages (STATUS.md:303)
+2. thunks top-level non-déballables
+3. (f a b) ne curryfie pas (force requis)
+4. QTT erased = 0 usage strict (correct mais message cryptique)
+5. check-v2 scope tracking TODO (~150 lignes)
+6. heaven check = stub (utilise tree-sitter incomplet)
+
+Prochaines étapes :
+- O4.2 : supervision Hab (parent → n enfants via dispatch_from)
+- O4.3 : app complète (counter supervisé)
+- check-v2 : unbound variables (filet complet)
+- captureCont : N=1000 quickcheck
+
 ## OTP — COMPLET (2026-10-28)
 
 Tags : otp-o1, otp-o2.0, otp-o2.1, otp-o2.2, otp-o2.3, otp-o2.4.

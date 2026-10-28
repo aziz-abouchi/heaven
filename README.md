@@ -1,5 +1,25 @@
 # Heaven
 
+
+
+## État 2026-10-28 — OTP, MPST, TDD, Hab, Check
+
+| Tag | Contenu | Tests |
+|---|---|---|
+| `otp-o1` à `otp-o2.4` | GenServer + supervisors (3 stratégies, event-driven) | 27 |
+| `otp-o3` | MPST runtime (check_dual, check_protocol) | 3 |
+| `tdd-v1`, `tdd-v1.1` | holes + refine_tdd + match helpers | 12 |
+| `hab-o4.1` | Hab lens MVU + dispatch_from | 6 |
+| `check-v1` | arity + literal + partial-lambda | 4 |
+
+**Théorèmes prouvés** (par tests) : HKT, Endofunctor, invariant |S(c)|=|c|,
+lois optiques, dualité MPST, QTT erased/linear/many.
+
+**Livres** : chapitres 28 (OTP), 29 (MPST), 30 (TDD) + 2 SVG.
+
+**Dettes runtime** documentées dans `docs/spec/_runtime_gaps.md`.
+
+
 <!--
   ⚠️  NE PAS ÉDITER LES CHIFFRES ENTRE MARKERS <!-- DOCGEN:xxx --> ... <!-- /DOCGEN -->
   Régénérer via : zig build docgen  (ou python3 scripts/docgen.py)
@@ -252,7 +272,7 @@ _concurrency.md, _continuations.md, _ontology.md, _bench.md, _serialize.md).
 <!-- DOCGEN:tests_heaven -->133<!-- /DOCGEN --> tests Heaven
 (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN --> via `test-regression`
 + <!-- DOCGEN:test_files -->35/35<!-- /DOCGEN --> via `test-files`).
-Mesure <!-- DOCGEN:date -->2026-10-27<!-- /DOCGEN -->.
+Mesure <!-- DOCGEN:date -->2026-10-28<!-- /DOCGEN -->.
 
 ---
 
