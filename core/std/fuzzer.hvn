@@ -1,0 +1,30 @@
+-- core/std/fuzzer.hvn — Fuzz structuré (v3, 2026-10-28)
+-- v3 : fuzz_run (récursion manuelle 5 params) BUGGÉE. Cause : `let
+-- many` imbriqués avec 5 params + récursion TCO non supportée.
+-- On remplace fuzz_run par des helpers qui marchent :
+--   - gen_msg / gen_msg_list : générateurs purs (testés)
+--   - fuzz_check : utilise Q.check (déjà validé) sur des trajectoires
+--   - fuzz_apply_list : applique une liste de msgs à un composant
+--
+-- Conséquence : fuzzer.hvn peut générer et vérifier des invariants
+-- sur N trajectoires via quickcheck, sans récursion manuelle cassée.
+import "core/std/quickcheck.hvn" as Q
+
+gen_string seed 0 = ""
+gen_string seed n = (string_concat "x" (gen_string seed (- n 1)))
+
+gen_msg seed =
+  (let k = (Q.gen_range 0 4 seed) in
+   (if (= k 0) "inc"
+    (if (= k 1) "dec"
+     (if (= k 2) "unknown"
+      "inc"))))
+
+gen_msg_list seed 0 = nil
+gen_msg_list seed n = (cons (gen_msg seed) (gen_msg_list (Q.next seed) (- n 1)))
+
+-- fuzz_apply_list : une trajectoire (apply_msgs sur N msgs).
+-- À fournir en argument à Q.check : Q.check (lambda seed. prop
+-- (fuzz_apply_list apply_fn initial seed)) (lambda s. s) N.
+fuzz_apply_list apply_fn initial seed =
+  (apply_fn initial (gen_msg_list seed 5))

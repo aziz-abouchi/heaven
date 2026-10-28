@@ -2,7 +2,7 @@
 -- v3 : C.counter est une FONCTION. Call sites `(C.counter unit)`.
 import "hab/component.hvn" as H
 import "hab/apps/counter.hvn" as C
-import "core/std/smocker.hvn" as S
+import "core/std/mocker.hvn" as M
 import "core/std/quickcheck.hvn" as Q
 
 -- ═══ Tests DIRECTS (sans component indirection) ═══
@@ -51,5 +51,5 @@ test "view_pure":
      ((H.component_view (C.counter unit)) 42)) == true
 
 test "view_ignores_effects":
-  (let many stub = (S.fixed "SHOULD_NOT_APPEAR") in
+  (let many stub = (M.fixed "SHOULD_NOT_APPEAR") in
     (= (H.tree_tag ((H.component_view (C.counter unit)) 5)) "button")) == true

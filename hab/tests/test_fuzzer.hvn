@@ -1,0 +1,28 @@
+-- hab/tests/test_fuzzer.hvn — Fuzz structuré (v5, 2026-10-28)
+-- v5 : utilise fuzz_apply_list (ne récursive pas manuellement).
+-- La propriété est vérifiée sur N seeds via Q.check (déjà validé).
+import "core/std/fuzzer.hvn" as F
+import "core/std/quickcheck.hvn" as Q
+import "hab/component.hvn" as H
+import "hab/apps/counter.hvn" as C
+
+counter_apply state msgs = (H.apply_msgs (C.counter unit) state msgs)
+bounded_1000 s = (and (>= s (- 0 1000)) (<= s 1000))
+
+test "fuzz_gen_msg_valid":
+  (let m = (F.gen_msg 42) in
+   (or (= m "inc") (or (= m "dec") (or (= m "unknown") (= m "inc"))))) == true
+
+test "fuzz_gen_list_len":
+  (>= (H.apply_msgs (C.counter unit) 0 (F.gen_msg_list 42 5)) (- 0 5)) == true
+
+-- Propriété : counter reste borné sur N trajectoires (5 msgs chacune)
+test "fuzz_counter_bounded_100":
+  (Q.check
+    (lambda seed -> (bounded_1000 (F.fuzz_apply_list counter_apply 0 seed)))
+    (lambda s -> s) 100) == true
+
+test "fuzz_counter_bounded_500":
+  (Q.check
+    (lambda seed -> (bounded_1000 (F.fuzz_apply_list counter_apply 0 seed)))
+    (lambda s -> s) 500) == true

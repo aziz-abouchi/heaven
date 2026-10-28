@@ -1,28 +1,34 @@
--- core/std/smocker.hvn (Smocker v1)
+-- core/std/smocker.hvn — Smocker v2 : spy/mock avec record + verify.
+-- 2026-10-28. Remplace l'ancien smocker.hvn (renommé mocker.hvn :
+-- DI minimale, stub qui ne tracke PAS les appels).
 --
--- Helpers pour tester une fonction en remplacant ses effets par des
--- stubs deterministes (dependency injection).
+-- Philosophie : pur, sans effet. État threadé via `let many`.
+-- Calls enregistrés LIFO (cons en tête). Vérification par égalité
+-- structurelle sur les listes.
 --
--- Approche : la fonction sous test prend ses effets en parametre.
---
--- Exemple (arite 1) :
---   process http_get url = (http_get url)
---   test "process" : (process (S.fixed "FAKE") "http://x") == "FAKE"
---
--- Limites v1 :
---   - `fixed` ne couvre que l'arite 1 (le cas le plus frequent).
---   - fixed2/fixed3 (curry a 2+ niveaux) sont retires : le parser
---     infixe ne gere pas `(f "a" "b")` sur une lambda curryfie, et
---     cela provoque une evaluation silencieusement abandonnee
---     (runner sans erreur, sans total).
---   - Pour une arite > 1, utiliser `lambda _a -> lambda _b -> value`
---     directement dans le test, ou curryfier manuellement avec
---     `fixed` (ex. `(S.fixed (S.fixed value))`).
---
--- 0 ligne Zig : utilise le curry + lambda, deja dans le noyau.
+-- v2.1 (2026-10-28) : fix seq. Le modèle "consume returns" était
+-- buggé (result_seq lisait le suivant au lieu du courant). Nouveau
+-- modèle : state = (calls, (pending, returns)). `call_seq` déplace
+-- head(returns) → pending. `result_seq` lit pending.
 
--- fixed : stub d'arite 1 qui ignore son argument et retourne `value`.
-fixed value = lambda _ -> value
+-- ═══ Mock à valeur unique ═══
+mock value = (pair nil value)
+call (pair calls value) arg = (pair (cons arg calls) value)
+result (pair _ value) = value
 
--- const_fn : alias nomme de `fixed`, pour lisibilite.
-const_fn value = lambda _ -> value
+-- ═══ Mock à séquence (consume un retour par appel) ═══
+-- État : (calls, (pending, returns))
+--   pending = valeur courante (retournée par result_seq)
+--   returns = valeurs futures (consommées par call_seq)
+seq returns = (pair nil (pair "INIT" returns))
+call_seq (pair calls (pair _ (cons value rest))) arg = (pair (cons arg calls) (pair value rest))
+call_seq (pair calls (pair _ nil)) arg = (pair (cons arg calls) (pair "EMPTY" nil))
+result_seq (pair _ (pair pending _)) = pending
+
+-- ═══ Accès communs (marchent sur mock ET seq) ═══
+calls (pair cs _) = cs
+count_state nil acc = acc
+count_state (cons _ rest) acc = (count_state rest (+ acc 1))
+count (pair cs _) = (count_state cs 0)
+verify (pair cs _) expected = (= cs expected)
+reset (pair _ v) = (pair nil v)

@@ -1,0 +1,28 @@
+-- core/std/smocker.hvn (Smocker v1)
+--
+-- Helpers pour tester une fonction en remplacant ses effets par des
+-- stubs deterministes (dependency injection).
+--
+-- Approche : la fonction sous test prend ses effets en parametre.
+--
+-- Exemple (arite 1) :
+--   process http_get url = (http_get url)
+--   test "process" : (process (S.fixed "FAKE") "http://x") == "FAKE"
+--
+-- Limites v1 :
+--   - `fixed` ne couvre que l'arite 1 (le cas le plus frequent).
+--   - fixed2/fixed3 (curry a 2+ niveaux) sont retires : le parser
+--     infixe ne gere pas `(f "a" "b")` sur une lambda curryfie, et
+--     cela provoque une evaluation silencieusement abandonnee
+--     (runner sans erreur, sans total).
+--   - Pour une arite > 1, utiliser `lambda _a -> lambda _b -> value`
+--     directement dans le test, ou curryfier manuellement avec
+--     `fixed` (ex. `(S.fixed (S.fixed value))`).
+--
+-- 0 ligne Zig : utilise le curry + lambda, deja dans le noyau.
+
+-- fixed : stub d'arite 1 qui ignore son argument et retourne `value`.
+fixed value = lambda _ -> value
+
+-- const_fn : alias nomme de `fixed`, pour lisibilite.
+const_fn value = lambda _ -> value

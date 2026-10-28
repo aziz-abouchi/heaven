@@ -1,17 +1,55 @@
 -- tests/test_smocker.hvn (Smocker v1, DI)
+import "core/std/mocker.hvn" as M
 import "core/std/smocker.hvn" as S
 
 -- Fonction sous test : prend son effet en parametre
 process http_get url = (http_get url)
 
 -- Test : stub retourne une valeur fixe (arite 1)
-test "smocker_fixed": (process (S.fixed "FAKE") "http://x") == "FAKE"
+test "smocker_fixed": (process (M.fixed "FAKE") "http://x") == "FAKE"
 
 -- Test : fixed ignore son argument
-test "smocker_fixed_ignores_arg": (let many stub = (S.fixed "X") in (stub 999)) == "X"
+test "smocker_fixed_ignores_arg": (let many stub = (M.fixed "X") in (stub 999)) == "X"
 
 -- Test : const_fn equivaut a fixed
-test "smocker_const_fn": (let many f = (S.const_fn "OK") in (f "anything")) == "OK"
+test "smocker_const_fn": (let many f = (M.const_fn "OK") in (f "anything")) == "OK"
 
 -- Test : DI isole le vrai http_get
-test "smocker_di_isolation": (process (S.fixed 200) "http://ignored") == 200
+test "smocker_di_isolation": (process (M.fixed 200) "http://ignored") == 200
+
+-- ═══ Smocker v2 (2026-10-28) : mock avec record + verify ═══
+
+test "smocker_v2_basic":
+  (let many s0 = (S.mock "FAKE") in
+   (let many s1 = (S.call s0 "url1") in
+    (and (= (S.result s1) "FAKE")
+         (and (= (S.count s1) 1)
+              (S.verify s1 (cons "url1" nil)))))) == true
+
+test "smocker_v2_two_calls":
+  (let many s0 = (S.mock "OK") in
+   (let many s1 = (S.call s0 "url1") in
+    (let many s2 = (S.call s1 "url2") in
+     (and (= (S.count s2) 2)
+          (S.verify s2 (cons "url2" (cons "url1" nil))))))) == true
+
+test "smocker_v2_seq":
+  (let many s0 = (S.seq (cons "A" (cons "B" nil))) in
+   (let many s1 = (S.call_seq s0 "arg1") in
+    (let many r1 = (S.result_seq s1) in
+     (let many s2 = (S.call_seq s1 "arg2") in
+      (let many r2 = (S.result_seq s2) in
+       (and (= r1 "A") (= r2 "B"))))))) == true
+
+test "smocker_v2_verify_fail":
+  (let many s0 = (S.mock "X") in
+   (let many s1 = (S.call s0 "url1") in
+    (S.verify s1 (cons "url2" nil)))) == false
+
+test "smocker_v2_count_zero": (S.count (S.mock "X")) == 0
+
+test "smocker_v2_reset":
+  (let many s0 = (S.mock "X") in
+   (let many s1 = (S.call s0 "url") in
+    (let many s2 = (S.reset s1) in
+     (S.count s2)))) == 0

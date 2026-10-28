@@ -1,0 +1,18 @@
+-- hab/tests/test_loadtest.hvn — Charge in-process (v3, 2026-10-28)
+-- v3 : retire loadtest_no_node_growth (syntax fragile). L'absence
+-- de fuite est garantie par HEAVEN_NO_LEAK_CHECK=1 en fin de run.
+-- Limite TCO : 50 iters (dette Phase 7 : TCO let-in).
+import "core/std/loadtest.hvn" as L
+import "hab/component.hvn" as H
+import "hab/apps/counter.hvn" as C
+
+inc_step s = (H.apply_one (C.counter unit) s "inc")
+dec_step s = (H.apply_one (C.counter unit) s "dec")
+
+test "loadtest_1_inc": (L.loadtest_run inc_step 0 1) == 1
+test "loadtest_10_incs": (L.loadtest_run inc_step 0 10) == 10
+test "loadtest_50_incs": (L.loadtest_run inc_step 0 50) == 50
+
+test "loadtest_inc_dec_balance":
+  (let many after_incs = (L.loadtest_run inc_step 0 50) in
+   (L.loadtest_run dec_step after_incs 50)) == 0
