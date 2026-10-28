@@ -1,0 +1,6 @@
+fn step(s, m) = m s
+
+test "v2_initial_alive":
+  (let many sup = (sup_spawn_v2 sup_restart_one step (cons 0 (cons 0 nil))) in
+   (let many s = (sup_drain sup) in
+    (sup_count_v2 s))) == 2

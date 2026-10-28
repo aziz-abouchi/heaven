@@ -1,0 +1,10 @@
+fn step(s, m) = m s
+
+test "v2_restart_new_pid":
+  (let many sup = (sup_spawn_v2 sup_restart_one step (cons 0 (cons 0 nil))) in
+   (let many s0 = (sup_drain sup) in
+    (let many p1 = (sup_p1_v2 s0) in
+     (let many _ = (exit p1 1) in
+      (let many s1 = (sup_drain sup) in
+       (let many p1b = (sup_p1_v2 s1) in
+        (p1 == p1b))))))) == false

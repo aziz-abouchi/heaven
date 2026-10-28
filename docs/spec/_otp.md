@@ -332,3 +332,54 @@ Deux sous-tâches indépendantes :
 
 2. captureCont (3a-3b) : N=100+ quickcheck, load 1000+, retrait de
    `run`. Chantier Zig scheduler, orthogonal à OTP.
+
+
+## O2.4 FERMÉ (2026-10-28)
+
+Superviseur event-driven via `link` + `trap_exit`.
+
+Changements engine_expr.zig :
+- `exit` livre **1 seul message** `"EXIT"` (str), le sup détecte via
+  `is_alive`. (Avant : 2 messages "EXIT" + pid.)
+- primitive `is_str` : dispatch `"EXIT"` vs cast dans `sup_step_v2`.
+
+supervisor.hvn (réécrit O2.1+O2.2+O2.4 en un fichier). Ajouts O2.4 :
+- `sup_spawn_v2 strat h inits` : spawn + link_all + trap_exit + cast
+  initial `set_sup_pid`.
+- `restart_state_v2 state` : `strat h children` + `link_all` sur les
+  nouveaux (link idempotent).
+- `sup_step_v2 state msg = if (is_str msg) restart_state_v2 state
+                            else msg state`.
+
+State v2 : `(strat, (h, (sup_pid, children)))`.
+
+Tests : `tests/otp2_v2_*.hvn` (4 verts).
+
+## Bug structure profonde (2 fixes, même classe)
+
+1. **Parenthèses compensées** dans `sup_spawn_v2` (3 erreurs croisées :
+   +1 L106, +1 L107, -1 L110, total balance = 0). Le `let` de L107 était
+   fermé par une close de trop, cascade silencieuse. `v2_new_pid`
+   passait par **faux positif** (garbage ≠ garbage).
+2. **Chaîne `snd` mal comptée** dans `set_sup_pid` : `(snd (snd state))`
+   au lieu de `(snd (snd (snd state)))`. Le state devenait
+   `(strat, (h, (sup, (0, children))))` au lieu de
+   `(strat, (h, (sup, children)))`. `sup_children_v2` retournait une
+   paire au lieu d'une liste → count = 0/1 au lieu de 2.
+
+Le pattern : **structure profonde à N niveaux** = N `snd` et N closes.
+Chaque accesseur (`set_sup_pid`, `sup_children_v2`) doit être validé
+indépendamment. `v2_survives` et `v2_new_pid` ne testaient pas
+réellement le state (l'un `is_alive sup`, l'autre garbage vs garbage).
+
+## Leçons O2 (à graver)
+
+- `check_parens.py` ne détecte pas les parens compensées. Ajouter un
+  check parse-level (parser rejette un `let` sans `in` correct).
+- Chaîne `snd`/`fst` : compter les niveaux, valider chaque accesseur
+  avec un test direct.
+- Tout test qui n'assert pas explicitement la valeur attendue peut
+  passer pour de mauvaises raisons (v2_new_pid).
+
+OTP complet au sens Erlang minimal. Reste (O3+) : MPST typé +
+captureCont + parse-level verification.

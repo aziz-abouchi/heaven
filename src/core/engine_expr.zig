@@ -2505,6 +2505,15 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return m;
     }
 
+    if (std.mem.eql(u8, op, "is_str")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const v = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const node = store.get(v);
+        if (node.tag != .lit) return try store.boolean(false);
+        const l = store.lits.items[node.aux];
+        return try store.boolean(l == .str);
+    }
+
     // ═══ O2.0 : link / trap_exit / is_alive / exit ═══
     if (std.mem.eql(u8, op, "is_alive")) {
         if (args_snap.len != 1) return error.ArityMismatch;
@@ -2607,9 +2616,8 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
                 const linked = engine.processes.getPtr(linked_id) orelse continue;
                 if (!linked.alive) continue;
                 if (linked.trap_exit) {
+                    // O2.4 : un seul message "EXIT". Le sup detecte via is_alive.
                     try linked.mailbox.append(engine.allocator, exit_marker);
-                    const pid_int = try store.int(@intCast(cur));
-                    try linked.mailbox.append(engine.allocator, pid_int);
                 } else {
                     try stack.append(engine.allocator, linked_id);
                 }

@@ -8,12 +8,13 @@ test "trap_exit_blocks_propagation":
       (let many _ = (exit a) in
        (is_alive b)))))) == true
 
-test "trap_exit_delivers_message":
+-- O2.4 : 1 seul message "EXIT".
+-- 6 lets + 1 body (= tag "EXIT") = 7 closes requis.
+test "trap_exit_delivers_marker":
   (let many a = (spawn step 0) in
    (let many b = (spawn step 0) in
     (let many _ = (trap_exit b true) in
      (let many _ = (link a b) in
       (let many _ = (exit a) in
        (let many tag = (recv b) in
-        (let many from = (recv b) in
-         (from == a)))))))) == true
+        (= tag "EXIT"))))))) == true
