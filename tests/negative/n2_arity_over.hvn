@@ -1,0 +1,4 @@
+-- DOIT être rejeté : arity mismatch (3 vs 2)
+add x y = (x + y)
+test "n2":
+  (add 1 2 3) == 6

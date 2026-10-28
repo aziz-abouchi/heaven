@@ -1,0 +1,4 @@
+-- DOIT PASSER : contrôle positif
+add x y = (x + y)
+test "n4":
+  (add 1 2) == 3

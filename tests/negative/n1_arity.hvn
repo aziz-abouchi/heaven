@@ -1,0 +1,4 @@
+-- DOIT être rejeté par check-scope : arity mismatch
+add x y = (x + y)
+test "n1":
+  (add 1) == 1
