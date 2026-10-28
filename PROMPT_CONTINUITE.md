@@ -1,3 +1,78 @@
+# ÉTAT AU 2026-10-28 SOIR — Hab W1b VALIDÉ
+
+## Milestone : Hab tourne dans un vrai navigateur
+
+`heaven --http-serve 18080` + http://127.0.0.1:18080/hab/runtime/index.html
+→ bouton 0 qui s'incrémente au clic (vu à 18).
+
+Console : [hab] prelude: 21 defs ok, 0 failed
+          [hab] mounted counter at #app
+
+## Commits Hab (5)
+
+`3148908` W1b-fix3 : heavenEvalRaw + retrait std.debug.print
+  - Sans ce commit, wasm ne builde pas (std.Thread/std.posix
+    via les 2 std.debug.print de diagnostic).
+
+`717aa95` W1b-fix2 : data Pair + data List au prelude
+  - Sans les data constructors, pair/cons/nil = UnknownSymbol
+    (core/std/pair.hvn et list.hvn non importables sur wasm
+    freestanding, pas de FS).
+
+`3ff3f36` W1b : runtime navigateur (hab_runtime.js +
+  index.html) + fix strip_query HTTP (cache-buster ?t=).
+  Prelude inline 19 defs, mount(counter, '#app').
+
+`72cbdb0` W1d : 5 outils test Heaven pur — mocker (4),
+  smocker v2 (6, vrai spy avec record/verify/seq),
+  fuzzer (4, trajectoires via Q.check), loadtest (4, charge
+  in-process, max 50 iters), quickcheck (6). 43 tests verts.
+
+`103e0d2` W1a : MVU core (mk_component, apply_one, apply_msgs,
+  tree) + counter + 24 tests (mocker, quickcheck, purity).
+
+## Architecture Hab validée
+
+- MVU pur, zéro DOM dans le noyau
+- Component = (init, update, view) = pair imbriqué
+- View = tree (node tag children | leaf text)
+- Runtime JS : load wasm, eval prelude, mount, dispatch click
+- Evaluation : heavenEvalRaw → h.eval (pas cmds.eval, qui
+  refuse les patterns user-defined)
+
+## Dettes W1c (prochain)
+
+1. serialize_tree en .hvn : node/leaf → JSON récursif, plus de
+   hardcoded button dans JS.
+2. Test navigateur headless (Playwright/jsdom) pour CI.
+3. 2e composant (todo.hvn) avec optiques (filtre, map).
+4. Fallback fs_read_public vers hab/ (supprimer duplication
+   src/vessel/public/hab/).
+
+## Dettes W2 (effets algébriques UI)
+
+- perform DOM.click, perform State.get, handle au niveau runtime.
+- Le modèle complet Lustre-Heaven (Lustre + Elm MVU + OTP).
+
+## Dettes Phase 7 (TCO, toujours ouvertes)
+
+- loadtest max 50 iters (TCO let-in non supporté).
+- fuzz_run retiré (même raison).
+- server_loop via @loop_until (contournement documenté).
+
+## État 3 plateformes (inchangé)
+
+Linux/macOS/Windows : build ✓, test_suite 98/98,
+--http-serve 200 (500 req).
+
+## Environnement
+
+HEAD : 3148908 (origin/main)
+Machine devilHope Linux + laptop macOS + PC Windows.
+Zig 0.15.2. HEAVEN_NO_LEAK_CHECK=1 en Debug.
+
+---
+
 # ÉTAT AU 2026-10-28 (mise à jour)
 
 ## Milestone : HTTP natif Heaven sur 3 plateformes
