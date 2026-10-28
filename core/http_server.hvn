@@ -48,13 +48,14 @@ handle_one_client cap client_fd =
   let req = (parse_request raw) in
   let resp = (handle_request req) in
   let _ = (net_write cap client_fd (format_response_ct resp)) in
+  let _ = (@clear_thunks) in
   (net_close cap client_fd)
 
-server_loop_step cap listen_fd =
-  (seq (handle_client cap listen_fd) (server_loop cap listen_fd))
-
+-- 2026-10-28 : boucle native via @loop_until (magic Zig while).
+-- TCO de engine_expr ne traverse ni `let` ni `seq` (preuve : loop_let_500
+-- SIGSEGV, loop_if_then_else 500 OK). @loop_until evite la stack.
 server_loop cap listen_fd =
-  (if (@exiting) unit (server_loop_step cap listen_fd))
+  (@loop_until (lambda _ (@exiting)) (lambda _ (handle_client cap listen_fd)))
 
 hvn_http_serve_v2 port =
   let cap = (cap_acquire (string_concat "net:listen:" (int_to_string port))) in

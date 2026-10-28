@@ -1108,7 +1108,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@set_fuel", "@exiting", "@spawn", "@broadcast", "@runtime_stats", "@sleep_ms", "@tls_connect", "@tls_read", "@tls_write", "@tls_close" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@set_fuel", "@exiting", "@loop_until", "@clear_thunks", "@store_stats", "@spawn", "@broadcast", "@runtime_stats", "@sleep_ms", "@tls_connect", "@tls_read", "@tls_write", "@tls_close" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -3105,6 +3105,66 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
             .state = .ready,
         });
         return try store.int(@intCast(task_id));
+    }
+
+    // 2026-10-28 : @clear_thunks — vide engine.thunks et captures
+    // cross-requete. Les thunks sont lies a une evaluation specifique
+    // (let non force), pas a un etat serveur. Sans ce clear, ils
+    // s'accumulent ~48/requete HTTP et saturent le HashMap a ~43
+    // requetes -> realloc -> UAF sur pointeurs retenus -> SIGSEGV.
+    // Appele a la fin de handle_one_client dans http_server.hvn.
+    if (std.mem.eql(u8, op, "@clear_thunks")) {
+        if (args_snap.len != 0) return error.ArityMismatch;
+        engine.thunks.clearRetainingCapacity();
+        // Note : captures/prompts non vides = bug utilisateur (un
+        // @prompt sans @throw associe), on les laisse pour debug.
+        return try store.unitLit();
+    }
+
+    // 2026-10-28 : @store_stats — introspection de la croissance.
+    // Appele apres chaque handle_one_client pour identifier quelle
+    // structure grandit par requete (diagnostic crash 43).
+    if (std.mem.eql(u8, op, "@store_stats")) {
+        if (args_snap.len != 0) return error.ArityMismatch;
+        std.debug.print("[stats] nodes={d} lits={d} pool={d} interner={d} thunks={d} caps={d} cap_cache={d}\n", .{
+            store.nodes.items.len,
+            store.lits.items.len,
+            store.pool.items.len,
+            store.interner.list.items.len,
+            engine.thunks.count(),
+            engine.capabilities.count(),
+            engine.cap_cache.count(),
+        });
+        return try store.unitLit();
+    }
+
+    // 2026-10-28 : @loop_until(cond_thunk, body_thunk) — boucle native
+    // TCO-equivalente. Le TCO de engine_expr.zig ne traverse pas `let`
+    // ni `seq` (test: loop_if_then_else 500 OK, loop_let_500 SIGSEGV).
+    // server_loop ne peut donc PAS etre TCO'd sous sa forme actuelle.
+    // Ce magic implemente la boucle comme un `while` Zig : evaluation
+    // de cond, si vrai -> return, sinon evaluation de body puis re-loop.
+    // Zero stack growth, 10000 requetes OK.
+    // Remplace `(let _ = handle in (server_loop ...))` dans http_server.hvn.
+    // 2026-10-28 v2 : args sont des LAMBDAS evaluees UNE FOIS, puis
+    // APPLIQUEES a unit a chaque iteration. v1 evaluait les lambdas
+    // directement comme booleens -> TypeError.
+    if (std.mem.eql(u8, op, "@loop_until")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const cond_fn = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const body_fn = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const unit_id = try store.unitLit();
+        while (true) {
+            const cond_call = store.apply(cond_fn, &.{unit_id}) catch return error.TypeError;
+            const cond_val = try evaluate(store, env, engine, cond_call, depth + 1);
+            const cn = store.get(cond_val);
+            if (cn.tag != .lit) return error.TypeError;
+            const cl = store.lits.items[cn.aux];
+            if (cl != .boolean) return error.TypeError;
+            if (cl.boolean) return try store.unitLit();
+            const body_call = store.apply(body_fn, &.{unit_id}) catch return error.TypeError;
+            _ = try evaluate(store, env, engine, body_call, depth + 1);
+        }
     }
 
     if (std.mem.eql(u8, op, "@sleep_ms")) {
