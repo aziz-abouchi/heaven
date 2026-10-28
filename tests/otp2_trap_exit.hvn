@@ -1,0 +1,19 @@
+fn step(s, m) = m s
+
+test "trap_exit_blocks_propagation":
+  (let many a = (spawn step 0) in
+   (let many b = (spawn step 0) in
+    (let many _ = (trap_exit b true) in
+     (let many _ = (link a b) in
+      (let many _ = (exit a) in
+       (is_alive b)))))) == true
+
+test "trap_exit_delivers_message":
+  (let many a = (spawn step 0) in
+   (let many b = (spawn step 0) in
+    (let many _ = (trap_exit b true) in
+     (let many _ = (link a b) in
+      (let many _ = (exit a) in
+       (let many tag = (recv b) in
+        (let many from = (recv b) in
+         (from == a)))))))) == true

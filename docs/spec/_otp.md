@@ -233,3 +233,59 @@ Trois erreurs de syntaxe ont causé 2 jours de faux positifs en O1 :
 Ces trois règles sont documentées dans `src/vessel/public/test_suite.hvn`
 par l'exemple. Le contrat "prelude auto + test one-liner" est
 maintenu, mais **tout est parenthésé**.
+
+
+## O2.0 FERMÉ (2026-10-28)
+
+Primitives Zig dans `src/core/engine_expr.zig` (Process model, pas le
+scheduler — la préemption TCO est orthogonale) :
+
+    link(a, b)          -- bidirectionnel, idempotent
+    trap_exit(pid, b)   -- pose le flag
+    is_alive(pid)       -- bool
+    exit(pid[, reason]) -- marque mort, propage DFS sur les liens
+    run(pid) refuse les morts (error.ProcessDead)
+
+Message EXIT encodé sans `cons` : "EXIT" (str) + pid (int), deux
+messages dans la mailbox du trappeur. O2.0 ne dépend d'aucune
+primitive de liste — robuste aux évolutions de l'AST.
+
+Reason : u8, 0=normal, 1=crash.
+
+Tests verts (`tests/otp2_*.hvn`) :
+- is_alive       : vivant=true, après exit=false
+- link_propagate : a link b, exit a → b mort ; symétrique OK
+- trap_exit      : b trap_exit, a link b, exit a → b vivant,
+                    reçoit "EXIT" puis pid_a
+- no_link        : exit a sans link → b vivant
+- chain          : a—b—c, exit a → b et c morts (DFS)
+
+Sémantique validée : link bidirectionnel, trap_exit court-circuite la
+propagation ET livre les messages, propagation en chaîne.
+
+## Contrat O2.1 (superviseur)
+
+`supervisor.hvn` en Heaven pur, ~40 lignes :
+
+    one_for_one(children_init, restart_fn) -> sup_pid
+
+Sémantique : sup est un GenServer, il trap_exit, il spawn+link chaque
+enfant. À chaque EXIT reçu, il vérifie is_alive et redémarre les morts
+(one_for_one) ou tous (one_for_all) ou les suivants (rest_for_one).
+
+Invariant catégorique validable en O2.3 par `quickcheck` :
+  ∀ k enfants one_for_one, ∀ séquence de crashs indépendants,
+  |vivants| ≥ 1 après stabilisation.
+C'est le point fixe du foncteur `Supervise : End(Etat)`, et la
+propriété qui distingue one_for_one de one_for_all (où un seul
+crash peut vider l'ensemble).
+
+## Règle parenthèses (à graver)
+
+Chaque test à N lets + 1 body parenthésé nécessite **N+1 closes** après
+la dernière variable du body. Compter AVANT d'exécuter — c'est le piège
+systématique du langage, source de 2 jours perdus en O1.
+
+    (let many x = v in
+     (let many y = w in
+      (f x y))))         -- 1 close (f) + 2 closes (lets) = 3

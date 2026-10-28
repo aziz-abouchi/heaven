@@ -1,0 +1,9 @@
+fn step(s, m) = m s
+
+test "is_alive_live":
+  (let many a = (spawn step 0) in (is_alive a)) == true
+
+test "is_alive_after_exit":
+  (let many a = (spawn step 0) in
+   (let many _ = (exit a) in
+    (is_alive a))) == false

@@ -1,0 +1,15 @@
+fn step(s, m) = m s
+
+test "link_propagates_death":
+  (let many a = (spawn step 0) in
+   (let many b = (spawn step 0) in
+    (let many _ = (link a b) in
+     (let many _ = (exit a) in
+      (is_alive b))))) == false
+
+test "link_bidirectional":
+  (let many a = (spawn step 0) in
+   (let many b = (spawn step 0) in
+    (let many _ = (link a b) in
+     (let many _ = (exit b) in
+      (is_alive a))))) == false

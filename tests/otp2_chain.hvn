@@ -1,0 +1,11 @@
+fn step(s, m) = m s
+
+-- a — b — c (linéaire). exit a -> b et c meurent.
+test "chain_propagation":
+  (let many a = (spawn step 0) in
+   (let many b = (spawn step 0) in
+    (let many c = (spawn step 0) in
+     (let many _ = (link a b) in
+      (let many _ = (link b c) in
+       (let many _ = (exit a) in
+        (or (is_alive a) (or (is_alive b) (is_alive c))))))))) == false

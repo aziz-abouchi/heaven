@@ -97,6 +97,7 @@ pub const EvalError = error{
     ActorIdNotLiteral,
     ActorNotFound,
     ProcessNotFound,
+    ProcessDead,
     MailboxEmpty,
     InvalidInput,
     HandlerFailed,
@@ -210,10 +211,19 @@ pub const Process = struct {
     /// `null` si le process a été créé sans handler.
     handler: ?expr.Id = null,
     state: ?expr.Id = null,
+    // O2 : liens bidirectionnels (link(a, b) = b dans a.links + a dans b.links).
+    links: std.ArrayListUnmanaged(u32) = .{},
+    // O2 : si true, EXIT livré comme messages dans mailbox au lieu de propager.
+    trap_exit: bool = false,
+    // O2 : false après exit(pid, reason).
+    alive: bool = true,
+    // O2 : 0=normal, 1=crash.
+    crash_reason: u8 = 0,
 
     pub fn deinit(self: *Process, allocator: std.mem.Allocator) void {
         self.mailbox.deinit(allocator);
         self.trace.deinit(allocator);
+        self.links.deinit(allocator);
     }
 };
 
@@ -2495,6 +2505,119 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         return m;
     }
 
+    // ═══ O2.0 : link / trap_exit / is_alive / exit ═══
+    if (std.mem.eql(u8, op, "is_alive")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const pid_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const pid_node = store.get(pid_val);
+        if (pid_node.tag != .lit) return error.ActorIdNotLiteral;
+        const pid_lit = store.lits.items[pid_node.aux];
+        if (pid_lit != .int) return error.ActorIdNotLiteral;
+        const proc = engine.processes.getPtr(@intCast(pid_lit.int)) orelse
+            return try store.boolean(false);
+        return try store.boolean(proc.alive);
+    }
+
+    if (std.mem.eql(u8, op, "trap_exit")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const pid_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const flag_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const pid_node = store.get(pid_val);
+        if (pid_node.tag != .lit) return error.ActorIdNotLiteral;
+        const pid_lit = store.lits.items[pid_node.aux];
+        if (pid_lit != .int) return error.ActorIdNotLiteral;
+        const flag_node = store.get(flag_val);
+        if (flag_node.tag != .lit) return error.TypeError;
+        const flag_lit = store.lits.items[flag_node.aux];
+        if (flag_lit != .boolean) return error.TypeError;
+        const proc = engine.processes.getPtr(@intCast(pid_lit.int)) orelse
+            return error.ProcessNotFound;
+        proc.trap_exit = flag_lit.boolean;
+        return try store.unitLit();
+    }
+
+    if (std.mem.eql(u8, op, "link")) {
+        if (args_snap.len != 2) return error.ArityMismatch;
+        const a_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        const b_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+        const a_node = store.get(a_val);
+        if (a_node.tag != .lit) return error.ActorIdNotLiteral;
+        const a_lit = store.lits.items[a_node.aux];
+        if (a_lit != .int) return error.ActorIdNotLiteral;
+        const b_node = store.get(b_val);
+        if (b_node.tag != .lit) return error.ActorIdNotLiteral;
+        const b_lit = store.lits.items[b_node.aux];
+        if (b_lit != .int) return error.ActorIdNotLiteral;
+        const a_id: u32 = @intCast(a_lit.int);
+        const b_id: u32 = @intCast(b_lit.int);
+        {
+            const pa = engine.processes.getPtr(a_id) orelse return error.ProcessNotFound;
+            var has_b = false;
+            for (pa.links.items) |x| {
+                if (x == b_id) { has_b = true; break; }
+            }
+            if (!has_b) try pa.links.append(engine.allocator, b_id);
+        }
+        {
+            const pb = engine.processes.getPtr(b_id) orelse return error.ProcessNotFound;
+            var has_a = false;
+            for (pb.links.items) |x| {
+                if (x == a_id) { has_a = true; break; }
+            }
+            if (!has_a) try pb.links.append(engine.allocator, a_id);
+        }
+        return try store.unitLit();
+    }
+
+    if (std.mem.eql(u8, op, "exit")) {
+        if (args_snap.len < 1 or args_snap.len > 2) return error.ArityMismatch;
+        const pid_val = try evaluate(store, env, engine, args_snap[0], depth + 1);
+        var reason_code: u8 = 0;
+        if (args_snap.len == 2) {
+            const r_val = try evaluate(store, env, engine, args_snap[1], depth + 1);
+            const r_node = store.get(r_val);
+            if (r_node.tag == .lit) {
+                const r_lit = store.lits.items[r_node.aux];
+                if (r_lit == .int and r_lit.int != 0) reason_code = 1;
+            }
+        }
+        const pid_node = store.get(pid_val);
+        if (pid_node.tag != .lit) return error.ActorIdNotLiteral;
+        const pid_lit = store.lits.items[pid_node.aux];
+        if (pid_lit != .int) return error.ActorIdNotLiteral;
+
+        var stack: std.ArrayListUnmanaged(u32) = .{};
+        defer stack.deinit(engine.allocator);
+        try stack.append(engine.allocator, @intCast(pid_lit.int));
+        const exit_sym = try store.interner.intern("EXIT");
+        const exit_marker = try store.lit(.{ .str = exit_sym });
+
+        while (stack.items.len > 0) {
+            const cur = stack.orderedRemove(stack.items.len - 1);
+            const proc = engine.processes.getPtr(cur) orelse continue;
+            if (!proc.alive) continue;
+            proc.alive = false;
+            proc.crash_reason = reason_code;
+
+            var links_copy: std.ArrayListUnmanaged(u32) = .{};
+            defer links_copy.deinit(engine.allocator);
+            try links_copy.appendSlice(engine.allocator, proc.links.items);
+
+            for (links_copy.items) |linked_id| {
+                const linked = engine.processes.getPtr(linked_id) orelse continue;
+                if (!linked.alive) continue;
+                if (linked.trap_exit) {
+                    try linked.mailbox.append(engine.allocator, exit_marker);
+                    const pid_int = try store.int(@intCast(cur));
+                    try linked.mailbox.append(engine.allocator, pid_int);
+                } else {
+                    try stack.append(engine.allocator, linked_id);
+                }
+            }
+        }
+        return try store.unitLit();
+    }
+
     if (std.mem.eql(u8, op, "run")) {
         // run(pid) → state final. Draine la mailbox en appelant le
         // handler (fn symbol) avec (state, msg) pour chaque message.
@@ -2511,6 +2634,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const pid_u32: u32 = @intCast(pid_lit.int);
         const proc0 = engine.processes.getPtr(pid_u32) orelse
             return error.ProcessNotFound;
+        if (!proc0.alive) return error.ProcessDead; // O2.0
 
         const handler_val = proc0.handler orelse return error.HandlerFailed;
         const handler_node = store.get(handler_val);
