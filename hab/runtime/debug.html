@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html><body style="font-family:monospace;font-size:14px;padding:1em;background:#fff;">
+<h2>Hab Debug</h2>
+<pre id="out" style="background:#f5f5f5;padding:1em;white-space:pre-wrap;border:1px solid #ccc;">Loading...</pre>
+<script src="/hab/runtime/hab_runtime.js"></script>
+<script>
+(async () => {
+  const out = document.getElementById('out');
+  const tests = [
+    '(int_to_string 0)',
+    '(leaf "0")',
+    '(cons (leaf "0") nil)',
+    '(node "button" nil)',
+    '(node "button" (cons (leaf "0") nil))',
+    '(pair "button" nil)',
+    '(tree_tag (pair "button" nil))',
+    '(tree_tag (pair "a" "b"))',
+    '(counter_init 0)',
+    '(counter_view 0)',
+    '(counter_view 42)',
+    '(tree_tag (counter_view 0))',
+  ];
+  try {
+    try { await window.hab.mount('counter', '#__x__'); } catch(e) {}
+    const orig = console.log; console.log = () => {};
+    const lines = [];
+    for (const t of tests) {
+      let r;
+      try { r = window.hab.evalH(t); } catch(e) { r = 'EXCEPTION ' + e.message; }
+      lines.push(t + '\n  => ' + JSON.stringify(r));
+    }
+    console.log = orig;
+    out.textContent = lines.join('\n\n');
+  } catch(e) {
+    out.textContent = 'FATAL: ' + e.message + '\n' + e.stack;
+  }
+})();
+</script>
+</body></html>
