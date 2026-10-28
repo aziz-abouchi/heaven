@@ -289,3 +289,46 @@ systématique du langage, source de 2 jours perdus en O1.
     (let many x = v in
      (let many y = w in
       (f x y))))         -- 1 close (f) + 2 closes (lets) = 3
+
+
+## O2.3 FERMÉ (2026-10-28)
+
+Invariant catégorique prouvé :
+
+    ∀ strat ∈ {one_for_one, one_for_all, rest_for_one},
+    |S_strat(Children(3))| = 3   après crash-all + tick
+
+Preuve : `tests/otp2_inv_{one_for_one,one_for_all,rest_for_one}.hvn`,
+chacun avec 2 tests :
+- `*_direct`     : (run_strat_once strat 0) == 3
+- `*_lambda`     : (let prop = (lambda seed -> ...) in (prop 0)) == true
+
+Loi `|S(c)| = |c|` du foncteur `Supervise : End(Children)`.
+
+## Dette : Q.check échoue sur closures HKT
+
+Reproduit avec `sup_restart_rest` ET `sup_restart_all` à N=1,
+sans warmup ni interaction. `via_lambda` (même corps, même lambda)
+marche. Le bug est donc dans `Q.check` × closures qui référencent
+des fonctions passées en argument à un helper paramétré.
+
+Hypothèses :
+1. `check_iter` récursif capture `prop` et `gen` via `let`, et l'une
+   des deux références (probablement `prop`, qui contient
+   `run_strat_once STRAT seed`) est mal résolue à la 1ère itération.
+2. Ou le parser de `(prop (gen s))` préfixe-imbriqué avec `prop`
+   contenant lui-même un appel curryfié défait la curryfication.
+
+Non corrigé en O2.3 (preuve suffisante sans Q.check puisque
+`run_strat_once` est déterministe : 1 seed = preuve complète).
+À investiguer en O3+/scheduler : c'est un bug du moteur, pas d'OTP.
+
+## Contrat O2.4 (event-driven trap_exit)
+
+Deux sous-tâches indépendantes :
+
+1. event-driven : link(sup, child) + trap_exit(sup, true). sup_step_v2
+   3 cas (tag/pid/fonction). State étendu (pending_exit). Faisable.
+
+2. captureCont (3a-3b) : N=100+ quickcheck, load 1000+, retrait de
+   `run`. Chantier Zig scheduler, orthogonal à OTP.

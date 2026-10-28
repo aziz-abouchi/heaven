@@ -1,0 +1,21 @@
+-- Invariant |S_rest_for_one(c)| = |c| = 3.
+fn step(s, m) = m s
+
+run_strat_once strat seed =
+  (let many sup = (sup_spawn_with strat step (cons 0 (cons 0 (cons 0 nil)))) in
+   (let many s0 = (run sup) in
+    (let many p1 = (sup_p1 s0) in
+     (let many p2 = (sup_p2 s0) in
+      (let many p3 = (sup_p3 s0) in
+       (let many _ = (exit p1 1) in
+        (let many _ = (exit p2 1) in
+         (let many _ = (exit p3 1) in
+          (let many s1 = (sup_tick_with sup) in
+           (sup_count_with s1))))))))))
+
+test "inv_rest_for_one_direct":
+  (run_strat_once sup_restart_rest 0) == 3
+
+test "inv_rest_for_one_lambda":
+  (let many prop = (lambda seed -> ((run_strat_once sup_restart_rest seed) == 3)) in
+   (prop 0)) == true
