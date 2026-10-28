@@ -1045,7 +1045,16 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
                     if (in_spine) {
                         if (engine.fns.get(op_name)) |fd| {
                             if (fd.num_clauses > 0 and fd.ctor_arity == null) {
+                                // 2026-10-28 (Phase 7b) : snapshot args AVANT eval.
+                                // `args` est un slice sur store.pool.items ; evaluate() peut
+                                // reallouer pool.items et invalider args.ptr -> UAF a ~10000
+                                // iters (a 1000 pas de realloc, a 10000 oui). Snapshot sur
+                                // stack (max 8 args, deja garanti par le check <= 8).
+                                var tco_snap_buf: [8]Id = undefined;
                                 for (args, 0..) |a_, i_| {
+                                    tco_snap_buf[i_] = a_;
+                                }
+                                for (tco_snap_buf[0..args.len], 0..) |a_, i_| {
                                     markArgDone(engine, i_);
                                     engine.tco_args_buf[i_] = try evaluate(store, env, engine, a_, depth + 1);
                                 }
