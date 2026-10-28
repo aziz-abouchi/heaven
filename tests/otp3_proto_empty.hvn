@@ -1,0 +1,6 @@
+-- Protocole vide : pid fraîchement spawné, aucune trace.
+fn step(s, m) = m s
+
+test "proto_empty":
+  (let many p = (spawn step 0) in
+   (check_no_trace p)) == true

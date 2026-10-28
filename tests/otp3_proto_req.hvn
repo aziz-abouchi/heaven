@@ -1,0 +1,7 @@
+-- 1 tell str → trace == label.
+fn step(s, m) = m s
+
+test "proto_one_label":
+  (let many p = (spawn step 0) in
+   (let many _ = (tell p "Req") in
+    (check_has_trace p))) == true

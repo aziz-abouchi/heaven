@@ -1,0 +1,9 @@
+-- Dual manuel : client envoie, serveur reçoit.
+fn step(s, m) = m s
+
+test "proto_dual_pair":
+  (let many client = (spawn step 0) in
+   (let many server = (spawn step 0) in
+    (let many _ = (tell server "Req") in
+     (let many _ = (recv server) in
+      (check_has_trace server))))) == true

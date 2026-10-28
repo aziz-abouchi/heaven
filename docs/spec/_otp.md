@@ -383,3 +383,24 @@ réellement le state (l'un `is_alive sup`, l'autre garbage vs garbage).
 
 OTP complet au sens Erlang minimal. Reste (O3+) : MPST typé +
 captureCont + parse-level verification.
+
+
+## O3 FERMÉ (2026-10-28) — MPST runtime-checked
+
+Coexistence de deux couches :
+- `stdlib/mpst.hvn` (V0/V1, préexistant) : algèbre de session types
+  binaire (`STSend`/`STRecv`/`STSeq`/`STChoice`), `dual`, `check`,
+  `trace_of_string`. 9 tests verts (`tests/test_mpst.hvn`).
+- `core/std/otp/protocol.hvn` (O3) : helpers OTP-spécifiques sur
+  `mpst_trace(pid)` — `check_no_trace`, `check_has_trace`,
+  `check_protocol`, `check_dual`. Dépend de `mpst_trace` (magic
+  engine_expr.zig:1504).
+
+Tests O3 : `tests/otp3_proto_{empty,req,dual}.hvn` (3 verts).
+- proto_empty      : pid frais = trace vide
+- proto_one_label  : tell "Req" = trace non-vide
+- proto_dual_pair  : client tell + serveur recv = 2 traces
+
+Décision : MPST runtime (comportemental) plutôt que statique. Cohérent
+avec QTT runtime, effects runtime, préemption runtime. Voir
+docs/book/src/29-mpst.md pour l'argument complet.

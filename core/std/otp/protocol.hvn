@@ -1,0 +1,44 @@
+-- core/std/otp/protocol.hvn — O3 MPST runtime-checked via trace
+--
+-- Le protocole est une séquence de labels string accumulés dans
+-- proc.trace par tell/recv (engine_expr.zig:2476, 2503). On la compare
+-- à une spec déclarée par le client du protocole.
+--
+-- C'est du MPST runtime : pas de typage statique, mais vérification
+-- comportementale. Duality = convention déclarée + vérification
+-- symétrique côté client et serveur. Cohérent avec la vision Heaven
+-- (QTT runtime, effects runtime) : on vérifie ce qui se passe, pas
+-- ce qui pourrait se passer.
+--
+-- Spec complète : docs/spec/_mpst_plan.md (existante) +
+-- docs/spec/_mpst_v2_plan.md.
+--
+-- Usage :
+--   check_protocol pid "Req,Resp"            -- trace == "Req,Resp"
+--   check_no_trace pid                       -- trace vide
+--   check_has_trace pid                      -- trace non vide
+--   check_dual c s "!Req,?Resp" "?Req,!Resp" -- les 2 traces attendues
+
+-- Vérifie que la trace du pid correspond exactement à expected.
+check_protocol pid expected = (mpst_trace pid) == expected
+
+-- Vérifie que le pid n'a aucune trace (protocole vide — c'est l'état
+-- initial attendu d'un acteur fraîchement spawné).
+check_no_trace pid = (mpst_trace pid) == ""
+
+-- Vérifie que la trace est non-vide.
+check_has_trace pid = (string_length (mpst_trace pid)) > 0
+
+-- Vérifie les deux côtés d'un protocole dual. On déclare les specs
+-- attendues explicitement — pas d'inversion automatique, car le
+-- format de trace est celui du runtime (concaténé), et la dualité
+-- est une propriété *sémantique* du protocole, pas syntaxique.
+check_dual client server client_exp server_exp =
+  (and
+    ((mpst_trace client) == client_exp)
+    ((mpst_trace server) == server_exp))
+
+-- Vérifie qu'un protocole est dans un ensemble fini de specs
+-- admissibles (utile pour les protocoles avec branchement).
+check_protocol_in pid specs =
+  (contains (mpst_trace pid) specs)
