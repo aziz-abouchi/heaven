@@ -14,8 +14,6 @@ Légende :
 ---
 
 ## Progrès récents
-- **2026-10-21 (nuit)** : `lib/web/ontology.hvn` DBpedia Lookup live (13/13). `resolve_host` mapping IPv4 + `http_build_get_ua` fix. MCP 5 tools stables E2E. Diagnostic `let+recursion` (5 discriminants, pas collision/shadow). Livre restructuré 4 parties + version 0.5 + 66 illustrations (0 orpheline).
-- **2026-10-20 (nuit)** : fix `evalCmp` bytes-strings (`target_os == "..."` avec parens). `lib/syscall/linux_x86_64.hvn` (getrandom/read/write/openat via `raw_syscall`, 100% .hvn). `lib/random.hvn` LCG + `rand_os_linux` (entropie OS, 8/8). MPST V0.5 projection binaire (10/10). Style infixe mpst `project_side`. P0 parser identifie : 2 S-expr colles `(print "a")(print "b")` = 2e ignore. Baseline native + wasm = 0.
 
 - **2026-10-20 (soir)** : TLS OpenSSL FFI (@tls_connect/read/write/close), HTTPS live depuis .hvn (Wikidata 200 OK). DNS parametre (dns_resolve_a_com host server). stdlib/effects.hvn + resume alias (5/5). stdlib/ontology.hvn (14/14) + example Socrate. urlencode (9/9). Fossile #4 documente. Baseline Debug=0, TEST=0, RF=0, wasm x2=0.
 - **2026-10-20 (suite)** : `stdlib/ontology.hvn` (RDF/KB en .hvn pur, 14/14 tests), example Socrate 10 triples. Mots reserves documentes (`query`, `count`, `fact` interceptes par kanren). Book ch. 11 §7 'En .hvn pur'. Closure §2 refute (test malforme). Baseline ReleaseFast = 0 fail.
@@ -302,7 +300,7 @@ Résultats de référence (`docs/spec/_bench.md`) :
 | `bracket` / `local` / `catch` | ✅ | test_suite.hvn (5 tests) | syntaxe scoped, pas handle-rec |
 | `handle-rec` (reprise, one-shot) | ✅ | `test_effects_rec.hvn` + `test_effects_rec_nested.hvn` | discriminant par prompt |
 | `@prompt` / `@throw` (continuations delimitees) | ✅ | `test_continuations.hvn` (5 tests) | one-shot |
-| Scheduler préemptif | ⚠️ | test_scheduler 3/3, test_preemptive 12/12, test_preemptive_coop 4/4, test_preemptive_split 3/3 ; TaskState.preempted (A-3a) : reprise par redemarrage | reprise exacte exige captureCont (3a-3b). Bug (+ 1 2 3 4) dans lambda trace separement. |
+| Scheduler préemptif | ⚠️ (linux-x86_64) / fuel-only ailleurs | test_scheduler 3/3, test_preemptive 12/12, test_preemptive_coop 4/4, test_preemptive_split 3/3 ; TaskState.preempted (A-3a) : reprise par redemarrage | reprise exacte exige captureCont (3a-3b). Bug (+ 1 2 3 4) dans lambda trace separement. |
 | Distribution | 🚧 | — | C2 tranchée (Option D lazy copy) |
 
 ## Top priorités
@@ -474,121 +472,3 @@ Résultats de référence (`docs/spec/_bench.md`) :
 ### Baseline
 
 - ReleaseFast `--run-tests` = 0 fail. Debug = 0. wasm x2 = 0.
-
-## 2026-10-21 (session 3 — cloture)
-
-### Livre
-- `lib/os/scheduler.hvn` : `drop_id` + `run_n` (5/5 tests).
-- `lib/os/kernel.hvn` : `KernelQ` + `kernel_q_tick/current/disk_size` (6/6).
-- Baseline 10/10 fichiers `.hvn` verts, 0 regression.
-
-### Diagnostics Zig (5 cibles localisees, session dediee)
-1. `let-in-if` parser SEGV (then ET else, non-recursif confirme).
-   Contournement : helper hoiste (probe F OK).
-2. Runner : SEGV ~23 statements, arena non reset. `test_parser.hvn.skip`.
-3. MCP loop : `read_stdin 0` -> `@intCast` errno negatif.
-4. MCP loop : `F.parse_body ""` assert EOF (2e frame).
-5. `web_lookup` : `precalc+pick` x7 I/O reseau, incompatible.
-
-### Commits
-- `c1294e1` skip test_parser.hvn (SEGV runner)
-- `7df7a01` scheduler run_n (5/5)
-- `0552fde` doc _mcp_tools_wip.md
-- `fb2098d` kernel multi-taches (6/6)
-- `8a97df9` _session_continuity.md v2
-
-### Docs
-- `docs/STDLIB.md` : section `lib/os/` complete.
-- `docs/book/src/CHANGELOG.md` : entree 2026-10-21.
-- `_session_continuity.md` : v2 (+60 lignes).
-- `docs/spec/_mcp_loop_wip.md`, `_mcp_tools_wip.md` : WIP documentes.
-
-## 2026-10-23 (session 1 -- OS Phase 1B .hvn)
-
-### Livre
-- `lib/os/device.hvn` : +Net, +Timer (9/9 tests).
-- `lib/os/ipc.hvn` : +3 protocoles Disk/Net/Timer (9/9 tests).
-- Baseline 12/12 fichiers `.hvn` verts.
-
-### Commits
-- `67990ad` device Net + Timer
-- `b6f413b` ipc Disk/Net/Timer
-
-## 2026-10-23 (session 2 -- FIX let-in-if)
-
-### Livre
-- `src/core/expr.zig` : `parseLetExpr` (desucrage lambda). 14 lignes.
-- Cause racine : NativeParser sans `let`, boucle infinie parsePostfix.
-- Debloque : dispatch direct, web_lookup, MCP loop, QTT, KernelQ.
-
-### Commit
-- `1672ce8` fix(parser): let-in-if -- parseLetExpr manquant
-
-## 2026-10-23 (session 3 -- HoTT path.hvn)
-
-- lib/hott/path.hvn (14 tests) + _hott_roadmap.md
-- Commit efa9458
-
-## 2026-10-24 (session emancipation + E1.1)
-
-### Livre
-- lib/parse/infix.hvn : parseur infixe minimal (+ - *, parens). 12 tests.
-- lib/qtt/linear.hvn : facade QTT. 8 tests.
-- lib/hott/path.hvn : facade Path rank-1. 14 tests.
-- grammar path_constructor (HIT HoTT).
-- lib/syscall : constantes litterales + write_str.
-- docs/spec/_emancipation_roadmap.md : 10 phases E1-E10.
-
-### Decision
-Surface utilisateur = infixe uniquement. S-Expr = interne.
-Pipeline : .hvn infixe -> HP.lex -> AST S-Expr -> heaven_eval.
-Ordre : E1 -> E3 -> E2 -> E4..E10.
-
-### Bloque
-E1.2 (if/then/else) : cycle de definitions parse_atom/parse_if.
-3 strategies documentees, A recommandee (if au niveau expr, pas atome).
-
-### Baseline
-17/17 fichiers .hvn verts. zig build test 404/407.
-
-## 2026-10-24 (session WE)
-
-### Livre
-- heaven_eval : primitives == != > <= >= (table plate, 16 tests)
-- Nettoyage : 8 .bak, /tmp, 1 branche mergee
-
-### Bloque
-- parse_cmp : SEGV (famille cascade if, doc _cascade_if_bug.md)
-
-### Baseline
-18/18 fichiers .hvn verts, zig build test 404/407.
-
-## Mise à jour 2026-10-26 (session préemption + selfparse)
-
-### Validé cette session
-- Préemption WASI : `SuspendRequested` sous `wasmtime` (`858c008`).
-  `wasi_main.zig` supporte `--eval-file <path>` et `--fuel <n>`.
-- `test_selfparse.hvn` : 3/3 actifs (`42b2cda`). B-v1 documenté.
-- Abort-relaunch (A-3a) : validé (`556f2c1`, `e95a63b`).
-- `@disarm_preempt` : ajouté (`e7582d9`).
-
-### Tests scheduler (non-régression)
-- `test_scheduler.hvn` : 3/3
-- `test_preemptive.hvn` : 12/12
-- `test_preemptive_split.hvn` : 3/3
-- `test_preemptive_coop.hvn` : 4/4
-- `test_abort_relaunch.hvn` : 11/11
-
-### CI connue (pré-existante)
-- `core/test_suite.hvn` : `proto2_run_drains` et
-  `proto2_two_procs_run` échouent (caller-driven env propagation).
-
-
-## fix(run) — 2026-10-27
-
-- `engine_expr.zig` : `run()` utilise `new_env` (state/msg) au lieu de
-  `engine.env` (global) pour évaluer le body du handler.
-- `core/test_suite.hvn` : 98/98. proto1 et proto2 verts.
-- Non-régression : scheduler 3+12+3+4+11, selfparse 3/3.
-- Cause racine documentée dans le commit `8c64a31`.
-

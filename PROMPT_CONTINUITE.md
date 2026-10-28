@@ -814,6 +814,12 @@ Fix : `run()` doit évaluer le body du handler avec `new_env`
 4. **A-3b** (reprise exacte) — multi-sessions, `_capture_eval.md`.
 5. **B-v1** — patterns imbriqués dans `heaven_parse.hvn`.
 
+## OTP — O1 en cours (gen_server.hvn, préemptif)
+- `core/std/otp/gen_server.hvn` : cast/call, préemptif sur linux-x86_64.
+- Tests : `tests/test_gen_server{,_load,_prop,_fuzz}.hvn`
+  avec quickcheck/fuzzer (core/std).
+- O2 (links/monitors) : modifier `src/runtime/scheduler/scheduler.zig`.
+
 ## OTP (TODO, voir docs/spec/_otp.md)
 
 Spec complète : `docs/spec/_otp.md`.

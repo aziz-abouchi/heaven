@@ -180,3 +180,16 @@ Un composant Hab peut être :
          (gen_server_call pid "get" 1000)))) == 2
 
 Si ce test passe, O1 est fait.
+
+
+## Protocole comme type de session (MPST)
+
+Le protocole GenServer (`cast | call | info`) est un type de session
+biparti :
+  Client → Server : Cast(msg)         -- !Cast
+  Client → Server : Call(reply_pid,msg)-- !Call
+  Server → Client : Reply(value) on reply_pid -- !Reply (dual)
+
+Le dual côté serveur est `?Cast.μX. ?Call.(!Reply.X)` — c'est ce que
+`gen_server_step` implémente. La vérification statique de ce type
+viendra en O4 (MPST branché dans `engine_types.zig`).

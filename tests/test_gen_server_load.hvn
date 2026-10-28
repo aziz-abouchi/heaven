@@ -1,0 +1,11 @@
+-- charge : 1000 GenServers indépendants (cf. Phase 7b-fix1)
+inc x = + x 1
+
+test "gen_server_many":
+  let spawn_one = lambda i.
+    let pid = gen_server_spawn i in
+    let _   = gen_server_cast pid inc in
+    gen_server_call pid inc
+  in
+  let results = map spawn_one (range 0 1000) in
+  (foldl + 0 results) == 500500

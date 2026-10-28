@@ -1,0 +1,6 @@
+test "gen_server_robust":
+  for_all (list (pair string int)) (lambda msgs.
+    let pid = gen_server_spawn 0 in
+    let _   = map (lambda m. tell pid m) msgs in
+    let v   = gen_server_call pid (lambda x. x) in
+    is_int v)

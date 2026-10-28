@@ -1,0 +1,9 @@
+inc x = + x 1
+dec x = - x 1
+
+test "gen_server_inc_dec_commute":
+  for_all (list int) (lambda ops.
+    let pid = gen_server_spawn 0 in
+    let _   = map (lambda op. gen_server_cast pid (if (= op 0) inc dec)) ops in
+    let v   = gen_server_call pid (lambda x. x) in
+    = v (count 0 ops - count 1 ops))
