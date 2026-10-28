@@ -31,6 +31,9 @@ sup_make h (cons init rest) =
 
 -- S(c) : remplace les morts, garde les vivants. Idempotent si tous
 -- vivants (S ∘ S = S).
+-- O2.2 : alias pour le dispatch polymorphe (strat uniforme en h).
+sup_restart_one h c = (sup_restart h c)
+
 sup_restart h nil = nil
 sup_restart h (cons c rest) =
   (if (is_alive (fst c))
@@ -57,3 +60,52 @@ sup_count_alive (cons c rest) =
   (if (is_alive (fst c))
     (1 + sup_count_alive rest)
     (sup_count_alive rest))
+
+-- ═══ O2.2 : stratégies polymorphes (Endofunctor dispatch) ═══
+
+-- one_for_all : si au moins un enfant mort, respawn tous.
+sup_any_dead nil = false
+sup_any_dead (cons c rest) =
+  (if (is_alive (fst c)) (sup_any_dead rest) true)
+
+sup_respawn_all h nil = nil
+sup_respawn_all h (cons c rest) =
+  (cons (pair (spawn h (snd c)) (snd c)) (sup_respawn_all h rest))
+
+sup_restart_all h c =
+  (if (sup_any_dead c)
+    (sup_respawn_all h c)
+    c)
+
+-- rest_for_one : respawn depuis le premier mort (inclus) jusqu'à la fin.
+-- Flag 0 = pas encore déclenché, 1 = on respawn tout à partir d'ici.
+sup_restart_rest_aux h nil _ = nil
+sup_restart_rest_aux h (cons c rest) 0 =
+  (if (is_alive (fst c))
+    (cons c (sup_restart_rest_aux h rest 0))
+    (cons (pair (spawn h (snd c)) (snd c)) (sup_restart_rest_aux h rest 1)))
+sup_restart_rest_aux h (cons c rest) 1 =
+  (cons (pair (spawn h (snd c)) (snd c)) (sup_restart_rest_aux h rest 1))
+
+sup_restart_rest h c = (sup_restart_rest_aux h c 0)
+
+-- Dispatch polymorphe : state = (strategy, (h, children))
+-- strat : (h, Children) -> Children, uniforme en h (HKT).
+sup_tick_fn_with state =
+  (pair (fst state)
+        (pair (fst (snd state))
+              ((fst state) (fst (snd state)) (snd (snd state)))))
+
+sup_spawn_with strat h inits =
+  (gen_server_spawn (pair strat (pair h (sup_make h inits))))
+
+sup_tick_with sup =
+  (let many _ = (gen_server_cast sup sup_tick_fn_with) in
+   (run sup))
+
+-- Helpers d'extraction pour tests.
+sup_children_with s = (snd (snd s))
+sup_count_with s = (sup_count_alive (sup_children_with s))
+sup_p1 s = (fst (head (sup_children_with s)))
+sup_p2 s = (fst (head (tail (sup_children_with s))))
+sup_p3 s = (fst (head (tail (tail (sup_children_with s)))))

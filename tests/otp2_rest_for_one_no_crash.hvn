@@ -1,0 +1,10 @@
+-- rest_for_one sans crash : tout gardé.
+-- 4 lets + 1 body = 5 closes requis après s1.
+fn step(s, m) = m s
+
+test "rest_for_one_stable":
+  (let many sup = (sup_spawn_with sup_restart_rest step (cons 0 (cons 0 (cons 0 nil)))) in
+   (let many s0 = (run sup) in
+    (let many _ = (sup_tick_with sup) in
+     (let many s1 = (run sup) in
+      (sup_count_with s1))))) == 3

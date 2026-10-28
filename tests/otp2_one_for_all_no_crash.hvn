@@ -1,0 +1,11 @@
+-- Sans crash, one_for_all ne touche à rien.
+fn step(s, m) = m s
+
+test "one_for_all_stable":
+  (let many sup = (sup_spawn_with sup_restart_all step (cons 0 (cons 0 nil))) in
+   (let many s0 = (run sup) in
+    (let many p1 = (sup_p1 s0) in
+     (let many _ = (sup_tick_with sup) in
+      (let many s1 = (run sup) in
+       (let many p1b = (sup_p1 s1) in
+        (p1 == p1b))))))) == true

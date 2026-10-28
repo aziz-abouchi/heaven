@@ -1,0 +1,12 @@
+-- 1 mort → les 2 respawn (p2 change aussi).
+fn step(s, m) = m s
+
+test "one_for_all_respawns_sibling":
+  (let many sup = (sup_spawn_with sup_restart_all step (cons 0 (cons 0 nil))) in
+   (let many s0 = (run sup) in
+    (let many p1 = (sup_p1 s0) in
+     (let many p2 = (sup_p2 s0) in
+      (let many _ = (exit p1 1) in
+       (let many s1 = (sup_tick_with sup) in
+        (let many p2b = (sup_p2 s1) in
+         (p2 == p2b)))))))) == false

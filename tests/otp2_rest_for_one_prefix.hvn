@@ -1,0 +1,14 @@
+-- 3 enfants, p2 meurt. p1 gardé, p2 et p3 respawn.
+fn step(s, m) = m s
+
+test "rest_for_one_keeps_prefix":
+  (let many sup = (sup_spawn_with sup_restart_rest step (cons 0 (cons 0 (cons 0 nil)))) in
+   (let many s0 = (run sup) in
+    (let many p1 = (sup_p1 s0) in
+     (let many p2 = (sup_p2 s0) in
+      (let many p3 = (sup_p3 s0) in
+       (let many _ = (exit p2 1) in
+        (let many s1 = (sup_tick_with sup) in
+         (let many p1b = (sup_p1 s1) in
+          (let many p3b = (sup_p3 s1) in
+           (and (p1 == p1b) (p3 == p3b) == false)))))))))) == true
