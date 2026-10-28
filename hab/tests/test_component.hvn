@@ -1,0 +1,55 @@
+-- hab/tests/test_component.hvn — tests W1a (v3, 2026-10-28)
+-- v3 : C.counter est une FONCTION. Call sites `(C.counter unit)`.
+import "hab/component.hvn" as H
+import "hab/apps/counter.hvn" as C
+import "core/std/smocker.hvn" as S
+import "core/std/quickcheck.hvn" as Q
+
+-- ═══ Tests DIRECTS (sans component indirection) ═══
+test "direct_init": (C.counter_init unit) == 0
+test "direct_update_inc": (C.counter_update 0 "inc") == 1
+test "direct_update_dec": (C.counter_update 5 "dec") == 4
+test "direct_update_nop": (C.counter_update 42 "zzz") == 42
+test "direct_view_tag": (H.tree_tag (C.counter_view 0)) == "button"
+
+-- ═══ Component via fonction ═══
+test "mk_component_init": ((H.component_init (C.counter unit)) unit) == 0
+test "mk_component_view_initial":
+  (H.tree_tag ((H.component_view (C.counter unit)) 0)) == "button"
+test "apply_one_inc": (H.apply_one (C.counter unit) 0 "inc") == 1
+test "apply_one_dec": (H.apply_one (C.counter unit) 5 "dec") == 4
+test "apply_one_nop": (H.apply_one (C.counter unit) 42 "zzz") == 42
+test "apply_msgs_3_inc":
+  (H.apply_msgs (C.counter unit) 0 (cons "inc" (cons "inc" (cons "inc" nil)))) == 3
+test "apply_msgs_mixed":
+  (H.apply_msgs (C.counter unit) 10 (cons "inc" (cons "dec" (cons "inc" nil)))) == 11
+test "apply_msgs_empty": (H.apply_msgs (C.counter unit) 7 nil) == 7
+
+-- ═══ Propriétés quickcheck ═══
+test "prop_update_deterministic":
+  (Q.check
+    (lambda n -> (= (H.apply_one (C.counter unit) n "inc")
+                    (H.apply_one (C.counter unit) n "inc")))
+    (lambda s -> (Q.gen_int s)) 100) == true
+
+test "prop_inc_dec_identity":
+  (Q.check
+    (lambda n -> (= (H.apply_msgs (C.counter unit) n (cons "inc" (cons "dec" nil))) n))
+    (lambda s -> (Q.gen_int s)) 100) == true
+
+replicate_msg msg 0 = nil
+replicate_msg msg n = (cons msg (replicate_msg msg (- n 1)))
+
+test "prop_n_incs":
+  (Q.check
+    (lambda n -> (= (H.apply_msgs (C.counter unit) 0 (replicate_msg "inc" n)) n))
+    (lambda s -> (Q.gen_range 1 20 s)) 50) == true
+
+-- ═══ Purity ═══
+test "view_pure":
+  (= ((H.component_view (C.counter unit)) 42)
+     ((H.component_view (C.counter unit)) 42)) == true
+
+test "view_ignores_effects":
+  (let many stub = (S.fixed "SHOULD_NOT_APPEAR") in
+    (= (H.tree_tag ((H.component_view (C.counter unit)) 5)) "button")) == true

@@ -1,0 +1,22 @@
+-- hab/apps/counter.hvn — composant compteur minimal (v3, 2026-10-28)
+-- v3 : `counter` est une FONCTION, pas une valeur liée.
+-- Pourquoi : `counter = (H.mk_component ...)` en top-level bind un
+-- thunk que `force` ne déballe pas (bug de scope : le thunk top-level
+-- n'est pas dans engine.thunks). Résultat : `component_init C.counter`
+-- pattern-matche sur un thunk et échoue silencieusement.
+-- Fix : `counter unit` = appel de fonction → `.pair` frais.
+import "hab/component.hvn" as H
+
+counter_init _ = 0
+
+counter_update state msg =
+  (if (= msg "inc")
+    (+ state 1)
+    (if (= msg "dec")
+      (- state 1)
+      state))
+
+counter_view state = (H.node "button" (cons (H.leaf (int_to_string state)) nil))
+
+-- Fonction : chaque appel retourne un `.pair` frais (pas de thunk).
+counter _ = (H.mk_component counter_init counter_update counter_view)

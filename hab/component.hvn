@@ -1,0 +1,38 @@
+-- hab/component.hvn — noyau MVU de Hab (v3, 2026-10-28)
+-- v3 : component_init/update/view forcent leur argument via `force`.
+-- Pourquoi : `counter = (H.mk_component ...)` en top-level bind un
+-- thunk (comme `let x = e in body`). Pattern-matcher sur un thunk
+-- échoue silencieusement. `force comp` unwrappe le thunk (memoized)
+-- avant le match, donc les call sites n'ont pas à se soucier du lazy.
+--
+-- Règle Hab : le noyau ne touche JAMAIS au DOM. Le rendu est un
+-- tree pur que le runtime (JS ou WASM) consomme.
+
+-- Internals : pattern-match sur le pair (forcé)
+_pair_init   (pair i _)          = i
+_pair_update (pair _ (pair u _)) = u
+_pair_view   (pair _ (pair _ v)) = v
+
+-- Public : force puis match. Idempotent (force sur pair = no-op).
+mk_component init update view = (pair init (pair update view))
+component_init   comp = (_pair_init   (force comp))
+component_update comp = (_pair_update (force comp))
+component_view   comp = (_pair_view   (force comp))
+
+-- apply_msgs : boucle récursive sur la liste de messages.
+-- Récursion directe (TCO-compatible), pas de length (Peano).
+-- `component_update` force `comp` à chaque tour (memoized, cheap).
+apply_msgs comp state nil = state
+apply_msgs comp state (cons msg rest) =
+  (apply_msgs comp ((component_update comp) state msg) rest)
+
+apply_one comp state msg = ((component_update comp) state msg)
+
+-- Tree : arbre de rendu minimal, pur.
+--   leaf  text              -> (pair "leaf" text)
+--   node  tag children_list -> (pair tag children)
+leaf text                = (pair "leaf" text)
+node tag children        = (pair tag children)
+tree_tag  (pair t _)     = t
+tree_payload (pair _ p)  = p
+is_leaf (pair t _)       = (= t "leaf")
