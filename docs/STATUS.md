@@ -472,3 +472,39 @@ Résultats de référence (`docs/spec/_bench.md`) :
 ### Baseline
 
 - ReleaseFast `--run-tests` = 0 fail. Debug = 0. wasm x2 = 0.
+
+
+## OTP (complet 2026-10-28)
+
+Portage OTP en Heaven pur, sur le runtime existant (Process model +
+acteurs), sans modifier le scheduler.
+
+**Livré** (tags `otp-o1` à `otp-o2.4`) :
+- GenServer drain-coopératif (`cast`/`call`/`run`)
+- link / trap_exit / is_alive / exit (DFS, trap court-circuite)
+- superviseur 3 stratégies : one_for_one, one_for_all, rest_for_one
+- dispatch HKT : `Strategy : ∀h. (h, Children) → Children`
+- invariant catégorique : `|S(c)| = |c|` (préservation de taille)
+- idempotence : `S ∘ S = S` quand stable
+- event-driven : trap_exit passif, sup redémarre sur EXIT
+
+**Tests** : `tests/otp2_*.hvn` (19 fichiers), `tests/otp_gs_*.hvn` (3).
+
+**Théorèmes prouvés** (par test, pas par preuve formelle) :
+1. HKT : uniformité de `Strategy` en `h`
+2. Endofunctor : `S : End(Children)`
+3. Préservation : `|S(c)| = |c|`
+4. Idempotence : `S ∘ S = S`
+5. Optique : `fst`/`snd` = Lens(State, Children)
+6. Dualité MPST : protocole sup↔child typable (spec, à brancher O3)
+
+**Limites documentées** (voir `docs/spec/_otp.md`) :
+- Préemption SIGALRM ~10ms → N≤5 par fichier de test (captureCont
+  manquant, STATUS.md:303)
+- Q.check × closures HKT cassé (dette moteur, pas OTP)
+- Pas de captureCont → retrait de `run` impossible pour l'instant
+
+**Dettes instrumentales** (à traiter O3) :
+- check_parens.py ne détecte pas les parens compensées
+- parse-level : parser accepte un `let` mal parenthésé silencieusement
+- tests d'accesseurs (`snd`/`fst`) absents en isolation

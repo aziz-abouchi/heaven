@@ -820,7 +820,26 @@ Fix : `run()` doit évaluer le body du handler avec `new_env`
   avec quickcheck/fuzzer (core/std).
 - O2 (links/monitors) : modifier `src/runtime/scheduler/scheduler.zig`.
 
-## OTP (TODO, voir docs/spec/_otp.md)
+## OTP — COMPLET (2026-10-28)
+
+Tags : otp-o1, otp-o2.0, otp-o2.1, otp-o2.2, otp-o2.3, otp-o2.4.
+Tests : tests/otp_gs_*.hvn (3) + tests/otp2_*.hvn (19) = 22 verts.
+
+Prochaines étapes possibles :
+- **O3 MPST typé** : brancher engine_types.zig pour typer statiquement
+  le protocole superviseur↔enfant. Complète la vision théorique du
+  projet (MPST, duals, protocoles typés).
+- **parse-level verification** : parser doit rejeter un `let` sans `in`
+  correct. Dette instrumentale identifiée pendant O2.
+- **captureCont** (3a-3b) : débloque N=1000 quickcheck, load 1000+,
+  retrait de `run` dans gen_server. Chantier Zig scheduler.
+- **O4 Hab/Lustre-Heaven** : intégration finale, objectif du projet.
+
+Recommandation : O3 MPST typé d'abord (alignement théorique + premier
+vrai test du sous-système de types), puis O4. captureCont en parallèle.
+
+Voir docs/spec/_otp.md pour la spec complète (O1 à O2.4).
+
 
 Spec complète : `docs/spec/_otp.md`.
 
