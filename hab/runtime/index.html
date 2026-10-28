@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hab — counter</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 2em; }
+    #app button { font-size: 2em; padding: 0.5em 1em; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Hab — counter (W1b)</h1>
+  <div id="app"></div>
+  <p><small>Clique sur le bouton pour incrémenter. MVU en Heaven natif, WASM interp.</small></p>
+  <script src="/hab/runtime/hab_runtime.js"></script>
+  <script>
+    (async () => {
+      try {
+        await window.hab.mount('counter', '#app');
+      } catch (e) {
+        console.error('hab mount failed:', e);
+        document.getElementById('app').textContent = 'Error: ' + e.message;
+      }
+    })();
+  </script>
+</body>
+</html>

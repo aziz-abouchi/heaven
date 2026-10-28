@@ -29,8 +29,18 @@ handle_api _ =
   let json = (@egraph_snapshot cap) in
   (pair 200 (pair "application/json" (pair json nil)))
 
+-- 2026-10-28 : strip query string (?t=123, ?foo=bar). Un serveur
+-- HTTP doit ignorer le query pour le routing FS. Sinon cache-busters
+-- (?t=Date.now() de hab_runtime.js) cassent tout — le serveur sert
+-- 200 avec "ERROR: File not found" au lieu du fichier.
+-- Code byte 63 = '?'. string_index_of retourne -1 si absent.
+strip_query s =
+  let i = (string_index_of s 63) in
+  (if (< i 0) s (string_substring s 0 i))
+
 handle_static p =
-  let path0 = (if (p == "/") "index.html" p) in
+  let clean_path = (strip_query p) in
+  let path0 = (if (clean_path == "/") "index.html" clean_path) in
   let path = (strip_slash path0) in
   let ctype = (content_type path) in
   let body = (fs_read_public path) in
