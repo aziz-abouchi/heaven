@@ -1,0 +1,12 @@
+-- Si run ne persiste pas l'état, p1b == p1 (test échoue).
+-- Closes requis après p1b : 6 lets + 1 body = 7.
+fn step(s, m) = m s
+
+test "sup_restart_new_pid":
+  (let many sup = (sup_spawn step (cons 0 (cons 0 nil))) in
+   (let many s0 = (run sup) in
+    (let many p1 = (fst (head (snd s0))) in
+     (let many _ = (exit p1 1) in
+      (let many s1 = (sup_tick sup) in
+       (let many p1b = (fst (head (snd s1))) in
+        (p1 == p1b))))))) == false

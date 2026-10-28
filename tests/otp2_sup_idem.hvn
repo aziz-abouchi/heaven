@@ -1,0 +1,9 @@
+-- S ∘ S = S : deux ticks sans crash = même count.
+-- Closes requis après s : 3 lets + 2 body = 5.
+fn step(s, m) = m s
+
+test "sup_tick_idempotent":
+  (let many sup = (sup_spawn step (cons 0 (cons 0 nil))) in
+   (let many _ = (sup_tick sup) in
+    (let many s = (sup_tick sup) in
+     (sup_count_alive (snd s))))) == 2

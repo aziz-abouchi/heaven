@@ -1,0 +1,59 @@
+-- core/std/otp/supervisor.hvn — O2.1 (one_for_one)
+--
+-- Modèle catégorique : un superviseur est un endofoncteur
+--   S : End(Children),  S(c) = { spawn(init) if dead(c) ; c sinon }
+-- appliqué à chaque tick (health_check). C'est une application de
+-- foncteur S sur la liste des enfants. Propriété testée O2.3 :
+--   |S(c)| = |c|  (one_for_one préserve la taille)
+--   S ∘ S = S     (idempotent si tous vivants — point fixe)
+--
+-- Optique : fst/snd projettent (handler, children) : c'est le
+-- Lens(State, Children) le plus simple. En O2.2 (one_for_all /
+-- rest_for_one), la stratégie devient un paramètre de S, et on
+-- composera les optiques (lens composable). Pour l'instant : plat.
+--
+-- Actor : S est encapsulé dans un GenServer (handler = gen_server_step,
+-- state = (child_handler, children)). Le protocole est drain-coopératif
+-- comme O1 : `sup_tick` = cast + run.
+--
+-- MPST (différé O4) : protocole sup↔client
+--   ?Spawn. ?Tick. !State. (?Exit. !Restart.Tick)*
+-- Côté enfant : !Spawn. ?Tick. (?Exit. ?Restart)*  (dual).
+--
+-- Limites O2.1 :
+-- - pas de trap_exit ni de link sup↔enfant (polling pur)
+-- - one_for_one seulement. one_for_all/rest_for_one en O2.2.
+
+-- Construction récursive de la liste d'enfants.
+sup_make h nil = nil
+sup_make h (cons init rest) =
+  (cons (pair (spawn h init) init) (sup_make h rest))
+
+-- S(c) : remplace les morts, garde les vivants. Idempotent si tous
+-- vivants (S ∘ S = S).
+sup_restart h nil = nil
+sup_restart h (cons c rest) =
+  (if (is_alive (fst c))
+    (cons c (sup_restart h rest))
+    (cons (pair (spawn h (snd c)) (snd c)) (sup_restart h rest)))
+
+-- Application du foncteur S au state. C'est ce que `run` applique
+-- (gen_server_step state msg = msg state). Donc msg = sup_tick_fn.
+sup_tick_fn state =
+  (pair (fst state) (sup_restart (fst state) (snd state)))
+
+-- Spawn : handler enfant + liste d'inits → pid du superviseur.
+sup_spawn h inits =
+  (gen_server_spawn (pair h (sup_make h inits)))
+
+-- Tick : cast sup_tick_fn puis drain. Retourne le nouvel état.
+sup_tick sup =
+  (let many _ = (gen_server_cast sup sup_tick_fn) in
+   (run sup))
+
+-- Compte les vivants (récursif, pas de map — robustesse).
+sup_count_alive nil = 0
+sup_count_alive (cons c rest) =
+  (if (is_alive (fst c))
+    (1 + sup_count_alive rest)
+    (sup_count_alive rest))

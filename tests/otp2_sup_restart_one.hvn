@@ -1,0 +1,11 @@
+-- 1 enfant meurt, sup_tick le relance, count = 2.
+-- Closes requis après s1 : 5 lets + (sup_count_alive + (snd ...)) = 7.
+fn step(s, m) = m s
+
+test "sup_restart_one":
+  (let many sup = (sup_spawn step (cons 0 (cons 0 nil))) in
+   (let many s0 = (run sup) in
+    (let many p1 = (fst (head (snd s0))) in
+     (let many _ = (exit p1 1) in
+      (let many s1 = (sup_tick sup) in
+       (sup_count_alive (snd s1))))))) == 2

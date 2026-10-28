@@ -1,0 +1,7 @@
+-- 2 enfants spawn, tous vivants.
+fn step(s, m) = m s
+
+test "sup_initial_alive":
+  (let many sup = (sup_spawn step (cons 0 (cons 0 nil))) in
+   (let many s = (run sup) in
+    (sup_count_alive (snd s)))) == 2
