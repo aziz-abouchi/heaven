@@ -1,0 +1,5 @@
+test "refine_nested":
+  (let many h1 = (@hole 0) in
+   (let many r1 = (refine_tdd h1 10) in
+    (let many h2 = (@hole 0) in
+     (refine_tdd h2 r1)))) == 10

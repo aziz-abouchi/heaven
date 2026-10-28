@@ -1,0 +1,2 @@
+test "int_not_hole":
+  (@is_hole 42) == false

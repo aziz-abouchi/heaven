@@ -31,6 +31,9 @@
 - [Validation](23-validation.md)
 - [QTT — gestion de la mémoire](26-qtt.md)
 - [Hab — Heaven Web natif](27-hab.md)
+- [OTP — Superviseurs](28-otp.md)
+- [MPST — Session types runtime](29-mpst.md)
+- [TDD — Type Driven Development](30-tdd.md)
 
 ## Partie III — Théorie et abstraction
 

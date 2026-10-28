@@ -1,0 +1,8 @@
+-- core/std/tdd.hvn — TDD runtime
+-- CONTRAINTE : les magics @hole/@is_hole/@assert_no_hole sont dispatchés
+-- via appel (op + args). `@hole` nu est un symbole, PAS un appel.
+-- Donc on écrit `(@hole 0)` (arg ignoré) et pas `(@hole)`.
+-- `@is_hole` / `@assert_no_hole` attendent 1 arg réel, c'est naturel.
+refine_tdd h actual = actual
+is_hole v = (@is_hole v)
+assert_no_hole v = (@assert_no_hole v)

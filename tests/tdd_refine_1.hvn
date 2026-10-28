@@ -1,0 +1,3 @@
+test "refine_fills":
+  (let many h = (@hole 0) in
+   (refine_tdd h 42)) == 42

@@ -1,0 +1,2 @@
+test "hole_is_marker":
+  (@hole 0) == -1

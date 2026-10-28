@@ -1,0 +1,2 @@
+test "assert_ok":
+  (@assert_no_hole 42) == 42

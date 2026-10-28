@@ -1,0 +1,4 @@
+test "assert_on_refined":
+  (let many h = (@hole 0) in
+   (let many x = (refine_tdd h 7) in
+    (@assert_no_hole x))) == 7
