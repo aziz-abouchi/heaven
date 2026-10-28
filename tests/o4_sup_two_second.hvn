@@ -1,0 +1,9 @@
+import "hab/supervisor.hvn" as S
+counter_a s m = (s + m)
+counter_b s m = (s - m)
+test "sup_two_second":
+  (let many c1 = (S.child_mk counter_a 0) in
+   (let many c2 = (S.child_mk counter_b 0) in
+    (let many sup = (cons c1 (cons c2 nil)) in
+     (let many sup2 = (S.sup_tick_all sup 3) in
+      (S.child_model (head (tail sup2))))))) == -3

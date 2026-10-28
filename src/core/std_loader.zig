@@ -34,6 +34,8 @@ pub const files = [_][]const u8{
     "core/std/otp/protocol.hvn",
     "core/std/tdd.hvn",
     "core/std/match.hvn",
+    "hab/component_actor.hvn",
+    "hab/supervisor.hvn",
     "core/std/lens.hvn",
     "core/std/free.hvn",
     "core/std/base.hvn",

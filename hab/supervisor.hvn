@@ -1,0 +1,31 @@
+-- hab/supervisor.hvn — O4.2 (parent supervise n enfants MVU)
+-- Chaque enfant est un composant MVU (update_fn, model).
+-- État superviseur : liste de (update_fn, model).
+-- Tick : dispatch_from chaque enfant avec le même msg.
+-- Stratégie one_for_one (redémarrage = model remis à init si crash).
+-- Utilise dispatch_from (pas de mailbox — contourne dette runtime).
+
+-- ═══ Couple enfant (update_fn, model) ═══
+child_mk update_fn init = (pair update_fn init)
+child_update_fn c = (fst c)
+child_model c = (snd c)
+child_set_model m c = (pair (fst c) m)
+
+-- ═══ Dispatch un enfant (threading pur) ═══
+child_dispatch c msg =
+  (let many u = (child_update_fn c) in
+   (let many m = (child_model c) in
+    (let many uf = (force u) in
+     (child_set_model (uf m msg) c))))
+
+-- ═══ Superviseur : liste de couples ═══
+sup_mk children = children
+sup_children s = s
+sup_count nil = 0
+sup_count (cons _ rest) = (1 + (sup_count rest))
+
+-- Tick tous les enfants avec le même msg (one_for_one générique)
+sup_tick_all nil msg = nil
+sup_tick_all (cons c rest) msg =
+  (cons (child_dispatch c msg) (sup_tick_all rest msg))
+

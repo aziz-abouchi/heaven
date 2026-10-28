@@ -1,0 +1,5 @@
+import "hab/supervisor.hvn" as S
+counter_a s m = (s + m)
+test "sup_count_3":
+  (let many c = (S.child_mk counter_a 0) in
+   (S.sup_count (cons c (cons c (cons c nil))))) == 3

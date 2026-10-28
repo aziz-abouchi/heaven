@@ -1,0 +1,10 @@
+import "hab/supervisor.hvn" as S
+counter_a s m = (s + m)
+counter_b s m = (s - m)
+test "sup_tick_all_2_children":
+  (let many c1 = (S.child_mk counter_a 0) in
+   (let many c2 = (S.child_mk counter_b 0) in
+    (let many sup = (cons c1 (cons c2 nil)) in
+     (let many sup2 = (S.sup_tick_all sup 3) in
+      (and (= (S.child_model (fst sup2)) 3)
+           (= (S.child_model (fst (tail sup2))) (- 0 3))))))) == true
