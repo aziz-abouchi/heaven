@@ -366,7 +366,10 @@ pub fn main() !void {
             return error.InvalidPort;
         };
         var http_heaven = try heaven_expr.Heaven.init(allocator);
-        defer http_heaven.deinit();
+        defer {
+            http_heaven.deinit();
+            allocator.destroy(http_heaven);
+        }
         try http_heaven.runHttpServer(port);
         return;
     }
