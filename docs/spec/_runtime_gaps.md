@@ -388,3 +388,37 @@ moteur d'exécution fiable.
 - Session : fix `compile-qbe` (NoExpression → détecter `main`)
 - Session : fix `compile-wasm` (UnsupportedCall → dispatch appels)
 - Session : `heaven build --native` = bundle + compile-qbe
+
+
+## compile-qbe — état réel 2026-10-29 (après diagnostic)
+
+**Tests systématiques** (5 formes) :
+
+| Forme | Parser | Codegen |
+|---|---|---|
+| `42` nu | ✓ | ✗ UnsupportedCall |
+| `main = 42` | skip (definition) | NoExpression |
+| `fn main() = 42` | skip | NoExpression |
+| `main = 42` + `main 0` | ✓ | ✗ UnsupportedCall |
+| `print 42` | ✓ | ✗ UnsupportedCall |
+
+**Diagnostic** : le parser produit une expression valide. Le codegen
+(`mir_qbe.zig` + `compileRoot`) lève `UnsupportedCall` sur presque tout.
+
+**Effort pour fixer** : 2-3 sessions Zig
+- `mir_qbe.zig` : implémenter UnsupportedCall (appels, closures, strings)
+- `mir.zig` : MIR complet pour les primitives
+- Linker QBE → binaire
+
+**Décision 2026-10-29** : `compile-qbe` reste prototype cassé. On ne le
+fixe pas cette session. `heaven build --native` est reporté de 2-3
+sessions. Le workflow natif actuel = `heaven build` (bundle) + `heaven
+test` (interpréteur).
+
+**Alternatives court terme** :
+- `heaven build --bundle` : bundle seul (livré)
+- `heaven test bundle.hvn` : exécution interprétée (livré, 60/60)
+- `heaven build --native` : futur (2-3 sessions)
+
+**Piège** : `main = X` est avalé par `isDefinition` et ne devient pas le
+programme. Convention `compile-qbe` = expressions nues uniquement.
