@@ -197,3 +197,49 @@ namespaces. `module X` est une décoration ignorée au runtime — mais elle
 **Contournement** : aucun fichier ne doit déclarer `module X` tant que
 le bug n'est pas fixé. Ou importer sans alias (`as L`) et utiliser
 unprefixed (`view`, pas `L.view`).
+
+
+## Syntaxe lambda — ce qui marche, ce qui casse (2026-10-29)
+
+Tests empiriques sur 8 variantes :
+
+| Forme | 1 arg | 2+ args | Statut |
+|---|---|---|---|
+| `\x. body` | ✓ | ✗ | Grammar: 1 arg seulement (Style 1) |
+| `\x -> body` | ✓ | ? | Grammar: 1 arg seulement (Style 2) |
+| `\x y. body` | — | ✗ | Multi-arg + dot cassé |
+| `lambda x y -> body` | — | ✓ | **Word + arrow, marche** |
+| `lambda x y. body` | — | ✗ | Word + dot, cassé |
+| `λ x. body` | ✗ | — | Unicode + dot (encoding bug) |
+| `λ x y -> body` | — | ✓ | Unicode + arrow, marche |
+
+### Règle
+
+- **1 arg** : `\x. body` ou `\x -> body`
+- **2+ args** : `lambda x y -> body` (word, arrow, jamais dot)
+- **Jamais** `.` (dot) avec multi-args
+- **Jamais** `λ` (unicode) — encoding problematique
+
+### Cause root
+
+Le grammar tree-sitter (`vendor/tree-sitter-heaven/grammar.js:1598`)
+définit `lambda` uniquement avec **1 identifier** (Styles 1 et 2). Le
+mot `lambda` (7 lettres) n'est **pas** dans le grammar — il doit être
+traité par un préprocesseur ou l'elaborator.
+
+Pour 2+ args, la seule forme définie est Style 3 : `λ(x, y) => body`
+avec parens. `lambda x y -> body` marche probablement par chance
+(préprocesseur qui réécrit en lambdas imbriqués ?).
+
+### Fix long terme (2 sessions)
+
+Ajouter au grammar tree-sitter : `lambda ident+ arrow body` avec
+`repeat1($.identifier)` au lieu d'un seul. Nécessite rebuild C.
+Ou : ajouter un préprocesseur dans `bridge.zig` (`trLambda`) qui
+détecte N identifiers et crée N lambdas imbriqués.
+
+### Contournement immédiat
+
+Toute fonction à 2+ args stockée en data (pair, liste) doit être
+**nommée** (pas lambda) — cf. `compose_getter`/`compose_setter` dans
+`lens.hvn`. C'est ce qu'on a fait, ça marche.
