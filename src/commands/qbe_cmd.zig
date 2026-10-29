@@ -153,6 +153,9 @@ pub fn runCompileQbe(
     var mf = try compileRoot(alloc, heaven.store, &heaven.engine, body);
     defer mf.deinit();
 
+        std.debug.print("\n", .{});
+    }
+
     // 4. QBE IL
     const ssa = try mir_qbe.emitQbe(alloc, &mf);
     defer alloc.free(ssa);

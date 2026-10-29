@@ -422,3 +422,42 @@ test` (interpréteur).
 
 **Piège** : `main = X` est avalé par `isDefinition` et ne devient pas le
 programme. Convention `compile-qbe` = expressions nues uniquement.
+
+
+## Diagnostic compile-qbe (2026-10-29, session 2) — CAUSE ROOT
+
+**Cause root** : `mir.zig` `compileExpr .apply` ne gère QUE :
+- `while`, `if`, `break` (control flow)
+- fns **utilisateur** (`engine.fns.get(op_name) != null`)
+
+**Aucun builtin** n'est émis : `fst`, `snd`, `pair`, `cons`, `head`,
+`tail`, `+`, `-`, `*`, `=`. Ces builtins ne sont **pas dans
+engine_expr.zig** non plus (grep = 0 résultats) — ils sont gérés
+seulement par l'interpréteur (`engine.eval`).
+
+**Conséquence** : `precompileUserFns()` précompile 37 fns std (dont
+`set_fst`, `get_pp_fst` qui utilisent `fst`). Même un fichier `42` nu
+échoue parce que ces fns std sont précompilées → `UnsupportedCall
+name=100='fst'`.
+
+**Diagnostic confirmé par** :
+- `fst`, `snd` : UnsupportedCall (names 100, 60)
+- Aucun grep de builtin dans `mir.zig`/`mir_qbe.zig`
+- Le wrapper `$main` émet `printf` en QBE brut, mais le MIR root
+  contient les 37 fns std précompilées
+
+**Effort pour fixer** : 2-3 sessions Zig
+- `mir.zig` : implémenter `fst`, `snd`, `pair`, `cons`, `head`, `tail`
+  (6 builtins minimum)
+- `mir.zig` : implémenter arithmétiques (`+`, `-`, `*`, `=`, `<`, `>`)
+- `mir_qbe.zig` : émettre ces primitives en QBE
+- `mir_wat.zig` : idem WASM (2 sessions de plus)
+
+**Décision finale 2026-10-29** : `compile-qbe` reste prototype cassé.
+Chantier 2-3 sessions dédiées, pas un fix ponctuel. `heaven build
+--native` reste reporté. Workflow natif = `heaven build` (bundle) +
+`heaven test` (interpréteur).
+
+**Ne pas retenter sans plan dédié** : les sessions 2-3 Zig nécessaires
+sont documentées dans le plan futur (`_parallelism_roadmap.md` mentionne
+déjà les niveaux).
