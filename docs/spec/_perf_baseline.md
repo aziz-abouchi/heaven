@@ -88,3 +88,25 @@ Après strip permanent + audit modules :
 - **Cache AST incrémental** (`~/.heaven/cache/`, hash SHA256)
 - Skip parse si fichier inchangé
 - Objectif : `heaven test` < 2 s pour 54 fichiers
+
+
+## Session 2 (2026-10-29) — parallélisme test
+
+### BATCH=8 (retenu)
+- `heaven test tests/` : 12.2 s (vs 39.6 s série) = **3.2×**
+- Isolation préservée (1 subprocess/fichier, crash = 1 échec)
+- xargs -P 8 était 8.2 s — 1.5× meilleur (fork parent plus léger)
+
+### BATCH=16 (rejeté)
+- 17.6 s — pire que BATCH=8. Saturation de spawn.
+
+### Découverte : swarm_runtime existe
+- `src/runtime/swarm/runtime.zig` avec `swarmWorkerLoop`
+- Worker threads créés par `Heaven.init` (ligne ~56 dans main.zig)
+- `[SWARM] Worker thread started (Bob:{port})` — déjà branché ?
+- Base pour Niveau 1 parallélisme (voir _parallelism_roadmap.md)
+
+### Dette session 2
+- 12.2 s vs 8.2 s xargs : fork parent gras (16 MB)
+- Lazy init Heaven dans `main` (branche test) → -30 % attendu
+- Ou invoquer `xargs`-style depuis `runTestDir` (fork léger)
