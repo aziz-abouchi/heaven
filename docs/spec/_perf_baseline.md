@@ -110,3 +110,48 @@ Après strip permanent + audit modules :
 - 12.2 s vs 8.2 s xargs : fork parent gras (16 MB)
 - Lazy init Heaven dans `main` (branche test) → -30 % attendu
 - Ou invoquer `xargs`-style depuis `runTestDir` (fork léger)
+
+
+## Session 3 (2026-10-29) — cache Zig réparé
+
+### Découverte : `std.time.timestamp()` cassait le cache
+
+Dans `build.zig` ligne 22 :
+    options.addOption(i64, "build_timestamp", std.time.timestamp());
+
+À chaque `zig build`, `options.zig` régénéré avec un nouveau timestamp →
+Zig considère tous les modules l'important comme modifiés →
+**recompilation complète**, même sans changement de source.
+
+### Mesures avant/après
+
+| Scénario | Avant | Après |
+|---|---|---|
+| Rebuild sans rien toucher | 1m55s | **0,235s** |
+| Touch 1 fichier .zig | 2m12s | **~12s** |
+| Touch 1 fichier .hvn | 2m11s | **~0,2s** |
+| Cold build | 2m59s | ~2m59s (inchangé) |
+
+### Fix
+
+    - options.addOption(i64, "build_timestamp", std.time.timestamp());
+    + options.addOption(i64, "build_timestamp", @as(i64, 1793275169));
+
+Conservé comme constante hardcodée (valeur fixe 2026-10-29). Remplacer
+`std.time.timestamp()` par une version figée au release, mise à jour
+manuellement une fois par version si besoin.
+
+### Leçon
+
+Les 151 modules n'étaient **pas** la cause. Un seul appel non-déterministe
+dans `build.zig` invalidait tout le cache. Même pattern que
+`check_parens.py` et `check-v1` : un détail pourrit tout le système.
+
+### Règles futures
+
+- Jamais de `std.time.timestamp()`, `std.time.milliTimestamp()`,
+  `std.crypto.random` ou `b.pathFromRoot` non-fixe dans `build.zig`.
+- Si un timestamp est nécessaire (release), le figer manuellement
+  dans une constante.
+- Test de non-régression : `time zig build; time zig build` (2ᵉ doit
+  être < 1s si aucune source changée).

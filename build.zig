@@ -22,7 +22,8 @@ pub fn build(b: *std.Build) void {
     const options = b.addOptions();
     options.addOption(bool, "is_wasm", target.query.cpu_arch == .wasm32);
     options.addOption(bool, "network", network);
-    options.addOption(i64, "build_timestamp", std.time.timestamp());
+        // 2026-10-29: hardcodé — std.time.timestamp() invalidait le cache Zig à chaque build
+    options.addOption(i64, "build_timestamp", @as(i64, 1793275169));
     // Chemin absolu vers QBE v1.2, injecte a la compilation pour les
     // tests qui doivent l'invoquer (test_mir_qbe). Evite le piege du
     // CWD : `zig build test` execute les binaires depuis .zig-cache/,
