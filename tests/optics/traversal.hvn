@@ -1,0 +1,3 @@
+import "core/std/lens.hvn" as L
+test "traversal_inc":
+  (L.over_traversal (lambda x -> (x + 1)) (cons 1 (cons 2 (cons 3 nil)))) == (cons 2 (cons 3 (cons 4 nil)))

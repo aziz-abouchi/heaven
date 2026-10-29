@@ -1,0 +1,4 @@
+import "core/std/lens.hvn" as L
+test "set_view_idem":
+  (let many p = (pair 0 42) in
+   (L.set_via (L.lens_snd 0) (L.view (L.lens_snd 0) p) p)) == (pair 0 42)

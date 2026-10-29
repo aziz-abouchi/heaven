@@ -1,7 +1,6 @@
 -- core/std/lens.hvn (optiques v0 — debloque par fix first-class)
 -- Lens = couple (getter, setter). Composition manuelle.
 
-module Lens
 
 -- ─── Construction ───
 lens get set = (pair get set)
@@ -30,3 +29,39 @@ set_pp_fst v p =
   (pair (pair v (snd inner)) (snd p))
 
 lens_pp_fst _ = (lens get_pp_fst set_pp_fst)
+
+-- ═══ Extension 2026-10-29 : composition, prism, iso, traversal ═══
+
+-- ─── Composition lens ∘ lens ───
+-- (compose_lens outer inner) : focus inner à travers outer
+compose_setter outer inner v s =
+  (let many inner_state = ((fst outer) s) in
+   (let many new_inner = (((snd inner) v) inner_state) in
+    (((snd outer) new_inner) s)))
+
+compose_getter outer inner s = ((fst inner) ((fst outer) s))
+
+compose_lens outer inner = (lens (compose_getter outer inner) (compose_setter outer inner))
+
+-- lens_pp_fst via composition (équivalent à manuel)
+lens_pp_fst_compose _ = (compose_lens (lens_fst 0) (lens_fst 0))
+
+-- ─── Prism (focus peut échouer) ───
+-- prism match build : match a -> Option, build b -> a
+prism match build = (pair match build)
+preview p s = (fst p) s
+review p v = (snd p) v
+
+-- ─── Iso (bidirectionnel) ───
+iso forward backward = (pair forward backward)
+iso_to i a = (fst i) a
+iso_from i b = (snd i) b
+
+-- iso_swap : (a, b) <-> (b, a)
+iso_swap_fwd p = (pair (snd p) (fst p))
+iso_swap_bwd p = (pair (snd p) (fst p))
+iso_swap _ = (iso iso_swap_fwd iso_swap_bwd)
+
+-- ─── Traversal (focus sur liste) ───
+-- over_traversal f xs : applique f à chaque élément
+over_traversal f xs = (map f xs)

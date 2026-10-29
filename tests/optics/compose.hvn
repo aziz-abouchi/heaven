@@ -1,0 +1,8 @@
+import "core/std/lens.hvn" as L
+test "compose_view":
+  (let many p = (pair (pair 0 10) 20) in
+   (L.view (L.compose_lens (L.lens_fst 0) (L.lens_snd 0)) p)) == 10
+
+test "compose_set":
+  (let many p = (pair (pair 0 10) 20) in
+   (L.view (L.lens_fst 0) (L.set_via (L.compose_lens (L.lens_fst 0) (L.lens_snd 0)) 99 p))) == (pair 0 99)

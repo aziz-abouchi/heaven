@@ -170,3 +170,30 @@ défaut dans ce shell.
 **Règle** : ne jamais utiliser `!` dans une commande shell sans
 échappement (`\!`) ou quote simple (`'!'`). Préférer Python pour
 les patches contenant `!`.
+
+
+## `module X` casse les imports qualifiés (2026-10-29)
+
+**Symptôme** : `import "core/std/lens.hvn" as L` puis `(L.view ...)`
+échoue silencieusement (retourne un thunk). `(fst (L.lens_snd 0))`
+ne donne pas `snd`.
+
+**Cause** : le fichier `lens.hvn` commence par `module Lens`. Les
+fichiers sans cette directive (`match.hvn`, `tdd.hvn`, `quickcheck.hvn`)
+marchent en `L.foo`. Ceux avec `module X` sont cassés en qualifié.
+
+**Fix immédiat** : retirer `module Lens` de `lens.hvn`.
+
+**Impact** : 12 fichiers stdlib ont `module X` (`base.hvn`, `bool.hvn`,
+`eq.hvn`, `free.hvn`, `lens.hvn`, `list.hvn`, `memory.hvn`,
+`option.hvn`, `ord.hvn`, `pair.hvn`, `recursion.hvn`, `result.hvn`).
+Tous potentiellement affectés s'ils sont importés en qualifié.
+
+**Bug racine** : le parser/elab ne traite pas les modules comme des
+namespaces. `module X` est une décoration ignorée au runtime — mais elle
+**casse la résolution des fonctions 2-args via X.foo**. À fixer dans
+`elab.zig` ou `bridge.zig`.
+
+**Contournement** : aucun fichier ne doit déclarer `module X` tant que
+le bug n'est pas fixé. Ou importer sans alias (`as L`) et utiliser
+unprefixed (`view`, pas `L.view`).

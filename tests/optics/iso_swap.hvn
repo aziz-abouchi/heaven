@@ -1,0 +1,7 @@
+import "core/std/lens.hvn" as L
+test "iso_swap_involution":
+  (let many p = (pair 1 2) in
+   (L.iso_from (L.iso_swap 0) (L.iso_to (L.iso_swap 0) p))) == (pair 1 2)
+
+test "iso_swap_swap":
+  (L.iso_to (L.iso_swap 0) (pair 1 2)) == (pair 2 1)
