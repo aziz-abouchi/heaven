@@ -3892,7 +3892,7 @@ fn checkCallArity(store: *Store, engine: *engine_expr.Engine, id: expr.Id) ?Arit
     if (fn_node.tag == .sym) {
         const name = store.interner.resolve(fn_node.payload);
         if (engine.fns.get(name)) |fn_def| {
-            if (fn_def.num_clauses > 0) {
+            if (fn_def.num_clauses > 0 and fn_def.clauses[0].num_patterns > 0 and fn_def.clauses[0].num_patterns > 0) {
                 const expected: u32 = fn_def.clauses[0].num_patterns;
                 if (expected != args_len) {
                     return .{ .kind = .arity, .name = name, .expected = expected, .found = args_len };
