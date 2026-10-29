@@ -369,18 +369,24 @@ pub fn runTestDir(allocator: std.mem.Allocator, dir_path: []const u8) !bool {
             };
             n += 1;
         }
-        for (children[0..n]) |*c| {
+        for (children[0..n], 0..) |*c, idx| {
             const term = c.wait() catch {
+                platform.debug.print("✗ {s}: wait failed\n", .{files.items[i + idx]});
                 any_failed = true;
                 continue;
             };
-            const ok = switch (term) {
-                .Exited => |code| code == 0,
-                else => false,
-            };
-            if (!ok) any_failed = true;
+            switch (term) {
+                .Exited => |code| {
+                    if (code != 0) any_failed = true;
+                },
+                .Signal => |sig| {
+                    platform.debug.print("✗ {s}: CRASHED (signal {d})\n", .{ files.items[i + idx], sig });
+                    any_failed = true;
+                },
+                else => any_failed = true,
+            }
         }
         i = end;
     }
-    return !any_failed;
+    return any_failed;
 }

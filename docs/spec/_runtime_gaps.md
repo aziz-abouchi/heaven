@@ -141,3 +141,20 @@ couverts. Ensemble, ils donnent :
 Les 290 `return error.` dans `engine_expr.zig` restent majoritairement
 bruts. Étendre à 5-10 erreurs critiques = session future (types,
 unbound variable, stack trace).
+
+
+## Bug sémantique inversé runTestDir (2026-10-29)
+
+**Avant :** `return !any_failed` — retourne `true` si AUCUN échec.
+
+**Conséquence :** dans `test_cmd.zig`, `if (any_failed) return error.TestFailed` :
+- Tous tests OK → retourne `true` → erreur faussement positive
+- Un test crash → retourne `false` → erreur avalée, exit 0
+
+**Symptôme observé :** `heaven test tests/` → exit 0 malgré
+`test_bigint_d20.hvn` qui crash (signal).
+
+**Fix :** `return any_failed;` (1 caractère).
+
+**Bonus :** Signal traité explicitement (CRASHED signal N) au lieu
+d'être avalé dans le `else => false`.
