@@ -3781,8 +3781,28 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
             const rhs = try self.parseExpression(sp.b);
 
             // Interpréter les commandes intégrées AVANT de simplifier/comparer
-            const ls = try self.interpForAssert(lhs);
-            const rs = try self.interpForAssert(rhs);
+            const ls_raw = try self.interpForAssert(lhs);
+            const rs_raw = try self.interpForAssert(rhs);
+
+            // 2026-10-29: interpForAssert catch id — si le résultat est
+            // encore une lambda, c'est une application partielle.
+            if (self.store.get(ls_raw).tag == .lambda) {
+                const s_str = expr.toStringInfix(self.store, lhs, self.allocator) catch "?";
+                defer self.allocator.free(s_str);
+                return std.fmt.allocPrint(self.allocator,
+                    "✗ test {s}: partial application (lambda result) at lhs = {s}\n  = hint: missing argument? check arity of the function",
+                    .{ if (std.mem.startsWith(u8, input, "test \"")) @as([]const u8, "test") else @as([]const u8, "assert_eq"), s_str });
+            }
+            if (self.store.get(rs_raw).tag == .lambda) {
+                const s_str = expr.toStringInfix(self.store, rhs, self.allocator) catch "?";
+                defer self.allocator.free(s_str);
+                return std.fmt.allocPrint(self.allocator,
+                    "✗ test {s}: partial application (lambda result) at rhs = {s}\n  = hint: missing argument? check arity of the function",
+                    .{ if (std.mem.startsWith(u8, input, "test \"")) @as([]const u8, "test") else @as([]const u8, "assert_eq"), s_str });
+            }
+
+            const ls = ls_raw;
+            const rs = rs_raw;
             const ls_simp = try self.math.simplifyBasic(ls);
             const rs_simp = try self.math.simplifyBasic(rs);
             if (self.math.structuralEq(ls_simp, rs_simp)) {

@@ -91,3 +91,19 @@ Préparation faite : `engine_expr.isMagicSymbol` est `pub` (utilisable).
 - `let x = 5 in x` → OK (x local)
 - `fn f(a, b) = a + b` → OK (a, b locaux)
 - `(let x = 5 in (x 1))` → OK (x trouvé, mais checkCallArity détecte apply-non-fn)
+
+
+## Partial application — message clair (2026-10-29)
+
+Avant :
+    ✗ test arity: (lambda __curry_0 (add 1 __curry_0)) != 1
+
+Après :
+    ✗ test arity: partial application (lambda result) at lhs = (add 1)
+      = hint: missing argument? check arity of the function
+
+Cause : interpForAssert catch id avale l'erreur d'éval partielle.
+Fix : détecter .lambda après interpForAssert dans evalAssertionNative.
+
+Note : le patch a été appliqué dans le bloc `test "name":` (où `name`
+est déclaré), PAS dans `assert_eq` (où il n'y a pas de `name`).
