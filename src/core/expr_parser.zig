@@ -633,8 +633,13 @@ pub const ExprParser = struct {
             // sur 'k' dans le body.
             var end: usize = params.len;
             for (params, 0..) |p, i| {
-                if (std.mem.eql(u8, p, "->") or std.mem.eql(u8, p, "=>")) {
+                if (std.mem.eql(u8, p, "->") or std.mem.eql(u8, p, "=>") or std.mem.eql(u8, p, ".")) {
                     end = i;
+                    break;
+                }
+                // 2026-10-29 : "y." (point collé au dernier param)
+                if (p.len > 1 and p[p.len - 1] == '.') {
+                    end = i + 1;
                     break;
                 }
             }
@@ -643,7 +648,14 @@ pub const ExprParser = struct {
 
             var params_list: std.ArrayListUnmanaged([]const u8) = .{};
             defer params_list.deinit(self.allocator);
-            for (params) |pname| try params_list.append(self.allocator, pname);
+            for (params) |pname| {
+                // Nettoyer "y." → "y"
+                if (pname.len > 1 and pname[pname.len - 1] == '.') {
+                    try params_list.append(self.allocator, pname[0..pname.len - 1]);
+                } else {
+                    try params_list.append(self.allocator, pname);
+                }
+            }
 
             const result = try self.store.lambdaNative(params_list.items, body_id);
             platform.dbg("[parseSExpr] created lambda id = {d}\n", .{result});
