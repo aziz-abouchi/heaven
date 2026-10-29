@@ -35,6 +35,7 @@
 - [MPST — Session types runtime](29-mpst.md)
 - [TDD — Type Driven Development](30-tdd.md)
 - [Hab — MVU avec optiques](31-hab-mvu.md)
+- [Hab — App complète](32-hab-app.md)
 
 ## Partie III — Théorie et abstraction
 

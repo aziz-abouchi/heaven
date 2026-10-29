@@ -1,0 +1,10 @@
+import "hab/app.hvn"
+import "core/std/otp/supervisor.hvn"
+inc s m = (s + m)
+dec s m = (s - m)
+test "app_2children_tick":
+  (let many c1 = (child_mk inc 0) in
+   (let many c2 = (child_mk dec 0) in
+    (let many app = (app_mk (cons c1 (cons c2 nil))) in
+     (let many app2 = (app_tick_all app 5) in
+      (app_count app2))))) == 2

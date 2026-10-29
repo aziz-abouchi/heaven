@@ -1,0 +1,8 @@
+import "hab/app.hvn"
+import "core/std/otp/supervisor.hvn"
+inc s m = (s + m)
+test "app_tick_list_2msgs":
+  (let many c = (child_mk inc 0) in
+   (let many app = (app_mk (cons c nil)) in
+    (let many app2 = (app_tick_list app (cons 3 (cons 4 nil))) in
+     (app_child_model app2 0)))) == 7

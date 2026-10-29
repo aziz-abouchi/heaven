@@ -318,3 +318,25 @@ ne pas exécuter dans la suite standard).
 **Investigation future** : tracer `substSym` + parser infixe pour voir
 si `((fst o) s)` est parsé `apply(apply(fst, [o]), [s])` ou
 `apply(fst, [o, s])`. Si le 2e, c'est le parser qui fusionne, pas l'eval.
+
+
+## `import ... as X` casse les fonctions qualifiées (2026-10-29)
+
+**Symptôme** : `import "foo.hvn" as F` puis `(F.bar ...)` retourne un
+thunk au lieu d'appeler `bar`. Marche en unprefixed.
+
+**Reproduit sur** :
+- `module Lens` dans `lens.hvn` → retirer `module` a fixé (v1)
+- `import ... as SV` pour `supervisor.hvn` (r5 ✓ unprefixed, r6 ✗ `SV.child_mk`)
+- Probablement tous les imports `as X`
+
+**Cause** : le qualifié `X.foo` retourne la valeur (thunk) sans appliquer.
+Le runtime ne résout pas `X.foo` comme "appel de foo dans le module X" —
+c'est traité comme accès à une variable.
+
+**Contournement** : ne pas utiliser `as X`. Importer unprefixed :
+    import "core/std/otp/supervisor.hvn"
+    (child_mk inc 0)  -- unprefixed, marche
+
+**Impact** : tout code qui utilise `import as X` sur des fonctions 2-args.
+Cf. `hab/app.hvn` réécrit unprefixed.

@@ -1,0 +1,29 @@
+-- hab/app.hvn — O4.3 (App Hab complète)
+-- IMPORTANT : imports sans "as" et usage unprefixed.
+-- Le qualifié `SV.foo` casse (thunk au lieu de fonction) — bug runtime
+-- documenté dans _runtime_gaps.md. On utilise unprefixed.
+import "core/std/otp/supervisor.hvn"
+import "hab/component_actor.hvn"
+
+-- ─── App = liste de child_mk ───
+app_mk children = children
+app_count nil = 0
+app_count (cons _ rest) = (1 + (app_count rest))
+
+-- ─── Tick : applique le msg à tous ───
+app_tick_all a msg = (sup_tick_all a msg)
+
+-- ─── Tick un enfant spécifique ───
+app_tick_at (cons c rest) 0 msg = (cons (child_dispatch c msg) rest)
+app_tick_at (cons c rest) n msg = (cons c (app_tick_at rest (- n 1) msg))
+app_tick_at nil _ _ = nil
+
+-- ─── Lire l'état d'un enfant (via lens_mvu_get) ───
+app_child_model a i = (app_child_model_aux a i)
+app_child_model_aux (cons c _) 0 = (child_model c)
+app_child_model_aux (cons _ rest) n = (app_child_model_aux rest (- n 1))
+app_child_model_aux nil _ = 0
+
+-- ─── N msgs séquentiels ───
+app_tick_list a nil = a
+app_tick_list a (cons msg rest) = (app_tick_list (app_tick_all a msg) rest)
