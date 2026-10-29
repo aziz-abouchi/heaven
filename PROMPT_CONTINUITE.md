@@ -851,6 +851,53 @@ Prochaines étapes :
 
 
 
+
+
+## Règles perf 2026-10-29
+
+Mesures baseline (`_perf_baseline.md` à créer) :
+
+| Métrique | Valeur | Référence |
+|---|---|---|
+| Binaire ReleaseFast non strippé | 24 MB | ⚠️ |
+| Binaire strippé | 9,3 MB | ✅ |
+| Modules Zig (addModule + root_source_file) | 170 | ❌ cible 60-80 |
+| `heaven test` 1 fichier | 1,5 s (1,2 ms utile) | ❌ startup |
+| `heaven test tests/` (54 fichiers) | **0,206 s** | ✅ batch |
+| Boucle `for f in tests/*.hvn` | 44,9 s | ❌ interdit |
+
+### Règles obligatoires
+
+1. **Jamais de boucle `for f in tests/*.hvn do heaven test $f`**.
+   Toujours `heaven test tests/` (1 process, 218× plus rapide).
+
+2. **Max 3 `zig build` par session**. Batcher les patches Zig.
+   Compiler seulement après 3+ patches ou changement de `build.zig`.
+
+3. **Stripper le binaire** après build manuel : `strip zig-out/bin/heaven`.
+   (Binaire permanent : à fixer dans `build.zig`.)
+
+4. **Mesurer avant d'optimiser**. Si une commande > 1 s, noter dans
+   `_perf_baseline.md` avant de patcher.
+
+5. **5 sessions de perf avant toute nouvelle feature** (voir plan).
+
+### Plan perf (5 sessions)
+
+1. Strip permanent `build.zig` + `_claims_vs_reality.md` (45 min)
+2. **hvn incremental cache** (`~/.heaven/cache/`, skip parse inchangé) — 10× tests
+3. **Audit modules Zig** (170→60-80, fusions) — 2-3× build
+4. **Erreurs explicites** (multiplicateur de vélocité dev)
+5. **`heaven size` + `heaven profile`** (mesure continue)
+
+### Cause racine du build lent
+
+170 modules Zig déclarés (38 nommés + ~132 via `root_source_file`
+inline dans le build). Chaque module = arrêt potentiel de cache, graphe
+de dépendances lourd. Audit session 3 : fusionner par domaine
+(`proof*` → `proof/`, `knowledge_*` → `knowledge/`, `syntax*` →
+`syntax/`), retirer les extractions RFC-0001 non utilisées.
+
 ## TODO 2026-10-29 — Vérifier et compléter
 
 ### A. Triade test dynamique en Heaven pur
