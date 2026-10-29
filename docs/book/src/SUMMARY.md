@@ -1,8 +1,8 @@
 # Summary
 
-> **Heaven 0.6.1** — État au 2026-10-27. Voir la section « Versions » en fin
-> de page pour la grille complète. Cette version corrige la syntaxe lambda
-> (seul `\x. body` est validé) et documente la préemption multi-mode.
+> **Heaven v0.1.0** (binaire) — État au 2026-10-29. La grille « Versions »
+> en fin de page liste la **roadmap** (v0.2 → v1.0), pas le binaire.
+> Voir `docs/spec/_claims_vs_reality.md` pour l'écart livre/réalité.
 
 ## Partie I — Découverte (lecteur littéraire bienvenu)
 
@@ -71,16 +71,17 @@
 
 | Version | Contenu | Statut |
 |---|---|---|
+| **0.1.0** | **Binaire actuel. OTP + TDD + Hab MVU + optics v1 + heaven build bundler. 56+ tests verts.** | **ACTUEL** |
 | 0.1 | Parser, eval, types de base | historique |
-| 0.2 | Types dépendants, kernel, proofs | historique |
-| 0.3 | HKT V1a, optics, fantasy_land, MPST V0.5 | historique |
-| 0.4 | stdlib net (IP/TCP/UDP/DNS/HTTP), TLS FFI, effects, QTT parse | historique |
-| **0.5** | **`lib/syscall/`, `lib/time`, `lib/random`, `lib/json_rpc`, `lib/lsp/` (4 modules), `lib/mcp/` (5 tools), `lib/web/` (DBpedia live)** | historique |
-| 0.6 | OS Phase 1B (device/ipc/vfs/kernel), HoTT Path facade, QTT facade, grammar HIT, E1.1 parseur infixe `.hvn`, fix `let-in-if` + `lambda` | historique |
-| **0.6.1** | **Serveur HTTP natif `--http-serve` (curl /repl.html 200 / /heaven.wasm 200), `@arm_preempt` multi-mode (fuel/timer/both), audit syntaxe + fix `parseLetExpr` (`0471a6b`)** | **ACTUEL** |
+| 0.2 | Types dépendants, kernel, proofs | roadmap |
+| 0.3 | HKT V1a, optics, fantasy_land, MPST V0.5 | roadmap |
+| 0.4 | stdlib net (IP/TCP/UDP/DNS/HTTP), TLS FFI, effects, QTT parse | roadmap |
+| 0.5 | lib/syscall/, lib/time, lib/random, lib/json_rpc, lib/lsp/ | roadmap |
+| 0.6 | OS Phase 1B, HoTT Path facade, QTT facade, grammar HIT | roadmap |
+| 0.6.1 | HTTP natif --http-serve, @arm_preempt multi-mode | roadmap |
 | 0.7 | E1 parseur infixe complet, backend C en `.hvn` (E2), `--meta` (E3) | prochain |
 | 0.8 | WASM/WASI/JS backends `.hvn`, bootstrap 500 lignes | à planifier |
-| 1.0 | HoTT/Cubical, QTT runtime enforced, auto-hébergement complet, Lustre-like | vision |
+| 1.0 | HoTT/Cubical, QTT runtime enforced, auto-hébergement complet | vision |
 
 > **Partie I** = découverte narrative (littéraires bienvenus).
 > **Partie II** = ce qui marche aujourd'hui dans l'écosystème `.hvn`.

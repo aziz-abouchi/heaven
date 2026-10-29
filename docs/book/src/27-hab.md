@@ -8,7 +8,7 @@
 
 ## 1. Pourquoi un framework Web ?
 
-Lustre (Gleam) a montré la voie : un langage fonctionnel peut
+Des langages comme Elm ont montré la voie : un langage fonctionnel peut
 remplacer React sans Virtual DOM, en compilant le *Model-View-Update*
 (MVU) d'Elm directement vers des mises à jour ciblées. Hab applique
 la même idée à Heaven, avec trois avantages supplémentaires :
@@ -149,7 +149,7 @@ Tests :
     ./zig-out/bin/heaven --run-test hab/tests/test_fuzzer.hvn       # 9/9
     ./zig-out/bin/heaven --run-test hab/tests/test_loadtest.hvn     # 9/9
 
-## 8. Vision : Lustre-Heaven
+## 8. Vision : Heaven Web natif complet
 
 Hab est la première brique. À terme :
 
