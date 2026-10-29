@@ -1190,7 +1190,6 @@ pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{
         .name = exe_name,
         .root_module = b.createModule(
-        .strip = true,
             .{
                 .root_source_file = b.path(
                     if (target.result.os.tag == .wasi)
@@ -1202,6 +1201,7 @@ pub fn build(b: *std.Build) void {
                 ),
                 .target = target,
                 .optimize = optimize,
+                .strip = true,
                 .imports = &.{
                     .{ .name = "expr", .module = expr_mod },
                     .{ .name = "bridge_expr", .module = bridge_mod },

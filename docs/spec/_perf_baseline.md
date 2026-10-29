@@ -42,3 +42,20 @@ Après strip permanent + audit modules :
   fichiers).
 - **Vrai gain 10× à faire** : `runTestDir` avec engine réutilisé
   (pas de spawn par fichier). Session 2 du plan perf.
+
+
+## 2026-10-29 — fixes appliqués
+
+- `.strip = true` dans `build.zig` (createModule) : ✅
+  Binaire : 24 MB → ~9 MB, permanent.
+- `test_cmd.zig` : détecte dir vs file → route vers `runTestDir`.
+- `runTestDir` (existant) spawn 1 subprocess par fichier → ~45 s
+  pour 54 fichiers. **Pas de gain vitesse**, juste IsDir fixé.
+- Vrai gain 10× = engine réutilisé (session 2, TODO).
+
+## Pièges shell documentés
+
+- `cmd | tail; echo "exit: $?"` → mesure `tail`, pas `cmd`.
+  Toujours : `cmd > file 2>&1; CODE=$?; echo $CODE`.
+- `rm -rf .zig-cache/o` casse tree-sitter (C lib non reconstruite).
+  `rm -rf .zig-cache` (tout) force un rebuild propre.
