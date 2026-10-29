@@ -4,6 +4,9 @@
 
 ## Structure
 
+![App : parent → n enfants supervisés](images/32-hab-app.svg)
+
+
 Une app Hab est une liste de couples (update_fn, mvu_state).
 Le superviseur sup_tick_all applique un message à tous les enfants.
 

@@ -4,6 +4,9 @@
 
 ## Hole
 
+![TDD : hole → refine → assert](images/30-tdd-refine.svg)
+
+
 Le trou est créé par la primitive @hole (sentinelle -1). La détection
 se fait par @is_hole.
 

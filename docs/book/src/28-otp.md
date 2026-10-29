@@ -14,6 +14,11 @@ effets algébriques.
 
 ## GenServer — protocole standard
 
+![Arbre superviseur : enfant crashé + restart](images/28-otp-supervisor.svg)
+
+![Trois stratégies de restart](images/28-otp-restart.svg)
+
+
     fn gen_server_step(state, msg) = msg state
     gen_server_spawn init       = spawn gen_server_step init
     gen_server_cast pid f       = tell pid f

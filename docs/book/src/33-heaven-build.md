@@ -4,6 +4,9 @@
 
 ## Le problème
 
+![heaven build : src → bundle self-contained](images/33-heaven-build.svg)
+
+
 Un projet Heaven = N fichiers `.hvn` avec des `import`. Sans bundler,
 chaque `heaven test` résout les imports runtime (lent, répétitif).
 

@@ -12,6 +12,9 @@
 
 ## Mécanisme
 
+![Dualité client/serveur : !Req.?Resp vs ?Req.!Resp](images/29-mpst-duality.svg)
+
+
 Chaque tell/recv accumule les labels (chaînes) dans proc.trace.
 mpst_trace(pid) retourne "Req,Resp". Comparaison à une spec.
 
