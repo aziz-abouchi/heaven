@@ -1190,6 +1190,7 @@ pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{
         .name = exe_name,
         .root_module = b.createModule(
+        .strip = true,
             .{
                 .root_source_file = b.path(
                     if (target.result.os.tag == .wasi)
