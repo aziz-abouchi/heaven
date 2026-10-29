@@ -243,3 +243,33 @@ détecte N identifiers et crée N lambdas imbriqués.
 Toute fonction à 2+ args stockée en data (pair, liste) doit être
 **nommée** (pas lambda) — cf. `compose_getter`/`compose_setter` dans
 `lens.hvn`. C'est ce qu'on a fait, ça marche.
+
+
+## Règle fst vs pattern matching (2026-10-29)
+
+**Découverte** : `(fst param)` **dans une lambda** casse (thunk non réveillé).
+**Mais** pattern matching direct dans les params de fn marche :
+
+    make_getter (pair go _) (pair gi _) = (lambda s. (gi (go s)))
+    -- ↑ MARCHE (y2 ✓)
+
+    make_getter outer inner =
+      (let many go = (fst outer) in
+       (let many gi = (fst inner) in
+        (lambda s. (gi (go s)))))
+    -- ↑ CASSE (y1 ✗)
+
+**Règle** : quand une fonction prend un pair et capture ses
+composants dans une closure, utiliser **pattern matching dans les
+params**, jamais `fst`/`snd`.
+
+Exemples :
+- ✓ `compose_lens (pair go so) (pair gi si) = (lens (lambda s. (gi (go s))) ...)`
+- ✗ `compose_lens outer inner = (lambda s. ((fst inner) ((fst outer) s)))`
+
+Ce bug est probablement le même que le `fst-in-lambda` : les thunks
+créés par `fst param` ne sont pas forcés au moment de l'application
+de la closure. Le pattern matching contourne en liant directement les
+symboles (pas de thunk intermédiaire).
+
+Impact : `compose_lens`, `lens_mvu_over`, `dispatch_from` (Hab).

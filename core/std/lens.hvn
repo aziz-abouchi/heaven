@@ -34,14 +34,11 @@ lens_pp_fst _ = (lens get_pp_fst set_pp_fst)
 
 -- ─── Composition lens ∘ lens ───
 -- (compose_lens outer inner) : focus inner à travers outer
-compose_setter outer inner v s =
-  (let many inner_state = ((fst outer) s) in
-   (let many new_inner = (((snd inner) v) inner_state) in
-    (((snd outer) new_inner) s)))
-
-compose_getter outer inner s = ((fst inner) ((fst outer) s))
-
-compose_lens outer inner = (lens (compose_getter outer inner) (compose_setter outer inner))
+-- 2026-10-29: lambda x y. body supporté (parser natif fixé)
+compose_lens outer inner =
+  (lens
+    (lambda s. ((fst inner) ((fst outer) s)))
+    (lambda v s. (((snd outer) (((snd inner) v) ((fst outer) s))) s)))
 
 -- lens_pp_fst via composition (équivalent à manuel)
 lens_pp_fst_compose _ = (compose_lens (lens_fst 0) (lens_fst 0))
