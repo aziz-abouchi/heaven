@@ -4,6 +4,9 @@
 
 ## L'idée Hab
 
+![MVU : Model → Update → View](images/31-hab-mvu.svg)
+
+
 Hab (Heaven App Builder) applique l'architecture MVU (Model-Update-View)
 d'Elm au runtime acteur Heaven. Trois pièces :
 
