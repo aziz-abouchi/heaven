@@ -1,0 +1,6 @@
+-- PENDING : bug runtime, échec attendu. À réactiver quand le fix sera fait.
+-- (fst o) appliqué à s dans une lambda retournée ne réduit pas.
+test "fst_apply_lambda_bug":
+  (let many make = (lambda o. (lambda s. ((fst o) s))) in
+   (let many g = (make (pair fst snd)) in
+    (g (pair 7 8)))) == 7

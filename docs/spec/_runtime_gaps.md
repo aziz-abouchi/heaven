@@ -285,3 +285,36 @@ Impact : `compose_lens`, `lens_mvu_over`, `dispatch_from` (Hab).
 
 **Règle** : `(fst param)` dans closure = bug. Pattern matching
 `(pair go _) (pair gi _)` fonctionne.
+
+
+## apply-chain-in-returned-lambda (2026-10-29) — PRÉCISÉ
+
+**Diagnostic final** (après 8 tests) :
+
+| Test | Code | Résultat |
+|---|---|---|
+| d1 | `(lambda x. (lambda y. (x + y)))` | ✓ |
+| d2 | `(lambda o. (lambda s. ((fst o) s)))` | ✗ |
+| d3 | `(force (lambda o. ...))` | ✗ |
+| d4 | `(lambda o. (lambda s. (fst o)))` | ✓ |
+
+**Cause précise** : quand `(fst o)` est **appliqué** à `s` dans une
+lambda retournée, l'éval ne réduit pas l'apply-chain. La substitution
+`o := (pair fst snd)` se fait, mais l'application à `s` reste bloquée.
+`force` ne résout pas.
+
+**Scope** : `apply(apply(fst, o), s)` où `fst` est un builtin et `o`
+vient d'un paramètre de lambda.
+
+**Impact** : `compose_lens`, `iso_swap`, `over_traversal`, tout code
+qui fait `(getter param) s` dans une closure.
+
+**Contournement** : pattern matching direct `(pair go _) (pair gi _)`,
+ou composer les getters hors de la lambda avec `let many`.
+
+**Test permanent** : `tests/pending/fst_apply_in_lambda.hvn` (rouge,
+ne pas exécuter dans la suite standard).
+
+**Investigation future** : tracer `substSym` + parser infixe pour voir
+si `((fst o) s)` est parsé `apply(apply(fst, [o]), [s])` ou
+`apply(fst, [o, s])`. Si le 2e, c'est le parser qui fusionne, pas l'eval.
