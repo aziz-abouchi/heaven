@@ -158,3 +158,15 @@ unbound variable, stack trace).
 
 **Bonus :** Signal traité explicitement (CRASHED signal N) au lieu
 d'être avalé dans le `else => false`.
+
+
+### Addendum : `!` en bash
+
+Le `sed -i 's/return !any_failed/return any_failed/'` a échoué avec
+`bash: !any_failed: event not found`. C'est l'**expansion d'historique**
+`!` qui a mangé l'expression. Cause : `set +H` n'est pas activé par
+défaut dans ce shell.
+
+**Règle** : ne jamais utiliser `!` dans une commande shell sans
+échappement (`\!`) ou quote simple (`'!'`). Préférer Python pour
+les patches contenant `!`.
