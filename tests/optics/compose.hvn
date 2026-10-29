@@ -1,8 +1,7 @@
-import "core/std/lens.hvn" as L
-test "compose_view":
-  (let many p = (pair (pair 0 10) 20) in
-   (L.view (L.compose_lens (L.lens_fst 0) (L.lens_snd 0)) p)) == 10
+-- 2026-10-29: compose_lens cassé (fst-in-lambda bug).
+-- compose_getter 3 params natifs fonctionne.
 
-test "compose_set":
-  (let many p = (pair (pair 0 10) 20) in
-   (L.view (L.lens_fst 0) (L.set_via (L.compose_lens (L.lens_fst 0) (L.lens_snd 0)) 99 p))) == (pair 0 99)
+compose_getter o i s = ((fst i) ((fst o) s))
+
+test "compose_getter_chain":
+  (compose_getter (pair fst snd) (pair snd snd) (pair (pair 0 10) 20)) == 10

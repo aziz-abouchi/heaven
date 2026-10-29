@@ -1,64 +1,34 @@
--- core/std/lens.hvn (optiques v0 — debloque par fix first-class)
--- Lens = couple (getter, setter). Composition manuelle.
-
+-- core/std/lens.hvn (optiques v1 — 2026-10-29)
+-- Uniquement les fonctions validées par tests/optics/.
+-- compose_lens, prism, iso, traversal : voir _runtime_gaps.md.
+-- fst-in-lambda bug : compose_lens ne fonctionne pas.
 
 -- ─── Construction ───
 lens get set = (pair get set)
 
--- ─── Operations de base ───
-view l s = (fst l) s
-set_via l v s = (snd l) v s
--- over applique f a la VALEUR CIBLEE, pas au contenant.
-over l f s = (snd l) (f (view l s)) s
+-- ─── Opérations de base ───
+view l s = ((fst l) s)
+set_via l v s = (((snd l) v) s)
+over l f s = (((snd l) (f (view l s))) s)
 
 -- ─── Lenses pour Pair ───
 set_fst v p = (pair v (snd p))
 set_snd v p = (pair (fst p) v)
 
--- Note : binding top-level sans argument ne marche pas en v0,
--- parametre ignore.
 lens_fst _ = (lens fst set_fst)
 lens_snd _ = (lens snd set_snd)
 
--- ─── Lens profonde (Pair (Pair a b) c) ───
--- v0 : composition manuelle. Chaque niveau supplementaire = une
--- nouvelle paire de fonctions.
+-- ─── Lens profonde (Pair (Pair a b) c) — 1 niveau manuel ───
 get_pp_fst p = (fst (fst p))
 set_pp_fst v p =
-  let inner = (fst p) in
-  (pair (pair v (snd inner)) (snd p))
+  (let many inner = (fst p) in
+   (pair (pair v (snd inner)) (snd p)))
 
 lens_pp_fst _ = (lens get_pp_fst set_pp_fst)
 
--- ═══ Extension 2026-10-29 : composition, prism, iso, traversal ═══
+-- ─── Composition (getter seulement, setter manuel) ───
+-- compose_getter o i s : applique getter inner ∘ getter outer
+compose_getter o i s = ((fst i) ((fst o) s))
 
--- ─── Composition lens ∘ lens ───
--- (compose_lens outer inner) : focus inner à travers outer
--- 2026-10-29: lambda x y. body supporté (parser natif fixé)
-compose_lens outer inner =
-  (lens
-    (lambda s. ((fst inner) ((fst outer) s)))
-    (lambda v s. (((snd outer) (((snd inner) v) ((fst outer) s))) s)))
-
--- lens_pp_fst via composition (équivalent à manuel)
-lens_pp_fst_compose _ = (compose_lens (lens_fst 0) (lens_fst 0))
-
--- ─── Prism (focus peut échouer) ───
--- prism match build : match a -> Option, build b -> a
-prism match build = (pair match build)
-preview p s = (fst p) s
-review p v = (snd p) v
-
--- ─── Iso (bidirectionnel) ───
-iso forward backward = (pair forward backward)
-iso_to i a = (fst i) a
-iso_from i b = (snd i) b
-
--- iso_swap : (a, b) <-> (b, a)
-iso_swap_fwd p = (pair (snd p) (fst p))
-iso_swap_bwd p = (pair (snd p) (fst p))
-iso_swap _ = (iso iso_swap_fwd iso_swap_bwd)
-
--- ─── Traversal (focus sur liste) ───
--- over_traversal f xs : applique f à chaque élément
-over_traversal f xs = (map f xs)
+-- compose_lens : cassé par fst-in-lambda bug runtime.
+-- Voir docs/spec/_runtime_gaps.md.

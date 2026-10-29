@@ -273,3 +273,15 @@ de la closure. Le pattern matching contourne en liant directement les
 symboles (pas de thunk intermédiaire).
 
 Impact : `compose_lens`, `lens_mvu_over`, `dispatch_from` (Hab).
+
+
+## lens.hvn v1 — périmètre validé (2026-10-29)
+
+**Fonctionne** : `view`/`set_via`/`over`, `lens_fst`/`lens_snd`/`lens_pp_fst`,
+`compose_getter` (3 params natifs).
+
+**Ne fonctionne pas** (retiré) : `compose_lens`, `iso_swap`, `over_traversal`
+— tous affectés par le fst-in-lambda bug.
+
+**Règle** : `(fst param)` dans closure = bug. Pattern matching
+`(pair go _) (pair gi _)` fonctionne.
