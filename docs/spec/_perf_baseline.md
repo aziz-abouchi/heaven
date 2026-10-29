@@ -16,12 +16,12 @@ Mesures datées pour détecter les régressions.
 
 ### Tests
 - `heaven test tests/otp_gs_basic.hvn` (2 tests) : 1,5 s total, 1,2 ms utile
-- `heaven test tests/` (54 fichiers, ~500 tests) : **0,206 s**
+- `heaven test tests/` : **0,24 s, 0 tests lancés** — la commande n'exécute PAS les tests du dossier (no-op silencieux). **Dette.**
 - Boucle `for f in tests/*.hvn` (54 invocations) : **44,9 s**
 - Overhead startup : ~1,4 s par invocation (parse + imports `core/std/*`)
 
 ### Constat
-- Tests batch = **218× plus rapides** que la boucle
+- Tests batch : **n'existe pas** (no-op). La boucle 44,9 s est le vrai coût. Optimisation réelle = cache parser (session 2) ou batch mode (à implémenter).
 - Overhead startup > travail utile pour 1 fichier
 - Build lent = 170 modules, à auditer
 
@@ -31,3 +31,14 @@ Après strip permanent + audit modules :
 - Build à froid (< 60 s cible)
 - Build à chaud (< 2 s cible)
 - Binaire strippé (< 10 MB cible, déjà OK)
+
+
+## 2026-10-29 — corrections
+
+- `heaven test tests/` échouait avec `error: IsDir` (routing cassé).
+  Fix : `test_cmd.zig` détecte dir vs file.
+- `runTestDir` existe (test_runner.zig:328) mais spawn 1 subprocess
+  par fichier. Vitesse : identique à la boucle shell (~45 s pour 54
+  fichiers).
+- **Vrai gain 10× à faire** : `runTestDir` avec engine réutilisé
+  (pas de spawn par fichier). Session 2 du plan perf.
