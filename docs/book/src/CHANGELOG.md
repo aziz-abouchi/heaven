@@ -1,3 +1,66 @@
+## 2026-10-29 — Session OTP/Hab/Optics/Build (14 tags)
+
+### Perf (3 sessions)
+- **Binaire** : 24 MB → 9.2 MB (`.strip = true` dans `build.zig`).
+- **Cache Zig réparé** : `std.time.timestamp()` invalidait `options.zig`
+  chaque seconde → 1m55s → 0.235s par rebuild (600×). Fix constant.
+- **Batch tests** : `runTestDir` spawn 8 workers parallèles (39.6s → 12-19s).
+- **Mesure baseline** : `_perf_baseline.md`.
+
+### Bugs runtime majeurs fixés
+- **`apply-chain-in-returned-lambda`** (tag `fix-apply-chain`) : `((fst (pair fst snd)) s)` ne réduisait pas. Fix 4 (`apply(X, [])` → X) + Fix 5 (réduire fnode `.apply` avant application). Débloque compose_lens, iso, traversal, lens_mvu_over.
+- **`runTestDir` sémantique inversée** (tag `fix-test-dir-semantics`) : `!any_failed` causait exit 0 sur échec. Signal 11 (bigint) invisible. Fix + `.Signal => CRASHED` visible.
+- **Parser `lambda x y. body`** (tag `fix-lambda-dot`) : `.` manquait aux séparateurs. Toutes formes marchent (`lambda`, `\`, `λ` × `.`, `->`).
+
+### OTP (30 tests, tags otp-o1 → otp-o2.4, otp-o3)
+- GenServer drain-coopératif (cast/call/run).
+- link/trap_exit/is_alive/exit (DFS, trap court-circuite).
+- 3 stratégies superviseurs (one_for_one, one_for_all, rest_for_one) en dispatch HKT.
+- Event-driven trap_exit passif (sup reçoit EXIT dans mailbox).
+- **MPST runtime** (tag `otp-o3`) : check_dual, check_protocol, check_no_trace.
+
+### TDD (12 tests, tags tdd-v1, tdd-v1.1)
+- `@hole` sentinelle -1, `@is_hole`, `@assert_no_hole`, `refine_tdd`.
+- `match1/2/3/list` (contourne `case` grammar-only).
+
+### Hab MVU (13 tests, tags hab-o4.1, hab-o4.2, hab-o4.3)
+- **O4.1** : lens MVU (`lens_mvu_get/set/over`), `dispatch_from`, `dispatch_list`.
+- **O4.2** : superviseur n enfants (`sup_tick_all`, `sup_tick_at`).
+- **O4.3** : app complète (`app_mk`, `app_tick_all`, `app_count`, `app_child_model`). Imports unprefixed (bug `import as X`).
+
+### Optics v1 (tags optics-v1, optics-v1c, fix-apply-chain)
+- `view`/`set_via`/`over`, `lens_fst`/`lens_snd`/`lens_pp_fst`.
+- **`compose_lens`** (via Fix 5), `compose_getter`, `iso`, `traversal`.
+
+### `heaven build` (tag heaven-build-v1)
+- Bundler multi-fichiers : scan récursif + résolution `import` topologique + concat.
+- `heaven build <dir|file> -o <out.hvn>`.
+- Test : bundle de `hab/` → `heaven test` 60/60.
+
+### Check v1 (tag check-v1)
+- Arity mismatch + literal-as-function + partial-lambda dans `evalAssertionNative`.
+- Faux positifs lambdas corrigés (`num_patterns > 0` requis).
+
+### Book
+- Chapitres 28 (OTP), 29 (MPST), 30 (TDD), 31 (Hab MVU), 32 (Hab app), 33 (heaven build).
+- 2 SVG : `otp-supervisor.svg`, `tdd-refine.svg`.
+
+### Dettes documentées (`docs/spec/_runtime_gaps.md`, 10 pièges)
+1. `module X` casse les imports qualifiés.
+2. `import as X` casse les fonctions 2-args (thunk).
+3. `lambda x y. body` dot (fixé, garder `->` par défaut).
+4. `fst-in-lambda` : `(fst param)` dans closure (fixé via Fix 5).
+5. `apply-chain` : `(fst o) s` non réduit (fixé).
+6. `zig build` inutile pour `.hvn` (readFileAlloc runtime).
+7. `compile-qbe` : 0 builtin dans codegen MIR (chantier 2-3 sessions).
+8. `run` multi-message perd des messages (mailbox, chantier 2 sessions).
+9. `test_bigint_d20` SIGSEGV (1 session).
+10. `check_parens.py` : N lets + body = N+1 closes.
+
+### Découverte `.hvn` runtime
+- `std_loader.zig:57` utilise `readFileAlloc` (PAS `@embedFile`).
+- Modifier un `.hvn` → 0 rebuild Zig. Gain 30 min/session × 20 sessions.
+
 ## 2026-10-26 (session préemption + selfparse)
 
 ### Préemption WASI (Option A)
@@ -944,69 +1007,6 @@ antéchronologique.
 - `docs/COMMANDS.md` : carte langage vs shell.
 - `docs/capabilities.md` : design capabilities (WASI / Cap'n Proto).
 - `docs/ROADMAP.md` : #units, #codegen-targets, #egraph-viz.
-
-## 2026-10-29 — Session OTP/Hab/Optics/Build (14 tags)
-
-### Perf (3 sessions)
-- **Binaire** : 24 MB → 9.2 MB (`.strip = true` dans `build.zig`).
-- **Cache Zig réparé** : `std.time.timestamp()` invalidait `options.zig`
-  chaque seconde → 1m55s → 0.235s par rebuild (600×). Fix constant.
-- **Batch tests** : `runTestDir` spawn 8 workers parallèles (39.6s → 12-19s).
-- **Mesure baseline** : `_perf_baseline.md`.
-
-### Bugs runtime majeurs fixés
-- **`apply-chain-in-returned-lambda`** (tag `fix-apply-chain`) : `((fst (pair fst snd)) s)` ne réduisait pas. Fix 4 (`apply(X, [])` → X) + Fix 5 (réduire fnode `.apply` avant application). Débloque compose_lens, iso, traversal, lens_mvu_over.
-- **`runTestDir` sémantique inversée** (tag `fix-test-dir-semantics`) : `!any_failed` causait exit 0 sur échec. Signal 11 (bigint) invisible. Fix + `.Signal => CRASHED` visible.
-- **Parser `lambda x y. body`** (tag `fix-lambda-dot`) : `.` manquait aux séparateurs. Toutes formes marchent (`lambda`, `\`, `λ` × `.`, `->`).
-
-### OTP (30 tests, tags otp-o1 → otp-o2.4, otp-o3)
-- GenServer drain-coopératif (cast/call/run).
-- link/trap_exit/is_alive/exit (DFS, trap court-circuite).
-- 3 stratégies superviseurs (one_for_one, one_for_all, rest_for_one) en dispatch HKT.
-- Event-driven trap_exit passif (sup reçoit EXIT dans mailbox).
-- **MPST runtime** (tag `otp-o3`) : check_dual, check_protocol, check_no_trace.
-
-### TDD (12 tests, tags tdd-v1, tdd-v1.1)
-- `@hole` sentinelle -1, `@is_hole`, `@assert_no_hole`, `refine_tdd`.
-- `match1/2/3/list` (contourne `case` grammar-only).
-
-### Hab MVU (13 tests, tags hab-o4.1, hab-o4.2, hab-o4.3)
-- **O4.1** : lens MVU (`lens_mvu_get/set/over`), `dispatch_from`, `dispatch_list`.
-- **O4.2** : superviseur n enfants (`sup_tick_all`, `sup_tick_at`).
-- **O4.3** : app complète (`app_mk`, `app_tick_all`, `app_count`, `app_child_model`). Imports unprefixed (bug `import as X`).
-
-### Optics v1 (tags optics-v1, optics-v1c, fix-apply-chain)
-- `view`/`set_via`/`over`, `lens_fst`/`lens_snd`/`lens_pp_fst`.
-- **`compose_lens`** (via Fix 5), `compose_getter`, `iso`, `traversal`.
-
-### `heaven build` (tag heaven-build-v1)
-- Bundler multi-fichiers : scan récursif + résolution `import` topologique + concat.
-- `heaven build <dir|file> -o <out.hvn>`.
-- Test : bundle de `hab/` → `heaven test` 60/60.
-
-### Check v1 (tag check-v1)
-- Arity mismatch + literal-as-function + partial-lambda dans `evalAssertionNative`.
-- Faux positifs lambdas corrigés (`num_patterns > 0` requis).
-
-### Book
-- Chapitres 28 (OTP), 29 (MPST), 30 (TDD), 31 (Hab MVU), 32 (Hab app), 33 (heaven build).
-- 2 SVG : `otp-supervisor.svg`, `tdd-refine.svg`.
-
-### Dettes documentées (`docs/spec/_runtime_gaps.md`, 10 pièges)
-1. `module X` casse les imports qualifiés.
-2. `import as X` casse les fonctions 2-args (thunk).
-3. `lambda x y. body` dot (fixé, garder `->` par défaut).
-4. `fst-in-lambda` : `(fst param)` dans closure (fixé via Fix 5).
-5. `apply-chain` : `(fst o) s` non réduit (fixé).
-6. `zig build` inutile pour `.hvn` (readFileAlloc runtime).
-7. `compile-qbe` : 0 builtin dans codegen MIR (chantier 2-3 sessions).
-8. `run` multi-message perd des messages (mailbox, chantier 2 sessions).
-9. `test_bigint_d20` SIGSEGV (1 session).
-10. `check_parens.py` : N lets + body = N+1 closes.
-
-### Découverte `.hvn` runtime
-- `std_loader.zig:57` utilise `readFileAlloc` (PAS `@embedFile`).
-- Modifier un `.hvn` → 0 rebuild Zig. Gain 30 min/session × 20 sessions.
 
 ## 2026-10-16 — Session marathon
 

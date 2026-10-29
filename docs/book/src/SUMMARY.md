@@ -1,7 +1,7 @@
 # Summary
 
-> **Heaven v0.1.0** (binaire) — État au 2026-10-29. La grille « Versions »
-> en fin de page liste la **roadmap** (v0.2 → v1.0), pas le binaire.
+> **Heaven v0.1.0** (binaire actuel) — État au 2026-10-29. La grille « Versions »
+> en fin de page liste le **binaire actuel (v0.1.0) + la roadmap (v0.2 → v1.0)**.
 > Voir `docs/spec/_claims_vs_reality.md` pour l'écart livre/réalité.
 
 ## Partie I — Découverte (lecteur littéraire bienvenu)
@@ -72,7 +72,7 @@
 | Version | Contenu | Statut |
 |---|---|---|
 | **0.1.0** | **Binaire actuel. OTP + TDD + Hab MVU + optics v1 + heaven build bundler. 56+ tests verts.** | **ACTUEL** |
-| 0.1 | Parser, eval, types de base | historique |
+| 0.0.1 | Parser, eval, types de base (avant le binaire actuel) | historique |
 | 0.2 | Types dépendants, kernel, proofs | roadmap |
 | 0.3 | HKT V1a, optics, fantasy_land, MPST V0.5 | roadmap |
 | 0.4 | stdlib net (IP/TCP/UDP/DNS/HTTP), TLS FFI, effects, QTT parse | roadmap |
