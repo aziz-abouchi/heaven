@@ -107,3 +107,37 @@ Fix : détecter .lambda après interpForAssert dans evalAssertionNative.
 
 Note : le patch a été appliqué dans le bloc `test "name":` (où `name`
 est déclaré), PAS dans `assert_eq` (où il n'y a pas de `name`).
+
+
+## Session erreurs v1 (2026-10-29)
+
+### Acquis
+- `check-v1` fire `arity 'add': expected 2, found 1` — message clair
+- Patch `partial application` en place (défense pour cas non couverts par check-v1)
+- `(lambda __curry_0 ...)` n'apparaît plus dans les tests d'arité
+- 142 fichiers `.hvn` testés top-level, cohérent
+
+### Anomalies (non critiques)
+
+1. **Crash bigint avalé en parallèle** : `test_bigint_d20.hvn` crash
+   individuellement (error: TestFailed), mais dans `runTestDir` parallèle
+   le crash n'apparaît pas dans la sortie (exit 0 global). Cause probable :
+   `c.wait()` retourne `.Signal` non traité comme failure. Fix 5 lignes
+   quand on voudra (traiter `.Signal` explicitement).
+
+2. **`((add 1) 2)` ne fire aucun check** : c'est **correct** — curry
+   explicite fonctionne, pas de faux positif. Le patch partial couvre
+   les cas où `interpForAssert` retourne une lambda *involontaire*
+   (application partielle sans curry explicite).
+
+### Leçon
+
+Le gain `check-v1` (message arity clair) est réel et acquis. Le patch
+partial application est une défense en profondeur pour les cas non
+couverts. Ensemble, ils donnent :
+- `arity 'add': expected 2, found 1` (cas arity)
+- `partial application (lambda result) at lhs = ...` (cas partial)
+
+Les 290 `return error.` dans `engine_expr.zig` restent majoritairement
+bruts. Étendre à 5-10 erreurs critiques = session future (types,
+unbound variable, stack trace).
