@@ -863,13 +863,12 @@ Mesures baseline (`_perf_baseline.md` à créer) :
 | Binaire strippé | 9,3 MB | ✅ |
 | Modules Zig (addModule + root_source_file) | 170 | ❌ cible 60-80 |
 | `heaven test` 1 fichier | 1,5 s (1,2 ms utile) | ❌ startup |
-| `heaven test tests/` (54 fichiers) | **0,206 s** | ✅ batch |
+| `heaven test tests/` | 0,24 s, **0 tests** | ❌ no-op, dette |
 | Boucle `for f in tests/*.hvn` | 44,9 s | ❌ interdit |
 
 ### Règles obligatoires
 
-1. **Jamais de boucle `for f in tests/*.hvn do heaven test $f`**.
-   Toujours `heaven test tests/` (1 process, 218× plus rapide).
+1. **`heaven test tests/` ne lance AUCUN test** (no-op silencieux, vérifié 2026-10-29). La boucle `for f in tests/*.hvn` est le seul moyen actuel. Vraie optimisation : cache parser incrémental.
 
 2. **Max 3 `zig build` par session**. Batcher les patches Zig.
    Compiler seulement après 3+ patches ou changement de `build.zig`.
@@ -897,6 +896,11 @@ inline dans le build). Chaque module = arrêt potentiel de cache, graphe
 de dépendances lourd. Audit session 3 : fusionner par domaine
 (`proof*` → `proof/`, `knowledge_*` → `knowledge/`, `syntax*` →
 `syntax/`), retirer les extractions RFC-0001 non utilisées.
+
+## Parallélisme
+
+Voir `docs/spec/_parallelism_roadmap.md`. Concurrence acquise,
+parallélisme = Niveau 1 (pool + work-stealing) à planifier.
 
 ## TODO 2026-10-29 — Vérifier et compléter
 
