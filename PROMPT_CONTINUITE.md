@@ -881,7 +881,15 @@ Mesures baseline (`_perf_baseline.md` à créer) :
 
 5. **5 sessions de perf avant toute nouvelle feature** (voir plan).
 
-### Plan perf (5 sessions)
+### Plan perf (statut 2026-10-29)
+
+✅ Session 1 : strip 9.2MB + _claims_vs_reality.md
+✅ Session 2 : BATCH=8 (3.2x tests) — reste la dette fork parent
+✅ Session 3 : cache Zig réparé (600x rebuild) — std.time.timestamp()
+⏳ Session 4 : erreurs explicites (multiplicateur dev)
+⏳ Session 5 : audit modules (plus urgent, gain 10-20%)
+
+### Plan perf (5 sessions) — original pour référence
 
 1. Strip permanent `build.zig` + `_claims_vs_reality.md` (45 min)
 2. **hvn incremental cache** (`~/.heaven/cache/`, skip parse inchangé) — 10× tests
