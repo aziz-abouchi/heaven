@@ -853,6 +853,50 @@ Prochaines étapes :
 
 
 
+
+
+## Règle zig build (2026-10-29)
+
+`std_loader.zig:57` utilise `readFileAlloc` (runtime, pas `@embedFile`).
+Donc :
+
+### Rebuild `zig build` NÉCESSAIRE
+- Modification d'un fichier `.zig`
+- Modification de `build.zig`
+- Nouveau fichier `.zig` ajouté
+
+### Rebuild INUTILE
+- Modification d'un `.hvn` (testé : commentaire modifié visible immédiatement)
+- Modification d'un `.md` (docs)
+- Modification d'un `.svg` / `.css` / asset
+
+### Pourquoi c'est important
+Chaque `zig build` = 12s (cold cache réparé) ou ~5min (cold total).
+Perdre 12s sur 10 modifications `.hvn` = 2 minutes par session.
+Sur 100 sessions = 3 heures.
+
+### Exception à surcharger (future)
+- Si un jour on passe à `@embedFile` pour la distrib (binaire
+  autonome sans dépendance fichier), il faudra un flag `-Dembed-std=true`
+  qui active `@embedFile` en prod, `readFileAlloc` en dev.
+- Voir `std_loader.zig:57` pour l'implémentation actuelle.
+
+## Vision : `heaven build` (pas `zig build`)
+
+À terme, les `.hvn` seront **compilés** par `heaven build` (pas
+`zig build`). C'est le chemin d'auto-hébergement (E1→E2→E3).
+
+État :
+- `heaven compile <file.hvn>` existe (compile vers C) — préliminaire
+- `heaven compile-qbe` existe (compile vers natif via QBE)
+- `heaven compile-wasm` existe (compile vers WASM)
+- **`heaven build <dir>`** (build incrémental multi-fichiers) : à faire
+
+Quand `heaven build` sera disponible :
+- `zig build` ne servira qu'à compiler le **bootstrap** (heaven en Zig)
+- Le vrai workflow dev = `heaven build`
+- Chantier : session dédiée, ~2 sessions après l'auto-hébergement E2
+
 ## Règles perf 2026-10-29
 
 Mesures baseline (`_perf_baseline.md` à créer) :
