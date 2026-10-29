@@ -3461,6 +3461,17 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
 
         //platform.dbg("[preFix2] func_tag={s} args.len={d}\n", .{ @tagName(fnode.tag), args.len });
 
+        // Fix 4 (2026-10-29) : fnode = apply(X, []) venant de (X) parenthésé.
+        // Réduire à X puis réappliquer. Sinon ((fst) arg) bloque.
+        if (fnode.tag == .apply and args.len >= 1) {
+            const inner = self.store.spanSliceConst(fnode.span_a);
+            if (inner.len == 1) {
+                // inner = [func_id] — 0 vrais args
+                const reapply = try self.store.apply(fnode.payload, args);
+                return self.interpForAssert(reapply) catch id;
+            }
+        }
+
         // Fix 2a : FUNC = LAMBDA NODE (lambdaNative : payload=param, span_a=[body])
         if (fnode.tag == .lambda and args.len == 1) {
             const lam_span = self.store.spanSliceConst(fnode.span_a);
@@ -3549,6 +3560,16 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
         }
 
         if (fnode.tag != .sym) {
+            // Fix 5 (2026-10-29) : réduire fnode d'abord si c'est un .apply.
+            // Ex : ((fst (pair fst snd)) s) — fnode = (fst (pair fst snd))
+            // doit être réduit à fst AVANT d'appliquer s.
+            if (fnode.tag == .apply) {
+                const reduced_head = self.interpForAssert(node.payload) catch node.payload;
+                if (reduced_head != node.payload) {
+                    const reapply = try self.store.apply(reduced_head, args);
+                    return self.interpForAssert(reapply) catch id;
+                }
+            }
             return self.evaluateExpr(id) catch id;
         }
         const head = self.store.interner.resolve(fnode.payload);

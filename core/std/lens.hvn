@@ -32,3 +32,21 @@ compose_getter o i s = ((fst i) ((fst o) s))
 
 -- compose_lens : cassé par fst-in-lambda bug runtime.
 -- Voir docs/spec/_runtime_gaps.md.
+
+-- 2026-10-29: compose_lens réactivé (apply-chain Fix 4+5)
+compose_lens outer inner =
+  (lens
+    (lambda s. ((fst inner) ((fst outer) s)))
+    (lambda v s. (((snd outer) (((snd inner) v) ((fst outer) s))) s)))
+
+-- Iso : bidirectionnel
+iso forward backward = (pair forward backward)
+iso_to i a = ((fst i) a)
+iso_from i b = ((snd i) b)
+
+iso_swap_fwd p = (pair (snd p) (fst p))
+iso_swap_bwd p = (pair (snd p) (fst p))
+iso_swap _ = (iso iso_swap_fwd iso_swap_bwd)
+
+-- Traversal
+over_traversal f xs = (map f xs)
