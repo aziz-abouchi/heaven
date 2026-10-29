@@ -330,70 +330,57 @@ pub fn runTestDir(allocator: std.mem.Allocator, dir_path: []const u8) !bool {
     defer dir.close();
 
     var it = dir.iterate();
-    var any_failed = false;
-    var files: usize = 0;
-
-    const exe_path = std.fs.selfExePathAlloc(allocator) catch null;
-    defer if (exe_path) |p| allocator.free(p);
+    var files: std.ArrayListUnmanaged([]const u8) = .{};
+    defer {
+        for (files.items) |f| allocator.free(f);
+        files.deinit(allocator);
+    }
 
     while (try it.next()) |entry| {
         if (entry.kind != .file) continue;
         if (!std.mem.endsWith(u8, entry.name, ".hvn")) continue;
-        if (shouldSkipDebug(entry.name)) {
-            platform.debug.print("  - {s} (skipped, known Debug crash)\n", .{entry.name});
-            continue;
-        }
-        const full_path = try std.fs.path.join(allocator, &.{ dir_path, entry.name });
-        defer allocator.free(full_path);
-        files += 1;
+        if (shouldSkipDebug(entry.name)) continue;
+        const full = try std.fs.path.join(allocator, &.{ dir_path, entry.name });
+        try files.append(allocator, full);
+    }
 
-        if (exe_path) |exe| {
-            var child = std.process.Child.init(
-                &[_][]const u8{ exe, "--run-test", full_path },
+    if (files.items.len == 0) return true;
+
+    const exe_path = try std.fs.selfExePathAlloc(allocator);
+    defer allocator.free(exe_path);
+
+    const BATCH: usize = 8;
+    var any_failed = false;
+    var i: usize = 0;
+    while (i < files.items.len) {
+        const end = @min(i + BATCH, files.items.len);
+        var children: [BATCH]std.process.Child = undefined;
+        var n: usize = 0;
+        for (files.items[i..end]) |f| {
+            children[n] = std.process.Child.init(
+                &[_][]const u8{ exe_path, "--run-test", f },
                 allocator,
             );
-            const term = child.spawnAndWait() catch |err| {
-                platform.debug.print("✗ {s}: (spawn) {}\n", .{ full_path, err });
+            children[n].stdin_behavior = .Ignore;
+            _ = children[n].spawn() catch {
+                platform.debug.print("✗ {s}: (spawn failed)\n", .{f});
                 any_failed = true;
                 continue;
             };
-            // Distinguer échec de test (code != 0) de crash (signal).
-            // Un crash Debug-only (allocator poison, UAF) n'est PAS un
-            // échec de test : il passe en ReleaseFast. La hard gate est
-            // `zig build test-files -Doptimize=ReleaseFast`.
-            const is_crash = switch (term) {
-                .Exited => false,
-                else => true,
+            n += 1;
+        }
+        for (children[0..n]) |*c| {
+            const term = c.wait() catch {
+                any_failed = true;
+                continue;
             };
-            const is_test_failure = switch (term) {
-                .Exited => |code| code != 0,
+            const ok = switch (term) {
+                .Exited => |code| code == 0,
                 else => false,
             };
-            if (is_test_failure) {
-                platform.debug.print("✗ {s}: test failure ({s})\n", .{ full_path, @tagName(term) });
-                any_failed = true;
-            } else if (is_crash) {
-                if (builtin.mode == .Debug) {
-                    platform.debug.print("[!] {s}: crash Debug connu, ignoré (cf. _runner_crashes_2026-10.md)\n", .{full_path});
-                    // pas de any_failed : la hard gate est ReleaseFast.
-                } else {
-                    platform.debug.print("✗ {s}: CRASH en ReleaseFast (bug réel)\n", .{full_path});
-                    any_failed = true;
-                }
-            }
-        } else {
-            // selfExePath indisponible : fallback in-process (ancien comportement)
-            const failed = runTestFile(allocator, full_path) catch |err| {
-                platform.debug.print("✗ {s}: {}\n", .{ full_path, err });
-                any_failed = true;
-                continue;
-            };
-            if (failed) any_failed = true;
+            if (!ok) any_failed = true;
         }
+        i = end;
     }
-
-    if (files == 0) {
-        platform.debug.print("(aucun fichier .hvn dans {s})\n", .{dir_path});
-    }
-    return any_failed;
+    return !any_failed;
 }
