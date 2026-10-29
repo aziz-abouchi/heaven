@@ -1059,3 +1059,19 @@ Décisions à acter (dans _otp.md) : gen_server_call sync via effet
 ou polling, links table dans scheduler, EXIT comme message normal,
 restart counter dans supervisor, app single-niveau.
 
+
+
+## Apply-chain résolu (2026-10-29, session 8)
+
+Tag `fix-apply-chain`. Deux fixes :
+- Fix 4 : `apply(X, [])` → X (parenthèse seule `(X)`)
+- Fix 5 : si fnode = `.apply` non-sym, réduire le head avant application
+
+Débloque : `compose_lens`, `iso_swap`, `over_traversal`, `lens_mvu_over`
+(Hab). 4 tests optics verts, un cran de dette runtime majeure levé.
+
+Tests : ac4 (5/5), ac9 (5/5), compose (2/2), iso_swap (3/3),
+traversal (2/2), lens_mvu_over (2/2).
+
+Reste : `compile-qbe` (2-3 sessions), `run` multi-message (2 sessions),
+`test_bigint_d20` SIGSEGV (1 session).
