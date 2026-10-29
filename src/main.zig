@@ -245,6 +245,11 @@ pub fn main() !void {
         try check_cmd.runCheck(allocator, args[2]);
         return;
     }
+    if (std.mem.eql(u8, args[1], "build")) {
+        const build_cmd = @import("commands/build.zig");
+        try build_cmd.runBuild(allocator, args[2..]);
+        return;
+    }
     if (std.mem.eql(u8, args[1], "lsp")) {
         const lsp_cmd = @import("commands/lsp_cmd.zig");
         try lsp_cmd.runLspCmd(allocator);

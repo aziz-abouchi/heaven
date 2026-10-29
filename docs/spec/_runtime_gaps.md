@@ -340,3 +340,51 @@ c'est traité comme accès à une variable.
 
 **Impact** : tout code qui utilise `import as X` sur des fonctions 2-args.
 Cf. `hab/app.hvn` réécrit unprefixed.
+
+
+## heaven build — bundler fonctionnel (2026-10-29)
+
+**Livré** : `heaven build <dir|file> -o <out.hvn>` — bundler incrémental.
+
+**Fonctionne** :
+- `heaven build hab/ -o /tmp/hab.bundle.hvn` → 8 scannés, 13 résolus, 18KB
+- `heaven build /tmp/test_hab.hvn -o /tmp/th.hvn` → 4 résolus, 6KB
+- `heaven test /tmp/th.hvn` → **60/60** ✓
+
+**Algorithme** :
+1. Détection dir/file (openDir d'abord, trim trailing slash)
+2. Scan récursif `.hvn`
+3. Extraction `import "X"` ligne par ligne
+4. Résolution récursive (préfixes connus : core/, hab/, tests/, examples/)
+5. Concat topologique avec marqueurs `-- ═══ path ═══`
+6. Écriture bundle self-contained
+
+**Test réel** :
+    heaven build /tmp/test_hab.hvn -o /tmp/th.hvn
+    heaven test /tmp/th.hvn  →  60/60
+
+**Résultat** : les tests bundlés passent sans `import` runtime.
+La distribution en 1 fichier fonctionne.
+
+**Dette notée** :
+- `exit: 0` après `112/138` sur `hab.bundle.hvn` — bug `runTestFile`
+  (pas `runTestDir`). `runTestFile` retourne `void` au lieu de `!bool`.
+- Pas encore de `heaven build --native` (compile-qbe cassé : NoExpression,
+  UnsupportedOp, UnsupportedCall).
+
+## 3 backends natifs — état 2026-10-29
+
+| Backend | `solo.hvn` (main = 42) | Note |
+|---|---|---|
+| `compile` (C) | ⚠️ génère `=(=, main, 42);` | C invalide |
+| `compile-qbe` | ✗ NoExpression | Ne gère pas `main = 42` |
+| `compile-wasm` | ✗ UnsupportedCall | Manque les appels |
+
+**Conclusion** : `heaven build --native` impossible. Les 3 backends sont
+des prototypes partiels. L'interpréteur (via `heaven test`) est le seul
+moteur d'exécution fiable.
+
+**Plan futur** :
+- Session : fix `compile-qbe` (NoExpression → détecter `main`)
+- Session : fix `compile-wasm` (UnsupportedCall → dispatch appels)
+- Session : `heaven build --native` = bundle + compile-qbe

@@ -36,6 +36,7 @@
 - [TDD — Type Driven Development](30-tdd.md)
 - [Hab — MVU avec optiques](31-hab-mvu.md)
 - [Hab — App complète](32-hab-app.md)
+- [heaven build — Bundler](33-heaven-build.md)
 
 ## Partie III — Théorie et abstraction
 
