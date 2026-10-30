@@ -1044,6 +1044,26 @@ pub const MirFunction = struct {
                         .{ .cmp_lt = .{ .dest = dest, .lhs = lhs, .rhs = rhs } }
                     else if (std.mem.eql(u8, op_name, "="))
                         .{ .cmp_eq = .{ .dest = dest, .lhs = lhs, .rhs = rhs } }
+                    else if (std.mem.eql(u8, op_name, ">"))
+                        .{ .cmp_lt = .{ .dest = dest, .lhs = rhs, .rhs = lhs } }
+                    else if (std.mem.eql(u8, op_name, "<=")) blk: {
+                        // x <= y  ≡  not(y < x)  →  1 - cmp_lt(y,x)
+                        const lt = self.newReg();
+                        const instrs = &self.blocks.items[target_block].instrs;
+                        try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = lt, .lhs = rhs, .rhs = lhs } });
+                        const one = self.newReg();
+                        try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
+                        break :blk .{ .sub = .{ .dest = dest, .lhs = one, .rhs = lt } };
+                    }
+                    else if (std.mem.eql(u8, op_name, ">=")) blk: {
+                        // x >= y  ≡  not(x < y)
+                        const lt = self.newReg();
+                        const instrs = &self.blocks.items[target_block].instrs;
+                        try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = lt, .lhs = lhs, .rhs = rhs } });
+                        const one = self.newReg();
+                        try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
+                        break :blk .{ .sub = .{ .dest = dest, .lhs = one, .rhs = lt } };
+                    }
                     else
                         return error.UnsupportedOp;
                     try self.blocks.items[target_block].instrs.append(self.allocator, op);

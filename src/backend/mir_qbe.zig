@@ -316,16 +316,26 @@ fn emitBody(w: anytype, f: *const MirFunction, param_regs: ?[]const Reg, cur_sym
         for (blk.instrs.items) |inst| {
             switch (inst) {
                 .phi => |p| {
-                    try w.print("    %r{d} =l phi", .{p.dest});
-                    var first = true;
-                    for (p.incoming) |in| {
-                        if (tco[in.block]) continue;
-                        if (!first) try w.writeAll(",");
-                        try w.print(" @b{d} %r{d}", .{ in.block, in.value });
-                        first = false;
+                    // 2026-10-30 : compter les incoming non-tco. Si 0
+                    // (merge_block orphelin de compileIf/compileWhile),
+                    // QBE refuse "predecessors not matched". Émettre
+                    // copy 0 au lieu de phi @entry 0 (sémantiquement
+                    // identique — c'était déjà 0).
+                    var valid_incoming: usize = 0;
+                    for (p.incoming) |in| if (!tco[in.block]) { valid_incoming += 1; };
+                    if (valid_incoming == 0) {
+                        try w.print("    %r{d} =l copy 0\n", .{p.dest});
+                    } else {
+                        try w.print("    %r{d} =l phi", .{p.dest});
+                        var first = true;
+                        for (p.incoming) |in| {
+                            if (tco[in.block]) continue;
+                            if (!first) try w.writeAll(",");
+                            try w.print(" @b{d} %r{d}", .{ in.block, in.value });
+                            first = false;
+                        }
+                        try w.writeAll("\n");
                     }
-                    if (first) try w.writeAll(" @entry 0");
-                    try w.writeAll("\n");
                 },
                 else => {},
             }
