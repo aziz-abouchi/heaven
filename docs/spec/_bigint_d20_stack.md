@@ -66,3 +66,18 @@ Sans : SIGSEGV à 8 MB.
 Fix : `setrlimit(.STACK, 64 MB)` au démarrage de `main()`. Hérité
 par subprocesses (`runTestDir` spawn → `--run-test`). Non-régression :
 suite complète passe, bigint inclus.
+
+
+## Vérification shell neuf (2026-10-30)
+
+Shell `ulimit -s 8192` (8 MB par défaut, pas contaminé) :
+- `heaven test tests/test_bigint_d20.hvn` → **exit 0, 2/2** ✅
+- `heaven --run-test tests/test_bigint_d20.hvn` → **exit 0, 2/2** ✅ (bonus)
+- `heaven test tests/` → **exit 0, 142/142, 0 crashs** ✅
+
+**Pourquoi `--run-test` direct passe aussi** : sur Linux, la pile du
+thread principal croît **paresseusement** jusqu'à la limite soft.
+`setrlimit(.STACK, 64MB)` appelé au début de `main()`, avant toute
+récursion profonde, suffit. Pas besoin que la pile soit pré-allouée.
+
+Les deux chemins (`heaven test` spawn + `--run-test` direct) fonctionnent.
