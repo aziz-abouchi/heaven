@@ -354,7 +354,10 @@ Permet le dispatch CLI sans multi-clauses (G.25) :
 
 Note : `@getenv` (externe aussi) est vérifié fonctionnel (session G.28).
 
-### G.33 — `@argv` dans une fn user segfault
+### G.33 — `@argv` dans une fn user [RESOLU 2026-10-30 soir]
+
+> **RESOLU** : `effective_argv_sym` scanne fn_defs dans emitQbeLoop
+> (commit a0218de, tag `selfhost-argv-fnuser-v0`).
 
 Diagnostic 2026-10-30 (test C) :
 
@@ -381,7 +384,10 @@ Ou alternativement, propager `argv_sym` au root lors du
 **Contournement actuel** : ne pas utiliser `@argv` dans une fn user ;
 garder l'appel `(@argv N)` directement dans `main`.
 
-### G.34 — `@strcmp "str"` dans une fn user → `undef fN`
+### G.34 — `@strcmp "str"` dans une fn user [RESOLU 2026-10-30 soir]
+
+> **RESOLU** : migration str_pool fn_defs → root dans precompileUserFns
+> (commit 3ac0044, tag `selfhost-strcmp-fnuser-v0`). → `undef fN`
 
 Diagnostic 2026-10-30 (test B) :
 
