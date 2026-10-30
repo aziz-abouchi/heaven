@@ -111,6 +111,20 @@ fn parseLastExpr(
         if (isSkippable(line)) continue;
         const trimmed = std.mem.trim(u8, line, " \t\r");
 
+        // Cas special : `main = EXPR` → EXPR est la cible de compilation.
+        // Doit etre teste AVANT isDefinition (qui retourne true pour tout
+        // `name = ...`). Sinon main est evalue+ignore → NoExpression.
+        if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_idx| {
+            const lhs = std.mem.trim(u8, trimmed[0..eq_idx], " \t");
+            if (std.mem.eql(u8, lhs, "main")) {
+                const rhs = std.mem.trim(u8, trimmed[eq_idx + 1 ..], " \t\r");
+                if (rhs.len == 0) continue;
+                const parsed = try parser.parseSExpr(rhs);
+                last = try heaven.store.lowerRec(parsed);
+                continue;
+            }
+        }
+
         // Les definitions sont EVALUEES (pour peupler engine.fns) puis
         // ignorees pour la compilation MIR. eval() retourne un message
         // alloue qu'il faut liberer.
