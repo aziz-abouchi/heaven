@@ -1,6 +1,2 @@
--- bin/heaven.hvn — CLI auto-hebergee, V0.2.1 (hyphens au lieu d'espaces)
---
--- G.30 : parser splitte les strings sur espaces → utiliser des hyphens.
--- Compilation : heaven compile-qbe bin/heaven.hvn -o bin/heaven-natif
-
-main = (@puts "heaven-0.2.0-natif")
+-- bin/heaven.hvn — CLI auto-hebergee, V0.3 (strings avec espaces, G.30 fixé)
+main = (@puts "heaven 0.2.0-natif")

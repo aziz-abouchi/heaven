@@ -284,7 +284,10 @@ pub const Parser = struct {
                 defer arg_ids.deinit(self.allocator);
                 var d: i32 = 0;
                 var start: usize = 0;
+                var in_string_b: bool = false;
                 for (args_str, 0..) |ch, i| {
+                    if (ch == '"') { in_string_b = !in_string_b; continue; }
+                    if (in_string_b) continue;
                     switch (ch) {
                         '(' => d += 1,
                         ')' => d -= 1,
@@ -364,7 +367,11 @@ pub const Parser = struct {
             var num_parts: usize = 0;
             var depth: i32 = 0;
             var start: usize = 0;
+            var in_string: bool = false;
             for (inner, 0..) |ch, i| {
+                // G.30 fix : ne pas spliter à l'intérieur d'une string
+                if (ch == '"') { in_string = !in_string; continue; }
+                if (in_string) continue;
                 switch (ch) {
                     '(' => depth += 1,
                     ')' => depth -= 1,
@@ -627,7 +634,10 @@ pub const Parser = struct {
                     defer arg_ids.deinit(self.allocator);
                     var depth: i32 = 0;
                     var start: usize = 0;
+                    var in_string_c: bool = false;
                     for (arg_str, 0..) |ch, i| {
+                        if (ch == '"') { in_string_c = !in_string_c; continue; }
+                        if (in_string_c) continue;
                         switch (ch) {
                             '(' => depth += 1,
                             ')' => depth -= 1,
