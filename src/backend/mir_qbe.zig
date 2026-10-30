@@ -156,8 +156,19 @@ pub fn emitQbeLoop(
     try emitBody(w, root, null, null);
     try w.writeAll("}\n");
 
+    // G.33 fix : @argv peut être dans une fn user. Scanner fn_defs.
+    var effective_argv_sym: ?u32 = root.argv_sym;
+    if (effective_argv_sym == null) {
+        var argv_it = root.fn_defs.valueIterator();
+        while (argv_it.next()) |def| {
+            if (def.fn_mir.argv_sym) |av| {
+                effective_argv_sym = av;
+                break;
+            }
+        }
+    }
     // G.32 : si @argv utilisé, wrapper avec argc/argv
-    if (root.argv_sym) |av| {
+    if (effective_argv_sym) |av| {
         try w.writeAll("export function l $main(l %argc, l %argv) {\n");
         try w.writeAll("@start\n");
         try w.print("    storel %argv, $g{d}\n", .{av});
