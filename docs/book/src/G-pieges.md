@@ -293,3 +293,24 @@ session dédiée. Soit ajouter `@` à la grammaire tree-sitter, soit
 router `heaven parse` vers `parse.Parser`.
 
 Voir aussi : G.28, G.27.
+
+### G.30 — Parser splitte les strings sur espaces (bug V0.2)
+
+Diagnostic 2026-10-30 : `parseSExpr` (utilisé par `compile-qbe`/
+`compile-wasm`) ne gère pas les espaces à l'intérieur des strings.
+
+    main = (@puts "hello world")   -- parse en @puts("hello", "world")
+
+Conséquence : `@puts` reçoit 2 args, le 1er (`"hello"`) est un
+`const_str` (mais `data $str_0` manquante → ld: undefined ref
+`str_0`), le 2e (`.world`) génère du bruit.
+
+**Workaround V0.2.1** : utiliser des hyphens (`"heaven-0.2.0-natif"`)
+au lieu d'espaces. `"hello-world"` fonctionne.
+
+**Fix propre** : dans `parseSExpr`, la lexer de strings doit consommer
+jusqu'à la prochaine `"` (pas jusqu'au prochain whitespace). Session
+dédiée (~30 min).
+
+Voir aussi : G.29 (`@` rejeté par `heaven parse`), G.28 (string
+binding non inliné).

@@ -1,15 +1,6 @@
--- bin/heaven.hvn — CLI auto-hebergee, V0.2 (strings + puts)
+-- bin/heaven.hvn — CLI auto-hebergee, V0.2.1 (hyphens au lieu d'espaces)
 --
+-- G.30 : parser splitte les strings sur espaces → utiliser des hyphens.
 -- Compilation : heaven compile-qbe bin/heaven.hvn -o bin/heaven-natif
--- Execution   : ./bin/heaven-natif
--- Sortie      : "heaven 0.2.0-natif\n6" (puts + puts return value)
---
--- Limitations V0.2 :
---   - pas de binding de string (version = "..." non inliné, G.28)
---   - wrapper \$main printf le retour de puts (V0.3 pour --no-wrapper)
---   - argv inaccessible (V1, session suivante)
---
--- V0.2 valide : string litterale + extern_call puts + ELF natif,
--- sans Zig au runtime.
 
-main = (@puts "heaven 0.2.0-natif")
+main = (@puts "heaven-0.2.0-natif")
