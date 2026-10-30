@@ -240,6 +240,30 @@ dans `handle_request`. Règle empirique :
 Ça reste à isoler précisément (micro-test 5 vs 6 if purs), mais en
 pratique la limite 5 est un bon garde-fou.
 
+### G.25 — multi-clauses exclues [RESOLU 2026-10-30 soir]
+
+`precompileUserFns` (mir.zig:694) filtre `num_clauses != 1 → continue`.
+`dispatch 0 = 0 | dispatch 1 = 1 | ...` n'est jamais dans `fn_defs`
+→ appels unresolved → stub `ret 0`. Tous les dispatches retournent 0.
+
+**RESOLU** : merge au parse dans `qbe_cmd.zig` (commit `f4e910b`, tag
+`selfhost-multiclause-v0`). `parseClause` + `flushPendingClauses`
+collectent les clauses et fusionnent en cascade `if` + `@strcmp` :
+
+    -- utilisateur
+    dispatch 0 = 42
+    dispatch 1 = 99
+    dispatch x = 0
+
+    -- merge parse-time
+    dispatch __x = (if (= __x 0) 42 (if (= __x 1) 99 0))
+
+**Validation** : `dispatch 1` → 99, `dispatch 0` → 42. Voir
+`bin/heaven.hvn` V0.7.
+
+Voir aussi : G.3-bis (`==` préfixe), G.24 (cascade `if` ≤ 5),
+G.33/G.34 (fn user), ch. 39 selfhosting.
+
 ### G.26 — `$main` QBE void → exit code ignoré
 
 Diagnostic 2026-10-30 : `emitQbeLoop` émettait `export function $main()`
