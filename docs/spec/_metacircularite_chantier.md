@@ -182,3 +182,28 @@ parser profond, pas un fix d'une heure).
 
 Pivot vers JSON (debloque par le fix selfrecursion, testable sur
 fixtures, standard). Retour metacircularite apres JSON + HTTP body.
+
+---
+
+## Mise à jour 2026-10-30 nuit — heaven_eval v0.4
+
+`heaven_eval.hvn` : 71 → 96 lignes. Support étendu :
+
+| Version | Ajout | Primitives |
+|---|---|---|
+| v0.2 | listes, pairs, booléens | 11 → 16 |
+| v0.3 | `string_concat` | 17 |
+| v0.4 | `λ`/`fn` via VLam1 (AST) | 17 |
+
+**Validation** (via `tests/eval/run.hvn`) :
+- `(+ 1 2)` → `VInt 3`
+- `(cons 1 (cons 2 nil))` → `VListCons (VInt 1) (VListCons (VInt 2) VListNil)`
+- `(if 1 42 99)` → `VInt 42`
+- `(string_concat "a" "b")` → `VStr "ab"` (AST hardcodé)
+
+**Limitations** (parser HP, G.37/G.38/G.39) : `λ`/`fn`/`let` via
+`.hvn` source → `ArityMismatch` (parser tree-sitter hôte). Fix en
+session parser dédiée.
+
+**Roadmap** : `let` désucré, TCO, `@magic`, imports, `data` eval
+(EData), multi-clauses. Voir `docs/book/src/40-heaven-eval.md`.

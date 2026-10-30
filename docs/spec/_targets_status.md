@@ -64,3 +64,29 @@ ABI SysV : `argc` en `%edi`, `argv` en `%rsi`, retour dans `%eax`
 | macOS / libc | TCC config partielle |
 
 Voir `docs/book/src/39-selfhosting.md`.
+
+## WASM selfhost (mise à jour 2026-10-30 nuit)
+
+`heaven compile-wasm` compile désormais `main = 42` et `main = (+ 1 2)`
+en `.wat` exécutable :
+
+    ./zig-out/bin/heaven compile-wasm /tmp/t.hvn -o /tmp/t.wat
+    wat2wasm --enable-tail-call /tmp/t.wat -o /tmp/t.wasm
+    node -e "...WebAssembly.instantiate... main() ..."
+
+| Cible | État selfhost |
+|---|---|
+| x86_64-linux (QBE) | OK (ELF, strings, puts, argv, dispatch) |
+| wasm32-freestanding (WAT) | OK (main=42, (+ 1 2)) |
+| wasm32-wasi (build) | OK (armPreemptTimer), runtime à valider |
+| Windows / kernel32 | stubs incomplets |
+| macOS / libc | TCC config partielle |
+
+**Limitations WASM** : `@puts` → `unreachable` (extern_call non
+implémenté), pas de data segments (const_str), pas de WASI imports
+(`fd_write`, `args_get`). Parité QBE = 1-2 sessions (WASI).
+
+Note env : `wasmtime` cassé (`libgcc_s.so.1` not found) sur ce
+système ; utiliser `wat2wasm` + `node` comme fallback.
+
+Voir `docs/book/src/40-heaven-eval.md` et ch. 35 backend-wasm.

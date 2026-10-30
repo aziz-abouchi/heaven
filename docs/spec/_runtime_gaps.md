@@ -580,3 +580,28 @@ Fix : pool global partagé (root.str_pool utilisé par tous les
 fn_defs). Rend G.31 inutile.
 
 Effort : 45 min, 1 rebuild.
+
+## WASM selfhost + heaven_eval (2026-10-30 nuit)
+
+### G.35 — WASM `call_user` unresolved (résolu)
+`mir_wat.zig` levait `error.UnsupportedCall`. Fix : stub
+`(local.set $rN (i64.const 0))` au lieu de fail (pattern G.31 QBE).
+
+### G.36 — `main = EXPR` WASM (résolu)
+`wasm_cmd.zig` n'avait pas le fix `main =` de `qbe_cmd.zig`
+(eda3c24). Port du fix.
+
+### G.37 — `parse_file` 1 token → ENil
+`HP.parse_file (HP.lex "nil")` → `ENil` (programme vide).
+Contournement : contexte multi-token.
+
+### G.38 — `HP.parse_file` `let`/`lambda` → ArityMismatch
+`HP.parse_file (HP.lex "(let x 5 x)")` → `ArityMismatch`.
+Contournement : AST hardcodé (`HP.ELambda`, `HP.EApply`).
+
+### G.39 — `λ`/`fn` dans string `.hvn` → ArityMismatch
+Parser tree-sitter hôte intercepte `λ`/`fn` **dans une string**.
+Contournement : AST hardcodé ou pas de keyword dans le test.
+
+Fix G.37-G.39 : session parser dédiée (~1h). Débloque `heaven_eval`
+sur vrais `.hvn`.

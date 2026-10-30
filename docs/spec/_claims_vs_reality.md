@@ -73,3 +73,19 @@ Ce document est la **vérité terrain** pour planifier — pas le livre.
 | S9 | `heaven_eval.hvn` complet | 71 lignes (toy) | TODO |
 
 Voir `docs/book/src/39-selfhosting.md` et annexe G (G.25 → G.34).
+
+## heaven_eval + WASM selfhost (mise à jour 2026-10-30 nuit)
+
+| # | Affirmation | Réalité | Statut |
+|---|---|---|---|
+| E1 | `heaven_eval.hvn` évalue (+ 1 2) | VInt 3 via HP.lex + HE.eval_file | OK |
+| E2 | Listes/pairs | cons/head/tail/pair/fst/snd | OK |
+| E3 | `string_concat` | VStr "ab" (AST hardcodé) | OK |
+| E4 | `λ`/`fn` closures | VLam1 (AST hardcodé) | OK (AST) |
+| E5 | `λ`/`fn` via `.hvn` source | `ArityMismatch` (G.39) | ❌ Parser |
+| E6 | `let` | non géré (G.38) | ❌ Parser |
+| W1 | `compile-wasm main=42` | wat2wasm --enable-tail-call + node → 42 | OK |
+| W2 | `compile-wasm (+ 1 2)` | → 3 exécutable | OK |
+| W3 | `@puts` en WASM | `unreachable` (extern_call) | ❌ TODO |
+
+Voir `docs/book/src/40-heaven-eval.md` et annexe G (G.35 → G.39).
