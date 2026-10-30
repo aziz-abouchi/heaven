@@ -78,6 +78,21 @@ fn parseLastExpr(
     while (lines.next()) |line| {
         if (isSkippable(line)) continue;
         const trimmed = std.mem.trim(u8, line, " \t\r");
+
+        // G.36 : `main = EXPR` -> EXPR cible la compilation (avant
+        // isDefinition qui retourne true pour `name = ...`). Port du
+        // fix eda3c24 de qbe_cmd.zig.
+        if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_idx| {
+            const lhs = std.mem.trim(u8, trimmed[0..eq_idx], " \t");
+            if (std.mem.eql(u8, lhs, "main")) {
+                const rhs = std.mem.trim(u8, trimmed[eq_idx + 1 ..], " \t\r");
+                if (rhs.len == 0) continue;
+                const parsed = try parser.parseSExpr(rhs);
+                last = try heaven.store.lowerRec(parsed);
+                continue;
+            }
+        }
+
         if (isDefinition(trimmed)) {
             const msg = heaven.eval(trimmed) catch |e| {
                 platform.debug.print(

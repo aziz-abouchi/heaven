@@ -202,12 +202,18 @@ fn emitInstr(w: anytype, inst: Instr, fdefs: *const FnDefs) !void {
         .load => |l| try w.print("(local.set $r{d} (global.get $g{d}))\n", .{ l.dest, l.sym }),
         .store => |s| try w.print("(global.set $g{d} (local.get $r{d}))\n", .{ s.sym, s.src }),
         .call_user => |c| {
-            if (!fdefs.contains(c.name)) return error.UnsupportedCall;
-            try w.print("(local.set $r{d} (call $f{d}", .{ c.dest, c.name });
-            for (c.args) |arg| {
-                try w.print(" (local.get $r{d})", .{arg});
+            if (!fdefs.contains(c.name)) {
+                // G.35 : stub silencieux pour call_user unresolved.
+                // WASM n'émet pas les std fns non compilées dans fn_defs
+                // (même pattern que mir_qbe G.31). Retourne 0.
+                try w.print("(local.set $r{d} (i64.const 0)) ;; stub f{d}\n", .{ c.dest, c.name });
+            } else {
+                try w.print("(local.set $r{d} (call $f{d}", .{ c.dest, c.name });
+                for (c.args) |arg| {
+                    try w.print(" (local.get $r{d})", .{arg});
+                }
+                try w.writeAll("))\n");
             }
-            try w.writeAll("))\n");
         },
         .extern_call => |_| {
             // WASM n'a pas de libc ; un extern doit passer par WASI
