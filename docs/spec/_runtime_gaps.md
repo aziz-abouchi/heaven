@@ -491,3 +491,37 @@ Fonctionne car on saute les 37 fns std.
 **Perf dette** : mir.zig importé par 10 modules (mir_qbe, mir_wat,
 x86_64, heaven_expr, proof/*, commands/*). Chaque patch = 1m08s. Le
 cache est sain (0.14s sans changement). Split nécessaire.
+
+
+## compile-qbe phi3 (2026-10-30) — DETTE 1 session
+
+**Symptôme** : `sign x = (if (< x 0) (0 - 1) (if (> x 0) 1 0))` → `UnsupportedOp`.
+
+**Cause probable** : parser/lowering transforme `(0 - 1)` ou `(> x 0)`
+en expression que `compileExpr .apply` ne reconnaît pas (`op_name` pas
+`"-"` ou `">"` attendu).
+
+**Tests v0.95 OK** : choose, if top, fst, check (4/5).
+**Phi3 KO** : sign avec if imbriqué.
+
+**À faire session future** :
+1. Dump `lowerRec(clause.body)` pour phi3, voir l'AST exact
+2. Identifier le tag non géré (probablement `.binop` pour `-` infixe)
+3. Ajouter dans `compileExpr` : `.binop => { ... }`
+
+## Split mir.zig — PRIORITAIRE (2026-10-30)
+
+**Problème** : `mir.zig` (1700 lignes) importé par 10 modules. Chaque
+patch = **2m05s**. Le cache est sain (0.14s sans changement), c'est la
+cascade de recompilation.
+
+**Fix** : split en 2 fichiers
+- `src/core/mir/types.zig` : `Instr`, `Reg`, `BlockId`, `FnDef`, `PhiEntry`, `MirFunction` (struct seulement)
+- `src/core/mir/compile.zig` : `compileExpr`, `compileIf`, `compileWhile`, `precompileUserFns`
+
+Backends (`mir_qbe`, `mir_wat`, `x86_64`) importent **uniquement types.zig**.
+Un patch de `compile.zig` ne recompile que `mir.zig` (facade) + 2-3 modules.
+
+**Gain estimé** : 2m05s → 15-20s par patch. Multiplicateur de vélocité.
+
+**Effort** : 45 min (move structs, refactor imports, zig build une fois).
