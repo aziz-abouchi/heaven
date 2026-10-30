@@ -1149,7 +1149,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 pub fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@set_fuel", "@exiting", "@clear_thunks", "@store_stats", "@spawn", "@broadcast", "@runtime_stats", "@sleep_ms", "@tls_connect", "@tls_read", "@tls_write", "@tls_close", "@hole", "@is_hole", "@assert_no_hole" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@set_fuel", "@exiting", "@clear_thunks", "@store_stats", "@spawn", "@broadcast", "@runtime_stats", "@process_count", "@process_mem", "@sleep_ms", "@tls_connect", "@tls_read", "@tls_write", "@tls_close", "@hole", "@is_hole", "@assert_no_hole" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -3343,8 +3343,23 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     if (std.mem.eql(u8, op, "@runtime_stats")) {
         if (args_snap.len != 1) return error.ArityMismatch;
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        const stats = "{\"mem_kb\": 1024, \"egraph_nodes\": 42}";
+        // 2026-10-30 : remplace le stub par une vraie introspect.
+        const proc_count: i64 = @intCast(engine.processes.count());
+        var total_bytes: i64 = 0;
+        var it = engine.processes.valueIterator();
+        while (it.next()) |p| {
+            total_bytes += @intCast(@sizeOf(Process));
+            total_bytes += @intCast(p.mailbox.capacity * @sizeOf(expr.Id));
+            total_bytes += @intCast(p.trace.capacity * @sizeOf(expr.Sym));
+            total_bytes += @intCast(p.links.capacity * @sizeOf(u32));
+        }
+        const stats = try std.fmt.allocPrint(
+            engine.allocator,
+            "{{\"mem_kb\": {d}, \"processes\": {d}, \"process_mem\": {d}}}",
+            .{ @divTrunc(total_bytes, 1024), proc_count, total_bytes },
+        );
         const sym = try store.interner.intern(stats);
+        engine.allocator.free(stats);
         return try store.lit(.{ .str = sym });
     }
 
