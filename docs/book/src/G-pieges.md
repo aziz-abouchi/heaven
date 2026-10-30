@@ -266,3 +266,30 @@ connus, ou `heaven.eval` ne devrait pas peupler `engine.fns` pour une
 définition de valeur pure (pas une fonction).
 
 Voir aussi : G.25 (multi-clauses), G.26 (wrapper $main).
+
+### G.28 — String binding (`version = "..."`) non inliné
+
+Diagnostic 2026-10-30 : `version = "..."` puis `main = (@puts version)`
+compile QBE en `load $gSym` pour `version`, mais `$gSym` n'est jamais
+initialisé (le string literal est bien dans `.data`, mais le global
+pointeur n'est pas émis). Résultat : `cc` échoue avec `ChildFailed`.
+
+**Workaround V0.2** : inliner le string directement :
+`main = (@puts "heaven 0.2.0-natif")`.
+
+**Fix propre** : détecter les bindings de string et émettre
+`data $gSym = { l $str_N }` (l = long, adresse du string) dans le
+préambule QBE. Ou substituer le binding directement (inline).
+
+### G.29 — `@nom` accepté par `parse.Parser` mais pas par `heaven parse`
+
+Diagnostic 2026-10-30 : deux parseurs coexistent :
+- `parse.Parser` (utilisé par `compile-qbe`/`compile-wasm`) → accepte `@`
+- `heaven parse` subcommand (probablement tree-sitter) → rejette `@`
+  avec `ERROR [1:8-1:9] @` + `MISSING ;`
+
+Non bloquant (compile-qbe fonctionne), mais divergence à unifier en
+session dédiée. Soit ajouter `@` à la grammaire tree-sitter, soit
+router `heaven parse` vers `parse.Parser`.
+
+Voir aussi : G.28, G.27.
