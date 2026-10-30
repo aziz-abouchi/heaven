@@ -140,8 +140,16 @@
     // ═══════════════════════════════════════════
     // COLORATION SYNTAXIQUE
     // ═══════════════════════════════════════════
-    const KEYWORDS = ['theorem','proof','data','forall','match','with','let','in','if','then','else','import','module','axiom','by','induction','auto','rewrite','simp','trivial'];
-    const TYPES = ['Nat','Int','Bool','String','List','Type','Prop','Unit','Maybe'];
+    const KEYWORDS = [
+      'theorem','proof','data','forall','match','with','let','in','if','then','else',
+      'import','module','axiom','by','induction','auto','rewrite','simp','trivial',
+      'fn','type','as','case','of','qed','where','and','or','not','do','return','yield','self'
+    ];
+    const TYPES = [
+      'Nat','Int','Bool','String','List','Type','Prop','Unit','Maybe',
+      'Result','Option','Pair','Tree','Route','Child','Actor','Behavior','Monad','Functor'
+    ];
+    const BUILTINS = ['zero','succ','true','false','nil','cons','pair','fst','snd','head','tail','print','force','seq','unit'];
     const OPERATORS = ['=','+','-','*','/','→','->',':','|','∀','∃','λ'];
 
     function escapeHtml(text) {
@@ -187,7 +195,7 @@
             result += '<span class="hl-keyword">' + word + '</span>';
           } else if (TYPES.includes(word)) {
             result += '<span class="hl-type">' + word + '</span>';
-          } else if (['zero','succ','true','false','nil','cons'].includes(word)) {
+          } else if (BUILTINS.includes(word)) {
             result += '<span class="hl-symbol">' + word + '</span>';
           } else if (end < len && code[end] === ' ') {
             result += '<span class="hl-function">' + word + '</span>';
