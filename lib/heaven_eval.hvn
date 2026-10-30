@@ -6,7 +6,7 @@
 
 import "lib/heaven_parse.hvn" as HP
 
-data Value = VInt Int | VStr Str | VCon Str | VClosure Str Expr Env | VRecClosure Str Str Expr Env | VPrim Str | VPrim1 Str Int | VIf1 Expr | VIf2 Expr Expr | VErr Str
+data Value = VInt Int | VStr Str | VCon Str | VClosure Str Expr Env | VRecClosure Str Str Expr Env | VPrim Str | VPrim1 Str Int | VIf1 Expr | VIf2 Expr Expr | VErr Str | VListNil | VListCons Value Value | VPrim1V Str Value
 data Env = EnvNil | EnvCons Str Value Env
 
 eval (HP.ELitI n) env = (VInt n)
@@ -16,10 +16,13 @@ eval (HP.EApply f a) env = (eval_apply f a env)
 eval (HP.ELambda p b) env = (VClosure p b env)
 eval (HP.EBind n b) env = (eval_bind n b env)
 
-prim_ops _ = (cons "+" (cons "-" (cons "*" (cons "=" (cons "<" (cons "==" (cons "!=" (cons ">" (cons "<=" (cons ">=" nil)))))))))) 
+prim_ops _ = (cons "+" (cons "-" (cons "*" (cons "=" (cons "<" (cons "==" (cons "!=" (cons ">" (cons "<=" (cons ">=" (cons "cons" (cons "head" (cons "tail" (cons "pair" (cons "fst" (cons "snd" nil)))))))))))))))) 
 in_list s (cons x rest) = (if (= s x) 1 (in_list s rest))
 in_list s nil = 0
 
+eval_sym "nil" env = VListNil
+eval_sym "true" env = (VInt 1)
+eval_sym "false" env = (VInt 0)
 eval_sym s env = (if (= (in_list s (prim_ops 0)) 1) (VPrim s) (env_lookup s env))
 
 env_lookup name EnvNil = (VErr "symbole non lie")
@@ -30,6 +33,20 @@ eval_apply f a env = (eval_apply2 (eval f env) a env)
 
 eval_apply2 (VIf1 c) a env = (VIf2 c a)
 eval_apply2 (VIf2 c t) a env = (eval_if (eval c env) t a env)
+-- 2026-10-30 : listes (cons/head/tail) -- AVANT le générique VPrim
+eval_apply2 (VPrim "cons") a env = (VPrim1V "cons" (eval a env))
+eval_apply2 (VPrim1V "cons" x) a env = (VListCons x (eval a env))
+eval_apply2 (VPrim "head") a env = (vlist_head (eval a env))
+eval_apply2 (VPrim "tail") a env = (vlist_tail (eval a env))
+vlist_head (VListCons x _) = x
+vlist_head _ = (VErr "head: not a list")
+vlist_tail (VListCons _ xs) = xs
+vlist_tail _ = (VErr "tail: not a list")
+-- 2026-10-30 : pair/fst/snd = alias cons/head/tail
+eval_apply2 (VPrim "pair") a env = (VPrim1V "cons" (eval a env))
+eval_apply2 (VPrim1V "pair" x) a env = (VListCons x (eval a env))
+eval_apply2 (VPrim "fst") a env = (vlist_head (eval a env))
+eval_apply2 (VPrim "snd") a env = (vlist_tail (eval a env))
 eval_apply2 (VPrim op) a env = (eval_prim op a env)
 eval_apply2 (VPrim1 op x) a env = (prim_fin op x (eval a env))
 eval_apply2 (VClosure p b cenv) a env = (eval b (EnvCons p (eval a env) cenv))

@@ -1,0 +1,16 @@
+import "lib/heaven_parse.hvn" as HP
+import "lib/heaven_eval.hvn" as HE
+
+run src = (HE.eval_file (HP.parse_file (HP.lex src)) HE.EnvNil)
+
+-- Tests : chaque ligne = (nom, source attendu)
+-- On affiche le résultat de chaque source
+(cons (pair "add"     (run "(+ 1 2)"))
+ (cons (pair "sub"     (run "(- 5 3)"))
+ (cons (pair "mul"     (run "(* 3 4)"))
+ (cons (pair "cmp_eq"  (run "(= 3 3)"))
+ (cons (pair "cmp_lt"  (run "(< 3 5)"))
+ (cons (pair "if_true" (run "(if 1 42 99)"))
+ (cons (pair "if_false" (run "(if 0 42 99)"))
+ (cons (pair "neg"     (run "(- 0 5)"))
+ nil))))))))
