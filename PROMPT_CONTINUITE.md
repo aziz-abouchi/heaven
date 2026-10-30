@@ -1,3 +1,83 @@
+# ÉTAT AU 2026-10-30 — SESSION SELFHOST (13 commits, 7 tags)
+
+## Jalon historique : selfhost natif fonctionnel
+
+`bin/heaven.hvn` → ELF x86_64 produit par le compilateur Heaven (QBE
+backend), exécuté nativement, affiche du texte via glibc puts, lit
+argv[1] via ABI SysV. **Zéro Zig au runtime pour le binaire produit.**
+
+## Tags poussés
+
+- `qbe-main-fix`   : `main = EXPR` compilé
+- `selfhost-v0`    : `bin/heaven.hvn` → ELF
+- `selfhost-v0.1`  : exit code = valeur (plus printf code)
+- `selfhost-str-v0`: `const_str` + `.data`
+- `selfhost-puts-v0.1` : `@puts` (glibc), strings avec espaces
+- `selfhost-strings-space-v0` : G.30 fix (in_string tracking)
+- `selfhost-argv-v0`: `@argv N` (ABI SysV : argc/argv)
+
+## Commits (13)
+
+3547866 G.32 @argv natif (ABI SysV)
+13ba688 G.28 string bindings inlinés
+f93c944 G.31 skip fn_defs avec str_pool
+a4ad2d7 G.30 strings avec espaces
+b21241e V0.2.1 hyphens
+41f9038 V0.2 puts + strings
+af6786a const_str
+ac892c3 .gitignore + G.27
+8e430f5 wrapper void fix
+be0599c selfhost-v0 ELF
+eda3c24 main = EXPR QBE
+7007e9b POST body Hab
+d7b9d50 Run autonome WASM
+ee2820e Coloration enrichie
+
+## État du selfhost (matrice)
+
+| Composant | État |
+|---|---|
+| ELF natif produit par QBE | ✅ |
+| Strings + .data | ✅ |
+| `@puts`, `@printf`, `@getenv` | ✅ |
+| `@argv N` (ABI SysV) | ✅ |
+| Multi-clauses (`dispatch 0=...`) | ❌ G.25 |
+| Dispatch CLI (strcmp + if) | ⏳ |
+| WASM selfhost (`mir_wat`) | ⏳ |
+| `heaven_eval.hvn` complet | ⏳ 71→500 lignes |
+| Pool global partagé (G.31) | ⏳ workaround skip |
+
+## Prochaine session — 3 chantiers (priorité)
+
+### 1. `@strcmp` + dispatch CLI (1h, 1 rebuild)
+- `@strcmp` = `extern_call strcmp(a, b)` → 0 si égal
+- `bin/heaven.hvn` V0.6 : cascade `if (= (@strcmp (@argv 1) "version") 0) ...`
+- `./bin/heaven-natif version` → vrai dispatch (puts version)
+- Évite multi-clauses (G.25) en attendant le fix propre
+
+### 2. Multi-clauses (G.25) — 1h, 1 rebuild
+- `precompileUserFns` : accepter `num_clauses > 1` si patterns int
+- Compiler chaque clause en fonction séparée + dispatch
+- Élégance, débloque `dispatch 0 = 0 | dispatch 1 = 1 | ...`
+
+### 3. `@api_test` Zig (1h30, 1 rebuild)
+- `engine_expr.zig` : `@api_test` magic
+- `runTestFileTo(alloc, path, writer)` refactor (ArrayList au lieu de debug.print)
+- `core/http_server.hvn` : `POST /api/test` → `@api_test body`
+- `editor-run.js` : bouton Test
+- IDE complet (Code → Run → Test)
+
+### Après (2-3 sessions)
+- WASM primitives (`mir_wat.zig`) : selfhost navigateur
+- `heaven_eval.hvn` 71→500 : vrai bootstrap
+- Pool global partagé (G.31) : zéro skip
+
+## Environnement
+HEAD : 3547866. 7 tags poussés. `main` à jour.
+Prochain commit : `@strcmp` + `bin/heaven.hvn` V0.6.
+
+---
+
 # ÉTAT AU 2026-10-28 NUIT — Phase 7a, Hab W1b, 3 plateformes
 
 ## Phase 7a validée (commit fda410b)
