@@ -432,3 +432,23 @@ G.31 devient inutile.
 fn user destinée à QBE. Garder `@strcmp` inline dans `main`.
 
 Voir aussi : G.25 (mise à jour merge), G.31 (skip fn_defs str_pool).
+
+### G.35 — `call_user` unresolved en WASM (fail-fast) [RESOLU]
+
+`mir_wat.zig` levait `error.UnsupportedCall` pour tout `call_user`
+dont le sym n'était pas dans `fn_defs`. Une fn std non compilée
+bloquait la compilation, même `main = 42`.
+
+**RESOLU** (commit selfhost-wasm-v0) : stub silencieux
+`(local.set $rN (i64.const 0)) ;; stub fN` au lieu de fail. Même
+pattern que G.31 pour QBE.
+
+### G.36 — `main = EXPR` ignoré en WASM [RESOLU]
+
+`wasm_cmd.zig` n'avait pas le fix `main = EXPR` (fait pour
+`qbe_cmd.zig` en eda3c24). `main = 42` → NoExpression.
+
+**RESOLU** (commit selfhost-wasm-v0) : détection `main =` avant
+`isDefinition`, port du fix qbe_cmd.
+
+Voir aussi : ch. 39 selfhosting, G.25/G.31 (patterns QBE équivalents).
