@@ -49,10 +49,11 @@ handle_hab p =
 
 handle_request req =
   let p = (req_path req) in
-  (if (p == "/api/egraph") (handle_api p)
-    (if (p == "/hab") (h_ok (h_index_page unit))
-      (if (string_starts_with p "/hab/") (handle_hab p)
-        (handle_static p))))
+  (if (p == "/api/test") (pair 200 (pair "text/plain" (pair "test-stub-ok" nil)))
+    (if (p == "/api/egraph") (handle_api p)
+      (if (p == "/hab") (h_ok (h_index_page unit))
+        (if (string_starts_with p "/hab/") (handle_hab p)
+          (handle_static p)))))
 
 handle_api _ =
   let cap = (cap_acquire "egraph:snapshot") in
