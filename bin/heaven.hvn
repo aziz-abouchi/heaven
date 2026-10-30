@@ -1,4 +1,8 @@
--- bin/heaven.hvn — CLI auto-hebergee, V0.5 (argv brut)
+-- bin/heaven.hvn — CLI auto-hebergee, V0.6 (dispatch @strcmp)
 -- Usage : ./bin/heaven-natif <cmd>
--- Affiche <cmd> (via @argv 1). Dispatch reel en V0.6 (necessite strcmp).
-main = (@puts (@argv 1))
+--   version → exit 1
+--   help    → exit 2
+--   autre   → exit 0
+--
+-- Note : multi-clauses (G.25) pas encore dispo → if imbriqués + @strcmp
+main = (if (= (@strcmp (@argv 1) "version") 0) 1 (if (= (@strcmp (@argv 1) "help") 0) 2 0))

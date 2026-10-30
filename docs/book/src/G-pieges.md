@@ -338,3 +338,18 @@ Dispatch réel (strcmp + if) : session suivante (nécessite `extern_call
 strcmp` + multi-clauses ou cascade if sur char*).
 
 Voir aussi : G.28 (string binding), G.30 (strings + espaces), G.31.
+
+### G.32-bis — `@strcmp` natif (via extern_call)
+
+Découvert 2026-10-30 : `@strcmp` est **déjà fonctionnel** via le
+fallback `@nom` dans `mir.zig`. `(@strcmp a b)` émet
+`extern_call strcmp(a, b)` → glibc link → retour int (0 si égal).
+
+Vérifié : `(@strcmp "a" "a")` → 0, exit 0.
+
+Permet le dispatch CLI sans multi-clauses (G.25) :
+
+    main = (if (= (@strcmp (@argv 1) "version") 0) 1 0)
+    ./bin/heaven-natif version → exit 1
+
+Note : `@getenv` (externe aussi) est vérifié fonctionnel (session G.28).
