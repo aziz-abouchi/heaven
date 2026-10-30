@@ -46,3 +46,9 @@ inlinés dans l'ordre topologique.
 
 À terme : `heaven build --native <dir>` = bundle + compile-qbe → binaire
 autonome. Débloque l'auto-hébergement E1.
+
+## Note 2026-10-30 — selfhost natif
+
+`heaven build` bundle en `.hvn` (interpréteur). La compilation
+native passe par `heaven compile-qbe bin/heaven.hvn -o bin/heaven-natif`
+(ELF x86_64). Voir [ch. 39 selfhosting](39-selfhosting.md).

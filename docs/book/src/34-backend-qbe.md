@@ -47,3 +47,18 @@
 ## Référence
 
 `docs/spec/_runtime_gaps.md` § compile-qbe.
+
+## Mises à jour 2026-10-30 (soir) — selfhost
+
+Voir [ch. 39 selfhosting](39-selfhosting.md). Résumé :
+
+- `main = EXPR` compilé (avant : expression nue seulement)
+- `const_str` : strings littérales émises via `data $str_N`
+- `@puts`, `@printf`, `@getenv`, `@strcmp` (extern_call glibc)
+- `@argv N` natif, wrapper `l $main(l argc, l argv)` (ABI SysV)
+- Wrapper `ret %r` : exit code = valeur de dispatch
+- `bin/heaven.hvn` V0.6 : dispatch CLI via `@strcmp` + `if`
+
+Pièges connus (non résolus) : [G.25](G-pieges.md) multi-clauses,
+[G.33](G-pieges.md) `@argv` fn user, [G.34](G-pieges.md)
+`@strcmp` fn user.
