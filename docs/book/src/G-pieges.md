@@ -452,3 +452,20 @@ pattern que G.31 pour QBE.
 `isDefinition`, port du fix qbe_cmd.
 
 Voir aussi : ch. 39 selfhosting, G.25/G.31 (patterns QBE équivalents).
+
+### G.37 — `parse_file` sur token unique → programme vide
+
+Découvert 2026-10-30 (session heaven_eval). `HP.parse_file (HP.lex "nil")`
+retourne `ENil` (programme vide) au lieu d'un programme à 1 instruction.
+
+Conséquence : `HE.eval_file (HP.parse_file (HP.lex "nil")) HE.EnvNil`
+retourne `EnvNil` au lieu de `VListNil`.
+
+**Contournement** : tester dans un contexte multi-token (`(if true 42 99)`,
+`(+ true 0)`), pas en bare.
+
+**À investiguer** : `parse_file` (lib/heaven_parse.hvn) a probablement
+un pattern qui nécessite au moins 2 tokens. Session dédiée si le bare
+single-token devient critique.
+
+Voir aussi : ch. 39 selfhosting, heaven_eval_v0.2.
