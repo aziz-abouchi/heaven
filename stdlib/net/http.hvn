@@ -32,9 +32,10 @@ format_response_ct (pair status (pair ctype (pair body nil))) =
         (string_concat status_text
           (string_concat "\r\nContent-Type: "
             (string_concat ctype
-              (string_concat "\r\nContent-Length: "
-                (string_concat body_len
-                  (string_concat "\r\nConnection: close\r\n\r\n" body)))))))))
+              (string_concat "\r\nCache-Control: max-age=60"
+                (string_concat "\r\nContent-Length: "
+                  (string_concat body_len
+                    (string_concat "\r\nConnection: close\r\n\r\n" body))))))))))
 
 format_response (pair status (pair body _)) =
   let status_text = (if (eq status 200) "OK" "Not Found") in
