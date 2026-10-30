@@ -1,0 +1,18 @@
+-- hab/render/html.hvn — HTML renderer pour Tree Hab
+-- Schéma de récursion : catamorphisme sur Tree.
+--   leaf text        → text
+--   node tag children → "<tag>" + concat(cata children) + "</tag>"
+-- Loi du cata : html_render = cata alg, où alg remonte l'arbre.
+
+-- cata sur la liste de children
+html_children nil = ""
+html_children (cons c rest) =
+  (string_concat (html_render c) (html_children rest))
+
+-- catamorphisme principal
+html_render (pair t p) =
+  (if (= t "leaf")
+    p
+    (string_concat "<" (string_concat t
+      (string_concat ">" (string_concat
+        (html_children p) (string_concat "</" (string_concat t ">")))))))

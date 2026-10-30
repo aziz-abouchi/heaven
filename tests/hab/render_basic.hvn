@@ -1,0 +1,15 @@
+import "hab/component.hvn"
+import "hab/render/html.hvn"
+
+test "render_leaf":
+  (html_render (leaf "hello")) == "hello"
+
+test "render_div_empty":
+  (html_render (node "div" nil)) == "<div></div>"
+
+test "render_div_child":
+  (html_render (node "div" (cons (leaf "x") nil))) == "<div>x</div>"
+
+test "render_nested":
+  (html_render (node "div" (cons (node "p" (cons (leaf "hi") nil)) nil)))
+    == "<div><p>hi</p></div>"

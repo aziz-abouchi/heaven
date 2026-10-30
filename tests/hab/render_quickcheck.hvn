@@ -1,0 +1,30 @@
+import "core/std/quickcheck.hvn" as Q
+import "hab/component.hvn"
+import "hab/render/html.hvn"
+
+tree_random 0 = (leaf "x")
+tree_random n =
+  (node "div" (cons (tree_random (- n 1)) (cons (leaf "y") nil)))
+
+render_terminates_prop seed =
+  (>= (string_length (html_render (tree_random (Q.gen_range 0 3 seed)))) 0)
+
+-- Pas de let-in en RHS direct de = (casse le parser)
+-- Q.gen_int est pur : même seed → même valeur.
+render_leaf_id seed =
+  (= (html_render (leaf (int_to_string (Q.gen_int seed))))
+     (int_to_string (Q.gen_int seed)))
+
+test "render_terminates":
+  (Q.check render_terminates_prop (lambda s. s) 5) == true
+
+test "render_leaf_identity":
+  (Q.check render_leaf_id (lambda s. s) 5) == true
+
+test "render_empty_node":
+  (Q.check
+    (lambda seed -> (let many tag = (Q.gen_range 0 3 seed) in
+      (let many t = (if (= tag 0) "div" (if (= tag 1) "p" "span")) in
+        (html_render (node t nil) == (string_concat "<" (string_concat t
+          (string_concat ">" (string_concat "</" (string_concat t ">")))))))))
+    (lambda s. s) 5) == true
