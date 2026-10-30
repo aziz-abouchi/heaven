@@ -1,3 +1,26 @@
+## 2026-10-30 (nuit) — heaven_eval v0.4 + WASM selfhost
+
+### heaven_eval.hvn (71 → 96 lignes)
+- v0.2 : `cons/head/tail/nil`, `pair/fst/snd`, `true/false`
+  (11 → 16 primitives + VListNil/VListCons/VPrim1V)
+- v0.3 : `string_concat` (17 primitives)
+- v0.4 : `λ`/`fn` via VLam1 (AST hardcodé, G.39)
+- `tests/eval/run.hvn` : harness (8 cas)
+
+### WASM selfhost (tag `selfhost-wasm-v0`)
+- mir_wat.zig (G.35) : `call_user` unresolved → stub `i64.const 0`
+- wasm_cmd.zig (G.36) : `main = EXPR` port de qbe_cmd
+- `main = 42` → `42` exécutable (wat2wasm + node)
+- `main = (+ 1 2)` → `3` exécutable
+
+### Pièges (G.35 → G.39)
+G.35 call_user WASM, G.36 main= WASM, G.37 1 token → ENil,
+G.38 HP let/lambda, G.39 λ/fn string host
+
+### Tags
+`selfhost-wasm-v0`, `heaven-eval-v0.2`, `heaven-eval-v0.3`,
+`heaven-eval-v0.4`
+
 ## 2026-10-30 (soir) — Session selfhost : de Zig à Heaven
 
 ### Jalon : selfhost natif (9 tags)

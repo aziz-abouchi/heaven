@@ -41,6 +41,7 @@
 - [Backend QBE — Compilation native](34-backend-qbe.md)
 - [Backend WASM — État partiel](35-backend-wasm.md)
 - [Self-hosting — de Zig à Heaven](39-selfhosting.md)
+- [heaven_eval — Évaluateur métacirculaire](40-heaven-eval.md)
 - [Hab Render — HTML par catamorphisme](36-hab-render.md)
 - [Hab Router — Optique + foncteur + HKT](37-hab-router.md)
 - [Tooling — Introspection runtime](38-tooling.md)
