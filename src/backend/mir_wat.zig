@@ -213,6 +213,8 @@ fn emitInstr(w: anytype, inst: Instr, fdefs: *const FnDefs) !void {
             // (import fd_write etc.). En attendant, trap explicite.
             try w.writeAll("    unreachable\n");
         },
+        // 2026-10-30 : heap non supporté en WASM (à implémenter session future)
+        .alloc, .load_at, .store_at => return error.UnsupportedOp,
         .phi, .jump, .branch, .ret => unreachable, // filtrés en amont
     }
 }
