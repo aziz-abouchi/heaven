@@ -42,6 +42,10 @@ pub const Instr = union(enum) {
     phi: struct { dest: Reg, incoming: []const PhiEntry },
     load: struct { dest: Reg, sym: u32 },
     store: struct { sym: u32, src: Reg },
+    // 2026-10-30 : opcodes heap pour fst/snd/pair/cons.
+    alloc: struct { dest: Reg, size: u32 },
+    load_at: struct { dest: Reg, base: Reg, offset: u32 },
+    store_at: struct { base: Reg, offset: u32, src: Reg },
     call_user: struct { dest: Reg, name: u32, args: []const Reg },
     extern_call: struct { dest: Reg, name: u32, args: []const Reg },
 };
@@ -189,6 +193,9 @@ fn shiftInstr(allocator: std.mem.Allocator, inst: Instr, reg_off: u32, block_off
         .cmp_eq => |a| .{ .cmp_eq = .{ .dest = a.dest + reg_off, .lhs = a.lhs + reg_off, .rhs = a.rhs + reg_off } },
         .load => |l| .{ .load = .{ .dest = l.dest + reg_off, .sym = l.sym } },
         .store => |st| .{ .store = .{ .sym = st.sym, .src = st.src + reg_off } },
+                    .alloc => |a| .{ .alloc = .{ .dest = a.dest + reg_off, .size = a.size } },
+                    .load_at => |l| .{ .load_at = .{ .dest = l.dest + reg_off, .base = l.base + reg_off, .offset = l.offset } },
+                    .store_at => |st| .{ .store_at = .{ .base = st.base + reg_off, .offset = st.offset, .src = st.src + reg_off } },
         .call_user => |c| blk: {
             const args = try allocator.alloc(Reg, c.args.len);
             for (c.args, 0..) |arg, i| args[i] = arg + reg_off;
@@ -788,8 +795,8 @@ pub const MirFunction = struct {
                 continue;
             };
             const result = def.fn_mir.compileExpr(store, lowered_body, 0, locals) catch {
-                // Recuperer la valeur pour liberer proprement avant
-                // de la retirer de fn_defs.
+                // 2026-10-30 : skip propre (fetchRemove) au lieu de stub
+                // (le stub cassait les phis MIR).
                 if (self.fn_defs.fetchRemove(name_sym)) |kv| {
                     var v = kv.value;
                     v.fn_mir.deinit();
@@ -934,6 +941,52 @@ pub const MirFunction = struct {
                 }
                 if (std.mem.eql(u8, op_name, "break") and args.len == 1) {
                     return try self.compileBreak(store, args[0], target_block, locals);
+                }
+
+                // 2026-10-30 : builtins heap (pair, fst, snd, cons, head, tail)
+                if (std.mem.eql(u8, op_name, "pair") and args.len == 2) {
+                    const a = try self.compileExpr(store, args[0], target_block, locals);
+                    const b = try self.compileExpr(store, args[1], target_block, locals);
+                    const dest = self.newReg();
+                    const instrs = &self.blocks.items[target_block].instrs;
+                    try instrs.append(self.allocator, .{ .alloc = .{ .dest = dest, .size = 16 } });
+                    try instrs.append(self.allocator, .{ .store_at = .{ .base = dest, .offset = 0, .src = a } });
+                    try instrs.append(self.allocator, .{ .store_at = .{ .base = dest, .offset = 8, .src = b } });
+                    return dest;
+                }
+                if (std.mem.eql(u8, op_name, "fst") and args.len == 1) {
+                    const p_in = try self.compileExpr(store, args[0], target_block, locals);
+                    const dest = self.newReg();
+                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = p_in, .offset = 0 } });
+                    return dest;
+                }
+                if (std.mem.eql(u8, op_name, "snd") and args.len == 1) {
+                    const p_in = try self.compileExpr(store, args[0], target_block, locals);
+                    const dest = self.newReg();
+                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = p_in, .offset = 8 } });
+                    return dest;
+                }
+                if (std.mem.eql(u8, op_name, "cons") and args.len == 2) {
+                    const a = try self.compileExpr(store, args[0], target_block, locals);
+                    const b = try self.compileExpr(store, args[1], target_block, locals);
+                    const dest = self.newReg();
+                    const instrs = &self.blocks.items[target_block].instrs;
+                    try instrs.append(self.allocator, .{ .alloc = .{ .dest = dest, .size = 16 } });
+                    try instrs.append(self.allocator, .{ .store_at = .{ .base = dest, .offset = 0, .src = a } });
+                    try instrs.append(self.allocator, .{ .store_at = .{ .base = dest, .offset = 8, .src = b } });
+                    return dest;
+                }
+                if (std.mem.eql(u8, op_name, "head") and args.len == 1) {
+                    const p_in = try self.compileExpr(store, args[0], target_block, locals);
+                    const dest = self.newReg();
+                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = p_in, .offset = 0 } });
+                    return dest;
+                }
+                if (std.mem.eql(u8, op_name, "tail") and args.len == 1) {
+                    const p_in = try self.compileExpr(store, args[0], target_block, locals);
+                    const dest = self.newReg();
+                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = p_in, .offset = 8 } });
+                    return dest;
                 }
 
                 // Appel de fonction utilisateur
@@ -1165,6 +1218,8 @@ pub const MirFunction = struct {
                         if (self.values.items[a.rhs] == 0) return error.DivisionByzero;
                         self.values.items[a.dest] = @divTrunc(self.values.items[a.lhs], self.values.items[a.rhs]);
                     },
+                    // 2026-10-30 : alloc non-foldable en constant. On rejette.
+                    .alloc, .load_at, .store_at => return error.UnsupportedOp,
                     .cmp_lt => |a| {
                         if (a.dest >= self.values.items.len) try self.values.resize(self.allocator, a.dest + 1);
                         self.values.items[a.dest] = if (self.values.items[a.lhs] < self.values.items[a.rhs]) 1 else 0;

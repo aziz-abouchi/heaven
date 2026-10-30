@@ -42,7 +42,12 @@ fn compileRoot(
     // Precompiler les fonctions utilisateur (fn name(args) = body)
     // en fn_defs MIR. Necessaire pour resoudre les call_user (et
     // passer checkCallUsers a l'emission).
-    try mf.precompileUserFns();
+    // Spike 2026-10-30 : HEAVEN_NO_STD_FNS=1 skip les std fns (test pipeline).
+    const skip_std = if (platform.getenv("HEAVEN_NO_STD_FNS")) |v|
+        v.len > 0 and !std.mem.eql(u8, v, "0")
+    else
+        false;
+    if (!skip_std) try mf.precompileUserFns();
     const scc_infos = try mf.fuseTailSCCs(mf.allocator);
     defer {
         for (scc_infos) |info| mf.allocator.free(info.members);
