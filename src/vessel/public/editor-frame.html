@@ -106,6 +106,25 @@
       border-radius: 3px;
     }
     .toolbar button:hover { background: #00ff41; color: #000; }
+    #output-panel {
+      border-top: 1px solid #333; background: #0a0a0a; color: #ccc;
+      font-family: 'Courier New', monospace; font-size: 12px;
+      max-height: 30vh; overflow: auto; display: flex; flex-direction: column;
+    }
+    #output-header {
+      padding: 4px 8px; background: #111; border-bottom: 1px solid #222;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; color: #666;
+    }
+    #output-header button {
+      background: #1a1a1a; color: #aaa; border: 1px solid #333;
+      padding: 2px 8px; font-size: 10px; cursor: pointer; border-radius: 2px;
+    }
+    #output-header button:hover { background: #333; color: #fff; }
+    #output {
+      margin: 0; padding: 8px; white-space: pre-wrap;
+      word-break: break-all; min-height: 60px;
+    }
   </style>
 </head>
 <body>
@@ -124,6 +143,13 @@
       <button onclick="proveTheorem()">🔒 Prove</button>
       <button onclick="saveFile()">💾 Save</button>
       <button onclick="loadFile()">📂 Load</button>
+    </div>
+    <div id="output-panel">
+      <div id="output-header">
+        <span>Output</span>
+        <button id="btn-clear-out" title="Clear output">Clear</button>
+      </div>
+      <pre id="output"></pre>
     </div>
   </div>
 
@@ -301,10 +327,71 @@
     }
     */
 
-    function runCode() {
-      console.log('editor-frame.html runCode called');
-      sendToRepl(editor.value);
+    // ═══════════════════════════════════════════
+    // RUN AUTONOME (WASM)
+    // ═══════════════════════════════════════════
+    window._outputBuf = [];
+    window.jsImports = window.jsImports || {};
+    window.jsImports.js_console_log = (ptr, len) => {
+      try {
+        const t = new TextDecoder().decode(new Uint8Array(window.memory.buffer, ptr, len));
+        window._outputBuf.push(t);
+      } catch (_) {}
+    };
+    window.jsImports.js_console_error = (ptr, len) => {
+      try {
+        const t = new TextDecoder().decode(new Uint8Array(window.memory.buffer, ptr, len));
+        window._outputBuf.push('[err] ' + t);
+      } catch (_) {}
+    };
+    window.jsImports.js_performance_now = () => performance.now();
+
+    function setOutput(text) {
+      const out = document.getElementById('output');
+      if (out) out.textContent = text;
     }
+
+    async function evalHeaven(code) {
+      if (!window.wasm) await window.loadWasm();
+      // Chemin principal : heavenEvalRaw (sync, comme hab_runtime.js)
+      if (window.wasm.heavenEvalRaw && window.wasm.getInputPtr && window.wasm.getOutputPtr) {
+        const bytes = new TextEncoder().encode(code);
+        const inPtr = window.wasm.getInputPtr();
+        new Uint8Array(window.memory.buffer, inPtr, bytes.length).set(bytes);
+        window.wasm.heavenEvalRaw(bytes.length);
+        const outPtr = window.wasm.getOutputPtr();
+        const outLen = window.wasm.getOutputLen();
+        return new TextDecoder().decode(new Uint8Array(window.memory.buffer, outPtr, outLen));
+      }
+      // Fallback : sendReplInput (pas de capture directe)
+      if (window.sendReplInput) {
+        window.sendReplInput(code);
+        return '(injecté au REPL, pas de capture directe)';
+      }
+      return '(aucune méthode d eval disponible)';
+    }
+
+    async function runCode() {
+      console.log('runCode autonomous');
+      window._outputBuf = [];
+      setOutput('...running...');
+      try {
+        const result = await evalHeaven(editor.value);
+        const logs = window._outputBuf.slice();
+        let text = '';
+        if (logs.length) text += '[log]\n' + logs.join('') + '\n';
+        if (result && result.length) text += '[result]\n' + result;
+        if (!text) text = '(no output)';
+        setOutput(text);
+      } catch (e) {
+        setOutput('ERROR: ' + (e.message || e));
+      }
+    }
+
+    document.getElementById('btn-clear-out').addEventListener('click', () => {
+      window._outputBuf = [];
+      setOutput('');
+    });
 
     function proveTheorem() {
       // Cherche les lignes "theorem" et "proof" dans le code
