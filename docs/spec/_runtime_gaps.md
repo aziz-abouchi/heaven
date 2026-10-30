@@ -461,3 +461,33 @@ Chantier 2-3 sessions dédiées, pas un fix ponctuel. `heaven build
 **Ne pas retenter sans plan dédié** : les sessions 2-3 Zig nécessaires
 sont documentées dans le plan futur (`_parallelism_roadmap.md` mentionne
 déjà les niveaux).
+
+
+## compile-qbe : phis std cassés (2026-10-30)
+
+**Symptôme** : `qbe:prog.ssa:N: predecessors not matched in phi %r16`
+sur les fn std précompilées (set_fst, sup_tick_fn, etc.).
+
+**Cause** : compileIf/compileWhile produit des blocs MIR avec phis mal
+formés quand le corps de la fn contient des if/while imbriqués. Bug
+pré-existant à notre patch.
+
+**Notre patch (v0.9)** :
+- 3 opcodes heap (alloc/load_at/store_at)
+- 6 builtins compileExpr (pair/fst/snd/cons/head/tail)
+- Stubs QBE pour call_user non résolus
+- warn au lieu de fail
+
+**Mode pur** : `HEAVEN_NO_STD_FNS=1 heaven compile-qbe` compile
+(fst (pair 1 2)) → 1, (snd (pair 1 2)) → 2, imbriqué OK.
+Fonctionne car on saute les 37 fns std.
+
+**Sessions futures** :
+1. Fix compileIf/compileWhile phis (1 session) — débloque compile-qbe
+   avec std fns
+2. Split mir.zig types/compile (30 min) — rebuild de 60s à 10s
+3. WASM backend (3-4 sessions)
+
+**Perf dette** : mir.zig importé par 10 modules (mir_qbe, mir_wat,
+x86_64, heaven_expr, proof/*, commands/*). Chaque patch = 1m08s. Le
+cache est sain (0.14s sans changement). Split nécessaire.
