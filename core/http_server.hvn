@@ -84,10 +84,22 @@ handle_client cap listen_fd =
   let client_fd = (net_accept cap listen_fd) in
   (if (>= client_fd 0) (handle_one_client cap client_fd) unit)
 
+-- Body : split sur \r\n\r\n, prend le 2ᵉ cons (pattern match à la _list_head)
+_extract_body2 (cons _ (cons b _)) = b
+_extract_body2 _ = ""
+
+_extract_body raw =
+  let sections = (string_split raw "\r\n\r\n") in
+  (_extract_body2 sections)
+
+handle_api_test raw = (pair 200 (pair "text/plain" (pair (_extract_body raw) nil)))
+
 handle_one_client cap client_fd =
   let raw = (net_read cap client_fd) in
   let req = (parse_request raw) in
-  let resp = (handle_request req) in
+  let resp = (if ((req_path req) == "/api/test")
+               (handle_api_test raw)
+               (handle_request req)) in
   let _ = (net_write cap client_fd (format_response_ct resp)) in
   let _ = (@clear_thunks) in
   (net_close cap client_fd)
