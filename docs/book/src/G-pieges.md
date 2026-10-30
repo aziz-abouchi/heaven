@@ -1,0 +1,177 @@
+# Annexe G — Pièges runtime et parser
+
+> Les 22 pièges rencontrés en session 2026-10-30. Chaque piège a coûté
+> entre 10 minutes et 2 heures de diagnostic. À lire AVANT d'écrire du
+> code non-trivial.
+
+## A. Parser et syntaxe
+
+### G.1 — Lambda 2-params ne parse pas
+
+    -- PIEGE : 3 lambdas imbriques, handler malforme
+    fn_test = (lambda s m. (pair s m))
+
+    -- CORRECT
+    fn test_ok(s, m) = (pair s m)
+
+`(lambda a b. body)` produit 3 lambdas imbriqués. Utiliser `fn name(a,b)`.
+
+### G.2 — let-in en RHS de = casse le parser
+
+    -- PIEGE
+    f x = (let many n = (+ x 1) in n)
+
+    -- CORRECT : let-in dans une lambda
+    f x = ((lambda _ -> (let many n = (+ x 1) in n)) 0)
+
+### G.3 — `(= X Y)` préfixe ne matche pas le runner
+
+    -- PIEGE : "operateur '==' manquant"
+    test "x":
+      (= (+ 1 2) 3)
+
+    -- CORRECT : == top-level
+    test "x":
+      (+ 1 2) == 3
+
+### G.4 — N lets + body = N+1 closes
+
+    -- PIEGE : close manquante
+    test "x":
+      (let many a = 1 in
+       (let many b = 2 in
+        (+ a b)) == 3
+
+    -- CORRECT : 2 lets + body = 3 closes
+    test "x":
+      (let many a = 1 in
+       (let many b = 2 in
+        (+ a b))) == 3
+
+Règle : `scripts/check_parens.py` vérifie l'équilibre.
+
+### G.5 — `print` est variadic
+
+    -- PIEGE : (print s) "avale" == true
+    test "x": (print s) == true
+
+    -- CORRECT : pas de print dans un test
+    test "x": s == true
+
+### G.6 — `range` n'existe pas
+
+`range lo hi` n'est pas défini. Utiliser `cons`-chain :
+
+    (cons 0 (cons 1 (cons 2 nil)))
+
+### G.7 — `>`, `<=`, `>=` sont partiels
+
+`>` marche en QBE (via `cmp_lt` inversé). `<=`, `>=` ajoutés mais
+pas testés exhaustivement. `sign (0 - 5)` échoue (phi3).
+
+### G.8 — `lambda x. body` (dot) vs `lambda x -> body` (arrow)
+
+Le `.` casse en multi-args. Utiliser `->` ou `fn`.
+
+## B. Eval et runtime
+
+### G.9 — `module X` casse les imports qualifiés
+
+Fichier `core/std/X.hvn` avec `module X` → `X.foo` retourne un thunk.
+Fix : retirer `module X` (cf. `lens.hvn`).
+
+### G.10 — `import ... as X` casse les fonctions 2-args
+
+    -- PIEGE : SV.child_mk retourne un thunk
+    import "core/std/otp/supervisor.hvn" as SV
+    (SV.child_mk inc 0)
+
+    -- CORRECT : unprefixed
+    import "core/std/otp/supervisor.hvn"
+    (child_mk inc 0)
+
+### G.11 — `fst param` dans une closure = thunk non forcé
+
+    -- PIEGE
+    make_getter o = (lambda s. ((fst o) s))
+
+    -- CORRECT : pattern matching
+    make_getter (pair go _) = (lambda s. (go s))
+
+Fix 4+5 (v0.95) résout `apply(X, [])` et `apply(apply(X, []), [y])`.
+
+### G.12 — Thunks top-level non-déballables
+
+    -- PIEGE : thunk
+    counter_comp = (mk_component 0 upd vw)
+
+    -- CORRECT : fonction 0-arg
+    counter_comp _ = (mk_component 0 upd vw)
+
+### G.13 — `let erased` = 0 usage strict
+
+    -- PIEGE : LinearViolation
+    (let erased x = 5 in x == 5)
+
+    -- CORRECT
+    (let erased _ = 5 in 42)
+
+QTT : `erased` = 0 usage, `linear` = 1, `many` = 0+.
+
+### G.14 — `run` multi-message perd des messages
+
+    -- PIEGE : messages droppés
+    (tell p m1) (tell p m2) (tell p m3)
+    (run p)
+
+Workaround : `dispatch_from` (pur). Dette STATUS.md:303.
+
+### G.15 — Ordre d'eval top-level compte
+
+    -- PIEGE : tree_random undefined
+    test "x": (tree_random 5)
+    tree_random 0 = (leaf "x")
+
+    -- CORRECT : définitions AVANT
+    tree_random 0 = (leaf "x")
+    test "x": (tree_random 5)
+
+## C. Test runner
+
+### G.16 — `heaven run` exécute UN test
+
+    $ heaven run tests/foo.hvn   # 1 test
+    $ heaven test tests/foo.hvn  # tous
+
+### G.17 — Un fichier par test quand ils interagissent
+
+Éclater en `tests/foo_1.hvn`, ..., `foo_5.hvn` si contamination.
+
+### G.18 — `exit: 0` avec tests ✗
+
+Bug sémantique `runTestDir` (fixé). Vérifier la version.
+
+## D. Compilation et backend
+
+### G.19 — `zig build` inutile pour `.hvn`
+
+`std_loader.zig:57` = `readFileAlloc` (runtime). 0 rebuild pour `.hvn`.
+
+### G.20 — `mir.zig` touché = 2m05s
+
+1700 lignes, 10 imports. Split `types.zig` + `compile.zig` = 8× gain.
+
+### G.21 — QBE refuse les phis orphelins
+
+    ; PIEGE : predecessors not matched in phi
+    ; CORRECT : emit copy 0
+
+Fixé dans `mir_qbe.zig`.
+
+### G.22 — WASM ne supporte pas heap (session future)
+
+`mir_wat.zig` rejette `alloc`/`load_at`/`store_at`. Émet `unreachable`.
+
+## Référence
+
+Détail complet : `docs/spec/_runtime_gaps.md` (25 sections).

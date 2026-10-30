@@ -1,8 +1,9 @@
 # Summary
 
-> **Heaven v0.1.0** (binaire actuel) — État au 2026-10-29. La grille « Versions »
-> en fin de page liste le **binaire actuel (v0.1.0) + la roadmap (v0.2 → v1.0)**.
-> Voir `docs/spec/_claims_vs_reality.md` pour l'écart livre/réalité.
+> **Heaven v0.1.0** — État au 2026-10-30. **142/142 tests verts**. La grille
+> « Versions » en fin de page liste le binaire actuel + la roadmap. Voir
+> `docs/spec/_claims_vs_reality.md` pour l'écart livre/réalité, et l'annexe G
+> pour les 22 pièges runtime (indispensable pour lire le code).
 
 ## Partie I — Découverte (lecteur littéraire bienvenu)
 
@@ -37,6 +38,11 @@
 - [Hab — MVU avec optiques](31-hab-mvu.md)
 - [Hab — App complète](32-hab-app.md)
 - [heaven build — Bundler](33-heaven-build.md)
+- [Backend QBE — Compilation native](34-backend-qbe.md)
+- [Backend WASM — État partiel](35-backend-wasm.md)
+- [Hab Render — HTML par catamorphisme](36-hab-render.md)
+- [Hab Router — Optique + foncteur + HKT](37-hab-router.md)
+- [Tooling — Introspection runtime](38-tooling.md)
 
 ## Partie III — Théorie et abstraction
 
@@ -64,6 +70,7 @@
 - [C — Glossaire](C-glossaire.md)
 - [D — Contribuer](D-contribuer.md)
 - [F — Références](F-references.md)
+- [G — Pièges runtime et parser](G-pieges.md)
 
 ---
 

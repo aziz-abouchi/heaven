@@ -1,3 +1,40 @@
+## 2026-10-30 — Session QBE/WASM/Hab
+
+### Tooling
+- `@runtime_stats` : remplace le stub par un compteur réel
+  `processes` + `process_mem`. Toutes les mesures précédentes étaient
+  fausses.
+- Découverte : `range` n'existe pas → benchmarks acteurs invalides.
+
+### Backend QBE (4/5 natif)
+- 6 builtins heap : pair, fst, snd, cons, head, tail.
+- 3 opcodes Instr : alloc, load_at, store_at.
+- Compile `(fst (pair 1 2))`, `(choose 1)`, `(check (pair 1 99))`,
+  `(sign -5)` natif.
+- phi3 (sign imbriqué) reste UnsupportedOp.
+
+### Backend WASM (v0.1-partial)
+- mir_wat.zig émet WAT pour arith/if/fns user.
+- Heap → unreachable trap.
+- Entry _start WASI absente (3-4 sessions).
+
+### Hab Render (W1, 9/9)
+- html_render = cata sur Tree.
+- Tests : basic (4/4) + quickcheck (3/3) + smocker (2/2).
+
+### Hab Router (W2, 8/8)
+- Lens(RouteState, Child).
+- Foncteur Path → A : route_lookup.
+- HKT ∀h : router_mk strat.
+- Tests : basic (5/5) + quickcheck (2/2) + smocker (1/1).
+
+### Fix
+- setrlimit(.STACK, 64 MB) → bigint SIGSEGV fixé, 142/142 verts.
+
+### Pièges
+- 22 pièges dans l'annexe G.
+- Référence : docs/spec/_runtime_gaps.md (25 sections).
+
 ## 2026-10-29 — Session OTP/Hab/Optics/Build (14 tags)
 
 ### Perf (3 sessions)
