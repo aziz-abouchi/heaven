@@ -1,0 +1,33 @@
+-- bin/heaven.hvn — CLI auto-hebergee, V0 entier-only
+--
+-- QBE natif ne supporte que les entiers (const_int). Les strings
+-- passeront par extern_call a printf/puts en V1.
+--
+-- Compilation : heaven compile-qbe bin/heaven.hvn -o bin/heaven-natif
+-- Execution   : ./bin/heaven-natif <command_int>
+-- Codes retour (usage interne) :
+--   0 = version
+--   1 = help
+--   2 = run
+--   3 = test
+--   4 = compile-qbe
+--   5 = compile-wasm
+--   99 = unknown
+--
+-- Le wrapper $main imprime "N" sur stdout (printf "%ld\n"),
+-- donc on voit le code de commande sur la sortie standard.
+
+-- Dispatch pur (entier -> entier). if imbriques, pas de pattern
+-- wildcard (qui peut poser des problemes parser).
+dispatch 0 = 0
+dispatch 1 = 1
+dispatch 2 = 2
+dispatch 3 = 3
+dispatch 4 = 4
+dispatch 5 = 5
+dispatch x = 99
+
+-- Point d'entree : dispatch sur le premier argument de l'argv
+-- (compile-time : on hardcode "0" pour la V0, en attendant
+-- l'acces argv via un magic @argv)
+main = (dispatch 0)
