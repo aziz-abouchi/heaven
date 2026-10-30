@@ -159,6 +159,12 @@ pub fn main() !void {
     webrtc_bridge.global_queue = &msg_queue;
     webrtc_bridge.global_allocator = allocator;
 
+        // 2026-10-30: bump stack à 64 MB pour bigint (récursion profonde).
+    // Inherited by subprocesses (runTestDir spawn). Default 8 MB → SIGSEGV.
+    // Cf. docs/spec/_bigint_d20_stack.md.
+    if (@import("builtin").os.tag != .freestanding and @import("builtin").os.tag != .wasi) {
+        std.posix.setrlimit(.STACK, .{ .cur = 64 * 1024 * 1024, .max = 64 * 1024 * 1024 }) catch {};
+    }
     const args = std.process.argsAlloc(allocator) catch return error.OutOfMemory;
 
     if (platform.getenv("HEAVEN_DEBUG_ARGS") != null) {

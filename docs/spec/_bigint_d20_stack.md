@@ -53,3 +53,16 @@ memoire ~170 Mo pour 2 tests, sous-processus dedie).
 
 **Local** : `zig build -Doptimize=ReleaseFast -Dnetwork=false test-files`
 pour D20 vert. En Debug : crash (memoire).
+
+
+## Fix 2026-10-30
+
+Cause : stack overflow (8 MB par défaut), pas memory corruption.
+`bsub_lsb_l` + `bmul_digit_lsb` récursent profond sur 1000/7.
+
+Mesure : avec `ulimit -s unlimited`, test passe (830 ms, 33 MB peak).
+Sans : SIGSEGV à 8 MB.
+
+Fix : `setrlimit(.STACK, 64 MB)` au démarrage de `main()`. Hérité
+par subprocesses (`runTestDir` spawn → `--run-test`). Non-régression :
+suite complète passe, bigint inclus.
