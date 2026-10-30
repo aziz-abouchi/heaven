@@ -72,8 +72,7 @@ strip_query s =
 handle_static p =
   let clean_path = (strip_query p) in
   let path0 = (if (clean_path == "/") "index.html" clean_path) in
-  let path_raw = (strip_slash path0) in
-  let path = (if (== path_raw "") "index.html" path_raw) in
+  let path = (strip_slash path0) in
   let ctype = (content_type path) in
   let body = (fs_read_public path) in
   (pair 200 (pair ctype (pair body nil)))

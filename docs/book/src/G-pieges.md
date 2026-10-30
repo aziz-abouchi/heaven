@@ -175,3 +175,35 @@ Fixé dans `mir_qbe.zig`.
 ## Référence
 
 Détail complet : `docs/spec/_runtime_gaps.md` (25 sections).
+
+### G.23 — `let` supplémentaire dans `handle_static` → UnknownSymbol
+
+    -- PIEGE : dans core/http_server.hvn, après les 3 lets existants
+    handle_static p =
+      let clean_path = (strip_query p) in
+      let path0 = (if (clean_path == "/") "index.html" clean_path) in
+      let path_raw = (strip_slash path0) in              -- ❌ déclenche
+      let path = (if (== path_raw "") "index.html" path_raw) in
+      ...
+
+    -- Le serveur meurt dès la 1ère requête statique avec :
+    --   [http_run] http_serve result: [eval error] error.UnknownSymbol
+
+    -- CORRECT V0 : revenir à la forme à 3 lets
+    handle_static p =
+      let clean_path = (strip_query p) in
+      let path0 = (if (clean_path == "/") "index.html" clean_path) in
+      let path = (strip_slash path0) in
+      ...
+
+Hypothèse : soit le 4ᵉ `let` dépasse un seuil de profondeur dans le
+handler `let` d'`evalMagic`, soit `(== x "")` sur string vide n'est
+pas supporté dans ce contexte. Bisection A/B/C du 2026-10-30 :
+v6 pur et v6+cache OK, v6+cache+guard mort. À isoler en session
+dédiée (micro-test avec un `let` puis `(== x "")` séparés).
+
+Conséquence pratique : `handle_static ""` (si path vide) appelle
+`fs_read_public ""` → tentative d'ouverture du répertoire
+`src/vessel/public/`, qui retourne une erreur EISDIR. Le serveur ne
+crashe PAS sur ce cas (v6 pur tient 500 req séquentielles), donc
+pas de guard nécessaire en V0.
