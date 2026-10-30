@@ -114,3 +114,4 @@ tests/local/
 # documente dans ch. 25 du book, lanceable directement.
 !http_server.hvn
 tests/online/
+bin/heaven-natif

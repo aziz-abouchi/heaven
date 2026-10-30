@@ -251,3 +251,18 @@ glibc lit `eax & 0xFFFFFFFF` → exit = valeur de dispatch.
 
 **Reste ouvert** : wrapper `loop_count > 1` utilise `%loop_r` mais
 `ret %r` (bug latent, non testé, cf. bench-qbe `--loop N`).
+
+### G.27 — `heaven.eval("name = \"str\"")` pollue les warnings unresolved
+
+Diagnostic 2026-10-30 : `compile-qbe` sur un fichier contenant un string
+binding (`msg = "hello"`) émet ~54 `[mir_qbe] warn: unresolved call sym=...`.
+Cause probable : `heaven.eval("msg = \"hello\"")` peuple `engine.fns` avec
+des symboles stdlib (`string_concat`, etc.) que `precompileUserFns` tente
+ensuite de compiler mais qui ne sont pas dans `fn_defs`.
+
+Non bloquant (`main = 42` compile OK), mais pollution bruyante. À
+investiguer : `precompileUserFns` devrait filtrer les symboles stdlib
+connus, ou `heaven.eval` ne devrait pas peupler `engine.fns` pour une
+définition de valeur pure (pas une fonction).
+
+Voir aussi : G.25 (multi-clauses), G.26 (wrapper $main).
