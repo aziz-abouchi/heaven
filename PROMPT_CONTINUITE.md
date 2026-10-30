@@ -1,4 +1,61 @@
-# ÉTAT AU 2026-10-30 — SESSION SELFHOST (13 commits, 7 tags)
+# ÉTAT AU 2026-10-30 (soir) — SELFHOST DOC CONSOLIDÉ (18 commits, 9 tags)
+
+## Jalon : selfhost natif + docs complètes
+
+`bin/heaven.hvn` → ELF x86_64 (QBE), affiche du texte via glibc
+puts, lit `@argv` (ABI SysV), dispatch CLI via `@strcmp`. Docs
+consolidées (ch. 39 + 4 SVG + 5 specs + CHANGELOG).
+
+## 9 tags poussés
+
+- `qbe-main-fix`   : `main = EXPR` compilé
+- `selfhost-v0`    : ELF natif produit
+- `selfhost-v0.1`  : exit code = valeur
+- `selfhost-str-v0`: `const_str` + `.data`
+- `selfhost-puts-v0.1` : `@puts` glibc
+- `selfhost-strings-space-v0` : G.30 fix
+- `selfhost-argv-v0`: `@argv N` (ABI SysV)
+- `selfhost-dispatch-v0` : dispatch CLI `@strcmp` (V0.6)
+- `wasm-wasi-v1`   : WASI build débloqué
+
+## Docs consolidées (session soir)
+
+- `docs/book/src/39-selfhosting.md` : chapitre (119 lignes)
+- `docs/book/src/images/39-{pipeline,abi-sysv,dispatch-strcmp,matrices}.svg`
+- `docs/book/src/33,34,35-*.md` : sections selfhost
+- `docs/spec/_selfhosting_roadmap.md` : header session
+- `docs/spec/_claims_vs_reality.md` : tableau selfhost (S1-S9)
+- `docs/spec/_runtime_gaps.md` : G.33 + G.34
+- `docs/spec/_backend_strategy.md`, `_targets_status.md` : sections
+- `docs/book/src/CHANGELOG.md` : entrée 2026-10-30 soir
+
+## État selfhost (matrice)
+
+| Composant | État |
+|---|---|
+| ELF natif QBE | OK |
+| Strings + `.data` | OK |
+| `@puts`, `@printf`, `@getenv`, `@strcmp` | OK |
+| `@argv N` (ABI SysV) | OK |
+| Dispatch CLI (V0.6) | OK |
+| Multi-clauses (G.25) | ⏳ |
+| `@argv` fn user (G.33) | ⏳ segfault |
+| `@strcmp "str"` fn user (G.34) | ⏳ undef |
+| WASM selfhost (`mir_wat`) | ⏳ TODO |
+| `heaven_eval.hvn` complet (71→500) | ⏳ TODO |
+
+## Prochaine session — 3 chantiers (ordre)
+
+1. **G.33** `@argv` fn user (30 min, 1 rebuild) — propagation argv_sym
+2. **G.34** `@strcmp` fn user (45 min, 1 rebuild) — pool global partagé
+3. **Multi-clauses merge** (30 min après 3-4) — `dispatch 0=0 | ...`
+
+Puis : WASM selfhost (`mir_wat`), `heaven_eval.hvn` 71→500,
+parallélisme/OTP/HKT/HoTT en Heaven pur.
+
+---
+
+
 
 ## Jalon historique : selfhost natif fonctionnel
 
