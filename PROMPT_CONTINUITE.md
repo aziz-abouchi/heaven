@@ -1,4 +1,31 @@
-# ÉTAT AU 2026-10-30 (nuit) — G.25/G.33/G.34 FERMÉS (21 commits, 12 tags)
+# ÉTAT AU 2026-10-30 (nuit+) — 17 tags, heaven_eval v0.4
+
+## Jalon : selfhost QBE + WASM + IDE web + heaven_eval
+
+- `bin/heaven.hvn` V0.7 : dispatch multi-clauses pur Heaven → ELF natif
+- WASM selfhost minimal : `main = 42` → 42 exécutable (node/wat2wasm)
+- IDE web Hab V0.6 : Run WASM, POST `/api/test`
+- `heaven_eval.hvn` V0.4 : listes, pairs, booléens, string_concat, λ/fn (AST)
+- Docs : ch. 39 + 4 SVG + 5 specs + G.25→G.39
+
+## 17 tags
+
+qbe-main-fix, selfhost-v0(.1), selfhost-str-v0, selfhost-puts-v0(.1),
+selfhost-strings-space-v0, selfhost-argv-v0, selfhost-dispatch-v0,
+wasm-wasi-v1, selfhost-argv-fnuser-v0, selfhost-strcmp-fnuser-v0,
+selfhost-multiclause-v0, selfhost-wasm-v0, heaven-eval-v0.2(.3)(.4)
+
+## Prochaine session — 3 options
+
+A. **Fix parser G.37/G.38/G.39** (~1h) — débloque heaven_eval sur vrais .hvn
+B. **WASM parité QBE** (~1-2 sessions) — WASI imports (fd_write, args_get)
+C. **Pause** — projet à un jalon stable
+
+## Recommandation : C puis A
+
+Prendre une pause (contexte frais), reprendre sur A.
+
+
 
 ## Jalon : G.25 + G.33 + G.34 fermés, V0.7 multi-clauses
 
