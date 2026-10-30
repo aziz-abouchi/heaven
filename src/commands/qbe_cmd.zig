@@ -97,6 +97,50 @@ fn isDefinition(trimmed: []const u8) bool {
     return true;
 }
 
+/// G.28 : remplace les identifiants connus par leur string littérale.
+/// Tokenize rhs, pour chaque token qui matche un name de str_consts,
+/// remplace par la valeur (qui commence et finit par '"').
+fn substituteStrings(
+    alloc: std.mem.Allocator,
+    input: []const u8,
+    str_consts: *const std.StringHashMap([]const u8),
+) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(alloc);
+    var i: usize = 0;
+    while (i < input.len) {
+        const c = input[i];
+        if (c == '"') {
+            // Consommer la string littérale entière
+            try out.append(alloc, c);
+            i += 1;
+            while (i < input.len) {
+                try out.append(alloc, input[i]);
+                if (input[i] == '"' and (i == 0 or input[i - 1] != '\\')) {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            continue;
+        }
+        if (std.ascii.isAlphanumeric(c) or c == '_') {
+            const start = i;
+            while (i < input.len and (std.ascii.isAlphanumeric(input[i]) or input[i] == '_')) i += 1;
+            const word = input[start..i];
+            if (str_consts.get(word)) |replacement| {
+                try out.appendSlice(alloc, replacement);
+            } else {
+                try out.appendSlice(alloc, word);
+            }
+            continue;
+        }
+        try out.append(alloc, c);
+        i += 1;
+    }
+    return out.toOwnedSlice(alloc);
+}
+
 fn parseLastExpr(
     alloc: std.mem.Allocator,
     heaven: *heaven_expr.Heaven,
@@ -106,6 +150,8 @@ fn parseLastExpr(
     defer parser.deinit();
 
     var last: ?expr.Id = null;
+    var str_consts = std.StringHashMap([]const u8).init(alloc);
+    defer str_consts.deinit();
     var lines = std.mem.splitScalar(u8, source, '\n');
     while (lines.next()) |line| {
         if (isSkippable(line)) continue;
@@ -119,8 +165,23 @@ fn parseLastExpr(
             if (std.mem.eql(u8, lhs, "main")) {
                 const rhs = std.mem.trim(u8, trimmed[eq_idx + 1 ..], " \t\r");
                 if (rhs.len == 0) continue;
-                const parsed = try parser.parseSExpr(rhs);
+                // G.28 : substituer les string bindings connus dans rhs
+                const rhs_subst = try substituteStrings(alloc, rhs, &str_consts);
+                defer alloc.free(rhs_subst);
+                const parsed = try parser.parseSExpr(rhs_subst);
                 last = try heaven.store.lowerRec(parsed);
+                continue;
+            }
+        }
+
+        // G.28 : string binding top-level (`version = "..."`).
+        // Stocke pour substitution inline dans main. Ne pas eval (le
+        // store ne sait pas créer un global QBE initialisé à un string).
+        if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_idx| {
+            const lhs0 = std.mem.trim(u8, trimmed[0..eq_idx], " \t");
+            const rhs0 = std.mem.trim(u8, trimmed[eq_idx + 1 ..], " \t\r");
+            if (lhs0.len > 0 and rhs0.len >= 2 and rhs0[0] == '"' and rhs0[rhs0.len - 1] == '"') {
+                try str_consts.put(lhs0, rhs0);
                 continue;
             }
         }
