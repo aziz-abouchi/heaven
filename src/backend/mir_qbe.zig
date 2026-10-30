@@ -132,6 +132,12 @@ pub fn emitQbeLoop(
     }
 
     const no_libc = getenvSafe("HEAVEN_NO_LIBC") != null;
+    // 2026-10-30 : data segments pour les strings litterales
+    for (root.str_pool.items, 0..) |bytes, i| {
+        try w.print("data $str_{d} = {{ ", .{i});
+        for (bytes) |b| try w.print("b {d}, ", .{b});
+        try w.writeAll("b 0 }\n");
+    }
     try w.writeAll("function l $heaven_main() {\n");
     try emitBody(w, root, null, null);
     try w.writeAll("}\n");
@@ -367,6 +373,7 @@ fn emitBody(w: anytype, f: *const MirFunction, param_regs: ?[]const Reg, cur_sym
 fn emitInstr(w: anytype, inst: Instr, tmp: *Reg, store: anytype) !void {
     switch (inst) {
         .const_int => |c| try w.print("    %r{d} =l copy {d}\n", .{ c.dest, c.value }),
+        .const_str => |c| try w.print("    %r{d} =l copy $str_{d}\n", .{ c.dest, c.sym }),
         .add => |a| try w.print("    %r{d} =l add %r{d}, %r{d}\n", .{ a.dest, a.lhs, a.rhs }),
         .sub => |a| try w.print("    %r{d} =l sub %r{d}, %r{d}\n", .{ a.dest, a.lhs, a.rhs }),
         .mul => |a| try w.print("    %r{d} =l mul %r{d}, %r{d}\n", .{ a.dest, a.lhs, a.rhs }),

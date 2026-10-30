@@ -192,6 +192,7 @@ fn emitBody(w: anytype, f: *const MirFunction, def: ?*const FnDef, fdefs: *const
 fn emitInstr(w: anytype, inst: Instr, fdefs: *const FnDefs) !void {
     switch (inst) {
         .const_int => |c| try w.print("(local.set $r{d} (i64.const {d}))\n", .{ c.dest, c.value }),
+        .const_str => |_| try w.writeAll("    unreachable ;; const_str not yet in WAT\n"),
         .add => |a| try w.print("(local.set $r{d} (i64.add (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
         .sub => |a| try w.print("(local.set $r{d} (i64.sub (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
         .mul => |a| try w.print("(local.set $r{d} (i64.mul (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),

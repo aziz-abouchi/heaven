@@ -30,6 +30,8 @@ const PhiEntry = struct { value: Reg, block: BlockId };
 
 pub const Instr = union(enum) {
     const_int: struct { dest: Reg, value: i64 },
+    // 2026-10-30 : strings litterales (Sym = index dans str_pool)
+    const_str: struct { dest: Reg, sym: u32 },
     add: struct { dest: Reg, lhs: Reg, rhs: Reg },
     sub: struct { dest: Reg, lhs: Reg, rhs: Reg },
     mul: struct { dest: Reg, lhs: Reg, rhs: Reg },
@@ -185,6 +187,7 @@ fn shiftPhiEntry(in: PhiEntry, reg_off: u32, block_off: u32) PhiEntry {
 fn shiftInstr(allocator: std.mem.Allocator, inst: Instr, reg_off: u32, block_off: u32) !Instr {
     return switch (inst) {
         .const_int => |c| .{ .const_int = .{ .dest = c.dest + reg_off, .value = c.value } },
+        .const_str => |c| .{ .const_str = .{ .dest = c.dest + reg_off, .sym = c.sym } },
         .add => |a| .{ .add = .{ .dest = a.dest + reg_off, .lhs = a.lhs + reg_off, .rhs = a.rhs + reg_off } },
         .sub => |a| .{ .sub = .{ .dest = a.dest + reg_off, .lhs = a.lhs + reg_off, .rhs = a.rhs + reg_off } },
         .mul => |a| .{ .mul = .{ .dest = a.dest + reg_off, .lhs = a.lhs + reg_off, .rhs = a.rhs + reg_off } },
@@ -227,6 +230,8 @@ pub const MirFunction = struct {
     store_ref: ?*Store = null,
     fn_defs: std.AutoHashMap(Sym, FnDef),
     values: std.ArrayListUnmanaged(i64),
+    // 2026-10-30 : pool de strings pour const_str (index = sym)
+    str_pool: std.ArrayListUnmanaged([]const u8) = .{},
 
     /// Cherche un tail-call dans `f` vers `target`. Meme pattern que
     /// mir_qbe.zig::hasTailCall : derniere instr = call_user, terminator
@@ -657,7 +662,8 @@ pub const MirFunction = struct {
             blk.instrs.deinit(self.allocator);
         }
         self.blocks.deinit(self.allocator);
-        self.break_values.deinit(self.allocator);
+                self.break_values.deinit(self.allocator);
+        self.str_pool.deinit(self.allocator);
 
         // Libérer les définitions de fonctions
         var it = self.fn_defs.valueIterator();
@@ -911,6 +917,17 @@ pub const MirFunction = struct {
                     .int => |v| {
                         const dest = self.newReg();
                         try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = v } });
+                        return dest;
+                    },
+                    .str => |sym| {
+                        // 2026-10-30 : strings litterales via const_str.
+                        // Sym = index interner, bytes valides tant que
+                        // l'interner vit (emitQbe s'exécute avant deinit).
+                        const bytes = store.interner.resolve(sym);
+                        const pool_idx: u32 = @intCast(self.str_pool.items.len);
+                        try self.str_pool.append(self.allocator, bytes);
+                        const dest = self.newReg();
+                        try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_str = .{ .dest = dest, .sym = pool_idx } });
                         return dest;
                     },
                     else => return error.UnsupportedLiteral,
@@ -1238,8 +1255,8 @@ pub const MirFunction = struct {
                         if (self.values.items[a.rhs] == 0) return error.DivisionByzero;
                         self.values.items[a.dest] = @divTrunc(self.values.items[a.lhs], self.values.items[a.rhs]);
                     },
-                    // 2026-10-30 : alloc non-foldable en constant. On rejette.
-                    .alloc, .load_at, .store_at => return error.UnsupportedOp,
+                    // 2026-10-30 : alloc/str non-foldable en constant. On rejette.
+                    .alloc, .load_at, .store_at, .const_str => return error.UnsupportedOp,
                     .cmp_lt => |a| {
                         if (a.dest >= self.values.items.len) try self.values.resize(self.allocator, a.dest + 1);
                         self.values.items[a.dest] = if (self.values.items[a.lhs] < self.values.items[a.rhs]) 1 else 0;
