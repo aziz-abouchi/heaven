@@ -1,4 +1,48 @@
-# ÉTAT AU 2026-10-30 (soir) — SELFHOST DOC CONSOLIDÉ (18 commits, 9 tags)
+# ÉTAT AU 2026-10-30 (nuit) — G.25/G.33/G.34 FERMÉS (21 commits, 12 tags)
+
+## Jalon : G.25 + G.33 + G.34 fermés, V0.7 multi-clauses
+
+`bin/heaven.hvn` V0.7 : dispatch 5 clauses (`version "cmd" = N` +
+catch-all), merge au parse, pur Heaven. `version`/`help`/`run`/`test`/
+`foo` → exits 1/2/3/4/0.
+
+## 3 pièges fermés en une session
+
+- **G.33** (a0218de) : `@argv` fn user → wrapper effectif (scan fn_defs)
+- **G.34** (3ac0044) : str_pool fn_defs migré vers root
+- **G.25** (f4e910b) : merge multi-clauses au parse
+
+## 12 tags total
+
+qbe-main-fix → selfhost-dispatch-v0 → wasm-wasi-v1 →
+selfhost-argv-fnuser-v0 → selfhost-strcmp-fnuser-v0 →
+selfhost-multiclause-v0
+
+## État selfhost
+
+| Composant | État |
+|---|---|
+| ELF natif QBE | OK |
+| Strings + `.data` | OK |
+| `@puts`, `@printf`, `@getenv`, `@strcmp` | OK |
+| `@argv N` (ABI SysV) | OK |
+| `@argv` dans fn user | OK |
+| `@strcmp "str"` dans fn user | OK |
+| Multi-clauses merge | OK |
+| Dispatch CLI exhaustif (V0.7) | OK |
+| WASM selfhost (`mir_wat`) | TODO |
+| `heaven_eval.hvn` complet | TODO |
+
+## Prochaine session — 2 chantiers
+
+1. **WASM selfhost** (`mir_wat.zig` primitives) — 1h, 1 rebuild
+2. **`heaven_eval.hvn`** 71→500 lignes — 2-3 sessions
+
+Puis parallélisme, OTP, HKT, HoTT en Heaven pur.
+
+---
+
+
 
 ## Jalon : selfhost natif + docs complètes
 
