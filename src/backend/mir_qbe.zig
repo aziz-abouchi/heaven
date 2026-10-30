@@ -97,6 +97,11 @@ pub fn emitQbeLoop(
     var fit = root.fn_defs.keyIterator();
     while (fit.next()) |k| {
         const fd = root.fn_defs.get(k.*).?;
+        // 2026-10-30 G.31 : skip les fn_defs dont le str_pool n'est pas émis
+        // (mir_qbe n'émet data $str_ que pour root.str_pool). Ces fns
+        // proviennent du prelude (f173, etc.) et ne sont pas appelées
+        // par main. TODO session dédiée : pool global partagé.
+        if (fd.fn_mir.str_pool.items.len > 0) continue;
         try collectGlobals(&global_set, &fd.fn_mir);
     }
     var git = global_set.keyIterator();
@@ -107,7 +112,12 @@ pub fn emitQbeLoop(
     var fn_names: std.ArrayList(u32) = .empty;
     defer fn_names.deinit(allocator);
     var kit = root.fn_defs.keyIterator();
-    while (kit.next()) |k| try fn_names.append(allocator, k.*);
+    while (kit.next()) |k| {
+        // G.31 : skip fn_defs avec str_pool (data $str_ non émis pour ces fns)
+        const fd = root.fn_defs.get(k.*).?;
+        if (fd.fn_mir.str_pool.items.len > 0) continue;
+        try fn_names.append(allocator, k.*);
+    }
 
     if (getenvSafe("HEAVEN_SCC_DUMP") != null) {
         const pairs = try detectTailPairs(root, allocator);
