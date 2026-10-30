@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 220" font-family="monospace" font-size="12">
+<defs><marker id="a39c" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/></marker></defs>
+<rect x="20" y="90" width="120" height="40" rx="6" fill="#fce8e6" stroke="#d93025" stroke-width="2"/>
+<text x="80" y="115" text-anchor="middle" font-weight="bold">argv[1]</text>
+<rect x="180" y="30" width="160" height="40" rx="6" fill="#e8f0fe" stroke="#1a73e8" stroke-width="2"/>
+<text x="260" y="55" text-anchor="middle">strcmp(argv, version)</text>
+<rect x="180" y="90" width="160" height="40" rx="6" fill="#e8f0fe" stroke="#1a73e8" stroke-width="2"/>
+<text x="260" y="115" text-anchor="middle">strcmp(argv, help)</text>
+<rect x="180" y="150" width="160" height="40" rx="6" fill="#e8f0fe" stroke="#1a73e8" stroke-width="2"/>
+<text x="260" y="175" text-anchor="middle">(fallback)</text>
+<rect x="380" y="30" width="160" height="40" rx="6" fill="#e8f8ee" stroke="#1e8e3e" stroke-width="2"/>
+<text x="460" y="55" text-anchor="middle" font-weight="bold">exit 1 (version)</text>
+<rect x="380" y="90" width="160" height="40" rx="6" fill="#e8f8ee" stroke="#1e8e3e" stroke-width="2"/>
+<text x="460" y="115" text-anchor="middle" font-weight="bold">exit 2 (help)</text>
+<rect x="380" y="150" width="160" height="40" rx="6" fill="#e8f8ee" stroke="#1e8e3e" stroke-width="2"/>
+<text x="460" y="175" text-anchor="middle" font-weight="bold">exit 0 (unknown)</text>
+<line x1="140" y1="110" x2="180" y2="50" stroke="#333" stroke-width="1.5" marker-end="url(#a39c)"/>
+<line x1="140" y1="110" x2="180" y2="110" stroke="#333" stroke-width="1.5" marker-end="url(#a39c)"/>
+<line x1="140" y1="110" x2="180" y2="170" stroke="#333" stroke-width="1.5" marker-end="url(#a39c)"/>
+<line x1="340" y1="50" x2="380" y2="50" stroke="#1e8e3e" stroke-width="1.5" marker-end="url(#a39c)"/>
+<line x1="340" y1="110" x2="380" y2="110" stroke="#1e8e3e" stroke-width="1.5" marker-end="url(#a39c)"/>
+<line x1="340" y1="170" x2="380" y2="170" stroke="#1e8e3e" stroke-width="1.5" marker-end="url(#a39c)"/>
+<text x="260" y="210" text-anchor="middle" font-size="10" fill="#666">=0 match | !=0 suivante</text>
+</svg>

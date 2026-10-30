@@ -1,3 +1,33 @@
+## 2026-10-30 (soir) — Session selfhost : de Zig à Heaven
+
+### Jalon : selfhost natif (9 tags)
+`bin/heaven.hvn` -> ELF x86_64 produit par QBE, exécuté nativement,
+affiche du texte via glibc puts, lit argv[1] via ABI SysV, dispatch
+CLI via `@strcmp`. **Zéro Zig au runtime.**
+
+### Backend QBE
+- `main = EXPR` compilé
+- `const_str` + `data $str_N` (strings littérales)
+- `@puts`, `@printf`, `@getenv`, `@strcmp` via `extern_call` glibc
+- `@argv N` natif (wrapper `l $main(l argc, l argv)`)
+- Wrapper `ret %r` (exit code = valeur)
+
+### Parser + WASI
+- G.30 fix : strings avec espaces
+- G.28 fix : string bindings inlinés
+- `armPreemptTimer` stub -> build `-Dtarget=wasm32-wasi` débloqué
+
+### Pièges (G.25 -> G.34)
+G.25 multi-clauses, G.26 wrapper void, G.27 eval pollue,
+G.28 string binding, G.29 @ parse, G.30 strings+espaces,
+G.31 str_pool fn_defs, G.32 @argv ABI, G.32-bis @strcmp,
+G.33 @argv fn user, G.34 @strcmp fn user
+
+### Tags
+`qbe-main-fix`, `selfhost-v0`, `selfhost-v0.1`, `selfhost-str-v0`,
+`selfhost-puts-v0.1`, `selfhost-strings-space-v0`, `selfhost-argv-v0`,
+`selfhost-dispatch-v0`, `wasm-wasi-v1`
+
 ## 2026-10-30 — Session QBE/WASM/Hab
 
 ### Tooling
