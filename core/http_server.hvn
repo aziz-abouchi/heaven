@@ -19,10 +19,41 @@ strip_slash p =
     (string_substring p 1 (- (string_length p) 1))
     p)
 
+-- ── Pages Hab : littéraux bruts (aucun guillemet interne → pas d'escape)
+h_ide_page unit =
+  "<html><head><meta charset=utf-8><title>Heaven IDE</title><link rel=stylesheet href=/common.css></head><body><h1>HEAVEN IDE (Hab)</h1><iframe src=/editor-frame.html class=full></iframe></body></html>"
+
+h_repl_page unit =
+  "<html><head><meta charset=utf-8><title>Heaven REPL</title><link rel=stylesheet href=/common.css></head><body><h1>HEAVEN REPL (Hab)</h1><iframe src=/repl-frame.html class=full></iframe></body></html>"
+
+h_dashboard_page unit =
+  "<html><head><meta charset=utf-8><title>Heaven Dashboard</title><link rel=stylesheet href=/common.css></head><body><h1>HEAVEN DASHBOARD (Hab)</h1><iframe src=/process-frame.html class=full></iframe></body></html>"
+
+h_docs_page unit =
+  "<html><head><meta charset=utf-8><title>Heaven Docs</title><link rel=stylesheet href=/common.css></head><body><h1>HEAVEN DOCS (Hab)</h1><p>Hab-rendered documentation</p></body></html>"
+
+h_index_page unit =
+  "<html><head><meta charset=utf-8><title>Heaven Vision</title><link rel=stylesheet href=/common.css></head><body><h1>HEAVEN VISION (Hab)</h1><ul><li><a href=/hab/ide>IDE</a></li><li><a href=/hab/repl>REPL</a></li><li><a href=/hab/dashboard>Dashboard</a></li><li><a href=/hab/docs>Docs</a></li></ul></body></html>"
+
+h_ok html = (pair 200 (pair "text/html; charset=utf-8" (pair html nil)))
+h_404 unit = (pair 404 (pair "text/plain" (pair "not found" nil)))
+
+handle_hab p =
+  let clean = (strip_query p) in
+  (if (clean == "/hab/ide") (h_ok (h_ide_page unit))
+    (if (clean == "/hab/repl") (h_ok (h_repl_page unit))
+      (if (clean == "/hab/dashboard") (h_ok (h_dashboard_page unit))
+        (if (clean == "/hab/docs") (h_ok (h_docs_page unit))
+          (if (clean == "/hab/") (h_ok (h_index_page unit))
+            (h_404 unit))))))
+
 handle_request req =
   let p = (req_path req) in
   let is_api = (p == "/api/egraph") in
-  (if is_api (handle_api p) (handle_static p))
+  let is_hab = (string_starts_with p "/hab/") in
+  (if is_api (handle_api p)
+    (if is_hab (handle_hab p)
+      (handle_static p)))
 
 handle_api _ =
   let cap = (cap_acquire "egraph:snapshot") in

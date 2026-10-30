@@ -1,0 +1,60 @@
+-- hab/apps/ide_trees.hvn — Trees Hab pour les pages de l'IDE (V0)
+-- V0 : pas de quotes dans les strings (pitfall G.NN). Attributs unquoted
+-- (HTML5 autorise). Classes CSS pour le styling (voir common.css).
+import "hab/render/html.hvn" as R
+
+mk_page title body = (R.node "html" (cons
+  (R.node "head" (cons
+    (R.leaf (string_concat "<meta charset=utf-8><title>" (string_concat title "</title><link rel=stylesheet href=/common.css>")))
+    nil))
+  (cons body nil)))
+
+-- ─── IDE ───
+ide_body _ = (R.node "body" (cons
+  (R.node "h1" (cons (R.leaf "HEAVEN IDE (Hab)") nil))
+  (cons
+    (R.leaf "<nav><a href=/hab/>Index</a> <a href=/hab/repl>REPL</a> <a href=/hab/dashboard>Dashboard</a> <a href=/hab/docs>Docs</a></nav>")
+    (cons (R.leaf "<iframe src=/editor-frame.html class=full></iframe>") nil))))
+
+ide_tree u = (mk_page "Heaven IDE" (ide_body u))
+
+-- ─── REPL ───
+repl_body _ = (R.node "body" (cons
+  (R.node "h1" (cons (R.leaf "HEAVEN REPL (Hab)") nil))
+  (cons (R.leaf "<iframe src=/repl-frame.html class=full></iframe>") nil)))
+
+repl_tree u = (mk_page "Heaven REPL" (repl_body u))
+
+-- ─── Dashboard ───
+dashboard_body _ = (R.node "body" (cons
+  (R.node "h1" (cons (R.leaf "HEAVEN DASHBOARD (Hab)") nil))
+  (cons (R.leaf "<iframe src=/process-frame.html class=full></iframe>") nil)))
+
+dashboard_tree u = (mk_page "Heaven Dashboard" (dashboard_body u))
+
+-- ─── Docs ───
+docs_body _ = (R.node "body" (cons
+  (R.node "h1" (cons (R.leaf "HEAVEN DOCS (Hab)") nil))
+  (cons (R.node "p" (cons (R.leaf "Hab-rendered documentation") nil)) nil)))
+
+docs_tree u = (mk_page "Heaven Docs" (docs_body u))
+
+-- ─── Index ───
+index_body _ = (R.node "body" (cons
+  (R.node "h1" (cons (R.leaf "HEAVEN VISION (Hab)") nil))
+  (cons
+    (R.leaf "<ul><li><a href=/hab/ide>IDE</a></li><li><a href=/hab/repl>REPL</a></li><li><a href=/hab/dashboard>Dashboard</a></li><li><a href=/hab/docs>Docs</a></li></ul>")
+    nil)))
+
+index_tree u = (mk_page "Heaven Vision" (index_body u))
+
+-- ─── Table de routes ───
+hab_routes _ = (cons
+  (pair "/hab/ide" (ide_tree unit))
+  (cons
+    (pair "/hab/repl" (repl_tree unit))
+    (cons
+      (pair "/hab/dashboard" (dashboard_tree unit))
+      (cons
+        (pair "/hab/docs" (docs_tree unit))
+        (cons (pair "/hab/" (index_tree unit)) nil)))))
