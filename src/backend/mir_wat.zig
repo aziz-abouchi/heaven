@@ -213,8 +213,18 @@ fn emitInstr(w: anytype, inst: Instr, fdefs: *const FnDefs) !void {
             // (import fd_write etc.). En attendant, trap explicite.
             try w.writeAll("    unreachable\n");
         },
-        // 2026-10-30 : heap non supporté en WASM (à implémenter session future)
-        .alloc, .load_at, .store_at => return error.UnsupportedOp,
+        // 2026-10-30 : heap non supporté en WASM. Emit unreachable au
+        // lieu de fail (sinon precompileUserFns des std fns avec pairs
+        // bloque la compilation de tout programme). Les programmes qui
+        // utilisent vraiment pair/fst trapent au runtime — acceptable
+        // tant que WASM heap n'est pas implémenté.
+        .alloc => |a| {
+            try w.print("(local.set $r{d} (i64.const 0))\n(unreachable)\n", .{a.dest});
+        },
+        .load_at => |l| {
+            try w.print("(local.set $r{d} (i64.const 0))\n(unreachable)\n", .{l.dest});
+        },
+        .store_at => |_| try w.writeAll("unreachable\n"),
         .phi, .jump, .branch, .ret => unreachable, // filtrés en amont
     }
 }

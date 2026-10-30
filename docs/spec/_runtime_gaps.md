@@ -525,3 +525,30 @@ Un patch de `compile.zig` ne recompile que `mir.zig` (facade) + 2-3 modules.
 **Gain estimé** : 2m05s → 15-20s par patch. Multiplicateur de vélocité.
 
 **Effort** : 45 min (move structs, refactor imports, zig build une fois).
+
+
+## WASM backend — état 2026-10-30 (3-4 sessions)
+
+**Pipeline** : `compile-wasm file.hvn -o out.wat` → WAT text.
+`wat2wasm` + `wasmtime` sont installés localement.
+
+**Ce qui marche** :
+- `mir_wat.zig` émet le WAT pour arith/if/fns user
+- Patch heap : `alloc`/`load_at`/`store_at` → `unreachable` trap
+  (au lieu d'erreur bloquante au build)
+
+**Ce qui échoue** :
+- `(+ 1 2)` → `UnsupportedCall` (checkCallUsers fail, pas de stubs)
+- `(choose 1)` → `UnsupportedExpr` (pipeline WAT incomplet)
+
+**Sessions nécessaires** :
+1. Skip `checkCallUsers` en warn + stubs `(func $fN (result i64) (i64.const 0))`
+   (même pattern que mir_qbe) — 1h, 1 build 2m41s
+2. Entry `_start` WASI + fd_write pour printf — 1 session
+3. Heap WASM (memory.grow, load/store WASI) — 1 session
+4. Strings/bytes + tests — 1 session
+
+**Prérequis** : split `mir.zig` en types/compile (45 min). Sinon 2m41s/iteration.
+
+**WAT actuel** : freestanding (pas de `_start`). `wasmtime` refuserait
+même si compilé. `wasi_main.zig` + `wasm_entry.zig` existent, à brancher.
