@@ -353,3 +353,52 @@ Permet le dispatch CLI sans multi-clauses (G.25) :
     ./bin/heaven-natif version → exit 1
 
 Note : `@getenv` (externe aussi) est vérifié fonctionnel (session G.28).
+
+### G.33 — `@argv` dans une fn user segfault
+
+Diagnostic 2026-10-30 (test C) :
+
+    getarg __i = (@argv __i)
+    main = (getarg 1)
+    ./t_C.bin abc   → Erreur de segmentation (exit 139)
+
+Cause : `argv_sym` est stocké sur le `MirFunction` courant (la fn
+user `getarg.fn_mir.argv_sym`), pas sur `root.argv_sym`. Le wrapper
+`$main()` n'émet pas `storel %argv, $heaven_argv` (car
+`root.argv_sym == null`). À l'exécution :
+
+1. `$heaven_argv = { l 0 }` (initialisé à zéro)
+2. `getarg` fait `load $heaven_argv` → 0
+3. `add 0, idx*8` → `idx*8`
+4. `load_at idx*8` → segfault (adresse invalide)
+
+**Fix prévu** : dans `emitQbeLoop`, scanner tous les
+`fn_defs.fn_mir.argv_sym` ; si un seul est non-null, utiliser le
+wrapper `l $main(l argc, l argv)` et émettre `data $gN` pour ce sym.
+Ou alternativement, propager `argv_sym` au root lors du
+`precompileUserFns`.
+
+**Contournement actuel** : ne pas utiliser `@argv` dans une fn user ;
+garder l'appel `(@argv N)` directement dans `main`.
+
+### G.34 — `@strcmp "str"` dans une fn user → `undef fN`
+
+Diagnostic 2026-10-30 (test B) :
+
+    cmp __x = (@strcmp __x "version")
+    main = (cmp "version")
+    → ld: référence indéfinie vers « f<N> » (exit ChildFailed)
+
+Cause : `@strcmp __x "version"` dans `cmp.fn_mir` remplit
+`cmp.fn_mir.str_pool`. G.31 (workaround) skip l'émission des fns
+avec `str_pool` non vide. Donc `cmp` n'est pas émise, et `main`
+appelle `$f<N>` → undef.
+
+**Fix prévu** : pool global partagé (root.str_pool utilisé par tous
+les fn_defs). Alors `emitInstr.const_str` utilise le pool du root, et
+G.31 devient inutile.
+
+**Contournement actuel** : ne pas mettre de string littérale dans une
+fn user destinée à QBE. Garder `@strcmp` inline dans `main`.
+
+Voir aussi : G.25 (mise à jour merge), G.31 (skip fn_defs str_pool).
