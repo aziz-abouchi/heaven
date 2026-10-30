@@ -48,6 +48,11 @@
       var text = '';
       if (logs) text += '[log]\n' + logs + '\n\n';
       text += (result && result.length) ? result : '(no output)';
+      // Hint : let-in en RHS de = casse le parser (annexe G.2)
+      if (/\blet\b/.test(src) && /\bin\b/.test(src) && /syntax|let/i.test(result + ' ' + logs)) {
+        text += '\n\n[hint] let-in en RHS de = casse le parser (G.2).';
+        text += '\n[hint] Contournement : ((lambda _ -> (let x = 5 in x + 1)) 0)';
+      }
       setOutput(text);
     } catch (e) {
       setOutput('ERROR: ' + (e && e.message ? e.message : e));
