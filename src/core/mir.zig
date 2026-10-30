@@ -817,6 +817,31 @@ pub const MirFunction = struct {
                 def.fn_mir.blocks.items[0].terminator = .{ .ret = result };
             }
         }
+
+        // G.34 fix : migrer str_pool des fn_defs vers root.
+        // Pour chaque const_str dans chaque fn_def, on ajoute la
+        // string à root.str_pool et on remap l'index. Ainsi mir_qbe
+        // peut émettre les data $str_N sans préfixe par fn, et G.31
+        // skip ne se déclenche plus (str_pool fn_def vidé).
+        var mig_it = self.fn_defs.valueIterator();
+        while (mig_it.next()) |def| {
+            if (def.fn_mir.str_pool.items.len == 0) continue;
+            for (def.fn_mir.blocks.items) |*blk| {
+                for (blk.instrs.items) |*inst| {
+                    switch (inst.*) {
+                        .const_str => {
+                            const cs_ptr = &inst.*.const_str;
+                            const str = def.fn_mir.str_pool.items[cs_ptr.sym];
+                            const new_idx: u32 = @intCast(self.str_pool.items.len);
+                            try self.str_pool.append(self.allocator, str);
+                            cs_ptr.sym = new_idx;
+                        },
+                        else => {},
+                    }
+                }
+            }
+            def.fn_mir.str_pool.clearRetainingCapacity();
+        }
     }
 
     /// Alloue un nœud placeholder dans le Store Expr IR pour une valeur MIR
