@@ -136,7 +136,7 @@ pub fn emitQbeLoop(
     try emitBody(w, root, null, null);
     try w.writeAll("}\n");
 
-    try w.writeAll("export function $main() {\n");
+    try w.writeAll("export function l $main() {\n");
     try w.writeAll("@start\n");
     if (no_libc) {
         try w.writeAll("    %r =l call $heaven_main()\n");
@@ -161,9 +161,9 @@ pub fn emitQbeLoop(
     if (no_libc) {
         // NB : en mode no_libc le programme termine par un syscall
         // exit() a l'interieur de heaven_main ; ret sans valeur suffit.
-        try w.writeAll("    ret\n");
+        try w.writeAll("    ret %r\n");
     } else {
-        try w.writeAll("    ret\n");
+        try w.writeAll("    ret %r\n");
     }
     try w.writeAll("}\n");
     if (!no_libc) try w.writeAll("data $fmt = { b \"%ld\\n\", b 0 }\n");

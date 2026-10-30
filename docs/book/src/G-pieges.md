@@ -239,3 +239,15 @@ dans `handle_request`. Règle empirique :
 
 Ça reste à isoler précisément (micro-test 5 vs 6 if purs), mais en
 pratique la limite 5 est un bon garde-fou.
+
+### G.26 — `$main` QBE void → exit code ignoré
+
+Diagnostic 2026-10-30 : `emitQbeLoop` émettait `export function $main()`
+(sans type de retour). QBE traitait donc `ret %r` comme `ret` void, et
+le shell lisait `eax` = code de retour de `printf` (=2, car `"%ld\n"`
+fait 3 caractères + null → 2 en bas 32 bits de rax après multiply-add).
+Fix : `export function l $main()` + `ret %r` (long/i64).
+glibc lit `eax & 0xFFFFFFFF` → exit = valeur de dispatch.
+
+**Reste ouvert** : wrapper `loop_count > 1` utilise `%loop_r` mais
+`ret %r` (bug latent, non testé, cf. bench-qbe `--loop N`).

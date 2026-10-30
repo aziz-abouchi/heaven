@@ -281,3 +281,6 @@ pub fn isatty() bool {
 
 // 2026-10-28 : rawSyscall portable (Linux-only, -1 ailleurs).
 pub const intrinsics = @import("intrinsics.zig");
+
+// Stub : pas de timer préemptif sur WASI (single-thread)
+pub fn armPreemptTimer(_: ?*const fn (i32) callconv(.c) void) void {}
