@@ -56,3 +56,20 @@ Avant toute session qui implémente une feature du livre :
 3. Si non : ajouter une ligne avec statut initial
 
 Ce document est la **vérité terrain** pour planifier — pas le livre.
+
+
+## Selfhost natif (mise à jour 2026-10-30)
+
+| # | Affirmation | Réalité | Statut |
+|---|---|---|---|
+| S1 | `bin/heaven.hvn` → ELF natif | QBE 1.2 + cc -lc, 18 Ko | OK |
+| S2 | `@puts`/`@printf`/`@getenv`/`@strcmp` | extern_call glibc | OK |
+| S3 | `@argv N` (ABI SysV) | wrapper `l $main(l, l)` | OK |
+| S4 | Dispatch CLI | `@strcmp` + cascade `if` (V0.6) | OK |
+| S5 | Multi-clauses `dispatch 0=0 \| ...` | exclu de `precompileUserFns` | G.25 |
+| S6 | `@argv` dans fn user | segfault (`argv_sym` local) | G.33 |
+| S7 | `@strcmp "str"` dans fn user | `undef fN` (`str_pool` local) | G.34 |
+| S8 | WASM selfhost (`mir_wat`) | primitives non émises | TODO |
+| S9 | `heaven_eval.hvn` complet | 71 lignes (toy) | TODO |
+
+Voir `docs/book/src/39-selfhosting.md` et annexe G (G.25 → G.34).

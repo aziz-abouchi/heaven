@@ -1,3 +1,15 @@
+<!-- SESSION 2026-10-30 (soir) : 9 tags selfhost poussés -->
+
+> **Mise à jour 2026-10-30 (soir).** Le selfhost natif **fonctionne**
+> : `bin/heaven.hvn` → ELF x86_64 (QBE), affiche du texte via glibc
+> puts, lit `@argv` (ABI SysV), dispatch CLI via `@strcmp`. 9 tags
+> poussés (`qbe-main-fix` → `selfhost-dispatch-v0`). Voir
+> `docs/book/src/39-selfhosting.md` et l'annexe G (G.25 → G.34).
+> Prochains chantiers : G.33 (argv fn user), G.34 (strcmp fn user),
+> multi-clauses merge, mir_wat (WASM selfhost), heaven_eval.hvn.
+
+---
+
 # Self-hosting Heaven : roadmap
 
 **Date** : 2026-10-15

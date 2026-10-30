@@ -42,3 +42,25 @@ Realite : la plupart de ces fichiers n'existent pas. Pas de fallback.
 Cross-compilation = confort, pas priorite V0.
 x86_64-linux + wasm32-freestanding couvrent le besoin reel.
 Les autres cibles sont documentees mais pas supportees.
+
+## Selfhost natif (mise à jour 2026-10-30 soir)
+
+`heaven compile-qbe bin/heaven.hvn -o bin/heaven-natif` produit un
+ELF x86_64 fonctionnel. Validé :
+
+    ./bin/heaven-natif version   # exit 1
+    ./bin/heaven-natif help      # exit 2
+    ./bin/heaven-natif foo       # exit 0
+
+ABI SysV : `argc` en `%edi`, `argv` en `%rsi`, retour dans `%eax`
+(glibc lit `eax & 0xFFFFFFFF`).
+
+| Cible | État selfhost |
+|---|---|
+| x86_64-linux (QBE) | OK (ELF, strings, puts, argv, dispatch) |
+| wasm32-wasi (build) | OK (armPreemptTimer stub), runtime à valider |
+| wasm32-freestanding | OK (REPL navigateur) |
+| Windows / kernel32 | stubs incomplets |
+| macOS / libc | TCC config partielle |
+
+Voir `docs/book/src/39-selfhosting.md`.

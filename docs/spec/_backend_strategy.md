@@ -79,3 +79,20 @@ D12 ≥ QBE/LLVM sur charges non-numériques.
   D16 (BEAM), D17 (JVM), D18 (stratégie)
 - `_emancipation_roadmap.md` : E1-E10
 - `docs/STATUS.md` : état actuel des backends
+
+## Mises à jour 2026-10-30 (soir) — selfhost natif
+
+Le selfhost natif **fonctionne** : `bin/heaven.hvn` → ELF x86_64
+(QBE), avec support :
+
+- `main = EXPR` compilé (avant : seulement expression nue)
+- `const_str` (strings littérales, `data $str_N`)
+- `@puts`, `@printf`, `@getenv`, `@strcmp` (extern_call glibc)
+- `@argv N` (ABI SysV, wrapper `l $main(l argc, l argv)`)
+- Wrapper `ret %r` (exit code = valeur de dispatch)
+
+Dettes connues (voir annexe G) : G.25 (multi-clauses), G.33 (`@argv`
+fn user), G.34 (`@strcmp "str"` fn user), G.31 (workaround skip
+fn_defs avec str_pool).
+
+Voir `docs/book/src/39-selfhosting.md`.

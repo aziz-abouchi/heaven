@@ -552,3 +552,31 @@ Un patch de `compile.zig` ne recompile que `mir.zig` (facade) + 2-3 modules.
 
 **WAT actuel** : freestanding (pas de `_start`). `wasmtime` refuserait
 même si compilé. `wasi_main.zig` + `wasm_entry.zig` existent, à brancher.
+
+## G.33 — `@argv` dans fn user (segfault) — 2026-10-30
+
+    getarg __i = (@argv __i)
+    main = (getarg 1)
+
+Segfault (139). Cause : `argv_sym` stocké sur `fn_mir` courant, pas
+propagé au root → wrapper `$main()` n'émet pas `storel %argv`. À
+l'exécution : `load $heaven_argv = 0`, `load_at NULL`.
+
+Fix : scanner `fn_defs` dans `emitQbeLoop`, si un seul `argv_sym`
+non-null → wrapper `l $main(l, l)` + émettre `data $gN`.
+
+Effort : 30 min, 1 rebuild.
+
+## G.34 — `@strcmp "str"` dans fn user (undef fN) — 2026-10-30
+
+    cmp __x = (@strcmp __x "version")
+    main = (cmp "version")
+
+`undef fN` au link. Cause : `str_pool` local à `fn_mir`, G.31 skip
+les fn_defs avec `str_pool` non vide → `cmp` pas émise → `main`
+appelle `$fN` → undef.
+
+Fix : pool global partagé (root.str_pool utilisé par tous les
+fn_defs). Rend G.31 inutile.
+
+Effort : 45 min, 1 rebuild.
