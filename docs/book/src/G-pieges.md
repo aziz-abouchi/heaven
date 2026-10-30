@@ -483,3 +483,20 @@ primitives sans keywords (`+`, `cons`, `string_concat`).
 forcer l'évaluation et accepter les keywords comme symbols.
 
 Voir aussi : G.37 (1 token → ENil), ch. 39 selfhosting.
+
+### G.39 — `λ`/`fn` dans un string littéral `.hvn` → ArityMismatch
+
+Découvert 2026-10-30 (session parser). Le parser tree-sitter de Heaven
+(qui parse le `.hvn` de test) intercepte `λ`/`fn` **même dans une
+string** `"...((λ x x)...)"` → `error.ArityMismatch` (Zig, avant
+l'éval).
+
+`HP.lex`/`parse_file` marchent pourtant correctement sur ces mots
+(testé via `HP.lex "(λ x x)"` → tokens corrects). C'est le parser
+**de l'hôte** (le `.hvn` qui contient la string) qui chie.
+
+Conséquence : tester `heaven_eval` sur `((λ x x) 5)` via `heaven run
+/tmp/test.hvn` échoue. Contournement : AST hardcodé
+(`HP.ELambda`, `HP.EApply`) ou parens sans keywords (`((+ x 1) 5)`).
+
+Voir aussi : G.37, G.38, ch. 39 selfhosting.

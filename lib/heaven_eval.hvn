@@ -6,7 +6,7 @@
 
 import "lib/heaven_parse.hvn" as HP
 
-data Value = VInt Int | VStr Str | VCon Str | VClosure Str Expr Env | VRecClosure Str Str Expr Env | VPrim Str | VPrim1 Str Int | VIf1 Expr | VIf2 Expr Expr | VErr Str | VListNil | VListCons Value Value | VPrim1V Str Value
+data Value = VInt Int | VStr Str | VCon Str | VClosure Str Expr Env | VRecClosure Str Str Expr Env | VPrim Str | VPrim1 Str Int | VIf1 Expr | VIf2 Expr Expr | VErr Str | VListNil | VListCons Value Value | VPrim1V Str Value | VLam1 Expr
 data Env = EnvNil | EnvCons Str Value Env
 
 eval (HP.ELitI n) env = (VInt n)
@@ -28,6 +28,8 @@ eval_sym s env = (if (= (in_list s (prim_ops 0)) 1) (VPrim s) (env_lookup s env)
 env_lookup name EnvNil = (VErr "symbole non lie")
 env_lookup name (EnvCons n v rest) = (if (= n name) v (env_lookup name rest))
 
+eval_apply (HP.ESym "λ") a env = (VLam1 a)
+eval_apply (HP.ESym "fn") a env = (VLam1 a)
 eval_apply (HP.ESym s) a env = (if (= s "if") (VIf1 a) (eval_apply2 (eval_sym s env) a env))
 eval_apply f a env = (eval_apply2 (eval f env) a env)
 
@@ -51,6 +53,8 @@ eval_apply2 (VPrim "string_concat") a env = (VPrim1V "string_concat" (eval a env
 eval_apply2 (VPrim1V "string_concat" x) a env = (vstr_concat (eval a env) x)
 vstr_concat (VStr y) (VStr x) = (VStr (string_concat x y))
 vstr_concat _ _ = (VErr "string_concat: not a string")
+eval_apply2 (VLam1 (HP.ESym p)) b env = (VClosure p b env)
+eval_apply2 (VLam1 _) b env = (VErr "lambda: param non-symbol")
 eval_apply2 (VPrim op) a env = (eval_prim op a env)
 eval_apply2 (VPrim1 op x) a env = (prim_fin op x (eval a env))
 eval_apply2 (VClosure p b cenv) a env = (eval b (EnvCons p (eval a env) cenv))
