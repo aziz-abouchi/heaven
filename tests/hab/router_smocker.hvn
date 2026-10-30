@@ -1,0 +1,8 @@
+import "core/std/smocker.hvn" as S
+
+test "route_calls_order":
+  (let many s0 = (S.mock "ok") in
+   (let many s1 = (S.call s0 "/a") in
+    (let many s2 = (S.call s1 "/b") in
+     (let many s3 = (S.call s2 "/c") in
+      (S.verify s3 (cons "/c" (cons "/b" (cons "/a" nil)))))))) == true

@@ -1,0 +1,24 @@
+import "hab/web/router.hvn"
+
+-- Routeur = foncteur Path -> A pour tout A. Testé avec A = int.
+test "route_lookup_hit":
+  (let many routes = (cons (pair "/a" 42) (cons (pair "/b" 99) nil)) in
+   (route_lookup routes "/a" 0)) == 42
+
+test "route_lookup_second":
+  (let many routes = (cons (pair "/a" 42) (cons (pair "/b" 99) nil)) in
+   (route_lookup routes "/b" 0)) == 99
+
+test "route_lookup_miss":
+  (let many routes = (cons (pair "/a" 42) nil) in
+   (route_lookup routes "/zzz" 0)) == 0
+
+test "route_lookup_empty":
+  (route_lookup nil "/a" 7) == 7
+
+-- Loi Lens via helper (s hors scope après ==)
+router_lens_law s =
+  (= (router_get (router_set (router_get s) s)) (router_get s))
+
+test "router_lens_laws":
+  (router_lens_law (pair "/" 42)) == true

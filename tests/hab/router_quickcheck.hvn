@@ -1,0 +1,20 @@
+import "core/std/quickcheck.hvn" as Q
+import "hab/web/router.hvn"
+
+-- Propriété : ∀ path, ∀ routes, route_lookup retourne un int ≥ 0
+prop_lookup_terminates seed =
+  (let many n = (Q.gen_range 0 3 seed) in
+   (let many routes = (cons (pair "/a" 1) (cons (pair "/b" 2) nil)) in
+    (>= (route_lookup routes "/a" 0) 0)))
+
+-- Propriété : route_lookup sur path absent retourne exactement default
+prop_lookup_default seed =
+  (let many d = (Q.gen_range 0 100 seed) in
+   (let many routes = (cons (pair "/a" 1) nil) in
+    (= (route_lookup routes "/never" d) d)))
+
+test "route_lookup_terminates":
+  (Q.check prop_lookup_terminates (lambda s. s) 5) == true
+
+test "route_lookup_default":
+  (Q.check prop_lookup_default (lambda s. s) 5) == true

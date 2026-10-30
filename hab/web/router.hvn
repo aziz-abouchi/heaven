@@ -1,0 +1,31 @@
+-- hab/web/router.hvn — Routeur Hab (design propre)
+-- Optique : Lens(RouteState, Child) où RouteState = (Path, Child)
+-- Foncteur : route_lookup : Path -> List(Pair(Path,Child)) -> Child
+-- HKT : router_mk strat = ∀h. (h, Children) -> Children
+import "core/std/otp/supervisor.hvn"
+import "hab/component_actor.hvn"
+import "hab/component.hvn"
+
+-- ═══ Optique : Lens(RouteState, Child) ═══
+router_get s = (snd s)
+router_set v s = (pair (fst s) v)
+router_over f s = (pair (fst s) (f (snd s)))
+
+-- ═══ Foncteur Path -> Child (mapping pur) ═══
+-- routes : List(Pair(Path, Child))
+-- path   : incoming path
+-- default: child par défaut (404)
+-- Retourne le Child du premier route qui matche, sinon default.
+route_lookup nil path default = default
+route_lookup routes path default =
+  (if (= (fst (head routes)) path)
+    (snd (head routes))
+    (route_lookup (tail routes) path default))
+
+-- ═══ HKT : strat polymorphe ═══
+router_mk strat h inits = (sup_spawn_v2 strat h inits)
+
+-- ═══ Dispatch pur (réutilise dispatch_from) ═══
+router_dispatch child msg =
+  (let many update = (child_update_fn child) in
+   (dispatch_from update (child_model child) msg))
