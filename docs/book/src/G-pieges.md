@@ -207,3 +207,35 @@ Conséquence pratique : `handle_static ""` (si path vide) appelle
 `src/vessel/public/`, qui retourne une erreur EISDIR. Le serveur ne
 crashe PAS sur ce cas (v6 pur tient 500 req séquentielles), donc
 pas de guard nécessaire en V0.
+
+### G.3-bis — `(== X Y)` préfixe : confirmé en session 2026-10-30
+
+Test mené sur `core/http_server.hvn` (commit c3941e4 → fix) :
+
+    -- PIEGE : préfixe (== ...) dans une cascade de if
+    (if (== clean "/hab") (h_ok ...) (if ...))
+
+    -- Résultat : UnknownSymbol dès la 1ʳᵉ requête /hab
+    -- Le runner ne dispatche pas `==` en position préfixe dans ce contexte.
+
+    -- CORRECT : infixe (X == Y) ou dispatch hors cascade
+    (if (clean == "/hab/") (h_ok ...) ...)
+    -- Pour /hab bare : dispatcher dans handle_request, pas dans handle_hab
+    (if (p == "/hab") (h_ok ...) (if (string_starts_with p "/hab/") ...))
+
+Confirmé empiriquement après 3 itérations. Toujours privilégier l'infixe
+`X == Y` dans les cascades `if`, ou sortir le cas bare dans une couche
+supérieure (moins de if imbriqués, moins de risque).
+
+### G.24 — Cascade `if` : 5 niveaux max en pratique
+
+`handle_hab` fonctionne avec 5 `if` imbriqués (testé 2026-10-30).
+Un 6ᵉ `if` ajouté pour `/hab` bare a cassé le serveur (UnknownSymbol),
+mais le fix G.3-bis a permis de garder 5 `if` et de déporter `/hab`
+dans `handle_request`. Règle empirique :
+
+- ≤ 5 `if` imbriqués : OK
+- ≥ 6 : dispatcher dans une couche supérieure (routing `handle_request`)
+
+Ça reste à isoler précisément (micro-test 5 vs 6 if purs), mais en
+pratique la limite 5 est un bon garde-fou.
