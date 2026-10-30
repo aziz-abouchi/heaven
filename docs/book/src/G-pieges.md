@@ -469,3 +469,17 @@ un pattern qui nécessite au moins 2 tokens. Session dédiée si le bare
 single-token devient critique.
 
 Voir aussi : ch. 39 selfhosting, heaven_eval_v0.2.
+
+### G.38 — `HP.lex`/`HP.parse_file` échouent sur `let`/`lambda`
+
+Découvert 2026-10-30 (session heaven_eval). `HP.parse_file` sur
+`(lambda x x)` ou `(let x 5 x)` ne force pas le thunk (s'affiche brut)
+ou lève `UnboundVariable`/`ArityMismatch` (Zig, pas `VErr`).
+
+Contournement : AST hardcodé (`HP.ELambda`, `HP.EApply`, ...) ou
+primitives sans keywords (`+`, `cons`, `string_concat`).
+
+**À investiguer** (session parser) : `lex_loop`/`parse_file` doivent
+forcer l'évaluation et accepter les keywords comme symbols.
+
+Voir aussi : G.37 (1 token → ENil), ch. 39 selfhosting.
