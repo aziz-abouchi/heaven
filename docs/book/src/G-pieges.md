@@ -314,3 +314,27 @@ dédiée (~30 min).
 
 Voir aussi : G.29 (`@` rejeté par `heaven parse`), G.28 (string
 binding non inliné).
+
+### G.32 — `@argv` nativement (ABI SysV)
+
+Implémenté 2026-10-30 :
+- `@argv N` → magic lowering (mir.zig) : `load $heaven_argv` +
+  `mul idx*8` + `add` + `load_at 0` → `char*`
+- wrapper conditionnel `export function l $main(l argc, l argv)` si
+  `argv_sym` non-null, sinon wrapper `l $main()` original
+- `storel %argv, $heaven_argv` en entrée + `data $heaven_argv = { l 0 }`
+- `collectGlobals` ajoute `argv_sym` pour émettre le `data`
+
+Test ABI préalable (QBE 1.2) : `function w $main(w %argc, l %argv)`
+accepté, argc en `%edi`, argv en `%rsi`, retour dans `%eax`.
+On utilise `l` (i64) pour le retour — glibc lit `eax & 0xFFFFFFFF`.
+
+Vérifié :
+    ./t_arg.bin version         → 'version'
+    ./t_arg.bin help            → 'help'
+    ./t_arg.bin 'hello world'   → 'hello world'
+
+Dispatch réel (strcmp + if) : session suivante (nécessite `extern_call
+strcmp` + multi-clauses ou cascade if sur char*).
+
+Voir aussi : G.28 (string binding), G.30 (strings + espaces), G.31.

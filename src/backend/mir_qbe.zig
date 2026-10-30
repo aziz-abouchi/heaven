@@ -94,6 +94,10 @@ pub fn emitQbeLoop(
     var global_set = std.AutoHashMap(u32, void).init(allocator);
     defer global_set.deinit();
     try collectGlobals(&global_set, root);
+    // G.32 : émettre data $gN pour heaven_argv
+    if (root.argv_sym) |av| {
+        try global_set.put(av, {});
+    }
     var fit = root.fn_defs.keyIterator();
     while (fit.next()) |k| {
         const fd = root.fn_defs.get(k.*).?;
@@ -152,8 +156,15 @@ pub fn emitQbeLoop(
     try emitBody(w, root, null, null);
     try w.writeAll("}\n");
 
-    try w.writeAll("export function l $main() {\n");
-    try w.writeAll("@start\n");
+    // G.32 : si @argv utilisé, wrapper avec argc/argv
+    if (root.argv_sym) |av| {
+        try w.writeAll("export function l $main(l %argc, l %argv) {\n");
+        try w.writeAll("@start\n");
+        try w.print("    storel %argv, $g{d}\n", .{av});
+    } else {
+        try w.writeAll("export function l $main() {\n");
+        try w.writeAll("@start\n");
+    }
     if (no_libc) {
         try w.writeAll("    %r =l call $heaven_main()\n");
     } else if (loop_count <= 1) {

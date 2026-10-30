@@ -232,6 +232,8 @@ pub const MirFunction = struct {
     values: std.ArrayListUnmanaged(i64),
     // 2026-10-30 : pool de strings pour const_str (index = sym)
     str_pool: std.ArrayListUnmanaged([]const u8) = .{},
+    // 2026-10-30 : sym interné de "heaven_argv" si @argv utilisé
+    argv_sym: ?u32 = null,
 
     /// Cherche un tail-call dans `f` vers `target`. Meme pattern que
     /// mir_qbe.zig::hasTailCall : derniere instr = call_user, terminator
@@ -1024,6 +1026,28 @@ pub const MirFunction = struct {
                         });
                         return dest;
                     }
+                }
+
+                // G.32 : magic @argv — lit argv[N] (char*).
+                // Charge le global heaven_argv, offset = N*8, load_at 0.
+                if (std.mem.eql(u8, op_name, "@argv") and args.len == 1) {
+                    const store_ref = self.store orelse return error.UnsupportedExpr;
+                    if (self.argv_sym == null) {
+                        self.argv_sym = try store_ref.interner.intern("heaven_argv");
+                    }
+                    const idx = try self.compileExpr(store, args[0], target_block, locals);
+                    const instrs = &self.blocks.items[target_block].instrs;
+                    const eight = self.newReg();
+                    try instrs.append(self.allocator, .{ .const_int = .{ .dest = eight, .value = 8 } });
+                    const off = self.newReg();
+                    try instrs.append(self.allocator, .{ .mul = .{ .dest = off, .lhs = idx, .rhs = eight } });
+                    const argv_ptr = self.newReg();
+                    try instrs.append(self.allocator, .{ .load = .{ .dest = argv_ptr, .sym = self.argv_sym.? } });
+                    const ptr = self.newReg();
+                    try instrs.append(self.allocator, .{ .add = .{ .dest = ptr, .lhs = argv_ptr, .rhs = off } });
+                    const dest = self.newReg();
+                    try instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = ptr, .offset = 0 } });
+                    return dest;
                 }
 
                 // Appel externe : convention de nommage `@nom`.

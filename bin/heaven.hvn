@@ -1,2 +1,4 @@
--- bin/heaven.hvn — CLI auto-hebergee, V0.3 (strings avec espaces, G.30 fixé)
-main = (@puts "heaven 0.2.0-natif")
+-- bin/heaven.hvn — CLI auto-hebergee, V0.5 (argv brut)
+-- Usage : ./bin/heaven-natif <cmd>
+-- Affiche <cmd> (via @argv 1). Dispatch reel en V0.6 (necessite strcmp).
+main = (@puts (@argv 1))
