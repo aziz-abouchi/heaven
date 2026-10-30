@@ -30,7 +30,7 @@ h_dashboard_page unit =
   "<html><head><meta charset=utf-8><title>Heaven Dashboard</title><link rel=stylesheet href=/common.css></head><body><h1>HEAVEN DASHBOARD (Hab)</h1><iframe src=/process-frame.html class=full></iframe></body></html>"
 
 h_docs_page unit =
-  "<html><head><meta charset=utf-8><title>Heaven Docs</title><link rel=stylesheet href=/common.css></head><body><h1>HEAVEN DOCS (Hab)</h1><p>Hab-rendered documentation</p></body></html>"
+  "<html><head><meta charset=utf-8><title>Heaven Docs</title><link rel=stylesheet href=/common.css><style>body{font-family:monospace;max-width:900px;margin:2em auto;padding:0 1em;line-height:1.5}h2{color:#00ff41;border-bottom:1px solid #1a1a1a;padding-bottom:4px}code{background:#111;padding:2px 6px;border-radius:3px}ul{padding-left:1.5em}a{color:#00ccff}.footer{color:#666;font-size:12px;margin-top:2em;border-top:1px dotted #333;padding-top:1em}</style></head><body><h1>HEAVEN DOCS (Hab)</h1><p>Pages Hab rendues par le serveur natif Heaven (core/http_server.hvn + hab/apps/ide_trees.hvn).</p><h2>Pages Hab</h2><ul><li><a href=/hab>Vision</a></li><li><a href=/hab/ide>IDE</a></li><li><a href=/hab/repl>REPL</a></li><li><a href=/hab/dashboard>Dashboard</a></li></ul><h2>Outils CLI Heaven</h2><ul><li><code>heaven lsp</code> - serveur LSP JSON-RPC (stdio)</li><li><code>heaven mcp</code> - serveur MCP</li><li><code>heaven --http-serve PORT</code> - ce serveur</li><li><code>heaven test FILE.hvn</code> - tests TDD</li><li><code>heaven run FILE.hvn</code> - executer un fichier</li></ul><h2>Pages legacy (Vessel)</h2><ul><li><a href=/ide.html>IDE legacy</a></li><li><a href=/repl.html>REPL legacy</a></li><li><a href=/docs.html>Docs legacy</a></li></ul><h2>Documentation</h2><ul><li><a href=/book/>Livre (docs/book/)</a> - en cours de portage Hab</li></ul><p class=footer>V0 - 2026-10-30 - commit c3941e4 + fixes routing + docs</p></body></html>"
 
 h_index_page unit =
   "<html><head><meta charset=utf-8><title>Heaven Vision</title><link rel=stylesheet href=/common.css></head><body><h1>HEAVEN VISION (Hab)</h1><ul><li><a href=/hab/ide>IDE</a></li><li><a href=/hab/repl>REPL</a></li><li><a href=/hab/dashboard>Dashboard</a></li><li><a href=/hab/docs>Docs</a></li></ul></body></html>"
@@ -49,11 +49,10 @@ handle_hab p =
 
 handle_request req =
   let p = (req_path req) in
-  let is_api = (p == "/api/egraph") in
-  let is_hab = (string_starts_with p "/hab/") in
-  (if is_api (handle_api p)
-    (if is_hab (handle_hab p)
-      (handle_static p)))
+  (if (p == "/api/egraph") (handle_api p)
+    (if (p == "/hab") (h_ok (h_index_page unit))
+      (if (string_starts_with p "/hab/") (handle_hab p)
+        (handle_static p))))
 
 handle_api _ =
   let cap = (cap_acquire "egraph:snapshot") in
