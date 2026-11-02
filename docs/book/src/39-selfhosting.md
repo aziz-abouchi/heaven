@@ -117,3 +117,11 @@ Détails : [Annexe G — Pièges runtime](G-pieges.md).
 - [Backend WASM](35-backend-wasm.md) — WASI build débloqué
 - [Annexe G](G-pieges.md) — G.25 → G.34
 - [Spec selfhosting](../spec/_selfhosting_roadmap.md) — roadmap détaillée
+
+## Fermetures 2026-11-02
+
+| Piège | Statut | Fix |
+|---|---|---|
+| G.37 | **RESOLU** | `parse_top ... TNil` → `parse_one` (bare symbols) |
+| G.39 | **RESOLU** | Était `[16]`, pas le host parser |
+| G.38 | PARTIEL | `λ`/`fn` OK, `let` (host eval) ~1 session |

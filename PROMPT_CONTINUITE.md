@@ -1,4 +1,25 @@
-# ÉTAT AU 2026-10-30 (nuit+++) — 17 tags, docs complètes
+# ÉTAT AU 2026-11-02 — Resync + [32] + G.37/G.39 fermés (9 tags)
+
+## Jalon lundi 2026-11-02
+
+- **Resync docs** : STATUS/README honnêtes (docgen fixé, 1335 tests)
+- **Fix `[16]→[32]`** : +14 tests (VRecClosure, if..then..else)
+- **G.37 RESOLU** : bare symbols (nil/true/false)
+- **G.39 RESOLU** : λ/fn (était `[16]`, pas le parser)
+- **G.38 isolé** : `let ` dans string, host eval, ~1 session
+
+## Tags
+`fix-clauses-32`, `g37-resolved` (+ 17 selfhost/eval du 30/10)
+
+## Reste cadré
+- G.38 (host eval `let `) : 1 session
+- `test_bigint_d20` (stack) + `test_web_ontology` (net:close) : disabled
+- `zig build test` FAIL + 7 leaks : pré-existant, session Zig
+- `grammar.ebnf` : probablement OK (if/λ/fn déjà décrits)
+
+---
+
+
 
 ## Jalon : selfhost QBE + WASM + IDE web + heaven_eval + docs
 

@@ -1,3 +1,38 @@
+## 2026-11-02 (lundi) — Resync + [32] + G.37/G.39 fermés
+
+### Resync (dette de crédibilité)
+- `docs/status.json` : `updated` 2026-10-20 → 2026-11-02, section
+  « Progrès récents » complétée (selfhost, OTP, heaven_eval)
+- `docs/STATUS.md` : régénéré (`scripts/status_gen.py`)
+- `README.md` : `docgen.py` fixé (somme des `Total:` au lieu du
+  dernier → `1228/1228` au lieu de `3/3`), chiffres honnêtes
+
+### Fix runtime : `[32]`
+- `engine_expr.zig` : `FunctionClause` `[16]`→`[32]`,
+  `num_clauses >= 16` → `>= 32`. Les clauses 17-19 de
+  `eval_apply2` (`VClosure`, `VRecClosure`, catch-all) étaient
+  silencieusement droppées.
+- **+14 tests** : `test_eval` 13/13, `test_meta_if` 7/7
+- Tag `fix-clauses-32`
+
+### Pièges parser
+- **G.37 RESOLU** : `parse_top (TCons (TSymTok name) TNil)`
+  → `parse_one` au lieu de `top_named`. `nil`/`true`/`false`
+  bare fonctionnent. Tag `g37-resolved`.
+- **G.39 RESOLU** : `λ`/`fn` marchent maintenant (était `[16]`,
+  pas le host parser).
+- **G.38 isolé** : trigger = `"let "` (let+espace) dans string,
+  bug host eval pipeline (`heaven_expr.zig`), fix ~1 session.
+
+### Tests disabled (documentés)
+- `test_bigint_d20.hvn` : segfault au parse (stack overflow),
+  spec `_bigint_d20_stack.md`
+- `test_web_ontology.hvn` : panic `net:close`, `_runtime_gaps.md`
+
+### Dette pré-existante
+- `zig build test` FAIL + 7 leaks (test_mir_qbe, contrat §6),
+  non lié à `[32]`. Session Zig dédiée.
+
 ## 2026-10-30 (nuit) — heaven_eval v0.4 + WASM selfhost
 
 ### heaven_eval.hvn (71 → 96 lignes)
