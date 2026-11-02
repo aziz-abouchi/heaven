@@ -276,3 +276,14 @@ partiellement**. Sinon on ajoute à la confusion.
 **Recommandation long terme** : un seul pipeline `heaven compile`
 (parser natif → MIR → x86_64 ou WASM), et des outils périphériques
 (tree-sitter pour fmt/lsp/doc) qui ne redéfinissent pas la sémantique.
+
+## DI + smocker (2026-11-02)
+
+Pattern validé sur `lib/web/ontology.hvn` :
+- Fonction publique : `f args = f_with effect_impl args`
+- Fonction DI : `f_with effect args = ...`
+- Test mocké : `f_with stub args` avec `stub` défini localement
+
+Voir `tests/test_web_ontology_mocked.hvn` (8/8, pas de réseau).
+Pas besoin de `core/std/mocker.hvn` pour un stub simple (lambda
+inline suffit). `mocker.hvn` utile pour `fixed`/`seq`/`verify`.

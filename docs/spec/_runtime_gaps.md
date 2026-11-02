@@ -672,3 +672,21 @@ Le test original échouait uniquement à cause de G.40 (`"` non escape
 dans la string), pas de `extract_first_label`.
 
 Voir aussi : G.40 (`\"` non escape).
+
+## test_bigint_d20 : bdiv 1000 → ExecutionFailed (2026-11-02)
+
+`bdiv 100 7` → 14 ✅, `bmod 100 7` → 2 ✅.
+`bdiv 1000 7` → `ExecutionFailed` **même avec `(@set_fuel 100000)`**.
+
+Ce n'est **pas** le fuel de l'interpréteur. C'est `bdivmod_step`
+(core/bigint.hvn:188) qui a une complexité qui explose sur 4 chiffres.
+Le test isolé ne segfault plus (contrairement à l'ancien symptôme),
+il retourne `ExecutionFailed`. Le fichier `test_bigint_d20.hvn` reste
+disabled.
+
+**À faire** (session dédiée) : profiler `bdivmod_step`, remplacer par
+un algorithme itératif (division longue schoolbook avec `bsub_once`
+borné par le nombre de chiffres, pas par le quotient). Voir
+`_bigint_d20_stack.md`.
+
+Voir aussi : G.40, `test_web_ontology_mocked.hvn` (DI smocker).
