@@ -12,13 +12,13 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Binaire : ./zig-out/bin/heaven (jamais dans le PATH)
 - Livre : docs/book/src/ - specs : docs/spec/
 
-## État au 2026-11-02 (nuit, dernier commit e0465cf)
+## État au 2026-11-02 (nuit, dernier commit 8ea2f05)
 
 | Métrique | Valeur |
 |---|---|
-| Commits du jour | 29 |
+| Commits du jour | 31 |
 | Tags du jour | 6 (fix-clauses-32, g37-resolved, g38-resolved, g40-resolved, mir-stub-contract, propagator-v0) |
-| Tests Heaven | 1390 |
+| Tests Heaven | 1398 |
 | CI Zig (zig build test) | vert |
 | check_all.sh | PROJET SAIN (12 OK, 0 FAIL, 4 WARN préexistants) |
 
