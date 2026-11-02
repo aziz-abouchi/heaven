@@ -1,0 +1,16 @@
+-- tests/test_kanren.hvn — kanren (magic query, 2026-11-02)
+-- Syntaxe : `fact name arg1` (top-level, sans parenthèses)
+--           `query name pat1` (magic, 1 arg testé)
+-- Référence : tests/features_smoke.hvn:58-59
+-- Limitation : wildcard `_` et 3-args retournent 0 (queryPattern partiel,
+-- cf. _logic.md). Seul le 1-arg fonctionne.
+
+-- ─── Fait simple (1 arg) ───
+fact test_mortel Socrate
+fact test_mortel Platon
+test "kanren_socrate": (query test_mortel Socrate) == 1
+test "kanren_platon": (query test_mortel Platon) == 1
+test "kanren_aristote_absent": (query test_mortel Aristote) == 0
+
+-- ─── Absent d'un autre prédicat ───
+test "kanren_autre_predicat": (query test_autre Socrate) == 0

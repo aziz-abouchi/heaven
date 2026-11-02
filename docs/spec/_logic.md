@@ -79,3 +79,24 @@ et des paradigmes incompatibles (Store vs Term vs chaîne).
 pour éliminer l'ambiguïté de nom.
 
 D2 fermée (avec cette nuance).
+
+## Mise à jour 2026-11-02 — tests `.hvn` + limitations
+
+**Kanren (`core/kanren_expr.zig`, exposé comme magic `query`)** :
+- ✅ `fact name arg1` + `query name arg1` (1 arg) → 4 tests verts
+  (`tests/test_kanren.hvn`)
+- ❌ Wildcard `_` (`query name _ _`) et 3-args → `queryPattern`
+  partiel, retourne 0. À investiguer session dédiée.
+
+**Prolog (`runtime/prolog.zig`, 368 l., SLD + unification de chaînes)** :
+- ✅ Exposé au shell (`ask`), pas en `.hvn`.
+- ❌ Pas de magic `@prolog_*`. **TODO exposition** (~1 session) :
+  ajouter `@prolog_fact` + `@prolog_query` dans `engine_expr.zig`,
+  comme `kanren_query` (ligne 334).
+
+**Kanren Term (`logic/kanren.zig`, 969 l.)** :
+- Utilisé par `typeo`/`evalo`, pas exposé en `.hvn`.
+
+**Trois systèmes logiques** (kanren Store, kanren Term, prolog) mais
+**API `.hvn` incomplète**. Priorité : wildcard kanren (bug), puis
+prolog magic (exposition). Pas de dépendance bloquante.
