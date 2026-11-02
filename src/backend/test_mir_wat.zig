@@ -117,7 +117,8 @@ test "wat — fn_defs : fonction séparée et appel" {
     try std.testing.expect(has(out, "(local.set $r2 (call $f42 (local.get $r0) (local.get $r1)))"));
 }
 
-test "wat — call_user hors fn_defs : rejet explicite" {
+test "wat — call_user hors fn_defs : stub silencieux" {
+    // 2026-11-02 : contrat §6 changé (stub au lieu de rejet).
     const alloc = std.testing.allocator;
     var root = MirFunction.init(alloc);
     defer root.deinit();
@@ -125,7 +126,9 @@ test "wat — call_user hors fn_defs : rejet explicite" {
     const a = root.newReg();
     try root.blocks.items[entry].instrs.append(alloc, .{ .call_user = .{ .dest = a, .name = 7, .args = &.{} } });
     root.blocks.items[entry].terminator = .{ .ret = a };
-    try std.testing.expectError(error.UnsupportedCall, wat.emitWat(alloc, &root));
+    const wat_src = try wat.emitWat(alloc, &root);
+    defer alloc.free(wat_src);
+    try std.testing.expect(std.mem.indexOf(u8, wat_src, ";; stub f7") != null);
 }
 
 test "wat — M2b : oracle mir.execute vs wasmtime" {

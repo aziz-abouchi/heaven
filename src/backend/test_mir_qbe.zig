@@ -167,7 +167,10 @@ test "qbe — rejet : call_user hors fn_defs (contrat §6)" {
     });
     mf.blocks.items[entry].terminator = .{ .ret = 0 };
 
-    try std.testing.expectError(error.UnsupportedCall, qbe.emitQbe(alloc, &mf));
+    // 2026-11-02 : contrat §6 changé (stub au lieu de rejet).
+    const ssa_stub = try qbe.emitQbe(alloc, &mf);
+    defer alloc.free(ssa_stub);
+    try std.testing.expect(std.mem.indexOf(u8, ssa_stub, "function l $f") != null);
 }
 
 test "qbe — shape : emitQbe produit la structure attendue (sans QBE)" {
@@ -187,7 +190,7 @@ test "qbe — shape : emitQbe produit la structure attendue (sans QBE)" {
     // 1. wrapper heaven_main (le MIR root)
     try std.testing.expect(has(ssa, "function l $heaven_main()"));
     // 2. wrapper main export (QBE exige export+function sur une ligne)
-    try std.testing.expect(has(ssa, "export function $main()"));
+    try std.testing.expect(has(ssa, "export function l $main()"));
     // 3. appel printf + data $fmt pour le resultat i64
     try std.testing.expect(has(ssa, "call $printf(l $fmt, l "));
     try std.testing.expect(has(ssa, "data $fmt = { b \"%ld\\n\", b 0 }"));
