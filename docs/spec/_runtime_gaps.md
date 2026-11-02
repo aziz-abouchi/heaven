@@ -622,3 +622,21 @@ C'est un **bug runtime** (cap `net:connect`/`net:close` dans
 À investiguer : la branche `unreachable` dans le handler `net:close`
 est probablement atteinte sur un cas non géré (connexion échouée ?
 fd invalide ?). Session dédiée.
+
+## Mise à jour 2026-11-02 : `[32]` ne fixe pas ces deux cas
+
+`FunctionClause` `[16]`→`[32]` (commit `0f49e8d`) a débloqué 14 tests
+(`test_eval` 13/13, `test_meta_if` 7/7, cf. G.39 RESOLU). Mais les
+deux fichiers disabled restent KO :
+
+- **`test_bigint_d20.hvn`** : segfault au chargement (rc=139), avant
+  tout test. C'est un **stack overflow** au parse/lower, pas un
+  problème d'`eval_apply2`. Spec `_bigint_d20_stack.md` : bdiv/bmod
+  récursifs profonds. Reste disabled.
+- **`test_web_ontology.hvn`** : panic `unreachable` dans
+  `net:close`, **après** plusieurs tests réussis (dont
+  `socrate_starts_s`). Bug runtime `net:close` distinct, non lié
+  aux clauses. Reste disabled.
+
+Voir aussi : G.37 (token unique → ENil, KO après [32]),
+G.38 (`let` KO après [32], `λ`/`fn` OK).

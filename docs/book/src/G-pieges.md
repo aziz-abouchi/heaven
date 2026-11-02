@@ -453,7 +453,17 @@ pattern que G.31 pour QBE.
 
 Voir aussi : ch. 39 selfhosting, G.25/G.31 (patterns QBE équivalents).
 
-### G.37 — `parse_file` sur token unique → programme vide
+### G.37 — `parse_file` sur token unique → programme vide [KO après [32]]
+
+> **Vérifié 2026-11-02 après [32] :** `HP.parse_file (HP.lex "nil")` retourne toujours `ENil`. Pas de régression, pas de fix par [32].
+
+> **Mise à jour 2026-11-02.** `[16]`→`[32]` dans `engine_expr.zig` a
+> débloqué 14 tests (`test_eval` 4, `test_meta_if` 10) : les clauses
+> `VClosure`/`VRecClosure`/catch-all de `eval_apply2` (17-19) et les
+> cascades `EApply` de `parse_if` étaient silencieusement droppées.
+> Une partie des `ArityMismatch` attribués à ce piège venait en fait
+> de `[16]`, pas du parser. Les limitations restantes (listées
+> ci-dessous) sont vérifiées après `[32]`.
 
 Découvert 2026-10-30 (session heaven_eval). `HP.parse_file (HP.lex "nil")`
 retourne `ENil` (programme vide) au lieu d'un programme à 1 instruction.
@@ -470,7 +480,17 @@ single-token devient critique.
 
 Voir aussi : ch. 39 selfhosting, heaven_eval_v0.2.
 
-### G.38 — `HP.lex`/`HP.parse_file` échouent sur `let`/`lambda`
+### G.38 — `HP.lex`/`HP.parse_file` échouent sur `let`/`lambda` [PARTIEL après [32]]
+
+> **Vérifié 2026-11-02 après [32] :** `λ`/`fn` marchent maintenant (cf. G.39). `let` échoue toujours (`(HP.parse_file (HP.lex "(let x 5 x)"))` retourne un thunk non forcé).
+
+> **Mise à jour 2026-11-02.** `[16]`→`[32]` dans `engine_expr.zig` a
+> débloqué 14 tests (`test_eval` 4, `test_meta_if` 10) : les clauses
+> `VClosure`/`VRecClosure`/catch-all de `eval_apply2` (17-19) et les
+> cascades `EApply` de `parse_if` étaient silencieusement droppées.
+> Une partie des `ArityMismatch` attribués à ce piège venait en fait
+> de `[16]`, pas du parser. Les limitations restantes (listées
+> ci-dessous) sont vérifiées après `[32]`.
 
 Découvert 2026-10-30 (session heaven_eval). `HP.parse_file` sur
 `(lambda x x)` ou `(let x 5 x)` ne force pas le thunk (s'affiche brut)
@@ -484,7 +504,17 @@ forcer l'évaluation et accepter les keywords comme symbols.
 
 Voir aussi : G.37 (1 token → ENil), ch. 39 selfhosting.
 
-### G.39 — `λ`/`fn` dans un string littéral `.hvn` → ArityMismatch
+### G.39 — `λ`/`fn` dans un string littéral `.hvn` → ArityMismatch [RESOLU 2026-11-02]
+
+> **RESOLU par [32]** : `HP.parse_file (HP.lex "(λ x x)")` produit maintenant `(ECons (EApply (EApply (ESym "λ") (ESym "x")) (ESym "x")) ENil)`. Le problème n'était pas le host parser mais les clauses `VClosure`/`VRecClosure` droppées par `[16]`. `test_eval` 13/13, `test_meta_if` 7/7.
+
+> **Mise à jour 2026-11-02.** `[16]`→`[32]` dans `engine_expr.zig` a
+> débloqué 14 tests (`test_eval` 4, `test_meta_if` 10) : les clauses
+> `VClosure`/`VRecClosure`/catch-all de `eval_apply2` (17-19) et les
+> cascades `EApply` de `parse_if` étaient silencieusement droppées.
+> Une partie des `ArityMismatch` attribués à ce piège venait en fait
+> de `[16]`, pas du parser. Les limitations restantes (listées
+> ci-dessous) sont vérifiées après `[32]`.
 
 Découvert 2026-10-30 (session parser). Le parser tree-sitter de Heaven
 (qui parse le `.hvn` de test) intercepte `λ`/`fn` **même dans une
