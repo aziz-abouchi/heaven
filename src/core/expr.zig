@@ -1863,7 +1863,16 @@ const Lexer = struct {
         if (c == '"') {
             const start = self.pos;
             self.pos += 1;
-            while (self.pos < self.src.len and self.src[self.pos] != '"') self.pos += 1;
+            // G.40 : skip les chars échappés (\\"). Sans ça, la string
+            // "a\\"b" est splittée et le check littéral ne matche jamais.
+            while (self.pos < self.src.len) {
+                if (self.src[self.pos] == '\\') {
+                    self.pos += 2;
+                    continue;
+                }
+                if (self.src[self.pos] == '"') break;
+                self.pos += 1;
+            }
             if (self.pos >= self.src.len) return error.InvalidSyntax;
             self.pos += 1;
             return .{ .kind = .str, .text = self.src[start..self.pos] };
