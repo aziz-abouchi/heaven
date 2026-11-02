@@ -482,6 +482,10 @@ Voir aussi : ch. 39 selfhosting, heaven_eval_v0.2.
 
 ### G.38 — `HP.lex`/`HP.parse_file` échouent sur `let`/`lambda` [PARTIEL après [32]]
 
+> **Vérifié 2026-11-02 après [32] :** `λ`/`fn` marchent maintenant (cf. G.39). `let` échoue toujours. Trigger précis : `HP.lex "let x"` échoue, mais `HP.lex "let"` seul, `"letx"`, `"alex let"` marchent. Donc c'est `startsWith("let ")` (let + espace) qui scanne **le contenu des strings** dans le pipeline d'éval du host (`heaven_expr.zig::eval` ou `parse.zig`), pas HP. Fix ~1 session dédiée (tracer `eval`, `in_string`-aware, non-régression). Contournement : infixe `let x = 5 in x` (marche, 5/6), ou AST hardcodé.
+
+
+
 > **Vérifié 2026-11-02 après [32] :** `λ`/`fn` marchent maintenant (cf. G.39). `let` échoue toujours (`(HP.parse_file (HP.lex "(let x 5 x)"))` retourne un thunk non forcé).
 
 > **Mise à jour 2026-11-02.** `[16]`→`[32]` dans `engine_expr.zig` a

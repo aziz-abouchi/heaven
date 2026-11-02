@@ -640,3 +640,12 @@ deux fichiers disabled restent KO :
 
 Voir aussi : G.37 (token unique → ENil, KO après [32]),
 G.38 (`let` KO après [32], `λ`/`fn` OK).
+
+## `zig build test` FAIL + 7 leaks (2026-11-02)
+
+`check_all.sh` montre `zig build test` FAIL + 7 leaks. **Pré-existant**,
+non cassé par `[32]` ni par les commits du 2026-11-02. Cause probable :
+`test_mir_qbe.zig` / `mir_qbe.zig` (contrat §6, CI rouge depuis
+2026-10-30). À traiter en session Zig dédiée.
+
+Voir aussi : `_ci_checklist.md`.
