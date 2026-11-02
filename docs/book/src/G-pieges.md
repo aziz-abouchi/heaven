@@ -555,3 +555,28 @@ le tokenizer). Contournement : `@char_string 34` (le byte `"`).
 Pour tester des strings avec `"` (JSON, HTML), utiliser `@char_string 34`
 ou `string_of_bytes` sur un buffer construit. Voir aussi G.28 (thunk
 top-level : `raw = ...` doit être `raw _ = ...`).
+
+### G.41 — Int args = `.lit`, pas `.int`
+
+Un entier en argument d'appel est taggé `.lit` dans l'AST, **pas**
+`.int`. `Node.payload` vaut alors `0` (inutilisable), et la valeur
+est dans `store.lits.items[node.aux].int`.
+
+    // FAUX : node.payload = 0 pour un .lit
+    .int => bufPrint("{d}", .{node.payload}),   // produit "0"
+
+    // FAUX : Node n'a pas de champ .int
+    .int => bufPrint("{d}", .{node.int}),        // ne compile pas
+
+    // CORRECT : lire le littéral via aux
+    .lit, .int => bufPrint("{d}", .{store.lits.items[node.aux].int}),
+
+**Coût réel** : 3 fausses pistes avant la trace (`payload`, `node.int`,
+mauvais chemin `lits[aux].int`) sur l'implémentation Prolog magic
+(`8ea2f05`). Le fix a pris 30 s après un `platform.debug.print` du tag,
+payload et aux de chaque arg.
+
+**Règle** : pour lire un int arg, toujours passer par
+`store.lits.items[node.aux].int`, jamais `payload`. Le piège vaut
+au-delà de Prolog (kanren query avec int, bridge C, etc.).
+
