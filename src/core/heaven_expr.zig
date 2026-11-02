@@ -835,6 +835,20 @@ pub const Heaven = struct {
         try buf.appendSlice(allocator, body);
         return try buf.toOwnedSlice(allocator);
     }
+    fn containsKeywordAtRoot(src: []const u8, kw: []const u8) bool {
+        var in_string = false;
+        var i: usize = 0;
+        while (i < src.len) {
+            const c = src[i];
+            if (c == '"') { in_string = !in_string; i += 1; continue; }
+            if (!in_string and i + kw.len <= src.len) {
+                if (std.mem.eql(u8, src[i .. i + kw.len], kw)) return true;
+            }
+            i += 1;
+        }
+        return false;
+    }
+
 
     fn normalizeLetChain(self: *Heaven, src: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, src, " \t\r\n");
@@ -1259,8 +1273,8 @@ pub const Heaven = struct {
         // ROUTING S-EXPR : (let ...) / (lambda ...) / (+ 1 2) / toute S-expr pure
         if (trimmed.len > 0 and trimmed[0] == '(') {
             // let/lambda → interpForAssert (engine ne gère pas bind au top-level)
-            if (std.mem.indexOf(u8, trimmed, "let ") != null or
-                std.mem.indexOf(u8, trimmed, "lambda") != null)
+            if (containsKeywordAtRoot(trimmed, "let ") or
+                containsKeywordAtRoot(trimmed, "lambda"))
             {
                 if (self.bridge.importExpr(trimmed)) |id| {
                     const result = self.interpForAssert(id) catch id;

@@ -480,9 +480,9 @@ single-token devient critique.
 
 Voir aussi : ch. 39 selfhosting, heaven_eval_v0.2.
 
-### G.38 — `HP.lex`/`HP.parse_file` échouent sur `let`/`lambda` [PARTIEL après [32]]
+### G.38 — `HP.lex`/`HP.parse_file` échouent sur `let`/`lambda` [RESOLU 2026-11-02]
 
-> **Vérifié 2026-11-02 après [32] :** `λ`/`fn` marchent maintenant (cf. G.39). `let` échoue toujours. Trigger précis : `HP.lex "let x"` échoue, mais `HP.lex "let"` seul, `"letx"`, `"alex let"` marchent. Donc c'est `startsWith("let ")` (let + espace) qui scanne **le contenu des strings** dans le pipeline d'éval du host (`heaven_expr.zig::eval` ou `parse.zig`), pas HP. Fix ~1 session dédiée (tracer `eval`, `in_string`-aware, non-régression). Contournement : infixe `let x = 5 in x` (marche, 5/6), ou AST hardcodé.
+> **RESOLU 2026-11-02.** Cause exacte : `heaven_expr.zig::eval` ligne ~1262 utilisait `std.mem.indexOf(trimmed, "let ")` (brut, y compris dans les strings) pour router `(let ...)`/`(lambda ...)` vers `importExpr`. Pour `(HP.lex "let x")`, `"let x"` contient `"let "` → branche `importExpr` → thunk au lieu de `(HP.lex ...)`. Fix : helper `containsKeywordAtRoot` (skip strings) remplace `indexOf`. `HP.lex "let x"` → `(TCons (TSymTok "let") ...)`. 13/13 `test_eval`, 7/7 `test_meta_if`. Tag `g38-resolved`.
 
 
 
