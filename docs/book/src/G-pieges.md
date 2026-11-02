@@ -538,10 +538,16 @@ Voir aussi : G.37, G.38, ch. 39 selfhosting.
 ### G.40 — `\"` n'est pas un escape valide
 
 Découvert 2026-11-02 (test web_ontology). `(string_length "\"")` échoue
-avec `error.UnboundVariable` : le host parser traite `\` comme un
-symbole non lié, puis `"` ouvre une nouvelle string. Pas d'escape `\"`.
+avec `error.UnboundVariable`.
 
-Contournement : `@char_string 34` (le byte `"`).
+**Cause identifiée 2026-11-02 (soir)** : `expr.zig::nativeToSExpr` (appelé
+par `ExprParser.parseExpression` pour toute entrée non-`(`) convertit la
+string en S-expr sans tenir compte des escapes. `"\""` devient un token
+splitté, le check littéral (`sexpr[0] == '"' and sexpr[len-1] == '"'`)
+ne matche jamais.
+
+**Fix** : session dédiée dans `expr.zig::nativeToSExpr` (skip_next dans
+le tokenizer). Contournement : `@char_string 34` (le byte `"`).
 
     q _ = @char_string 34
     s = (string_concat "a" (string_concat (q 0) "b"))  -- a"b
