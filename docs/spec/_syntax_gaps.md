@@ -171,9 +171,8 @@ CAF et avec Prolog pour les faits a 0 argument).
   traitement spécial — inutile, `unify(hole_frais, arg)` réussit.
 - Ancien diagnostic (« 0 solution / retourne `(query ... <?>)` ») :
   **faux**. Aucun patch à `queryPattern`.
-- Si un cas précis comme `features_parent Alice _` échoue encore, c'est
-  un bug *spécifique à ce prédicat* (RDF / chargement de faits), pas au
-  wildcard — à re-tester isolément.
+- `features_parent Alice _` : validé aussi —
+  `tests/features_smoke.hvn` **44/44** (dont `features_kanren_query`).
 - Zone historique : `src/logic/kanren_expr.zig` (inchangé ce soir).
 
 ### Corrige : REPL for sans parens
