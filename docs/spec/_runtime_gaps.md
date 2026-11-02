@@ -663,8 +663,9 @@ reste disabled :
   effet de bord du live, pas un bug critique)
 - à refaire avec `smocker` en session dédiée
 
-Bug prod fixé au passage : `label_arr_pat` manquait le `"` ouvrant
-de la valeur (`(q 0)` en plus), `extract_first_label` retournait `""`
-même online.
+**Note (corrigée 2026-11-02 soir)** : il n'y a PAS de bug
+`label_arr_pat` — le pattern `"label":["` (10 chars) était correct.
+Le test original échouait uniquement à cause de G.40 (`"` non escape
+dans la string), pas de `extract_first_label`.
 
 Voir aussi : G.40 (`\"` non escape).
