@@ -1,6 +1,6 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-10-20
+Dernière mise à jour : 2026-11-02
 
 Ce document est **genere** depuis `docs/status.json` par
 `scripts/status_gen.py`. Ne pas editer a la main.
@@ -15,6 +15,8 @@ Légende :
 
 ## Progrès récents
 
+- **2026-10-30** : Selfhost QBE+WASM (17 tags : `selfhost-*`, `heaven-eval-v0.4`, `wasm-wasi-v1`). `bin/heaven.hvn` V0.7 dispatch multi-clauses → ELF natif. WASM `main = 42` → 42 (wat2wasm+node). `heaven_eval.hvn` V0.4 (96 l., 17 primitives). IDE web Hab V0.6 (Run WASM, POST `/api/test`). Book ch. 39 (selfhosting) + 40 (heaven_eval) + 6 SVG. Pièges G.25→G.39 documentés. Détails : `PROMPT_CONTINUITE.md`.
+- **2026-10-28** : OTP complet (`otp-o1` à `otp-o2.4`, 27 tests) + MPST runtime (`otp-o3`, 3 tests). HKT V1b (`@resolve_instance`/`@dispatch_instance`). Fantasy Land (10 classes), Optics, Free monad, MaybeT.
 - **2026-10-20 (soir)** : TLS OpenSSL FFI (@tls_connect/read/write/close), HTTPS live depuis .hvn (Wikidata 200 OK). DNS parametre (dns_resolve_a_com host server). stdlib/effects.hvn + resume alias (5/5). stdlib/ontology.hvn (14/14) + example Socrate. urlencode (9/9). Fossile #4 documente. Baseline Debug=0, TEST=0, RF=0, wasm x2=0.
 - **2026-10-20 (suite)** : `stdlib/ontology.hvn` (RDF/KB en .hvn pur, 14/14 tests), example Socrate 10 triples. Mots reserves documentes (`query`, `count`, `fact` interceptes par kanren). Book ch. 11 §7 'En .hvn pur'. Closure §2 refute (test malforme). Baseline ReleaseFast = 0 fail.
 - **2026-10-20 (matin)** : REPL web repare (VFS, cache-buster, site-url). http_server.hvn v1 (routing infixe, 4 routes 200 OK). Fantasy Land (10 classes McKenna) 13/13 en .hvn pur via HKT V1b. Optics (Lens/Prism/Iso) 12/12. Free monad (Lonsdorf) 6/6. MaybeT (Wilson) 6/6. Closure capture fix (bound_syms) 8/8. parsePostfix .str resolu. Baseline ReleaseFast = 0 fail.
@@ -300,7 +302,7 @@ Résultats de référence (`docs/spec/_bench.md`) :
 | `bracket` / `local` / `catch` | ✅ | test_suite.hvn (5 tests) | syntaxe scoped, pas handle-rec |
 | `handle-rec` (reprise, one-shot) | ✅ | `test_effects_rec.hvn` + `test_effects_rec_nested.hvn` | discriminant par prompt |
 | `@prompt` / `@throw` (continuations delimitees) | ✅ | `test_continuations.hvn` (5 tests) | one-shot |
-| Scheduler préemptif | ⚠️ (linux-x86_64) / fuel-only ailleurs | test_scheduler 3/3, test_preemptive 12/12, test_preemptive_coop 4/4, test_preemptive_split 3/3 ; TaskState.preempted (A-3a) : reprise par redemarrage | reprise exacte exige captureCont (3a-3b). Bug (+ 1 2 3 4) dans lambda trace separement. |
+| Scheduler préemptif | ⚠️ | test_scheduler 3/3, test_preemptive 12/12, test_preemptive_coop 4/4, test_preemptive_split 3/3 ; TaskState.preempted (A-3a) : reprise par redemarrage | reprise exacte exige captureCont (3a-3b). Bug (+ 1 2 3 4) dans lambda trace separement. |
 | Distribution | 🚧 | — | C2 tranchée (Option D lazy copy) |
 
 ## Top priorités
@@ -476,8 +478,7 @@ Résultats de référence (`docs/spec/_bench.md`) :
 
 ## OTP (complet 2026-10-28)
 
-Portage OTP en Heaven pur, sur le runtime existant (Process model +
-acteurs), sans modifier le scheduler.
+Portage OTP en Heaven pur, sur le runtime existant (Process model + acteurs), sans modifier le scheduler.
 
 **Livré** (tags `otp-o1` à `otp-o2.4`) :
 - GenServer drain-coopératif (`cast`/`call`/`run`)
@@ -487,24 +488,3 @@ acteurs), sans modifier le scheduler.
 - invariant catégorique : `|S(c)| = |c|` (préservation de taille)
 - idempotence : `S ∘ S = S` quand stable
 - event-driven : trap_exit passif, sup redémarre sur EXIT
-
-**Tests** : `tests/otp2_*.hvn` (19 fichiers), `tests/otp_gs_*.hvn` (3).
-
-**Théorèmes prouvés** (par test, pas par preuve formelle) :
-1. HKT : uniformité de `Strategy` en `h`
-2. Endofunctor : `S : End(Children)`
-3. Préservation : `|S(c)| = |c|`
-4. Idempotence : `S ∘ S = S`
-5. Optique : `fst`/`snd` = Lens(State, Children)
-6. Dualité MPST : protocole sup↔child typable (spec, à brancher O3)
-
-**Limites documentées** (voir `docs/spec/_otp.md`) :
-- Préemption SIGALRM ~10ms → N≤5 par fichier de test (captureCont
-  manquant, STATUS.md:303)
-- Q.check × closures HKT cassé (dette moteur, pas OTP)
-- Pas de captureCont → retrait de `run` impossible pour l'instant
-
-**Dettes instrumentales** (à traiter O3) :
-- check_parens.py ne détecte pas les parens compensées
-- parse-level : parser accepte un `let` mal parenthésé silencieusement
-- tests d'accesseurs (`snd`/`fst`) absents en isolation
