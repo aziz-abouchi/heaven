@@ -83,22 +83,30 @@ D2 fermée (avec cette nuance).
 ## Mise à jour 2026-11-02 — tests `.hvn` + limitations
 
 **Kanren (`core/kanren_expr.zig`, exposé comme magic `query`)** :
-- ✅ `fact name arg1` + `query name arg1` (1 arg) → 4 tests verts
-  (`tests/test_kanren.hvn`)
-- ❌ Wildcard `_` (`query name _ _`) et 3-args → `queryPattern`
-  partiel, retourne 0. À investiguer session dédiée.
+- ✅ `fact name arg1 ...` + `query name pat1 ...` (N args) → **18 tests verts**
+  (`tests/test_kanren.hvn`, `93bcfc0`).
+- ✅ Wildcard `_` et N-args : `_` = hole frais par arg
+  (`core/hole.zig:50`), `unify(hole_frais, arg)` réussit — pas de
+  traitement spécial dans `unify`.
 
 **Prolog (`runtime/prolog.zig`, 368 l., SLD + unification de chaînes)** :
-- ✅ Exposé au shell (`ask`), pas en `.hvn`.
-- ❌ Pas de magic `@prolog_*`. **TODO exposition** (~1 session) :
-  ajouter `@prolog_fact` + `@prolog_query` dans `engine_expr.zig`,
-  comme `kanren_query` (ligne 334).
+- ✅ Exposé au shell (`ask`).
+- ✅ **Magic `@prolog_fact` / `@prolog_query` (2026-11-02 nuit, `8ea2f05`, 8/8 tests)** :
+  vtable `prolog_fact`/`prolog_query` (`engine_expr.zig`, post-`query`),
+  `prologFactHeavenExpr`/`prologQueryHeavenExpr` (`heaven_expr.zig`).
+  - Arity 0..8 (`PrologAtom.args = [8]`).
+  - Args : `.sym` → string, `.lit` (et `.int`) → `store.lits.items[aux].int`.
+  - `.hole` rejeté (`InvalidInput`) — V0 strict.
+  - Variables Prolog = `A-Z` strict (`isVariable`, `prolog.zig:364`).
+  - Wildcard `_` en query : **non supporté** (V1 : mapper hole → `Q0/Q1`).
+  - **Piège** : int args taggés `.lit` (payload=0), valeur dans
+    `store.lits.items[aux].int`.
 
 **Kanren Term (`logic/kanren.zig`, 969 l.)** :
 - Utilisé par `typeo`/`evalo`, pas exposé en `.hvn`.
 
-**Trois systèmes logiques** (kanren Store, kanren Term, prolog) mais
-**API `.hvn` incomplète**. Priorité (2026-11-02 soir) : **prolog magic**
-(exposition), puis Propagators V1. Wildcard kanren : **résolu** — validé
-par `tests/test_kanren.hvn` (18/18, wildcards `_` et N-args).
-Pas de dépendance bloquante.
+**Trois systèmes logiques** (kanren Store, kanren Term, prolog) avec
+**API `.hvn` en place** pour Store + Prolog (2026-11-02 nuit).
+Priorité : **Propagators V1** (unification egraph + kanren + ontologies).
+Kanren et Prolog magic : **résolus** (18/18 et 8/8). Prolog V1
+(wildcard `_`) : optionnel. Pas de dépendance bloquante.

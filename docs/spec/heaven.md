@@ -286,13 +286,28 @@ Skills : skill NAME [on var].
 
 ## 9. Logique
 
+### Kanren (Store-based, magic `query`)
+
     fact human socrate
     fact human platon
     query human _
 
 Retourne le nombre de solutions trouvees dans le KB kanren.
+Wildcard `_` et N-args supportes (2026-11-02).
 
-Non supporte aujourd'hui : rule (SLD), ?- (Prolog). Roadmap.
+### Prolog (SLD, magics `@prolog_fact` / `@prolog_query`)
+
+    (@prolog_fact test_mortel socrate)
+    (@prolog_fact test_mortel platon)
+    (@prolog_query test_mortel X)       -- retourne 2
+
+- `(@prolog_fact pred a1 ... an)` : arite 0..8, retourne 1.
+- `(@prolog_query pred p1 ... pn)` : retourne le nombre de solutions.
+- Variables Prolog = identifiants commencant par `A-Z` strict.
+- Wildcard `_` en query : **non supporte en V0** (roadmap V1).
+- Args acceptes : symboles et entiers.
+
+Non supporte aujourd'hui : rules SLD en `.hvn`, wildcard `_` en query Prolog.
 
 ---
 
