@@ -605,3 +605,20 @@ Contournement : AST hardcodé ou pas de keyword dans le test.
 
 Fix G.37-G.39 : session parser dédiée (~1h). Débloque `heaven_eval`
 sur vrais `.hvn`.
+
+## test_web_ontology.hvn — panic net:close (2026-11-02)
+
+Découvert en resync STATUS. `tests/test_web_ontology.hvn` panic :
+
+    [cap_acquire] trace scope=net:connect
+    [cap_acquire] trace scope=net:close
+    thread ... panic: reached unreachable code
+    Unable to dump stack trace: debug info stripped
+
+C'est un **bug runtime** (cap `net:connect`/`net:close` dans
+`engine_expr.zig`), pas un bug parser. Fichier déplacé dans
+`tests/_disabled/` en attendant fix.
+
+À investiguer : la branche `unreachable` dans le handler `net:close`
+est probablement atteinte sur un cas non géré (connexion échouée ?
+fd invalide ?). Session dédiée.
