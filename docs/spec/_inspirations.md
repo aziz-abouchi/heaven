@@ -137,3 +137,31 @@ Une entree sort du coffre uniquement si :
 3. une ADR est ecrite,
 4. la decision est prise dans un commit dedie.
 
+
+## Propagateurs et cellules (Radul & Sussman, Wilson)
+
+**Examiné** 2026-11-02. **Décision : coffre, trigger = selfhost stable.**
+
+- **Alexey Radul & Gerald Sussman**, *A Generic Propagation Architecture*
+  (MIT, 2009). Modèle : cellules (join-semilattice) + propagateurs
+  (machines sans état, monotones). Merge commutatif, associatif,
+  idempotent. Unification comme merge de cellules.
+- **George Wilson**, *An Intuition for Propagators* (Compose Melbourne,
+  2019). Vulgarisation. Exemple conversion Fahrenheit/Celsius
+  bidirectionnelle.
+- **Edward Kmett**, `ekmett/propagators` (Haskell). Implémentation
+  de référence.
+
+**Pertinence** : généralise egraph (déjà en place) et kanren (déjà en
+place) sous un modèle unique. Ouvre Prolog, ontologies déclaratives,
+agrégats. Style de programmation pour les développeurs Heaven finaux
+(FRP, contraintes, dashboards, configs).
+
+**Pourquoi pas maintenant** : phase 3+, après selfhost complet, WASM
+parité, bigint fix. Aucun code existant n'utilise les cellules
+généralisées. Prototype V0 (2-3 sessions) planifié dans
+`docs/spec/_propagators.md`.
+
+**Trigger de réouverture** : selfhost V1 stable (bin/heaven.hvn
+compile `heaven_eval.hvn` + tests verts) ET WASM parité QBE
+(`@puts`, `@argv`, `@strcmp` en WASM).
