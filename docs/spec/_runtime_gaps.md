@@ -661,7 +661,10 @@ reste disabled :
 - dépend de `134.155.98.109` (DNS hardcodé)
 - panic `net:close` sur connexion échouée (OpenSSL, non patché —
   effet de bord du live, pas un bug critique)
-- à refaire avec `smocker` en session dédiée
+- **fait 2026-11-02** : `lookup_label_with http_fn` (DI) +
+  `tests/test_web_ontology_mocked.hvn` (8/8, stub `empty_http`/`stub_http`).
+  Le live reste disabled (panic `net:close` OpenSSL), mais la logique
+  `extract_first_label` + `strip_*` est couverte offline + mockée.
 
 **Note (corrigée 2026-11-02 soir)** : il n'y a PAS de bug
 `label_arr_pat` — le pattern `"label":["` (10 chars) était correct.

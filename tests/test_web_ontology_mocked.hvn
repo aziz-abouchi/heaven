@@ -1,0 +1,14 @@
+-- tests/test_web_ontology_mocked.hvn — DI + smocker (2026-11-02)
+-- Teste lookup_label_with avec https_get mocké (pas de réseau).
+import "lib/web/ontology.hvn" as WO
+import "core/std/mocker.hvn" as M
+
+q _ = @char_string 34
+json_socrate _ = (string_concat "{" (string_concat (q 0) (string_concat "label" (string_concat (q 0) (string_concat ":[" (string_concat (q 0) (string_concat "Socrate" (string_concat (q 0) "]}"))))))))
+
+-- stub : ignore les 3 args (host, port, path), renvoie le JSON
+stub_http _ _ _ = (json_socrate 0)
+
+test "lookup_label_with Socrate": (WO.lookup_label_with stub_http (q 0)) == "Socrate"
+empty_http _ _ _ = ""
+test "lookup_label_with vide": (WO.lookup_label_with empty_http "x") == ""

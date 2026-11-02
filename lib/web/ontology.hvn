@@ -44,5 +44,13 @@ lookup_raw name =
   let path = "/api/search?query=" + name + "&format=json" in
   S.https_get "lookup.dbpedia.org" 443 path
 
-lookup_label name = extract_first_label (lookup_raw name)
+-- DI (2026-11-02) : version avec https_get paramétrable (pour tests mocks)
+lookup_raw_with http_fn name =
+  let path = "/api/search?query=" + name + "&format=json" in
+  (http_fn "lookup.dbpedia.org" 443 path)
+
+lookup_label_with http_fn name = extract_first_label (lookup_raw_with http_fn name)
+
+-- API publique (production, utilise https_get réel)
+lookup_label name = lookup_label_with S.https_get name
 lookup_raw_body name = lookup_raw name
