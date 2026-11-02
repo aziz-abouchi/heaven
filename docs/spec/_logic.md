@@ -98,5 +98,7 @@ D2 fermée (avec cette nuance).
 - Utilisé par `typeo`/`evalo`, pas exposé en `.hvn`.
 
 **Trois systèmes logiques** (kanren Store, kanren Term, prolog) mais
-**API `.hvn` incomplète**. Priorité : wildcard kanren (bug), puis
-prolog magic (exposition). Pas de dépendance bloquante.
+**API `.hvn` incomplète**. Priorité (2026-11-02 soir) : **prolog magic**
+(exposition), puis Propagators V1. Wildcard kanren : **résolu** — validé
+par `tests/test_kanren.hvn` (18/18, wildcards `_` et N-args).
+Pas de dépendance bloquante.

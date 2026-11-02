@@ -1,9 +1,9 @@
 -- tests/test_kanren.hvn — kanren (magic query, 2026-11-02)
--- Syntaxe : `fact name arg1` (top-level, sans parenthèses)
---           `query name pat1` (magic, 1 arg testé)
+-- Syntaxe : `fact name arg1 ...` (top-level, sans parenthèses)
+--           `(query name pat1 ...)` (magic, N-args)
 -- Référence : tests/features_smoke.hvn:58-59
--- Limitation : wildcard `_` et 3-args retournent 0 (queryPattern partiel,
--- cf. _logic.md). Seul le 1-arg fonctionne.
+-- Note (2026-11-02 soir) : wildcard `_` et N-args validés.
+-- L'ancienne mention « retournent 0 » était un faux diagnostic.
 
 -- ─── Fait simple (1 arg) ───
 fact test_mortel Socrate
@@ -11,6 +11,20 @@ fact test_mortel Platon
 test "kanren_socrate": (query test_mortel Socrate) == 1
 test "kanren_platon": (query test_mortel Platon) == 1
 test "kanren_aristote_absent": (query test_mortel Aristote) == 0
-
--- ─── Absent d'un autre prédicat ───
 test "kanren_autre_predicat": (query test_autre Socrate) == 0
+
+-- ─── Wildcard `_` (2 args) ───
+fact test_2args a b
+fact test_2args c d
+test "kanren_wildcard_2": (query test_2args _ _) == 2
+test "kanren_wildcard_right": (query test_2args _ b) == 1
+test "kanren_wildcard_left": (query test_2args c _) == 1
+test "kanren_wildcard_none": (query test_2args a b) == 1
+test "kanren_wildcard_miss": (query test_2args a d) == 0
+
+-- ─── N-args (3 args) ───
+fact test_3args x y z
+test "kanren_3args_all_wild": (query test_3args _ _ _) == 1
+test "kanren_3args_pat": (query test_3args x _ _) == 1
+test "kanren_3args_no_wild": (query test_3args x y z) == 1
+test "kanren_3args_miss": (query test_3args x y a) == 0

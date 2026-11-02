@@ -162,9 +162,19 @@ CAF et avec Prolog pour les faits a 0 argument).
   purge `num_clauses` + `ctor_arity` ; les clauses suivantes s'appendent.
 - Debloque : `verify_book.hvn` 43/43 (vs 41/43).
 
-### Bug restant : kanren query
-- `query features_parent Alice _` retourne `(query features_parent Alice <?>)` au lieu de `1`.
-- Zone : moteur kanren (`src/logic/kanren_expr.zig`).
+### Résolu (2026-11-02 soir) : kanren query
+- Wildcard `_` et N-args validés : `tests/test_kanren.hvn` **18/18**
+  (`(query test_2args _ _)` -> 2, `(query test_3args x _ _)` -> 1).
+- Cause racine : `_` est un hole **frais par arg** (`core/hole.zig:50`,
+  `HoleState.fresh`, `next_id += 1`), pas un symbole partagé.
+  `kanrenQueryHeavenExpr` (`core/heaven_expr.zig:4488`) ne fait aucun
+  traitement spécial — inutile, `unify(hole_frais, arg)` réussit.
+- Ancien diagnostic (« 0 solution / retourne `(query ... <?>)` ») :
+  **faux**. Aucun patch à `queryPattern`.
+- Si un cas précis comme `features_parent Alice _` échoue encore, c'est
+  un bug *spécifique à ce prédicat* (RDF / chargement de faits), pas au
+  wildcard — à re-tester isolément.
+- Zone historique : `src/logic/kanren_expr.zig` (inchangé ce soir).
 
 ### Corrige : REPL for sans parens
 - **Corrige le 2026-10-06** (commit `f20568a`). `for (x <- L) B` tape
