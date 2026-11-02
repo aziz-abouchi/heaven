@@ -89,6 +89,7 @@ parse_arglist3 a (POk as rest) = (POk (ECons a as) rest)
 build_apply f ENil = f
 build_apply f (ECons a rest) = (build_apply (EApply f a) rest)
 
+parse_top (TCons (TSymTok name) TNil) = (parse_one (TCons (TSymTok name) TNil))
 parse_top (TCons (TSymTok name) rest) = (top_named name rest)
 parse_top ts = (parse_one ts)
 top_named name rest = (if (= name "test") (test_scan rest) (if (= name "import") (import_scan rest) (if (= name "data") (data_scan rest) (def_scan name SNil rest))))

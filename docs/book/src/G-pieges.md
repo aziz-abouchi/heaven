@@ -453,9 +453,9 @@ pattern que G.31 pour QBE.
 
 Voir aussi : ch. 39 selfhosting, G.25/G.31 (patterns QBE équivalents).
 
-### G.37 — `parse_file` sur token unique → programme vide [KO après [32]]
+### G.37 — `parse_file` sur token unique → programme vide [RESOLU 2026-11-02]
 
-> **Vérifié 2026-11-02 après [32] :** `HP.parse_file (HP.lex "nil")` retourne toujours `ENil`. Pas de régression, pas de fix par [32].
+> **RESOLU 2026-11-02** : `parse_top (TCons (TSymTok name) TNil) = (parse_one (TCons (TSymTok name) TNil))` ajouté. `nil`/`true`/`false` bare → `(ECons (ESym "...") ENil)`. Non-régression : `f x = ...` reste parsé via `top_named` → `def_scan`. 13/13 `test_eval`, 7/7 `test_meta_if`.
 
 > **Mise à jour 2026-11-02.** `[16]`→`[32]` dans `engine_expr.zig` a
 > débloqué 14 tests (`test_eval` 4, `test_meta_if` 10) : les clauses
