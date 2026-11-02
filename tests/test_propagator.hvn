@@ -1,0 +1,31 @@
+-- tests/test_propagator.hvn — cellules + propagateurs V0 (2026-11-02)
+-- Cadrage : docs/spec/_propagators.md
+import "lib/heaven_propagator.hvn" as P
+
+-- ─── Construction ───
+test "cell_id": (P.cell_id (P.cell "x" 5)) == "x"
+test "cell_val": (P.cell_val (P.cell "x" 5)) == 5
+
+-- ─── Merge : 4 lois ───
+test "merge_commutatif": (P.cell_val (P.cell_merge (P.cell "x" 3) (P.cell "x" 7))) == (P.cell_val (P.cell_merge (P.cell "x" 7) (P.cell "x" 3)))
+test "merge_associatif":
+  (P.cell_val (P.cell_merge (P.cell_merge (P.cell "x" 1) (P.cell "x" 2)) (P.cell "x" 3))) ==
+  (P.cell_val (P.cell_merge (P.cell "x" 1) (P.cell_merge (P.cell "x" 2) (P.cell "x" 3))))
+test "merge_idempotent": (P.cell_val (P.cell_merge (P.cell "x" 5) (P.cell "x" 5))) == 5
+
+-- ─── Merge : résultat (max) ───
+test "merge_max_1": (P.cell_val (P.cell_merge (P.cell "x" 3) (P.cell "x" 7))) == 7
+test "merge_max_2": (P.cell_val (P.cell_merge (P.cell "x" 7) (P.cell "x" 3))) == 7
+
+-- ─── Propagateur ───
+-- prop : ajoute 10 à la valeur
+add10 c = (P.cell (P.cell_id c) (+ (P.cell_val c) 10))
+test "propagate_add10": (P.cell_val (P.propagate (P.cell "x" 5) add10)) == 15
+
+-- ─── Chaîne 2 propagateurs ───
+add100 c = (P.cell (P.cell_id c) (+ (P.cell_val c) 100))
+test "propagate2": (P.cell_val (P.propagate2 (P.cell "x" 5) add10 add100)) == 115
+
+-- ─── Ordre induit ───
+test "cell_le": (P.cell_le (P.cell "x" 3) (P.cell "x" 7)) == true
+test "cell_not_le": (P.cell_le (P.cell "x" 7) (P.cell "x" 3)) == false

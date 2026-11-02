@@ -1,0 +1,26 @@
+-- lib/heaven_propagator.hvn — cellules + propagateurs V0 (2026-11-02)
+-- Cadrage : docs/spec/_propagators.md
+-- Principe : cellule = (id, valeur), merge = max (join-semilattice),
+-- propagateur = lambda qui observe et retourne une nouvelle cellule.
+-- Pas de 7e primitive : tout est pair + lambda + if.
+
+-- ─── Cellule ───
+cell id v = (pair id v)
+cell_id (pair id _) = id
+cell_val (pair _ v) = v
+
+-- ─── Merge (join-semilattice : commutatif, associatif, idempotent) ───
+-- V0 : merge = max sur la valeur. Suffit pour démontrer les lois.
+cell_merge a b =
+  (pair (cell_id a)
+        (if (< (cell_val a) (cell_val b)) (cell_val b) (cell_val a)))
+
+-- ─── Propagateur ───
+-- prop = lambda (cell -> cell). propagate applique et merge.
+propagate c prop = (cell_merge c (prop c))
+
+-- ─── Propagation en chaîne (2 sauts) ───
+propagate2 c p1 p2 = (propagate (propagate c p1) p2)
+
+-- ─── Treillis : ordre induit par merge (a <= b ssi merge a b = b) ───
+cell_le a b = (= (cell_val (cell_merge a b)) (cell_val b))

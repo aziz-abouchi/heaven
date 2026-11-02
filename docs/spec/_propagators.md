@@ -75,7 +75,9 @@ Un propagateur est valide s'il ne fait qu'**ajouter** de l'information
 
 ## Implémentation prévue
 
-**V0 (prototype, 2-3 sessions)** : `lib/heaven_propagator.hvn`
+**V0 (fait 2026-11-02)** : `lib/heaven_propagator.hvn` (26 l.)
++ `tests/test_propagator.hvn` (14/14). `cell`, `cell_merge` (max),
+`propagate`, `propagate2`, `cell_le`. 4 lois testées. Commit `??`.
 - Cellule = `relation` unaire (déjà primitive)
 - Merge = `relation` binaire, lois testées par quickcheck
 - Propagation = `lambda` qui observe + `apply`
