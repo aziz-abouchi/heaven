@@ -980,3 +980,20 @@ sur Wikidata.
 **A investiguer** : meme famille que H1 (Sym qualifie normalise dans
 `exprStructuralEq`), mais cote dispatch de clause importee.
 
+
+## Compréhensions de liste `[x for x in xs]` (TODO)
+
+**Découvert** 2026-11-02. `[x for x in xs]` → `ArityMismatch`.
+Aucune trace dans `grammar.ebnf`, `parse.zig`, `expr.zig`, `syntax/`.
+
+**Impact** : `check_all.sh` avait une section `comprehensions` qui
+testait `tests/comprehensions.hvn` (inexistant). Retirée (2026-11-02)
+pour ne pas fausser le verdict. La feature est TODO, pas cassée.
+
+**À faire** : session dédiée. Grammaire `list_comprehension` (tree-sitter
+a déjà `list_comprehension` avec `for x in xs` + `if cond` optionnel,
+cf. `vendor/tree-sitter-heaven/grammar.js:1551`). Parser + lowering
++ tests. ~1 session.
+
+**Priorité** : basse. Aucun code du repo n'utilise cette syntaxe.
+Contournement actuel : `map`/`filter`/`fold` explicites.
