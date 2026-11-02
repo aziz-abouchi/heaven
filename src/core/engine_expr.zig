@@ -119,12 +119,12 @@ pub const FunctionClause = struct {
 };
 
 pub const FunctionDef = struct {
-    clauses: [16]FunctionClause,
+    clauses: [32]FunctionClause,
     num_clauses: u8,
     ctor_arity: ?u8 = null, // null = fonction, sinon constructeur d'arité N
 
     pub fn addClause(self: *FunctionDef, patterns: []const Id, body: Id) void {
-        if (self.num_clauses >= 16) return;
+        if (self.num_clauses >= 32) return;
         var clause = FunctionClause{ .patterns = undefined, .num_patterns = @intCast(@min(patterns.len, 8)), .body = body };
         @memcpy(clause.patterns[0..clause.num_patterns], patterns[0..clause.num_patterns]);
         self.clauses[self.num_clauses] = clause;
