@@ -534,3 +534,18 @@ Conséquence : tester `heaven_eval` sur `((λ x x) 5)` via `heaven run
 (`HP.ELambda`, `HP.EApply`) ou parens sans keywords (`((+ x 1) 5)`).
 
 Voir aussi : G.37, G.38, ch. 39 selfhosting.
+
+### G.40 — `\"` n'est pas un escape valide
+
+Découvert 2026-11-02 (test web_ontology). `(string_length "\"")` échoue
+avec `error.UnboundVariable` : le host parser traite `\` comme un
+symbole non lié, puis `"` ouvre une nouvelle string. Pas d'escape `\"`.
+
+Contournement : `@char_string 34` (le byte `"`).
+
+    q _ = @char_string 34
+    s = (string_concat "a" (string_concat (q 0) "b"))  -- a"b
+
+Pour tester des strings avec `"` (JSON, HTML), utiliser `@char_string 34`
+ou `string_of_bytes` sur un buffer construit. Voir aussi G.28 (thunk
+top-level : `raw = ...` doit être `raw _ = ...`).

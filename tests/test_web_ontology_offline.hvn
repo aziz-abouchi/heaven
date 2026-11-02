@@ -1,0 +1,29 @@
+-- tests/test_web_ontology_offline.hvn — tests offline de lib/web/ontology.hvn
+-- 2026-11-02 : variante offline (test_web_ontology.hvn disabled = HTTPS live).
+-- On teste uniquement les fonctions pures (parsing HTML), pas lookup_raw.
+import "stdlib/string.hvn"
+import "lib/web/ontology.hvn" as WO
+
+-- strip_b_prefix
+test "strip_b_prefix avec <B>": (WO.strip_b_prefix "<B>foo") == "foo"
+test "strip_b_prefix sans <B>": (WO.strip_b_prefix "foo") == "foo"
+test "strip_b_prefix vide": (WO.strip_b_prefix "") == ""
+
+-- strip_close_tag
+test "strip_close_tag avec </A>": (WO.strip_close_tag "foo</A>bar") == "foo"
+test "strip_close_tag sans tag": (WO.strip_close_tag "foo") == "foo"
+
+-- strip_b_tags (combinaison)
+test "strip_b_tags <B>foo</A>": (WO.strip_b_tags "<B>foo</A>") == "foo"
+test "strip_b_tags foo": (WO.strip_b_tags "foo") == "foo"
+
+-- find_str_from
+test "find_str_from trouve": (WO.find_str_from "abcabc" "cab" 0) == 2
+test "find_str_from absent": (WO.find_str_from "abc" "xyz" 0) == (- 0 1)
+
+-- extract_first_label : test avec string construite via @char_string 34
+-- (" n'est pas un escape valide, cf. G.40 à venir)
+q _ = @char_string 34
+raw _ = (string_concat "{" (string_concat (q 0) (string_concat "label" (string_concat (q 0) (string_concat ":[" (string_concat (q 0) (string_concat "Socrate" (string_concat (q 0) "]}"))))))))
+test "extract_first_label construit": (WO.extract_first_label (raw 0)) == "Socrate"
+test "extract_first_label vide": (WO.extract_first_label "{}") == ""

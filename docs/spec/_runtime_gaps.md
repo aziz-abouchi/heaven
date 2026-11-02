@@ -649,3 +649,22 @@ non cassé par `[32]` ni par les commits du 2026-11-02. Cause probable :
 2026-10-30). À traiter en session Zig dédiée.
 
 Voir aussi : `_ci_checklist.md`.
+
+## Mise à jour 2026-11-02 (soir) — test_web_ontology
+
+Variante **offline** créée : `tests/test_web_ontology_offline.hvn`
+(15 tests, fonctions pures de `lib/web/ontology.hvn` : strip_*, find_*,
+extract_first_label avec string construite via `@char_string 34`).
+
+`tests/_disabled/test_web_ontology.hvn` (HTTPS live vers dbpedia.org)
+reste disabled :
+- dépend de `134.155.98.109` (DNS hardcodé)
+- panic `net:close` sur connexion échouée (OpenSSL, non patché —
+  effet de bord du live, pas un bug critique)
+- à refaire avec `smocker` en session dédiée
+
+Bug prod fixé au passage : `label_arr_pat` manquait le `"` ouvrant
+de la valeur (`(q 0)` en plus), `extract_first_label` retournait `""`
+même online.
+
+Voir aussi : G.40 (`\"` non escape).
