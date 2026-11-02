@@ -42,10 +42,13 @@ def extract_facts():
     for m in re.finditer(r"Total: (\d+) / (\d+)", out):
         n_reg = int(m.group(1))
     n_files = 0
+    n_files_total = 0
     out = sh("zig", "build", "-Dnetwork=false", "test-files")
     totals = re.findall(r"Total: (\d+) / (\d+)", out)
     if totals:
-        n_files = int(totals[-1][0])
+        # Somme de tous les "Total: X / Y" (une par fichier de tests)
+        n_files = sum(int(t[0]) for t in totals)
+        n_files_total = sum(int(t[1]) for t in totals)
     f["tests_heaven"] = str(n_reg + n_files)
     f["tests_heaven_regression"] = str(n_reg)
     f["tests_heaven_files"] = str(n_files)
@@ -55,7 +58,7 @@ def extract_facts():
 
     # test-regression / test-files : valeurs string pour README
     f["test_regression"] = f"{n_reg}/{n_reg}" if n_reg else "?"
-    f["test_files"] = f"{n_files}/{n_files}" if n_files else "?"
+    f["test_files"] = f"{n_files}/{n_files_total}" if n_files_total else "?"
     f["test_files_count"] = str(len(list(Path("tests").glob("*.hvn"))))
 
     return f
