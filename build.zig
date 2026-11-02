@@ -434,6 +434,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const prolog_mod = b.createModule(.{
+        .root_source_file = b.path("src/runtime/prolog.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "platform", .module = platform_mod },
+        },
+    });
+
     const canon_mod = b.createModule(.{
         .root_source_file = b.path("src/core/canon.zig"),
         .target = target,
@@ -619,6 +628,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "platform", .module = platform_mod },
         },
     });
+    prolog_mod.addImport("matrix_lib", matrix_mod);
 
     const synthesis_mod = b.createModule(.{
         .root_source_file = b.path("src/inference/neural/synthesis.zig"),
@@ -1104,6 +1114,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "hole_runtime", .module = hole_runtime_mod },
             .{ .name = "std_loader", .module = std_loader_mod },
             .{ .name = "kanren_expr", .module = kanren_expr_mod },
+            .{ .name = "prolog", .module = prolog_mod },
             .{ .name = "import", .module = import_mod },
             .{ .name = "diff", .module = diff_mod },
         },
@@ -1208,6 +1219,7 @@ pub fn build(b: *std.Build) void {
                     .{ .name = "bridge_expr", .module = bridge_mod },
                     .{ .name = "headers", .module = headers_mod },
                     .{ .name = "kanren_expr", .module = kanren_expr_mod },
+                    .{ .name = "prolog", .module = prolog_mod },
                     .{ .name = "egraph", .module = egraph_mod },
                     .{ .name = "codegen_expr_c", .module = codegen_expr_c_mod },
                     .{ .name = "codegen_expr_latex", .module = codegen_expr_latex_mod },
@@ -1546,6 +1558,7 @@ pub fn build(b: *std.Build) void {
     test_he_imports.append(b.allocator, .{ .name = "diff", .module = diff_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "serialize", .module = serialize_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "kanren_expr", .module = kanren_expr_mod }) catch unreachable;
+    test_he_imports.append(b.allocator, .{ .name = "prolog", .module = prolog_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "unify_proof", .module = unify_proof_mod }) catch unreachable;
     test_he_imports.append(b.allocator, .{ .name = "hole", .module = hole_mod }) catch unreachable;
 

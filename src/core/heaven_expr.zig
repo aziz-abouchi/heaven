@@ -54,6 +54,7 @@ const import_mod = @import("import");
 const diff_mod = @import("diff");
 const ImportState = import_mod.ImportState;
 const kanren_expr_mod = @import("kanren_expr"); // Deplace dans src/logic/
+const prolog_mod = @import("prolog"); // Prolog magic MVP strict (2026-11-02)
 const unify_proof_mod = @import("tactics").unify_proof;
 const hole_runtime_mod = @import("hole_runtime");
 
@@ -264,6 +265,7 @@ pub const Heaven = struct {
     /// Etape 1 pipeline logique unifie (kanren_expr) : faits + query
     /// par pattern matching simple (SLD sans regles pour l'instant).
     kanren: kanren_expr_mod.Kanren,
+    prolog: prolog_mod.PrologEngine,
     /// v2b : heads des domaines d'une signature (`sig f : A -> B -> C`
     /// stocke `"A B"`).
     fn_domains: std.StringHashMapUnmanaged([]const u8) = .{},
@@ -308,6 +310,7 @@ pub const Heaven = struct {
             .hole_runtime = undefined,
             .type_registry = type_registry_mod.TypeRegistry.init(allocator),
             .kanren = undefined,
+            .prolog = undefined,
             .loading_modules = .{},
         };
 
@@ -318,6 +321,7 @@ pub const Heaven = struct {
             &self.last_root_expr,
         );
         self.kanren = kanren_expr_mod.Kanren.init(store, allocator);
+        self.prolog = prolog_mod.PrologEngine.init(allocator);
 
         self.hole_runtime = hole_runtime_mod.HoleRuntime.init(
             store,
@@ -332,6 +336,8 @@ pub const Heaven = struct {
             .deriveId = deriveIdHeavenExpr,
             .simplify = simplifyHeavenExpr,
             .kanren_query = kanrenQueryHeavenExpr,
+            .prolog_fact = prologFactHeavenExpr,
+            .prolog_query = prologQueryHeavenExpr,
         };
 
         // Initialiser l'engine DANS self.engine (champ stable du heap)
@@ -624,6 +630,7 @@ pub const Heaven = struct {
         }
         self.imported_files.deinit(self.allocator);
         self.kanren.deinit();
+        self.prolog.deinit();
         self.type_registry.deinit();
         {
             var alias_it = self.type_aliases.iterator();
@@ -4495,6 +4502,54 @@ fn kanrenQueryHeavenExpr(ctx: *anyopaque, store: *Store, args: []const Id) engin
     var stream = heaven.kanren.queryPattern(pat) catch return error.OutOfMemory;
     defer stream.deinit();
     return store.int(@intCast(stream.len())) catch error.OutOfMemory;
+}
+
+fn prologFactHeavenExpr(ctx: *anyopaque, store: *Store, args: []const Id) engine_expr.EvalError!expr.Id {
+    const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));
+    if (args.len < 1 or args.len - 1 > 8) return error.InvalidInput;
+    const head_node = store.get(args[0]);
+    if (head_node.tag != .sym) return error.InvalidInput;
+    const pred = store.interner.resolve(head_node.payload);
+
+    var arg_strs: [8][]const u8 = undefined;
+    var arg_bufs: [8][24]u8 = undefined;
+    const n = args.len - 1;
+    for (args[1..], 0..) |arg_id, i| {
+        const node = store.get(arg_id);
+        switch (node.tag) {
+            .sym => arg_strs[i] = store.interner.resolve(node.payload),
+            .lit, .int => arg_strs[i] = std.fmt.bufPrint(&arg_bufs[i], "{d}", .{store.lits.items[node.aux].int}) catch return error.InvalidInput,
+            else => return error.InvalidInput,
+        }
+    }
+    heaven.prolog.addFactDup(pred, arg_strs[0..n]) catch return error.OutOfMemory;
+    return store.int(1) catch error.OutOfMemory;
+}
+
+fn prologQueryHeavenExpr(ctx: *anyopaque, store: *Store, args: []const Id) engine_expr.EvalError!expr.Id {
+    const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));
+    if (args.len < 1 or args.len - 1 > 8) return error.InvalidInput;
+    const head_node = store.get(args[0]);
+    if (head_node.tag != .sym) return error.InvalidInput;
+    const pred = store.interner.resolve(head_node.payload);
+
+    var goal: prolog_mod.PrologAtom = .{ .pred = pred, .args = undefined, .arity = @intCast(args.len - 1) };
+    var arg_bufs: [8][24]u8 = undefined;
+    const n = args.len - 1;
+    for (args[1..], 0..) |arg_id, i| {
+        const node = store.get(arg_id);
+        switch (node.tag) {
+            .sym => goal.args[i] = store.interner.resolve(node.payload),
+            .lit, .int => goal.args[i] = std.fmt.bufPrint(&arg_bufs[i], "{d}", .{store.lits.items[node.aux].int}) catch return error.InvalidInput,
+            else => return error.InvalidInput,
+        }
+    }
+    var j: usize = n;
+    while (j < 8) : (j += 1) goal.args[j] = "";
+
+    var results = heaven.prolog.solve(goal, heaven.allocator);
+    defer results.deinit(heaven.allocator);
+    return store.int(@intCast(results.items.len)) catch error.OutOfMemory;
 }
 
 fn parseHeavenExpr(ctx: *anyopaque, input: []const u8) engine_expr.EvalError!expr.Id {

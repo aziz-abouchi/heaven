@@ -1,0 +1,27 @@
+-- tests/test_prolog.hvn — prolog magic (2026-11-02 soir)
+-- Syntaxe : `(@prolog_fact pred a1 a2 ...)` — arity 0..8
+--           `(@prolog_query pred p1 p2 ...)` — nombre de solutions
+-- Variables Prolog = A-Z strict (isVariable, prolog.zig:364)
+-- MVP strict V0 : wildcard `_` NON supporté (TODO V1)
+
+-- ─── Fait 0-arg ───
+(@prolog_fact test_pluie)
+test "prolog_0arg": (@prolog_query test_pluie) == 1
+test "prolog_0arg_absent": (@prolog_query test_neige) == 0
+
+-- ─── Fait 1-arg ───
+(@prolog_fact test_mortel socrate)
+(@prolog_fact test_mortel platon)
+test "prolog_socrate": (@prolog_query test_mortel socrate) == 1
+test "prolog_absent": (@prolog_query test_mortel aristote) == 0
+
+-- ─── Var Prolog (majuscule) ───
+test "prolog_var": (@prolog_query test_mortel X) == 2
+
+-- ─── Int comme arg ───
+(@prolog_fact test_age socrate 70)
+test "prolog_int": (@prolog_query test_age socrate 70) == 1
+test "prolog_int_miss": (@prolog_query test_age socrate 80) == 0
+
+-- ─── Prédicat distinct ───
+test "prolog_other_pred": (@prolog_query test_autre socrate) == 0

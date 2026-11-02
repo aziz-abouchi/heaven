@@ -176,6 +176,11 @@ pub const HeavenVTable = struct {
     /// Retourne le nombre de solutions comme Id entier.
     /// Nullable — les tests et le bootstrap peuvent la laisser null.
     kanren_query: ?*const fn (*anyopaque, *Store, []const Id) EvalError!Id = null,
+    /// Prolog magic — MVP strict V0 (2026-11-02 soir).
+    /// @prolog_fact / @prolog_query. Args A-Z = variables, autres = constantes.
+    /// Wildcard `_` NON supporté (isVariable=A-Z strict, prolog.zig:364).
+    prolog_fact: ?*const fn (*anyopaque, *Store, []const Id) EvalError!Id = null,
+    prolog_query: ?*const fn (*anyopaque, *Store, []const Id) EvalError!Id = null,
 };
 
 // Vtable factice pour les tests (ne devrait jamais être appelée)
@@ -1857,6 +1862,20 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // l'intercepter au niveau evalMagic est sur.
     if (std.mem.eql(u8, op, "query")) {
         if (engine.vtable.kanren_query) |f| {
+            return f(engine.heaven_ctx, store, args_snap);
+        }
+        return error.UnknownSymbol;
+    }
+
+    // ═══ PROLOG MAGIC (2026-11-02 soir) — MVP strict ═══
+    if (std.mem.eql(u8, op, "@prolog_fact")) {
+        if (engine.vtable.prolog_fact) |f| {
+            return f(engine.heaven_ctx, store, args_snap);
+        }
+        return error.UnknownSymbol;
+    }
+    if (std.mem.eql(u8, op, "@prolog_query")) {
+        if (engine.vtable.prolog_query) |f| {
             return f(engine.heaven_ctx, store, args_snap);
         }
         return error.UnknownSymbol;

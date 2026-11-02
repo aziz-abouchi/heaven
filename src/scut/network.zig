@@ -4,7 +4,7 @@ const routing = @import("routing.zig");
 const task_lib = @import("task");
 const matrix_lib = @import("matrix_lib");
 const egraph_mod = @import("egraph");
-const prolog = @import("../runtime/prolog.zig");
+const prolog = @import("prolog");
 const dispatch = @import("../core/dispatch.zig");
 const platform = @import("platform");
 

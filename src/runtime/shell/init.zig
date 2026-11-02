@@ -9,7 +9,7 @@ const proof_lib = @import("proof");
 const skill_lib = @import("skill");
 const heaven_lib = @import("../heaven.zig");
 const autofab_lib = @import("../autofab.zig");
-const prolog_lib = @import("../prolog.zig");
+const prolog_lib = @import("prolog");
 const run_mod = @import("run.zig");
 const triple_store_lib = @import("triple_store");
 
