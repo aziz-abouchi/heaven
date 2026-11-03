@@ -29,3 +29,23 @@ test "propagate2": (P.cell_val (P.propagate2 (P.cell "x" 5) add10 add100)) == 11
 -- ─── Ordre induit ───
 test "cell_le": (P.cell_le (P.cell "x" 3) (P.cell "x" 7)) == true
 test "cell_not_le": (P.cell_le (P.cell "x" 7) (P.cell "x" 3)) == false
+
+-- ─── V1.1 : semilattice min (ordre inversé) ───
+test "v11_min_commutatif":
+  (P.cell_val (P.cell_merge_min (P.cell "x" 3) (P.cell "x" 7))) ==
+  (P.cell_val (P.cell_merge_min (P.cell "x" 7) (P.cell "x" 3)))
+test "v11_min_associatif":
+  (P.cell_val (P.cell_merge_min (P.cell_merge_min (P.cell "x" 1) (P.cell "x" 2)) (P.cell "x" 3))) ==
+  (P.cell_val (P.cell_merge_min (P.cell "x" 1) (P.cell_merge_min (P.cell "x" 2) (P.cell "x" 3))))
+test "v11_min_idempotent": (P.cell_val (P.cell_merge_min (P.cell "x" 5) (P.cell "x" 5))) == 5
+
+-- ─── V1.1 : semilattice or (0 <= 1) ───
+test "v11_or_commutatif":
+  (P.cell_val (P.cell_merge_or (P.cell "x" 0) (P.cell "x" 1))) ==
+  (P.cell_val (P.cell_merge_or (P.cell "x" 1) (P.cell "x" 0)))
+test "v11_or_associatif":
+  (P.cell_val (P.cell_merge_or (P.cell_merge_or (P.cell "x" 1) (P.cell "x" 0)) (P.cell "x" 1))) ==
+  (P.cell_val (P.cell_merge_or (P.cell "x" 1) (P.cell_merge_or (P.cell "x" 0) (P.cell "x" 1))))
+test "v11_or_idempotent": (P.cell_val (P.cell_merge_or (P.cell "x" 1) (P.cell "x" 1))) == 1
+test "v11_or_zero_one": (P.cell_val (P.cell_merge_or (P.cell "x" 0) (P.cell "x" 1))) == 1
+

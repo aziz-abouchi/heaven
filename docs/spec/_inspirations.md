@@ -29,6 +29,33 @@ actuelle. Aucune n'est "reportee" : elles sont rejetees.
 | Hare -- philosophie | Rejetee | Trop eloignee, aucun apport architectural |
 | V (vlang) | Rejetee | Promesses non tenues, pas de lecon structurelle |
 
+## Adoptions actées
+
+Ces inspirations ont été examinées et **introduites** dans l'architecture,
+avec trigger et effort.
+
+| Inspiration | Décision | Raison | Livrable |
+|---|---|---|---|
+| Radul & Sussman — propagation architecture (cellules + propagateurs) | Adopter | Unifie egraph + kanren + ontologies sous un modèle monotone. Pas de 7e primitive (pair + lambda suffisent). | `_propagators.md` V0 (2026-11-02) |
+
+### Radul & Sussman — A Generic Propagation Architecture
+
+**Décision.** Adopté. V0 (`lib/heaven_propagator.hvn`, 14/14 tests)
+livre cellules + merge + propagation. V1.1 (2026-11-03) ajoute
+`cell_merge_with` générique + semilattices `min`/`or`.
+
+**Trigger de vérification.** Les 4 lois (commutativité, associativité,
+idempotence, monotonie) doivent être testées sur chaque semilattice
+avant extension (kanren, prolog, ontologies). V1.2 : union ensembliste
++ `watch` (fold) — reportés faute de lib listes/fold.
+
+**Effort.** V0 fait. V1.1 fait. V1.2 : 1 session. V2 : 1-2 sessions.
+
+**Voir aussi.** `docs/spec/_propagators.md`, `lib/heaven_propagator.hvn`,
+`tests/test_propagator.hvn`.
+
+---
+
 ## Coffre -- reports avec trigger
 
 Chaque entree porte : pourquoi pas maintenant, trigger verifiable,
