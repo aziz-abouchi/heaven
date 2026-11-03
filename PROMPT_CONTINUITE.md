@@ -12,7 +12,7 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Binaire : ./zig-out/bin/heaven (jamais dans le PATH)
 - Livre : docs/book/src/ - specs : docs/spec/
 
-## État au 2026-11-02 (nuit, dernier commit 77da824)
+## État au 2026-11-03 (matin, dernier commit c32b67a)
 
 | Métrique | Valeur |
 |---|---|
@@ -36,6 +36,10 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 **Kanren** (93bcfc0 + 5ec2e10 + e0465cf) : tests/test_kanren.hvn 6 → 18 tests (wildcards _ et N-args validés). Faux diagnostic #6 tombé : _ est un hole frais par arg (core/hole.zig:50, next_id += 1), pas un symbole partagé. kanrenQueryHeavenExpr (core/heaven_expr.zig:4488) ne fait aucun traitement spécial - inutile, unify(hole_frais, arg) réussit. features_smoke.hvn 44/44.
 
+**Propagators V1.1** (bea2b3f) : `cell_merge_with` générique + semilattices `min_int` / `or_bool`. 7 tests ajoutés (`tests/test_propagator.hvn` 14 → 21). Reportés V1.2 : `union_list`, `watch` (nécessitent `lib/legacy/list.hvn` ou `core/std/list.hvn` — existent).
+
+**Formalisation** (f3d837b + 747d4f3) : ch. 41 squelette (`docs/book/src/41-semantique-formelle.md`, 8 sections, style Pony/CompCert) + `_core_syntax.md` v0.1 — 3 couches (kernel CIC réel / runtime / HoTT cible), `[À VÉRIFIER]` : Σ, J, Prop imprédicatif.
+
 **Prolog V1** (77da824) : wildcard `_` en query. `_` = hole frais -> variable Prolog `Q0`, `Q1`, ... via `hole_counter` local dans `prologQueryHeavenExpr` (car `rename_counter` est reset par `solve()`). 7 tests wildcard ajoutés (`tests/test_prolog.hvn` 8 -> 15).
 
 **Prolog magic** (8ea2f05) : @prolog_fact / @prolog_query, MVP strict, 8/8 (tests/test_prolog.hvn).
@@ -51,9 +55,11 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 ## Prochains chantiers (dans l'ordre)
 
-1. **Propagators V1** (2-3 sessions) : unifier egraph + kanren + ontologies sous lib/heaven_propagator.hvn. Voir _propagators.md.
+1. **Propagators V1.2** (1 session) : `union_list` semilattice + `watch` (fold). Source : `lib/legacy/list.hvn` ou `core/std/list.hvn` (à importer). Voir _propagators.md.
 
-2. **Prolog V2** (optionnel) : unification multi-args avec var Prolog explicite + facts multi-args.
+2. **Formalisation C** (1-2 sessions) : `_core_typing.md` — règles de typage §1 (Pi, univers, quotients, Eq/refl).
+
+3. **Prolog V2** (optionnel) : unification multi-args avec var Prolog explicite + facts multi-args.
 
 ## Pièges à retenir (annexe G)
 
