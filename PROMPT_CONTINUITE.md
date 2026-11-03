@@ -53,6 +53,27 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 **Docs** : _propagators.md, _inspirations.md, _logic.md (priorite Propagators V1, kanren + prolog resolus), _syntax_gaps.md (kanren + features_parent résolus), _runtime_gaps.md, MIR_CONTRACT.md §6.
 
+## P0 — État 2026-11-03 soir (90% fait)
+
+**Livré** :
+- `scripts/test_all_hvn.sh` : lance 163 tests .hvn bloquants, mode **informatif** (non branché `check_all`).
+- `scripts/test_all_hvn_known_fails.txt` : whitelist 4 tests (bigint D20 + 3 négatifs mal classés).
+- `zig build test` : **VERT** (à reconfirmer après rollback).
+
+**Whitelist actuelle** :
+- `tests/test_bigint_d20.hvn` — D20 stack + ExecutionFailed silent (`_bigint_d20_stack.md`).
+- `tests/imports/cyc_a.hvn`, `cyc_b.hvn` — cycle d'import (✗ attendu, test négatif).
+- `tests/imports/exp_util.hvn` — export hors import = no-op (✗ attendu), **référencé par `heaven_expr.zig:5815`**.
+
+**P0.5 — Chantiers avant intégration `check_all`** :
+1. **Bigint D20** : fix `bdiv` itératif (`_bigint_d20_stack.md` choix B) ou whitelist permanente.
+2. **Reclassement négatif propre** : bouger `cyc_a/b` + `exp_util` vers `tests/negative/imports/` ET adapter les tests Zig (`heaven_expr.zig:5316, :5815`) qui référencent ces chemins en dur. 1 session.
+3. **Intégration `test_all_hvn.sh` dans `check_all.sh`** une fois 1+2 verts.
+
+**Ne PAS** relancer `scripts/infix_migrate.py` sur `lib/heaven_eval.hvn` ou `lib/heaven_parse.hvn` sans réparer `needs_parens` (cf. leçon midi).
+
+**Bug documenté non-fixé** : `+` sur bigint n'est pas supporté (`(to_int (+ (from_int 3) (from_int 4)))` ≠ 7). À vérifier : primitives bigint exposées (`badd`? ou rien?). Non-bloquant.
+
 ## Prochains chantiers (dans l'ordre)
 
 1. **Propagators V1.2** (1 session) : `union_list` semilattice + `watch` (fold). Source : `lib/legacy/list.hvn` ou `core/std/list.hvn` (à importer). Voir _propagators.md.
