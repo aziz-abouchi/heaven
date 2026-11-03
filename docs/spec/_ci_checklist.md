@@ -1,5 +1,5 @@
 <!-- HEAVEN:ci-checklist -->
-# Checklist pre-commit (a jour 2026-10-16)
+# Checklist pre-commit (a jour 2026-11-03)
 
 Le commit c03c1aa a passe 5/5 en local mais echoue en CI (fixture non
 versionnee). Le commit ad24926 a passe test-files mais echoue en CI
@@ -24,6 +24,19 @@ Toutes vertes. Pas d'exception. `test-files` seul ne suffit PAS
 `bash scripts/ci-preflight.sh` simule un checkout propre et lance
 build+test-files. Voir ci-dessus pour les 3 autres commandes.
 
+## Tests .hvn exhaustifs — `scripts/test_all_hvn.sh` (2026-11-03)
+
+`check_all.sh` ne couvre que ~5 fichiers `.hvn` sur 247 (audit 2026-11-03).
+Script complémentaire couvre **165 tests .hvn bloquants** :
+
+    scripts/test_all_hvn.sh
+
+- Lance `tests/*.hvn` + `imports/`, `hvn_pl/`, `optics/`, `hab/`, `eval/`.
+- Whitelist `scripts/test_all_hvn_known_fails.txt` (bigint D20, cyc_a/b, exp_util).
+- Timeout 10s, exit 1 si échec.
+- **Complémentaire**, pas remplacement de `ci-preflight.sh`.
+- À intégrer dans `check_all.sh` une fois whitelists résolues (P0.5).
+
 ## Historique des pieges
 
 | Commit | Cause | Cout |
@@ -41,7 +54,7 @@ Les 5 commandes ci-dessus ne sont obligatoires que si un fichier
 |---|---|
 | `.zig` modifie | les 5 (build, test, test-files, wasm-fs, wasm-wasi) |
 | `.hvn` modifie, importe par aucun test | aucun build ; relancer le test qui l'utilise si pertinent |
-| `.hvn` modifie, importe par un test | `./zig-out/bin/heaven --run-tests tests` (binaire direct, pas de build) |
+| `.hvn` modifie, importe par un test | `./zig-out/bin/heaven --run-tests tests` (binaire direct) **ou** `scripts/test_all_hvn.sh` (scope complet, whitelist) |
 | `.hvn` + `.zig` melanges | les 5 |
 
 Raison : le binaire `heaven` est un interpreteur. Tant qu'il n'est

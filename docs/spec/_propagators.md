@@ -91,8 +91,11 @@ Un propagateur est valide s'il ne fait qu'**ajouter** de l'information
 
 **V1.1 (fait 2026-11-03)** : `cell_merge_with` générique +
 semilattices `min_int` et `or_bool`. 7 tests supplémentaires
-(21/21 total). Reportés V1.2 : `union_list` (pas de lib listes
-dans `lib/`), `watch` (pas de `fold`).
+(21/21 total).
+
+**V1.2 (fait 2026-11-03, `e71851b`)** : `union_list` semilattice
+(`nub (append a b)`) + `watch` (fold via `foldl`). 6 tests (27/27 total).
+Import implicite `core/std/list.hvn` (`module List` non-préfixé).
 
 **V2 (programmation courante, 1-2 sessions)** :
 - API utilisateur : `cell`, `propagate`, `watch`

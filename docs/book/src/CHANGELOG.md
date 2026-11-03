@@ -1,3 +1,35 @@
+## 2026-11-03 (mardi) — Propagators V1.2 + Prolog V1 + formalisation + audit CI
+
+### Propagators
+- **V1.2** (`e71851b`) : `union_list` + `watch`. 27/27 tests.
+- **V1.1** (`bea2b3f`) : `cell_merge_with` + `min_int`/`or_bool`. 21/21.
+- Migration infixe complète (`5a2b81f`) : propagator + tests.
+
+### Prolog
+- **V1 wildcard** (`77da824`) : `_` → `Q0`/`Q1` via `hole_counter`. 15/15.
+
+### Formalisation
+- **Ch. 41 squelette** (`f3d837b`) : `41-semantique-formelle.md` (8 sections).
+- **`_core_syntax.md` v0.1** (`747d4f3`) : 3 couches (kernel CIC / runtime / HoTT cible).
+
+### Audit CI — P0
+- **`scripts/test_all_hvn.sh`** (`55f96c7`) : 165 tests .hvn (contre 3 avant),
+  whitelist 4 documentés.
+- Reclassement `cyc_a/b`/`exp_util` : rollback `c3f54b3` (fixtures Zig
+  `heaven_expr.zig:5316, :5815`), whitelistés.
+- Régression rollbackée : `heaven_eval` (541044f) + `heaven_parse` (f218117)
+  — bug `needs_parens`, voir G.43.
+
+### Livre
+- `G-pieges.md` : **G.42** (`git add` silencieux) + **G.43** (`needs_parens`).
+
+### P0.5 — suivants
+- Fix bigint D20 (itératif ou whitelist permanente).
+- Reclassement négatif propre (fixtures Zig à adapter).
+- Intégration `test_all_hvn.sh` dans `check_all.sh`.
+
+---
+
 ## 2026-11-02 (lundi) — Resync + [32] + G.37/G.39 fermés
 
 ### Resync (dette de crédibilité)

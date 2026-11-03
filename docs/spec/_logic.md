@@ -98,7 +98,10 @@ D2 fermée (avec cette nuance).
   - Args : `.sym` → string, `.lit` (et `.int`) → `store.lits.items[aux].int`.
   - `.hole` rejeté (`InvalidInput`) — V0 strict.
   - Variables Prolog = `A-Z` strict (`isVariable`, `prolog.zig:364`).
-  - Wildcard `_` en query : **non supporté** (V1 : mapper hole → `Q0/Q1`).
+  - ✅ **Wildcard `_` en query (V1, 2026-11-03, `77da824`, 15/15 tests)** :
+    `_` = hole frais → variable Prolog `Q0`, `Q1`, ... via `hole_counter`
+    local dans `prologQueryHeavenExpr` (`rename_counter` de `PrologEngine`
+    est reset à 0 par `solve()`, donc compteur local obligatoire).
   - **Piège** : int args taggés `.lit` (payload=0), valeur dans
     `store.lits.items[aux].int`.
 

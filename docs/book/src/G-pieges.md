@@ -580,3 +580,35 @@ payload et aux de chaque arg.
 `store.lits.items[node.aux].int`, jamais `payload`. Le piège vaut
 au-delà de Prolog (kanren query avec int, bridge C, etc.).
 
+
+### G.42 — `git add` avec chemin inexistant échoue TOUT l'add
+
+Si un `git add` liste plusieurs fichiers et qu'un seul n'existe pas
+(souvent après un `git mv`), tout l'add échoue silencieusement.
+Vérifier après chaque add :
+
+    git status --porcelain | grep '^??'
+
+Si un fichier attendu apparaît en `??`, l'add a raté. `git add -f` s'il
+est gitignored, ou corriger le chemin.
+
+Cas vécu 2026-11-03 : scripts/test_all_hvn.sh et test_all_hvn_known_fails.txt
+restés untracked sur 97805a6 et c3f54b3, commités seulement avec `git add -f`.
+
+### G.43 — `needs_parens` du script infix n'entoure pas les args infixes
+
+`scripts/infix_migrate.py` transforme `(f x (+ y z))` en `f x y + z`,
+qui parse comme `(f x y) + z` au lieu de `f x (y + z)`.
+
+Cause : `needs_parens(x)` ne détecte pas les opérateurs infixes dans x.
+
+Fix : dans `needs_parens`, ajouter
+
+    if any(f' {op} ' in x for op in OPS_INFIX): return True
+
+Cas vécu : migration `lib/heaven_eval.hvn` + `lib/heaven_parse.hvn`
+cassée, rollbackée (541044f, f218117). `(lex_loop s (+ i 1) acc)` devenu
+`(lex_loop s i + 1 acc)` qui parse comme `((lex_loop s i) + 1) acc`.
+
+Règle : avant tout nouveau batch `infix_migrate.py`, réparer `needs_parens`
+et tester sur `lex "(== 1 1)"` et `prim_ops _ = cons "+" (cons ...)`.
