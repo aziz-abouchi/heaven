@@ -14,26 +14,26 @@
 data Tok = TIntTok Int | TSymTok Str | TStrTok Str | TLParen | TRParen
 data Toks = TNil | TCons Tok Toks
 
-lex_is_space b = if (= b 32) then true else if (= b 9) then true else if (= b 10) then true else (= b 13)
-lex_is_digit b = if b < 48 then false else b <= 57
-lex_is_symchar b = if (lex_is_space b) then false else if (= b 40) then false else if (= b 41) then false else if (= b 34) then false else true
-lex_is_upper s = if ((peek_byte (string_ptr s) 0)) >= 65 then ((peek_byte (string_ptr s) 0)) <= 90 else false
+lex_is_space b = (if (= b 32) true (if (= b 9) true (if (= b 10) true (= b 13))))
+lex_is_digit b = (if (< b 48) false (<= b 57))
+lex_is_symchar b = (if (lex_is_space b) false (if (= b 40) false (if (= b 41) false (if (= b 34) false true))))
+lex_is_upper s = (if (>= (peek_byte (string_ptr s) 0) 65) (<= (peek_byte (string_ptr s) 0) 90) false)
 
-lex s  = toks_rev (lex_loop s 0 TNil) TNil
+lex s = (toks_rev (lex_loop s 0 TNil) TNil)
 toks_rev TNil acc = acc
-toks_rev (TCons t rest) acc  = toks_rev rest (TCons t acc)
-lex_str_token s i = (TStrTok (string_substring s i + 1 ((lex_str_end s i + 1)) - (i + 1)))
-lex_str_after s i = ((lex_str_end s i + 1)) + 1
-lex_comment_end s i = if i >= ((string_length s)) then i else if (= (peek_byte (string_ptr s) i) 10) then i + 1 else (lex_comment_end s i + 1)
-lex_loop s i acc = if i >= ((string_length s)) then acc else if (lex_is_space (peek_byte (string_ptr s) i)) then (lex_loop s i + 1 acc) else if (= (peek_byte (string_ptr s) i) 40) then (lex_loop s i + 1 (TCons TLParen acc)) else if (= (peek_byte (string_ptr s) i) 41) then (lex_loop s i + 1 (TCons TRParen acc)) else if (= (peek_byte (string_ptr s) i) 34) then (lex_loop s (lex_str_after s i) (TCons (lex_str_token s i) acc)) else if (lex_is_dashdash s i) then (lex_loop s (lex_comment_end s i + 2) acc) else if (lex_is_0x s i) then (lex_loop s (lex_hex_end s i) (TCons (TSymTok (string_substring s i ((lex_hex_end s i)) - i)) acc)) else if (lex_is_digit (peek_byte (string_ptr s) i)) then (lex_loop s (lex_int_end s i) (TCons (TIntTok (lex_int_val s i (lex_int_end s i) 0)) acc)) else (lex_loop s (lex_sym_end s i) (TCons (TSymTok (string_substring s i ((lex_sym_end s i)) - i)) acc))
+toks_rev (TCons t rest) acc = (toks_rev rest (TCons t acc))
+lex_str_token s i = (TStrTok (string_substring s (+ i 1) (- (lex_str_end s (+ i 1)) (+ i 1))))
+lex_str_after s i = (+ (lex_str_end s (+ i 1)) 1)
+lex_comment_end s i = (if (>= i (string_length s)) i (if (= (peek_byte (string_ptr s) i) 10) (+ i 1) (lex_comment_end s (+ i 1))))
+lex_loop s i acc = (if (>= i (string_length s)) acc (if (lex_is_space (peek_byte (string_ptr s) i)) (lex_loop s (+ i 1) acc) (if (= (peek_byte (string_ptr s) i) 40) (lex_loop s (+ i 1) (TCons TLParen acc)) (if (= (peek_byte (string_ptr s) i) 41) (lex_loop s (+ i 1) (TCons TRParen acc)) (if (= (peek_byte (string_ptr s) i) 34) (lex_loop s (lex_str_after s i) (TCons (lex_str_token s i) acc)) (if (lex_is_dashdash s i) (lex_loop s (lex_comment_end s (+ i 2)) acc) (if (lex_is_0x s i) (lex_loop s (lex_hex_end s i) (TCons (TSymTok (string_substring s i (- (lex_hex_end s i) i))) acc)) (if (lex_is_digit (peek_byte (string_ptr s) i)) (lex_loop s (lex_int_end s i) (TCons (TIntTok (lex_int_val s i (lex_int_end s i) 0)) acc)) (lex_loop s (lex_sym_end s i) (TCons (TSymTok (string_substring s i (- (lex_sym_end s i) i))) acc))))))))))
 
-lex_is_dashdash s i = if (= (peek_byte (string_ptr s) i) 45) then if (i + 1) < ((string_length s)) then (= (peek_byte (string_ptr s) i + 1) 45) else false else false
+lex_is_dashdash s i = (if (= (peek_byte (string_ptr s) i) 45) (if (< (+ i 1) (string_length s)) (= (peek_byte (string_ptr s) (+ i 1)) 45) false) false)
 
-lex_int_end s i = if i >= ((string_length s)) then i else if (lex_is_digit (peek_byte (string_ptr s) i)) then (lex_int_end s i + 1) else i
-lex_int_val s i j acc = if i >= j then acc else (lex_int_val s i + 1 j (acc * 10) + (((peek_byte (string_ptr s) i)) - 48))
+lex_int_end s i = (if (>= i (string_length s)) i (if (lex_is_digit (peek_byte (string_ptr s) i)) (lex_int_end s (+ i 1)) i))
+lex_int_val s i j acc = (if (>= i j) acc (lex_int_val s (+ i 1) j (+ (* acc 10) (- (peek_byte (string_ptr s) i) 48))))
 
-lex_sym_end s i = if i >= ((string_length s)) then i else if (lex_is_symchar (peek_byte (string_ptr s) i)) then (lex_sym_end s i + 1) else i
-lex_str_end s i = if i >= ((string_length s)) then i else if (= (peek_byte (string_ptr s) i) 34) then i else (lex_str_end s i + 1)
+lex_sym_end s i = (if (>= i (string_length s)) i (if (lex_is_symchar (peek_byte (string_ptr s) i)) (lex_sym_end s (+ i 1)) i))
+lex_str_end s i = (if (>= i (string_length s)) i (if (= (peek_byte (string_ptr s) i) 34) i (lex_str_end s (+ i 1))))
 
 tok_eq (TIntTok a) (TIntTok b) = (= a b)
 tok_eq (TSymTok a) (TSymTok b) = (= a b)
@@ -43,14 +43,14 @@ tok_eq TRParen TRParen = true
 tok_eq _ _ = false
 
 toks_eq TNil TNil = true
-toks_eq (TCons a ra) (TCons b rb) = if (tok_eq a b) then (toks_eq ra rb) else false
+toks_eq (TCons a ra) (TCons b rb) = (if (tok_eq a b) (toks_eq ra rb) false)
 toks_eq _ _ = false
 
 tok_count TNil = 0
-tok_count (TCons _ rest) = 1 + ((tok_count rest))
+tok_count (TCons _ rest) = (+ 1 (tok_count rest))
 tok_count_go TNil acc = acc
-tok_count_go (TCons _ rest) acc  = tok_count_go rest acc + 1
-tok_count_big ts  = tok_count_go ts 0
+tok_count_go (TCons _ rest) acc = (tok_count_go rest (+ acc 1))
+tok_count_big ts = (tok_count_go ts 0)
 -- lib/parser.hvn (Jalon 3, phase B — self-parse)
 -- Tokens -> Expr (les primitives comme ADT). Style UNE LIGNE (import).
 -- v0 : params symboles seulement (patterns = B-v1). `if`/`=` sont des
@@ -63,84 +63,85 @@ data Exprs = ENil | ECons Expr Exprs
 data Strs = SNil | SCons Str Strs
 
 parse_one TNil = (PErr "fin de flux")
-parse_one (TCons t rest)  = parse_tok t rest
+parse_one (TCons t rest) = (parse_tok t rest)
 
 parse_tok (TIntTok n) rest = (POk (ELitI n) rest)
 parse_tok (TStrTok s) rest = (POk (ELitS s) rest)
 parse_tok (TSymTok s) rest = (POk (ESym s) rest)
-parse_tok TLParen rest  = parse_head rest
+parse_tok TLParen rest = (parse_head rest)
 parse_tok TRParen rest = (PErr "RParen inattendu")
 
-parse_head ts = let r = (parse_one ts) in (parse_head2 r)
+parse_head ts = (let r (parse_one ts) (parse_head2 r))
 parse_head2 (PErr e) = (PErr e)
-parse_head2 (POk h ts)  = parse_args h ts
+parse_head2 (POk h ts) = (parse_args h ts)
 
-parse_args h ts = let r = (parse_arglist ts) in (parse_args2 h r)
+parse_args h ts = (let r (parse_arglist ts) (parse_args2 h r))
 parse_args2 h (PErr e) = (PErr e)
 parse_args2 h (POk as rest) = (POk (build_apply h as) rest)
 
 parse_arglist (TCons TRParen rest) = (POk ENil rest)
-parse_arglist ts = let r = (parse_one ts) in (parse_arglist2 r)
+parse_arglist ts = (let r (parse_one ts) (parse_arglist2 r))
 parse_arglist2 (PErr e) = (PErr e)
-parse_arglist2 (POk a ts) = let r2 = (parse_arglist ts) in (parse_arglist3 a r2)
+parse_arglist2 (POk a ts) = (let r2 (parse_arglist ts) (parse_arglist3 a r2))
 parse_arglist3 a (PErr e) = (PErr e)
 parse_arglist3 a (POk as rest) = (POk (ECons a as) rest)
 
 build_apply f ENil = f
-build_apply f (ECons a rest)  = build_apply (EApply f a) rest
+build_apply f (ECons a rest) = (build_apply (EApply f a) rest)
 
-parse_top (TCons (TSymTok name) TNil)  = parse_one (TCons (TSymTok name) TNil)
-parse_top (TCons (TSymTok name) rest)  = top_named name rest
-parse_top ts  = parse_one ts
-top_named name rest = if (= name "test") then (test_scan rest) else if (= name "import") then (import_scan rest) else if (= name "data") then (data_scan rest) else (def_scan name SNil rest)
+parse_top (TCons (TSymTok name) TNil) = (parse_one (TCons (TSymTok name) TNil))
+parse_top (TCons (TSymTok name) rest) = (top_named name rest)
+parse_top ts = (parse_one ts)
+top_named name rest = (if (= name "test") (test_scan rest) (if (= name "import") (import_scan rest) (if (= name "data") (data_scan rest) (def_scan name SNil rest))))
 
-test_scan ts  = test_scan2 (tok_head ts) (tok_tail ts)
-test_scan2 (TStrTok name) rest  = test_colon name rest
+test_scan ts = (test_scan2 (tok_head ts) (tok_tail ts))
+test_scan2 (TStrTok name) rest = (test_colon name rest)
 test_scan2 t rest = (PErr "nom de test attendu")
-test_colon name ts = if (tok_eq (tok_head ts) (TSymTok ":")) then (test_body name (tok_tail ts)) else (PErr "double-point attendu")
-test_body name ts = let r = (parse_one ts) in (test_body2 name r)
+test_colon name ts = (if (tok_eq (tok_head ts) (TSymTok ":")) (test_body name (tok_tail ts)) (PErr "double-point attendu"))
+test_body name ts = (let r (parse_one ts) (test_body2 name r))
 test_body2 name (PErr e) = (PErr e)
-test_body2 name (POk body rest) = if (tok_eq (tok_head rest) (TSymTok "==")) then (test_val name body (tok_tail rest)) else (PErr "double == attendu")
-test_val name body ts = let r = (parse_one ts) in (test_val2 name body r)
+test_body2 name (POk body rest) = (if (tok_eq (tok_head rest) (TSymTok "==")) (test_val name body (tok_tail rest)) (PErr "double == attendu"))
+test_val name body ts = (let r (parse_one ts) (test_val2 name body r))
 test_val2 name body (PErr e) = (PErr e)
 test_val2 name body (POk expected rest) = (POk (ETest name body expected) rest)
 
-import_scan ts  = import_scan2 (tok_head ts) (tok_tail ts)
-import_scan2 (TStrTok path) rest  = import_as path rest
+import_scan ts = (import_scan2 (tok_head ts) (tok_tail ts))
+import_scan2 (TStrTok path) rest = (import_as path rest)
 import_scan2 t rest = (PErr "chemin d'import attendu")
-import_as path ts = if (tok_eq (tok_head ts) (TSymTok "as")) then (import_alias path (tok_tail ts)) else (PErr "as attendu")
-import_alias path ts  = import_alias2 path (tok_head ts) (tok_tail ts)
+import_as path ts = (if (tok_eq (tok_head ts) (TSymTok "as")) (import_alias path (tok_tail ts)) (PErr "as attendu"))
+import_alias path ts = (import_alias2 path (tok_head ts) (tok_tail ts))
 import_alias2 path (TSymTok alias) rest = (POk (EImport path alias) rest)
 import_alias2 path t rest = (PErr "alias attendu")
-data_scan ts  = data_scan2 (tok_head ts) (tok_tail ts)
-data_scan2 (TSymTok name) rest  = data_scan_eq name (tok_head rest) (tok_tail rest)
+data_scan ts = (data_scan2 (tok_head ts) (tok_tail ts))
+data_scan2 (TSymTok name) rest = (data_scan_eq name (tok_head rest) (tok_tail rest))
 data_scan2 t rest = (PErr "nom de data attendu")
-data_scan_eq name t rest = if (tok_eq t (TSymTok "=")) then (data_ctors name ENil rest) else (PErr "= attendu apres data")
+data_scan_eq name t rest = (if (tok_eq t (TSymTok "=")) (data_ctors name ENil rest) (PErr "= attendu apres data"))
 data_ctors name acc TNil = (POk (EData name acc) TNil)
-data_ctors name acc ts = if (tok_eq (tok_head ts) (TSymTok "|")) then (data_ctors name acc (tok_tail ts)) else (data_ctors2 name acc (tok_head ts) (tok_tail ts))
-data_ctors2 name acc (TSymTok s) rest = if (lex_is_upper s) then (data_ctors name (ECons (ESym s) acc) rest) else (POk (EData name acc) (TCons (TSymTok s) rest))
+data_ctors name acc ts = (if (tok_eq (tok_head ts) (TSymTok "|")) (data_ctors name acc (tok_tail ts)) (data_ctors2 name acc (tok_head ts) (tok_tail ts)))
+data_ctors2 name acc (TSymTok s) rest = (if (lex_is_upper s) (data_ctors name (ECons (ESym s) acc) rest) (POk (EData name acc) (TCons (TSymTok s) rest)))
 data_ctors2 name acc t rest = (POk (EData name acc) (TCons t rest))
 
 tok_head TNil = TNil
 tok_head (TCons t _) = t
 tok_tail TNil = TNil
 tok_tail (TCons _ r) = r
-def_scan name params ts  = def_scan_eq name params (tok_head ts) (tok_tail ts)
-def_scan_eq name params t rest = if (tok_eq t (TSymTok "=")) then (def_body name params rest) else (def_scan_sym name params t rest)
-def_scan_sym name params (TSymTok s) rest  = def_scan name (SCons s params) rest
-def_scan_sym name params TLParen rest  = def_pat name params "" 1 rest
+def_scan name params ts = (def_scan_eq name params (tok_head ts) (tok_tail ts))
+def_scan_eq name params t rest = (if (tok_eq t (TSymTok "=")) (def_body name params rest) (def_scan_sym name params t rest))
+def_scan_sym name params (TSymTok s) rest = (def_scan name (SCons s params) rest)
+def_scan_sym name params TLParen rest = (def_pat name params "" 1 rest)
 def_scan_sym name params t rest = (PErr "param non-symbole patterns : B-v1")
-def_pat name params acc depth ts = if (tok_eq (tok_head ts) TRParen) then (def_pat_close name params acc depth (tok_tail ts)) else (def_pat_tok name params acc depth (tok_head ts) (tok_tail ts))
-def_pat_close name params acc depth ts = if (= depth 1) then (def_scan name (SCons acc params) ts) else (def_pat name params acc depth - 1 ts)
-def_pat_tok name params acc depth TLParen ts  = def_pat name params acc depth + 1 ts
-def_pat_tok name params acc depth (TSymTok s) ts  = def_pat name params (string_concat (string_concat acc " ") s) depth ts
-def_pat_tok name params acc depth (TIntTok n) ts  = def_pat name params (string_concat (string_concat acc " ") (int_to_string n)) depth ts
+def_pat name params acc depth ts = (if (tok_eq (tok_head ts) TRParen) (def_pat_close name params acc depth (tok_tail ts)) (def_pat_tok name params acc depth (tok_head ts) (tok_tail ts)))
+def_pat_close name params acc depth ts = (if (= depth 1) (def_scan name (SCons acc params) ts) (def_pat name params acc (- depth 1) ts))
+def_pat_tok name params acc depth TLParen ts = (def_pat name params acc (+ depth 1) ts)
+def_pat_tok name params acc depth (TSymTok s) ts = (def_pat name params (string_concat (string_concat acc " ") s) depth ts)
+def_pat_tok name params acc depth (TIntTok n) ts = (def_pat name params (string_concat (string_concat acc " ") (int_to_string n)) depth ts)
 def_pat_tok name params acc depth t ts = (PErr "pattern : token non supporte B-v2")
 
 def_body name params ts =
-  if (tok_eq (tok_head ts) (TSymTok "if")) then  else (def_body_if name params (parse_if ts))
-    (def_body_norm name params ts)
-def_body_norm name params ts = let r = (parse_one ts) in (def_body2 name params r)
+  (if (tok_eq (tok_head ts) (TSymTok "if"))
+    (def_body_if name params (parse_if ts))
+    (def_body_norm name params ts))
+def_body_norm name params ts = (let r (parse_one ts) (def_body2 name params r))
 def_body_if name params (PErr e) = (PErr e)
 def_body_if name params (POk body rest) = (POk (EBind name (lambda_wrap (strs_rev params SNil) body)) rest)
 
@@ -148,18 +149,20 @@ def_body_if name params (POk body rest) = (POk (EBind name (lambda_wrap (strs_re
 -- Declenche uniquement en tete de corps de def (pas dans les S-expr).
 -- Reutilise l'evaluateur existant qui attend curry : if c -> VIf1 c,
 -- VIf1 c a -> VIf2 c a, VIf2 c a b -> eval_if.
-parse_if (TCons (TSymTok "if") rest)  = parse_if_c (parse_one rest)
+parse_if (TCons (TSymTok "if") rest) = (parse_if_c (parse_one rest))
 parse_if ts = (PErr "if attendu")
 parse_if_c (PErr e) = (PErr e)
 parse_if_c (POk cond rest) =
-  if (tok_eq (tok_head rest) (TSymTok "then")) then  else (parse_if_a cond (tok_tail rest))
-    (PErr "then attendu")
-parse_if_a cond ts  = parse_if_a2 cond (parse_one ts)
+  (if (tok_eq (tok_head rest) (TSymTok "then"))
+    (parse_if_a cond (tok_tail rest))
+    (PErr "then attendu"))
+parse_if_a cond ts = (parse_if_a2 cond (parse_one ts))
 parse_if_a2 cond (PErr e) = (PErr e)
 parse_if_a2 cond (POk a rest) =
-  if (tok_eq (tok_head rest) (TSymTok "else")) then  else (parse_if_b cond a (tok_tail rest))
-    (PErr "else attendu")
-parse_if_b cond a ts  = parse_if_b2 cond a (parse_one ts)
+  (if (tok_eq (tok_head rest) (TSymTok "else"))
+    (parse_if_b cond a (tok_tail rest))
+    (PErr "else attendu"))
+parse_if_b cond a ts = (parse_if_b2 cond a (parse_one ts))
 parse_if_b2 cond a (PErr e) = (PErr e)
 parse_if_b2 cond a (POk b rest) =
   (POk (EApply (EApply (EApply (ESym "if") cond) a) b) rest)
@@ -167,40 +170,40 @@ def_body2 name params (PErr e) = (PErr e)
 def_body2 name params (POk body rest) = (POk (EBind name (lambda_wrap (strs_rev params SNil) body)) rest)
 
 strs_rev SNil acc = acc
-strs_rev (SCons s rest) acc  = strs_rev rest (SCons s acc)
+strs_rev (SCons s rest) acc = (strs_rev rest (SCons s acc))
 
 lambda_wrap SNil body = body
 lambda_wrap (SCons p rest) body = (ELambda p (lambda_wrap rest body))
 
 parse_file TNil = ENil
-parse_file ts = let r = (parse_top ts) in (parse_file2 r)
+parse_file ts = (let r (parse_top ts) (parse_file2 r))
 parse_file2 (PErr e) = ENil
 parse_file2 (POk e rest) = (ECons e (parse_file rest))
 
 expr_eq (ELitI a) (ELitI b) = (= a b)
 expr_eq (ELitS a) (ELitS b) = (= a b)
 expr_eq (ESym a) (ESym b) = (= a b)
-expr_eq (EApply f1 a1) (EApply f2 a2) = if (expr_eq f1 f2) then (expr_eq a1 a2) else false
-expr_eq (EBind n1 b1) (EBind n2 b2) = if (= n1 n2) then (expr_eq b1 b2) else false
-expr_eq (ELambda p1 b1) (ELambda p2 b2) = if (= p1 p2) then (expr_eq b1 b2) else false
-expr_eq (EImport p1 a1) (EImport p2 a2) = if (= p1 p2) then (= a1 a2) else false
+expr_eq (EApply f1 a1) (EApply f2 a2) = (if (expr_eq f1 f2) (expr_eq a1 a2) false)
+expr_eq (EBind n1 b1) (EBind n2 b2) = (if (= n1 n2) (expr_eq b1 b2) false)
+expr_eq (ELambda p1 b1) (ELambda p2 b2) = (if (= p1 p2) (expr_eq b1 b2) false)
+expr_eq (EImport p1 a1) (EImport p2 a2) = (if (= p1 p2) (= a1 a2) false)
 expr_eq (EData a _) (EData b _) = (= a b)
-expr_eq (ETest n1 b1 v1) (ETest n2 b2 v2) = if (= n1 n2) then if (expr_eq b1 b2) then (expr_eq v1 v2) else false else false
+expr_eq (ETest n1 b1 v1) (ETest n2 b2 v2) = (if (= n1 n2) (if (expr_eq b1 b2) (expr_eq v1 v2) false) false)
 expr_eq _ _ = false
 
 pok_expr (POk e _) = e
 pok_expr (PErr e) = (ESym "PARSE_ERR")
 
 expr_at ENil n = (ESym "HORS_LIMITE")
-expr_at (ECons e rest) n = if (= n 0) then e else (expr_at rest n - 1)
+expr_at (ECons e rest) n = (if (= n 0) e (expr_at rest (- n 1)))
 expr_count ENil = 0
-expr_count (ECons _ rest) = 1 + ((expr_count rest))
+expr_count (ECons _ rest) = (+ 1 (expr_count rest))
 expr_count_go ENil acc = acc
-expr_count_go (ECons _ rest) acc  = expr_count_go rest acc + 1
-expr_count_big es  = expr_count_go es 0
+expr_count_go (ECons _ rest) acc = (expr_count_go rest (+ acc 1))
+expr_count_big es = (expr_count_go es 0)
 
 -- Hex (famille 2a) : 0x... en un token symbole (v0)
-lex_is_0x s i = if (= (peek_byte (string_ptr s) i) 48) then if (i + 1) < ((string_length s)) then (= (peek_byte (string_ptr s) i + 1) 120) else false else false
-lex_is_hexdigit b = if (lex_is_digit b) then true else if b >= 97 then b <= 102 else if b >= 65 then b <= 70 else false
-lex_hex_end s i = if (i + 2) >= ((string_length s)) then (string_length s) else (lex_hexdigits_end s i + 2)
-lex_hexdigits_end s j = if j >= ((string_length s)) then j else if (lex_is_hexdigit (peek_byte (string_ptr s) j)) then (lex_hexdigits_end s j + 1) else j
+lex_is_0x s i = (if (= (peek_byte (string_ptr s) i) 48) (if (< (+ i 1) (string_length s)) (= (peek_byte (string_ptr s) (+ i 1)) 120) false) false)
+lex_is_hexdigit b = (if (lex_is_digit b) true (if (>= b 97) (<= b 102) (if (>= b 65) (<= b 70) false)))
+lex_hex_end s i = (if (>= (+ i 2) (string_length s)) (string_length s) (lex_hexdigits_end s (+ i 2)))
+lex_hexdigits_end s j = (if (>= j (string_length s)) j (if (lex_is_hexdigit (peek_byte (string_ptr s) j)) (lex_hexdigits_end s (+ j 1)) j))
