@@ -25,3 +25,14 @@ test "prolog_int_miss": (@prolog_query test_age socrate 80) == 0
 
 -- ─── Prédicat distinct ───
 test "prolog_other_pred": (@prolog_query test_autre socrate) == 0
+-- ─── V1 (2026-11-03) : wildcard `_` en query ───
+-- `_` = hole frais par arg, mappe en variable Prolog Q0, Q1, ...
+(@prolog_fact test_2args a b)
+(@prolog_fact test_2args c d)
+test "prolog_wild_all":   (@prolog_query test_2args _ _) == 2
+test "prolog_wild_left":  (@prolog_query test_2args _ b) == 1
+test "prolog_wild_right": (@prolog_query test_2args a _) == 1
+test "prolog_wild_none":  (@prolog_query test_2args a b) == 1
+test "prolog_wild_miss":  (@prolog_query test_2args a d) == 0
+test "prolog_wild_age":   (@prolog_query test_age socrate _) == 1
+test "prolog_wild_age_miss": (@prolog_query test_age platon _) == 0

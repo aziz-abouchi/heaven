@@ -4535,12 +4535,21 @@ fn prologQueryHeavenExpr(ctx: *anyopaque, store: *Store, args: []const Id) engin
 
     var goal: prolog_mod.PrologAtom = .{ .pred = pred, .args = undefined, .arity = @intCast(args.len - 1) };
     var arg_bufs: [8][24]u8 = undefined;
+    var hole_bufs: [8][8]u8 = undefined;
+    var hole_counter: u32 = 0;
     const n = args.len - 1;
     for (args[1..], 0..) |arg_id, i| {
         const node = store.get(arg_id);
         switch (node.tag) {
             .sym => goal.args[i] = store.interner.resolve(node.payload),
             .lit, .int => goal.args[i] = std.fmt.bufPrint(&arg_bufs[i], "{d}", .{store.lits.items[node.aux].int}) catch return error.InvalidInput,
+            .hole => {
+                // V1 (2026-11-03) : wildcard `_` -> variable Prolog fraiche Q0, Q1, ...
+                // hole_counter est local a cet appel (rename_counter de PrologEngine
+                // est reset a 0 par solve() et n'est pas stable avant l'appel).
+                goal.args[i] = std.fmt.bufPrint(&hole_bufs[i], "Q{d}", .{hole_counter}) catch return error.InvalidInput;
+                hole_counter += 1;
+            },
             else => return error.InvalidInput,
         }
     }
