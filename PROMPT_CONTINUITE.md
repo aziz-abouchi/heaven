@@ -12,13 +12,13 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Binaire : ./zig-out/bin/heaven (jamais dans le PATH)
 - Livre : docs/book/src/ - specs : docs/spec/
 
-## État au 2026-11-02 (nuit, dernier commit f11f22e)
+## État au 2026-11-02 (nuit, dernier commit 77da824)
 
 | Métrique | Valeur |
 |---|---|
 | Commits du jour | 35 |
 | Tags du jour | 6 (fix-clauses-32, g37-resolved, g38-resolved, g40-resolved, mir-stub-contract, propagator-v0) |
-| Tests Heaven | 1398 |
+| Tests Heaven | 1412 |
 | CI Zig (zig build test) | vert |
 | check_all.sh | PROJET SAIN (13 OK, 0 FAIL, 3 WARN préexistants) |
 
@@ -36,6 +36,8 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 **Kanren** (93bcfc0 + 5ec2e10 + e0465cf) : tests/test_kanren.hvn 6 → 18 tests (wildcards _ et N-args validés). Faux diagnostic #6 tombé : _ est un hole frais par arg (core/hole.zig:50, next_id += 1), pas un symbole partagé. kanrenQueryHeavenExpr (core/heaven_expr.zig:4488) ne fait aucun traitement spécial - inutile, unify(hole_frais, arg) réussit. features_smoke.hvn 44/44.
 
+**Prolog V1** (77da824) : wildcard `_` en query. `_` = hole frais -> variable Prolog `Q0`, `Q1`, ... via `hole_counter` local dans `prologQueryHeavenExpr` (car `rename_counter` est reset par `solve()`). 7 tests wildcard ajoutés (`tests/test_prolog.hvn` 8 -> 15).
+
 **Prolog magic** (8ea2f05) : @prolog_fact / @prolog_query, MVP strict, 8/8 (tests/test_prolog.hvn).
 - Vtable prolog_fact/prolog_query + dispatch engine_expr.zig (post-query).
 - prologFactHeavenExpr / prologQueryHeavenExpr (heaven_expr.zig, patron kanrenQueryHeavenExpr).
@@ -51,7 +53,7 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 1. **Propagators V1** (2-3 sessions) : unifier egraph + kanren + ontologies sous lib/heaven_propagator.hvn. Voir _propagators.md.
 
-2. **Prolog V1** (optionnel, 1 session) : wildcard _ en query - mapper hole vers variable Prolog fraiche (Q0, Q1, ...). MVP strict actuel : _ = InvalidInput (isVariable = A-Z strict, prolog.zig:364).
+2. **Prolog V2** (optionnel) : unification multi-args avec var Prolog explicite + facts multi-args.
 
 ## Pièges à retenir (annexe G)
 
