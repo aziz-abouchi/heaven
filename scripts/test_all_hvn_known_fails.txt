@@ -1,0 +1,12 @@
+# Tests .hvn hors scope bloquant — bugs documentés, chantiers séparés.
+# Chaque ligne = raison explicite, pas un abandon silencieux.
+
+# D20 : stack overflow bdiv/bmod cumulatif + ExecutionFailed silent
+tests/test_bigint_d20.hvn
+
+# Tests négatifs mal classés — ✗ attendu, framework --run-test ne les
+# supporte pas. Tests Zig du CI les couvrent (heaven_expr.zig:5316, :5815).
+# À reclasser proprement dans tests/negative/ avec imports adaptés.
+tests/imports/cyc_a.hvn
+tests/imports/cyc_b.hvn
+tests/imports/exp_util.hvn
