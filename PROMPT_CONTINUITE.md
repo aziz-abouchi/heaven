@@ -61,6 +61,21 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 3. **Prolog V2** (optionnel) : unification multi-args avec var Prolog explicite + facts multi-args.
 
+## Style `.hvn` et livre (politique 2026-11-03)
+
+**Code `.hvn`** : infixe par défaut. Politique existante : `docs/spec/_style_infix.md`.
+- `if c then a else b` (pas `(if c a b)`) ; chaînage `else if` OK.
+- `a + b`, `a < b`, `a == b` (pas `(+ a b)`, `(< a b)`, `(= a b)`).
+- Appels de fonction : `f x y` ou `(f x y)` — les deux conformes.
+- **Règle boy-scout** : fichier touché dans une session → migré dans le même commit.
+- **16 fichiers** encore en S-expr (sur 152) — migration progressive, 3-4 par session.
+  Liste : `grep -lE '^\s*\([a-z_]+ \(' tests/*.hvn lib/*.hvn core/std/*.hvn 2>/dev/null`
+
+**Livre** — deux registres distincts :
+- Ch. 0–40 : style **LYSE/LYAH** (conversationnel, exemples progressifs, anecdotes, figures). Public prioritaire : littéraires, philosophes, curieux.
+- Ch. 41 (sémantique formelle) : **formel d'abord** (Pony/CompCert), narratif en encadré. Public prioritaire : mathématiciens.
+- Ne pas mélanger les registres : si on écrit du formel, c'est ch. 41 ; si on raconte, c'est 0–40.
+
 ## Pièges à retenir (annexe G)
 
 - G.28 : f = ... top-level crée un thunk. Utiliser f _ = ... ou (f 0).
