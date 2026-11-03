@@ -15,31 +15,67 @@
 
 ### 1.1 Sortes et univers
 
-    Sort ::= Type_i | Prop_i          -- i ∈ ℕ, prédicatif
-    Type_i : Type_{i+1}                -- cumulatif
-    Prop   : Type_0                     -- imprédicatif (à vérifier : actuellement 0 %, cf. _claims_vs_reality:18)
+Conformément à `src/kernel/ast.zig:3-37` :
 
-Vérification croisée : `elab.zig:808` `getUniverse(level: u32)`, `elab.zig:815` `universeLevel(id)`.
+    UniverseLevel ::= concrete(n)          -- n ∈ ℕ
+                    | max(UniverseLevel, UniverseLevel)
+
+    Sort ::= prop                          -- Prop unique (non levelé dans le kernel actuel)
+           | type_sort(UniverseLevel)      -- Type_i, i ∈ ℕ
+
+    Type_i : Type_{i+1}                    -- hiérarchie via concrete(n+1)
+    Prop : Type_0                           -- Prop au niveau 0 (imprédicatif à préciser)
+
+**Ce que ça implique** : le kernel est un **CIC à univers hiérarchiques + Prop non-levelé**
+— plus proche de Coq que de HoTT. `max(a, b)` est calculé explicitement
+(`ast.zig:20`), ce qui permet les bornes supérieures de niveaux (règle Pi).
+
+Vérification croisée runtime : `elab.zig:808` `getUniverse(level)`,
+`elab.zig:815` `universeLevel(id)` — côté évaluateur, `Type n` est un
+`apply(sym "Type", int n)`, `Prop` = `sym "Prop"` retournant 0.
+
+**À vérifier (§41.3)** : `Prop` est-il imprédicatif dans `checkSortLeq`
+(`typechecker.zig:57`) ?
 
 ### 1.2 Termes
 
-    Term ::= x                          -- variable
-           | Type_i                     -- sorte
-           | Π (x : A) . B              -- type dépendant (produit)
-           | λ (x : A) . t              -- abstraction
-           | t u                         -- application
-           | Σ (x : A) . B              -- paire dépendante
-           | (t, u)                      -- introduction Σ
-           | π₁ t | π₂ t                 -- projections
-           | Eq (A) (a) (b)              -- égalité (propositionnelle)
-           | refl (A) (a)                -- réflexivité
-           | J (A) (a) (C) (d) (b) (p)   -- éliminateur Eq (à vérifier : présentation)
-           | nat | zero | succ t         -- Peano
-           | Quot (A) (R)                -- quotient (kernel.zig:8)
-           | [t] | quo t                 -- classes / représentants
+Conformément à `src/kernel/ast.zig:39-...` :
 
-Vérification croisée : `src/kernel/ast.zig` (à inspecter — cf. commande Bloc 3),
-`src/kernel/peano.zig:32` (`refl : Eq(a,a)`), `src/kernel/typechecker.zig:166`.
+    Term ::= sort(Sort)                          -- Type_i, Prop
+           | variable(n : usize)                 -- De Bruijn (index)
+           | pi(name, A : Term, B : Term)        -- Π (x : A) . B
+           | lambda(name, A : Term, t : Term)    -- λ (x : A) . t
+           | app(f : Term, u : Term)             -- t u
+
+           -- Quotients (CIC, kernel.zig:8)
+           | quot(A : Term, R : Term)            -- Quot(A, R)
+           | class(Q : Term, x : Term)           -- [x] dans Quot(A, R)
+           | lift(Q, B, f, proof)                -- éliminateur du quotient
+
+           -- Égalité intensionnelle (CIC, pas HoTT)
+           | eq(A : Term, a : Term, b : Term)    -- Eq A a b
+           | refl(...)                            -- refl A a
+
+    -- Peano (`peano.zig`, module séparé) :
+    --   nat, zero, succ, eq_rect_nat, add, mul, ...
+    --   encodés DANS peano.zig, pas dans ast.zig (Church/Scott ou natifs,
+    --   à vérifier — cf. peano.zig:32, :155)
+
+**Ce qui n'est PAS dans `ast.zig`** (contrairement au draft v0) :
+- ❌ `Σ (Sigma)` — pas de paire dépendante visible dans les 40 premières
+  lignes inspectées. À chercher dans le reste de `ast.zig` ou ailleurs
+  (`test_pi.zig` suggère que seul Pi est testé).
+- ❌ `J` / `eq_rect` — pas vu dans `ast.zig` ; le kernel a `refl` mais
+  l'éliminateur Eq est peut-être `eq_rect_nat` (peano.zig:909) ou
+  implicite.
+- ❌ `nat`, `zero`, `succ` dans le Term — Peano vit dans `peano.zig`.
+
+Vérification croisée : `src/kernel/typechecker.zig:166` (`refl` typé
+`Eq A a a`), `src/kernel/peano.zig:32`, `:155`, `:909`.
+
+**Action §41.3** : lister exhaustivement les variants de `Term`
+via `grep -c '^    [a-z_]' src/kernel/ast.zig` — la présentation
+ici est un sous-ensemble, pas l'inventaire complet.
 
 ### 1.3 Contextes et jugements
 
