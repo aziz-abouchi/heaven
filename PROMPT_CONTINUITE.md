@@ -12,15 +12,15 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Binaire : ./zig-out/bin/heaven (jamais dans le PATH)
 - Livre : docs/book/src/ - specs : docs/spec/
 
-## État au 2026-11-02 (nuit, dernier commit 8ea2f05)
+## État au 2026-11-02 (nuit, dernier commit f11f22e)
 
 | Métrique | Valeur |
 |---|---|
-| Commits du jour | 31 |
+| Commits du jour | 35 |
 | Tags du jour | 6 (fix-clauses-32, g37-resolved, g38-resolved, g40-resolved, mir-stub-contract, propagator-v0) |
 | Tests Heaven | 1398 |
 | CI Zig (zig build test) | vert |
-| check_all.sh | PROJET SAIN (12 OK, 0 FAIL, 4 WARN préexistants) |
+| check_all.sh | PROJET SAIN (13 OK, 0 FAIL, 3 WARN préexistants) |
 
 ## Ce qui a été livré le 2026-11-02
 
@@ -36,13 +36,22 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 **Kanren** (93bcfc0 + 5ec2e10 + e0465cf) : tests/test_kanren.hvn 6 → 18 tests (wildcards _ et N-args validés). Faux diagnostic #6 tombé : _ est un hole frais par arg (core/hole.zig:50, next_id += 1), pas un symbole partagé. kanrenQueryHeavenExpr (core/heaven_expr.zig:4488) ne fait aucun traitement spécial - inutile, unify(hole_frais, arg) réussit. features_smoke.hvn 44/44.
 
-**Docs** : _propagators.md, _inspirations.md, _logic.md (priorité Prolog magic + Propagators V1, kanren résolu), _syntax_gaps.md (kanren + features_parent résolus), _runtime_gaps.md, MIR_CONTRACT.md §6.
+**Prolog magic** (8ea2f05) : @prolog_fact / @prolog_query, MVP strict, 8/8 (tests/test_prolog.hvn).
+- Vtable prolog_fact/prolog_query + dispatch engine_expr.zig (post-query).
+- prologFactHeavenExpr / prologQueryHeavenExpr (heaven_expr.zig, patron kanrenQueryHeavenExpr).
+- Args : .sym -> string, .lit (et .int) -> store.lits.items[aux].int via bufPrint. .hole rejete (InvalidInput).
+- Module prolog dans build.zig (createModule + addImport differe matrix_lib) ; imports cross-module reconcilies (scut/network.zig, shell/init.zig).
+- Piege cle : int args tagges .lit (payload=0, valeur dans store.lits.items[aux].int). Voir annexe G.
+
+**Docs post-livraison** (869db1f + f11f22e) : _logic.md (kanren + prolog resolus), heaven.md §9 (Prolog magic), G-pieges.md G.41 (piege .lit), README/STATUS regen.
+
+**Docs** : _propagators.md, _inspirations.md, _logic.md (priorite Propagators V1, kanren + prolog resolus), _syntax_gaps.md (kanren + features_parent résolus), _runtime_gaps.md, MIR_CONTRACT.md §6.
 
 ## Prochains chantiers (dans l'ordre)
 
-1. **Prolog magic** (1 session) : exposer @prolog_fact / @prolog_query dans engine_expr.zig:1859 (même bloc que query, patron kanrenQueryHeavenExpr heaven_expr.zig:4488). src/runtime/prolog.zig a déjà solve, addFact, parseRule. Vtable à ajouter sur Engine.vtable (à côté de kanren_query, ligne 178).
+1. **Propagators V1** (2-3 sessions) : unifier egraph + kanren + ontologies sous lib/heaven_propagator.hvn. Voir _propagators.md.
 
-2. **Propagators V1** (2-3 sessions) : unifier egraph + kanren + ontologies sous lib/heaven_propagator.hvn. Voir _propagators.md.
+2. **Prolog V1** (optionnel, 1 session) : wildcard _ en query - mapper hole vers variable Prolog fraiche (Q0, Q1, ...). MVP strict actuel : _ = InvalidInput (isVariable = A-Z strict, prolog.zig:364).
 
 ## Pièges à retenir (annexe G)
 
@@ -53,16 +62,18 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - pair est paresseux : forcer avec (fst (force ...)) ou lambda.
 - (= X Y) préfixe marche, mais X == Y infixe est plus sûr dans les cascades if.
 - _ top-level = hole frais par arg (pas de wildcard dans unify, pas besoin).
+- Int arg = .lit, pas .int - payload=0, valeur dans store.lits.items[aux].int. Vaut pour Prolog magic (et probablement ailleurs).
 
 ## Méthode (discipline tenue le 2026-11-02)
 
-**Reproduire avant de patcher.** Chaque fix confirmé par trace (debug.print + HEAVEN_TRACE=1) ou probe minimal. **6 faux diagnostics corrigés** :
+**Reproduire avant de patcher.** Chaque fix confirmé par trace (debug.print + HEAVEN_TRACE=1) ou probe minimal. **7 faux diagnostics corrigés** :
 - [32] (plafond clauses) pas le parser
 - docgen.py (somme des Total:) pas les tests
 - label_arr_pat correct, pas extract_first_label
 - G.39 = [16], pas le host parser
 - bdiv 1000 = bug bdivmod_step (pas fuel), puis fixé par rebuild
 - kanren wildcard = jamais reproduit (query test_mortel _ _ → 2 solutions, features_smoke.hvn 44/44). Le diagnostic « 0 solution » était une prédiction non testée, pas une observation.
+- prolog int-query = 3 fausses pistes (payload, node.int, mauvais chemin lits[aux].int) avant que platform.debug.print ne donne tag=lit payload=0 aux=409.
 
 **Committer par petits blocs verts**, avec tests, doc honnête (_runtime_gaps.md, _claims_vs_reality.md). Ne pas précipiter les features dans un contexte saturé.
 
@@ -77,7 +88,7 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
   python3 scripts/docgen.py
   python3 scripts/status_gen.py
 
-**Commencer par** : git status + git log --oneline -8 pour confirmer l'état, puis Prolog magic (chantier #1).
+**Commencer par** : git status + git log --oneline -8 pour confirmer l'état, puis Propagators V1 (chantier #1).
 
 ---
 
