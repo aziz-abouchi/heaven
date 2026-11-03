@@ -54,39 +54,39 @@ test "v11_or_zero_one": (P.cell_val (P.cell_merge_or (P.cell "x" 0) (P.cell "x" 
 -- Les lois sont observées via (length), invariant ensembliste.
 
 test "v12_union_idem":
-  (length (P.cell_val (P.cell_merge_union
+  length (P.cell_val (P.cell_merge_union
     (P.cell "x" (cons 1 (cons 2 nil)))
-    (P.cell "x" (cons 1 (cons 2 nil)))))) == (succ (succ zero))
+    (P.cell "x" (cons 1 (cons 2 nil))))) == succ (succ zero)
 
 test "v12_union_commut_len":
-  (length (P.cell_val (P.cell_merge_union
+  length (P.cell_val (P.cell_merge_union
     (P.cell "x" (cons 1 (cons 2 nil)))
-    (P.cell "x" (cons 2 (cons 3 nil)))))) ==
-  (length (P.cell_val (P.cell_merge_union
+    (P.cell "x" (cons 2 (cons 3 nil))))) ==
+  length (P.cell_val (P.cell_merge_union
     (P.cell "x" (cons 2 (cons 3 nil)))
-    (P.cell "x" (cons 1 (cons 2 nil))))))
+    (P.cell "x" (cons 1 (cons 2 nil)))))
 
 test "v12_union_assoc_len":
-  (length (P.cell_val (P.cell_merge_union
+  length (P.cell_val (P.cell_merge_union
     (P.cell_merge_union
       (P.cell "x" (cons 1 nil))
       (P.cell "x" (cons 2 nil)))
-    (P.cell "x" (cons 3 nil))))) ==
-  (length (P.cell_val (P.cell_merge_union
+    (P.cell "x" (cons 3 nil)))) ==
+  length (P.cell_val (P.cell_merge_union
     (P.cell "x" (cons 1 nil))
     (P.cell_merge_union
       (P.cell "x" (cons 2 nil))
-      (P.cell "x" (cons 3 nil))))))
+      (P.cell "x" (cons 3 nil)))))
 
 test "v12_union_card":
-  (length (P.cell_val (P.cell_merge_union
+  length (P.cell_val (P.cell_merge_union
     (P.cell "x" (cons 1 (cons 2 nil)))
-    (P.cell "x" (cons 2 (cons 3 nil)))))) == (succ (succ (succ zero)))
+    (P.cell "x" (cons 2 (cons 3 nil))))) == succ (succ (succ zero))
 
 -- ─── V1.2 : watch (chaîne de propagateurs) ───
 test "v12_watch_1":
-  (P.cell_val (P.watch (P.cell "x" 5) (cons add10 nil))) == 15
+  P.cell_val (P.watch (P.cell "x" 5) (cons add10 nil)) == 15
 
 test "v12_watch_2":
-  (P.cell_val (P.watch (P.cell "x" 5) (cons add10 (cons add100 nil)))) == 115
+  P.cell_val (P.watch (P.cell "x" 5) (cons add10 (cons add100 nil))) == 115
 

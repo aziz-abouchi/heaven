@@ -5,7 +5,7 @@
 -- Pas de 7e primitive : tout est pair + lambda + if.
 
 -- ─── Cellule ───
-cell id v = (pair id v)
+cell id v = pair id v
 cell_id (pair id _) = id
 cell_val (pair _ v) = v
 
@@ -18,13 +18,13 @@ cell_merge a b =
 
 -- ─── Propagateur ───
 -- prop = lambda (cell -> cell). propagate applique et merge.
-propagate c prop = (cell_merge c (prop c))
+propagate c prop = cell_merge c (prop c)
 
 -- ─── Propagation en chaîne (2 sauts) ───
-propagate2 c p1 p2 = (propagate (propagate c p1) p2)
+propagate2 c p1 p2 = propagate (propagate c p1) p2
 
 -- ─── Treillis : ordre induit par merge (a <= b ssi merge a b = b) ───
-cell_le a b = (cell_val (cell_merge a b)) == (cell_val b)
+cell_le a b = cell_val (cell_merge a b) == cell_val b
 
 -- ═══ V1.1 : merge générique (2026-11-03) ═══
 -- cell_merge_with : paramétré par une fn binaire qui doit satisfaire
@@ -32,29 +32,29 @@ cell_le a b = (cell_val (cell_merge a b)) == (cell_val b)
 -- V0 cell_merge reste compatible (= max), cf. tests.
 
 cell_merge_with merge_fn a b =
-  (pair (cell_id a) (merge_fn (cell_val a) (cell_val b)))
+  pair (cell_id a) (merge_fn (cell_val a) (cell_val b))
 
 -- Semilattice max (rétrocompat V0)
 max_int a b = if a < b then b else a
-cell_merge_max a b = (cell_merge_with max_int a b)
+cell_merge_max a b = cell_merge_with max_int a b
 
 -- Semilattice min (ordre inversé : a <=_min b ssi a >= b)
 min_int a b = if a < b then a else b
-cell_merge_min a b = (cell_merge_with min_int a b)
+cell_merge_min a b = cell_merge_with min_int a b
 
 -- Semilattice booléen (or : 0 <= 1)
 or_bool a b = if a == 1 then 1 else if b == 1 then 1 else 0
-cell_merge_or a b = (cell_merge_with or_bool a b)
+cell_merge_or a b = cell_merge_with or_bool a b
 
 -- ═══ V1.2 : semilattice ensembliste + watch (2026-11-03) ═══
 -- union_list : union sans doublons (nub déduplique).
 -- Astuce : ordre de sortie dépend de l'ordre d'entrée, mais |_| est
 -- invariant. Les lois (idem / comm / assoc) se testent via (length).
-union_list a b = (nub (append a b))
-cell_merge_union a b = (cell_merge_with union_list a b)
+union_list a b = nub (append a b)
+cell_merge_union a b = cell_merge_with union_list a b
 
 -- watch : applique une liste de propagateurs en chaîne.
 -- Équivalent à (propagate ... (propagate c p1) ... pN).
-apply_prop acc p = (propagate acc p)
-watch c props = (foldl apply_prop c props)
+apply_prop acc p = propagate acc p
+watch c props = foldl apply_prop c props
 
