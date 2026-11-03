@@ -76,6 +76,27 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Ch. 41 (sémantique formelle) : **formel d'abord** (Pony/CompCert), narratif en encadré. Public prioritaire : mathématiciens.
 - Ne pas mélanger les registres : si on écrit du formel, c'est ch. 41 ; si on raconte, c'est 0–40.
 
+
+## Leçon 2026-11-03 (midi) — migration infixe trop risquée
+
+**Statut** : `scripts/infix_migrate.py` est **conservé** mais la migration
+de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
+(commits `541044f` et à venir). Les deux fichiers sont en S-expr d'origine.
+
+**Ce qui casse** :
+- `heaven_eval.hvn` : `prim_ops _ = (cons "+" ...)` → version infixe perd `"+"` de la liste.
+- `heaven_parse.hvn` : `lex_loop` (10 if imbriqués) → parse cassé, 3 tests vides, eval import cassé.
+
+**Règle** : **NE PAS** relancer `infix_migrate.py` sur ces 2 fichiers sans :
+1. Diagnostiquer la cause précise sur un cas minimal (`lex "(== 1 1)"`).
+2. Réécrire le script si le bug est dans le script.
+3. `--run-test` sur le fichier ET tous les tests qui l'importent.
+
+**Tests qui importent `heaven_eval.hvn`** (à lancer ensemble) :
+`tests/test_diff_e.hvn`, `test_eval.hvn`, `test_heaven_eval_prims.hvn`, `test_meta_data.hvn`, `test_meta_if.hvn`, `test_parse_infix.hvn`.
+
+**Bilan** : seule `lib/heaven_propagator.hvn` a été migrée avec succès (`5a2b81f`, 27/27 verts). Le script est utile mais doit être testé unitairement avant réutilisation.
+
 ## Pièges à retenir (annexe G)
 
 - G.28 : f = ... top-level crée un thunk. Utiliser f _ = ... ou (f 0).
