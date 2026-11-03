@@ -85,7 +85,7 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
 
 **Ce qui casse** :
 - `heaven_eval.hvn` : `prim_ops _ = (cons "+" ...)` → version infixe perd `"+"` de la liste.
-- `heaven_parse.hvn` : `lex_loop` (10 if imbriqués) → parse cassé, 3 tests vides, eval import cassé.
+- `heaven_parse.hvn` : `lex_loop` (10 if imbriqués) → migration casse `lex_loop` (10 if imbriqués en chaîne), 3 tests vides, eval import cassé.
 
 **Règle** : **NE PAS** relancer `infix_migrate.py` sur ces 2 fichiers sans :
 1. Diagnostiquer la cause précise sur un cas minimal (`lex "(== 1 1)"`).
