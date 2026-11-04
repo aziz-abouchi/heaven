@@ -12,11 +12,11 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Binaire : ./zig-out/bin/heaven (jamais dans le PATH)
 - Livre : docs/book/src/ - specs : docs/spec/
 
-## État au 2026-11-04 (18h30, dernier commit 1dc0117)
+## État au 2026-11-04 (19h, dernier commit 7f473e3)
 
 | Métrique | Valeur |
 |---|---|
-| Commits du jour | 42 (04/11) |
+| Commits du jour | 44 (04/11) |
 | Tags du jour | 6 (fix-clauses-32, g37-resolved, g38-resolved, g40-resolved, mir-stub-contract, propagator-v0) |
 | Tests Heaven | 1446 |
 | CI Zig (zig build test) | vert |
@@ -77,17 +77,18 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 ## Prochains chantiers (MAJ 2026-11-04 14h)
 
-1. **Livre v2** (marathon) — OUTLINE 52 ch + **5 pilotes** style LYAH faits :
+1. **Livre v2 — Partie I COMPLÈTE** (7 chapitres, ~2400 l., 2026-11-04 soir) :
    - `01-pourquoi-heaven.md` (314 l., piège Ménon + capot six primitives)
+   - `02-demarrer.md` (221 l., **from scratch** — install, run, REPL piège TTY, capot read-eval-print)
    - `03-types.md` (563 l., piège Curry + capot QTT spec/runtime)
    - `04-syntaxe.md` (319 l., piège ordre clauses + capot parsing [32])
    - `05-recursion.md` (351 l., piège cas de base + capot TCO)
    - `06-higher-order.md` (357 l., capot `>>>` + piège curry)
-   - Pattern validé 5× (piège + capot + 4 exercices).
+   - `07-modules.md` (263 l., piège `module X` + capot résolution imports)
 
-   **Prochain** : `02-demarrer.md` **from scratch** (v1 = stub 24 l., pas de copie).
-   45-60 min, narrative pure (installation, premier REPL, première fonction), pas d'iframe.
-   Puis `07-modules.md` (copie + pattern, 20-30 min) → Partie I bouclée.
+   Pattern validé 7× (copie + 1 Piège + 1 Capot + 4 exercices, sauf ch2 from-scratch).
+
+   **Prochain** : Partie II (ch8 `08-definir-types` ← `19-algebres`, ch10 `10-structures-recursives` ← `14-recursion-schemes`, ch11-15 garder tel quel). Ou gap #4 curryfication (code).
 
 2. **MPST V2c** (1 session) : récursion `μX. ... X`. V2a fait (`STMulti` + `project_mult`, 14 tests).
    V2b (checker en ligne) bloqué par `_concurrency.md` C1-C5.
@@ -148,6 +149,7 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
 - **P1b `core/std/*`** (`11c4cce`, `116e3f9`) : 7 fichiers migrés (list, base, eq, ord, option, pair, quickcheck). `array`/`string` rollback (G.43, `if` multi-lignes).
 - **Livre v2 — 5 pilotes** (`41201e6`, `afa4f63`, `1dc0117`, + `4d8b9a5`, `e0950b8` du 04/11 matin) : pattern LYAH validé (piège + capot + 4 exercices) sur philosophie, types, syntaxe, récursion, HOF.
 - **OUTLINE cohérent** (`b184228`) : `00c-apps` = annexe F (showcase), ch2 from-scratch (pas de redondance REPL).
+- **Livre v2 — Partie I COMPLÈTE** (`41201e6`, `afa4f63`, `1dc0117`, `11f4b49`, `7f473e3` + `4d8b9a5`, `e0950b8`) : 7 chapitres, ~2400 lignes. Pattern validé 7×.
 
 ## Pièges à retenir (annexe G)
 
@@ -184,7 +186,7 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
   python3 scripts/docgen.py
   python3 scripts/status_gen.py
 
-**Commencer par** : git status + git log --oneline -8, puis **`02-demarrer.md` from scratch** (45-60 min) — seul chapitre de la Partie I non-copiable.
+**Commencer par** : git status + git log --oneline -8, puis **Partie II livre v2** (ch8 `08-definir-types` copie+pattern, 20-30 min) **ou** gap #4 curryfication (code, 1 session).
 
 ---
 
