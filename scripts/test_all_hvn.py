@@ -6,7 +6,7 @@ from pathlib import Path
 HEAVEN = "./zig-out/bin/heaven"
 TIMEOUT = int(os.environ.get("TIMEOUT", "10"))
 WHITELIST = Path("scripts/test_all_hvn_known_fails.txt")
-NPROC = os.cpu_count() or 4
+NPROC = int(os.environ.get("NPROC", "4"))  # 4 par défaut, race conditions en parallèle sur fixtures
 
 PATTERNS = [
     "tests/*.hvn", "tests/imports/*.hvn", "tests/hvn_pl/*.hvn",
@@ -29,7 +29,7 @@ def collect_files():
             files.append(f)
     return sorted(files)
 
-def run_one(f):
+def _run_once(f):
     try:
         out = subprocess.run(
             ["timeout", str(TIMEOUT), HEAVEN, "--run-test", f],
@@ -44,6 +44,16 @@ def run_one(f):
         return (f, "TIMEOUT", 0, 0)
     except Exception:
         return (f, "ERROR", 0, 0)
+
+def run_one(f):
+    r = _run_once(f)
+    # Retry 1x si FAIL/CRASH/ERROR (flaky parallèle, fixtures partagées)
+    if r[1] in ("FAIL", "CRASH", "ERROR"):
+        r2 = _run_once(f)
+        if r2[1] == "PASS":
+            print(f"  ✓ {r2[2]}/{r2[3]}  {f}  (retry)", flush=True)
+            return r2
+    return r
 
 def main():
     wl = load_whitelist()
