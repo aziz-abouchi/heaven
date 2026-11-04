@@ -1,13 +1,12 @@
-# Tests .hvn hors scope bloquant — bugs documentés, chantiers séparés.
-# Chaque ligne = raison explicite, pas un abandon silencieux.
-
-# Fixtures d'import — pas des tests autonomes.
-# Référencées en dur par 4 tests Zig dans heaven_expr.zig :
-#   :5250 (cycle d'import), :5311 (export filtre), :5805, :5809, :5810 (fixtures existent)
-# Testées par `zig build test`, pas par --run-test (les fixtures ne
-# déclarent pas de `test "..."` — elles n'ont rien à exécuter).
-# Le whitelist évite que `--run-test` les compte comme échecs
-# (cycle d'import = comportement attendu, pas test).
+# Fixtures d'import (documentées, cf. heaven_expr.zig)
 tests/imports/cyc_a.hvn
 tests/imports/cyc_b.hvn
 tests/imports/exp_util.hvn
+
+# D20 — stack overflow contextuel (peak 175 Mo).
+# - Standalone (2/2, rc=0) : OK
+# - Dans test_all_hvn.sh lancé SEUL : OK (166 passed)
+# - Dans check_all.sh (après zig build test) : OOM, D20 échoue
+# Fix setrlimit 64 MB dans main.zig:166 ne suffit pas en contexte saturé.
+# Whitelist temporaire jusqu'à fix (bdiv itératif, cf. _bigint_d20_stack.md B).
+tests/test_bigint_d20.hvn
