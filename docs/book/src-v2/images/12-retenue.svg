@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Addition avec retenue
+  </text>
+  <!-- Les deux nombres -->
+  <g font-family="Georgia, serif" font-size="20" fill="#2c2c2c">
+    <text x="150" y="80" text-anchor="end">  1 5</text>
+    <text x="150" y="110" text-anchor="end">+ 2 7</text>
+    <line x1="150" y1="120" x2="250" y2="120" stroke="#2c2c2c" stroke-width="1"/>
+  </g>
+  <!-- Etape 1 : unite -->
+  <g>
+    <text x="300" y="80" font-size="11" fill="#7a3b3b" font-style="italic">Etape 1</text>
+    <text x="300" y="100" font-size="11" fill="#2c2c2c">5 + 7 = 12</text>
+    <text x="300" y="120" font-size="11" fill="#666">on ecrit 2, on retient 1</text>
+  </g>
+  <!-- Etape 2 : dizaine -->
+  <g>
+    <text x="300" y="170" font-size="11" fill="#7a3b3b" font-style="italic">Etape 2</text>
+    <text x="300" y="190" font-size="11" fill="#2c2c2c">1 + 2 + 1 (retenue) = 4</text>
+    <text x="300" y="210" font-size="11" fill="#666">on ecrit 4</text>
+  </g>
+  <!-- Resultat -->
+  <g>
+    <text x="150" y="160" text-anchor="end" font-size="22" fill="#7a3b3b" font-weight="bold">  4 2</text>
+  </g>
+  <text x="250" y="280" text-anchor="middle" font-size="11" fill="#2c2c2c" font-style="italic">
+    La retenue est un etat transmis de droite a gauche.
+  </text>
+  <text x="250" y="305" text-anchor="middle" font-size="10" fill="#666">
+    Chaque etape depend de la precedente : recursion structurelle.
+  </text>
+</svg>
