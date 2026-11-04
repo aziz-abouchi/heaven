@@ -80,3 +80,33 @@ project_side side (STRecv l rest) =
   if side == "recv" then cons l (project_side side rest) else project_side side rest
 project_side side (STSeq a b) = append (project_side side a) (project_side side b)
 project_side side (STChoice a b) = project_side side a
+
+-- ═══ V2a : MPST multipartite (2026-11-04) ═══
+-- STMulti : steps orientés (from, to, label). Projection vers ST binaire.
+-- Syntaxe cible .hvn : MTStep from to label rest
+-- Exemple : A -> B "Hello". B -> C "World". C -> A "Done". end
+-- Reutilise data ST / check / labels (binaire, V0).
+
+data STMulti = MTEnd
+             | MTStep Str Str Str STMulti
+             | MTSeq STMulti STMulti
+             | MTChoice STMulti STMulti
+
+-- Projection : etat local d'un role dans un protocole multipartite.
+-- Etapes qui ne concernent pas le role = skip (projection MPST classique).
+-- Role inconnu -> STEnd (tolerance, pas de crash).
+project_mult role MTEnd = STEnd
+project_mult role (MTStep from to label rest) =
+  if from == role then STSend label (project_mult role rest)
+  else if to == role then STRecv label (project_mult role rest)
+  else project_mult role rest
+project_mult role (MTSeq a b) =
+  STSeq (project_mult role a) (project_mult role b)
+project_mult role (MTChoice a b) =
+  STChoice (project_mult role a) (project_mult role b)
+
+-- Exemple canonique 3-party : A -> B "Hello". B -> C "World". C -> A "Done".
+proto_3 _ = MTStep "A" "B" "Hello"
+              (MTStep "B" "C" "World"
+                (MTStep "C" "A" "Done"
+                  MTEnd))

@@ -1,0 +1,29 @@
+-- tests/test_mpst_multipartite.hvn — MPST V2a (2026-11-04)
+-- Projection multipartite vers ST binaire + check (reutilise V0).
+import "stdlib/mpst.hvn" as M
+
+p3 _ = M.proto_3 0
+
+-- ─── Projections A / B / C ───
+-- A voit : Send "Hello", Recv "Done"
+-- B voit : Recv "Hello", Send "World"
+-- C voit : Recv "World", Send "Done"
+test "proj_A": M.project_mult "A" (p3 0) == M.STSend "Hello" (M.STRecv "Done" M.STEnd)
+test "proj_B": M.project_mult "B" (p3 0) == M.STRecv "Hello" (M.STSend "World" M.STEnd)
+test "proj_C": M.project_mult "C" (p3 0) == M.STRecv "World" (M.STSend "Done" M.STEnd)
+test "proj_unknown": M.project_mult "D" (p3 0) == M.STEnd
+
+-- ─── Check : projection + trace conforme ? ───
+test "check_A": M.check (M.project_mult "A" (p3 0)) (M.TCons "Hello" (M.TCons "Done" M.TNil)) == true
+test "check_B": M.check (M.project_mult "B" (p3 0)) (M.TCons "Hello" (M.TCons "World" M.TNil)) == true
+test "check_C": M.check (M.project_mult "C" (p3 0)) (M.TCons "World" (M.TCons "Done" M.TNil)) == true
+test "check_A_bad": M.check (M.project_mult "A" (p3 0)) (M.TCons "World" (M.TCons "Hello" M.TNil)) == false
+
+-- ─── Compat 2-party : projection = binary ST classique ───
+proto_2party _ = M.MTStep "A" "B" "Ping" (M.MTStep "B" "A" "Pong" M.MTEnd)
+test "proj_2_A": M.project_mult "A" (proto_2party 0) == M.STSend "Ping" (M.STRecv "Pong" M.STEnd)
+test "proj_2_B": M.project_mult "B" (proto_2party 0) == M.STRecv "Ping" (M.STSend "Pong" M.STEnd)
+
+-- ─── Sanity : projection ignore les etapes des autres ───
+-- p3 pour A : seul "Hello" (send) et "Done" (recv) le concernent.
+test "len_A": length (M.labels (M.project_mult "A" (p3 0))) == 2
