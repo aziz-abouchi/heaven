@@ -176,6 +176,22 @@ fi
 
 # ── 7. OUTILS ──────────────────────────────────────
 echo "── OUTILS ──"
+line "tous les tests .hvn (test_all_hvn.sh)"
+if [ -x scripts/test_all_hvn.sh ]; then
+  if scripts/test_all_hvn.sh > /tmp/test_all_hvn.log 2>&1; then
+    T=$(grep -E "✓ [0-9]+ passed" /tmp/test_all_hvn.log | tail -1 | grep -oE "[0-9]+" | head -1)
+    ok
+    echo "    ($T tests .hvn verts)"
+  else
+    FAIL=$((FAIL+1))
+    echo "  ✗ voir /tmp/test_all_hvn.log"
+    grep -A3 "Échecs" /tmp/test_all_hvn.log | head -8
+  fi
+else
+  warn
+  echo "    (scripts/test_all_hvn.sh manquant)"
+fi
+
 line "wasmtime présent"
 command -v wasmtime >/dev/null && ok || warn
 line "QBE vendé"
