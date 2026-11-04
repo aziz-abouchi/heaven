@@ -1,9 +1,13 @@
 # Tests .hvn hors scope bloquant — bugs documentés, chantiers séparés.
 # Chaque ligne = raison explicite, pas un abandon silencieux.
 
-# Tests négatifs mal classés — ✗ attendu, framework --run-test ne les
-# supporte pas. Tests Zig du CI les couvrent (heaven_expr.zig:5316, :5815).
-# À reclasser proprement dans tests/negative/ avec imports adaptés.
+# Fixtures d'import — pas des tests autonomes.
+# Référencées en dur par 4 tests Zig dans heaven_expr.zig :
+#   :5250 (cycle d'import), :5311 (export filtre), :5805, :5809, :5810 (fixtures existent)
+# Testées par `zig build test`, pas par --run-test (les fixtures ne
+# déclarent pas de `test "..."` — elles n'ont rien à exécuter).
+# Le whitelist évite que `--run-test` les compte comme échecs
+# (cycle d'import = comportement attendu, pas test).
 tests/imports/cyc_a.hvn
 tests/imports/cyc_b.hvn
 tests/imports/exp_util.hvn
