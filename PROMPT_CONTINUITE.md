@@ -12,11 +12,11 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Binaire : ./zig-out/bin/heaven (jamais dans le PATH)
 - Livre : docs/book/src/ - specs : docs/spec/
 
-## État au 2026-11-04 (21h, dernier commit 3f59b3f)
+## État au 2026-11-04 (18h, dernier commit be57c1f)
 
 | Métrique | Valeur |
 |---|---|
-| Commits du jour | 58 (04/11) |
+| Commits du jour | 59 (04/11) |
 | Tags du jour | 6 (fix-clauses-32, g37-resolved, g38-resolved, g40-resolved, mir-stub-contract, propagator-v0) |
 | Tests Heaven | 1446 |
 | CI Zig (zig build test) | vert |
@@ -88,7 +88,7 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
    - `06-higher-order.md` (357 l., capot `>>>` + piège curry)
    - `07-modules.md` (263 l., piège `module X` + capot résolution imports)
 
-   **Partie II** (8/9) :
+   **Partie II** (9/9, complète) :
    - `08-definir-types.md` (271 l., **from scratch** — data, arité, capot stockage `ctor`)
    - `09-typeclasses.md` (189 l., ← `19-algebres`, piège instance sans loi + capot dispatch runtime)
    - `11-streams.md` (360 l., ← `07-streams`, piège delay capture l'env + capot thunk 3 états)
@@ -98,7 +98,7 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
    - `14-recursion-schemes.md` (386 l., ← `14`, piège cata non-universel + capot motifs vs magie)
    - `15-categories.md` (441 l., ← `17-categories`, piège Functor≠HKT + capot simulation catégories)
 
-   **Partie II reste** : `16-optiques` (← `15-optiques`).
+   - `16-optiques.md` (367 l., ← `15-optiques`, piège 3 lois lens + capot paire vs Van Laarhoven)
 
    **Partie III** (3/9) :
    - `21a-cooperatif.md` (332 l., ← `13-concurrency` §1-6, piège coopératif≠fair + capot tourniquet)
@@ -168,7 +168,7 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
 - **P1b `core/std/*`** (`11c4cce`, `116e3f9`) : 7 fichiers migrés (list, base, eq, ord, option, pair, quickcheck). `array`/`string` rollback (G.43, `if` multi-lignes).
 - **Livre v2 — 5 pilotes** (`41201e6`, `afa4f63`, `1dc0117`, + `4d8b9a5`, `e0950b8` du 04/11 matin) : pattern LYAH validé (piège + capot + 4 exercices) sur philosophie, types, syntaxe, récursion, HOF.
 - **OUTLINE cohérent** (`b184228`) : `00c-apps` = annexe F (showcase), ch2 from-scratch (pas de redondance REPL).
-- **Livre v2 — 18 chapitres, ~6800 l.** : Partie I (7/7), Partie II (8/9 : ch8/ch10 from-scratch, ch9/ch11/ch12/ch13/ch14/ch15), Partie III (3/9). Mappings corrigés : `19-algebres`→ch9, `14-recursion-schemes`→ch14, `17-categories`→ch15, `15-optiques`→ch16, ch10 from-scratch. Pattern validé 18×.
+- **Livre v2 — 19 chapitres, ~7200 l.** : Partie I (7/7), **Partie II (9/9, complète)**, Partie III (3/9). Mappings corrigés : `19-algebres`→ch9, `14-recursion-schemes`→ch14, `17-categories`→ch15, `15-optiques`→ch16, ch10 from-scratch. Pattern validé 19×.
 
 ## Pièges à retenir (annexe G)
 
@@ -205,7 +205,7 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
   python3 scripts/docgen.py
   python3 scripts/status_gen.py
 
-**Commencer par** : git status + git log --oneline -8, puis **`16-optiques`** ← `15-optiques` (20-25 min) — **Partie II bouclée 9/9**.
+**Commencer par** : git status + git log --oneline -8, puis **Partie III** (`16-effects` ← `06-effects`, copie+pattern, 20-25 min). Partie II complète (9/9).
 
 ---
 
