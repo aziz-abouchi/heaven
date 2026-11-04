@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300" font-family="Georgia, serif">
+  <rect width="500" height="300" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    L'effet est une valeur qu'on manipule
+  </text>
+  <!-- Le meme programme, 3 handlers -->
+  <g>
+    <rect x="180" y="60" width="140" height="40" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="250" y="85" text-anchor="middle" font-size="12" fill="#2c2c2c" font-style="italic">programme</text>
+  </g>
+  <!-- 3 fleches -->
+  <g>
+    <line x1="200" y1="100" x2="100" y2="150" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#ah2)"/>
+    <line x1="250" y1="100" x2="250" y2="150" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#ah2)"/>
+    <line x1="300" y1="100" x2="400" y2="150" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#ah2)"/>
+  </g>
+  <!-- 3 handlers -->
+  <g>
+    <rect x="30" y="160" width="140" height="60" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="100" y="185" text-anchor="middle" font-size="11" fill="#7a3b3b" font-style="italic">handler 1</text>
+    <text x="100" y="205" text-anchor="middle" font-size="10" fill="#666">log vers stdout</text>
+
+    <rect x="180" y="160" width="140" height="60" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="250" y="185" text-anchor="middle" font-size="11" fill="#7a3b3b" font-style="italic">handler 2</text>
+    <text x="250" y="205" text-anchor="middle" font-size="10" fill="#666">log vers fichier</text>
+
+    <rect x="330" y="160" width="140" height="60" fill="#fff" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="400" y="185" text-anchor="middle" font-size="11" fill="#7a3b3b" font-style="italic">handler 3</text>
+    <text x="400" y="205" text-anchor="middle" font-size="10" fill="#666">ignore les logs</text>
+  </g>
+  <text x="250" y="260" text-anchor="middle" font-size="11" fill="#2c2c2c" font-style="italic">
+    Meme programme, trois interpretations differentes.
+  </text>
+  <text x="250" y="285" text-anchor="middle" font-size="10" fill="#666">
+    (Comme un texte qu'on peut lire, traduire, ou ignorer.)
+  </text>
+  <defs>
+    <marker id="ah2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+</svg>
