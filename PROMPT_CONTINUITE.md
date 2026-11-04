@@ -12,11 +12,11 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Binaire : ./zig-out/bin/heaven (jamais dans le PATH)
 - Livre : docs/book/src/ - specs : docs/spec/
 
-## État au 2026-11-04 (18h, dernier commit be57c1f)
+## État au 2026-11-04 (19h30, dernier commit 90d58dd)
 
 | Métrique | Valeur |
 |---|---|
-| Commits du jour | 59 (04/11) |
+| Commits du jour | 62 (04/11) |
 | Tags du jour | 6 (fix-clauses-32, g37-resolved, g38-resolved, g40-resolved, mir-stub-contract, propagator-v0) |
 | Tests Heaven | 1446 |
 | CI Zig (zig build test) | vert |
@@ -100,10 +100,18 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
    - `16-optiques.md` (367 l., ← `15-optiques`, piège 3 lois lens + capot paire vs Van Laarhoven)
 
-   **Partie III** (3/9) :
+   **Partie III** (9/12) :
+   - `16-effects.md` (457 l., ← `06-effects`, piège one-shot vs multi-shot + capot prompts délimités)
+   - `18-errors.md` (207 l., ← `23-validation` §1-4, piège Validation≠Result + capot simulation)
+   - `18b-tools.md` (~100 l., ← `23-validation` outils, mocker/smocker/quickcheck/fuzzer/loadtest)
+   - `19-actors.md` (196 l., intro from scratch + §4 de `09-real-world`, piège lifecycle manuel + capot mailbox/scheduler)
+   - `20-otp.md` (216 l., intro from scratch + v1 65 l. étoffé, piège redémarrage non-exact + capot 3 stratégies)
    - `21a-cooperatif.md` (332 l., ← `13-concurrency` §1-6, piège coopératif≠fair + capot tourniquet)
    - `21b-preemptif.md` (198 l., ← `13-concurrency` §préemption, piège redémarrage≠reprise + capot timer/safepoints)
-   - `21c-parallelisme.md` (225 l., **from scratch** — roadmap 5 niveaux, niveau 0 assumé, piège «ça marche»≠«ça scale», capot `std.Thread` interdit WASM)
+   - `21c-parallelisme.md` (225 l., **from scratch** — roadmap 5 niveaux, niveau 0 assumé)
+   - `22-mpst.md` (210 l., intro from scratch + v1 47 l. étoffé, piège dual≠project_mult + capot post-hoc vs en-ligne)
+
+   **Partie III reste** : `17-handlers` (from scratch, 06b=stub 14 l.), `23-réseau` (fusion `09-real-world` §1-3-5-6 + `24-reseau` + `25-stdlib`), `24-hab` (fusion `27-hab` + `31/32/36/37`).
 
    Pattern validé 12× (Piège + Capot + 4 exercices, copie ou from-scratch).
 
@@ -168,7 +176,7 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
 - **P1b `core/std/*`** (`11c4cce`, `116e3f9`) : 7 fichiers migrés (list, base, eq, ord, option, pair, quickcheck). `array`/`string` rollback (G.43, `if` multi-lignes).
 - **Livre v2 — 5 pilotes** (`41201e6`, `afa4f63`, `1dc0117`, + `4d8b9a5`, `e0950b8` du 04/11 matin) : pattern LYAH validé (piège + capot + 4 exercices) sur philosophie, types, syntaxe, récursion, HOF.
 - **OUTLINE cohérent** (`b184228`) : `00c-apps` = annexe F (showcase), ch2 from-scratch (pas de redondance REPL).
-- **Livre v2 — 19 chapitres, ~7200 l.** : Partie I (7/7), **Partie II (9/9, complète)**, Partie III (3/9). Mappings corrigés : `19-algebres`→ch9, `14-recursion-schemes`→ch14, `17-categories`→ch15, `15-optiques`→ch16, ch10 from-scratch. Pattern validé 19×.
+- **Livre v2 — 25 chapitres, ~9300 l.** : Partie I (7/7), Partie II (9/9), Partie III (9/12). Mappings corrigés : `19-algebres`→ch9, `14-recursion-schemes`→ch14, `17-categories`→ch15, `15-optiques`→ch16, ch10 from-scratch, `23-validation`→split ch18/18b. Pattern validé 25×.
 
 ## Pièges à retenir (annexe G)
 
@@ -205,7 +213,7 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
   python3 scripts/docgen.py
   python3 scripts/status_gen.py
 
-**Commencer par** : git status + git log --oneline -8, puis **Partie III** (`16-effects` ← `06-effects`, copie+pattern, 20-25 min). Partie II complète (9/9).
+**Commencer par** : git status + git log --oneline -8, puis **Partie III reste** : `17-handlers` from scratch (45 min), `23-réseau` fusion (30 min), `24-hab` fusion (30 min) → Partie III bouclée (12/12).
 
 ---
 
