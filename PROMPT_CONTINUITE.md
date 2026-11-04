@@ -12,11 +12,11 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Binaire : ./zig-out/bin/heaven (jamais dans le PATH)
 - Livre : docs/book/src/ - specs : docs/spec/
 
-## État au 2026-11-04 (16h, dernier commit df8cc9f)
+## État au 2026-11-04 (18h30, dernier commit 1dc0117)
 
 | Métrique | Valeur |
 |---|---|
-| Commits du jour | 29 (04/11) |
+| Commits du jour | 42 (04/11) |
 | Tags du jour | 6 (fix-clauses-32, g37-resolved, g38-resolved, g40-resolved, mir-stub-contract, propagator-v0) |
 | Tests Heaven | 1446 |
 | CI Zig (zig build test) | vert |
@@ -77,20 +77,27 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 ## Prochains chantiers (MAJ 2026-11-04 14h)
 
-1. **Livre v2** (marathon, commencé) : OUTLINE 52 chapitres + pilote `05-recursion` faits.
-   Prochain : `06-higher-order` v2 (valider le pattern) puis batch ch.1-7.
-   - `docs/book/src-v2/OUTLINE.md` : plan complet
-   - `docs/book/src-v2/05-recursion.md` : pilote (style LYAH, encadrés Piège/Capot, 4 exercices)
+1. **Livre v2** (marathon) — OUTLINE 52 ch + **5 pilotes** style LYAH faits :
+   - `01-pourquoi-heaven.md` (314 l., piège Ménon + capot six primitives)
+   - `03-types.md` (563 l., piège Curry + capot QTT spec/runtime)
+   - `04-syntaxe.md` (319 l., piège ordre clauses + capot parsing [32])
+   - `05-recursion.md` (351 l., piège cas de base + capot TCO)
+   - `06-higher-order.md` (357 l., capot `>>>` + piège curry)
+   - Pattern validé 5× (piège + capot + 4 exercices).
+
+   **Prochain** : `02-demarrer.md` **from scratch** (v1 = stub 24 l., pas de copie).
+   45-60 min, narrative pure (installation, premier REPL, première fonction), pas d'iframe.
+   Puis `07-modules.md` (copie + pattern, 20-30 min) → Partie I bouclée.
 
 2. **MPST V2c** (1 session) : récursion `μX. ... X`. V2a fait (`STMulti` + `project_mult`, 14 tests).
    V2b (checker en ligne) bloqué par `_concurrency.md` C1-C5.
 
 3. **Formalisation C** (1-2 sessions) : `_core_typing.md` — règles de typage §1. Voir `_core_syntax.md` `[À VÉRIFIER]`.
 
-4. **P1 — `infix_migrate.py`** — PARTIEL 2026-11-04 (`2e0db77`, `c210dcc`, `11c4cce`).
+4. **P1 — `infix_migrate.py`** — PARTIEL 2026-11-04 (`2e0db77`, `c210dcc`, `11c4cce`, `116e3f9`).
    - `needs_parens` réparé + wrap ops/if/let. 11 tests unitaires.
-   - `core/std/{list,base,eq,ord,option,pair}.hvn` migrés (6 fichiers, tests verts).
-   - `heaven_parse` rollback définitif (G.43).
+   - `core/std/{list,base,eq,ord,option,pair,quickcheck}.hvn` migrés (7 fichiers, tests verts).
+   - **NON migrables** (G.43) : `heaven_parse`, `array`, `string` — `if` multi-lignes → `then` vide. Rollback documenté.
    - Restants (probablement non migrables, hors scope) : `hashmap`, `lens`, `match`, `memory`, `free`, `fuzzer`, `loadtest`, `mocker`, `smocker`.
 
 5. **D20 fix** (1 session) : `bdiv` itératif (choix B `_bigint_d20_stack.md`) ou whitelist permanente.
@@ -133,11 +140,14 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
 
 **Bilan** : seule `lib/heaven_propagator.hvn` a été migrée avec succès (`5a2b81f`, 27/27 verts). Le script est utile mais doit être testé unitairement avant réutilisation.
 
-## Résolutions récentes 2026-11-04 (16h)
+## Résolutions récentes 2026-11-04 (18h30)
 
-- **Gap #2 stale** (`04de61c`) : `run` draine **toute** la mailbox (`while (true)`), pas 1 msg. Vérifié : 5 msgs = 15. 4 tests régression (`tests/test_actor_multi_msg.hvn`).
-- **wasmtime cassé** (`df8cc9f`) : `~/.local/bin/wasmtime` a un `ld-linux` GC'd par Guix. **5 FAIL WASM = environnemental, pas Heaven**. `.wasm` se produit en manuel (`zig build -Dtarget=wasm32-freestanding` → 592 KB). Doc dans `_ci_checklist.md`.
+- **Gap #2 stale** (`04de61c`) : `run` draine **toute** la mailbox (`while (true)`). Vérifié 5 msgs = 15. 4 tests régression (`tests/test_actor_multi_msg.hvn`).
+- **wasmtime cassé** (`df8cc9f`) : `ld-linux` GC'd par Guix. **5 FAIL WASM = environnemental, pas Heaven**. `.wasm` se produit en manuel. Doc `_ci_checklist.md`.
 - **`__pycache__`** ignoré (`.gitignore`, `0a17c59`).
+- **P1b `core/std/*`** (`11c4cce`, `116e3f9`) : 7 fichiers migrés (list, base, eq, ord, option, pair, quickcheck). `array`/`string` rollback (G.43, `if` multi-lignes).
+- **Livre v2 — 5 pilotes** (`41201e6`, `afa4f63`, `1dc0117`, + `4d8b9a5`, `e0950b8` du 04/11 matin) : pattern LYAH validé (piège + capot + 4 exercices) sur philosophie, types, syntaxe, récursion, HOF.
+- **OUTLINE cohérent** (`b184228`) : `00c-apps` = annexe F (showcase), ch2 from-scratch (pas de redondance REPL).
 
 ## Pièges à retenir (annexe G)
 
@@ -174,7 +184,7 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
   python3 scripts/docgen.py
   python3 scripts/status_gen.py
 
-**Commencer par** : git status + git log --oneline -8, puis **P0.5 chantier #1** (bigint D20 + reclassement négatif + intégration check_all).
+**Commencer par** : git status + git log --oneline -8, puis **`02-demarrer.md` from scratch** (45-60 min) — seul chapitre de la Partie I non-copiable.
 
 ---
 
