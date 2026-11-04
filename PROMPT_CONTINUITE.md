@@ -12,15 +12,15 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Binaire : ./zig-out/bin/heaven (jamais dans le PATH)
 - Livre : docs/book/src/ - specs : docs/spec/
 
-## État au 2026-11-03 (soir, dernier commit ae35c5c)
+## État au 2026-11-04 (14h, dernier commit e074b06)
 
 | Métrique | Valeur |
 |---|---|
-| Commits du jour | ~40 |
+| Commits du jour | ~16 (04/11) |
 | Tags du jour | 6 (fix-clauses-32, g37-resolved, g38-resolved, g40-resolved, mir-stub-contract, propagator-v0) |
-| Tests Heaven | 1418 |
+| Tests Heaven | 1432 |
 | CI Zig (zig build test) | vert |
-| check_all.sh | PROJET SAIN (13 OK, 0 FAIL, 3 WARN préexistants) |
+| check_all.sh | PROJET SAIN (14 OK, 0 FAIL, 3 WARN, ~1m25) |
 
 ## Ce qui a été livré le 2026-11-02
 
@@ -53,12 +53,13 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 **Docs** : _propagators.md, _inspirations.md, _logic.md (priorite Propagators V1, kanren + prolog resolus), _syntax_gaps.md (kanren + features_parent résolus), _runtime_gaps.md, MIR_CONTRACT.md §6.
 
-## P0 — État 2026-11-03 soir (infra livrée, P0.5 = chantiers)
+## P0/P0.5 — FAIT 2026-11-04 (check_all couvre 166 tests .hvn)
 
-**Livré** (commits `55f96c7` + `ae35c5c`) :
-- `scripts/test_all_hvn.sh` : 165 tests .hvn bloquants, mode informatif, whitelist `scripts/test_all_hvn_known_fails.txt`.
-- `zig build test` : **VERT**.
-- Docs à jour : `_logic.md`, `_propagators.md`, `_ci_checklist.md`, `G-pieges.md` (G.42+G.43), `CHANGELOG.md`.
+**Livré** (session 2026-11-04, 8 commits) :
+- `scripts/test_all_hvn.py` (parallèle, NPROC=4 + retry) : **166 tests .hvn, 28-50s** (vs 2m18 seq).
+- `check_all.sh` intègre `test_all_hvn` — **couvre 166 tests .hvn** (vs 3 avant).
+- **Perf check_all** : 5m42 → **1m25** (×4) — skip `zig build test` si `.zig` inchangé, retire section 6 redondante.
+- D20 whitelisté (bug contextuel documenté). Fixtures `imports/` whitelistés (Zig fixtures).
 
 **Whitelist actuelle** :
 - `tests/test_bigint_d20.hvn` — D20 stack + ExecutionFailed silent (`_bigint_d20_stack.md`).
@@ -74,17 +75,23 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 **Bug documenté non-fixé** : `+` sur bigint n'est pas supporté (`(to_int (+ (from_int 3) (from_int 4)))` ≠ 7). À vérifier : primitives bigint exposées (`badd`? ou rien?). Non-bloquant.
 
-## Prochains chantiers (dans l'ordre — MAJ 2026-11-03 soir)
+## Prochains chantiers (MAJ 2026-11-04 14h)
 
-1. **P0.5** (1-2 sessions) : finaliser `check_all.sh` intégration CI. Détail dans section P0.5 ci-dessus. Bloque P1 (migration infixe) et P2 (livre). Priorité absolue.
+1. **Livre v2** (marathon, commencé) : OUTLINE 52 chapitres + pilote `05-recursion` faits.
+   Prochain : `06-higher-order` v2 (valider le pattern) puis batch ch.1-7.
+   - `docs/book/src-v2/OUTLINE.md` : plan complet
+   - `docs/book/src-v2/05-recursion.md` : pilote (style LYAH, encadrés Piège/Capot, 4 exercices)
 
-2. **P1 — `infix_migrate.py`** (1 session) : réparer `needs_parens` (voir G.43), ajouter tests unitaires du script, reprendre migration par batch de 3-4 fichiers avec `--run-test` sur les tests qui importent.
+2. **MPST V2c** (1 session) : récursion `μX. ... X`. V2a fait (`STMulti` + `project_mult`, 14 tests).
+   V2b (checker en ligne) bloqué par `_concurrency.md` C1-C5.
 
-3. **Formalisation C** (1-2 sessions) : `_core_typing.md` — règles de typage §1 (Pi, univers, quotients, Eq/refl). Voir `_core_syntax.md` `[À VÉRIFIER]`.
+3. **Formalisation C** (1-2 sessions) : `_core_typing.md` — règles de typage §1. Voir `_core_syntax.md` `[À VÉRIFIER]`.
 
-4. **P2 — Livre v2** (6-9 mois, marathon) : `docs/book/src-v2/OUTLINE.md` (50 chapitres) + ch. 01 pilote style LYAH. Sources : LYAH, LYSE, PLFA, Idris2.
+4. **P1 — `infix_migrate.py`** (1 session) : réparer `needs_parens` (voir G.43), tests unitaires, migration par batch. Débloque la politique de style pour le livre v2.
 
-5. **Prolog V2 / V3** (optionnel) : unification multi-args, facts multi-args. Non-bloquant, à faire si demande utilisateur.
+5. **D20 fix** (1 session) : `bdiv` itératif (choix B `_bigint_d20_stack.md`) ou whitelist permanente.
+
+6. **Prolog V2** (optionnel) : multi-args.
 
 ## Style `.hvn` et livre (politique 2026-11-03)
 
