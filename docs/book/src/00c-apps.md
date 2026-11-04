@@ -16,21 +16,7 @@ directement dans votre navigateur. Aucune installation requise.
 
 ## REPL inline
 
-Vous pouvez aussi essayer Heaven directement dans ce livre via
-le [chapitre REPL](00b-repl.md), ou l'iframe ci-dessous :
+Vous pouvez essayer Heaven directement dans ce livre via
+le [chapitre REPL](00b-repl.md).
 
-<iframe
-  id="heaven-apps-frame"
-  width="100%"
-  height="600px"
-  style="border:1px solid #444;border-radius:8px;background:#0a0a0a">
-</iframe>
-
-<script>
-  (function() {
-    var path = location.pathname;
-    var prefix = path.indexOf('/heaven/') >= 0 ? '/heaven' : '';
-    var iframe = document.getElementById('heaven-apps-frame');
-    if (iframe) iframe.src = prefix + '/repl/';
-  })();
-</script>
+<!-- (iframe REPL déplacé vers le chapitre REPL, 2026-11-04) -->
