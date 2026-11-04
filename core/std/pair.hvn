@@ -22,4 +22,4 @@ uncurry f p =
 
 -- ─── Swap ───
 -- swap p : echange les deux elements du pair.
-swap (pair x y) = (pair y x)
+swap (pair x y)  = pair y x

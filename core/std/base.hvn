@@ -21,7 +21,7 @@ constant x _ = x
 -- ─── Flip ───
 -- flip f x y = f y x
 -- Inverse l'ordre des arguments d'une fonction binaire.
-flip f x y = (f y x)
+flip f x y  = f y x
 
 -- ─── Iteration ───
 -- until p f x : applique f jusqu'a ce que p soit vrai.
@@ -32,5 +32,5 @@ until p f x = if p x then x else until p f (f x)
 -- ─── Parite ───
 -- even n : vrai si n est pair.
 -- odd n  : vrai si n est impair.
-even n = (eq (mod n 2) 0)
-odd n = (not (even n))
+even n  = eq (mod n 2) 0
+odd n  = not (even n)
