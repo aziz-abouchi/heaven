@@ -595,20 +595,33 @@ est gitignored, ou corriger le chemin.
 Cas vécu 2026-11-03 : scripts/test_all_hvn.sh et test_all_hvn_known_fails.txt
 restés untracked sur 97805a6 et c3f54b3, commités seulement avec `git add -f`.
 
-### G.43 — `needs_parens` du script infix n'entoure pas les args infixes
+### G.43 — `infix_migrate.py` : bug `needs_parens` partiellement réparé
 
-`scripts/infix_migrate.py` transforme `(f x (+ y z))` en `f x y + z`,
-qui parse comme `(f x y) + z` au lieu de `f x (y + z)`.
+**Contexte** : `scripts/infix_migrate.py` transforme `(f x (+ y z))`
+en `f x y + z`, qui parse comme `(f x y) + z` au lieu de `f x (y + z)`.
 
-Cause : `needs_parens(x)` ne détecte pas les opérateurs infixes dans x.
+**Fix 2026-11-04 (commit `2e0db77`)** : `needs_parens` étendu + wrap
+systématique des opérateurs (`(a op b)`) et `if`/`let` (`(if c then a else b)`).
+`unparen_rhs` autorise digit/paren en début d'expression.
 
-Fix : dans `needs_parens`, ajouter
+**Validé sur** :
+- `core/std/list.hvn` migré (99 lignes changées, 4 tests verts :
+  list 50/50, propagator 27/27, kanren 18/18, bigint 28/28).
+- 4 tests minimaux : `(+ 1 2)`, `(if ...)`, `else (if ...)`,
+  `(lex_loop s (+ i 1) acc)` — tous produisent du code qui parse.
 
-    if any(f' {op} ' in x for op in OPS_INFIX): return True
+**NON résolu sur `lib/heaven_parse.hvn`** (500 lignes, 10 `if` imbriqués) :
+migration casse `test_selfparse` (2/3), `test_eval` (9/13),
+`test_meta_if` (2/7). Rollback définitif (`541044f`, `f218117`).
+Pattern exact du bug **non identifié** — les 4 tests minimaux passent,
+donc c'est un cas spécifique à `heaven_parse` (probablement
+`unparen_rhs` qui strippe trop dans les constructeurs à argument
+parenthésé, ou `string_substring` avec args imbriqués).
 
-Cas vécu : migration `lib/heaven_eval.hvn` + `lib/heaven_parse.hvn`
-cassée, rollbackée (541044f, f218117). `(lex_loop s (+ i 1) acc)` devenu
-`(lex_loop s i + 1 acc)` qui parse comme `((lex_loop s i) + 1) acc`.
+**Règle** : `infix_migrate.py` est sûr pour les fichiers simples
+(`core/std/*.hvn` courts, `lib/*.hvn` sans `if` imbriqués > 3 niveaux).
+Pour les fichiers complexes, migrer à la main ou laisser en S-expr.
 
-Règle : avant tout nouveau batch `infix_migrate.py`, réparer `needs_parens`
-et tester sur `lex "(== 1 1)"` et `prim_ops _ = cons "+" (cons ...)`.
+**Ne PAS** relancer sur `lib/heaven_eval.hvn` ni `lib/heaven_parse.hvn`.
+
+
