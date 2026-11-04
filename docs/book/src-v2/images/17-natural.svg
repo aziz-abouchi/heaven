@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Transformation naturelle : un carre qui commute
+  </text>
+
+  <!-- F A -->
+  <g>
+    <circle cx="100" cy="100" r="30" fill="#c0d8e8" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="100" y="106" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">F A</text>
+  </g>
+
+  <!-- F B -->
+  <g>
+    <circle cx="400" cy="100" r="30" fill="#c0d8e8" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="400" y="106" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">F B</text>
+  </g>
+
+  <!-- G A -->
+  <g>
+    <circle cx="100" cy="230" r="30" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="100" y="236" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">G A</text>
+  </g>
+
+  <!-- G B -->
+  <g>
+    <circle cx="400" cy="230" r="30" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="400" y="236" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">G B</text>
+  </g>
+
+  <!-- F f : F A -> F B -->
+  <g>
+    <path d="M 135 100 L 365 100" fill="none" stroke="#2c2c2c" stroke-width="1.5" marker-end="url(#arr17n)"/>
+    <text x="250" y="92" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">F f</text>
+  </g>
+
+  <!-- G f : G A -> G B -->
+  <g>
+    <path d="M 135 230 L 365 230" fill="none" stroke="#2c2c2c" stroke-width="1.5" marker-end="url(#arr17n)"/>
+    <text x="250" y="250" text-anchor="middle" font-size="12" fill="#2c2c2c" font-family="monospace">G f</text>
+  </g>
+
+  <!-- eta_A : F A -> G A -->
+  <g>
+    <path d="M 100 135 L 100 195" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr17)"/>
+    <text x="75" y="170" text-anchor="middle" font-size="12" fill="#7a3b3b" font-family="monospace">&#951;_A</text>
+  </g>
+
+  <!-- eta_B : F B -> G B -->
+  <g>
+    <path d="M 400 135 L 400 195" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr17)"/>
+    <text x="425" y="170" text-anchor="middle" font-size="12" fill="#7a3b3b" font-family="monospace">&#951;_B</text>
+  </g>
+
+  <!-- Note -->
+  <text x="250" y="290" text-anchor="middle" font-size="11" fill="#2c2c2c">
+    Le carre commute : G f &#8728; &#951;_A = &#951;_B &#8728; F f
+  </text>
+  <text x="250" y="307" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+    Ce qui vaut pour tous les objets vaut pour toute la structure.
+  </text>
+
+  <defs>
+    <marker id="arr17n" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#2c2c2c"/>
+    </marker>
+    <marker id="arr17" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+</svg>

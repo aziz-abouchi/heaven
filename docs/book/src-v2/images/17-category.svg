@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Une categorie : objets, fleches, identites
+  </text>
+
+  <!-- Objet A -->
+  <g>
+    <circle cx="100" cy="120" r="35" fill="#c0d8e8" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="100" y="126" text-anchor="middle" font-size="15" fill="#2c2c2c" font-family="monospace">A</text>
+  </g>
+
+  <!-- Objet B -->
+  <g>
+    <circle cx="250" cy="120" r="35" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="250" y="126" text-anchor="middle" font-size="15" fill="#2c2c2c" font-family="monospace">B</text>
+  </g>
+
+  <!-- Objet C -->
+  <g>
+    <circle cx="400" cy="120" r="35" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="400" y="126" text-anchor="middle" font-size="15" fill="#2c2c2c" font-family="monospace">C</text>
+  </g>
+
+  <!-- Fleche f : A -> B -->
+  <g>
+    <path d="M 135 120 L 210 120" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr17)"/>
+    <text x="172" y="112" text-anchor="middle" font-size="13" fill="#7a3b3b" font-family="monospace">f</text>
+  </g>
+
+  <!-- Fleche g : B -> C -->
+  <g>
+    <path d="M 285 120 L 360 120" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr17)"/>
+    <text x="322" y="112" text-anchor="middle" font-size="13" fill="#7a3b3b" font-family="monospace">g</text>
+  </g>
+
+  <!-- Fleche g o f : A -> C (dessous) -->
+  <g>
+    <path d="M 105 155 Q 250 230 395 155" fill="none" stroke="#7a3b3b" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr17)"/>
+    <text x="250" y="215" text-anchor="middle" font-size="13" fill="#7a3b3b" font-family="monospace">g &#8728; f</text>
+  </g>
+
+  <!-- Identites -->
+  <g>
+    <path d="M 85 95 Q 100 75 115 95" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr17g)"/>
+    <text x="100" y="70" text-anchor="middle" font-size="10" fill="#666" font-family="monospace">id_A</text>
+  </g>
+  <g>
+    <path d="M 235 95 Q 250 75 265 95" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr17g)"/>
+    <text x="250" y="70" text-anchor="middle" font-size="10" fill="#666" font-family="monospace">id_B</text>
+  </g>
+  <g>
+    <path d="M 385 95 Q 400 75 415 95" fill="none" stroke="#666" stroke-width="1" marker-end="url(#arr17g)"/>
+    <text x="400" y="70" text-anchor="middle" font-size="10" fill="#666" font-family="monospace">id_C</text>
+  </g>
+
+  <!-- Lois -->
+  <text x="250" y="270" text-anchor="middle" font-size="11" fill="#2c2c2c">
+    Deux lois : associativite et identite.
+  </text>
+  <text x="250" y="290" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+    Le reste n'est que consequence.
+  </text>
+
+  <defs>
+    <marker id="arr17" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+    <marker id="arr17g" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#666"/>
+    </marker>
+  </defs>
+</svg>
