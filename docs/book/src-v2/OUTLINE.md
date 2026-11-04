@@ -36,7 +36,7 @@
 |---|---|---|---|---|
 | 8 | Définir ses types | LYAH 8 | (partiel dans 19) | **from scratch** (data, constructeurs, pattern matching sur constructeurs) |
 | 9 | Typeclasses | LYAH 9 | 19-algebres | refonte (mapping corrigé 2026-11-04) |
-| 10 | Structures récursives | LYAH 8, PLFA 3 | 14-recursion-schemes | refonte |
+| 10 | Structures récursives | LYAH 8, PLFA 3 | (partiel dans 14) | **from scratch** (List/Tree/Stream + fold simple) — mapping corrigé 2026-11-04 |
 | 11 | Streams et paresse | LYAH 7, LYSE | 07-streams | garder |
 | 12 | BigInt — un type de bout en bout | — | 12-bigint | garder |
 | 13 | Free monads | — | 16-free-monads | garder |
@@ -143,6 +143,11 @@ Une fois le pilote validé, il devient le **référentiel** pour les 51 autres.
 - **`00c-apps` = annexe F**, pas chapitre 2 (showcase, pas pédagogie).
 - **`00b-repl`** (stub 24 l.) absorbé dans ch2 from-scratch.
 - **`19-algebres` → ch9 typeclasses** (pas ch8). Ch8 `definir-types` from scratch.
+
+## Décisions 2026-11-04 (soir, suite)
+
+- **`14-recursion-schemes` = ch14** (pas ch10). Cata/ana/hylo/para = avancé, pas LYAH ch.8. Ch10 `10-structures-recursives` sera from-scratch (List/Tree/Stream + fold simple).
+- **Concurrence scindée** (21a/21b/21c).
 
 ## Décisions ouvertes
 
