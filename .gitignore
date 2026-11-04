@@ -115,3 +115,8 @@ tests/local/
 !http_server.hvn
 tests/online/
 bin/heaven-natif
+
+# Python bytecode (créé par scripts/*.py)
+__pycache__/
+*.pyc
+*.pyo
