@@ -37,6 +37,23 @@ Script complémentaire couvre **165 tests .hvn bloquants** :
 - **Complémentaire**, pas remplacement de `ci-preflight.sh`.
 - À intégrer dans `check_all.sh` une fois whitelists résolues (P0.5).
 
+## Environnement : wasmtime cassé (2026-11-04)
+
+Symptôme : `tests.sh` → 5 FAIL WASM. `smoke.sh` dit `obtenu=` vide.
+
+Cause : `/home/aabouchi/.local/bin/wasmtime` cassé — `libgcc_s.so.1 not found`
++ interpréteur `ld-linux` manquant dans `/gnu/store/yj053cys...-glibc-2.41/`.
+
+**Ce n'est PAS un bug Heaven.** 4 FAIL = wasmtime cassé, 1 FAIL =
+`build.sh` skip wasm par condition. Fix : réinstaller wasmtime
+(`guix install wasmtime` ou binaire statique GitHub releases).
+
+Le binaire WASM `.wasm` se produit bien en manuel
+(`zig build -Dtarget=wasm32-freestanding` → 592 KB, rc=0).
+
+**Règle** : si `smoke.sh` échoue sur WASM, vérifier `wasmtime --version`
+en premier. Si cassé, ignorer — c'est de l'environnement.
+
 ## Historique des pieges
 
 | Commit | Cause | Cout |
