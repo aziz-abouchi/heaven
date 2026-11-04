@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Trois modules qui s'importent
+  </text>
+  <!-- Module A -->
+  <g>
+    <rect x="60" y="80" width="120" height="70" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="120" y="105" text-anchor="middle" font-size="12" fill="#7a3b3b" font-style="italic">Module A</text>
+    <text x="120" y="130" text-anchor="middle" font-size="10" fill="#666">foo, bar</text>
+  </g>
+  <!-- Module B -->
+  <g>
+    <rect x="190" y="180" width="120" height="70" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="250" y="205" text-anchor="middle" font-size="12" fill="#7a3b3b" font-style="italic">Module B</text>
+    <text x="250" y="230" text-anchor="middle" font-size="10" fill="#666">baz</text>
+  </g>
+  <!-- Module C -->
+  <g>
+    <rect x="320" y="80" width="120" height="70" fill="#fff" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="380" y="105" text-anchor="middle" font-size="12" fill="#7a3b3b" font-style="italic">Module C</text>
+    <text x="380" y="130" text-anchor="middle" font-size="10" fill="#666">qux</text>
+  </g>
+  <!-- Fleches -->
+  <g fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#am)">
+    <path d="M 140 150 Q 180 180 200 180"/>
+    <path d="M 300 180 Q 340 180 360 150"/>
+  </g>
+  <defs>
+    <marker id="am" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+  <text x="250" y="295" text-anchor="middle" font-size="10" fill="#2c2c2c" font-style="italic">
+    Chaque module est une unite nommee, avec ses propres definitions.
+  </text>
+</svg>
