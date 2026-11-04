@@ -12,9 +12,14 @@ Aucune vérification d'arité, de scope, de type. `parse` échoue même sur
 `fn f(x, y) = (x + y)` en top-level (tree-sitter-heaven ne gère pas
 `fn` à 2 params hors contexte). Voir `_type_magic_gap.md`.
 
-## 2. `run` multi-message perd des messages
+## 2. `run` multi-message — RÉSOLU 2026-11-04
 
-Voir STATUS.md:303. Contournement : 1 message par `tell` + `run`.
+Le `run` actuel (engine_expr.zig:2673) draine **toute** la mailbox
+dans un `while (true)` avec `orderedRemove(0)`. Vérifié : 5 messages
+= 15 (test `multi5`). Gap stale depuis le fix du 2026-10-27 (budget
+par message) + `while (true)` présent.
+
+Régression testée dans `tests/test_actor_multi_msg.hvn`.
 
 ## 3. Thunks top-level non-déballables
 

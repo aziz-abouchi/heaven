@@ -1,0 +1,18 @@
+-- tests/test_actor_multi_msg.hvn — régression gap #2 (2026-11-04)
+-- Avant : "run multi-message perd des messages" (_runtime_gaps.md #2).
+-- Maintenant : run draine toute la mailbox (while (true)).
+-- Note : syntaxe `fn counterHandler(s, m) = s + m` — pattern 2-args
+-- dans une fn (pas une lambda), cf. test_suite.hvn:21.
+fn counterHandler(s, m) = s + m
+
+-- 1 message (baseline)
+test "1_msg": (let many p = (spawn counterHandler 0) in (let many _1 = (tell p 5) in (run p))) == 5
+
+-- 2 messages (déjà couvert par test_suite.hvn:33)
+test "2_msgs": (let many p = (spawn counterHandler 0) in (let many _1 = (tell p 5) in (let many _2 = (tell p 3) in (run p)))) == 8
+
+-- 5 messages (le nouveau)
+test "5_msgs": (let many p = (spawn counterHandler 0) in (let many _1 = (tell p 1) in (let many _2 = (tell p 2) in (let many _3 = (tell p 3) in (let many _4 = (tell p 4) in (let many _5 = (tell p 5) in (run p))))))) == 15
+
+-- 3 proc indépendants × 5 msgs
+test "multi_proc": (let many p1 = (spawn counterHandler 0) in (let many p2 = (spawn counterHandler 0) in (let many _a1 = (tell p1 1) in (let many _a2 = (tell p1 2) in (let many _b1 = (tell p2 10) in (let many _b2 = (tell p2 20) in (+ (run p1) (run p2)))))))) == 33
