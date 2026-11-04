@@ -157,7 +157,7 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
   python3 scripts/docgen.py
   python3 scripts/status_gen.py
 
-**Commencer par** : git status + git log --oneline -8 pour confirmer l'état, puis Propagators V1 (chantier #1).
+**Commencer par** : git status + git log --oneline -8, puis **P0.5 chantier #1** (bigint D20 + reclassement négatif + intégration check_all).
 
 ---
 

@@ -273,7 +273,7 @@ _concurrency.md, _continuations.md, _ontology.md, _bench.md, _serialize.md).
 <!-- DOCGEN:tests_heaven -->1418<!-- /DOCGEN --> tests Heaven
 (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN --> via `test-regression`
 + <!-- DOCGEN:test_files -->1320/1320<!-- /DOCGEN --> via `test-files`).
-Mesure <!-- DOCGEN:date -->2026-11-03<!-- /DOCGEN -->.
+Mesure <!-- DOCGEN:date -->2026-11-04<!-- /DOCGEN -->.
 
 ---
 
