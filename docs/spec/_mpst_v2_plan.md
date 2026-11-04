@@ -32,8 +32,9 @@ V0+V1-runtime commités :
 
 ## Ordre recommandé
 
-1. **V2a** : étendre `stdlib/mpst.hvn` (ST multipartite +
-   `project`). 100% Heaven, testable sur fixtures.
+1. **V2a — FAIT 2026-11-04** : `STMulti` + `project_mult` dans
+   `stdlib/mpst.hvn`. 3-party + compat 2-party. 10 tests
+   (`tests/test_mpst_multipartite.hvn`). Commit à préciser.
 2. **V2b** : ajouter `send`/`recv` au scheduler avec rôle. Nécessite
    `_concurrency.md` (C1-C5) stabilisé, donc après effects-consolidation.
 3. **V2c** : récursion.

@@ -1,3 +1,17 @@
+## 2026-11-04 (mercredi) — P0.5 bouclée + MPST V2a
+
+### CI audit — P0.5 (matin)
+- `check_all` couvre **165 tests .hvn** (vs 3 avant).
+- **Perf** : 5m42 → 55s (×6.2) — `test_all_hvn.py` parallèle (28s), skip `zig build test` si `.zig` inchangé, retire section 6 redondante.
+- D20 whitelisté (bug contextuel, `_bigint_d20_stack.md`).
+- Fixtures `tests/imports/cyc_a/b` + `exp_util` documentés (fixtures Zig, `heaven_expr.zig:5316, :5815`).
+
+### MPST V2a
+- `stdlib/mpst.hvn` : `STMulti` (MTStep/MTSeq/MTChoice/MTEnd) + `project_mult` (multipartite → binaire).
+- 3-party (A→B→C→A) + compat 2-party. 10 tests (`tests/test_mpst_multipartite.hvn`).
+
+---
+
 ## 2026-11-03 (mardi) — Propagators V1.2 + Prolog V1 + formalisation + audit CI
 
 ### Propagators
