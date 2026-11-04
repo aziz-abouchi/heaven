@@ -613,7 +613,14 @@ systématique des opérateurs (`(a op b)`) et `if`/`let` (`(if c then a else b)`
 - 4 tests minimaux : `(+ 1 2)`, `(if ...)`, `else (if ...)`,
   `(lex_loop s (+ i 1) acc)` — tous produisent du code qui parse.
 
-**Total migré** : 6 fichiers `core/std/*` (list + 5).
+**Total migré** : 7 fichiers `core/std/*` (list + base + eq + ord
++ option + pair + quickcheck).
+
+**NON migrables (bug `if` multi-lignes)** : `array.hvn`, `string.hvn`.
+Le script produit `if c then  else ...` (branche `then` vide) quand
+l'`if` a ses arguments sur plusieurs lignes. Rollback `2026-11-04`.
+Même pattern structurel que `heaven_parse.hvn`. Fix futur : détecter
+les `if` multi-lignes et les refuser (ne pas transformer).
 
 **NON résolu sur `lib/heaven_parse.hvn`** (500 lignes, 10 `if` imbriqués) :
 migration casse `test_selfparse` (2/3), `test_eval` (9/13),
