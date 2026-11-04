@@ -23,7 +23,7 @@
 | # | Titre v2 | Source | Chapitre v1 | Statut |
 |---|---|---|---|---|
 | 1 | Pourquoi Heaven | LYAH 1 | 00-pourquoi-heaven | refonte légère |
-| 2 | Démarrer avec le REPL | LYAH 2, LYSE 1 | 00b-repl | refonte LYAH |
+| 2 | Démarrer — REPL et première fonction | LYAH 2, LYSE 1 | 00b-repl (stub, à réécrire) | **from scratch** (45-60 min, pas de copie possible) |
 | 3 | Types et signatures | LYAH 2-3 | 02-believe-the-type | refonte LYAH |
 | 4 | Syntaxe en fonctions | LYAH 4 | 03-syntax-in-functions | refonte LYAH |
 | 5 | Récursion | LYAH 5 | 04-recursion | refonte LYAH strict |
@@ -104,6 +104,7 @@
 | C | Glossaire | C-glossaire |
 | D | Pièges (G.1-G.43+) | G-pieges |
 | E | Références | F-references |
+| F | Applications en ligne (showcase + iframe REPL) | 00c-apps |
 
 ## Bilan par source
 
@@ -130,6 +131,11 @@
 **Chapitre pilote = `05-recursion`** (ancien `04-recursion`). C'est le premier chapitre où Heaven diverge vraiment de LYAH (Heaven n'a pas `map`, `filter` builtin — il faut les définir). Bon test de style.
 
 Une fois le pilote validé, il devient le **référentiel** pour les 51 autres.
+
+## Décisions 2026-11-04 (soir)
+
+- **`00c-apps` = annexe F**, pas chapitre 2. Contenu (tableau d'apps + iframe REPL) = showcase, pas pédagogie. Le chapitre 2 sera narratif pur (from scratch).
+- **`00b-repl` (stub 24 l.)** absorbé dans le ch2 from-scratch. Pas de chapitre 0b séparé.
 
 ## Décisions ouvertes
 
