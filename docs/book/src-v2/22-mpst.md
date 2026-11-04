@@ -40,7 +40,7 @@ Le programme continue, avec un message **faux**.
 MPST impose un **ordre** et un **label**. Si la trace ne
 correspond pas, `check` renvoie `false` — l'erreur est **explicite**.
 
-## Deux couches coexistent
+
 
 > Vérification comportementale des protocoles d'acteurs.
 
