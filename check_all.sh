@@ -75,7 +75,12 @@ echo ""
 if [ "$BUILD_OK" = "1" ] && [ "$QUICK" = "0" ]; then
 echo "── ZIG TEST ──"
 line "zig build test"
-if zig build test > "$LOG.zig" 2>&1; then
+NEED_ZIG_TEST=0
+if [ -n "$(git status --porcelain 2>/dev/null | grep '\.zig$')" ]; then NEED_ZIG_TEST=1; fi
+if [ -n "$(find src build.zig -name '*.zig' -newer zig-out/bin/heaven 2>/dev/null)" ]; then NEED_ZIG_TEST=1; fi
+if [ "$NEED_ZIG_TEST" -eq 0 ]; then
+  echo "✓ (skip, aucun .zig modifié, binaire frais)"; PASS=$((PASS+1))
+elif zig build test > "$LOG.zig" 2>&1; then
   SUMMARY=$(grep "Build Summary" "$LOG.zig" | tail -1)
   [ -z "$SUMMARY" ] && SUMMARY="(pas de summary -- voir log)"
   echo "✓ $SUMMARY"; PASS=$((PASS+1))
@@ -160,19 +165,9 @@ R=$(zig-out/bin/heaven --run-test /tmp/chk_ho.hvn 2>&1 | grep -cE "✓ test")
 echo ""
 fi
 
-# ── 6. SUITE ÉTENDUE (si pas --quick) ─────────────
-if [ "$BUILD_OK" = "1" ] && [ "$QUICK" = "0" ]; then
-echo "── SUITE ÉTENDUE (tests/*.hvn) ──"
-for f in tests/*.hvn; do
-  [ -f "$f" ] || continue
-  NAME=$(basename "$f")
-  line "  $NAME"
-  T=$(timeout 30 zig-out/bin/heaven --run-test "$f" 2>&1 | grep "Total:" | tail -1 | sed 's/.*Total: //')
-  [ -z "$T" ] && T="(timeout/crash)"
-  echo "$T"
-done
-echo ""
-fi
+# ── 6. SUITE ÉTENDUE — SUPPRIMÉE 2026-11-04 ─────────────
+# Redondante avec section 7 (test_all_hvn.sh couvre tests/*.hvn en 28s
+# au lieu de ~1m10 séquentiel). Per-file output : /tmp/test_all_hvn.log
 
 # ── 7. OUTILS ──────────────────────────────────────
 echo "── OUTILS ──"
