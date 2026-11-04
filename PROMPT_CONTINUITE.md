@@ -12,15 +12,15 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Binaire : ./zig-out/bin/heaven (jamais dans le PATH)
 - Livre : docs/book/src/ - specs : docs/spec/
 
-## État au 2026-11-04 (14h, dernier commit e074b06)
+## État au 2026-11-04 (16h, dernier commit df8cc9f)
 
 | Métrique | Valeur |
 |---|---|
-| Commits du jour | ~16 (04/11) |
+| Commits du jour | 29 (04/11) |
 | Tags du jour | 6 (fix-clauses-32, g37-resolved, g38-resolved, g40-resolved, mir-stub-contract, propagator-v0) |
-| Tests Heaven | 1432 |
+| Tests Heaven | 1446 |
 | CI Zig (zig build test) | vert |
-| check_all.sh | PROJET SAIN (14 OK, 0 FAIL, 3 WARN, ~1m25) |
+| check_all.sh | PROJET SAIN (14 OK, 0 FAIL, 3 WARN, ~1m30) |
 
 ## Ce qui a été livré le 2026-11-02
 
@@ -53,7 +53,7 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 **Docs** : _propagators.md, _inspirations.md, _logic.md (priorite Propagators V1, kanren + prolog resolus), _syntax_gaps.md (kanren + features_parent résolus), _runtime_gaps.md, MIR_CONTRACT.md §6.
 
-## P0/P0.5 — FAIT 2026-11-04 (check_all couvre 166 tests .hvn)
+## P0/P0.5 — FAIT 2026-11-04 (check_all couvre 170 tests .hvn)
 
 **Livré** (session 2026-11-04, 8 commits) :
 - `scripts/test_all_hvn.py` (parallèle, NPROC=4 + retry) : **166 tests .hvn, 28-50s** (vs 2m18 seq).
@@ -87,7 +87,11 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 3. **Formalisation C** (1-2 sessions) : `_core_typing.md` — règles de typage §1. Voir `_core_syntax.md` `[À VÉRIFIER]`.
 
-4. **P1 — `infix_migrate.py`** (1 session) : réparer `needs_parens` (voir G.43), tests unitaires, migration par batch. Débloque la politique de style pour le livre v2.
+4. **P1 — `infix_migrate.py`** — PARTIEL 2026-11-04 (`2e0db77`, `c210dcc`).
+   - `needs_parens` réparé + wrap ops/if/let. 11 tests unitaires (`scripts/test_infix_migrate.py`).
+   - `core/std/list.hvn` migré (99 l., 4 tests verts).
+   - `heaven_parse` rollback définitif (G.43).
+   - Reste : batch `core/std/*` simples (base, eq, ord, option, pair) — 30 min.
 
 5. **D20 fix** (1 session) : `bdiv` itératif (choix B `_bigint_d20_stack.md`) ou whitelist permanente.
 
@@ -128,6 +132,12 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
 `tests/test_diff_e.hvn`, `test_eval.hvn`, `test_heaven_eval_prims.hvn`, `test_meta_data.hvn`, `test_meta_if.hvn`, `test_parse_infix.hvn`.
 
 **Bilan** : seule `lib/heaven_propagator.hvn` a été migrée avec succès (`5a2b81f`, 27/27 verts). Le script est utile mais doit être testé unitairement avant réutilisation.
+
+## Résolutions récentes 2026-11-04 (16h)
+
+- **Gap #2 stale** (`04de61c`) : `run` draine **toute** la mailbox (`while (true)`), pas 1 msg. Vérifié : 5 msgs = 15. 4 tests régression (`tests/test_actor_multi_msg.hvn`).
+- **wasmtime cassé** (`df8cc9f`) : `~/.local/bin/wasmtime` a un `ld-linux` GC'd par Guix. **5 FAIL WASM = environnemental, pas Heaven**. `.wasm` se produit en manuel (`zig build -Dtarget=wasm32-freestanding` → 592 KB). Doc dans `_ci_checklist.md`.
+- **`__pycache__`** ignoré (`.gitignore`, `0a17c59`).
 
 ## Pièges à retenir (annexe G)
 
