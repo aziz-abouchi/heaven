@@ -12,11 +12,11 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Binaire : ./zig-out/bin/heaven (jamais dans le PATH)
 - Livre : docs/book/src/ - specs : docs/spec/
 
-## État au 2026-11-04 (19h, dernier commit 7f473e3)
+## État au 2026-11-04 (18h30, dernier commit 452dcfb)
 
 | Métrique | Valeur |
 |---|---|
-| Commits du jour | 44 (04/11) |
+| Commits du jour | 50 (04/11) |
 | Tags du jour | 6 (fix-clauses-32, g37-resolved, g38-resolved, g40-resolved, mir-stub-contract, propagator-v0) |
 | Tests Heaven | 1446 |
 | CI Zig (zig build test) | vert |
@@ -77,7 +77,9 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 ## Prochains chantiers (MAJ 2026-11-04 14h)
 
-1. **Livre v2 — Partie I COMPLÈTE** (7 chapitres, ~2400 l., 2026-11-04 soir) :
+1. **Livre v2 — 12 chapitres, ~3600 l.** (2026-11-04 soir) :
+
+   **Partie I** (7/7, complète) :
    - `01-pourquoi-heaven.md` (314 l., piège Ménon + capot six primitives)
    - `02-demarrer.md` (221 l., **from scratch** — install, run, REPL piège TTY, capot read-eval-print)
    - `03-types.md` (563 l., piège Curry + capot QTT spec/runtime)
@@ -86,9 +88,18 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
    - `06-higher-order.md` (357 l., capot `>>>` + piège curry)
    - `07-modules.md` (263 l., piège `module X` + capot résolution imports)
 
-   Pattern validé 7× (copie + 1 Piège + 1 Capot + 4 exercices, sauf ch2 from-scratch).
+   **Partie II** (2/8) :
+   - `08-definir-types.md` (271 l., **from scratch** — data, arité, capot stockage `ctor`)
+   - `09-typeclasses.md` (189 l., ← `19-algebres`, piège instance sans loi + capot dispatch runtime)
 
-   **Prochain** : Partie II (ch8 `08-definir-types` ← `19-algebres`, ch10 `10-structures-recursives` ← `14-recursion-schemes`, ch11-15 garder tel quel). Ou gap #4 curryfication (code).
+   **Partie III** (3/9) :
+   - `21a-cooperatif.md` (332 l., ← `13-concurrency` §1-6, piège coopératif≠fair + capot tourniquet)
+   - `21b-preemptif.md` (198 l., ← `13-concurrency` §préemption, piège redémarrage≠reprise + capot timer/safepoints)
+   - `21c-parallelisme.md` (225 l., **from scratch** — roadmap 5 niveaux, niveau 0 assumé, piège «ça marche»≠«ça scale», capot `std.Thread` interdit WASM)
+
+   Pattern validé 12× (Piège + Capot + 4 exercices, copie ou from-scratch).
+
+   **Prochain** : `10-structures-recursives` ← `14-recursion-schemes` (copie + pattern, 20-30 min). Ou `11-streams` ← `07-streams` (garder tel quel). Partie II continue.
 
 2. **MPST V2c** (1 session) : récursion `μX. ... X`. V2a fait (`STMulti` + `project_mult`, 14 tests).
    V2b (checker en ligne) bloqué par `_concurrency.md` C1-C5.
@@ -149,7 +160,7 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
 - **P1b `core/std/*`** (`11c4cce`, `116e3f9`) : 7 fichiers migrés (list, base, eq, ord, option, pair, quickcheck). `array`/`string` rollback (G.43, `if` multi-lignes).
 - **Livre v2 — 5 pilotes** (`41201e6`, `afa4f63`, `1dc0117`, + `4d8b9a5`, `e0950b8` du 04/11 matin) : pattern LYAH validé (piège + capot + 4 exercices) sur philosophie, types, syntaxe, récursion, HOF.
 - **OUTLINE cohérent** (`b184228`) : `00c-apps` = annexe F (showcase), ch2 from-scratch (pas de redondance REPL).
-- **Livre v2 — Partie I COMPLÈTE** (`41201e6`, `afa4f63`, `1dc0117`, `11f4b49`, `7f473e3` + `4d8b9a5`, `e0950b8`) : 7 chapitres, ~2400 lignes. Pattern validé 7×.
+- **Livre v2 — 12 chapitres, ~3600 l.** : Partie I (7) + ch8 from-scratch + ch9 typeclasses (mapping `19-algebres` corrigé) + scission `13-concurrency` en 21a/21b/21c. Pattern validé 12×.
 
 ## Pièges à retenir (annexe G)
 
@@ -186,7 +197,7 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
   python3 scripts/docgen.py
   python3 scripts/status_gen.py
 
-**Commencer par** : git status + git log --oneline -8, puis **Partie II livre v2** (ch8 `08-definir-types` copie+pattern, 20-30 min) **ou** gap #4 curryfication (code, 1 session).
+**Commencer par** : git status + git log --oneline -8, puis **Partie II livre v2** (`10-structures-recursives` ← `14-recursion-schemes`, copie+pattern) **ou** gap #4 curryfication (code, 1 session).
 
 ---
 
