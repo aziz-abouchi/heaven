@@ -34,8 +34,8 @@
 
 | # | Titre v2 | Source | Chapitre v1 | Statut |
 |---|---|---|---|---|
-| 8 | Définir ses types | LYAH 8 | 19-algebres (partiel) | refonte |
-| 9 | Typeclasses | LYAH 9 | (absent) | **nouveau** |
+| 8 | Définir ses types | LYAH 8 | (partiel dans 19) | **from scratch** (data, constructeurs, pattern matching sur constructeurs) |
+| 9 | Typeclasses | LYAH 9 | 19-algebres | refonte (mapping corrigé 2026-11-04) |
 | 10 | Structures récursives | LYAH 8, PLFA 3 | 14-recursion-schemes | refonte |
 | 11 | Streams et paresse | LYAH 7, LYSE | 07-streams | garder |
 | 12 | BigInt — un type de bout en bout | — | 12-bigint | garder |

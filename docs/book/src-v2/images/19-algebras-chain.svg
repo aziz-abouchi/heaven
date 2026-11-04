@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" font-family="monospace">
+  <rect width="800" height="300" fill="#0a0a0a"/>
+  <text x="400" y="40" text-anchor="middle" fill="#00ff41" font-size="20">Hierarchie Fantasy Land</text>
+
+  <rect x="20"  y="100" width="120" height="50" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="80"  y="130" text-anchor="middle" fill="#00ff41" font-size="14">Setoid</text>
+
+  <rect x="180" y="100" width="120" height="50" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="240" y="130" text-anchor="middle" fill="#00ff41" font-size="14">Ord</text>
+
+  <rect x="360" y="100" width="120" height="50" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="420" y="130" text-anchor="middle" fill="#00ff41" font-size="14">Semigroup</text>
+
+  <rect x="520" y="100" width="120" height="50" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="580" y="130" text-anchor="middle" fill="#00ff41" font-size="14">Monoid</text>
+
+  <line x1="140" y1="125" x2="180" y2="125" stroke="#00ff41" stroke-width="2"/>
+  <line x1="300" y1="125" x2="360" y2="125" stroke="#00ff41" stroke-width="2"/>
+  <line x1="480" y1="125" x2="520" y2="125" stroke="#00ff41" stroke-width="2"/>
+
+  <rect x="100" y="200" width="120" height="50" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="160" y="230" text-anchor="middle" fill="#00ff41" font-size="14">Functor</text>
+
+  <rect x="280" y="200" width="120" height="50" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="340" y="230" text-anchor="middle" fill="#00ff41" font-size="14">Applicative</text>
+
+  <rect x="460" y="200" width="120" height="50" fill="none" stroke="#00ff41" stroke-width="2"/>
+  <text x="520" y="230" text-anchor="middle" fill="#00ff41" font-size="14">Monad</text>
+
+  <line x1="220" y1="225" x2="280" y2="225" stroke="#00ff41" stroke-width="2"/>
+  <line x1="400" y1="225" x2="460" y2="225" stroke="#00ff41" stroke-width="2"/>
+
+  <text x="400" y="285" text-anchor="middle" fill="#888" font-size="12">34/34 tests verts (test_laws.hvn)</text>
+</svg>
