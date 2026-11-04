@@ -12,13 +12,13 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 - Binaire : ./zig-out/bin/heaven (jamais dans le PATH)
 - Livre : docs/book/src/ - specs : docs/spec/
 
-## État au 2026-11-03 (matin, dernier commit c32b67a)
+## État au 2026-11-03 (soir, dernier commit ae35c5c)
 
 | Métrique | Valeur |
 |---|---|
-| Commits du jour | 35 |
+| Commits du jour | ~40 |
 | Tags du jour | 6 (fix-clauses-32, g37-resolved, g38-resolved, g40-resolved, mir-stub-contract, propagator-v0) |
-| Tests Heaven | 1412 |
+| Tests Heaven | 1418 |
 | CI Zig (zig build test) | vert |
 | check_all.sh | PROJET SAIN (13 OK, 0 FAIL, 3 WARN préexistants) |
 
@@ -36,7 +36,7 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 **Kanren** (93bcfc0 + 5ec2e10 + e0465cf) : tests/test_kanren.hvn 6 → 18 tests (wildcards _ et N-args validés). Faux diagnostic #6 tombé : _ est un hole frais par arg (core/hole.zig:50, next_id += 1), pas un symbole partagé. kanrenQueryHeavenExpr (core/heaven_expr.zig:4488) ne fait aucun traitement spécial - inutile, unify(hole_frais, arg) réussit. features_smoke.hvn 44/44.
 
-**Propagators V1.1** (bea2b3f) : `cell_merge_with` générique + semilattices `min_int` / `or_bool`. 7 tests ajoutés (`tests/test_propagator.hvn` 14 → 21). Reportés V1.2 : `union_list`, `watch` (nécessitent `lib/legacy/list.hvn` ou `core/std/list.hvn` — existent).
+**Propagators V1.1 + V1.2** (bea2b3f + e71851b) : `cell_merge_with` générique + semilattices `min_int`/`or_bool` (V1.1, 21/21) + `union_list` (`nub (append a b)`) + `watch` (fold via `foldl`) (V1.2, 27/27). Import implicite `core/std/list.hvn`.
 
 **Formalisation** (f3d837b + 747d4f3) : ch. 41 squelette (`docs/book/src/41-semantique-formelle.md`, 8 sections, style Pony/CompCert) + `_core_syntax.md` v0.1 — 3 couches (kernel CIC réel / runtime / HoTT cible), `[À VÉRIFIER]` : Σ, J, Prop imprédicatif.
 
@@ -53,12 +53,12 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 **Docs** : _propagators.md, _inspirations.md, _logic.md (priorite Propagators V1, kanren + prolog resolus), _syntax_gaps.md (kanren + features_parent résolus), _runtime_gaps.md, MIR_CONTRACT.md §6.
 
-## P0 — État 2026-11-03 soir (90% fait)
+## P0 — État 2026-11-03 soir (infra livrée, P0.5 = chantiers)
 
-**Livré** :
-- `scripts/test_all_hvn.sh` : lance 163 tests .hvn bloquants, mode **informatif** (non branché `check_all`).
-- `scripts/test_all_hvn_known_fails.txt` : whitelist 4 tests (bigint D20 + 3 négatifs mal classés).
-- `zig build test` : **VERT** (à reconfirmer après rollback).
+**Livré** (commits `55f96c7` + `ae35c5c`) :
+- `scripts/test_all_hvn.sh` : 165 tests .hvn bloquants, mode informatif, whitelist `scripts/test_all_hvn_known_fails.txt`.
+- `zig build test` : **VERT**.
+- Docs à jour : `_logic.md`, `_propagators.md`, `_ci_checklist.md`, `G-pieges.md` (G.42+G.43), `CHANGELOG.md`.
 
 **Whitelist actuelle** :
 - `tests/test_bigint_d20.hvn` — D20 stack + ExecutionFailed silent (`_bigint_d20_stack.md`).
@@ -74,13 +74,17 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 **Bug documenté non-fixé** : `+` sur bigint n'est pas supporté (`(to_int (+ (from_int 3) (from_int 4)))` ≠ 7). À vérifier : primitives bigint exposées (`badd`? ou rien?). Non-bloquant.
 
-## Prochains chantiers (dans l'ordre)
+## Prochains chantiers (dans l'ordre — MAJ 2026-11-03 soir)
 
-1. **Propagators V1.2** (1 session) : `union_list` semilattice + `watch` (fold). Source : `lib/legacy/list.hvn` ou `core/std/list.hvn` (à importer). Voir _propagators.md.
+1. **P0.5** (1-2 sessions) : finaliser `check_all.sh` intégration CI. Détail dans section P0.5 ci-dessus. Bloque P1 (migration infixe) et P2 (livre). Priorité absolue.
 
-2. **Formalisation C** (1-2 sessions) : `_core_typing.md` — règles de typage §1 (Pi, univers, quotients, Eq/refl).
+2. **P1 — `infix_migrate.py`** (1 session) : réparer `needs_parens` (voir G.43), ajouter tests unitaires du script, reprendre migration par batch de 3-4 fichiers avec `--run-test` sur les tests qui importent.
 
-3. **Prolog V2** (optionnel) : unification multi-args avec var Prolog explicite + facts multi-args.
+3. **Formalisation C** (1-2 sessions) : `_core_typing.md` — règles de typage §1 (Pi, univers, quotients, Eq/refl). Voir `_core_syntax.md` `[À VÉRIFIER]`.
+
+4. **P2 — Livre v2** (6-9 mois, marathon) : `docs/book/src-v2/OUTLINE.md` (50 chapitres) + ch. 01 pilote style LYAH. Sources : LYAH, LYSE, PLFA, Idris2.
+
+5. **Prolog V2 / V3** (optionnel) : unification multi-args, facts multi-args. Non-bloquant, à faire si demande utilisateur.
 
 ## Style `.hvn` et livre (politique 2026-11-03)
 
