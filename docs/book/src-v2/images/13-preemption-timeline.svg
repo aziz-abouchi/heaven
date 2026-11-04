@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 280" font-family="monospace" font-size="12">
+  <style>
+    .box { fill:#fff; stroke:#333; stroke-width:1.5; rx:4; }
+    .arm { fill:#ffe; stroke:#c90; stroke-width:2; }
+    .evt { fill:#e8f4ff; stroke:#06c; }
+    .fail { fill:#fee; stroke:#c00; }
+    .ok { fill:#efe; stroke:#090; }
+    .lbl { fill:#333; }
+    .arr { stroke:#333; stroke-width:1.5; fill:none; marker-end:url(#a); }
+    .ttl { font-weight:bold; font-size:13px; }
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker></defs>
+  <text x="10" y="20" class="ttl">Préemption best-effort : arm → safepoint → SuspendRequested → relance</text>
+
+  <rect x="20" y="45" width="120" height="40" class="box arm"/>
+  <text x="30" y="62" class="lbl">@arm_preempt</text>
+  <text x="30" y="76" class="lbl">preempt_armed=true</text>
+
+  <rect x="180" y="45" width="140" height="40" class="box evt"/>
+  <text x="190" y="62" class="lbl">safepoint</text>
+  <text x="190" y="76" class="lbl">fuel%1000==0</text>
+
+  <rect x="360" y="45" width="160" height="40" class="box fail"/>
+  <text x="370" y="62" class="lbl">SuspendRequested</text>
+  <text x="370" y="76" class="lbl">(SIGALRM ou horloge)</text>
+
+  <rect x="560" y="45" width="140" height="40" class="box ok"/>
+  <text x="570" y="62" class="lbl">.preempted</text>
+  <text x="570" y="76" class="lbl">état conservé</text>
+
+  <path d="M140,65 L180,65" class="arr"/>
+  <path d="M320,65 L360,65" class="arr"/>
+  <path d="M520,65 L560,65" class="arr"/>
+
+  <rect x="360" y="130" width="160" height="40" class="box evt"/>
+  <text x="370" y="147" class="lbl">prochain schedule</text>
+  <text x="370" y="161" class="lbl">.preempted → .ready</text>
+
+  <rect x="560" y="130" width="140" height="40" class="box ok"/>
+  <text x="570" y="147" class="lbl">relance depuis</text>
+  <text x="570" y="161" class="lbl">current_state</text>
+
+  <path d="M440,85 L440,130" class="arr"/>
+  <path d="M520,150 L560,150" class="arr"/>
+
+  <text x="20" y="210" class="ttl">Abort-relaunch (A-3a)</text>
+  <text x="20" y="228" class="lbl">Le travail depuis le dernier yield est rejoué.</text>
+  <text x="20" y="244" class="lbl">La tâche ne repart PAS de init_state — elle repart de current_state.</text>
+  <text x="20" y="260" class="lbl">Limite : si le calcul entre deux yields &gt; budget, stall (pas de progrès).</text>
+</svg>

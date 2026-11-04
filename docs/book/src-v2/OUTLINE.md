@@ -137,6 +137,13 @@ Une fois le pilote validé, il devient le **référentiel** pour les 51 autres.
 - **`00c-apps` = annexe F**, pas chapitre 2. Contenu (tableau d'apps + iframe REPL) = showcase, pas pédagogie. Le chapitre 2 sera narratif pur (from scratch).
 - **`00b-repl` (stub 24 l.)** absorbé dans le ch2 from-scratch. Pas de chapitre 0b séparé.
 
+## Décisions 2026-11-04 (soir)
+
+- **Concurrence scindée** : `13-concurrency.md` (v1) est mal titré « coopérative » mais contient déjà la préemption. v2 = 3 chapitres (`21a` coop, `21b` préemptif, `21c` parallélisme roadmap).
+- **`00c-apps` = annexe F**, pas chapitre 2 (showcase, pas pédagogie).
+- **`00b-repl`** (stub 24 l.) absorbé dans ch2 from-scratch.
+- **`19-algebres` → ch9 typeclasses** (pas ch8). Ch8 `definir-types` from scratch.
+
 ## Décisions ouvertes
 
 - **v2 publiée sous `/v2/`** ou domaine séparé ? (recommandation : `/v2/`, avec bandeau "bêta")
