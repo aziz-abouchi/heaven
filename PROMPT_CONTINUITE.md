@@ -87,11 +87,11 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 3. **Formalisation C** (1-2 sessions) : `_core_typing.md` — règles de typage §1. Voir `_core_syntax.md` `[À VÉRIFIER]`.
 
-4. **P1 — `infix_migrate.py`** — PARTIEL 2026-11-04 (`2e0db77`, `c210dcc`).
-   - `needs_parens` réparé + wrap ops/if/let. 11 tests unitaires (`scripts/test_infix_migrate.py`).
-   - `core/std/list.hvn` migré (99 l., 4 tests verts).
+4. **P1 — `infix_migrate.py`** — PARTIEL 2026-11-04 (`2e0db77`, `c210dcc`, `11c4cce`).
+   - `needs_parens` réparé + wrap ops/if/let. 11 tests unitaires.
+   - `core/std/{list,base,eq,ord,option,pair}.hvn` migrés (6 fichiers, tests verts).
    - `heaven_parse` rollback définitif (G.43).
-   - Reste : batch `core/std/*` simples (base, eq, ord, option, pair) — 30 min.
+   - Restants (probablement non migrables, hors scope) : `hashmap`, `lens`, `match`, `memory`, `free`, `fuzzer`, `loadtest`, `mocker`, `smocker`.
 
 5. **D20 fix** (1 session) : `bdiv` itératif (choix B `_bigint_d20_stack.md`) ou whitelist permanente.
 

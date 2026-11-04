@@ -605,10 +605,15 @@ systématique des opérateurs (`(a op b)`) et `if`/`let` (`(if c then a else b)`
 `unparen_rhs` autorise digit/paren en début d'expression.
 
 **Validé sur** :
-- `core/std/list.hvn` migré (99 lignes changées, 4 tests verts :
-  list 50/50, propagator 27/27, kanren 18/18, bigint 28/28).
+- `core/std/list.hvn` (P1a, `2e0db77`) : 99 lignes, 4 tests verts
+  (list 50/50, propagator 27/27, kanren 18/18, bigint 28/28).
+- `core/std/{base,eq,ord,option,pair}.hvn` (P1b, `11c4cce`) :
+  5 fichiers, 21 lignes changées, tests verts (base 15/15, eq 5/5,
+  ord 14/14, option 16/16, pair 7/7).
 - 4 tests minimaux : `(+ 1 2)`, `(if ...)`, `else (if ...)`,
   `(lex_loop s (+ i 1) acc)` — tous produisent du code qui parse.
+
+**Total migré** : 6 fichiers `core/std/*` (list + 5).
 
 **NON résolu sur `lib/heaven_parse.hvn`** (500 lignes, 10 `if` imbriqués) :
 migration casse `test_selfparse` (2/3), `test_eval` (9/13),
