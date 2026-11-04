@@ -53,7 +53,15 @@ def split_args(s, n):
 
 def needs_parens(x):
     x = x.strip()
-    return ' ' in x or (x and x[0] == '(') or (len(x) > 1 and x[0] == '-' and x[1].isdigit())
+    if not x:
+        return False
+    if x[0] == '(' and x[-1] == ')':
+        return False  # deja parenthese, evite double-wrap
+    if ' ' in x:
+        return True
+    if len(x) > 1 and x[0] == '-' and x[1].isdigit():
+        return True
+    return False
 
 def transform(s, depth=0):
     if depth > 50: return s
@@ -87,7 +95,7 @@ def transform(s, depth=0):
                     b = transform(args[1].strip(), depth+1)
                     if needs_parens(a): a = f"({a})"
                     if needs_parens(b): b = f"({b})"
-                    out.append(f"{a} {op} {b}")
+                    out.append(f"({a} {op} {b})")
                     i = e + 1; matched = True; break
         if matched: continue
         # if
@@ -99,7 +107,7 @@ def transform(s, depth=0):
                     c = transform(args[0].strip(), depth+1)
                     a = transform(args[1].strip(), depth+1)
                     b = transform(args[2].strip(), depth+1)
-                    out.append(f"if {c} then {a} else {b}")
+                    out.append(f"(if {c} then {a} else {b})")
                     i = e + 1; continue
         # let
         if s.startswith('(let ', i):
@@ -110,7 +118,7 @@ def transform(s, depth=0):
                     x = args[0].strip()
                     v = transform(args[1].strip(), depth+1)
                     body = transform(args[2].strip(), depth+1)
-                    out.append(f"let {x} = {v} in {body}")
+                    out.append(f"(let {x} = {v} in {body})")
                     i = e + 1; continue
         # generic paren recurse
         e = find_paren_end(s, i)
@@ -129,7 +137,7 @@ def unparen_rhs(s):
             lhs, rhs = m.groups()
             if rhs.startswith('(') and find_paren_end(rhs, 0) == len(rhs) - 1:
                 inner = rhs[1:-1]
-                if re.match(r'^[a-z_]\w*(\s+.*)?$', inner):
+                if re.match(r'^[a-z_0-9(]', inner):
                     out.append(f"{lhs} = {inner}")
                     continue
         out.append(line)
