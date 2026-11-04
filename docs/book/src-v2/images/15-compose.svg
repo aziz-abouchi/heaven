@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    Composition : acceder a b depuis s
+  </text>
+
+  <!-- s -->
+  <g>
+    <rect x="30" y="100" width="90" height="60" fill="#c0d8e8" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="75" y="125" text-anchor="middle" font-size="13" fill="#2c2c2c" font-family="monospace">s</text>
+    <text x="75" y="145" text-anchor="middle" font-size="9" fill="#666" font-style="italic">Pair (Pair a b) c</text>
+  </g>
+
+  <!-- a -->
+  <g>
+    <rect x="200" y="100" width="90" height="60" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="245" y="125" text-anchor="middle" font-size="13" fill="#2c2c2c" font-family="monospace">a</text>
+    <text x="245" y="145" text-anchor="middle" font-size="9" fill="#666" font-style="italic">Pair a b</text>
+  </g>
+
+  <!-- b -->
+  <g>
+    <rect x="380" y="100" width="90" height="60" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="425" y="125" text-anchor="middle" font-size="13" fill="#2c2c2c" font-family="monospace">b</text>
+    <text x="425" y="145" text-anchor="middle" font-size="9" fill="#666" font-style="italic">valeur</text>
+  </g>
+
+  <!-- l1 arrow -->
+  <g>
+    <path d="M 120 118 L 195 118" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr15b)"/>
+    <text x="157" y="110" text-anchor="middle" font-size="11" fill="#7a3b3b" font-family="monospace">l1</text>
+  </g>
+
+  <!-- l2 arrow -->
+  <g>
+    <path d="M 290 118 L 375 118" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr15b)"/>
+    <text x="332" y="110" text-anchor="middle" font-size="11" fill="#7a3b3b" font-family="monospace">l2</text>
+  </g>
+
+  <!-- Composed arrow (dashed) -->
+  <g>
+    <path d="M 75 200 Q 250 260 425 200" fill="none" stroke="#7a3b3b" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr15b)"/>
+    <text x="250" y="265" text-anchor="middle" font-size="11" fill="#7a3b3b" font-family="monospace">l1 . l2</text>
+  </g>
+
+  <text x="250" y="300" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+    En V0, ce chemin pointille doit etre ecrit a la main.
+  </text>
+
+  <defs>
+    <marker id="arr15b" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+</svg>
