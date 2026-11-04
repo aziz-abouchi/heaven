@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" font-family="Georgia, serif">
+  <rect width="500" height="320" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    hylo : generer puis consommer, en une passe
+  </text>
+
+  <!-- Seed -->
+  <g>
+    <rect x="20" y="140" width="90" height="55" fill="#e8d0c0" stroke="#2c2c2c" stroke-width="1"/>
+    <text x="65" y="163" text-anchor="middle" font-size="11" fill="#2c2c2c" font-family="monospace">seed</text>
+    <text x="65" y="181" text-anchor="middle" font-size="10" fill="#666" font-style="italic">0</text>
+  </g>
+
+  <!-- ana arrow -->
+  <g>
+    <path d="M 110 167 L 175 167" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr3)"/>
+    <text x="143" y="157" text-anchor="middle" font-size="11" fill="#7a3b3b" font-style="italic">ana</text>
+  </g>
+
+  <!-- Ghost list -->
+  <g>
+    <rect x="185" y="140" width="110" height="55" fill="none" stroke="#666" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="240" y="165" text-anchor="middle" font-size="11" fill="#666" font-family="monospace" font-style="italic">[x1..xn]</text>
+    <text x="240" y="183" text-anchor="middle" font-size="9" fill="#666" font-style="italic">intermediaire</text>
+  </g>
+
+  <!-- cata arrow -->
+  <g>
+    <path d="M 295 167 L 360 167" fill="none" stroke="#7a3b3b" stroke-width="1.5" marker-end="url(#arr3)"/>
+    <text x="328" y="157" text-anchor="middle" font-size="11" fill="#7a3b3b" font-style="italic">cata</text>
+  </g>
+
+  <!-- Value -->
+  <g>
+    <rect x="370" y="140" width="110" height="55" fill="#d0e8c0" stroke="#2c2c2c" stroke-width="1.5"/>
+    <text x="425" y="163" text-anchor="middle" font-size="11" fill="#2c2c2c" font-family="monospace">valeur</text>
+    <text x="425" y="181" text-anchor="middle" font-size="10" fill="#666" font-style="italic">finale</text>
+  </g>
+
+  <!-- Notes -->
+  <text x="250" y="245" text-anchor="middle" font-size="11" fill="#2c2c2c">
+    La liste intermediaire (pointilles) pourrait disparaitre
+  </text>
+  <text x="250" y="265" text-anchor="middle" font-size="11" fill="#2c2c2c">
+    grace a la fusion (deforestation, Wadler 1990).
+  </text>
+  <text x="250" y="295" text-anchor="middle" font-size="10" fill="#666" font-style="italic">
+    V0 la construit. V1 : fusion automatique.
+  </text>
+
+  <defs>
+    <marker id="arr3" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#7a3b3b"/>
+    </marker>
+  </defs>
+</svg>

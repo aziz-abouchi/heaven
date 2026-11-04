@@ -40,8 +40,9 @@
 | 11 | Streams et paresse | LYAH 7, LYSE | 07-streams | garder |
 | 12 | BigInt — un type de bout en bout | — | 12-bigint | garder |
 | 13 | Free monads | — | 16-free-monads | garder |
-| 14 | Catégories et naturalité | — | 17-categories | garder |
-| 15 | Optiques | — | 15-optiques | garder |
+| 14 | Schémas de récursion (cata/ana/hylo) | — | 14-recursion-schemes | refonte |
+| 15 | Catégories et naturalité | — | 17-categories | garder |
+| 16 | Optiques | — | 15-optiques | garder |
 
 ### Partie III — Effets, concurrence, OTP (LYSE 4-10)
 
