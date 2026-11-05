@@ -120,3 +120,6 @@ bin/heaven-natif
 __pycache__/
 *.pyc
 *.pyo
+
+# mdbook v2
+docs/book-v2/book/

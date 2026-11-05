@@ -1,0 +1,11 @@
+[book]
+title = "Learn You Some Heaven for Great Good (v2)"
+authors = ["aziz-abouchi"]
+language = "en"
+src = "../book/src-v2"
+
+[output.html]
+site-url = "/heaven-v2/"
+
+[build]
+build-dir = "book"
