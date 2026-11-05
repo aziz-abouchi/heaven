@@ -1,4 +1,5 @@
 const std = @import("std");
+const platform = @import("platform");
 const expr = @import("expr");
 const types_mod = @import("types");
 const Type = types_mod.Type;
@@ -49,9 +50,16 @@ pub const Typer = struct {
         while (cur != expr.NULL and cur < self.store.len()) {
             const n = self.store.get(cur);
             if (n.tag != .lambda) break;
-            if (n.payload == 0) break; // lambda sans payload = 0-arity
+            const body_slice = self.store.spanSliceConst(n.span_a);
+            if (body_slice.len == 0) break;
             count += 1;
-            cur = n.span_a.start; // single span, on prend le start
+            const body_id = body_slice[0];
+            // Continuer seulement si le body est encore une lambda (curryfiage)
+            if (body_id < self.store.len() and self.store.get(body_id).tag == .lambda) {
+                cur = body_id;
+            } else {
+                break;
+            }
         }
         return count;
     }
@@ -109,12 +117,16 @@ pub const Typer = struct {
                 const name = self.store.interner.resolve(node.payload);
                 const val_type = self.infer(node.aux);
                 self.type_env.put(self.allocator, name, val_type) catch {};
-                // Si la valeur est une lambda, mémoriser son arité
-                if (node.aux != expr.NULL and node.aux < self.store.len()) {
-                    const vnode = self.store.get(node.aux);
-                    if (vnode.tag == .lambda) {
-                        const arity = self.countLambdaParams(node.aux);
-                        self.fn_arity.put(self.allocator, name, arity) catch {};
+                // bind stocke val en span_a[0] (cf. Store.bind l. 919-925)
+                const bind_span = self.store.spanSliceConst(node.span_a);
+                if (bind_span.len > 0) {
+                    const val_id = bind_span[0];
+                    if (val_id != expr.NULL and val_id < self.store.len()) {
+                        const vnode = self.store.get(val_id);
+                        if (vnode.tag == .lambda) {
+                            const arity = self.countLambdaParams(val_id);
+                            self.fn_arity.put(self.allocator, name, arity) catch {};
+                        }
                     }
                 }
                 return val_type;

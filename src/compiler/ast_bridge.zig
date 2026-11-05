@@ -218,11 +218,9 @@ pub const Bridge = struct {
             const child = ts.ts_node_child(node, i);
             const ct = self.nodeType(child);
             if (std.mem.eql(u8, ct, "pattern")) {
-                // pattern contient souvent un identifier enfant
-                if (ts.ts_node_child_count(child) > 0) {
-                    const ident = ts.ts_node_child(child, 0);
-                    try param_names.append(self.allocator, self.nodeText(ident));
-                }
+                // pattern simple ('x', 'y') est terminal : pas d'enfant,
+                // le texte est directement le nom du paramètre.
+                try param_names.append(self.allocator, self.nodeText(child));
             } else if (std.mem.eql(u8, ct, "=")) {
                 seen_eq = true;
             } else if (std.mem.eql(u8, ct, "identifier")) {
