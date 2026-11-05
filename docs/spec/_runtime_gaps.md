@@ -695,3 +695,23 @@ borné par le nombre de chiffres, pas par le quotient). Voir
 `_bigint_d20_stack.md`.
 
 Voir aussi : G.40, `test_web_ontology_mocked.hvn` (DI smocker).
+
+## `heaven check` — état au 2026-11-05 (session P1c)
+
+### Ce qui marche
+- Exit code 1 si diagnostics (commit `7addadd`)
+- Détection nœuds `ERROR` tree-sitter (pas `has_error` — trop large, flag les MISSING cosmétiques)
+- `buildEqDecl` construit `lambda+bind` pour `add x y = x + y` (commit `f2d3237`)
+- `typer.infer` tolère tous les tags créés par le Bridge
+
+### Ce qui ne marche pas
+- **Arité non vérifiée** : `heaven check arity.hvn` (= `add x y = x + y; result = add 1`) reste silencieux.
+- Hypothèse : dans `Store.apply`, le `func` est en `span_a[0]`, pas dans `node.payload`. Le check `fn_arity` dans `typer.infer case .apply` cherche au mauvais endroit.
+- Fix probable : changer `if (node.payload < self.store.len())` en lecture `span_a[0]`, ou résoudre via `applyArgs` + parent.
+
+### Ce qui est testé
+- `tests/test_http*.hvn` non concernés.
+- Prochain chantier : ajouter `tests/hvn-check/*.hvn` pour figer le comportement (clean, arity, syntax-error).
+
+### Fausse piste (pour mémoire)
+- `fn add(x, y) = …` **n'est pas** Heaven : la grammar tree-sitter n'accepte pas `fn` keyword. La syntaxe réelle est `add x y = x + y`.
