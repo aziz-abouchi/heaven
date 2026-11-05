@@ -11,6 +11,7 @@ NPROC = int(os.environ.get("NPROC", "4"))  # 4 par défaut, race conditions en p
 PATTERNS = [
     "tests/*.hvn", "tests/imports/*.hvn", "tests/hvn_pl/*.hvn",
     "tests/optics/*.hvn", "tests/hab/*.hvn", "tests/eval/*.hvn",
+    "tests/hvn-check/thunks.hvn",
 ]
 
 def load_whitelist():

@@ -1,0 +1,9 @@
+-- tests/hvn-check/thunks.hvn
+-- Non-regression : lookup top-level doit evaluer les clauses 0-pattern.
+add x y = x + y
+xyz = 3
+test "xyz_simple": xyz == 3
+abc = (add 1 2)
+test "abc_evalue": abc == 3
+test "abc_call": (abc) == 3
+test "fn_still_ok": (add 1 2) == 3
