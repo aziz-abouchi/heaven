@@ -192,6 +192,7 @@ else
     echo "[FORGE] Building wasm (nécessaire pour @embedFile)..."
     zig build -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
     cp zig-out/bin/heaven-freestanding.wasm src/vessel/public/heaven.wasm
+    mkdir -p site/repl
     cp zig-out/bin/heaven-freestanding.wasm site/repl/heaven.wasm
 fi
 
