@@ -100,6 +100,8 @@ pub const Bridge = struct {
             return self.buildSigDecl(node);
         } else if (std.mem.eql(u8, ntype, "eq_decl")) {
             return self.buildEqDecl(node);
+        } else if (std.mem.eql(u8, ntype, "assign")) {
+            return self.buildAssign(node);
         } else if (std.mem.eql(u8, ntype, "comment")) {
             return expr.NULL;
         } else {
@@ -285,7 +287,12 @@ pub const Bridge = struct {
         const count = ts.ts_node_child_count(node);
         if (count >= 3) {
             const name_node = ts.ts_node_child(node, 0);
-            const val_node = ts.ts_node_child(node, count - 1);
+            // Le dernier enfant est souvent ';' (semicolon) : skip.
+            var val_idx = count - 1;
+            if (std.mem.eql(u8, self.nodeType(ts.ts_node_child(node, val_idx)), ";")) {
+                val_idx -= 1;
+            }
+            const val_node = ts.ts_node_child(node, val_idx);
             const name = self.nodeText(name_node);
             const val_id = try self.buildExpr(val_node);
             return self.store.bind(name, val_id);
