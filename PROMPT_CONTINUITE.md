@@ -130,6 +130,23 @@ Recommandation : **`heaven check`** en premier — c'est celui qui débloque le 
 - Ne pas ouvrir 10 chapitres d'un coup — 1 ch./session maximum jusqu'à ce que P1c soit traité.
 
 
+## P1c-session-1 (2026-11-05, 12h51–13h15) — état check
+
+### Fait (4 commits : `7addadd`, `f2d3237`, `0567172`, `82ebe63`)
+- `heaven check` : exit 1 si diag, ERROR tree-sitter détecté, debug prints nettoyés
+- `buildEqDecl` : construit lambda+bind pour `add x y = ...` (avant : stub jetait tout)
+- `typer.infer` : tolère tous les tags (plus de panic `unreachable`)
+- Doc `_runtime_gaps.md` §`heaven check`
+
+### Reste (P4 arity, ~1h)
+- `heaven check arity.hvn` reste **silencieux** (exit 0). Hypothèse : dans `Store.apply`, le func est en `span_a[0]`, pas `node.payload`. Le check `fn_arity` dans `typer.infer case .apply` cherche au mauvais endroit (l. 66–72 de typer.zig).
+- Test de non-régression à écrire : `tests/hvn-check/{clean,arity,syntax-error}.hvn`
+- Curryfication et thunks top-level : **non commencés**
+
+### Découverte à propager
+- `fn f(x, y) = ...` **n'est pas Heaven** : la grammar tree-sitter refuse `fn`. Vraie syntaxe : `add x y = x + y`.
+- `ast_bridge.zig` est un **chemin parallèle** à `engine_expr` — `heaven run` ne l'utilise pas. `heaven check` est le seul consommateur du Typer.
+
 ## Style `.hvn` et livre (politique 2026-11-03)
 
 **Code `.hvn`** : infixe par défaut. Politique existante : `docs/spec/_style_infix.md`.
