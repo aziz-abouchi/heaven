@@ -34,25 +34,30 @@ pub const Bridge = struct {
     pub fn buildFile(self: *Bridge, root: ts.TSNode) !void {
         const count = ts.ts_node_child_count(root);
 
-        platform.debug.print(
-            "ROOT={s} children={d}\n",
-            .{
-                ts.ts_node_type(root),
-                count,
-            },
-        );
+//         platform.debug.print(
+//             "ROOT={s} children={d}\n",
+//             .{
+//                 ts.ts_node_type(root),
+//                 count,
+//             },
+//         );
 
         var i: u32 = 0;
         while (i < count) : (i += 1) {
             const child = ts.ts_node_child(root, i);
 
-            platform.debug.print(
-                "CHILD[{d}] {s}\n",
-                .{
-                    i,
-                    ts.ts_node_type(child),
-                },
-            );
+//             platform.debug.print(
+//                 "CHILD[{d}] {s}\n",
+//                 .{
+//                     i,
+//                     ts.ts_node_type(child),
+//                 },
+//             );
+            if (std.mem.eql(u8, self.nodeType(child), "ERROR")) {
+                const start = ts.ts_node_start_point(child);
+                self.diags.err(start.row, start.column, "syntax error in source");
+                continue;
+            }
             _ = try self.buildTopLevel(child);
         }
     }
@@ -187,26 +192,9 @@ pub const Bridge = struct {
     }
 
     fn buildEqDecl(self: *Bridge, node: ts.TSNode) anyerror!Id {
+        _ = node; // unused après neutralisation debug
         // platform.debug.print("\n=== EQ_DECL ===\n", .{});
-        // platform.debug.print("\n=== EQ TREE ===\n", .{});
-        self.dumpTree(node, 0);
-
-        const count = ts.ts_node_child_count(node);
-
-        var i: u32 = 0;
-        while (i < count) : (i += 1) {
-            const child = ts.ts_node_child(node, i);
-
-            platform.debug.print(
-                "child[{d}] = {s} -> '{s}'\n",
-                .{
-                    i,
-                    self.nodeType(child),
-                    self.nodeText(child),
-                },
-            );
-        }
-
+        // debug tree désactivé 2026-11-05 (P2-bis)
         return self.store.sym("eq_decl");
     }
 
@@ -458,23 +446,7 @@ pub const Bridge = struct {
     }
 
     fn dumpTree(self: *Bridge, node: ts.TSNode, depth: usize) void {
-        var i: usize = 0;
-        while (i < depth) : (i += 1)
-            // platform.debug.print("  ", .{});
-
-            platform.debug.print(
-                "{s} -> '{s}'\n",
-                .{
-                    self.nodeType(node),
-                    self.nodeText(node),
-                },
-            );
-
-        const count = ts.ts_node_child_count(node);
-
-        var j: u32 = 0;
-        while (j < count) : (j += 1) {
-            self.dumpTree(ts.ts_node_child(node, j), depth + 1);
-        }
+        // debug only, désactivé 2026-11-05 (P2-bis)
+        _ = self; _ = node; _ = depth;
     }
 };

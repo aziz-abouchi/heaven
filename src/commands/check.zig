@@ -46,8 +46,6 @@ pub fn runCheck(allocator: std.mem.Allocator, file_path: []const u8) !void {
 
     if (diags.items.items.len > 0) {
         diags.print(file_path);
-        // platform.debug.print("\n⚠ {d} diagnostic(s)\n", .{diags.items.items.len});
-    } else {
-        // platform.debug.print("✓ {s} — {d} expressions, 0 errors\n", .{ file_path, store.len() });
+        return error.HasDiagnostics;
     }
 }
