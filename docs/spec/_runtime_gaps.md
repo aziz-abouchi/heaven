@@ -923,3 +923,23 @@ compilateur selfhoste, codegen selfhoste.
 
 Sources v1 : `docs/book/src/39-selfhosting.md` (127 l.), `40-heaven-eval.md` (86 l.).
 A fusionner dans `26-selfhost.md` (~200 l., angle honnete).
+
+## Debug prints — après consolidation (2026-11-05)
+
+`debugPrint` (wrappers `heaven_expr.zig` + `engine_expr.zig`) est désormais
+conditionné par `HEAVEN_DEBUG` (commit `e42c0dc`).
+
+| Catégorie | Count | État |
+|---|---|---|
+| `platform.dbg(...)` | 213 | ✅ no-op (`io_console.debug_enabled`) |
+| `debugTrace(...)` | ~380 | ✅ no-op (env `HEAVEN_DEBUG_HTTP`) |
+| `debugPrint(...)` | ~380 | ✅ **no-op par défaut** (env `HEAVEN_DEBUG`) |
+| `platform.debug.print(...)` directs | 49 | ⚠️ actifs, dispersés (1/fichier) |
+
+**Reste** : 49 directs, la plupart dans des `catch`/`errdefer` (rares). À
+traiter au fil de l'eau, pas en chantier.
+
+**Pour debugger** : `HEAVEN_DEBUG=1 ./zig-out/bin/heaven run file.hvn`
+
+**Tests** : `check_all.sh` reste `PROJET SAIN` — aucun test `.hvn` ne dépend
+de `debugPrint`.
