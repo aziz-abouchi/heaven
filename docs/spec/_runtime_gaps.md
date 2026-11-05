@@ -963,6 +963,12 @@ le problème en amont.
 gate CI `check_all.sh §7b` ne teste que 3 fichiers synthétiques **sans `test`** —
 d'où le faux sentiment que check fonctionne.
 
+**MàJ 2026-11-05 (session 9)** : patch grammar partiel appliqué (`test_decl`
+accepte `:` expr + `#` comment). **142 → 81** tests flaggés (-43%). Les 81
+restants sont d'autres gaps grammar : `^` (opérateur), `perform "str"` (magic
++ arg), `handle_rec (lambda ...)`, `spawn`/`tell`/`recv`. Chantier à poursuivre
+en session 10 (grammar complète, ~2 sessions).
+
 **Fix (chantier session 10+, ~1-2 sessions)** :
 1. Étendre la grammar tree-sitter pour reconnaître `test "name": <expr>` comme
    un nœud `test_decl` valide.
