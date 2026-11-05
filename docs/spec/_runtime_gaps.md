@@ -943,3 +943,38 @@ traiter au fil de l'eau, pas en chantier.
 
 **Tests** : `check_all.sh` reste `PROJET SAIN` — aucun test `.hvn` ne dépend
 de `debugPrint`.
+
+## `heaven check` + `test "name":` — faux positif (2026-11-05)
+
+**Constat** : `heaven check` flagge **142 / 148** `tests/*.hvn` avec
+« syntax error » à tort. Isolation :
+
+| Cas | Résultat |
+|---|---|
+| `test "x": 1 == 1` seul | ❌ ERROR tree-sitter |
+| `f x = x + 1` seul | ✅ OK |
+| `f x = x+1` + `test "simple": ...` | ❌ ERROR tree-sitter (sur `test`) |
+
+**Cause** : la grammar tree-sitter Heaven ne produit **pas** de nœud valide pour
+les blocs `test "name": <expr>` top-level. `heaven parse` (même parser) confirme
+le problème en amont.
+
+**Impact** : `heaven check` est **inutilisable sur les fichiers de tests**. Le
+gate CI `check_all.sh §7b` ne teste que 3 fichiers synthétiques **sans `test`** —
+d'où le faux sentiment que check fonctionne.
+
+**Fix (chantier session 10+, ~1-2 sessions)** :
+1. Étendre la grammar tree-sitter pour reconnaître `test "name": <expr>` comme
+   un nœud `test_decl` valide.
+2. Ajouter `buildTestDecl` correspondant dans `ast_bridge.zig`.
+3. Ajouter `tests/hvn-check/with-test.hvn` qui exerce ce cas.
+4. Vérifier que `heaven check tests/*.hvn` passe à 0 faux positif.
+
+**Ce qui est correct** : le fix arity (`e42c0dc` + `9a301c7`) sur ce qu'il peut
+analyser (fichiers sans `test`). Le bug est **en amont** (grammar), pas dans
+le Typer.
+
+**Ne PAS** :
+- Désactiver la détection `ERROR` (on perdrait les vraies erreurs)
+- Mentir dans la doc (« heaven check fonctionne »)
+- Utiliser `heaven check` comme gate CI sur `tests/*.hvn`

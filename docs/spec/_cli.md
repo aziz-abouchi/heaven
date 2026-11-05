@@ -48,6 +48,10 @@ Binaire : `./zig-out/bin/heaven` (jamais dans le PATH).
 
 ## Limitations connues (2026-11-05)
 
+- **`heaven check` ne supporte PAS `test "name":`** — la grammar tree-sitter
+  n'émet pas de nœud valide pour les blocs test top-level, donc 142/148
+  `tests/*.hvn` sont flaggés « syntax error » à tort. **Ne pas utiliser
+  `heaven check` sur un fichier de tests.** Chantier : grammar à étendre.
 - `heaven check` : détecte **syntaxe + arité**, pas les erreurs de type au-delà.
   Le Typer (`src/compiler/typer.zig`) est minimal — vérifie l'arité des appels
   via `fn_arity`, mais pas l'unification complète.
