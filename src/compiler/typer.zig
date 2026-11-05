@@ -14,6 +14,7 @@ pub const Typer = struct {
     next_var: u32 = 0,
     diags: *DiagnosticList,
     type_env: std.StringHashMapUnmanaged(Type) = .{},
+    fn_arity: std.StringHashMapUnmanaged(u32) = .{},
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator, store: *const Store, diags: *DiagnosticList) Typer {
@@ -32,12 +33,27 @@ pub const Typer = struct {
     pub fn deinit(self: *Typer) void {
         self.subst.deinit(self.allocator);
         self.type_env.deinit(self.allocator);
+        self.fn_arity.deinit(self.allocator);
     }
 
     pub fn freshVar(self: *Typer) Type {
         const v = self.next_var;
         self.next_var += 1;
         return v;
+    }
+
+    /// Compte les params d'une lambda curryfiée : lambda(x, lambda(y, body)) -> 2
+    fn countLambdaParams(self: *Typer, id: Id) u32 {
+        var count: u32 = 0;
+        var cur = id;
+        while (cur != expr.NULL and cur < self.store.len()) {
+            const n = self.store.get(cur);
+            if (n.tag != .lambda) break;
+            if (n.payload == 0) break; // lambda sans payload = 0-arity
+            count += 1;
+            cur = n.span_a.start; // single span, on prend le start
+        }
+        return count;
     }
 
     pub fn infer(self: *Typer, id: Id) Type {
@@ -67,12 +83,40 @@ pub const Typer = struct {
                 for (args) |arg| {
                     _ = self.infer(arg);
                 }
+                // Vérif arité : si le func est un .sym connu dans fn_arity,
+                // comparer args.len à l'arité attendue.
+                if (node.payload < self.store.len()) {
+                    const fn_node = self.store.get(node.payload);
+                    if (fn_node.tag == .sym) {
+                        const fname = self.store.interner.resolve(fn_node.payload);
+                        if (self.fn_arity.get(fname)) |expected| {
+                            const got: u32 = @intCast(args.len);
+                            if (got != expected) {
+                                const span = node.span_a;
+                                const msg = std.fmt.allocPrint(
+                                    self.allocator,
+                                    "arity mismatch: '{s}' attend {d} argument(s), reçu {d}",
+                                    .{ fname, expected, got },
+                                ) catch "arity mismatch";
+                                self.diags.err(span.start, 0, msg);
+                            }
+                        }
+                    }
+                }
                 return self.freshVar();
             },
             .bind => {
                 const name = self.store.interner.resolve(node.payload);
                 const val_type = self.infer(node.aux);
                 self.type_env.put(self.allocator, name, val_type) catch {};
+                // Si la valeur est une lambda, mémoriser son arité
+                if (node.aux != expr.NULL and node.aux < self.store.len()) {
+                    const vnode = self.store.get(node.aux);
+                    if (vnode.tag == .lambda) {
+                        const arity = self.countLambdaParams(node.aux);
+                        self.fn_arity.put(self.allocator, name, arity) catch {};
+                    }
+                }
                 return val_type;
             },
             .relation => return 0,
