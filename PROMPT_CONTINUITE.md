@@ -159,6 +159,25 @@ Recommandation : **`heaven check`** en premier — c'est celui qui débloque le 
 - **Test de non-régression `check`** : `tests/hvn-check/{clean,arity,syntax-error}.hvn` + intégration `check_all.sh` (30 min)
 - **Tests `check` dans CI** : non fait
 
+## Docs / book — 3 patches en attente (2026-11-05)
+
+### 1. `book.toml` v2 + `mdbook build`
+- `docs/book/src-v2/SUMMARY.md` existe, `G-pieges.md` copié, 49 SVG présents.
+- **Manque** : `docs/book-v2/book.toml` (ou `docs/book/book.toml` élargi) pour que `mdbook build` trouve `src-v2/`.
+- Effort : 10 min. Priorité : 🟡 (index navigable sur GitHub, build à ajouter).
+
+### 2. Renommage `16-effects` → `17-effects` + cascade
+- Conflit : `16-effects.md` et `16-optiques.md` portent tous deux « Chapitre 16 ».
+- Fix : `git mv 16-effects.md 17-effects.md` puis +1 sur tous les suivants (`17-handlers` → `18-handlers`, etc.). Impact : 12 fichiers à renommer, SUMMARY + liens internes à ajuster.
+- Effort : 15 min. Priorité : 🟠 (cosmétique mais visible).
+
+### 3. `heaven check` dans la spec
+- `heaven.md` est la spec **du langage** (lexique, types, patterns) — pas de section CLI.
+- Option A : ajouter `## 3.x CLI` dans `heaven.md`.
+- Option B : créer `docs/spec/_cli.md` dédié (`heaven run`, `heaven check`, `heaven parse`, `heaven build`, etc.).
+- Recommandation : **Option B** (CLI ≠ langage).
+- Effort : 5 min. Priorité : 🟡.
+
 ## Style `.hvn` et livre (politique 2026-11-03)
 
 **Code `.hvn`** : infixe par défaut. Politique existante : `docs/spec/_style_infix.md`.
