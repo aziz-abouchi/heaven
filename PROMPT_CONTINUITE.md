@@ -178,6 +178,35 @@ Recommandation : **`heaven check`** en premier — c'est celui qui débloque le 
 - Recommandation : **Option B** (CLI ≠ langage).
 - Effort : 5 min. Priorité : 🟡.
 
+
+## P1c — BOUCLE (2026-11-05, session 6)
+
+### 4 chantiers resolus
+- **`heaven check` syntax** : exit 1 sur diag, ERROR tree-sitter, CI-verrouille (§7b)
+- **`heaven check` arity** : app_expr + simple_expr + msg_pool, CI-verrouille
+- **Curryfication** : fonctionne (5/6 cas reels). Edge case `(((f a) b) c)` documente.
+- **Thunks top-level** : fix `engine_expr.zig` case `.sym` l. 981-990, eval clause
+  0-pattern. `xyz = 3; xyz == 3` passe desormais. 7/7 tests regression.
+
+### Commits cles (ordre)
+- `7addadd` : check exit + ERROR
+- `f2d3237` : buildEqDecl lambda+bind
+- `780f43d` : arity check fonctionnel
+- `9a301c7` : **fix thunks top-level** (case .sym, 7 lignes)
+- `124fb17` : test thunks regression integre
+
+### Etat
+- 168 tests `.hvn` verts (`check_all.sh`), PROJET SAIN
+- `_runtime_gaps.md` §check + §arity + §curry + §3bis thunks
+- 7 faux diagnostics leves par test empirique
+
+### Reste (non-bloquant)
+- Edge case `(((f a) b) c)` (rare, documente)
+- `book.toml` v2 (10 min)
+- Renommage `16-effects` → `17-effects` (15 min)
+- `_cli.md` (5 min)
+- Partie IV livre (1 ch./session)
+
 ## Style `.hvn` et livre (politique 2026-11-03)
 
 **Code `.hvn`** : infixe par défaut. Politique existante : `docs/spec/_style_infix.md`.
