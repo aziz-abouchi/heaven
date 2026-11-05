@@ -2,7 +2,7 @@
 
 > **Heaven v0.1.0** — État au 2026-11-05. **28 chapitres v2**, ~10 137 lignes.
 > Voir `docs/spec/_runtime_gaps.md` pour l'état réel du runtime, et
-> [l'annexe G](G-pieges.md) pour les pièges.
+> l'annexe G (en bas de ce sommaire) pour les pièges.
 >
 > **Note numérotation** : `16-effects` et `16-optiques` portent tous deux
 > « Chapitre 16 » — conflit connu, fix = renommage en cascade (16-effects → 17-effects,
