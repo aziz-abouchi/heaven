@@ -730,3 +730,21 @@ Voir aussi : G.40, `test_web_ontology_mocked.hvn` (DI smocker).
 1. Instrumenter `buildCall` et `buildExpr` pour tracer ce qui est réellement produit pour `add 1`
 2. Fixer `interner.intern` côté Bridge (pourquoi "x" → 0 ?)
 3. Ou — plus simple — stocker l'arité **directement dans le nœud bind** (champ `aux` ou `span_b`), sans passer par la structure lambda curryfiée
+
+## Arity — état au cutoff 2026-11-05 13h55
+
+### Fait
+- `assign` top-level dispatche vers `buildAssign` (`buildTopLevel`)
+- `buildAssign` skip le `;` final (`result = add 1;` → val_node = call)
+
+### Reste (diagnostic précis pour session 3)
+- `[DBG ASG] name=result count=4 val_type=;` → val_node était `;`, fixé.
+- Après fix : `buildAssign` appelle `buildExpr(call_node)` mais **aucun `.apply` ne sort** (arity silencieux).
+- Hypothèse : `buildExpr` case `call` → `buildCall` → **`func_id` reste `expr.NULL`** (voir `buildCall` l. 312-332). Si `func_id` est NULL, `store.apply(NULL, args)` est créé mais `node.payload = NULL` — le check arity dans `.apply` skip car `payload < store.len()` est vrai mais `get(NULL).tag` n'est pas `.sym`.
+- **Fix probable** (session 3, ~30 min) : instrumenter `buildCall` pour vérifier `func_id` après la boucle. Si NULL, remonter la cause (premier enfant pas reconnu comme `identifier`).
+
+### Acquis conservés
+- `assign` dispatché
+- `;` skip
+- Debug prints retirés (d38f860)
+- Doc `_runtime_gaps.md` §check + §arity (à jour)
