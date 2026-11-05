@@ -5,7 +5,7 @@ language = "en"
 src = "../book/src-v2"
 
 [output.html]
-site-url = "/heaven-v2/"
+site-url = "/heaven/v2/"
 
 [build]
 build-dir = "book"
