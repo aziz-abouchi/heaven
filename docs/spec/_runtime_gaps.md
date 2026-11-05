@@ -715,3 +715,18 @@ Voir aussi : G.40, `test_web_ontology_mocked.hvn` (DI smocker).
 
 ### Fausse piste (pour mémoire)
 - `fn add(x, y) = …` **n'est pas** Heaven : la grammar tree-sitter n'accepte pas `fn` keyword. La syntaxe réelle est `add x y = x + y`.
+
+## `heaven check` arity — cause racine identifiée (2026-11-05 13h45)
+
+### Diagnostic
+`[DBG CLP] iter=0 cur=5 tag=lambda payload=0 BREAK-payload-0`
+
+`interner.intern("x")` retourne **0** dans le contexte du Bridge `buildEqDecl`. Donc `Store.lambda([x, y], body)` produit deux lambdas dont `payload=0` — indistinguables des lambdas **0-arity** légitimes (`lambda()` sans param, cf. `Store.lambda` l. 928).
+
+### Fix préparé mais désactivé
+`typer.countLambdaParams` compte maintenant les lambdas tant que `body_slice[0]` est **lui-même** une lambda, sans critère `payload==0`. C'est sémantiquement correct, mais **le check ne sort toujours pas** — probablement parce que `buildCall` n'émet pas de `.apply` pour `add 1` (le call sans parenthèses est peut-être parsé différemment, ou `buildExpr` produit un autre nœud).
+
+### Pour la prochaine session (~1h)
+1. Instrumenter `buildCall` et `buildExpr` pour tracer ce qui est réellement produit pour `add 1`
+2. Fixer `interner.intern` côté Bridge (pourquoi "x" → 0 ?)
+3. Ou — plus simple — stocker l'arité **directement dans le nœud bind** (champ `aux` ou `span_b`), sans passer par la structure lambda curryfiée
