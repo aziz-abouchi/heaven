@@ -6,6 +6,7 @@ const _is_freestanding: bool = @import("builtin").target.os.tag == .freestanding
 /// std.posix/std.Thread — interdits sur wasm32-freestanding. 2026-10-27 (E4).
 inline fn debugPrint(comptime fmt: []const u8, args: anytype) void {
     if (comptime _is_freestanding) return;
+    if (platform.getenv("HEAVEN_DEBUG") == null) return;
     platform.debug.print(fmt, args);
 }
 
