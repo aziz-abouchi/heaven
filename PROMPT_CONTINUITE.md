@@ -296,11 +296,12 @@ Bonne continuation.
 
 ## Book v2 — Partie IV ouverte (2026-11-05, session 7)
 
-- **30 chapitres v2**, ~10 500 lignes
+- **31 chapitres v2**, ~11 100 lignes
 - Partie I : 7/7 ✅
 - Partie II : 9/9 ✅
 - Partie III : 12/12 ✅
-- **Partie IV : 2/…** (`25-outils` 178 l., `26-selfhost` 187 l.)
+- **Partie IV : 4/4 + conclusion** (`25-outils` 178 l., `26-selfhost` 187 l., `27-eval` 222 l., `28-memoire` 248 l., `29-conclusion` 182 l.)
+- **LIVRE V2 BOUCLÉ (2026-11-05)**
 - `docs/book-v2/book.toml` → `mdbook build` OK
 - `docs/spec/_cli.md` (référence CLI)
 
