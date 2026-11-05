@@ -847,3 +847,43 @@ Le prompt P1c disait : "curryfication retourne lambda partielle, pas le resultat
 
 ### Non teste
 - Curry via alias : `g = add3 in (g 1 2 3)` — pas verifie
+
+## 3bis. Thunks top-level — diagnostic final (2026-11-05, P1c-session-5)
+
+`xyz = 3` est enregistre comme **clause 0-arity** (`engine.fns.get("xyz")` avec
+`num_patterns=0`), PAS comme binding env. `(xyz)` est parse comme `.sym` nu,
+donc `evaluate` case `.sym` (`engine_expr.zig:990-1004`) fait `return id` au
+lieu d'evaluer la clause 0-pattern. D'ou le message `xyz != 3` (le NOM).
+
+### Fix pret (10 lignes, session 6)
+
+Remplacer `return id` (l. 990-1004) par une evaluation de la clause 0-pattern :
+
+    if (engine.fns.get(name)) |fd| {
+        if (fd.num_clauses > 0 and fd.ctor_arity == null) {
+            for (fd.clauses[0..fd.num_clauses]) |clause| {
+                if (clause.num_patterns == 0 and clause.guard == null) {
+                    return try evaluate(store, env, engine, clause.body, depth + 1);
+                }
+            }
+            return id;
+        }
+    }
+
+Risque moyen : `f = lambda x -> ...` reste OK (retourne la lambda appelable),
+mais si un cas depend du `return id` pour des lambdas top-level, ca peut
+regresser. **Les 167 tests `.hvn` de `check_all.sh` doivent rester verts.**
+
+### Tests de non-regression a ajouter (session 6)
+
+- `xyz = 3; test "v": xyz == 3` (doit passer apres fix)
+- `f = (add 1 2); test "v": f == 3` (doit passer apres fix)
+- `f = lambda x -> x + 1; test "appel": (f 2) == 3` (doit rester OK apres fix)
+- `add x y = x + y; test "appel": (add 1 2) == 3` (doit rester OK apres fix)
+
+### Faux diagnostics corriges
+
+Le prompt disait "thunk non force = valeur (D12)" + workarounds `f _ = ...`,
+`(f 0)`. **Test empirique 2026-11-05** : aucun workaround ne marche (testes).
+Le vrai probleme est le `.sym` case l. 990 (`return id` au lieu d'evaluer),
+pas la creation de thunk.
