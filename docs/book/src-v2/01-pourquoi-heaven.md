@@ -1,5 +1,8 @@
 # Chapitre 1 — Pourquoi Heaven ?
 
+> **⚠ BÊTA** — Ce livre est en cours d'écriture. Il remplace progressivement
+> le livre v1. Les sections « cible » sont marquées comme telles.
+>
 > **Version 2 (2026-11-04)** — refonte style LYAH/LYSE.
 > Version publiée : `00-pourquoi-heaven.md` (v1).
 > Référentiel de style : `05-recursion.md` (v2, pilote).
