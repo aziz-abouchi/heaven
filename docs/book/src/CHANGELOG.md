@@ -1,3 +1,55 @@
+## 2026-11-05 (jeudi) — LIVRE V2 BOUCLÉ + PUBLIÉ · P1c bouclé
+
+### Livre v2 — 31 chapitres, ~11 100 l., **publié**
+- **Partie III bouclée** : `17-handlers`, `23-reseau`, `24-hab` (3 ch., ~840 l.)
+- **Partie IV ouverte + bouclée** : `25-outils` (178 l.), `26-selfhost` (187 l.),
+  `27-eval` (222 l.), `28-memoire` (248 l.), `29-conclusion` (182 l.)
+- **`SUMMARY.md`** navigable, **`G-pieges.md`** v2 (639 l.), 49 SVG (0 manquant)
+- **`book.toml`** v2 + `mdbook build` → **publié** sous `/heaven/v2/`
+  (`https://aziz-abouchi.github.io/heaven/v2/`)
+- **Bandeau `⚠ BÊTA`** dans `01-pourquoi-heaven.md`
+
+### P1c runtime — **bouclé** (4 chantiers)
+- **`heaven check` syntax** : exit 1 sur diag, ERROR tree-sitter via `is_error`
+  strict (pas `has_error` qui flagge les MISSING cosmétiques). CI-verrouillé §7b.
+- **`heaven check` arity** : `app_expr` routé vers `buildCall`, `simple_expr`
+  déballé, `msg_pool` dans Typer. `arity mismatch: 'add' attend 2, reçu 1` sort
+  correctement. CI-verrouillé.
+- **Curryfication** : **confirmée fonctionnelle** (5ᵉ faux diagnostic levé).
+  Edge case `(((f a) b) c)` documenté.
+- **Thunks top-level** : **fix** `engine_expr.zig` case `.sym` l. 981-990
+  (eval clause 0-pattern). `xyz = 3; xyz == 3` passe. 7/7 tests régression.
+
+### 6 faux diagnostics levés par test empirique
+1. `fn f(x,y) = ...` **n'est pas** Heaven (tree-sitter refuse `fn`)
+2. `add 1` = `app_expr`, pas `call` (tree-sitter)
+3. `simple_expr` enveloppe l'identifiant (`buildCall` prenait le wrapper)
+4. `payload==0` confond lambdas nommées et 0-arity
+5. Curry **fonctionne** (le prompt affirmait le contraire)
+6. Workarounds thunks (`f _ = ...`, `(f 0)`) **ne marchent pas**
+
+### CI + tests
+- `build.sh` : `mkdir -p site/repl` (fix CI — dossier non versionné)
+- `check_all.sh` §7b : 3 tests `check` (clean/arity/syntax-error)
+- `tests/hvn-check/` + `tests/hvn-check/thunks.hvn` (7/7)
+- `scripts/test_all_hvn.py` : **168 tests .hvn verts** (vs 167)
+
+### Docs
+- `docs/spec/_cli.md` (68 l., 15 commandes documentées)
+- `docs/spec/_runtime_gaps.md` : §check + §arity + §curry + §3bis thunks + selfhost
+  + plan renommage (941 l.)
+- `README` + `STATUS` + `status.json` regen (5 nov)
+- `PROMPT_CONTINUITE.md` : resync 7×, P1c bouclé, URL live notée
+- `deploy.yml` : build + publication v2 sous `/v2/`
+
+### Décisions reportées (documentées)
+- Renommage `16-effects` → `17-effects` + cascade : 45 min, 40+ réf. ambiguës,
+  plan dans `_runtime_gaps.md`.
+- QTT enforced (brancher `LinearChecker` sur `elab`) : ~7 sessions.
+- Selfhost complet : ~10 sessions.
+
+---
+
 ## 2026-11-04 (mercredi) — P0.5 bouclée + MPST V2a
 
 ### CI audit — P0.5 (matin)

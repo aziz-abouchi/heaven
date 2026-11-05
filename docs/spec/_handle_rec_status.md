@@ -1,63 +1,47 @@
-# handle_rec / effects — état et chantier parallèle (2026-10-19)
+# handle_rec / effects — état (MAJ 2026-11-05)
 
-**Statut** : parallèle à D9/E4/E5. Non bloquant. Chantier de
-consolidation estimé 1-2 sessions.
+**Statut** : V0 **fonctionnel**, CI-verrouillé. La spec `_effects.md` (2026-10-20)
+décrit encore l'ancien mécanisme (`handle` V0, `last_performed`) — elle n'est
+**pas** à jour pour `handle_rec`. Ce fichier complète `_effects.md` §18.
 
 ## Ce qui existe (prouvé)
 
-- `perform` reconnu comme mot-clé (`engine_expr.zig:982`,
-  `isMagic`). Capture dans `pending_capture` kind `.perform`.
-- `handle_rec` et `__handle_rec_k` dans la liste magics.
-  Signature probable : `(handle_rec prompt thunk handler)`.
-- `yield` (l.1152) : pose une `pending_capture` kind `.yield_task`.
-- `prompts` : pile des frontières `handle_rec` ouvertes.
-  `@prompt_depth`, `@prompt_current`, `@prompt`, `@throw`.
-- Scheduler coopératif : `add_task`, `schedule`, `task_state`,
-  `.preempted` vs `.blocked` (A3A-PREEMPT).
-- Tests verts : `test_effects_rec` 4/4, `test_continuations`
-  15/15, `test_prompt_depth` 13/13.
+- `handle_rec` : `(handle_rec body handler init)` — 3 args, `body` paramétré
+  par l'état, `handler : (lambda v k -> ...)`, `k` = continuation.
+- `perform "label" val` : émet un signal, capturé par le handler le plus
+  proche (pile `prompts`).
+- **Imbrication** : `(handle_rec outer (handle_rec inner ...))` fonctionne.
+  Test `tests/test_effects_rec_nested.hvn` (67 l., 4 scénarios).
+- **Abandon** : ne pas appeler `k` = `throw` (abandonne le calcul).
+- **`stdlib/effects.hvn`** (31 l.) : expose `resume k v = (k v)` pour la
+  lisibilité. Les magics (`handle_rec`, `perform`, `yield`) ne sont **pas**
+  réexportés par `import "X" as E` — appel direct obligatoire.
+- **`@prompt` / `@throw`** : continuations délimitées. `test_continuations.hvn`
+  (15/15), `test_prompt_depth.hvn` (13/13).
 
-## Ce qui manque (spec `_effects.md`)
+## Ce qui reste (spec `_effects.md` §18 à écrire)
 
-- **`handle` inspecte `last_performed`** au lieu de capturer une
-  continuation. Ce n'est ni un shallow handler ni un deep handler.
-  La spec est explicite : « le mécanisme actuel ne doit pas être
-  décrit comme un shallow/deep handler ».
-- **`resume` public** : `resume_from_k` est un enum interne
-  (`pending_capture.kind`), pas un magic exposé.
-- **Pas d'interface `.hvn` stable** : `stdlib/effects.hvn` ?
-  Aujourd'hui, tout passe par des magics.
-- **Composition** `handle (handle e h1) h2` : non testée, non
-  spécifiée.
+- **Sémantique deep vs shallow** : non décidée. `handle_rec` est ni l'un ni
+  l'autre — c'est un mécanisme ad-hoc one-shot.
+- **Multi-shot** : non testé, non garanti. Tous les tests appellent `k` **une
+  fois**. Ne pas parier dessus.
+- **`handle` (V0)** : expérimental, single-slot `last_performed`, sans
+  continuation. Ancêtre de `handle_rec`. **Ne pas utiliser.**
+- **D8** (mécanique générale de suspension) : futur, non implémenté.
 
-## Prérequis (prompt de continuité)
+## Décision 2026-11-05
 
-- effects-consolidation = prérequis de MPST-V2 et A-3b-3.
-- À faire **après** E4/E5 si on suit l'ordre actuel, ou **en
-  parallèle** si D9 est bloqué (ce qui est le cas : B3 let-chain).
-
-## Plan proposé (session dédiée)
-
-1. Discriminant : `handle` capture-t-il `perform` en isolation ?
-   (test `_disc_handle.hvn`).
-2. Si non, choisir : shallow vs deep handler, écrire la sémantique
-   dans `_effects.md` (décision).
-3. Exposer `resume` comme magic public (façade sur
-   `resume_from_k`).
-4. `stdlib/effects.hvn` : façade `.hvn` pour `perform`/`handle`/
-   `yield`/`resume`.
-5. Tests composition + baseline.
-
-**Ne pas** bricoler à chaud : le système de prompts est câblé avec
-le scheduler préemptif et `SuspendRequested`. Un fix à moitié casse
-`test_preemptive_coop` et `test_scheduler`.
+- `handle_rec` est **stable** pour usage one-shot + imbrication. C'est la
+  primitive réelle.
+- `handle` reste documenté comme **expérimental** — pas de consolidation
+  prévue (le temps est investi ailleurs).
+- Deep/shallow : **non prioritaire**. Attendre un cas d'usage réel.
 
 ## Références
 
-- `docs/spec/_effects.md` (285 l.), `_continuations.md` (303 l.),
-  `_concurrency.md` (467 l.).
-- `src/core/engine_expr.zig:187-350` (PendingCapture, prompts,
-  scheduler).
-- `tests/test_effects_rec.hvn`, `test_continuations.hvn`,
-  `test_prompt_depth.hvn`.
-
+- `docs/spec/_effects.md` (303 l., §1-17 obsolètes pour `handle_rec`, §18 à ajouter)
+- `docs/book/src-v2/17-handlers.md` (234 l., chapitre pédagogique)
+- `stdlib/effects.hvn` (31 l.)
+- `tests/test_effects_rec.hvn` (4/4), `test_effects_rec_nested.hvn` (4 scénarios),
+  `test_continuations.hvn` (15/15), `test_prompt_depth.hvn` (13/13)
+- `src/core/engine_expr.zig:187-350` (PendingCapture, prompts, scheduler)

@@ -24,10 +24,10 @@
 | 8 | HKT Rank 1 (`Strategy ∀h`) | ✅ Implémenté et testé (O2.2) | ✅ |
 | 9 | HIT Rank 1 (Interval, S¹, ‖A‖) | Kernel : rien. Spec : seulement | ❌ Spec |
 | 10 | `run` multi-message fiable | 1 message fiable (STATUS.md:303). `dispatch_from` = contournement documenté | ❌ Bug |
-| 11 | Actor mailbox natif | Bloqué par `run` multi-message + thunks top-level | ❌ Bug |
+| 11 | Actor mailbox natif | ✅ mailbox multi-msg résolu (`04de61c`, 5 msgs = 15). Thunks top-level fixés (`9a301c7`). | ✅ Stable |
 | 12 | Backpressure (mailbox bornée, streams) | 0 %. Mailbox illimitée. Streams sans push/pull | ❌ Absent |
-| 13 | Erreurs pédagogiques (expected/found/suggestion) | `check-v1` : arity + literal + lambda. Messages clairs sur 3 cas, cryptiques ailleurs | ⚠️ Partiel |
-| 14 | `heaven check` = typechecker | Dump AST tree-sitter, pas de vérification sémantique | ❌ Stub |
+| 13 | Erreurs pédagogiques (expected/found/suggestion) | `heaven check` : arity (`arity mismatch: 'add' attend 2, reçu 1`) + syntax (tree-sitter ERROR) + literal + lambda. Messages clairs sur 4 cas, cryptiques ailleurs | ⚠️ Partiel |
+| 14 | `heaven check` = typechecker | ✅ syntax (exit 1, ERROR tree-sitter) + arity (`fn_arity`, `msg_pool`). Pas d'unification complète (Typer minimal). | ⚠️ Partiel |
 | 15 | `heaven test` tous les tests | Oui, si on utilise `heaven test tests/`. `heaven run` = 1 test | ⚠️ Piège |
 
 ## Ce qui **est** vrai (livré et testé)

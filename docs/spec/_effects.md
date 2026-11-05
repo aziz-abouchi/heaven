@@ -301,3 +301,56 @@ D8 est donc une primitive générale, pas une fonctionnalité HTTP.
 3. `handle` simple (one-shot, sans handle_rec) : present mais
    experimental.
 
+
+## 18. `handle_rec` — mécanisme réel (MAJ 2026-11-05)
+
+> **Note de lecture.** Les sections §1-17 décrivent `handle` **V0**
+> (`last_performed`, sans continuation) — c'est l'**ancêtre expérimental**.
+> Le mécanisme réel est `handle_rec`, documenté dans `_handle_rec_status.md`
+> et pédagogiquement dans `docs/book/src-v2/17-handlers.md`. Cette section
+> corrige la phrase obsolète « aucune capture de continuation » (§1) :
+> `handle_rec` **capture** une continuation (one-shot, testée).
+
+### Signature
+
+    handle_rec body handler init
+
+- `body` : `lambda s -> ...` — le calcul, paramétré par l'état `s`.
+- `handler` : `lambda v k -> ...` — `v` = valeur émise, `k` = continuation.
+- `init` : état initial.
+
+### Testé (CI-verrouillé)
+
+| Test | Ce qui est prouvé |
+|---|---|
+| `test_effects_rec.hvn` | 4 cas one-shot (countdown, sum, one-shot, 10 iter) |
+| `test_effects_rec_nested.hvn` | 4 scénarios d'imbrication (pile `prompts`) |
+| `test_continuations.hvn` | `@prompt`/`@throw` (15/15) |
+| `test_prompt_depth.hvn` | Profondeur `@prompt` (13/13) |
+
+### `k` — continuation
+
+- `(k v)` **reprend** le calcul interrompu (pas un `return`).
+- Ne pas appeler `k` = **abandon** (= `throw`).
+- Multi-shot (plusieurs `k`) : **non testé, non garanti**.
+- Deep vs shallow : **non décidé** — `handle_rec` est un mécanisme ad-hoc
+  one-shot.
+
+### `perform`
+
+    perform "label" v
+
+Émet un signal. Capturé par le handler le plus proche (pile `prompts`). Si
+aucun handler explicite n'est actif, dispatch vers `io_handler`.
+
+### `stdlib/effects.hvn`
+
+Façade minimale (31 l.) : `resume k v = (k v)` pour la lisibilité.
+Les magics (`handle_rec`, `perform`, `yield`) ne sont **pas** réexportés par
+`import "X" as E`. Appel direct obligatoire.
+
+### Voir
+
+- `_handle_rec_status.md` — état détaillé + roadmap
+- `docs/book/src-v2/17-handlers.md` — chapitre pédagogique
+- `engine_expr.zig:187-350` — implémentation (`PendingCapture`, `prompts`)
