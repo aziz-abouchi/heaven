@@ -749,7 +749,7 @@ Voir aussi : G.40, `test_web_ontology_mocked.hvn` (DI smocker).
 - Debug prints retirés (d38f860)
 - Doc `_runtime_gaps.md` §check + §arity (à jour)
 
-## Arity — CAUSE RACINE FINALE (2026-11-05 14h05)
+## Arity — RÉSOLU (2026-11-05 14h30)
 
 ### Le vrai probleme
 `[DBG CALL] ...` ne s'affiche JAMAIS pour `result = add 1`. `buildCall` n'est jamais appele.
@@ -759,7 +759,12 @@ Cause : tree-sitter parse `add 1` (sans parens) comme une sequence plate
 `call` ne se declenche donc jamais. Dans `buildAssign`, on a
 `count=4, val_node=identifier(add)` -> `sym("add")`, `1` est perdu.
 
-### Fix a faire (session 3, ~30 min)
+### Fix applique (session 3)
+1. `app_expr` route vers `buildCall` (tree-sitter ne dit pas `call`)
+2. `simple_expr` deballe vers son premier enfant (wrapper transparent)
+3. `msg_pool` dans Typer pour eviter le leak `allocPrint`
+
+Detail du fix initial (conservé pour reference) :
 Dans `buildAssign`, apres `=` :
 - Si les enfants restants sont une seule expression -> `bind(name, expr)` (cas actuel, OK)
 - Si les enfants restants sont `[premier, arg1, arg2, ...]` -> `bind(name, apply(premier, [arg1, arg2, ...]))`
