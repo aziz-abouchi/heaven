@@ -75,62 +75,60 @@ Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, Ho
 
 **Bug documenté non-fixé** : `+` sur bigint n'est pas supporté (`(to_int (+ (from_int 3) (from_int 4)))` ≠ 7). À vérifier : primitives bigint exposées (`badd`? ou rien?). Non-bloquant.
 
-## Prochains chantiers (MAJ 2026-11-04 14h)
+## État au 2026-11-05 (session nuit, dernier commit `dead111`)
 
-1. **Livre v2 — 12 chapitres, ~3600 l.** (2026-11-04 soir) :
+| Métrique | Valeur |
+|---|---|
+| Commits de la session | 3 (`17-handlers`, `23-reseau`, `24-hab`) |
+| Livre v2 | **28 chapitres, ~10 137 l.** |
+| Partie I | 7/7 ✅ |
+| Partie II | 9/9 ✅ |
+| **Partie III** | **12/12 ✅** (17-handlers → 24-hab) |
+| Commits non pushés | `dead111`, `188c678`, `4535611` |
+| `build.sh` | WIP local (ajout `site/repl/heaven.wasm`), à ne pas committer avec du doc |
 
-   **Partie I** (7/7, complète) :
-   - `01-pourquoi-heaven.md` (314 l., piège Ménon + capot six primitives)
-   - `02-demarrer.md` (221 l., **from scratch** — install, run, REPL piège TTY, capot read-eval-print)
-   - `03-types.md` (563 l., piège Curry + capot QTT spec/runtime)
-   - `04-syntaxe.md` (319 l., piège ordre clauses + capot parsing [32])
-   - `05-recursion.md` (351 l., piège cas de base + capot TCO)
-   - `06-higher-order.md` (357 l., capot `>>>` + piège curry)
-   - `07-modules.md` (263 l., piège `module X` + capot résolution imports)
+## Ce qui a été ajouté cette session (Partie III bouclée)
 
-   **Partie II** (9/9, complète) :
-   - `08-definir-types.md` (271 l., **from scratch** — data, arité, capot stockage `ctor`)
-   - `09-typeclasses.md` (189 l., ← `19-algebres`, piège instance sans loi + capot dispatch runtime)
-   - `11-streams.md` (360 l., ← `07-streams`, piège delay capture l'env + capot thunk 3 états)
-   - `12-bigint.md` (327 l., ← `12-bigint`, piège retenue oubliée + capot D20/`+` bug)
-   - `10-structures-recursives.md` (331 l., **from scratch** — List/Tree, foldr/foldl, liste infinie, capot structure partagée)
-   - `13-free-monads.md` (364 l., ← `16-free-monads`, piège presque≠vrai free monad + capot AST interpréteur)
-   - `14-recursion-schemes.md` (386 l., ← `14`, piège cata non-universel + capot motifs vs magie)
-   - `15-categories.md` (441 l., ← `17-categories`, piège Functor≠HKT + capot simulation catégories)
+- `17-handlers.md` (234 l.) — `handle_rec`, `k` comme continuation, imbrication par pile `prompts`, abandon de `k` = `throw`
+- `23-reseau.md` (328 l.) — trois couches HTTP (parser pur testé, servir natif `--http-serve`, cible honnête : DNS, HTTPS, WebSocket non prêts)
+- `24-hab.md` (275 l.) — MVU + optiques + catamorphisme, 9 tests `tests/hab/`, distinction « logique testée » vs « pont JS non testé »
 
-   - `16-optiques.md` (367 l., ← `15-optiques`, piège 3 lois lens + capot paire vs Van Laarhoven)
+## Prochains chantiers (par ordre de priorité)
 
-   **Partie III** (9/12) :
-   - `16-effects.md` (457 l., ← `06-effects`, piège one-shot vs multi-shot + capot prompts délimités)
-   - `18-errors.md` (207 l., ← `23-validation` §1-4, piège Validation≠Result + capot simulation)
-   - `18b-tools.md` (~100 l., ← `23-validation` outils, mocker/smocker/quickcheck/fuzzer/loadtest)
-   - `19-actors.md` (196 l., intro from scratch + §4 de `09-real-world`, piège lifecycle manuel + capot mailbox/scheduler)
-   - `20-otp.md` (216 l., intro from scratch + v1 65 l. étoffé, piège redémarrage non-exact + capot 3 stratégies)
-   - `21a-cooperatif.md` (332 l., ← `13-concurrency` §1-6, piège coopératif≠fair + capot tourniquet)
-   - `21b-preemptif.md` (198 l., ← `13-concurrency` §préemption, piège redémarrage≠reprise + capot timer/safepoints)
-   - `21c-parallelisme.md` (225 l., **from scratch** — roadmap 5 niveaux, niveau 0 assumé)
-   - `22-mpst.md` (210 l., intro from scratch + v1 47 l. étoffé, piège dual≠project_mult + capot post-hoc vs en-ligne)
+1. **P1c runtime** — **priorité #1**, non traité cette session :
+   - `heaven check` est un **stub** (aucune vérif arité/scope/type)
+   - **Curryfication** `(f a b)` manquante (retourne lambda partielle, pas le résultat)
+   - **Thunks top-level** non déballables (`counter_comp = (H.mk_component ...)` échoue silencieusement)
+   - Ces trois points sont documentés dans `docs/spec/_runtime_gaps.md` mais **pas listés dans les « prochains chantiers »** avant ce resync.
 
-   **Partie III reste** : `17-handlers` (from scratch, 06b=stub 14 l.), `23-réseau` (fusion `09-real-world` §1-3-5-6 + `24-reseau` + `25-stdlib`), `24-hab` (fusion `27-hab` + `31/32/36/37`).
+2. **Partie IV du livre** — ouverte mais **pas commencée**. Cibles suggérées :
+   - `25-outils` ou `25-ecosysteme` (LSP, MCP, linter, formatter)
+   - `26-selfhost` (miroir de `25-stdlib-net-http.md` v1)
+   - `41-semantique-formelle` (squelette existant, 8 sections)
+   - **Cadence : 1 ch./session**, pas 25. Le marathon du 4 nov ne doit pas se reproduire.
 
-   Pattern validé 12× (Piège + Capot + 4 exercices, copie ou from-scratch).
+3. **MPST V2c** (1 session) — récursion `μX. … X`. V2b bloqué par `_concurrency.md` C1-C5.
 
-   **Prochain** : `10-structures-recursives` ← `14-recursion-schemes` (copie + pattern, 20-30 min). Ou `11-streams` ← `07-streams` (garder tel quel). Partie II continue.
+4. **Formalisation C** (1-2 sessions) — `_core_typing.md` §1. Voir `_core_syntax.md` `[À VÉRIFIER]`.
 
-2. **MPST V2c** (1 session) : récursion `μX. ... X`. V2a fait (`STMulti` + `project_mult`, 14 tests).
-   V2b (checker en ligne) bloqué par `_concurrency.md` C1-C5.
+## Décision recommandée
 
-3. **Formalisation C** (1-2 sessions) : `_core_typing.md` — règles de typage §1. Voir `_core_syntax.md` `[À VÉRIFIER]`.
+**P1c runtime avant Partie IV.** Raison : 28 chapitres décrivent maintenant un langage plus stable que le binaire. Si on ouvre Partie IV sans traiter P1c, l'écart augmente. Une session P1c (un des 3 chantiers), puis reprise du livre à 1 ch./session.
 
-4. **P1 — `infix_migrate.py`** — PARTIEL 2026-11-04 (`2e0db77`, `c210dcc`, `11c4cce`, `116e3f9`).
-   - `needs_parens` réparé + wrap ops/if/let. 11 tests unitaires.
-   - `core/std/{list,base,eq,ord,option,pair,quickcheck}.hvn` migrés (7 fichiers, tests verts).
-   - **NON migrables** (G.43) : `heaven_parse`, `array`, `string` — `if` multi-lignes → `then` vide. Rollback documenté.
-   - Restants (probablement non migrables, hors scope) : `hashmap`, `lens`, `match`, `memory`, `free`, `fuzzer`, `loadtest`, `mocker`, `smocker`.
+**Sous-décision à prendre en début de prochaine session** : lequel des trois chantiers P1c attaquer en premier ?
+- **`heaven check`** : impact utilisateur le plus direct, effort moyen
+- **Curryfication** : bug silencieux, effort faible mais risque de régression
+- **Thunks top-level** : piège connu, workaround existe déjà
 
-5. **D20 fix** (1 session) : `bdiv` itératif (choix B `_bigint_d20_stack.md`) ou whitelist permanente.
+Recommandation : **`heaven check`** en premier — c'est celui qui débloque le plus d'expérience utilisateur pour le moins de risque de régression.
 
-6. **Prolog V2** (optionnel) : multi-args.
+## Ne PAS (rappels)
+
+- Ne pas enchaîner MPST V2b par inertie (V2a livré, V2b bloqué spec).
+- Ne pas relancer `infix_migrate.py` sur `heaven_eval.hvn` / `heaven_parse.hvn` sans réparer `needs_parens` (leçon du 3 nov midi).
+- Ne pas committer `build.sh` avec du doc (WIP séparé).
+- Ne pas ouvrir 10 chapitres d'un coup — 1 ch./session maximum jusqu'à ce que P1c soit traité.
+
 
 ## Style `.hvn` et livre (politique 2026-11-03)
 
