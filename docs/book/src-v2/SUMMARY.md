@@ -48,6 +48,7 @@
 - [Chapitre 26 — Selfhost : la preuve de concept, pas le compilateur](26-selfhost.md)
 - [Chapitre 27 — `heaven_eval` : un interpréteur en 96 lignes](27-eval.md)
 - [Chapitre 28 — Mémoire : QTT, la spécification qui n'est pas (encore) un vérificateur](28-memoire.md)
+- [Chapitre 29 — Conclusion : un langage qui tend](29-conclusion.md)
 
 ## Annexes
 
