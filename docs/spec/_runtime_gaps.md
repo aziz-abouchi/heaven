@@ -887,3 +887,23 @@ Le prompt disait "thunk non force = valeur (D12)" + workarounds `f _ = ...`,
 `(f 0)`. **Test empirique 2026-11-05** : aucun workaround ne marche (testes).
 Le vrai probleme est le `.sym` case l. 990 (`return id` au lieu d'evaluer),
 pas la creation de thunk.
+
+## Renommage `16-effects` → `17-effects` — planifie, reporte (2026-11-05)
+
+Decision : reporte. Raison : le renommage cascade touche 12 fichiers + ~40 references
+cross-chapter, dont certaines ambiguës (v1 vs v2, ex. `ch. 39` = v1).
+
+Le conflit actuel (`16-effects` et `16-optiques` dans le SUMMARY) est **documente**
+dans `SUMMARY.md` via commentaire HTML. Ce n'est pas cassant, c'est visible.
+
+### Plan pour session dediee (~1h)
+1. `git mv 16-effects.md 17-effects.md` + cascade `17-handlers` → `18-handlers`, etc.
+2. Mettre a jour les H1 dans les 12 fichiers.
+3. Script Python qui reecrit les references textuelles `chapitre N` **uniquement** si
+   le contexte parle du chapitre concerne (regex avec fenetre de 3 mots avant/apres).
+4. Mettre a jour le SUMMARY (12 liens).
+5. `mdbook build` doit passer.
+6. `check_all.sh` doit rester PROJET SAIN.
+
+Effort : 1h. Risque : moyen. Priorite : cosmetique.
+
