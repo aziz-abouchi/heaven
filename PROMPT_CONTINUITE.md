@@ -293,3 +293,19 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
 ---
 
 Bonne continuation.
+
+## Book v2 — Partie IV ouverte (2026-11-05, session 7)
+
+- **30 chapitres v2**, ~10 500 lignes
+- Partie I : 7/7 ✅
+- Partie II : 9/9 ✅
+- Partie III : 12/12 ✅
+- **Partie IV : 2/…** (`25-outils` 178 l., `26-selfhost` 187 l.)
+- `docs/book-v2/book.toml` → `mdbook build` OK
+- `docs/spec/_cli.md` (référence CLI)
+
+Prochain chapitre Partie IV : `27-stdlib` (miroir de `25-stdlib-net-http.md` v1)
+ou `27-eval` (miroir de `40-heaven-eval.md` v1) — à décider en session 8.
+
+`_runtime_gaps.md` : 941 l., sections §check, §arity, §curry, §3bis thunks,
+selfhost, plan renommage 16-effects reporté.
