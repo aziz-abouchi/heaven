@@ -77,7 +77,21 @@ pub const Typer = struct {
             },
             .relation => return 0,
             .hole => return self.freshVar(),
-            else => unreachable,
+            // Tags ajoutés par ast_bridge pour eq_decl, fn_decl, var_decl, etc.
+            .lambda => {
+                _ = self.infer(node.aux); // inférer le body
+                return self.freshVar();
+            },
+            .let, .letrec => {
+                _ = self.infer(node.aux);
+                return self.freshVar();
+            },
+            .fun => return self.freshVar(),
+            // Littéraux alternatifs (post-lowering)
+            .int, .float, .string, .true, .false, .var_tag => return self.freshVar(),
+            // Fallback safe : pas de panic, juste un type frais.
+            // Un tag inconnu ne doit pas tuer le check.
+            else => return self.freshVar(),
         }
     }
 

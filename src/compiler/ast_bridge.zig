@@ -192,10 +192,54 @@ pub const Bridge = struct {
     }
 
     fn buildEqDecl(self: *Bridge, node: ts.TSNode) anyerror!Id {
-        _ = node; // unused après neutralisation debug
-        // platform.debug.print("\n=== EQ_DECL ===\n", .{});
-        // debug tree désactivé 2026-11-05 (P2-bis)
-        return self.store.sym("eq_decl");
+        // Syntaxe: add x y = x + y
+        //   children: identifier 'add', pattern 'x', pattern 'y', '=', binary
+        const name = self.getFieldText(node, "name") orelse blk: {
+            // fallback : premier identifier enfant
+            const c = ts.ts_node_child_count(node);
+            var k: u32 = 0;
+            while (k < c) : (k += 1) {
+                const ch = ts.ts_node_child(node, k);
+                if (std.mem.eql(u8, self.nodeType(ch), "identifier")) {
+                    break :blk self.nodeText(ch);
+                }
+            }
+            break :blk "_";
+        };
+
+        var param_names = std.ArrayListUnmanaged([]const u8){};
+        defer param_names.deinit(self.allocator);
+
+        var body_id: Id = expr.NULL;
+        var seen_eq = false;
+        const count = ts.ts_node_child_count(node);
+        var i: u32 = 0;
+        while (i < count) : (i += 1) {
+            const child = ts.ts_node_child(node, i);
+            const ct = self.nodeType(child);
+            if (std.mem.eql(u8, ct, "pattern")) {
+                // pattern contient souvent un identifier enfant
+                if (ts.ts_node_child_count(child) > 0) {
+                    const ident = ts.ts_node_child(child, 0);
+                    try param_names.append(self.allocator, self.nodeText(ident));
+                }
+            } else if (std.mem.eql(u8, ct, "=")) {
+                seen_eq = true;
+            } else if (std.mem.eql(u8, ct, "identifier")) {
+                // skip : c'est le nom, déjà lu
+            } else if (seen_eq) {
+                body_id = try self.buildExpr(child);
+            }
+        }
+
+        if (body_id == expr.NULL) {
+            return self.store.sym("eq_decl");
+        }
+
+        const fn_id = try self.store.lambda(param_names.items, body_id);
+        const bind_id = try self.store.bind(name, fn_id);
+        try self.scope.define(name, .{ .type_name = "fn", .expr_id = fn_id, .kind = .function });
+        return bind_id;
     }
 
     fn buildBlock(self: *Bridge, node: ts.TSNode) anyerror!Id {
