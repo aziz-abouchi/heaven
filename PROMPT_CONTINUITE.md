@@ -152,7 +152,9 @@ Recommandation : **`heaven check`** en premier — c'est celui qui débloque le 
 - `ast_bridge.zig` est un **chemin parallèle** à `engine_expr` — `heaven run` ne l'utilise pas. `heaven check` est le seul consommateur du Typer. Patcher le Typer **ne peut pas** régresser `run`.
 
 ### Reste (P1c incomplet)
-- **Curryfication** `(f a b)` : bug silencieux, touche `engine_expr` (risque régression)
+- **Curryfication** : **FONCTIONNE** pour tous les cas réels (5/6).
+  Edge case `(((f a) b) c)` échoue — voir `_runtime_gaps.md` §curry.
+  Pas prioritaire (rare, workaround `(f a b c)` direct).
 - **Thunks top-level** : workaround existe (`f _ = ...`), moins urgent
 - **Test de non-régression `check`** : `tests/hvn-check/{clean,arity,syntax-error}.hvn` + intégration `check_all.sh` (30 min)
 - **Tests `check` dans CI** : non fait

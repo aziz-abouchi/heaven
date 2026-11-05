@@ -790,3 +790,32 @@ la syntaxe applicative Heaven (`add 1`).
 - `;` skip dans buildAssign
 - `countLambdaParams` robuste (sans payload==0)
 - Doc honnete a jour
+
+## Curryfication — état 2026-11-05 (P1c-session-4)
+
+### FAUX diagnostic confirme (5e)
+Le prompt P1c disait : "curryfication retourne lambda partielle, pas le resultat".
+**C'est faux** pour tous les cas reels.
+
+### Tests valides (via `heaven --run-test`)
+- `(add3 1 2 3) == 6`                OK
+- `((add3 1) 2 3) == 6`             OK (curry 1 niveau + full)
+- `(add 1 2) == 3`                  OK
+- `((add 1) 2) == 3`                OK
+- `(let f = (add 1) in (f 2)) == 3` OK (avec parens)
+
+### Bug residuel (edge case)
+- `(((add3 1) 2) 3) == 6` **ECHOUE** → resultat `add3 1 __curry_0 __curry_1`
+- Les args `2` et `3` sont perdus entre les deux applications successives.
+- Cause probable : `engine_expr.zig:848-863` cree `lambda(__curry_0, lambda(__curry_1, body))`.
+  Appliquer `2` donne le bon lambda mais l'evaluation ne rebinde pas
+  `__curry_0 := 2` dans le body avant la seconde application.
+- **Cas rare** : `(((f a) b) c)` n'apparait pas en pratique. `(f a b c)` et
+  `((f a) b c)` marchent tous les deux.
+
+### A faire (session 5, optionnel)
+- Instrumenter `engine_expr` au point d'application de lambda.
+- Ou documenter comme limitation permanente (workaround : `(add3 1 2 3)` direct).
+
+### Non teste
+- Curry via alias : `g = add3 in (g 1 2 3)` — pas verifie
