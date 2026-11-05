@@ -226,7 +226,7 @@ de `lib/heaven_eval.hvn` et `lib/heaven_parse.hvn` a été **rollbackée**
 
 ## Pièges à retenir (annexe G)
 
-- G.28 : f = ... top-level crée un thunk. Utiliser f _ = ... ou (f 0).
+- G.28 (FAUX, corrige 2026-11-05) : `f = expr; f == 3` echoue. Les workarounds `f _ = ...` et `(f 0)` **NE MARCHENT PAS** non plus. Bug de lookup top-level pre-existant, latent (167 tests evitent le cas). Cf. `_runtime_gaps.md` §3. Ce qui marche : `(add 1 2)` direct, sans binding. A fixer session 5 (~2h).
 - G.37 : parse_top sur token unique. Contourné.
 - G.38 : let dans string intercepté. Contourné par containsKeywordAtRoot.
 - G.40 : antislash-quote n'est pas un escape - utiliser @char_string 34.

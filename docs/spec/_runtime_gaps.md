@@ -21,23 +21,51 @@ par message) + `while (true)` présent.
 
 Régression testée dans `tests/test_actor_multi_msg.hvn`.
 
-## 3. Thunks top-level non-déballables
+## 3. Thunks top-level — bug confirmé 2026-11-05
 
-    counter_comp = (H.mk_component ...)    -- thunk
-    (H.component_init counter_comp)       -- échoue silencieusement
+    xyz = 3
+    test "xyz_simple": xyz == 3   -- ECHOUE : `xyz != 3`
 
-Fix : `counter_comp _ = (H.mk_component ...)` puis `(counter_comp unit)`.
-Cf. `hab/apps/counter.hvn` v3.
+Le lookup top-level ne résout pas la valeur. Message d'erreur : le **nom** de la
+variable, pas sa valeur. Bug dans `engine_expr`/`heaven_expr`, pré-existant à
+nos patches arity.
 
-## 4. `(f a b)` ne curryfie pas
+**Les workarounds documentés avant ne marchent PAS** :
+- `f _ = (add 1 2); (f 0) == 3` — ECHOUE
+- `f = (lambda x -> (add 1 2)); (f 0) == 3` — ECHOUE
+- `f = (add 1 2); (let v = f in v) == 3` — ECHOUE
 
-    f x y = (x + y)
-    (f 1 2)        -- retourne lambda partielle, pas 3
-    (((force f) 1) 2)  -- pas mieux
-    ((f 1) 2)      -- OK (curry explicite)
+**Ce qui marche** : `(add 1 2) == 3` direct (sans binding top-level).
 
-Fix : passer la fonction à `dispatch_from` qui fait `(force fn mvu msg)`
-en inline — c'est le pattern qui marche.
+Les 167 tests `.hvn` de `check_all.sh` passent — les tests existants évitent ce
+cas. Bug **latent**, découvert aujourd'hui.
+
+À faire (session 5, ~2h) : instrumenter `eval.sym` dans `engine_expr`. Voir si
+le lookup passe par `env` (runtime) ou `store` (AST). Possible lien avec
+`normalizeLetChain` / `bound_syms` (cf. G.37-G.40).
+
+## 4. Curryfication — FONCTIONNE (corrigé 2026-11-05)
+
+Le diagnostic précédent ("retourne lambda partielle") était **faux**.
+
+**Marche** :
+- `(f 1 2) == 3`                       OK
+- `((f 1) 2) == 3`                     OK
+- `(f 1 2 3)`                          OK (3-args)
+- `((f 1) 2 3)`                        OK (curry 1 niveau + full)
+- `(let g = (f 1) in (g 2))`           OK (avec parens autour du let-binding)
+
+**Échoue** :
+- `(((f 1) 2) 3)` — double partielle. Les args 2 et 3 sont perdus
+  (`add3 1 __curry_0 __curry_1`).
+
+**Cause** : `engine_expr.zig:848-863` crée `lambda(__curry_0, lambda(__curry_1, body))`.
+La 2e application ne rebinde pas `__curry_0 := 2` avant d'évaluer `lambda(__curry_1, ...)`.
+
+**Cas rare** : `(((f a) b) c)` n'apparaît pas en pratique.
+Workaround : `(f a b c)` ou `((f a) b c)` — les deux marchent.
+
+**Pas prioritaire.**
 
 ## 5. QTT `erased` = 0 usage strict
 
