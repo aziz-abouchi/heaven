@@ -301,7 +301,9 @@ Bonne continuation.
 - Partie II : 9/9 ✅
 - Partie III : 12/12 ✅
 - **Partie IV : 4/4 + conclusion** (`25-outils` 178 l., `26-selfhost` 187 l., `27-eval` 222 l., `28-memoire` 248 l., `29-conclusion` 182 l.)
-- **LIVRE V2 BOUCLÉ (2026-11-05)**
+- **LIVRE V2 BOUCLÉ + PUBLIÉ (2026-11-05)**
+- **URL live** : https://aziz-abouchi.github.io/heaven/v2/
+- **Workflow** : `.github/workflows/deploy.yml` build v1 + v2, publie sous `/v2/`
 - `docs/book-v2/book.toml` → `mdbook build` OK
 - `docs/spec/_cli.md` (référence CLI)
 
