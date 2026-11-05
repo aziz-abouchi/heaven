@@ -46,6 +46,7 @@
 - [Chapitre 24 — Hab : le Web natif en Heaven](24-hab.md)
 - [Chapitre 25 — Outils : Heaven parle à lui-même](25-outils.md)
 - [Chapitre 26 — Selfhost : la preuve de concept, pas le compilateur](26-selfhost.md)
+- [Chapitre 27 — `heaven_eval` : un interpréteur en 96 lignes](27-eval.md)
 
 ## Annexes
 
