@@ -1,6 +1,6 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-11-02
+Dernière mise à jour : 2026-11-05
 
 Ce document est **genere** depuis `docs/status.json` par
 `scripts/status_gen.py`. Ne pas editer a la main.
@@ -15,7 +15,8 @@ Légende :
 
 ## Progrès récents
 
-- **2026-11-02** : Resync docs (STATUS/README honnêtes, docgen fixé 1228/1228). Fix `FunctionClause [16]→[32]` : +14 tests (test_eval 13/13, test_meta_if 7/7), VRecClosure/if..then..else débloqués (tag `fix-clauses-32`). G.37 RESOLU (bare symbols, tag `g37-resolved`), G.39 RESOLU (λ/fn, était `[16]`). G.38 isolé (let dans string, host eval). 2 tests disabled (bigint_d20 stack, web_ontology net:close).
+- **2026-11-05** : P1c runtime — `heaven check` **syntax + arity CI-verrouilles** (`7addadd` → `c521867`, 5 faux diagnostics leves). `buildEqDecl` construit lambda+bind, `assign` dispatche, arity via `app_expr`+`simple_expr`+`msg_pool`. Curryfication **deja fonctionnelle** (edge case `(((f a) b) c)` documente). Book v2 : `SUMMARY.md` + `G-pieges.md` + 5 SVG manquants. `check_all.sh` §7b + 3 tests regression (`tests/hvn-check/`). PROJET SAIN.
+- **2026-11-04** : Book v2 — Partie III bouclee (12/12), 3 chapitres (`17-handlers` 234 l., `23-reseau` 328 l., `24-hab` 275 l.), 28 chapitres ~10 137 l. au total.- **2026-11-02** : Resync docs (STATUS/README honnêtes, docgen fixé 1228/1228). Fix `FunctionClause [16]→[32]` : +14 tests (test_eval 13/13, test_meta_if 7/7), VRecClosure/if..then..else débloqués (tag `fix-clauses-32`). G.37 RESOLU (bare symbols, tag `g37-resolved`), G.39 RESOLU (λ/fn, était `[16]`). G.38 isolé (let dans string, host eval). 2 tests disabled (bigint_d20 stack, web_ontology net:close).
 - **2026-10-30** : Selfhost QBE+WASM (17 tags : `selfhost-*`, `heaven-eval-v0.4`, `wasm-wasi-v1`). `bin/heaven.hvn` V0.7 dispatch multi-clauses → ELF natif. WASM `main = 42` → 42 (wat2wasm+node). `heaven_eval.hvn` V0.4 (96 l., 17 primitives). IDE web Hab V0.6 (Run WASM, POST `/api/test`). Book ch. 39 (selfhosting) + 40 (heaven_eval) + 6 SVG. Pièges G.25→G.39 documentés. Détails : `PROMPT_CONTINUITE.md`.
 - **2026-10-28** : OTP complet (`otp-o1` à `otp-o2.4`, 27 tests) + MPST runtime (`otp-o3`, 3 tests). HKT V1b (`@resolve_instance`/`@dispatch_instance`). Fantasy Land (10 classes), Optics, Free monad, MaybeT.
 - **2026-10-20 (soir)** : TLS OpenSSL FFI (@tls_connect/read/write/close), HTTPS live depuis .hvn (Wikidata 200 OK). DNS parametre (dns_resolve_a_com host server). stdlib/effects.hvn + resume alias (5/5). stdlib/ontology.hvn (14/14) + example Socrate. urlencode (9/9). Fossile #4 documente. Baseline Debug=0, TEST=0, RF=0, wasm x2=0.
