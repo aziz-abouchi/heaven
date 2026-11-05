@@ -130,22 +130,32 @@ Recommandation : **`heaven check`** en premier — c'est celui qui débloque le 
 - Ne pas ouvrir 10 chapitres d'un coup — 1 ch./session maximum jusqu'à ce que P1c soit traité.
 
 
-## P1c-session-1 (2026-11-05, 12h51–13h15) — état check
+## P1c-sessions 1-3 (2026-11-05, 12h51–14h35) — `heaven check` opérationnel
 
-### Fait (4 commits : `7addadd`, `f2d3237`, `0567172`, `82ebe63`)
-- `heaven check` : exit 1 si diag, ERROR tree-sitter détecté, debug prints nettoyés
-- `buildEqDecl` : construit lambda+bind pour `add x y = ...` (avant : stub jetait tout)
-- `typer.infer` : tolère tous les tags (plus de panic `unreachable`)
-- Doc `_runtime_gaps.md` §`heaven check`
+### Fait (9 commits pushés, `7addadd` → `0a777d1`)
+- `heaven check` : **syntax check fiable** (exit 1 sur diag, ERROR tree-sitter via `is_error` strict)
+- `heaven check` : **arity check fonctionnel** (`add 1` détecté, message + exit 1)
+- `buildEqDecl` : construit lambda+bind (avant : stub jetait la fonction)
+- `typer.infer` : tolère tous les tags créés par le Bridge
+- `msg_pool` dans Typer : plus de leak `allocPrint`
+- Doc `_runtime_gaps.md` §check + §arity (marqué RÉSOLU)
 
-### Reste (P4 arity, ~1h)
-- `heaven check arity.hvn` reste **silencieux** (exit 0). Hypothèse : dans `Store.apply`, le func est en `span_a[0]`, pas `node.payload`. Le check `fn_arity` dans `typer.infer case .apply` cherche au mauvais endroit (l. 66–72 de typer.zig).
-- Test de non-régression à écrire : `tests/hvn-check/{clean,arity,syntax-error}.hvn`
-- Curryfication et thunks top-level : **non commencés**
+### 4 causes racines successives identifiées et fixées
+1. `bind` stocke val dans `span_a[0]`, pas `aux`
+2. `interner.intern("x") == 0` (critère `payload==0` trop strict)
+3. `add 1` sans parens n'est **pas** un `call` tree-sitter, c'est `app_expr`
+4. `simple_expr` enveloppe l'identifiant — `buildCall` prenait le wrapper
 
-### Découverte à propager
-- `fn f(x, y) = ...` **n'est pas Heaven** : la grammar tree-sitter refuse `fn`. Vraie syntaxe : `add x y = x + y`.
-- `ast_bridge.zig` est un **chemin parallèle** à `engine_expr` — `heaven run` ne l'utilise pas. `heaven check` est le seul consommateur du Typer.
+### Découverte critique à propager
+- `fn f(x, y) = ...` **n'est pas Heaven** : grammar refuse `fn`. Vraie syntaxe : `add x y = x + y`.
+- **tree-sitter ≠ syntaxe Heaven** sur 3 points : `app_expr` (= call applicatif), `simple_expr` (wrapper), MISSING `;` cosmétiques. Toute nouvelle règle de grammar doit être testée sur un `.hvn` réel.
+- `ast_bridge.zig` est un **chemin parallèle** à `engine_expr` — `heaven run` ne l'utilise pas. `heaven check` est le seul consommateur du Typer. Patcher le Typer **ne peut pas** régresser `run`.
+
+### Reste (P1c incomplet)
+- **Curryfication** `(f a b)` : bug silencieux, touche `engine_expr` (risque régression)
+- **Thunks top-level** : workaround existe (`f _ = ...`), moins urgent
+- **Test de non-régression `check`** : `tests/hvn-check/{clean,arity,syntax-error}.hvn` + intégration `check_all.sh` (30 min)
+- **Tests `check` dans CI** : non fait
 
 ## Style `.hvn` et livre (politique 2026-11-03)
 
