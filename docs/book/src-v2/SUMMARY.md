@@ -44,6 +44,7 @@
 - [Chapitre 22 — MPST : des protocoles qui parlent d'eux-mêmes](22-mpst.md)
 - [Chapitre 23 — HTTP et réseau : trois couches](23-reseau.md)
 - [Chapitre 24 — Hab : le Web natif en Heaven](24-hab.md)
+- [Chapitre 25 — Outils : Heaven parle à lui-même](25-outils.md)
 
 ## Annexes
 
