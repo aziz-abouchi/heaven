@@ -979,12 +979,14 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             // (filter/map/take : le bug "application partielle" du 28/09).
             if (engine.fns.get(name)) |fd| {
                 if (fd.num_clauses > 0 and fd.ctor_arity == null) {
+                    // Fix §3bis (2026-11-05) : clause 0-pattern = valeur top-level.
+                    // Evaluer son body. Sinon `xyz = 3; xyz == 3` echoue.
+                    for (fd.clauses[0..fd.num_clauses]) |clause| {
+                        if (clause.num_patterns == 0 and clause.guard == null) {
+                            return try evaluate(store, env, engine, clause.body, depth + 1);
+                        }
+                    }
                     return id;
-                }
-            }
-            if (engine.fns.get(name)) |fd| {
-                if (fd.num_clauses > 0 and fd.ctor_arity == null) {
-                    return id; // symbole-fonction user = valeur appelable
                 }
             }
             const known_ctors = [_][]const u8{ "zero", "succ", "quote" };
