@@ -907,3 +907,19 @@ dans `SUMMARY.md` via commentaire HTML. Ce n'est pas cassant, c'est visible.
 
 Effort : 1h. Risque : moyen. Priorite : cosmetique.
 
+
+## Selfhost — etat au 2026-11-05 (pre-diagnostic 26-selfhost)
+
+Le selfhost de Heaven est **plus modeste que la doc ne le suggere** :
+
+- `bin/heaven.hvn` (15 l.) : CLI minimal, `argv → exit code` (version→1, help→2,
+  run→3, test→4). Preuve de concept compilation native multi-clauses, PAS un
+  compilateur.
+- `lib/heaven_eval.hvn` (96 l.) : evaluateur metacirculaire V0.4, 17 primitives,
+  VRecClosure auto-nommee. Importe `lib/heaven_parse.hvn` (parser HP partiel).
+
+**Ce qui n'existe PAS** : parser complet selfhoste, type-checker selfhoste,
+compilateur selfhoste, codegen selfhoste.
+
+Sources v1 : `docs/book/src/39-selfhosting.md` (127 l.), `40-heaven-eval.md` (86 l.).
+A fusionner dans `26-selfhost.md` (~200 l., angle honnete).
