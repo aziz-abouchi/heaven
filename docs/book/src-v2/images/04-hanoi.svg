@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300" font-family="Georgia, serif">
+  <rect width="500" height="300" fill="#faf7f2"/>
+  <text x="250" y="30" text-anchor="middle" font-size="14" font-style="italic" fill="#2c2c2c">
+    La tour de Hanoi : 3 disques
+  </text>
+  <!-- Trois tiges -->
+  <g>
+    <!-- A -->
+    <line x1="100" y1="90" x2="100" y2="250" stroke="#2c2c2c" stroke-width="2"/>
+    <line x1="50" y1="250" x2="150" y2="250" stroke="#2c2c2c" stroke-width="2"/>
+    <text x="100" y="275" text-anchor="middle" font-size="12" fill="#2c2c2c" font-style="italic">A</text>
+    <!-- 3 disques empiles sur A -->
+    <ellipse cx="100" cy="235" rx="45" ry="6" fill="#e0d0b8" stroke="#2c2c2c" stroke-width="1"/>
+    <ellipse cx="100" cy="220" rx="35" ry="6" fill="#d0c0a8" stroke="#2c2c2c" stroke-width="1"/>
+    <ellipse cx="100" cy="205" rx="25" ry="6" fill="#c0b098" stroke="#2c2c2c" stroke-width="1"/>
+    <!-- B -->
+    <line x1="250" y1="90" x2="250" y2="250" stroke="#2c2c2c" stroke-width="2"/>
+    <line x1="200" y1="250" x2="300" y2="250" stroke="#2c2c2c" stroke-width="2"/>
+    <text x="250" y="275" text-anchor="middle" font-size="12" fill="#2c2c2c" font-style="italic">B</text>
+    <!-- C -->
+    <line x1="400" y1="90" x2="400" y2="250" stroke="#2c2c2c" stroke-width="2"/>
+    <line x1="350" y1="250" x2="450" y2="250" stroke="#2c2c2c" stroke-width="2"/>
+    <text x="400" y="275" text-anchor="middle" font-size="12" fill="#2c2c2c" font-style="italic">C</text>
+  </g>
+  <!-- Phrase -->
+  <text x="250" y="60" text-anchor="middle" font-size="11" fill="#7a3b3b" font-style="italic">
+    Déplacer la pile entière de A vers C, un disque à la fois,
+  </text>
+  <text x="250" y="75" text-anchor="middle" font-size="11" fill="#7a3b3b" font-style="italic">
+    sans jamais poser un grand sur un petit.
+  </text>
+  <text x="250" y="295" text-anchor="middle" font-size="10" fill="#666">
+    Solution récursive : 2^n - 1 mouvements. Pour 3 disques, 7 mouvements.
+  </text>
+</svg>
