@@ -45,6 +45,7 @@
 - [Chapitre 23 — HTTP et réseau : trois couches](23-reseau.md)
 - [Chapitre 24 — Hab : le Web natif en Heaven](24-hab.md)
 - [Chapitre 25 — Outils : Heaven parle à lui-même](25-outils.md)
+- [Chapitre 26 — Selfhost : la preuve de concept, pas le compilateur](26-selfhost.md)
 
 ## Annexes
 
