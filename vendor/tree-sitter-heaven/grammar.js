@@ -174,6 +174,7 @@ comment: ($) =>
       seq("//", /.*/),
       seq("/*", /[^*]*\*+([^/*][^*]*\*+)*/, "/"),
       seq("─", /.*/),
+      seq("#", /.*/),
     )
   ),
 
@@ -852,12 +853,20 @@ run_expr: ($) => seq(
 // TESTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-test_decl: ($) => seq(
-  "test",
-  field("name", $.str),
-  optional($.tag_list),
-  optional($.with_clause),
-  $.block
+test_decl: ($) => choice(
+  seq(
+    "test",
+    field("name", $.str),
+    optional($.tag_list),
+    optional($.with_clause),
+    $.block
+  ),
+  seq(
+    "test",
+    field("name", $.str),
+    ":",
+    $._expr
+  ),
 ),
 
 describe_block: ($) => seq(
