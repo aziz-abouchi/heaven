@@ -28,7 +28,10 @@
 - expr.zig : 4 (parseLambdaExpr dispatch partiel)
 
 ### Stubs doc (TODO/FIXME)
-- 18 TODO, 9 stub_comment, 1 not_impl
+- **19 TODO** au 2026-11-05 (vérifié par `grep -rnE '(//|/\*)\s*(TODO|FIXME)' src/`)
+- 9 stub_comment, 1 not_impl
+- **Faux positifs** (ne pas traiter) : `profile_ser.zig:236` + `serialize.zig:287`
+  (`"XXXX"` = magic bytes, pas des TODOs)
 - À trier : résoudre ou supprimer
 
 ## Priorités de nettoyage
