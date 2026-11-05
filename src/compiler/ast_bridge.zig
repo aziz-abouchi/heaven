@@ -285,19 +285,42 @@ pub const Bridge = struct {
 
     fn buildAssign(self: *Bridge, node: ts.TSNode) anyerror!Id {
         const count = ts.ts_node_child_count(node);
-        if (count >= 3) {
-            const name_node = ts.ts_node_child(node, 0);
-            // Le dernier enfant est souvent ';' (semicolon) : skip.
-            var val_idx = count - 1;
-            if (std.mem.eql(u8, self.nodeType(ts.ts_node_child(node, val_idx)), ";")) {
-                val_idx -= 1;
+        if (count < 3) return expr.NULL;
+
+        const name = self.nodeText(ts.ts_node_child(node, 0));
+
+        // Trouver l'index de '=' (normalement 1, mais robuste).
+        var eq_idx: u32 = 2;
+        var k: u32 = 0;
+        while (k < count) : (k += 1) {
+            if (std.mem.eql(u8, self.nodeType(ts.ts_node_child(node, k)), "=")) {
+                eq_idx = k;
+                break;
             }
-            const val_node = ts.ts_node_child(node, val_idx);
-            const name = self.nodeText(name_node);
-            const val_id = try self.buildExpr(val_node);
-            return self.store.bind(name, val_id);
         }
-        return expr.NULL;
+
+        // Collecter toutes les expressions après '=' (skip ';' et ',').
+        // Syntaxe applicative Heaven : 'add 1' -> tree-sitter produit une
+        // sequence plate [add, 1], PAS un noeud 'call'. On reconstruit
+        // l'application manuellement.
+        var expr_ids = std.ArrayListUnmanaged(Id){};
+        defer expr_ids.deinit(self.allocator);
+        var i: u32 = eq_idx + 1;
+        while (i < count) : (i += 1) {
+            const child = ts.ts_node_child(node, i);
+            const ct = self.nodeType(child);
+            if (std.mem.eql(u8, ct, ";") or std.mem.eql(u8, ct, ",")) continue;
+            try expr_ids.append(self.allocator, try self.buildExpr(child));
+        }
+
+        if (expr_ids.items.len == 0) return expr.NULL;
+
+        const val_id: Id = if (expr_ids.items.len == 1)
+            expr_ids.items[0]
+        else
+            try self.store.apply(expr_ids.items[0], expr_ids.items[1..]);
+
+        return self.store.bind(name, val_id);
     }
 
     pub fn buildExpr(self: *Bridge, node: ts.TSNode) anyerror!Id {
@@ -324,8 +347,13 @@ pub const Bridge = struct {
             return self.store.sym(self.nodeText(node));
         } else if (std.mem.eql(u8, ntype, "binary")) {
             return self.buildBinary(node);
-        } else if (std.mem.eql(u8, ntype, "call")) {
+        } else if (std.mem.eql(u8, ntype, "call") or std.mem.eql(u8, ntype, "app_expr")) {
             return self.buildCall(node);
+        } else if (std.mem.eql(u8, ntype, "simple_expr")) {
+            // simple_expr est un wrapper transparent : descendre sur son premier enfant
+            const cc = ts.ts_node_child_count(node);
+            if (cc > 0) return self.buildExpr(ts.ts_node_child(node, 0));
+            return expr.NULL;
         } else if (std.mem.eql(u8, ntype, "block")) {
             return self.buildBlock(node);
         } else if (std.mem.eql(u8, ntype, "lambda")) {

@@ -16,6 +16,7 @@ pub const Typer = struct {
     diags: *DiagnosticList,
     type_env: std.StringHashMapUnmanaged(Type) = .{},
     fn_arity: std.StringHashMapUnmanaged(u32) = .{},
+    msg_pool: std.ArrayListUnmanaged([]const u8) = .{},
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator, store: *const Store, diags: *DiagnosticList) Typer {
@@ -35,6 +36,8 @@ pub const Typer = struct {
         self.subst.deinit(self.allocator);
         self.type_env.deinit(self.allocator);
         self.fn_arity.deinit(self.allocator);
+        for (self.msg_pool.items) |m| self.allocator.free(m);
+        self.msg_pool.deinit(self.allocator);
     }
 
     pub fn freshVar(self: *Typer) Type {
@@ -101,11 +104,15 @@ pub const Typer = struct {
                             const got: u32 = @intCast(args.len);
                             if (got != expected) {
                                 const span = node.span_a;
-                                const msg = std.fmt.allocPrint(
+                                const m_opt = std.fmt.allocPrint(
                                     self.allocator,
                                     "arity mismatch: '{s}' attend {d} argument(s), reçu {d}",
                                     .{ fname, expected, got },
-                                ) catch "arity mismatch";
+                                ) catch null;
+                                const msg: []const u8 = m_opt orelse "arity mismatch";
+                                if (m_opt) |allocated| {
+                                    self.msg_pool.append(self.allocator, allocated) catch {};
+                                }
                                 self.diags.err(span.start, 0, msg);
                             }
                         }
