@@ -1,0 +1,4 @@
+-- tests/hvn-check/clean.hvn
+-- Doit passer `heaven check` sans diagnostic, exit 0.
+add x y = x + y
+result = add 1 2

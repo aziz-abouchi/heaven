@@ -202,6 +202,48 @@ HVNEOF
 fi
 echo ""
 
+# ── 7b. HEAVEN CHECK (P1c, régression) ──────────────
+if [ -x zig-out/bin/heaven ] && [ -d tests/hvn-check ]; then
+  echo "── HEAVEN CHECK (P1c régression) ──"
+
+  line "check clean.hvn (attendu: exit 0)"
+  OUT=$(zig-out/bin/heaven check tests/hvn-check/clean.hvn 2>&1)
+  RC=$?
+  if [ $RC -eq 0 ] && ! echo "$OUT" | grep -qE 'error:'; then
+    ok
+  else
+    FAIL=$((FAIL+1))
+    echo "  ✗ exit=$RC (attendu 0)"
+    echo "$OUT" | head -5 | sed 's/^/      /'
+  fi
+
+  line "check arity.hvn (attendu: exit 1 + arity mismatch)"
+  OUT=$(zig-out/bin/heaven check tests/hvn-check/arity.hvn 2>&1)
+  RC=$?
+  if [ $RC -eq 1 ] && echo "$OUT" | grep -qE "arity mismatch.*'add'"; then
+    ok
+  else
+    FAIL=$((FAIL+1))
+    echo "  ✗ exit=$RC (attendu 1)"
+    echo "$OUT" | head -5 | sed 's/^/      /'
+  fi
+
+  line "check syntax-error.hvn (attendu: exit 1 + syntax error)"
+  OUT=$(zig-out/bin/heaven check tests/hvn-check/syntax-error.hvn 2>&1)
+  RC=$?
+  if [ $RC -eq 1 ] && echo "$OUT" | grep -qE "syntax error"; then
+    ok
+  else
+    FAIL=$((FAIL+1))
+    echo "  ✗ exit=$RC (attendu 1)"
+    echo "$OUT" | head -5 | sed 's/^/      /'
+  fi
+  echo ""
+else
+  warn
+  echo "    (tests/hvn-check manquant ou binaire absent)"
+fi
+
 # ── RÉSUMÉ ──────────────────────────────────────────
 echo "═══════════════════════════════════"
 echo "RÉSUMÉ : ✓ $PASS  ✗ $FAIL  ⚠ $WARN"

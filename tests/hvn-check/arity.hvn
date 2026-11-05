@@ -1,0 +1,4 @@
+-- tests/hvn-check/arity.hvn
+-- Doit être rejeté par `heaven check` : arity mismatch (add attend 2, reçoit 1).
+add x y = x + y
+result = add 1
