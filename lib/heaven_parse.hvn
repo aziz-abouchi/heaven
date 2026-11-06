@@ -176,11 +176,11 @@ lambda_wrap SNil body = body
 lambda_wrap (SCons p rest) body = (ELambda p (lambda_wrap rest body))
 
 parse_file TNil = ENil
-parse_file ts = (parse_file_go ts ENil)
-parse_file_go TNil acc = (es_rev acc ENil)
-parse_file_go ts acc = (let r (parse_top ts) (parse_file_go2 r acc))
-parse_file_go2 (PErr e) acc = (es_rev acc ENil)
-parse_file_go2 (POk e rest) acc = (parse_file_go rest (ECons e acc))
+parse_file ts = (parse_file_go ts ENil 0)
+parse_file_go TNil acc _n = (es_rev acc ENil)
+parse_file_go ts acc n = (if (> n 5000) (es_rev acc ENil) (let r (parse_top ts) (parse_file_go2 r acc n)))
+parse_file_go2 (PErr e) acc _n = (es_rev acc ENil)
+parse_file_go2 (POk e rest) acc n = (parse_file_go rest (ECons e acc) (+ n 1))
 es_rev ENil acc = acc
 es_rev (ECons e rest) acc = (es_rev rest (ECons e acc))
 

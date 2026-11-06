@@ -350,3 +350,12 @@ Tests safe (timeout 2-3s KILL) :
 - **TCO `parse_file`** (commit `e8dd778`) — `head -17` = 3 exprs
 - `_existant.md` (~300 l.)
 - Freeze isolé à "state-dependent" (pas un pattern unique)
+
+### Session 19 — compteur parse_file_go : freeze plus bas
+Compteur max `n > 5000` dans `parse_file_go`.
+**Full-file : rc=137. Le compteur n'a JAMAIS été atteint.**
+→ Récursion dans `parse_top` / `parse_arglist`, pas `parse_file_go`.
+
+### Session 20
+Compteur max 1000 dans `parse_one` puis `parse_arglist`. Premier qui
+déclenche = TCO à ajouter. Fix probable : accumulateur réverseur pour `Toks`.
