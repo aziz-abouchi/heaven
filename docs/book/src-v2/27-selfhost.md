@@ -3,7 +3,7 @@
 > **Piège d'entrée.** « Selfhost » ne veut pas dire « le langage s'écrit
 > lui-même ». Il veut dire « **le compilateur** du langage est écrit dans le
 > langage qu'il compile ». Nuance importante : Heaven n'est **pas** selfhost.
-> Il a des **briques** selfhostées (15 + 96 lignes), et un compilateur qui
+> Il a des **briques** selfhostées (320 l. : CLI 15, parser 209, eval 96), et un compilateur qui
 > reste en Zig. Ce chapitre montre ce qui existe, ce qui n'existe pas, et
 > pourquoi la frontière est plus basse qu'on ne le pense.
 
@@ -100,7 +100,7 @@ On confond souvent trois niveaux :
 |---|---|---|
 | **Interpréteur** | évalue un AST | ✅ `heaven_eval.hvn` (96 l.) |
 | **Compilateur** | AST → code exécutable | ❌ (Zig → QBE) |
-| **Selfhost** | le compilateur est écrit dans le langage | ❌ (0 %) |
+| **Selfhost** | parser+eval .hvn marchent, type-checker+bootstrap absents | ⚠️ ~40 % |
 
 Un interpréteur en Heaven est une **brique**. Il prouve que Heaven peut
 représenter et manipuler son propre AST. Il ne prouve **pas** que Heaven peut
@@ -116,11 +116,11 @@ Pour passer de 15 + 96 lignes à un vrai compilateur selfhosté, il faudrait :
 
 | Étape | Effort estimé | État |
 |---|---|---|
-| Parser complet en Heaven | 2–3 sessions | partiel (`lib/heaven_parse.hvn`) |
+| Parser .hvn (lexer + parse) | **1h** | ✅ 209 l., head-18, 1 bug `data_ctors` |
 | Type-checker en Heaven | 2–3 sessions | absent |
 | Codegen QBE en Heaven | 3–5 sessions | absent |
 | Bootstrap (compiler le tout) | 1–2 sessions | absent |
-| **Total** | **~10 sessions** | **0 %** |
+| **Total restant** | **~8 sessions** | **~40 %** |
 
 **Conséquence honnête** : le selfhost de Heaven n'est pas « en cours ». C'est un
 **jalon futur** (roadmap dans `_roadmap_v2.md`), et les 15 + 96 lignes actuelles
@@ -176,7 +176,7 @@ place de `engine_expr.zig` ? Qu'est-ce qui manque pour que ce soit possible ?
 2. **15 + 96 lignes** prouvent que Heaven peut manipuler son AST. Pas plus.
 3. **Le compilateur est en Zig.** `heaven parse` appelle `heaven_expr.zig`.
    C'est la frontière à date.
-4. **Roadmap selfhost** : ~10 sessions pour un vrai compilateur. Pas commencé.
+4. **Roadmap selfhost** : parser .hvn 209 l. (head-18, 1 bug), eval 96 l., compile-qbe OK. Reste : type-checker + bootstrap en Heaven (~8 sessions).
 5. **Piège du vocabulaire** : « selfhost partiel » ne veut rien dire. Soit le
    compilateur s'écrit lui-même, soit il ne le fait pas.
 

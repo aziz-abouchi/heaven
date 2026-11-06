@@ -89,3 +89,6 @@ Voir `docs/book/src/39-selfhosting.md` et annexe G (G.25 → G.34).
 | W3 | `@puts` en WASM | `unreachable` (extern_call) | ❌ TODO |
 
 Voir `docs/book/src/40-heaven-eval.md` et annexe G (G.35 → G.39).
+
+| 15 | Selfhost = compilateur Heaven | briques (parse+eval) partiellement en .hvn, PAS un compilateur. head-18 passe, full-file cyclique. | WIP |
+| 16 | heaven check = typechecker | syntax + arité (48/148 faux positifs tree-sitter). Pas d'unification. | Partiel |

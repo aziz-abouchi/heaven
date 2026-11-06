@@ -70,3 +70,14 @@ CI-verrouillé via `check_all.sh §7b` + `tests/hvn-check/` :
 - `arity.hvn` → exit 1, `arity mismatch: 'add' attend 2 argument(s), reçu 1`
 - `syntax-error.hvn` → exit 1, `syntax error in source`
 - `thunks.hvn` → 7/7 (non-régression)
+
+## QTT (quantitative) — enforced au parse (2026-11-06)
+- let linear/erased/many : check au parse (expr_parser.zig:774).
+- Tests : tests/qtt/let_quantities_{ok,viol}.hvn (7/7 conformes).
+- Limitation : message brut (error.LinearViolation), pas pédagogique.
+
+## IO — read_file (2026-11-06)
+- perform "ReadFile" path → string (marche, 1 Mo max).
+- perform "WriteFile" (path, content) → unit.
+- perform "ReadLine" → string.
+- read_file manuel (raw_alloc+io_read) cassé : utiliser perform.

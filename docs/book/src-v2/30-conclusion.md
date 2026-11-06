@@ -29,7 +29,7 @@ suit n'est pas un jugement, c'est un constat.
 
 | Couche | Limitation | Chapitre |
 |---|---|---|
-| QTT (multiplicités) | syntaxe reconnue, **pas enforced** | ch. 29 |
+| QTT (multiplicités) | **enforced au parse** (7/7), érasure à venir | ch. 29 |
 | LSP / MCP | briques testées, **intégration manuelle** | ch. 26 |
 | Selfhost | 15 + 96 l. de preuves de concept, **pas un compilateur** | ch. 27 |
 | Curryfication | edge case `(((f a) b) c)` | ch. 18 |
@@ -38,8 +38,9 @@ suit n'est pas un jugement, c'est un constat.
 
 | Cible | Effort | Chapitre |
 |---|---|---|
-| Vrai selfhost | ~10 sessions | ch. 27 |
-| QTT enforced | ~7 sessions | ch. 29 |
+| Selfhost complet (full-file) | ~2 sessions | ch. 27 |
+| QTT érasure runtime | ~2 sessions | ch. 29 |
+| QTT drop-reuse | ~3 sessions | ch. 29 |
 | HoTT / Cubical | RFC à faire | ch. 41 (squelette) |
 | Essaim / distribution | pas commencé | — |
 | DB / LLM natif | pas commencé | — |
@@ -95,8 +96,8 @@ l'état du runtime. Plus utile que n'importe quel tutoriel.
 
 **Choisissez un chantier** dans `PROMPT_CONTINUITE.md`. Les priorités actuelles :
 
-1. **QTT enforced** (7 sessions) — brancher `LinearChecker` sur `elab`
-2. **Selfhost** (10 sessions) — parser + typer + codegen en Heaven
+1. **Selfhost complet** (~2 sessions) — débloquer full-file (bug `data_ctors`)
+2. **QTT érasure + drop-reuse** (~5 sessions) — optimisation runtime
 3. **Partie IV du livre** (`29-...`) — LSP/MCP, selfhost, QTT, HoTT
 
 Chaque chantier a un diagnostic précis dans `_runtime_gaps.md`. Pas d'inconnu

@@ -1,3 +1,25 @@
+## 2026-11-06 (vendredi) — Selfhost : read_file fixé + TCO
+
+### Selfhost runtime
+- read_file : raw_alloc+io_read cassé (string vide) → perform "ReadFile" (6/6 tests)
+- TCO parse_file (parse_file_go + es_rev) : head -17 passe
+- TCO parse_arglist + parse_one_go : head -18 passe
+- data multi-ctor : 3 tests régression
+- AST head-19 : cyclique (bug data_ctors sur Int/Str)
+
+### 4 faux diagnostics levés
+- QTT « 7 sessions » → déjà fait (expr_parser.zig:774, 7/7)
+- Curry → fonctionne (5/6)
+- Thunks → workarounds ne marchent pas, fix 9a301c7
+- read_file « bug parser » → raw_alloc+io_read, pas parser
+
+### Docs
+- _existant.md (520 l., anti-faux diagnostics)
+- _runtime_gaps.md (1257 l.)
+- PROMPT_CONTINUITE.md (351 l.)
+
+---
+
 ## 2026-11-05 (jeudi) — LIVRE V2 BOUCLÉ + PUBLIÉ · P1c bouclé
 
 ### Livre v2 — 31 chapitres, ~11 100 l., **publié**

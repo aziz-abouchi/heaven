@@ -1,11 +1,11 @@
-# Chapitre 29 — Mémoire : QTT, la spécification qui n'est pas (encore) un vérificateur
+# Chapitre 29 — Mémoire : QTT, multiplicités enforced (érasure à venir)
 
 > **Piège d'entrée.** Vous avez lu le ch. 3 (« QTT spec/runtime »), et vous vous
 > attendez à ce que le ch. 29 vous montre comment Heaven libère la mémoire.
-> **Il ne le fera pas**, parce que Heaven ne le fait pas encore. La syntaxe QTT
-> est reconnue par le parser, les types sont propagés, mais **aucun vérificateur
-> de multiplicité n'est branché sur le pipeline**. Ce chapitre explique QTT, ce
-> qu'il promet, et pourquoi la promesse n'est pas tenue.
+> **La vérification des multiplicités est faite** (au parse, `expr_parser.zig:774`,
+> testée 7/7). Ce qui manque : l'érasure runtime (le terme `erased` est encore
+> évalué) et le drop-reuse. Ce chapitre explique QTT, ce qui est enforced, et ce
+> qui reste à faire.
 
 ## 1. Le problème : qui libère ?
 
@@ -51,8 +51,9 @@ heaven> let many x = 42 in x + x
 ```
 
 **Attention** : `let linear x = 42 in x + x` (deux usages, violation de
-linéarité) passe **aussi** sans erreur. C'est exactement ce que « pas enforced »
-signifie. La syntaxe est correcte, le runtime ne vérifie rien.
+linéarité) **échoue** avec `error.LinearViolation` (fix 2026-11-06, session 12).
+La vérification est faite au **parse**. 7 cas conformes (linear/erased/many ×
+0/1/2 usages).
 
 ## 3. Erasure : la promesse à coût zéro
 
@@ -165,23 +166,21 @@ Le chemin vers QTT réel, en 4 étapes :
 
 | Étape | Effort | État |
 |---|---|---|
-| **Brancher `LinearChecker` sur `elab`** | 1 session | absent |
-| **Ajouter les tests de violation** (au moins 3 cas) | 1 session | absent |
+| **Check multiplicités au parse** | 0 session | ✅ **fait** (7/7) |
 | **Passe d'érasure au codegen** | 2–3 sessions | absent |
 | **Drop-reuse** (optimisation) | 3–5 sessions | absent |
-| **Total** | **~7 sessions** | **0 %** |
+| **Total restant** | **~5 sessions** | **~30 %** |
 
-**Rappel** : QTT est **une direction**, pas un acquis. Les chapitres 3 (types),
-12 (bigint), 24 (hab) reposent sur QTT en surface, mais leurs tests passent
-**sans** vérification de multiplicité — le GC fait le travail, comme avant.
+**Rappel** : la vérification des multiplicités est **faite** (au parse). Ce qui
+reste : l'érasure runtime (le terme `erased` est encore évalué) et le drop-reuse.
 
-> **Capot final.** Si vous retenez une chose : **la syntaxe n'est pas la
-> sémantique**. `let linear x = 42 in x + x` compile. Ce n'est pas un bug —
-> c'est l'état du projet. Le jour où ce sera un bug, on aura un vérificateur.
+> **Capot final.** Ce qui **marche** : `linear`/`erased`/`many` sont vérifiés.
+> Ce qui **manque** : l'érasure (0 coût) et le drop-reuse. La sémantique des
+> multiplicités est tenue ; leur optimisation runtime, non.
 
 ## Exercices
 
-### Ex. 1 — Vérifier que `linear` n'est pas enforced (guidé)
+### Ex. 1 — `linear` est enforced au parse (guidé)
 
 Écrivez un fichier `.hvn` :
 ```heaven
@@ -204,7 +203,7 @@ Trouvez `LinearChecker` dans `src/core/types.zig`. Regardez ce qu'il vérifie
 
 Ajoutez un test à `tests/test_qtt.hvn` (s'il existe) ou créez-le :
 ```heaven
--- Ce test DOIT échouer quand QTT sera enforced
+-- Ce test DOIT échouer (linear 2 usages) — enforcement fait 2026-11-06
 test "linear_violation_expected_fail":
   (let linear x = 42 in x + x) == 84
 ```
@@ -239,8 +238,7 @@ c'est exactement le point du chapitre.
    **rien** au runtime aujourd'hui.
 3. **`LinearChecker` existe** (`types.zig:145`) mais n'est **pas branché** sur
    `elab`. Il est appelé uniquement par `cmdQTT` shell.
-4. **Le chemin vers QTT réel** : ~7 sessions (brancher check, ajouter tests
-   violation, érasure codegen, drop-reuse).
+4. **Ce qui reste** : érasure runtime + drop-reuse (~5 sessions). Le check de multiplicité est fait (parse).
 5. **Syntaxe ≠ sémantique** : un `let linear x = 42 in x + x` compile. Ce n'est
    pas un bug, c'est l'état du projet.
 
