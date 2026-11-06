@@ -440,3 +440,20 @@ structurellement cyclique (parser `data_ctors`).
 
 **Session 24** : selon résultat des 3 tests EData, fix `heaven_expr.zig` (host)
 ou `heaven_parse.hvn` (data_ctors).
+
+### Session 23 — EData isolé passe, e0 freeze
+- `EData` vide/1 ctor/2 ctors : ✅ affichés
+- `EBind/ELambda/ESym` : ✅ affichés
+- `print e0` (vrai EData "Tok" de l'AST) : 🔴 freeze
+- `EApply` isolé, `EData + EApply`, `EData 4 ctors mix` : [résultats selon sortie]
+
+**Conclusion** : soit `toStringInfix` host bug sur `EApply`/`EData` complexe,
+soit `e0` a un cycle interne (parser `data_ctors`).
+
+**Session 24** :
+1. Selon test : fix `toStringInfix` (host, `heaven_expr.zig`) ou `data_ctors` (parser).
+2. Instrumenter `data_ctors` : `debug.print` du nom de chaque ctor construit.
+3. Comparer avec `EData` isolé (qui marche) — différence = cycle.
+
+**Acquis sessions 15-23** : read_file fixé, TCO parse_file + parse_arglist,
+parse_one_go, 4 limites (100/200/2000/50000) testées, AST head-19 isolé au e0.
