@@ -4,6 +4,16 @@ Copie-colle ce bloc au début de la nouvelle conversation.
 
 ---
 
+## ⚠ LIRE AVANT TOUT CHANTIER — `docs/spec/_existant.md`
+
+Ce qui est **déjà fait et testé** (ne pas refaire) :
+- QTT enforced (parse, 7/7) — *pas 7 sessions*
+- Curryfication (5/6, edge case documenté)
+- Thunks top-level (fix `9a301c7`)
+- `fn = expr`, `(if c t e)`, `prove`, `skill` (grammar)
+- Renommage `16-effects` → `17-effects`
+- `build.sh` CI, `deploy.yml` v2 publié
+
 ## Contexte projet
 
 Heaven - langage de programmation expérimental (preuves, selfhost, OTP, HKT, HoTT), en Zig + Heaven pur.
