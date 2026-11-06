@@ -394,3 +394,17 @@ Aucun compteur global → la limite 200 par instance ne fire jamais sur 4 niveau
 2000 par instance. Chaque `lex_loop` itère sur ~2000 caractères, × 8 niveaux = 16000.
 
 **Session 22** : limite 2000 → 50000 pour `parse_arglist`. Si OK full-file, self-parse complet.
+
+### Session 22 — limite 50000 ne débloque pas (freeze plus profond)
+- Limite arglist 2000 → 50000 → **head -19 freeze toujours**.
+- Le freeze n'est PAS dans `parse_arglist` (limite ne fire pas).
+- Hypothèse : chemin `parse_one` → `parse_head` → `parse_args` non-TCO sans limite,
+  qui boucle ou recurse infiniment sur une forme précise de `lex_is_symchar`.
+
+**Session 23 — approche différente** :
+1. **Instrumentation Zig** : ajouter un compteur global dans `engine_expr.zig` (limite 10^6 calls → error) — protège TOUTES les récursions.
+2. **Dump AST** : `head -19` avec limite basse (100) → voir l'AST partiel → identifier la forme qui boucle.
+3. **Vérifier `build_apply`** (l.90) : a-t-il un base case `ENil` ? Sinon `parse_args2` reçoit `ENil` → boucle.
+4. **Revoir `def_body_if`/`parse_if`** : `lex_is_symchar` avec appel en condition est le seul cas qui freeze.
+
+**Le pansement 50000 est retiré** (2000 = limite significative).
