@@ -359,3 +359,16 @@ Compteur max `n > 5000` dans `parse_file_go`.
 ### Session 20
 Compteur max 1000 dans `parse_one` puis `parse_arglist`. Premier qui
 déclenche = TCO à ajouter. Fix probable : accumulateur réverseur pour `Toks`.
+
+### Session 20 — parse_arglist TCO + parse_one_go
+- `parse_arglist` en TCO (compteur 200, `es_rev`)
+- `parse_one_go` wrapper (compteur 100, jamais déclenché)
+- **`head -18` passe (4 exprs)** vs freeze avant
+- `t2` et `t3` (4 ifs + appel) passent maintenant
+
+**Freeze restant** : `head -19` (ligne `lex_is_symchar`, 4 ifs + appel `lex_is_space`).
+Isolation : `t3` (4 ifs + appel `(g b)`) passe, `l19` (4 ifs + appel `(lex_is_space b)`) freeze.
+Différence : `lex_is_space` **est défini** dans le fichier réel (l.15), pas dans `l19` seul.
+Bug probable : interaction `parse_arglist` + contexte data multi-définitions.
+
+**Session 21** : instrumentation `parse_head` (compteur 100), identifier la forme qui boucle.
