@@ -15,6 +15,7 @@ conflicts: ($) => [
   [$.relation_decl, $._expr],
   [$.recv_block, $._expr],
   [$.contract_clause, $.binary],
+  [$.if_expr, $.paren_expr],
   [$.unit_type, $.unit_expr],
   [$._expr, $.simple_expr],
   [$.pattern, $.ctor_pat],
@@ -1627,7 +1628,10 @@ lambda: ($) =>
 if_expr: ($) =>
   prec.right(
     1,
-    seq("if", $._expr, "then", $._expr, "else", $._expr)
+    choice(
+      seq("if", $._expr, "then", $._expr, "else", $._expr),
+      seq("(", "if", $._expr, $._expr, $._expr, ")")
+    )
   ),
 
 match_expr: ($) =>

@@ -10379,31 +10379,65 @@
       "type": "PREC_RIGHT",
       "value": 1,
       "content": {
-        "type": "SEQ",
+        "type": "CHOICE",
         "members": [
           {
-            "type": "STRING",
-            "value": "if"
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "STRING",
+                "value": "if"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_expr"
+              },
+              {
+                "type": "STRING",
+                "value": "then"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_expr"
+              },
+              {
+                "type": "STRING",
+                "value": "else"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_expr"
+              }
+            ]
           },
           {
-            "type": "SYMBOL",
-            "name": "_expr"
-          },
-          {
-            "type": "STRING",
-            "value": "then"
-          },
-          {
-            "type": "SYMBOL",
-            "name": "_expr"
-          },
-          {
-            "type": "STRING",
-            "value": "else"
-          },
-          {
-            "type": "SYMBOL",
-            "name": "_expr"
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "STRING",
+                "value": "("
+              },
+              {
+                "type": "STRING",
+                "value": "if"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_expr"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_expr"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_expr"
+              },
+              {
+                "type": "STRING",
+                "value": ")"
+              }
+            ]
           }
         ]
       }
@@ -11657,6 +11691,10 @@
     [
       "contract_clause",
       "binary"
+    ],
+    [
+      "if_expr",
+      "paren_expr"
     ],
     [
       "unit_type",

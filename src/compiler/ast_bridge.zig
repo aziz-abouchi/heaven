@@ -474,23 +474,25 @@ pub const Bridge = struct {
     }
 
     fn buildIfExpr(self: *Bridge, node: ts.TSNode) anyerror!Id {
-        var cond: Id = expr.NULL;
-        var then_val: Id = expr.NULL;
-        var else_val: Id = expr.NULL;
+        // Filtre les tokens de structure : `(`, `)`, `if`, `then`, `else`.
+        // Prend les 3 expressions restantes dans l'ordre (S-expr ou classique).
+        var vals: [3]Id = .{ expr.NULL, expr.NULL, expr.NULL };
+        var idx: usize = 0;
         const count = ts.ts_node_child_count(node);
-        var phase: u8 = 0;
         var i: u32 = 0;
         while (i < count) : (i += 1) {
             const child = ts.ts_node_child(node, i);
             const ct = self.nodeType(child);
-            if (std.mem.eql(u8, ct, "if") or std.mem.eql(u8, ct, "then") or std.mem.eql(u8, ct, "else")) {
-                phase += 1;
-                continue;
+            if (std.mem.eql(u8, ct, "(") or std.mem.eql(u8, ct, ")") or
+                std.mem.eql(u8, ct, "if") or std.mem.eql(u8, ct, "then") or
+                std.mem.eql(u8, ct, "else")) continue;
+            if (idx < 3) {
+                vals[idx] = try self.buildExpr(child);
+                idx += 1;
             }
-            if (phase <= 1) cond = try self.buildExpr(child) else if (phase == 2) then_val = try self.buildExpr(child) else else_val = try self.buildExpr(child);
         }
         const if_sym = try self.store.sym("if");
-        return self.store.apply(if_sym, &.{ cond, then_val, else_val });
+        return self.store.apply(if_sym, &vals);
     }
 
     fn collectParams(self: *Bridge, node: ts.TSNode, names: *std.ArrayListUnmanaged([]const u8)) !void {
