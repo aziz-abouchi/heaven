@@ -523,3 +523,13 @@ OU expr_count_go bug (pourtant TCO). Test : expr_count_big ast.
 Réécriture `data_ctors` avec `skip_ctor_args` : head-19 freeze **toujours**. Rollback.
 **Conclusion** : data multi-ctor OK (déjà 3/3), ce n'est pas le coupable.
 **Vrai coupable** : `lex_is_symchar` (4 ifs + appel `lex_is_space` 3 ifs = 7 ifs).
+
+### Session 25 — zone grise localisée
+- expr_count_big OK jusqu'à 5000 (évaluateur sain)
+- data multi-ctor OK (2 bugs cosmetiques : inversé, args comme ctors)
+- 2 defs avec 2 ifs : InvalidSyntax (pas freeze)
+- 2 defs avec 3-4 ifs : freeze
+- parse_top isolé sur h19 : freeze
+
+**Transition entre 2 ifs (syntax error) et 3-4 ifs (freeze).**
+**Fix session 26 : TCO parse_if (15 lignes).**
