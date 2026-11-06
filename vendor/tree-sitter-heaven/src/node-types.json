@@ -8039,7 +8039,15 @@
           "named": true
         },
         {
+          "type": "app_expr",
+          "named": true
+        },
+        {
           "type": "applied_type",
+          "named": true
+        },
+        {
+          "type": "arr",
           "named": true
         },
         {
@@ -8051,7 +8059,35 @@
           "named": true
         },
         {
+          "type": "atom",
+          "named": true
+        },
+        {
+          "type": "await_expr",
+          "named": true
+        },
+        {
+          "type": "binary",
+          "named": true
+        },
+        {
           "type": "block",
+          "named": true
+        },
+        {
+          "type": "bool_lit",
+          "named": true
+        },
+        {
+          "type": "call",
+          "named": true
+        },
+        {
+          "type": "canary_expr",
+          "named": true
+        },
+        {
+          "type": "conde_expr",
           "named": true
         },
         {
@@ -8063,11 +8099,23 @@
           "named": true
         },
         {
+          "type": "do_expr",
+          "named": true
+        },
+        {
+          "type": "duration_lit",
+          "named": true
+        },
+        {
           "type": "effect_row",
           "named": true
         },
         {
           "type": "exists_type",
+          "named": true
+        },
+        {
+          "type": "float",
           "named": true
         },
         {
@@ -8079,7 +8127,15 @@
           "named": true
         },
         {
+          "type": "fresh_expr",
+          "named": true
+        },
+        {
           "type": "generic_type",
+          "named": true
+        },
+        {
+          "type": "handle_expr",
           "named": true
         },
         {
@@ -8087,11 +8143,63 @@
           "named": true
         },
         {
+          "type": "if_expr",
+          "named": true
+        },
+        {
+          "type": "index",
+          "named": true
+        },
+        {
+          "type": "infer_expr",
+          "named": true
+        },
+        {
+          "type": "int",
+          "named": true
+        },
+        {
+          "type": "lambda",
+          "named": true
+        },
+        {
+          "type": "let_expr",
+          "named": true
+        },
+        {
           "type": "linear_arrow_type",
           "named": true
         },
         {
+          "type": "list_comprehension",
+          "named": true
+        },
+        {
+          "type": "match_expr",
+          "named": true
+        },
+        {
+          "type": "math_expr",
+          "named": true
+        },
+        {
+          "type": "member",
+          "named": true
+        },
+        {
+          "type": "mock_expr",
+          "named": true
+        },
+        {
+          "type": "observe_expr",
+          "named": true
+        },
+        {
           "type": "optional_type",
+          "named": true
+        },
+        {
+          "type": "paren_expr",
           "named": true
         },
         {
@@ -8103,11 +8211,59 @@
           "named": true
         },
         {
+          "type": "perform_expr",
+          "named": true
+        },
+        {
+          "type": "pipe",
+          "named": true
+        },
+        {
           "type": "prim_type",
           "named": true
         },
         {
+          "type": "query_expr",
+          "named": true
+        },
+        {
+          "type": "range",
+          "named": true
+        },
+        {
+          "type": "recv_expr",
+          "named": true
+        },
+        {
           "type": "refinement_type",
+          "named": true
+        },
+        {
+          "type": "run_expr",
+          "named": true
+        },
+        {
+          "type": "sample_expr",
+          "named": true
+        },
+        {
+          "type": "self_expr",
+          "named": true
+        },
+        {
+          "type": "send",
+          "named": true
+        },
+        {
+          "type": "spawn",
+          "named": true
+        },
+        {
+          "type": "str",
+          "named": true
+        },
+        {
+          "type": "struct_lit",
           "named": true
         },
         {
@@ -8116,6 +8272,22 @@
         },
         {
           "type": "type_ident",
+          "named": true
+        },
+        {
+          "type": "type_name",
+          "named": true
+        },
+        {
+          "type": "unary",
+          "named": true
+        },
+        {
+          "type": "unit_expr",
+          "named": true
+        },
+        {
+          "type": "unit_lit",
           "named": true
         },
         {
@@ -16911,6 +17083,32 @@
     }
   },
   {
+    "type": "prove_decl",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "proof_step",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "quantity",
     "named": true,
     "fields": {}
@@ -19860,6 +20058,22 @@
     }
   },
   {
+    "type": "skill_decl",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "sla_block",
     "named": true,
     "fields": {},
@@ -20380,6 +20594,10 @@
           "named": true
         },
         {
+          "type": "prove_decl",
+          "named": true
+        },
+        {
           "type": "query_expr",
           "named": true
         },
@@ -20441,6 +20659,10 @@
         },
         {
           "type": "sig_decl",
+          "named": true
+        },
+        {
+          "type": "skill_decl",
           "named": true
         },
         {

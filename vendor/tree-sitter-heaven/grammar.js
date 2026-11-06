@@ -95,6 +95,8 @@ _item: ($) =>
     // Proofs
     $.theorem_decl,
     $.axiom_decl,
+    $.prove_decl,
+    $.skill_decl,
     // Types avancés
     $.hit_decl,
     // Tests
@@ -215,7 +217,7 @@ fn_decl: ($) =>
     optional($.effect_row),
     optional($.contract_clause),
     optional(seq("with", sep1($.identifier, ","))),
-    $.block
+    choice($.block, seq("=", $._expr))
   ),
 
 fn_sig: ($) => seq("fn", $.identifier, $.params, optional(seq("->", $._type)), ";"),
@@ -701,6 +703,17 @@ theorem_decl: ($) => prec.right(seq(
   $._type,
   optional(seq("{", $.proof_block, "}"))
 )),
+
+prove_decl: ($) => prec.right(seq(
+  "prove",
+  field("name", $.identifier),
+  "by",
+  "{",
+  repeat(seq($.proof_step, optional(";"))),
+  "}"
+)),
+
+skill_decl: ($) => seq("skill", field("name", $.identifier)),
 
 proof_block: ($) => seq(
   "proof",

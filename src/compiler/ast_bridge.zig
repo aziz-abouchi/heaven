@@ -102,6 +102,10 @@ pub const Bridge = struct {
             return self.buildEqDecl(node);
         } else if (std.mem.eql(u8, ntype, "assign")) {
             return self.buildAssign(node);
+        } else if (std.mem.eql(u8, ntype, "prove_decl") or
+                   std.mem.eql(u8, ntype, "skill_decl")) {
+            // Nœuds top-level sans sémantique dans ast_bridge : juste un symbole.
+            return self.store.sym(ntype);
         } else if (std.mem.eql(u8, ntype, "comment")) {
             return expr.NULL;
         } else {
@@ -117,6 +121,7 @@ pub const Bridge = struct {
         const count = ts.ts_node_child_count(node);
         var i: u32 = 0;
         var body_id: Id = expr.NULL;
+        var after_eq: bool = false;
         while (i < count) : (i += 1) {
             const child = ts.ts_node_child(node, i);
             const ct = self.nodeType(child);
@@ -128,6 +133,16 @@ pub const Bridge = struct {
                     try self.scope.define(p, .{ .type_name = "?", .kind = .variable });
                 }
                 body_id = try self.buildBlock(child);
+                self.scope.pop();
+            } else if (std.mem.eql(u8, ct, "=")) {
+                after_eq = true;
+            } else if (after_eq and body_id == expr.NULL) {
+                // Forme `fn name(params) = expr`
+                try self.scope.push(name);
+                for (param_names.items) |p| {
+                    try self.scope.define(p, .{ .type_name = "?", .kind = .variable });
+                }
+                body_id = try self.buildExpr(child);
                 self.scope.pop();
             }
         }
