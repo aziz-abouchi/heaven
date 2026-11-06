@@ -489,3 +489,9 @@ parse_one_go, 4 limites (100/200/2000/50000) testées, AST head-19 isolé au e0.
 Candidat : `data_ctors2` sur ctor non-upper qui re-émet le token → boucle avec
 le token déjà consommé. Vérifier `(TCons t rest)` (l.122) : `t` est-il le token
 avant ou après `tok_tail` ?
+
+### Session 24 — expr_at 500 == HORS_LIMITE ?
+- `true` : ast < 500 éléments → `e0.ctors` cyclique → fix `data_ctors` (l.121)
+- `false` : ast > 500 éléments pour 5 lignes → fix `parse_top` (consommation)
+
+**Le fix est à 30 min dans les deux cas.** Session 24 teste puis patch.
