@@ -1108,3 +1108,23 @@ soit documentées (plages).
 
 **Pas de patch supplémentaire prévu.** Les 6 plages peuvent être corrigées
 manuellement au fil de l'eau si elles gênent la lecture.
+
+## Bitstrings — tentative 2 rollback (2026-11-06, session 11)
+
+**Tentative 2** : `conflicts: [[$.bitstring_expr, $.binary]]` + `bitstring_expr`
+(RHS) + `bitseg` + handler ast_bridge.
+
+**Résultat** : 🔴 **même régression** 54 → 57 (+3). Les 3 erreurs restantes sur
+`test_bitstrings.hvn` (l. 20, 23, 27) sont le **pattern LHS** `<<ver:4, _tos:8>> = expr`
+(binding eq_decl avec bitstring pattern, pas expression RHS).
+
+**Conclusion** : le bitstring nécessite 4 patches couplés :
+1. `bitstring_expr` (RHS) — grammar + ast_bridge (essayé, insuffisant)
+2. `bitstring_pattern` (LHS de `eq_decl`) — grammar + ast_bridge `buildEqDecl`
+3. `buildEqDecl` doit gérer LHS `bitstring_pattern` (pas juste `identifier`)
+4. `test_bitstring_expr.hvn` + `test_bitstring_pattern.hvn` séparés
+
+**Effort réel** : ~2-3 sessions, pas 1. **Chantier dédié**, pas de quick fix.
+
+**Décision** : **report définitif**. `heaven check` est un outil dev, pas
+critique. Les 3 erreurs bitstrings (sur 54) ne bloquent pas la suite.
