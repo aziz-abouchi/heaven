@@ -1,0 +1,8 @@
+-- lib/std/stream.hvn — Stream a = SNil | SCons a (Stream a) (2026-11-06)
+data Stream a = SNil | SCons a (Stream a)
+
+stream_of_string s = (stream_of_string_go s 0 0)
+stream_of_string_go s i start = (if (>= i (string_length s)) (if (= start (string_length s)) SNil (SCons (string_substring s start (- (string_length s) start)) SNil)) (if (= (peek_byte (string_ptr s) i) 10) (SCons (string_substring s start (- i start)) (stream_of_string_go s (+ i 1) (+ i 1))) (stream_of_string_go s (+ i 1) start)))
+
+stream_length SNil = 0
+stream_length (SCons _ rest) = (+ 1 (stream_length rest))
