@@ -1029,3 +1029,23 @@ Commit unique obligatoire — pas de commit "grammar seule".
 
 **54 restants** (session 11) : `^` (conflit unary, précédence à régler),
 magics (`perform "str"`, `handle_rec (lambda ...)`), `spawn`/`tell`/`recv`.
+
+## Grammar check — 54 flaggés restants (2026-11-06, session 10)
+
+Après le batch `fn =` + `prove` + `skill` (81→54), les 54 restants se répartissent
+en **3 patterns distincts**, chacun grammar + ast_bridge couplés :
+
+| Pattern | Fichier (erreurs) | Exemple |
+|---|---|---|
+| Bitstrings `<<name:size, ...>>` | `test_bitstrings` (10) | `<<ver:4, ihl:4, _tos:8>> = ...` |
+| `let` + `yield` multi-ligne | `test_scheduler` (8) | `(let body (lambda ...yield...))` |
+| Magics + lambdas imbriquées | `test_effects_rec` (6) | `(handle_rec (lambda s -> ...))` |
+
+**Effort par pattern** : ~20-30 min (grammar.js + ast_bridge.zig + rebuild +
+test 148 fichiers). Risque : segfault si ast_bridge incomplet.
+
+**Décision 2026-11-06** : **reportés**. `heaven check` est un outil dev, pas
+critique runtime (98/98 intact). Session dédiée nécessaire.
+
+**Test de régression ajouté** : `tests/hvn-check/with-test.hvn` vérifie que
+`test "name": expr` parse (le pattern déjà patché).

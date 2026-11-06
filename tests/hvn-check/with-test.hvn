@@ -1,0 +1,5 @@
+-- tests/hvn-check/with-test.hvn
+-- Vérifie que test "name": expr parse (fix grammar test_decl 2026-11-05).
+f x = x + 1
+test "simple": (f 1) == 2
+test "nested": (f (f 1)) == 3
