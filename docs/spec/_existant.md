@@ -372,3 +372,14 @@ Différence : `lex_is_space` **est défini** dans le fichier réel (l.15), pas d
 Bug probable : interaction `parse_arglist` + contexte data multi-définitions.
 
 **Session 21** : instrumentation `parse_head` (compteur 100), identifier la forme qui boucle.
+
+### Session 21 — freeze isolé à 4 `(= b N)` imbriqués
+- `ta` (2 defs simples) : ✅ 2 exprs
+- `tb` (1 def, 3 ifs avec `(= b N)`) : ✅ 1 expr
+- `tc` (1 def, **4 ifs** avec `(= b N)`) : 🔴 freeze
+- `t2` (4 ifs, 1er `b` symbol) : ✅ (testé session 20)
+
+**Seuil précis** : 4 conditions `(= b N)` dans une chaîne d'ifs.
+**Cause probable** : chaque `(= b N)` = 1 `parse_arglist` imbriqué avec compteur local (n=0).
+Aucun compteur global → la limite 200 par instance ne fire jamais sur 4 niveaux imbriqués.
+**Session 22** : instrumenter avec un compteur global (threading) ou `PErr "iter N"`.
