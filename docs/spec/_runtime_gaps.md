@@ -1173,3 +1173,33 @@ dev, pas critique runtime (98/98 intact).
 **Prochains patterns** (session 12+) : bitstrings (2-3 sessions), scheduler/lambda
 (2 sessions), magics `handle_rec` + lambdas imbriquées (1-2 sessions). Total
 ~5-7 sessions pour arriver à ~0 flaggés.
+
+## Magic effects (perform, lambda multi-params) — tentative 3 rollback (2026-11-06)
+
+**Tentative** : `perform 2-args` (`perform "tick" s`) + `lambda x y ->` multi-params.
+
+**Résultat** :
+- `perform 2-args` + `prec.right` : pas de conflit, mais **n'améliore rien** (48 inchangé)
+- `lambda x y ->` multi-params : conflit non résolu avec `f x y` (application) → retiré
+
+**Rollback** : `git checkout -- vendor/tree-sitter-heaven/` → 48 flaggés restaurés.
+
+**Cause réelle de `test_effects_rec` (6 erreurs)** : `lambda v k -> ...` (2 params).
+L'ambiguïté avec l'application `(f a b)` est structurelle : `f x y` peut être
+`((f x) y)` ou `lambda x y -> ...`. Résolution possible :
+
+1. **Token `lambda` explicite** : `lambda` est un mot-clé réservé, donc
+   `lambda x y -> body` ne devrait **pas** être confondu avec `f x y` (où
+   `f` n'est pas `lambda`). Le conflit vient du `sep1($.identifier, " ")` qui
+   laisse `x` et `y` indépendants. Solution : `token(seq("lambda", ...))` ou
+   `seq("lambda", $.params, "->", ...)` avec `params` = `(identifier)+`.
+
+2. **Precedence dynamic** : `prec.dynamic(11, ...)` sur `lambda_multi`.
+
+**Effort restant** : 30-60 min (1-2 tentatives), risque modéré. **Report
+session 12** — après 3 tentatives rollbackées sur les magics, la journée est
+saturée.
+
+**Décision session 11** : plafond à **48/148** (32% de faux positifs, -40%
+vs début session 10). `heaven check` inutilisable en CI sur `tests/*.hvn`
+(documenté dans `_cli.md`), utile pour `check` sur du code hors tests.
