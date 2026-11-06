@@ -231,7 +231,7 @@ Recommandation : **`heaven check`** en premier — c'est celui qui débloque le 
 ### Reste (session 11+)
 - **54 grammar flaggés** (3 patterns : bitstrings `<<...>>`, scheduler `let+yield` multi-ligne, magics + lambdas imbriquées) → ~2 sessions
 - **39 refs textuelles** stale « chapitre 17 » dans la prose (ne cassent pas les liens, mais induisent en erreur)
-- **QTT enforced** (7 sessions)
+- ~~**QTT enforced**~~ : **DÉJÀ FAIT** (check au parse, `expr_parser.zig:774`). 7/7 cas conformes. Tests `tests/qtt/`.
 - **Selfhost complet** (10 sessions)
 
 ## Style `.hvn` et livre (politique 2026-11-03)
