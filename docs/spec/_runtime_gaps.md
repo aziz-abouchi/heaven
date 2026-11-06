@@ -1145,3 +1145,31 @@ critique. Les 3 erreurs bitstrings (sur 54) ne bloquent pas la suite.
 grammar actuelle — elle n'accepte que la forme infixe `if c then t else e`.
 Un patch `choice` + `buildIfExpr` générique débloque tous les fichiers qui
 utilisent la forme S-expr.
+
+## Scheduler / lambda contextuel — diagnostic partiel (2026-11-06, session 11)
+
+Après le patch `(if c t e)` (54→48), `test_scheduler.hvn` reste à 8 erreurs.
+Isolation :
+
+| Cas | Résultat |
+|---|---|
+| `(let body (lambda s -> (if ...)) 1)` | ✅ parse (var_decl?) |
+| `(lambda s -> (if ...)) 42` | ❌ ERROR tree-sitter |
+
+**Conclusion** : `lambda ... -> ...` **parse dans certains contextes** (sous
+`let`), **échoue dans d'autres** (body de `test "..."`). C'est une **ambiguïté
+contextuelle** de la grammar, pas un pattern manquant.
+
+**Effort pour fix** : 3-4 patches couplés (lambda, test_body, if-with-yield).
+Risque de régression élevé. **Report définitif** — `heaven check` est un outil
+dev, pas critique runtime (98/98 intact).
+
+**Acquis session 11** :
+- `(if c t e)` S-expr : 54 → 48
+- 30 refs textuelles patchées
+- `tests/hvn-check/if-sexpr.hvn` ajouté
+- Diagnostic scheduler/lambda documenté
+
+**Prochains patterns** (session 12+) : bitstrings (2-3 sessions), scheduler/lambda
+(2 sessions), magics `handle_rec` + lambdas imbriquées (1-2 sessions). Total
+~5-7 sessions pour arriver à ~0 flaggés.
