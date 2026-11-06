@@ -549,3 +549,11 @@ Réécriture `data_ctors` avec `skip_ctor_args` : head-19 freeze **toujours**. R
 récursive du parser). PAS un fix chirurgical.
 
 **Décision : cutoff selfhost. Bascule sur IO effects (vision async/distributed).**
+
+### Session 30 — Channel a : data [a] non supporté
+- `data Channel a = Channel Int Int [a]` : `channel_mk` = UnboundVariable
+- Cause : type `[a]` (liste paramétrée) dans data paramétré non supporté
+- Code conservé (`tests/io/channel.hvn.skip`), retiré des PATTERNS
+- **Alternative session 31** : `Channel` via `Stream Int` (type fixe), ou acteurs mailbox
+
+**Acquis sessions 26-29** : Result (4), io (7), Stream (6), stream_fns (10) = 27 tests CI.
