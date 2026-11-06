@@ -408,3 +408,23 @@ Aucun compteur global → la limite 200 par instance ne fire jamais sur 4 niveau
 4. **Revoir `def_body_if`/`parse_if`** : `lex_is_symchar` avec appel en condition est le seul cas qui freeze.
 
 **Le pansement 50000 est retiré** (2000 = limite significative).
+
+### Session 23 — AST de head-19 : print freeze
+- `parse_file (lex (read_file "h19"))` : ✅ réussit (`print "parse_ok"`)
+- `expr_at ast 0-5` : ✅ (liste ≥ 6 éléments)
+- **`print e0`** : 🔴 freeze → `toStringInfix` boucle sur `e0`
+- `expr_count_big` : 🔴 freeze (liste parcourue infiniment)
+
+**Conclusion** : l'AST de `head -19` est **structurellement bouclé** (liste cyclique
+ou `EData` avec ctors cyclique), pas un problème de profondeur.
+
+**Session 24 — investigation structure** :
+1. `expr_at ast 50` / `500` : si passe → AST > 500 éléments pour 5 lignes (bug parser)
+2. Instrumenter `es_rev` : vérifier que `[e4, e3, e2, e1, e0]` → `[e0, e1, e2, e3, e4]` sans cycle
+3. Instrumenter `parse_arglist_go` : vérifier que `rest` progresse (ne pointe pas
+   vers un ancêtre)
+4. Candidat n°1 : `parse_one_go` sur `(lex_is_space b)` — l'appel de fonction
+   dans la condition produit un `rest` qui inclut le `)` non consommé, puis boucle.
+
+**Test discriminant** : `expr_at ast 500` → si freeze, cycle ; si passe, parser
+produit trop d'exprs.
