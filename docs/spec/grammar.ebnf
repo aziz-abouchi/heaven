@@ -1,9 +1,24 @@
 (* ================================================================
    Heaven - EBNF de reference
-   Source : expr.zig (Lexer + NativeParser)
-          + expr_parser.zig (parseExpression, parseSExpr)
-          + heaven_expr.zig (dispatch eval)
-   Version 1.0 - descriptif - 2026-09-25
+
+   ⚠ SNAPSHOT MANUEL (2026-09-25). N'est PLUS synchronisé avec le parser
+   réel depuis cette date. Utiliser comme DOCUMENTATION HISTORIQUE, pas
+   comme source de vérité.
+
+   SOURCES DE VÉRITÉ :
+   - Parser réel (heaven run) : src/core/expr.zig (Lexer)
+                              + src/core/expr_parser.zig (parseExpression)
+                              + src/core/heaven_expr.zig (dispatch)
+   - Grammar tree-sitter (heaven check) : vendor/tree-sitter-heaven/grammar.js
+     (PARTIELLE : 48 patterns non couverts, cf. _runtime_gaps.md)
+
+   Trois artefacts, trois rôles :
+   | Fichier                  | Rôle             | État                    |
+   | grammar.ebnf (ce fichier) | EBNF manuel      | stale (5 semaines)      |
+   | grammar.js (tree-sitter)  | gate `heaven check` | maintenu, 48 trous   |
+   | expr.zig + expr_parser.zig | vrai parser (run) | référence runtime    |
+
+   Version 1.0 - descriptif - 2026-09-25 (header ajouté 2026-11-06)
    ================================================================ *)
 
 program        = { line } ;

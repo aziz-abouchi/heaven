@@ -1203,3 +1203,21 @@ saturée.
 **Décision session 11** : plafond à **48/148** (32% de faux positifs, -40%
 vs début session 10). `heaven check` inutilisable en CI sur `tests/*.hvn`
 (documenté dans `_cli.md`), utile pour `check` sur du code hors tests.
+
+## grammar.ebnf vs grammar.js vs expr.zig — clarification (2026-11-06)
+
+**Trois artefacts de syntaxe Heaven, trois rôles distincts** :
+
+| Fichier | Rôle | État |
+|---|---|---|
+| `docs/spec/grammar.ebnf` | EBNF manuel | ⚠️ **Stale** (25 sept, 5 semaines) |
+| `vendor/tree-sitter-heaven/grammar.js` | Gate `heaven check` | ✅ Maintenu, **48 trous** (cf. sections bitstrings, scheduler, magics) |
+| `src/core/expr.zig` + `expr_parser.zig` + `heaven_expr.zig` | Vrai parser (`heaven run`) | ✅ Référence |
+
+**Conséquence** : les 48 flags de `heaven check` ne sont **pas des bugs du
+langage**. Le langage parse (`heaven run` 168 tests OK). C'est tree-sitter
+(`grammar.js`) qui est **incomplet** par rapport au vrai parser.
+
+**Action** : header de `grammar.ebnf` mis à jour pour clarifier cette
+distinction. Pas de synchronisation automatique prévue (les 3 artefacts ont
+des rôles différents).
