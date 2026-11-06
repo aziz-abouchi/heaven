@@ -533,3 +533,19 @@ Réécriture `data_ctors` avec `skip_ctor_args` : head-19 freeze **toujours**. R
 
 **Transition entre 2 ifs (syntax error) et 3-4 ifs (freeze).**
 **Fix session 26 : TCO parse_if (15 lignes).**
+
+### Session 25 — parse_if pas coupable pour (if c a b)
+- parse_if traite uniquement if c then a else b (infixe)
+- (if c a b) S-expr passe par parse_one → parse_head → parse_arglist
+- TCO parse_if ne résoudra pas le freeze S-expr
+
+**Conclusion selfhost (sessions 15-25, ~15h)** :
+- read_file fixé (6/6)
+- TCO parse_file, parse_arglist, parse_one_go
+- head -18 passe, head -19 freeze (zone grise 2-4 ifs)
+- AST h19 produit mais inutilisable (print freeze)
+
+**Selfhost complet = 6-9 sessions supplémentaires** (architecture mutuellement
+récursive du parser). PAS un fix chirurgical.
+
+**Décision : cutoff selfhost. Bascule sur IO effects (vision async/distributed).**
