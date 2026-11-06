@@ -513,3 +513,8 @@ Test session 24 : `parse_top` isolé (si n > 1, data_scan bug).
 - data multi-ctor validé (3 tests)
 - AST cyclique isolé (pas profondeur, pas limite)
 - 4 faux diagnostics levés (QTT, curry, thunks, read_file)
+
+### Session 23 cutoff — paradoxe parse_file vs parse_top
+parse_file (lex h19) : OK (print parse_ok). parse_top isolé : freeze.
+Hypothèses session 24 : parse_file retourne prématurément, OU bug parse_file_go2,
+OU expr_count_go bug (pourtant TCO). Test : expr_count_big ast.
