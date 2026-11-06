@@ -1,0 +1,9 @@
+-- tests/io/stream.hvn — Stream a (2026-11-06)
+import "lib/std/stream.hvn" as S
+
+test "empty": (S.stream_length (S.stream_of_string "")) == 0
+test "one": (S.stream_length (S.stream_of_string "a")) == 1
+test "two": (S.stream_length (S.stream_of_string "a\nb")) == 2
+test "three": (S.stream_length (S.stream_of_string "a\nb\nc")) == 3
+test "first": (S.stream_length (S.SCons "x" S.SNil)) == 1
+test "cons": (S.stream_length (S.SCons "x" (S.SCons "y" S.SNil))) == 2
