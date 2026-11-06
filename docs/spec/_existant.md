@@ -245,3 +245,30 @@ Discipline : timeout obligatoire sur read_file + parse.
 5. Si OK : débloquer les 2 tests SKIPPED.
 
 **Discipline** : `timeout` obligatoire, un chunk à la fois.
+
+## Selfparse — freeze isolé au cumul 1-17 (2026-11-06, session 16)
+
+### Isolation précise
+| Test | Résultat |
+|---|---|
+| `head -14` | ✅ 3/3 |
+| `head -15`, `head -16` | 2/3 (count ≠ 1, normal) |
+| **`head -17`** | 🔴 **freeze** (rc=137) |
+| Ligne 17 seule | ✅ 2/2 |
+| Lignes 14+17 | ✅ 2/3 (pas freeze) |
+| Lignes 14-17 | ✅ 2/3 |
+
+**Le freeze nécessite le cumul de ~13-16 lignes + ligne 17.** Aucune isolation ne
+freeze. C'est un **stack depth** (profondeur de récursion parser).
+
+### Cause probable
+- `lex_loop` (l.13) : **8 if imbriqués** sur une seule ligne (récursion profonde)
+- `lex_is_space` (l.17) : **3 if imbriqués** de plus
+- Combiné : 11 niveaux de récursion, + les 16 expressions précédentes en pile
+
+### Plan session 17
+1. Augmenter `@threadStackSize` du thread parser (5 min, gagne 10x)
+2. Si insuffisant : réécrire `lex_loop` en tail-call (TCO supporté, ch. 5)
+3. Si encore : limiter profondeur + compteur
+
+**Discipline** : `timeout -s KILL` obligatoire, chunks de ≤ 17 lignes.
