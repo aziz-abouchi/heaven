@@ -1,6 +1,6 @@
 -- lib/std/io.hvn — utilities files (2026-11-06, session 27)
 -- ReadFile marche (session 15). ReadLine = stdin (REPL), pas pour files.
-count_lines s = (count_lines_go s 1)
+count_lines s = (if (= (string_length s) 0) 0 (let n (count_lines_go s 1) (if (= (peek_byte (string_ptr s) (- (string_length s) 1)) 10) (- n 1) n)))
 count_lines_go s n = (let idx (string_index_of s 10) (if (< idx 0) n (count_lines_go (string_substring s (+ idx 1) (- (string_length s) (+ idx 1))) (+ n 1))))
 first_line s = (first_line_go s 0)
 first_line_go s i = (if (>= i (string_length s)) s (if (= (peek_byte (string_ptr s) i) 10) (string_substring s 0 i) (first_line_go s (+ i 1))))
