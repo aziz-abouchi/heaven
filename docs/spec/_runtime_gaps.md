@@ -984,3 +984,25 @@ le Typer.
 - Désactiver la détection `ERROR` (on perdrait les vraies erreurs)
 - Mentir dans la doc (« heaven check fonctionne »)
 - Utiliser `heaven check` comme gate CI sur `tests/*.hvn`
+
+## Grammar batch 4 patches — rollback (2026-11-06, session 10)
+
+**Tentative** : 5 patches grammar (fn `=` expr, `prove ... by { }`, `skill name`, `^` retiré).
+
+**Résultat** :
+- ✅ `fn counterHandler(s,m) = ...` parsé (test_actor_multi_msg passe)
+- ✅ `--run-test core/test_suite.hvn` 98/98 (runtime OK)
+- 🔴 **29 fichiers segfaultent** dans `heaven check`
+
+**Cause probable** : les nouveaux nœuds (`prove_decl`, `skill_decl`, `fn_decl` avec `= expr`) ne sont pas gérés par `ast_bridge.zig` (`buildTopLevel` → `buildFnDecl` accède à `$.block` comme dernier child, mais c'est maintenant `_expr`).
+
+**Rollback** : `git checkout vendor/tree-sitter-heaven/` → 81 flaggés, 0 segfault.
+
+**Prochaine session (10+)** :
+1. Patcher `ast_bridge.zig` pour gérer `fn =` (traiter `= expr` comme body alternatif)
+2. Patcher pour `prove_decl` (symbole top-level, pas d'action)
+3. Patcher pour `skill_decl` (idem)
+4. Puis régénérer la grammar
+5. Tests : `heaven check` sur 148 tests → 0 segfault, flaggés << 81
+
+**Leçon** : grammar + ast_bridge sont couplés. Patcher l'un sans l'autre = segfault. Un patch grammar doit toujours inclure le patch `ast_bridge` correspondant.
