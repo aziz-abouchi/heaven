@@ -557,3 +557,20 @@ récursive du parser). PAS un fix chirurgical.
 - **Alternative session 31** : `Channel` via `Stream Int` (type fixe), ou acteurs mailbox
 
 **Acquis sessions 26-29** : Result (4), io (7), Stream (6), stream_fns (10) = 27 tests CI.
+
+## Modules std (sessions 26-32)
+
+| Module | Contenu | Tests |
+|---|---|---|
+| `lib/std/result.hvn` | `Result a = Ok a \| Err Str` + is_ok, unwrap | 4 |
+| `lib/std/io.hvn` | count_lines, first_line (via `perform "ReadFile"`) | 7 |
+| `lib/std/stream.hvn` | `Stream a = SNil \| SCons a` + map/filter/take | 16 |
+| `lib/std/channel.hvn` | `Channel = Channel Int Int L` (type L local) | 14 |
+
+**Total : 41 tests CI-verrouillés.**
+
+**Bugs documentés (sessions 30-32)** :
+- `data C = C [Int]` : UnboundVariable (type liste littéral)
+- `[1,2,3]` top-level : UnboundVariable (array literal)
+- `(cons 1 ...)` top-level : UnboundVariable
+- Contournement : type local `L = LNil | LCons Int L`

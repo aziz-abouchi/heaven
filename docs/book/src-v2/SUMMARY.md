@@ -50,7 +50,7 @@
 - [Chapitre 26 — Outils : Heaven parle à lui-même](26-outils.md)
 - [Chapitre 27 — Selfhost : la preuve de concept, pas le compilateur](27-selfhost.md)
 - [Chapitre 28 — `heaven_eval` : un interpréteur en 96 lignes](28-eval.md)
-- [Chapitre 29 — Mémoire : QTT, la spécification qui n'est pas (encore) un vérificateur](29-memoire.md)
+- [Chapitre 29 — Mémoire : QTT, multiplicités enforced (érasure à venir)](29-memoire.md)
 - [Chapitre 30 — Conclusion : un langage qui tend](30-conclusion.md)
 
 ## Annexes

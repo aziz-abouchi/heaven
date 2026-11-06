@@ -1,3 +1,22 @@
+## 2026-11-06 (vendredi, suite) — 5 modules std (41 tests)
+
+### Modules std
+- lib/std/result.hvn : Result a = Ok a | Err Str (4 tests)
+- lib/std/io.hvn : count_lines, first_line (7 tests)
+- lib/std/stream.hvn : Stream a + map/filter/take (16 tests)
+- lib/std/channel.hvn : Channel borné, type L local (14 tests)
+
+### Bug [Int] diagnostiqué
+- data C = C [Int] : UnboundVariable
+- [1,2,3] top-level : UnboundVariable
+- (cons 1 []) top-level : UnboundVariable
+- Contournement : type L = LNil | LCons Int L
+
+### Tests
+- 176 tests .hvn verts (vs 171 avant)
+
+---
+
 ## 2026-11-06 (vendredi) — Selfhost : read_file fixé + TCO
 
 ### Selfhost runtime
