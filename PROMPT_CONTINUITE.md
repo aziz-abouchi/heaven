@@ -207,6 +207,33 @@ Recommandation : **`heaven check`** en premier — c'est celui qui débloque le 
 - `_cli.md` (5 min)
 - Partie IV livre (1 ch./session)
 
+## Session 10 (2026-11-06, vendredi) — grammar partielle + renommage Fait
+
+### Grammar tree-sitter (commits `5326963`, `93749f7`, `c289d11`)
+- **`fn name(params) = expr`** : `buildFnDecl` gère `= expr` + grammar `choice($.block, seq("=", $._expr))`
+- **`prove name by { ... }`** : nouveau `prove_decl` + `buildTopLevel` gère comme sym
+- **`skill name`** : nouveau `skill_decl` + `buildTopLevel` gère comme sym
+- **`test "name": expr`** : déjà patché session 9
+- **`#` comment** : ajouté session 9
+- **Résultat** : 81 → **54 flaggés** (-33%), 0 segfault, runtime 98/98 intact
+
+### Leçon critique (commit `d3cb313`)
+- **grammar + ast_bridge sont INDISSOCIABLES.** Un patch grammar qui introduit un nouveau nœud DOIT patcher `ast_bridge.zig` correspondant. Sinon : segfault (29 fichiers, batch raté à 10h20).
+- Commit unique obligatoire — pas de commit "grammar seule".
+- Régénération `tree-sitter generate` produit 4 fichiers : `grammar.js` + `parser.c` + `grammar.json` + `node-types.json` → committer **les 4**.
+
+### Renommage `16-effects` → `17-effects` — FAIT (commits `0c86c4b`, `0ff0d4a`, `0f8873a`)
+- 17 fichiers `git mv` (`16-effects` → `17-effects`, `17-handlers` → `18-handlers`, ..., `29-conclusion` → `30-conclusion`)
+- **`16-optiques` reste `16-optiques`** (dernière de Partie II)
+- H1 mis à jour, SUMMARY réécrit, `mdbook build` OK
+- 7 refs externes patchées (`_effects.md`, `_handle_rec_status.md`, `_runtime_gaps.md`, `24-reseau.md`, `STATUS.md`)
+
+### Reste (session 11+)
+- **54 grammar flaggés** (3 patterns : bitstrings `<<...>>`, scheduler `let+yield` multi-ligne, magics + lambdas imbriquées) → ~2 sessions
+- **39 refs textuelles** stale « chapitre 17 » dans la prose (ne cassent pas les liens, mais induisent en erreur)
+- **QTT enforced** (7 sessions)
+- **Selfhost complet** (10 sessions)
+
 ## Style `.hvn` et livre (politique 2026-11-03)
 
 **Code `.hvn`** : infixe par défaut. Politique existante : `docs/spec/_style_infix.md`.
