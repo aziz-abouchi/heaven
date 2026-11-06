@@ -194,3 +194,24 @@ Le parser `heaven_parse.hvn` boucle ensuite sur la string vide (probablement
 - Le lexer → fonctionne
 - `parse_top` → fonctionne
 - `expr_count`, `expr_eq`, `parse_file` → fonctionnent
+
+
+## IO — `read_file` cassé (2026-11-06, session 14)
+
+### Bug confirmé
+`read_file` retourne **vide** sur fichier de 500 octets (test `string_length > 0` échoue).
+Cause : `raw_alloc 65536` + `io_read` + `string_of_bytes` — un des trois échoue
+silencieusement.
+
+**Symptôme** : parser freeze sur string vide (`lex_loop` + `parse_file` en boucle).
+
+### Pourquoi pas de backpressure
+`read_file` = buffer fixe + 1 appel bloquant + conversion tout-en-un. Pas de
+chunks, pas de yield, pas de rétroaction. Backpressure structurellement impossible.
+### Migration IO as effects (session 15+)
+perform (ReadBytes fd n) -> Result Bytes IoError
+perform (WriteBytes fd bytes) -> Result Unit IoError
+Handler 3 modes : Sync local, Async (epoll/kqueue), Remote (distribué).
+Pull : Stream a + perform Next. Push : Channel a borné + send/recv.
+Plan : S15 ReadBytes (2h), S16 migrer read_file (2h), S17-18 Stream/Channel, S19+ distribué.
+Discipline : timeout obligatoire sur read_file + parse.
