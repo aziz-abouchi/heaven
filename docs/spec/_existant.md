@@ -428,3 +428,15 @@ ou `EData` avec ctors cyclique), pas un problème de profondeur.
 
 **Test discriminant** : `expr_at ast 500` → si freeze, cycle ; si passe, parser
 produit trop d'exprs.
+
+### Session 23 — print EBind OK, print e0 freeze
+- `print (EBind "test" ...)` : ✅ affiche correctement
+- `print e0` (où e0 = EData "Tok" [...] de l'AST head-19) : 🔴 freeze
+- `expr_at 0-5`, `expr_at 500` : ✅
+- Test EData isolé (vide, 1 ctor, 2 ctors) : [résultats selon sortie]
+
+**Conclusion** : soit `toStringInfix` boucle sur `EData` (host), soit `e0` est
+structurellement cyclique (parser `data_ctors`).
+
+**Session 24** : selon résultat des 3 tests EData, fix `heaven_expr.zig` (host)
+ou `heaven_parse.hvn` (data_ctors).
