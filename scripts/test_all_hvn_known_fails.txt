@@ -10,3 +10,7 @@ tests/imports/exp_util.hvn
 # Fix setrlimit 64 MB dans main.zig:166 ne suffit pas en contexte saturé.
 # Whitelist temporaire jusqu'à fix (bdiv itératif, cf. _bigint_d20_stack.md B).
 tests/test_bigint_d20.hvn
+
+# QTT violations (attendu : échoue sur LinearViolation)
+# 3 cas : linear 0, linear 2, erased 1. Le check est dans expr_parser.zig:774.
+tests/qtt/let_quantities_viol.hvn

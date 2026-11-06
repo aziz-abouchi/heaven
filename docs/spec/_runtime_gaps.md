@@ -1221,3 +1221,37 @@ langage**. Le langage parse (`heaven run` 168 tests OK). C'est tree-sitter
 **Action** : header de `grammar.ebnf` mis à jour pour clarifier cette
 distinction. Pas de synchronisation automatique prévue (les 3 artefacts ont
 des rôles différents).
+
+## QTT enforced — DÉJÀ FAIT (découverte 2026-11-06)
+
+**Le chantier "QTT enforced (7 sessions)" du prompt était FAUX.**
+
+Le check de multiplicité est fait **au parse**, dans
+`src/core/expr_parser.zig:774` (`if (!ok) return error.LinearViolation`).
+
+**Testé (session 12)** :
+
+| Cas | Résultat | Attendu |
+|---|---|---|
+| `linear` 1 usage | ✅ passe | ✅ |
+| `linear` 0 usage | ❌ LinearViolation | ✅ |
+| `linear` 2 usages | ❌ LinearViolation | ✅ |
+| `erased` 0 usage | ✅ passe | ✅ |
+| `erased` 1 usage | ❌ LinearViolation | ✅ |
+| `many` 2 usages | ✅ passe | ✅ |
+| `many` 0 usage | ✅ passe | ✅ |
+
+**7/7 conformes.** QTT est **enforced** pour les `let` top-level.
+
+**Tests régression** :
+- `tests/qtt/let_quantities_ok.hvn` (4 cas positifs)
+- `tests/qtt/let_quantities_viol.hvn` (3 violations, whitelisté)
+
+**Limitations** (à vérifier session 13+) :
+- Le message `--run-test` est `error.LinearViolation` (brut), pas le message
+  pédagogique `linear violation: 'x' declared linear, used wrong number of times`
+  (qui existe dans `heaven_expr.zig:1232` mais n'est pas utilisé par le runner).
+- Pas testé : multiplicités sur fonctions (`fn linear ...`), sur paramètres,
+  sur `let` imbriqués profonds.
+
+**Retiré des chantiers restants** : "QTT enforced (7 sessions)" → **0 sessions**.

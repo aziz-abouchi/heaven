@@ -1,0 +1,9 @@
+-- tests/qtt/let_quantities_viol.hvn — QTT enforcement (3 cas de violation)
+-- ATTENDU : ce fichier ÉCHOUE (3 violations de multiplicité).
+-- Whitelisté dans scripts/test_all_hvn_known_fails.txt.
+-- Pour test manuel : ./zig-out/bin/heaven run tests/qtt/let_quantities_viol.hvn
+-- → doit afficher `error.LinearViolation`.
+
+test "viol_linear_0": (let linear x = 42 in 99) == 99
+test "viol_linear_2": (let linear x = 42 in (x + x)) == 84
+test "viol_erased_1": (let erased x = 42 in x) == 42

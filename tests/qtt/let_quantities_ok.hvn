@@ -1,0 +1,8 @@
+-- tests/qtt/let_quantities_ok.hvn — QTT enforcement (4 cas positifs)
+-- Le check est fait au PARSE dans expr_parser.zig:774.
+-- Les 3 cas de violation sont dans let_quantities_viol.hvn (whitelisté).
+
+test "ok_linear_1": (let linear x = 42 in x) == 42
+test "ok_erased_0": (let erased x = 42 in 99) == 99
+test "ok_many_2": (let many x = 42 in (x + x)) == 84
+test "ok_many_0": (let many x = 42 in 99) == 99
