@@ -1,4 +1,4 @@
-# Chapitre 21a — Concurrence coopérative
+# Chapitre 22a — Concurrence coopérative
 
 > **Version 2 (2026-11-04)** — refonte style LYAH/LYSE.
 > Version publiée : `13-concurrency.md` (v1, sections 1-6).

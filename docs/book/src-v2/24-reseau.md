@@ -1,4 +1,4 @@
-# Chapitre 23 — HTTP et réseau : trois couches
+# Chapitre 24 — HTTP et réseau : trois couches
 
 > **Piège d'entrée.** HTTP n'est pas un protocole magique. C'est une
 > string, trois espaces, un retour chariot — et derrière, un socket.

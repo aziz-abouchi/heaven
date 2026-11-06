@@ -1,4 +1,4 @@
-# Chapitre 21c — Parallélisme : la route vers le multi-cœur
+# Chapitre 22c — Parallélisme : la route vers le multi-cœur
 
 > **Version 2 (2026-11-04)** — from scratch (roadmap, pas tutoriel).
 > Source : `_parallelism_roadmap.md` (5 niveaux), `_concurrency.md` C1-C5.

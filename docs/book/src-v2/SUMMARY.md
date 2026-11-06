@@ -35,23 +35,23 @@
 
 ## Partie III — Systèmes, preuves et runtime
 
-- [Chapitre 16 (bis) — Effets algébriques](16-effects.md) <!-- conflit numérotation, cf. note haut -->
-- [Chapitre 17 — Plusieurs handlers, un abandon](17-handlers.md)
-- [Chapitre 18 — Validation : accumuler les erreurs](18-errors.md)
-- [Chapitre 18b — Cinq outils de test, tous en Heaven pur](18b-tools.md)
-- [Chapitre 19 — Les acteurs : des processus qui parlent](19-actors.md)
-- [Chapitre 20 — OTP : des superviseurs qui réparent](20-otp.md)
-- [Chapitre 21a — Concurrence coopérative](21a-cooperatif.md)
-- [Chapitre 21b — Préemption et fair scheduling](21b-preemptif.md)
-- [Chapitre 21c — Parallélisme : la route vers le multi-cœur](21c-parallelisme.md)
-- [Chapitre 22 — MPST : des protocoles qui parlent d'eux-mêmes](22-mpst.md)
-- [Chapitre 23 — HTTP et réseau : trois couches](23-reseau.md)
-- [Chapitre 24 — Hab : le Web natif en Heaven](24-hab.md)
-- [Chapitre 25 — Outils : Heaven parle à lui-même](25-outils.md)
-- [Chapitre 26 — Selfhost : la preuve de concept, pas le compilateur](26-selfhost.md)
-- [Chapitre 27 — `heaven_eval` : un interpréteur en 96 lignes](27-eval.md)
-- [Chapitre 28 — Mémoire : QTT, la spécification qui n'est pas (encore) un vérificateur](28-memoire.md)
-- [Chapitre 29 — Conclusion : un langage qui tend](29-conclusion.md)
+- [Chapitre 17 — Effets algébriques](17-effects.md) <!-- conflit numérotation, cf. note haut -->
+- [Chapitre 18 — Plusieurs handlers, un abandon](18-handlers.md)
+- [Chapitre 19 — Validation : accumuler les erreurs](19-errors.md)
+- [Chapitre 19b — Cinq outils de test, tous en Heaven pur](19b-tools.md)
+- [Chapitre 20 — Les acteurs : des processus qui parlent](20-actors.md)
+- [Chapitre 21 — OTP : des superviseurs qui réparent](21-otp.md)
+- [Chapitre 22a — Concurrence coopérative](22a-cooperatif.md)
+- [Chapitre 22b — Préemption et fair scheduling](22b-preemptif.md)
+- [Chapitre 22c — Parallélisme : la route vers le multi-cœur](22c-parallelisme.md)
+- [Chapitre 23 — MPST : des protocoles qui parlent d'eux-mêmes](23-mpst.md)
+- [Chapitre 24 — HTTP et réseau : trois couches](24-reseau.md)
+- [Chapitre 25 — Hab : le Web natif en Heaven](25-hab.md)
+- [Chapitre 26 — Outils : Heaven parle à lui-même](26-outils.md)
+- [Chapitre 27 — Selfhost : la preuve de concept, pas le compilateur](27-selfhost.md)
+- [Chapitre 28 — `heaven_eval` : un interpréteur en 96 lignes](28-eval.md)
+- [Chapitre 29 — Mémoire : QTT, la spécification qui n'est pas (encore) un vérificateur](29-memoire.md)
+- [Chapitre 30 — Conclusion : un langage qui tend](30-conclusion.md)
 
 ## Annexes
 

@@ -1,4 +1,4 @@
-# Chapitre 28 — Mémoire : QTT, la spécification qui n'est pas (encore) un vérificateur
+# Chapitre 29 — Mémoire : QTT, la spécification qui n'est pas (encore) un vérificateur
 
 > **Piège d'entrée.** Vous avez lu le ch. 3 (« QTT spec/runtime »), et vous vous
 > attendez à ce que le ch. 28 vous montre comment Heaven libère la mémoire.

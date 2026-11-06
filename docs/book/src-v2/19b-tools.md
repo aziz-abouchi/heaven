@@ -1,4 +1,4 @@
-# Chapitre 18b — Cinq outils de test, tous en Heaven pur (2026-10-28)
+# Chapitre 19b — Cinq outils de test, tous en Heaven pur (2026-10-28)
 
 > **Version 2 (2026-11-04)** — refonte style LYAH/LYSE.
 > Version publiée : `23-validation.md` (v1, section outils).

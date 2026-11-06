@@ -1,4 +1,4 @@
-# Chapitre 26 — Selfhost : la preuve de concept, pas le compilateur
+# Chapitre 27 — Selfhost : la preuve de concept, pas le compilateur
 
 > **Piège d'entrée.** « Selfhost » ne veut pas dire « le langage s'écrit
 > lui-même ». Il veut dire « **le compilateur** du langage est écrit dans le

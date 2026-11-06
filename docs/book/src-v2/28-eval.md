@@ -1,4 +1,4 @@
-# Chapitre 27 — `heaven_eval` : un interpréteur en 96 lignes
+# Chapitre 28 — `heaven_eval` : un interpréteur en 96 lignes
 
 > **Piège d'entrée.** `lib/heaven_eval.hvn` fait 96 lignes et évalue des
 > expressions Heaven en Heaven. On pourrait croire que c'est le début du

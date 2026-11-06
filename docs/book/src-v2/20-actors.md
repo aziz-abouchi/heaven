@@ -1,4 +1,4 @@
-# Chapitre 19 — Les acteurs : des processus qui parlent
+# Chapitre 20 — Les acteurs : des processus qui parlent
 
 > **Version 2 (2026-11-04)** — intro from scratch + §2 repris de
 > `09-real-world.md` (v1, §4). Les sections I/O, HTTP, ABI C,

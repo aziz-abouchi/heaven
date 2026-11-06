@@ -1,4 +1,4 @@
-# Chapitre 18 — Validation : accumuler les erreurs
+# Chapitre 19 — Validation : accumuler les erreurs
 
 > **Version 2 (2026-11-04)** — refonte style LYAH/LYSE.
 > Version publiée : `23-validation.md` (v1, sections 1-4).

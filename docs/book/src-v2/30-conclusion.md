@@ -1,4 +1,4 @@
-# Chapitre 29 — Conclusion : un langage qui tend
+# Chapitre 30 — Conclusion : un langage qui tend
 
 > **Piège d'entrée.** Vous avez lu 28 chapitres, vous avez vu Heaven écrire des
 > preuves, compiler du natif, parler HTTP, superviser des acteurs, exécuter du

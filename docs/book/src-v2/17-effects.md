@@ -1,4 +1,4 @@
-# Chapitre 16 — Effets algébriques
+# Chapitre 17 — Effets algébriques
 
 > **Version 2 (2026-11-04)** — refonte style LYAH/LYSE.
 > Version publiée : `06-effects.md` (v1).

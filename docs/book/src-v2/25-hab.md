@@ -1,4 +1,4 @@
-# Chapitre 24 — Hab : le Web natif en Heaven
+# Chapitre 25 — Hab : le Web natif en Heaven
 
 > **Piège d'entrée.** Hab n'est pas React. Ce n'est pas non plus du MVC,
 > ni du Svelte, ni du HTMX. C'est **MVU avec optiques** — et la

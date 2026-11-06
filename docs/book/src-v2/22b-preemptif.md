@@ -1,4 +1,4 @@
-# Chapitre 21b — Préemption et fair scheduling
+# Chapitre 22b — Préemption et fair scheduling
 
 > **Version 2 (2026-11-04)** — refonte style LYAH/LYSE.
 > Version publiée : `13-concurrency.md` (v1, section préemption).

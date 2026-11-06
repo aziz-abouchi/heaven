@@ -1,4 +1,4 @@
-# Chapitre 22 — MPST : des protocoles qui parlent d'eux-mêmes
+# Chapitre 23 — MPST : des protocoles qui parlent d'eux-mêmes
 
 > **Version 2 (2026-11-04)** — intro from scratch + §2-6 repris
 > de `29-mpst.md` (v1, 47 l. — étoffé). V2a (multipartite +

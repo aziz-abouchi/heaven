@@ -1,4 +1,4 @@
-# Chapitre 20 — OTP : des superviseurs qui réparent
+# Chapitre 21 — OTP : des superviseurs qui réparent
 
 > **Version 2 (2026-11-04)** — refonte style LYAH/LYSE.
 > Version publiée : `28-otp.md` (v1, 65 l. — étoffé).

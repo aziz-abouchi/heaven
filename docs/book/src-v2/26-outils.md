@@ -1,4 +1,4 @@
-# Chapitre 25 — Outils : Heaven parle à lui-même
+# Chapitre 26 — Outils : Heaven parle à lui-même
 
 > **Piège d'entrée.** Vous vous attendez à ce qu'un langage en développement ait
 > des outils écrits dans son langage hôte (Zig, pour Heaven). C'est vrai pour le
