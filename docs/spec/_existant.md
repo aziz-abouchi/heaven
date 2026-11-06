@@ -518,3 +518,8 @@ Test session 24 : `parse_top` isolé (si n > 1, data_scan bug).
 parse_file (lex h19) : OK (print parse_ok). parse_top isolé : freeze.
 Hypothèses session 24 : parse_file retourne prématurément, OU bug parse_file_go2,
 OU expr_count_go bug (pourtant TCO). Test : expr_count_big ast.
+
+### Session 24 — data_ctors pas coupable (rollback)
+Réécriture `data_ctors` avec `skip_ctor_args` : head-19 freeze **toujours**. Rollback.
+**Conclusion** : data multi-ctor OK (déjà 3/3), ce n'est pas le coupable.
+**Vrai coupable** : `lex_is_symchar` (4 ifs + appel `lex_is_space` 3 ifs = 7 ifs).
