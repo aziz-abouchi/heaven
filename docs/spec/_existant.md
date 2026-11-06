@@ -457,3 +457,21 @@ soit `e0` a un cycle interne (parser `data_ctors`).
 
 **Acquis sessions 15-23** : read_file fixé, TCO parse_file + parse_arglist,
 parse_one_go, 4 limites (100/200/2000/50000) testées, AST head-19 isolé au e0.
+
+### Session 23 fin — e0.ctors : test discriminant
+- `EData` isolé (vide, 1, 4 ctors mix avec EApply) : ✅ affichés
+- `print e0` (vrai AST head-19) : 🔴 freeze
+- `count_ctors e0` : [résultat selon sortie]
+
+**Conclusion session 24** :
+- Si `ctors` fini → `toStringInfix` host bug sur `e0` (heaven_expr.zig)
+- Si `ctors` cyclique → `data_ctors` parser bug (heaven_parse.hvn:121)
+- Si `ctors` > 500 → `data_ctors` accumule trop (même fix)
+
+**Acquis sessions 15-23 (~12h)** :
+- read_file fixé (`perform "ReadFile"`)
+- TCO parse_file, TCO parse_arglist, parse_one_go
+- data multi-ctor validé (3 tests)
+- AST head-19 isolé : e0 freeze
+- Limites 100/200/2000/50000 testées (pansement retiré)
+- 4 faux diagnostics levés (QTT, curry, thunks, read_file)
