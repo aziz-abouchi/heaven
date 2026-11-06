@@ -88,6 +88,15 @@ Le nom est mis en minuscules pour le fichier (`stream`), mais le
 namespace est en capitales (`Stream`). C'est la convention du
 projet : fichiers en minuscules, namespaces en CamelCase.
 
+> **Note (2026-11-06)** : deux répertoires coexistent.
+> - `core/std/` (23 modules) — historique, liste/option/ord/eq/fuzzer/etc.
+> - `lib/std/` (4 modules récents) — `result.hvn`, `io.hvn`, `stream.hvn`,
+>   `channel.hvn` (sessions 26-31, 41 tests CI).
+>
+> Pour les nouveaux modules, préférer `lib/std/`. L'import explicite
+> (`import "lib/std/result.hvn" as R`) fonctionne, la forme courte
+> `import Result` cherche encore dans `core/std/`.
+
 ## 4. Comment un module trouve ses voisins
 
 Si un import n'est pas trouvé dans le répertoire courant, Heaven
