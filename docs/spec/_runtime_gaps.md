@@ -1128,3 +1128,20 @@ manuellement au fil de l'eau si elles gênent la lecture.
 
 **Décision** : **report définitif**. `heaven check` est un outil dev, pas
 critique. Les 3 erreurs bitstrings (sur 54) ne bloquent pas la suite.
+
+## (if c t e) S-expr — patch réussi (2026-11-06, session 11)
+
+**Tentative 3** (après 2 rollbacks bitstrings) : ajouter `(if c t e)` au
+`if_expr` grammar (choice avec la forme classique `if c then t else e`),
++ `buildIfExpr` générique (filtre tokens de structure).
+
+**Résultat** : ✅ **54 → 48** flaggés (-6). 0 segfault, runtime intact
+(98/98, 4/4).
+
+**Fichiers débloqués** (dépendants de `(if c t e)`) : `test_scheduler`,
+`test_effects_rec`, `test_actor_multi_msg` (partiellement), `test_kanren`...
+
+**Leçon** : les S-expr de contrôle (`(if c t e)`) ne sont pas parsés par la
+grammar actuelle — elle n'accepte que la forme infixe `if c then t else e`.
+Un patch `choice` + `buildIfExpr` générique débloque tous les fichiers qui
+utilisent la forme S-expr.

@@ -1,0 +1,6 @@
+-- tests/hvn-check/if-sexpr.hvn
+-- Vérifie que (if c t e) S-expr parse (fix grammar 2026-11-06).
+f x = (if (= x 0) 1 0)
+test "if_zero": (f 0) == 1
+test "if_nonzero": (f 5) == 0
+g x = if x then 1 else 0
