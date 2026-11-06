@@ -383,3 +383,14 @@ Bug probable : interaction `parse_arglist` + contexte data multi-définitions.
 **Cause probable** : chaque `(= b N)` = 1 `parse_arglist` imbriqué avec compteur local (n=0).
 Aucun compteur global → la limite 200 par instance ne fire jamais sur 4 niveaux imbriqués.
 **Session 22** : instrumenter avec un compteur global (threading) ou `PErr "iter N"`.
+
+### Session 21 suite — limite 2000 débloque tc
+- `parse_arglist_go` limite **200 → 2000**.
+- `tc` (4 ifs) : ✅ passe (1 expr).
+- **Full-file (209 lignes) : freeze encore** (rc=137).
+- `head -30` : freeze aussi.
+
+**Cause probable** : `lex_loop` (l.26, **8 ifs en queue**) dépasse la limite
+2000 par instance. Chaque `lex_loop` itère sur ~2000 caractères, × 8 niveaux = 16000.
+
+**Session 22** : limite 2000 → 50000 pour `parse_arglist`. Si OK full-file, self-parse complet.
