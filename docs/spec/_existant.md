@@ -112,3 +112,35 @@ couvre pas la syntaxe que `expr_parser.zig` accepte.
 | `deploy.yml` | ✅ v2 publié sous `/v2/` |
 
 **`time` recommandé** : `bash check_all.sh` (55s), `zig build` (15s).
+
+## Selfhost — freeze découvert (2026-11-06, session 13)
+
+### Freeze reproductible
+`read_file "lib/heaven_parse.hvn"` (209 lignes) + `HP.parse_file (HP.lex ...)` **fige la machine** (distribution Guix complète). Test `/tmp/diag_self.hvn`.
+
+### Tests courts (safe)
+String hardcodée (`data Tok = TIntTok Int`, etc.) : **rc=0, pas de freeze**.
+Mais `data Tok = TIntTok Int | TSymTok Str` échoue (0 expr parsée).
+
+### Diagnostic
+- `data X = A` : parse ✅
+- `data X = A | B` : **échoue** (le `|` n'est pas géré par `parse_data` dans `heaven_parse.hvn`)
+- Sur fichier réel : boucle infinie (probablement `parse_data` sur `|` → récursion sans progrès)
+
+### État selfhost réel (mesuré)
+| Élément | État |
+|---|---|
+| `bin/heaven.hvn` (15 l.) → `compile-qbe` → ELF | ✅ (2.3s, exit codes OK) |
+| `lib/heaven_parse.hvn` (209 l.) | ✅ lexer + parse_one + parse_top, `data X = A` OK |
+| `lib/heaven_eval.hvn` (96 l.) | ✅ 17 prims, VRecClosure, test 3/3 |
+| `tests/test_selfparse.hvn` | 3/3 (1 test actif, 2 SKIPPED) |
+| Self-parse complet de `heaven_parse.hvn` | ❌ **freeze** (forme `data \|`) |
+
+### Prochaine session (14)
+1. **`parse_data` dans `heaven_parse.hvn`** : ajouter `|` (CHOIX de constructeurs). ~30 min.
+2. **Test avec string courte** (`data Tok = A | B`, PAS de `read_file`) — safe.
+3. **Test full-file** : `timeout 10` OBLIGATOIRE.
+4. **Si OK** : le self-parse complet doit marcher (2 tests SKIPPED débloqués).
+5. **Si freeze encore** : cutoff, chantier reporté.
+
+**Règle** : jamais `read_file "*.hvn"` sans `timeout`.
