@@ -285,3 +285,15 @@ freeze. C'est un **stack depth** (profondeur de récursion parser).
 2. `tests/test_selfparse.hvn` utilise `expr_count_big` (1 ligne)
 3. Si insuffisant : `stack_size` dans `main.zig`
 4. Test `timeout -s KILL 5` sur `head -17` puis full-file
+
+### Session 17 — TCO `parse_file` ✅ (mais stack au-delà)
+- `parse_file` en TCO (`parse_file_go` + `es_rev`) : **`head -17` passe** (commit `e8dd778`).
+- `head -18` freeze encore (cumul 1-18).
+- Isolation `l.18` seule : [à compléter selon sortie].
+- Si cumul : stack overflow sur 15 fonctions mutuellement récursives
+  (`parse_top`, `parse_head`, `parse_args`, `parse_arglist`, `parse_one`, ...).
+  Fix = `stack_size` dans `main.zig` OU TCO sur toutes (2-3 sessions).
+
+### Leçon
+TCO sur `parse_file` corrige **1** des 16 fonctions mutuellement récursives.
+Le parser complet nécessite TCO sur **toutes** ou une stack beaucoup plus grande.
