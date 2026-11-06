@@ -475,3 +475,17 @@ parse_one_go, 4 limites (100/200/2000/50000) testées, AST head-19 isolé au e0.
 - AST head-19 isolé : e0 freeze
 - Limites 100/200/2000/50000 testées (pansement retiré)
 - 4 faux diagnostics levés (QTT, curry, thunks, read_file)
+
+### Session 23 fin — count_ctors e0 freeze
+- EData isolé (vide, 1, 4 ctors mix EApply) : ✅ affichés
+- print e0 : 🔴 freeze
+- count_ctors e0 (expr_count_big sur ctors) : 🔴 freeze
+- expr_at ast 500 : ✅ (donc ast ≥ 501 éléments)
+
+**Conclusion** : ctors de e0 = cyclique OU ast entier = 500+ exprs (parser produit trop).
+
+**Session 24 — instrumenter `data_ctors` (l.121)** :
+`debug.print` du nom de chaque ctor construit. Si boucle, identifier la forme.
+Candidat : `data_ctors2` sur ctor non-upper qui re-émet le token → boucle avec
+le token déjà consommé. Vérifier `(TCons t rest)` (l.122) : `t` est-il le token
+avant ou après `tok_tail` ?
