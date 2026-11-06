@@ -63,7 +63,8 @@ data Exprs = ENil | ECons Expr Exprs
 data Strs = SNil | SCons Str Strs
 
 parse_one TNil = (PErr "fin de flux")
-parse_one (TCons t rest) = (parse_tok t rest)
+parse_one (TCons t rest) = (parse_one_go t rest 0)
+parse_one_go t rest n = (if (> n 100) (PErr "parse_one: overflow") (parse_tok t rest))
 
 parse_tok (TIntTok n) rest = (POk (ELitI n) rest)
 parse_tok (TStrTok s) rest = (POk (ELitS s) rest)
@@ -79,12 +80,12 @@ parse_args h ts = (let r (parse_arglist ts) (parse_args2 h r))
 parse_args2 h (PErr e) = (PErr e)
 parse_args2 h (POk as rest) = (POk (build_apply h as) rest)
 
-parse_arglist (TCons TRParen rest) = (POk ENil rest)
-parse_arglist ts = (let r (parse_one ts) (parse_arglist2 r))
-parse_arglist2 (PErr e) = (PErr e)
-parse_arglist2 (POk a ts) = (let r2 (parse_arglist ts) (parse_arglist3 a r2))
-parse_arglist3 a (PErr e) = (PErr e)
-parse_arglist3 a (POk as rest) = (POk (ECons a as) rest)
+parse_arglist ts = (parse_arglist_go ts ENil 0)
+parse_arglist_go (TCons TRParen rest) acc _n = (POk (es_rev acc ENil) rest)
+parse_arglist_go TNil _acc _n = (PErr "arglist: fin de flux sans RParen")
+parse_arglist_go ts acc n = (if (> n 200) (PErr "arglist: overflow") (let r (parse_one ts) (parse_arglist_go2 r acc n)))
+parse_arglist_go2 (PErr e) _acc _n = (PErr e)
+parse_arglist_go2 (POk a rest) acc n = (parse_arglist_go rest (ECons a acc) (+ n 1))
 
 build_apply f ENil = f
 build_apply f (ECons a rest) = (build_apply (EApply f a) rest)
