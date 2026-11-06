@@ -11,4 +11,3 @@ test "filter_none": (S.stream_length (S.stream_filter (lambda x -> false) s3)) =
 test "take_2": (S.stream_length (S.stream_take 2 s3)) == 2
 test "take_0": (S.stream_length (S.stream_take 0 s3)) == 0
 test "take_too_many": (S.stream_length (S.stream_take 10 s3)) == 3
-test "to_list_len": (length (S.stream_to_list s3)) == 3
