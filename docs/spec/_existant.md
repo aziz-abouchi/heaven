@@ -318,3 +318,35 @@ et laisse un token, le second `if` boucle dessus.
 
 **État acquis** : TCO `parse_file` (`e8dd778`), `read_file` (`perform "ReadFile"`),
 `data` multi-ctor (3 tests). Freeze restant = 1 interaction de defs avec if.
+
+### Session 18 — isolation exhaustive (bug state-dependent)
+Tests safe (timeout 2-3s KILL) :
+
+| Test | Résultat |
+|---|---|
+| `data Tok` + 2 if imbriqués | ✅ 2 exprs |
+| `data Tok` + 3 if imbriqués | ✅ 2 exprs |
+| `3 if` en queue + `data` | ✅ 2 exprs |
+| `3 if` en queue seul | ✅ 1 expr |
+| `(= b N)` + 3 if | ✅ 2 exprs |
+| mini (`data Tok` multi-ctor + 3 if) | ✅ 2 exprs |
+| **`head -17`** | ✅ 3 exprs |
+| **`head -17` + l.18** | 🔴 freeze |
+| **`data Tok` + `lex_is_space`** | 🔴 freeze |
+| **`data Toks` (récursif) + `lex_is_space`** | ✅ (head -17) |
+
+**Conclusion** : le freeze est **state-dependent**, pas un pattern unique. Aucune isolation simple ne freeze. Le cumul déclenche un état qui boucle.
+
+### Piste session 19 (1-2 sessions)
+1. Instrumenter `parse_file_go2` : `debug.print` du nombre d'itérations + `ts.len` à chaque appel.
+2. Si `ts.len` ne décroît pas → `rest` mal propagé sur un cas précis.
+3. Si `ts.len` décroît mais `expr_count` grandit → boucle dans `parse_top`/`parse_one`.
+4. Identifier la forme exacte qui ne progresse pas (probablement une interaction `def_body_if` + `parse_arglist`).
+5. Fix probable : TCO `parse_arglist` ou `parse_one` (10-20 lignes).
+
+### Acquis sessions 15-18
+- `read_file` fixé (`perform "ReadFile"`, 6/6)
+- `data` multi-ctor validé (3 tests)
+- **TCO `parse_file`** (commit `e8dd778`) — `head -17` = 3 exprs
+- `_existant.md` (~300 l.)
+- Freeze isolé à "state-dependent" (pas un pattern unique)
