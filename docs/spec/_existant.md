@@ -144,3 +144,53 @@ Mais `data Tok = TIntTok Int | TSymTok Str` échoue (0 expr parsée).
 5. **Si freeze encore** : cutoff, chantier reporté.
 
 **Règle** : jamais `read_file "*.hvn"` sans `timeout`.
+
+## Selfhost — diagnostic FINAL (2026-11-06, session 13)
+
+### Le parser selfhosté fonctionne
+- `data Tok = A` : ✅
+- `data Tok = A | B` : ✅
+- `data Tok = A Int | B Str` : ✅
+- `parse_top (TSymTok "foo" ...)` : ✅
+
+**`data` multi-ctor est parsé correctement par `heaven_parse.hvn`.**
+
+### Le vrai bug : `read_file` ne fonctionne pas
+Isolation (session 13) :
+
+| Test | Résultat |
+|---|---|
+| `read_file "/tmp/s10.hvn"` (10 lignes, 500 o) + `string_length > 0` | ❌ **string vide** |
+| parse 10 lignes hardcodées (via `tr '\n' ' '`) | `InvalidSyntax` (string mal formée) |
+| parse 20 lignes + `read_file` | 🔴 **freeze (timeout)** |
+
+**Cause probable** : `read_file` (dans `tests/test_selfparse.hvn`) utilise
+`raw_alloc 65536` + `io_read` + `string_of_bytes`. Un des trois retourne
+0 ou échoue silencieusement, produisant une string vide.
+
+Le parser `heaven_parse.hvn` boucle ensuite sur la string vide (probablement
+`lex_loop` sur longueur 0 + `parse_file` récursif infini).
+
+### État réel selfhost (mesuré)
+| Élément | État |
+|---|---|
+| `bin/heaven.hvn` → `compile-qbe` → ELF | ✅ |
+| `lib/heaven_parse.hvn` (209 l., lexer + parser) | ✅ (data multi-ctor OK) |
+| `lib/heaven_eval.hvn` (96 l., 17 prims) | ✅ |
+| **`read_file` (raw_alloc + io_read + string_of_bytes)** | ❌ **string vide** |
+| Self-parse complet (avec `read_file`) | ❌ **freeze** |
+
+### Prochaine session (14)
+1. **Diagnostiquer `read_file`** : `raw_alloc`, `io_read`, `string_of_bytes` — lequel échoue ?
+2. **Test isolé** : `raw_alloc 100` → `string_length` = ? (doit être > 0)
+3. **Test `io_read`** : lire un fichier de 10 octets, vérifier `n == 10`
+4. **Si `read_file` OK** : self-parse complet (avec `timeout 10`)
+5. **Si freeze encore** : cutoff selfhost, chantier reporté
+
+**Règle** : `timeout` obligatoire sur tout test `read_file` + `parse`.
+
+### Ce qui N'EST PAS le problème
+- Le parser `data` multi-ctor → fonctionne
+- Le lexer → fonctionne
+- `parse_top` → fonctionne
+- `expr_count`, `expr_eq`, `parse_file` → fonctionnent
