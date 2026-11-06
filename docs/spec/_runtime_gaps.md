@@ -1064,3 +1064,27 @@ SUMMARY réécrit (`16-optiques` reste 16, `17-effects` à `30-conclusion`),
 sont **stale** après renumérotation (17-effects était 16-effects). À traiter en
 session 11 avec un script contextuel (`grep -A2 -B2 'chapitre N'` + correction
 manuelle). Effort : 30 min.
+
+## Bitstrings — tentative 1 rollback (2026-11-06, session 10)
+
+**Tentative** : `bitstring_expr` grammar (RHS `<<4:4, 5:4>> == 69`) + handler
+`ast_bridge` (`return sym("bitstring_expr")`).
+
+**Résultat** : 🔴 **régression** 54 → 57 flaggés (+3). Le délimiteur `<<` entre
+en conflit avec d'autres patterns (probablement `<<` dans les décalages, ou
+`>>` binaire). Les 2 expressions bitstring sont encore mal parsées.
+
+Runtime intact : 98/98 (`test_suite`), 74/74 (`test_bitstrings`), 0 segfault.
+
+**Rollback** : `git checkout -- .` → 54 flaggés restaurés.
+
+**Prochaine tentative** (session 12+, ~1-2 sessions) :
+1. Le bitstring `<<...>>` doit être un **token entier** (`token(seq("<<", ...))`),
+   pas un nœud avec délimiteurs séparés. Sinon conflit avec les opérateurs.
+2. Deux formes : `bitstring_pattern` (LHS de `eq_decl`) + `bitstring_expr` (RHS).
+3. `ast_bridge` : `buildEqDecl` doit gérer un LHS `bitstring_pattern` (pas juste
+   `identifier`).
+4. Test : `heaven check tests/test_bitstrings.hvn` doit passer rc=0.
+
+**Leçon** : les délimiteurs custom (`<<`, `>>`) nécessitent `token()` pour
+éviter le conflit avec les opérateurs binaires. `prec()` ne suffit pas.
