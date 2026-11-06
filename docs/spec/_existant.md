@@ -272,3 +272,16 @@ freeze. C'est un **stack depth** (profondeur de récursion parser).
 3. Si encore : limiter profondeur + compteur
 
 **Discipline** : `timeout -s KILL` obligatoire, chunks de ≤ 17 lignes.
+
+### Causes précises (session 17+)
+1. **`parse_file` non-TCO** : `(ECons e (parse_file rest))` — récursion dans argument
+2. **`expr_count` non-TCO** : `(+ 1 (expr_count rest))` — mais `expr_count_go` existe
+3. **Stack par défaut Zig** : pas de `stack_size` dans `main.zig` (8-16 Ko)
+
+**`max_recursion_depth = 1000`** existe (`engine_expr.zig:428`) mais n'est **pas atteint** — le freeze est un stack overflow avant le check.
+
+### Fix proposé (session 17)
+1. `parse_file` en TCO (10 lignes, accumulateur `es_rev`)
+2. `tests/test_selfparse.hvn` utilise `expr_count_big` (1 ligne)
+3. Si insuffisant : `stack_size` dans `main.zig`
+4. Test `timeout -s KILL 5` sur `head -17` puis full-file
