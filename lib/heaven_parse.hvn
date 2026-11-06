@@ -83,7 +83,7 @@ parse_args2 h (POk as rest) = (POk (build_apply h as) rest)
 parse_arglist ts = (parse_arglist_go ts ENil 0)
 parse_arglist_go (TCons TRParen rest) acc _n = (POk (es_rev acc ENil) rest)
 parse_arglist_go TNil _acc _n = (PErr "arglist: fin de flux sans RParen")
-parse_arglist_go ts acc n = (if (> n 200) (PErr "arglist: overflow") (let r (parse_one ts) (parse_arglist_go2 r acc n)))
+parse_arglist_go ts acc n = (if (> n 2000) (PErr "arglist: overflow") (let r (parse_one ts) (parse_arglist_go2 r acc n)))
 parse_arglist_go2 (PErr e) _acc _n = (PErr e)
 parse_arglist_go2 (POk a rest) acc n = (parse_arglist_go rest (ECons a acc) (+ n 1))
 
