@@ -893,7 +893,7 @@ pas la creation de thunk.
 Decision : reporte. Raison : le renommage cascade touche 12 fichiers + ~40 references
 cross-chapter, dont certaines ambiguës (v1 vs v2, ex. `ch. 39` = v1).
 
-Le conflit actuel (`16-effects` et `16-optiques` dans le SUMMARY) est **documente**
+Le conflit actuel (`17-effects` et `16-optiques` dans le SUMMARY) est **documente**
 dans `SUMMARY.md` via commentaire HTML. Ce n'est pas cassant, c'est visible.
 
 ### Plan pour session dediee (~1h)
@@ -908,7 +908,7 @@ dans `SUMMARY.md` via commentaire HTML. Ce n'est pas cassant, c'est visible.
 Effort : 1h. Risque : moyen. Priorite : cosmetique.
 
 
-## Selfhost — etat au 2026-11-05 (pre-diagnostic 26-selfhost)
+## Selfhost — etat au 2026-11-05 (pre-diagnostic 27-selfhost)
 
 Le selfhost de Heaven est **plus modeste que la doc ne le suggere** :
 
@@ -922,7 +922,7 @@ Le selfhost de Heaven est **plus modeste que la doc ne le suggere** :
 compilateur selfhoste, codegen selfhoste.
 
 Sources v1 : `docs/book/src/39-selfhosting.md` (127 l.), `40-heaven-eval.md` (86 l.).
-A fusionner dans `26-selfhost.md` (~200 l., angle honnete).
+A fusionner dans `27-selfhost.md` (~200 l., angle honnete).
 
 ## Debug prints — après consolidation (2026-11-05)
 

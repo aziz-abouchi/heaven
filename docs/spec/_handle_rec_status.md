@@ -40,7 +40,7 @@ décrit encore l'ancien mécanisme (`handle` V0, `last_performed`) — elle n'es
 ## Références
 
 - `docs/spec/_effects.md` (303 l., §1-17 obsolètes pour `handle_rec`, §18 à ajouter)
-- `docs/book/src-v2/17-handlers.md` (234 l., chapitre pédagogique)
+- `docs/book/src-v2/18-handlers.md` (234 l., chapitre pédagogique)
 - `stdlib/effects.hvn` (31 l.)
 - `tests/test_effects_rec.hvn` (4/4), `test_effects_rec_nested.hvn` (4 scénarios),
   `test_continuations.hvn` (15/15), `test_prompt_depth.hvn` (13/13)

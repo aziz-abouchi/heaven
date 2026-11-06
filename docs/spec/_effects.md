@@ -307,7 +307,7 @@ D8 est donc une primitive générale, pas une fonctionnalité HTTP.
 > **Note de lecture.** Les sections §1-17 décrivent `handle` **V0**
 > (`last_performed`, sans continuation) — c'est l'**ancêtre expérimental**.
 > Le mécanisme réel est `handle_rec`, documenté dans `_handle_rec_status.md`
-> et pédagogiquement dans `docs/book/src-v2/17-handlers.md`. Cette section
+> et pédagogiquement dans `docs/book/src-v2/18-handlers.md`. Cette section
 > corrige la phrase obsolète « aucune capture de continuation » (§1) :
 > `handle_rec` **capture** une continuation (one-shot, testée).
 
@@ -352,5 +352,5 @@ Les magics (`handle_rec`, `perform`, `yield`) ne sont **pas** réexportés par
 ### Voir
 
 - `_handle_rec_status.md` — état détaillé + roadmap
-- `docs/book/src-v2/17-handlers.md` — chapitre pédagogique
+- `docs/book/src-v2/18-handlers.md` — chapitre pédagogique
 - `engine_expr.zig:187-350` — implémentation (`PendingCapture`, `prompts`)

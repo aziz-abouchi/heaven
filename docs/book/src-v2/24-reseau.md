@@ -227,7 +227,7 @@ sur des cas simples ; ici, c’est la version industrielle.
 > pas testé** : un vrai paquet DNS reçu sur le réseau. La construction
 > de la query est bloquée par l’absence d’escape `\x` dans les strings
 > (voir `docs/spec/_string_escape_gap.md`) — workaround : `poke_byte`.
-> Le chapitre suivant (24-hab) revient sur cette discipline.
+> Le chapitre suivant (25-hab) revient sur cette discipline.
 
 ## 6. Ce qui n'est pas prêt (et qu'il faut savoir)
 
@@ -323,6 +323,6 @@ string ».)
    construction de requêtes DNS est bloquée par l'absence d'escape
    `\x`. Workaround `poke_byte`, pas utilisable en prod.
 
-Le chapitre suivant (24-hab) ferme la Partie III avec les acteurs OTP
+Le chapitre suivant (25-hab) ferme la Partie III avec les acteurs OTP
 et les modules distribués. Même règle : ce qui tourne, ce qui est
 cible, et où est la frontière.
