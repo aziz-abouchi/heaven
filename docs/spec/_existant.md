@@ -495,3 +495,21 @@ avant ou après `tok_tail` ?
 - `false` : ast > 500 éléments pour 5 lignes → fix `parse_top` (consommation)
 
 **Le fix est à 30 min dans les deux cas.** Session 24 teste puis patch.
+
+### Session 23 cutoff — AST cyclique confirmé
+- `expr_at 500` passe seul, mais `expr_eq` dessus freeze → AST cyclique
+- `count_ctors e0` freeze → ctors cycliques
+- `print e0` freeze
+- `parse_file` réussit (parse_ok)
+- `parse_top` isolé : [résultat selon sortie]
+
+**Conclusion** : le parser produit un AST **structurellement cyclique**.
+Candidat : `data_ctors` sur `Int`/`Str` (uppercase, traités comme ctor au lieu de type arg).
+Test session 24 : `parse_top` isolé (si n > 1, data_scan bug).
+
+**Acquis sessions 15-23 (~13h)** :
+- read_file fixé (`perform "ReadFile"`)
+- TCO parse_file, TCO parse_arglist, parse_one_go
+- data multi-ctor validé (3 tests)
+- AST cyclique isolé (pas profondeur, pas limite)
+- 4 faux diagnostics levés (QTT, curry, thunks, read_file)
