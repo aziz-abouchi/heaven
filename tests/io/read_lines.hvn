@@ -1,0 +1,9 @@
+-- tests/io/read_lines.hvn — utilities files (2026-11-06)
+import "lib/std/io.hvn" as IO
+import "lib/std/result.hvn" as R
+
+test "count_1": (IO.count_lines "a") == 1
+test "count_2": (IO.count_lines "a\nb") == 2
+test "count_3": (IO.count_lines "a\nb\nc") == 3
+test "first_line": (IO.first_line "a\nb") == "a"
+test "count_lines_file": (IO.count_lines (perform "ReadFile" "/tmp/test_lines.txt")) == 3
