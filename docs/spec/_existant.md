@@ -297,3 +297,24 @@ freeze. C'est un **stack depth** (profondeur de récursion parser).
 ### Leçon
 TCO sur `parse_file` corrige **1** des 16 fonctions mutuellement récursives.
 Le parser complet nécessite TCO sur **toutes** ou une stack beaucoup plus grande.
+
+### Isolation session 17 (final)
+- `head -17` seul : **3 exprs** parsées (data Tok, data Toks, lex_is_space) ✅
+- `head -17 + l.18` : **freeze** (rc=137)
+- `l.18` seule : **passe** (2/2)
+- `head -17` seul : passe
+→ Interaction entre **deux defs avec if imbriqués** consécutifs.
+
+### Cause probable (session 18)
+`def_body_if` (l.145) ou `parse_if` (l.149+) : récursion cyclique quand deux
+expressions contenant `if` se suivent. Le premier `if` consomme mal le `rest`
+et laisse un token, le second `if` boucle dessus.
+
+### Plan session 18 (30 min probable)
+1. Isoler `l.17 + l.18` (safe, timeout 3)
+2. Si freeze : réécrire `def_body_if`/`parse_if` en TCO ou fix du `rest`
+3. Test self-parse complet avec `timeout -s KILL 10`
+4. Si OK : débloquer les 2 tests SKIPPED, commit final
+
+**État acquis** : TCO `parse_file` (`e8dd778`), `read_file` (`perform "ReadFile"`),
+`data` multi-ctor (3 tests). Freeze restant = 1 interaction de defs avec if.
