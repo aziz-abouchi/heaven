@@ -15,6 +15,7 @@ PATTERNS = [
     "tests/hvn-check/with-test.hvn",
     "tests/hvn-check/if-sexpr.hvn",
     "tests/qtt/let_quantities_ok.hvn",
+    "tests/io/result.hvn",
 ]
 
 def load_whitelist():

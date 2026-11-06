@@ -1,0 +1,7 @@
+-- tests/io/result.hvn — tests basiques Result (2026-11-06)
+import "lib/std/result.hvn" as R
+
+test "ok_is_ok": (R.result_is_ok (R.Ok 42)) == true
+test "err_is_ok": (R.result_is_ok (R.Err "boom")) == false
+test "unwrap_ok": (R.result_unwrap (R.Ok 42)) == 42
+test "unwrap_err": (R.result_unwrap (R.Err "boom")) == "boom"

@@ -1,0 +1,6 @@
+-- lib/std/result.hvn — Result a = Ok a | Err Str (2026-11-06)
+data Result a = Ok a | Err Str
+result_is_ok (Ok _) = true
+result_is_ok (Err _) = false
+result_unwrap (Ok a) = a
+result_unwrap (Err s) = s
