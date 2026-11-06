@@ -6,3 +6,16 @@ stream_of_string_go s i start = (if (>= i (string_length s)) (if (= start (strin
 
 stream_length SNil = 0
 stream_length (SCons _ rest) = (+ 1 (stream_length rest))
+
+stream_map f SNil = SNil
+stream_map f (SCons x rest) = (SCons (f x) (stream_map f rest))
+
+stream_filter p SNil = SNil
+stream_filter p (SCons x rest) = (if (p x) (SCons x (stream_filter p rest)) (stream_filter p rest))
+
+stream_take 0 _ = SNil
+stream_take n SNil = SNil
+stream_take n (SCons x rest) = (SCons x (stream_take (- n 1) rest))
+
+stream_to_list SNil = []
+stream_to_list (SCons x rest) = (cons x (stream_to_list rest))

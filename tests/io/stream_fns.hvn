@@ -1,0 +1,14 @@
+-- tests/io/stream_fns.hvn — map/filter/take (2026-11-06)
+import "lib/std/stream.hvn" as S
+
+mk n acc = (if (= n 0) acc (mk (- n 1) (S.SCons n acc)))
+s3 = (mk 3 S.SNil)
+
+test "map_len": (S.stream_length (S.stream_map (lambda x -> (+ x 10)) s3)) == 3
+test "map_first": (S.stream_length (S.stream_map (lambda x -> x) S.SNil)) == 0
+test "filter_all": (S.stream_length (S.stream_filter (lambda x -> true) s3)) == 3
+test "filter_none": (S.stream_length (S.stream_filter (lambda x -> false) s3)) == 0
+test "take_2": (S.stream_length (S.stream_take 2 s3)) == 2
+test "take_0": (S.stream_length (S.stream_take 0 s3)) == 0
+test "take_too_many": (S.stream_length (S.stream_take 10 s3)) == 3
+test "to_list_len": (length (S.stream_to_list s3)) == 3
