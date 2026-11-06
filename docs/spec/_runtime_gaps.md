@@ -1006,3 +1006,26 @@ le Typer.
 5. Tests : `heaven check` sur 148 tests → 0 segfault, flaggés << 81
 
 **Leçon** : grammar + ast_bridge sont couplés. Patcher l'un sans l'autre = segfault. Un patch grammar doit toujours inclure le patch `ast_bridge` correspondant.
+
+## Grammar batch 4 patches — RÉUSSI (2026-11-06, session 10)
+
+Après le rollback de 10h20 (segfault `ast_bridge`), la tentative 2 a réussi en
+patchant `ast_bridge` **avant** la grammar :
+
+| Patch | Effet |
+|---|---|
+| `buildFnDecl` gère `= expr` (pas seulement `$.block`) | `fn name(params) = expr` parse |
+| `buildTopLevel` gère `prove_decl` + `skill_decl` (symboles) | plus de segfault |
+| Grammar : `fn_decl` choice `block` ou `= expr` | idem |
+| Grammar : `prove_decl` (`prove name by { ... }`) | parse |
+| Grammar : `skill_decl` (`skill name`) | parse |
+
+**Résultat** : 81 → **54** flaggés (-33%), 0 segfault, runtime intact
+(`--run-test 98/98` + `4/4`).
+
+**Leçon** : grammar + ast_bridge sont **indissociables**. Un patch grammar qui
+introduit un nouveau nœud doit inclure le patch `ast_bridge` correspondant.
+Commit unique obligatoire — pas de commit "grammar seule".
+
+**54 restants** (session 11) : `^` (conflit unary, précédence à régler),
+magics (`perform "str"`, `handle_rec (lambda ...)`), `spawn`/`tell`/`recv`.
