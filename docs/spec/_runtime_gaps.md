@@ -1277,3 +1277,21 @@ documenter que les champs doivent être des types nommés.
 
 **Impact** : tout module std qui voudrait `Channel a` (générique) est bloqué.
 Channel est `Int` uniquement pour l'instant.
+
+## `[Int]` au top-level — plusieurs bugs superposés (2026-11-06, session 32)
+
+**Tests isolés** :
+- `data C = C [Int]` (type de champ) : UnboundVariable
+- `x = [1,2,3]` (array literal top-level) : UnboundVariable
+- `mk = (cons 1 (cons 2 []))` (cons top-level) : UnboundVariable
+- `data C = C List` (symbole simple) : OK
+- `data C = C (List Int)` (parens) : type OK, valeur KO
+
+**Conclusion** : `[Int]` n'est pas un seul bug. C'est 2 bugs runtime :
+1. Array literal `[1,2,3]` non évaluable top-level
+2. `cons` non résolu top-level dans un module importé
+
+**Session 33+** : ces bugs sont runtime (`heaven_expr.zig`), pas parser.
+Effort : 1-2 sessions. **Impact** : débloque les listes comme valeurs de champ.
+
+**Channel (`lib/std/channel.hvn`)** : reste en type `L` (LCons/LNil), fonctionne 14/14.
