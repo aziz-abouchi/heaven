@@ -1255,3 +1255,25 @@ Le check de multiplicité est fait **au parse**, dans
   sur `let` imbriqués profonds.
 
 **Retiré des chantiers restants** : "QTT enforced (7 sessions)" → **0 sessions**.
+
+## `data` avec `[a]` littéral — UnboundVariable (2026-11-06, session 31)
+
+**Constat** : `data Channel = Channel Int Int [Int]` dans un module importé
+→ `C.channel_mk` = `UnboundVariable`. Idem avec `[a]` paramétré.
+
+**Tests** :
+- `data Ch = Ch Int Int` (sans liste) → ✅ import OK
+- `data Channel = Channel Int Int [Int]` → ❌ UnboundVariable
+- `data L = LNil | LCons Int L` + `data Channel = Channel Int Int L` → ✅ (contournement)
+
+**Cause probable** : `[Int]` (liste littérale) dans un constructeur de `data`
+n'est pas enregistré par le runtime. Les listes littérales marchent en valeur
+(`cons 1 []`), mais pas en type de champ.
+
+**Contournement utilisé** : type local `L = LNil | LCons Int L` (session 31).
+
+**Fix possible** : enregistrer `[Int]` comme `List Int` au buildDataDecl, ou
+documenter que les champs doivent être des types nommés.
+
+**Impact** : tout module std qui voudrait `Channel a` (générique) est bloqué.
+Channel est `Int` uniquement pour l'instant.
