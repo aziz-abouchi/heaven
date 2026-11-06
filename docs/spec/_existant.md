@@ -215,3 +215,33 @@ Handler 3 modes : Sync local, Async (epoll/kqueue), Remote (distribué).
 Pull : Stream a + perform Next. Push : Channel a borné + send/recv.
 Plan : S15 ReadBytes (2h), S16 migrer read_file (2h), S17-18 Stream/Channel, S19+ distribué.
 Discipline : timeout obligatoire sur read_file + parse.
+
+## Selfparse — read_file fixé (2026-11-06, session 15)
+
+### Fix
+`read_file` remplacé par `(perform "ReadFile" path)` dans `tests/test_selfparse.hvn`.
+`defaultIOHandler` (dans `src/core/io_handler.zig`) gère déjà `"ReadFile"` via
+`readFileAlloc` (1 Mo). **Fonctionne.**
+
+### Résultat
+`tests/test_selfparse.hvn` : **6/6** (3 anciens + 3 data).
+- `SELF-PARSE equation simple` : ✅
+- `SELF-PARSE data simple` : ✅
+- `SELF-PARSE data multi-ctor` : ✅
+- `SELF-PARSE data args` : ✅
+
+### Freeze résiduel (parser, pas IO)
+`HP.parse_file (HP.lex (read_file "lib/heaven_parse.hvn"))` (209 l., 12 Ko) :
+**freeze** après 10s de timeout. Test isolé : `timeout 3` sur 50 lignes freeze aussi.
+
+**Cause probable** : le parser boucle sur une forme dans les 50 premières lignes.
+À isoler par chunks (10, 20, 30, 40, 50) avec `timeout 3` par test.
+
+### Session 16+
+1. Isoler le chunk qui freeze (5 tests × timeout 3s = 30s max).
+2. Identifier la forme (ligne N+1 du chunk).
+3. Patch `heaven_parse.hvn` (probablement `data_ctors2` sur type imbriqué).
+4. Test self-parse complet avec `timeout 10`.
+5. Si OK : débloquer les 2 tests SKIPPED.
+
+**Discipline** : `timeout` obligatoire, un chunk à la fois.
