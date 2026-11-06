@@ -17,6 +17,7 @@ PATTERNS = [
     "tests/qtt/let_quantities_ok.hvn",
     "tests/io/result.hvn",
     "tests/io/read_lines.hvn",
+    "tests/io/stream.hvn",
 ]
 
 def load_whitelist():
