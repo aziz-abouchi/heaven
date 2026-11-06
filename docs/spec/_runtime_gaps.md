@@ -1088,3 +1088,23 @@ Runtime intact : 98/98 (`test_suite`), 74/74 (`test_bitstrings`), 0 segfault.
 
 **Leçon** : les délimiteurs custom (`<<`, `>>`) nécessitent `token()` pour
 éviter le conflit avec les opérateurs binaires. `prec()` ne suffit pas.
+
+## Refs textuelles post-renommage — état final (2026-11-06, session 11)
+
+**Patché (commit `a3bdcde`)** : 30 refs `ch. N` / `chapitre N` corrigées dans
+13 fichiers (`ch. 28→29`, `ch. 26→27`, etc.).
+
+**Skippé volontairement** (12 restantes) :
+
+| Catégorie | Exemple | Pourquoi skip |
+|---|---|---|
+| **SELF** (4) | `18-handlers.md` : « le chapitre 18 en fait… » | self-référence, déjà correct |
+| **AMBIGU** (2) | `27-selfhost.md` : `ch. 30 (hors v2)` | référence v1, annotation explicite |
+| **Plages `ch. N-M`** (6) | `24-reseau.md` : `ch. 16-17` | remap ambigu (17-18 ?), documenté |
+
+**Impact** : aucun lien cassé (`mdbook build` OK). La prose est correcte pour
+30/42 refs. Les 12 restantes sont soit correctes (SELF), soit v1 (AMBIGU),
+soit documentées (plages).
+
+**Pas de patch supplémentaire prévu.** Les 6 plages peuvent être corrigées
+manuellement au fil de l'eau si elles gênent la lecture.
