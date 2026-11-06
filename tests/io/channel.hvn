@@ -1,0 +1,21 @@
+-- tests/io/channel.hvn — Channel borné (2026-11-06)
+import "lib/std/channel.hvn" as C
+import "lib/std/result.hvn" as R
+
+ch0 = (C.channel_mk 2)
+test "mk_empty": (C.channel_is_empty ch0) == true
+test "mk_size": (C.channel_size ch0) == 0
+test "mk_not_full": (C.channel_is_full ch0) == false
+
+s1 = (R.result_unwrap (C.channel_send ch0 42))
+test "send_size": (C.channel_size s1) == 1
+test "send_not_empty": (C.channel_is_empty s1) == false
+
+s2 = (R.result_unwrap (C.channel_send s1 43))
+test "send_full": (C.channel_is_full s2) == true
+
+s3 = (C.channel_send s2 44)
+test "send_err": (R.result_is_ok s3) == false
+
+r1 = (R.result_unwrap (C.channel_recv s2))
+test "recv_size": (C.channel_size r1) == 1

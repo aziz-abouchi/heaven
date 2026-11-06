@@ -1,11 +1,14 @@
--- lib/std/channel.hvn — Channel a borné (2026-11-06)
+-- lib/std/channel.hvn — Channel borné (type local L) 2026-11-06
 import "lib/std/result.hvn" as R
 
-data Channel a = Channel Int Int [a]
+data L = LNil | LCons Int L
+data Channel = Channel Int Int L
 
-channel_mk n = (Channel n 0 [])
+channel_mk n = (Channel n 0 LNil)
 channel_size (Channel _ n _) = n
 channel_is_full (Channel cap n _) = (= cap n)
 channel_is_empty (Channel _ n _) = (= n 0)
-channel_send (Channel cap n q) v = (if (= cap n) (R.Err "channel full") (R.Ok (Channel cap (+ n 1) (cons v q))))
-channel_recv (Channel cap n q) = (if (= n 0) (R.Err "channel empty") (R.Ok (Channel cap (- n 1) (tail q))))
+channel_send (Channel cap n q) v = (if (= cap n) (R.Err "full") (R.Ok (Channel cap (+ n 1) (LCons v q))))
+channel_recv (Channel cap n q) = (if (= n 0) (R.Err "empty") (channel_recv2 cap n q))
+channel_recv2 cap n (LCons x rest) = (R.Ok (Channel cap (- n 1) rest))
+channel_recv2 cap n LNil = (R.Err "empty")

@@ -19,6 +19,7 @@ PATTERNS = [
     "tests/io/read_lines.hvn",
     "tests/io/stream.hvn",
     "tests/io/stream_fns.hvn",
+    "tests/io/channel.hvn",
 ]
 
 def load_whitelist():
