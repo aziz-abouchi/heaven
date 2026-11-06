@@ -1049,3 +1049,18 @@ critique runtime (98/98 intact). Session dédiée nécessaire.
 
 **Test de régression ajouté** : `tests/hvn-check/with-test.hvn` vérifie que
 `test "name": expr` parse (le pattern déjà patché).
+
+## Renommage 16-effects → 17-effects — FAIT (2026-11-06, session 10)
+
+**Fait (commit `0c86c4b`)** : 17 fichiers renommés `git mv`, H1 mis à jour,
+SUMMARY réécrit (`16-optiques` reste 16, `17-effects` à `30-conclusion`),
+`mdbook build` OK.
+
+**Fait (commit suivant)** : 7 refs externes patchées (`_effects.md`,
+`_handle_rec_status.md`, `_runtime_gaps.md`, `24-reseau.md`, `STATUS.md`).
+
+**Reste** : ~39 refs textuelles `chapitre N` / `ch. N` dans la prose du livre
+(ex. "le chapitre 17 vous a montré..."). Elles ne cassent pas les liens, mais
+sont **stale** après renumérotation (17-effects était 16-effects). À traiter en
+session 11 avec un script contextuel (`grep -A2 -B2 'chapitre N'` + correction
+manuelle). Effort : 30 min.
