@@ -1,7 +1,7 @@
 # Chapitre 29 — Mémoire : QTT, la spécification qui n'est pas (encore) un vérificateur
 
 > **Piège d'entrée.** Vous avez lu le ch. 3 (« QTT spec/runtime »), et vous vous
-> attendez à ce que le ch. 28 vous montre comment Heaven libère la mémoire.
+> attendez à ce que le ch. 29 vous montre comment Heaven libère la mémoire.
 > **Il ne le fera pas**, parce que Heaven ne le fait pas encore. La syntaxe QTT
 > est reconnue par le parser, les types sont propagés, mais **aucun vérificateur
 > de multiplicité n'est branché sur le pipeline**. Ce chapitre explique QTT, ce

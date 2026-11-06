@@ -9,7 +9,7 @@
 ## 1. Pourquoi un framework Web natif
 
 Un langage sans Web est un langage de niche. Heaven a déjà un serveur
-HTTP natif (ch. 23), un stdlib réseau (TCP, UDP, bitstrings), et un
+HTTP natif (ch. 24), un stdlib réseau (TCP, UDP, bitstrings), et un
 serveur statique en Heaven pur. Ce qui manque, c'est le **côté
 navigateur** : un composant qui prend un modèle, le rend, et le met
 à jour.
@@ -25,7 +25,7 @@ Hab est ce framework. Il tient en **5 modules** (`lib/hab/*.hvn`) et
 
 **Ce qui est testé** : les trois. **Ce qui n'est pas testé** : le
 runtime navigateur (chapitre 27 §4, à vérifier dans le repo). Le
-serveur HTTP ch. 23 sert des fichiers statiques ; Hab est censé
+serveur HTTP ch. 24 sert des fichiers statiques ; Hab est censé
 servir du **dynamique** — mais c'est la cible, pas l'état.
 
 > **Capot d'entrée.** Ce chapitre décrit Hab **tel qu'il est testé**,
@@ -189,7 +189,7 @@ mêmes 3 angles (basique, propriété, mock).
 
 ## 6. Ce qui tourne vraiment (vs ce qui est cible)
 
-Comme pour le chapitre 23, la frontière est explicite. Voici l'état
+Comme pour le chapitre 24, la frontière est explicite. Voici l'état
 tiré de `27-hab.md` §6 (« Contraintes connues ») et des 9 tests :
 
 | Chose | État | Preuve |

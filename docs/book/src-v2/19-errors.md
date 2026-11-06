@@ -2,7 +2,7 @@
 
 > **Version 2 (2026-11-04)** — refonte style LYAH/LYSE.
 > Version publiée : `23-validation.md` (v1, sections 1-4).
-> Les outils de test (mocker, smocker, quickcheck, fuzzer, loadtest) sont au chapitre 18b.
+> Les outils de test (mocker, smocker, quickcheck, fuzzer, loadtest) sont au chapitre 19b.
 > Référentiel de style : `05-recursion.md` (v2, pilote).
 
 > *« Une monade s'arrête à la première erreur. Un applicatif les
@@ -195,7 +195,7 @@ première, pour corriger au plus tôt.
    3 champs. *Piège* : l'ordre des erreurs dépend de l'ordre des
    `combine` — pas de tri automatique.
 
-4. **Les outils de test.** Le chapitre 18b présente `mocker`,
+4. **Les outils de test.** Le chapitre 19b présente `mocker`,
    `smocker`, `quickcheck`, `fuzzer`, `loadtest`. Pour chacun, dis
    en une phrase **quand** l'utiliser et **quand** ne pas l'utiliser.
    *Indice* : `mocker` = dépendance externe (HTTP, DB). `smocker` =

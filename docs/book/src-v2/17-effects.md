@@ -436,7 +436,7 @@ c'est une cible.
    global. Un handler qui accumule les ticks. Teste sur
    `(handle (do (perform "Tick" 1) (perform "Tick" 1)) tickHandler)`.
    *Indice* : le handler doit maintenir un état entre les ticks —
-   closure ou accumulation. Le chapitre 16 (effects) ne le fait pas
+   closure ou accumulation. Le chapitre 17 (effects) ne le fait pas
    nativement, c'est à toi de le coder.
 
 3. **One-shot vs multi-shot.** Essaie d'écrire un handler `choose`

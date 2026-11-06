@@ -1,6 +1,6 @@
 # Chapitre 18 — Plusieurs handlers, un abandon
 
-> **Piège d'entrée.** Le chapitre 16 vous a montré *un* `handle_rec`, seul,
+> **Piège d'entrée.** Le chapitre 17 vous a montré *un* `handle_rec`, seul,
 > qui intercepte *un* `perform`, et reprend *une* fois via `k`. Ce chapitre
 > attaque le cas réel : quand il y en a plusieurs, et quand on décide de
 > **ne pas** reprendre. Deux choses que 16 n'a pas dites, et qui sont

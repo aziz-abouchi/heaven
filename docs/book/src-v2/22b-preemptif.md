@@ -2,12 +2,12 @@
 
 > **Version 2 (2026-11-04)** — refonte style LYAH/LYSE.
 > Version publiée : `13-concurrency.md` (v1, section préemption).
-> Le mode coopératif est au chapitre 21a.
+> Le mode coopératif est au chapitre 22a.
 > Référentiel de style : `05-recursion.md` (v2, pilote).
 
 ## Pourquoi la préemption ?
 
-Le chapitre 21a s'est terminé sur un problème : une tâche qui n'appelle
+Le chapitre 22a s'est terminé sur un problème : une tâche qui n'appelle
 **jamais** `yield` gèle toutes les autres. Le contrat coopératif
 demande au programmeur d'être sage — mais tout le monde ne l'est pas.
 
@@ -170,7 +170,7 @@ récursion manuelle — même dette.
 
 ## Exercices
 
-1. **Le gel résolu.** Reprends l'exemple du chapitre 21a : `greedy` sans
+1. **Le gel résolu.** Reprends l'exemple du chapitre 22a : `greedy` sans
    `yield`. Lance-le en mode coopératif (21a) — la tâche suivante ne
    démarre pas. Puis en mode préemptif (avec le scheduler qui préempte
    tous les 100 ms). Que se passe-t-il ? La tâche suivante démarre-t-elle ?

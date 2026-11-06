@@ -2,7 +2,7 @@
 
 > **Version 2 (2026-11-04)** — refonte style LYAH/LYSE.
 > Version publiée : `23-validation.md` (v1, section outils).
-> La validation applicative est au chapitre 18.
+> La validation applicative est au chapitre 19.
 > Référentiel de style : `05-recursion.md` (v2, pilote).
 
 ## Cinq outils de test, tous en Heaven pur

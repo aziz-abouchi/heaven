@@ -9,7 +9,7 @@
 > usine. »*
 > — Proverbe d'atelier
 
-Le chapitre 21a a montré la **concurrence coopérative**. Le 21b a
+Le chapitre 22a a montré la **concurrence coopérative**. Le 21b a
 ajouté la **préemption**. Tu peux maintenant gérer mille tâches qui
 s'entrelacent fair-play.
 
@@ -172,7 +172,7 @@ savoir sur quelle plateforme il tourne (sauf pour les perfs).
 
 ## Exercices
 
-1. **Concurrence vs parallélisme.** Le chapitre 21a montre `yield`
+1. **Concurrence vs parallélisme.** Le chapitre 22a montre `yield`
    coopératif. Combien de threads OS sont utilisés ? Combien de cœurs ?
    Si tu as un CPU 8 cœurs, ton programme Heaven V0 en utilise-t-il
    plusieurs ? *Indice* : lis le code du scheduler dans

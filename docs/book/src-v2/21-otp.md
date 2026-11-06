@@ -126,7 +126,7 @@ pid reçoit "EXIT" dans sa mailbox au lieu de mourir. Base du superviseur.
 3. Préservation : |S(c)| = |c|
 4. Idempotence : S ∘ S = S
 5. Optique : fst/snd = Lens(State, Children)
-6. Dualité MPST : ?Exit. !Restart* (chapitre 29)
+6. Dualité MPST : ?Exit. !Restart* (chapitre 30)
 
 > **Sous le capot** — L'arbre de supervision est une **structure
 > de données** dans le Store.

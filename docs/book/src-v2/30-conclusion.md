@@ -29,17 +29,17 @@ suit n'est pas un jugement, c'est un constat.
 
 | Couche | Limitation | Chapitre |
 |---|---|---|
-| QTT (multiplicités) | syntaxe reconnue, **pas enforced** | ch. 28 |
-| LSP / MCP | briques testées, **intégration manuelle** | ch. 25 |
-| Selfhost | 15 + 96 l. de preuves de concept, **pas un compilateur** | ch. 26 |
-| Curryfication | edge case `(((f a) b) c)` | ch. 17 |
+| QTT (multiplicités) | syntaxe reconnue, **pas enforced** | ch. 29 |
+| LSP / MCP | briques testées, **intégration manuelle** | ch. 26 |
+| Selfhost | 15 + 96 l. de preuves de concept, **pas un compilateur** | ch. 27 |
+| Curryfication | edge case `(((f a) b) c)` | ch. 18 |
 
 ### Ce qui est cible (non commencé)
 
 | Cible | Effort | Chapitre |
 |---|---|---|
-| Vrai selfhost | ~10 sessions | ch. 26 |
-| QTT enforced | ~7 sessions | ch. 28 |
+| Vrai selfhost | ~10 sessions | ch. 27 |
+| QTT enforced | ~7 sessions | ch. 29 |
 | HoTT / Cubical | RFC à faire | ch. 41 (squelette) |
 | Essaim / distribution | pas commencé | — |
 | DB / LLM natif | pas commencé | — |
@@ -65,12 +65,12 @@ Ch. 19-24 (acteurs, OTP, MPST, HTTP, Hab). L'objectif : un langage fonctionnel
 **utilisable** pour du Web, du réseau, des systèmes distribués. Pas un jouet
 théorique.
 
-**Conséquence** : LSP/MCP (ch. 25), stdlib réseau, acteurs préemptifs. Ce sont
+**Conséquence** : LSP/MCP (ch. 26), stdlib réseau, acteurs préemptifs. Ce sont
 des chantiers d'ingénierie, pas de théorie.
 
 ### Ambition 3 — Le langage s'écrit lui-même (un jour)
 
-Ch. 26 (selfhost), ch. 27 (eval). L'objectif : que Heaven soit **auto-suffisant**
+Ch. 26 (selfhost), ch. 28 (eval). L'objectif : que Heaven soit **auto-suffisant**
 à terme. Pas urgent, mais structurant : chaque décision de design (6 primitives,
 AST minimal, `handle_rec` one-shot) prépare ce jour.
 
@@ -85,7 +85,7 @@ Trois chemins, selon votre profil :
 ### Si vous êtes curieux (lecteur littéraire)
 
 Vous avez fini le livre. **Utilisez Heaven** sur un petit projet : un serveur
-HTTP statique (ch. 23), un composant Hab (ch. 24), un acteur supervisé
+HTTP statique (ch. 24), un composant Hab (ch. 25), un acteur supervisé
 (ch. 19-20). Vous verrez ce qui marche et ce qui ne marche pas.
 
 **Lisez** `docs/spec/_runtime_gaps.md` (940 l.) — c'est la carte honnête de

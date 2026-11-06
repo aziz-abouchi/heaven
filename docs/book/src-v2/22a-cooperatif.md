@@ -2,7 +2,7 @@
 
 > **Version 2 (2026-11-04)** — refonte style LYAH/LYSE.
 > Version publiée : `13-concurrency.md` (v1, sections 1-6).
-> La préemption est traitée au chapitre 21b.
+> La préemption est traitée au chapitre 22b.
 > Référentiel de style : `05-recursion.md` (v2, pilote).
 
 > *« La concurrence, c'est composer des processus indépendants.
@@ -61,7 +61,7 @@ ne rend jamais la main, tout s'arrête.
 >
 > **La règle** : toute tâche censée durer > 10 ms doit `yield`
 > régulièrement. C'est **manuel**, pas automatique. Pour l'automatique,
-> voir le chapitre 21b (préemption par timer).
+> voir le chapitre 22b (préemption par timer).
 >
 > **Cas vécu** : `test_preemptive_coop.hvn` (4/4) teste exactement ce
 > contrat — sans `yield`, la tâche B ne démarre jamais. Le test le

@@ -144,7 +144,7 @@ Ce que `heaven_eval` ne fait **pas** :
 
 **Conséquence** : `heaven_eval.hvn` est un **jouet pédagogique**. Il prouve
 que Heaven peut représenter et réduire son propre AST. Il ne prouve **pas**
-que Heaven peut être son propre compilateur — c'est le sujet du ch. 26
+que Heaven peut être son propre compilateur — c'est le sujet du ch. 27
 (« selfhost »), et la réponse reste la même : **non, pas encore**.
 
 > **Capot final.** Ne confondez pas « interpréteur qui évalue Heaven » et
@@ -215,7 +215,7 @@ hardcodé au lieu d'appeler `HP.parse_file` sur du vrai code ?
 4. **17 primitives** — arithmétique, comparaison, listes, pairs, strings, `if`.
    Pas de `case`, pas de `data`, pas d'`@import`.
 5. **Interpréteur ≠ compilateur** : 96 lignes prouvent la réduction, pas la
-   traduction. Le selfhost reste un jalon futur (ch. 26).
+   traduction. Le selfhost reste un jalon futur (ch. 27).
 
 Le chapitre suivant ferme la boucle : après avoir vu l'interpréteur et la
 preuve de concept de selfhost, on se demande ce qui manque **concrètement** pour

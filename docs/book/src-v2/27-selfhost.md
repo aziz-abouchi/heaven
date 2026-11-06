@@ -18,7 +18,7 @@ compile le premier compilateur ? La réponse classique :
 
 Heaven est en **Phase 0**. Le compilateur (`src/`) est en Zig. Les outils
 (LSP, MCP) sont en Heaven mais **appellent** le compilateur Zig via subprocess
-(ch. 25). La Phase 1 n'est pas commencée.
+(ch. 26). La Phase 1 n'est pas commencée.
 
 ## 2. `bin/heaven.hvn` — 15 lignes qui compilent
 
