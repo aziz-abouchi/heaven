@@ -349,3 +349,26 @@ ou `27-eval` (miroir de `40-heaven-eval.md` v1) — à décider en session 8.
 
 `_runtime_gaps.md` : 941 l., sections §check, §arity, §curry, §3bis thunks,
 selfhost, plan renommage 16-effects reporté.
+
+## Sessions 26-32 (2026-11-06, suite) — 5 modules std (41 tests)
+
+### Modules créés
+- `lib/std/result.hvn` : `Result a = Ok a | Err Str` (4 tests)
+- `lib/std/io.hvn` : `count_lines`, `first_line` (7 tests)
+- `lib/std/stream.hvn` : `Stream a = SNil | SCons a` + map/filter/take (16 tests)
+- `lib/std/channel.hvn` : `Channel` borné, type `L` local (14 tests)
+
+### Bug `[Int]` diagnostiqué (session 32)
+- `data C = C [Int]` : UnboundVariable (type liste littéral)
+- `x = [1,2,3]` (array literal top-level) : UnboundVariable
+- `mk = (cons 1 (cons 2 []))` (cons top-level) : UnboundVariable
+- **Contournement** : type local `L = LNil | LCons Int L`
+
+**Impact** : génériques bloqués (Channel = Int only).
+
+**Session 33** : fix `[Int]` runtime (1-2 sessions), puis acteurs mailbox.
+
+### État
+- 176 tests `.hvn`, PROJET SAIN
+- 5 modules std CI-verrouillés
+- `_existant.md` 559 l., `_runtime_gaps.md` 1297 l.
