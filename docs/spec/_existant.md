@@ -598,3 +598,24 @@ Les bench progs sont calibrés pour `bench-*` (timing), pas `run` (comparaison).
 
 **Valide** : les deux backends (interp, QBE) sont cohérents sur 5 programmes.
 **À vérifier** : WASM (comment lire la sortie ?), arith loop (arith.hvn original à N=100000).
+
+## Suite différentielle — résultats complets (2026-11-09)
+
+**10 progs dans tests/diff/**. 6 OK, 4 FAIL documentés.
+
+| Prog | interp | QBE | Statut |
+|---|---|---|---|
+| 01-arith | 338350 | 338350 | ✅ |
+| 02-fib | 55 | 55 | ✅ |
+| 03-bool | 1 | 1 | ✅ |
+| 04-let | 10 | 10 | ✅ |
+| 05-list | 42 | 42 | ✅ |
+| 06-mutual | true | 0 | 🔴 bug QBE |
+| 07-nested-if | 100 | 100 | ✅ |
+| 08-pair | (pair 1 2) | pointeur | 🟠 bug QBE |
+| 09-string | "helloworld" | compile fail | 🟡 limitation |
+| 10-closure | lambda | compile fail | 🟡 limitation |
+
+**Ce que ça valide** : le sous-ensemble MIR supporte 6/10 progs (arith, fib,
+bool simple, let, list, if imbriqué). **Les 4 FAIL** montrent que QBE ne
+supporte pas bool complexe, pair, string, closure.
