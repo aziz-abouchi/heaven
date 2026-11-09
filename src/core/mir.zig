@@ -946,6 +946,16 @@ pub const MirFunction = struct {
                         try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = v } });
                         return dest;
                     },
+                    .boolean => |b| {
+                        const dest = self.newReg();
+                        try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = if (b) @as(i64, 1) else 0 } });
+                        return dest;
+                    },
+                    .float => |v| {
+                        const dest = self.newReg();
+                        try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = @intFromFloat(v) } });
+                        return dest;
+                    },
                     .str => |sym| {
                         // 2026-10-30 : strings litterales via const_str.
                         // Sym = index interner, bytes valides tant que
