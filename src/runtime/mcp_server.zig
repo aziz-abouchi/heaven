@@ -67,6 +67,16 @@ pub const McpServer = struct {
         }
     }
 
+    /// Libère l'état Heaven (store, e-graph, interner).
+    /// Sans ceci, le GPA de main rapporte des milliers de leaks au shutdown.
+    pub fn deinit(self: *McpServer) void {
+        if (self.heaven) |h| {
+            h.deinit();
+            self.allocator.destroy(h);
+            self.heaven = null;
+        }
+    }
+
     /// Boucle principale MCP: lit JSON-RPC sur stdin, répond sur stdout
     pub fn run(self: *McpServer) !void {
         var buf: [65536]u8 = undefined;
@@ -102,6 +112,7 @@ pub const McpServer = struct {
                 if (response.len > 0) {
                     _ = platform.writeStdout(response) catch {};
                     _ = platform.writeStdout("\n") catch {};
+                    self.allocator.free(response);
                 }
             }
         }
@@ -186,6 +197,12 @@ pub const McpServer = struct {
                 const expr_str = getArgString(args, "expression") orelse break :blk "error: missing 'expression'";
                 const var_name = getArgString(args, "variable") orelse "x";
                 const res = h.derive(expr_str, var_name) catch break :blk "error: derive failed";
+                defer self.allocator.free(res);
+                break :blk try self.allocator.dupe(u8, res);
+            } else if (std.mem.eql(u8, name, "heaven_integrate")) {
+                const expr_str = getArgString(args, "expression") orelse break :blk "error: missing 'expression'";
+                const var_name = getArgString(args, "variable") orelse "x";
+                const res = h.integrate(expr_str, var_name) catch break :blk "error: integrate failed";
                 defer self.allocator.free(res);
                 break :blk try self.allocator.dupe(u8, res);
             } else if (std.mem.eql(u8, name, "heaven_simplify")) {

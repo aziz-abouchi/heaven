@@ -189,6 +189,7 @@ pub fn main() !void {
     if (args.len > 1 and std.mem.eql(u8, args[1], "mcp")) {
         const mcp_server_mod = @import("mcp_server");
         var server = mcp_server_mod.McpServer.init(allocator);
+        defer server.deinit();
         server.ensureHeaven();
         server.run() catch |err| {
             platform.debug.print("MCP server error: {}\n", .{err});

@@ -1127,6 +1127,7 @@ pub fn cmdMlcpdStats(self: *Shell, _: []const u8) void {
 
 pub fn cmdMcpServe(self: *Shell, _: []const u8) void {
     var server = mcp_server_mod.McpServer.init(self.allocator);
+    defer server.deinit();
     server.ensureHeaven();
 
     platform.io.print("Starting Heaven MCP Server on stdio...\n", .{});
