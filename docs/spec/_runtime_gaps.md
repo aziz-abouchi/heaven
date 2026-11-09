@@ -1352,3 +1352,23 @@ en natif.
 
 **Recommandation session 35** : fix bool→int dans QBE (30 min, bug silencieux
 critique).
+
+## MIR bool fix (2026-11-09, session 34)
+
+`true`/`false` étaient chargés comme `.load sym` (variable non initialisée
+→ 0). Fix dans `mir.zig` case `.sym` : résolution en `const_int 1/0` avant
+le `load`. Test : `true` → 1, `false` → 0, `06-mutual` OK.
+
+## Suite différentielle — 7 OK / 3 skip QBE-limited (2026-11-09)
+
+`tests/diff/run.sh` compare interp / QBE / WASM sur 7 programmes (7 OK).
+3 skips documentés (limitations QBE, pas bugs) :
+- `08-pair.hvn.skip` : QBE retourne pointeur brut (ASLR) au lieu de la paire
+- `09-string.hvn.skip` : `compile-qbe` échoue (strings non supportées MIR)
+- `10-closure.hvn.skip` : `compile-qbe` échoue (closures non supportées MIR)
+
+## Leak interp bool (2026-11-09, session 34)
+
+`heaven run` sur `06-mutual.hvn` → `MEMORY LEAK DETECTED` (2 allocations
+8 bytes). QBE pas affecté (const_int, pas d'allocation). Fix : session 36,
+~30 min dans `engine_expr.zig` (ctor 0-arity alloué non libéré).
