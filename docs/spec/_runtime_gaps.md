@@ -1329,3 +1329,26 @@ exécutés.
 
 **Fix** : MIR→WAT backend (~1-2 sessions). Non prioritaire (les 2 autres
 backends sont valides).
+
+## Suite différentielle étendue — 6 OK / 4 FAIL (2026-11-09, session 34)
+
+| Prog | interp | QBE | Cause | Gravité |
+|---|---|---|---|---|
+| 06-mutual | `true` (+leak) | `0` | bool → int | 🔴 silencieux |
+| 08-pair | `(pair 1 2)` | `690107040` | pair → pointeur | 🟠 silencieux |
+| 09-string | `"helloworld"` | compile fail | string non supporté | 🟡 détecté |
+| 10-closure | lambda | compile fail | closure non supporté | 🟡 détecté |
+
+**Le plus grave** : `06-mutual`. QBE compile `(even 10)` sans erreur et
+retourne `0` au lieu de `true`. **Pas d'erreur, mauvais résultat** — le pire
+cas de divergence.
+
+**Leak interp** : `heaven run` sur 06-mutual → `MEMORY LEAK DETECTED`
+(2 allocations 8 bytes). Leak bool ou structurel ? À investiguer.
+
+**Limitations QBE confirmées** : string, pair, closure. `compile-qbe` échoue
+explicitement (mieux que silencieux), mais ces types ne sont pas utilisables
+en natif.
+
+**Recommandation session 35** : fix bool→int dans QBE (30 min, bug silencieux
+critique).
