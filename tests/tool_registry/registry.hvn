@@ -1,17 +1,37 @@
--- tests/tool_registry/registry.hvn — registry isole (session 41 ter)
+-- tests/tool_registry/registry.hvn — v2 : 16 tools
 import "lib/tool_registry.hvn" as TR
 import "lib/std/result.hvn" as R
 
-test "count_3": (TR.registry_count (TR.registry_builtin 0)) == 3
+test "count_16": (TR.registry_count (TR.registry_builtin 0)) == 16
 
-test "has_check": (TR.registry_has "check") == true
-test "has_run":   (TR.registry_has "run") == true
-test "has_test":  (TR.registry_has "test") == true
+-- 5 heaven
+test "has_echo":       (TR.registry_has "echo") == true
+test "has_time_now":   (TR.registry_has "time_now") == true
+test "has_time_ms":    (TR.registry_has "time_ms") == true
+test "has_fs_read":    (TR.registry_has "fs_read") == true
+test "has_count_chars":(TR.registry_has "count_chars") == true
+
+-- 11 native
+test "has_heaven_eval":      (TR.registry_has "heaven_eval") == true
+test "has_heaven_derive":    (TR.registry_has "heaven_derive") == true
+test "has_heaven_integrate": (TR.registry_has "heaven_integrate") == true
+test "has_heaven_solve":     (TR.registry_has "heaven_solve") == true
+test "has_heaven_expand":    (TR.registry_has "heaven_expand") == true
+test "has_heaven_simplify":  (TR.registry_has "heaven_simplify") == true
+test "has_heaven_theorems":  (TR.registry_has "heaven_theorems") == true
+test "has_mlcpd_parse":      (TR.registry_has "mlcpd_parse") == true
+test "has_mlcpd_equiv":      (TR.registry_has "mlcpd_equiv") == true
+test "has_egraph_query":     (TR.registry_has "egraph_query") == true
+test "has_heaven_prove":     (TR.registry_has "heaven_prove") == true
+
+-- negative
 test "not_bogus": (TR.registry_has "bogus") == false
 
-test "check_is_io":  (TR.tool_effect (R.result_unwrap (TR.registry_find_by_name "check"))) == 1
-test "run_is_io":    (TR.tool_effect (R.result_unwrap (TR.registry_find_by_name "run"))) == 1
-test "test_is_io":   (TR.tool_effect (R.result_unwrap (TR.registry_find_by_name "test"))) == 1
+-- kinds (0 = heaven, 1 = native)
+test "echo_is_heaven":      (TR.tool_kind (R.result_unwrap (TR.registry_find_by_name "echo"))) == 0
+test "heaven_eval_is_native":(TR.tool_kind (R.result_unwrap (TR.registry_find_by_name "heaven_eval"))) == 1
 
-test "run_has_exec": (TR.tool_perms (R.result_unwrap (TR.registry_find_by_name "run"))) == 5
-test "check_read_only": (TR.tool_perms (R.result_unwrap (TR.registry_find_by_name "check"))) == 1
+-- perms/effect spot checks
+test "echo_pure":         (TR.tool_perms  (R.result_unwrap (TR.registry_find_by_name "echo"))) == 0
+test "fs_read_perms":     (TR.tool_perms  (R.result_unwrap (TR.registry_find_by_name "fs_read"))) == 1
+test "time_now_io":       (TR.tool_effect (R.result_unwrap (TR.registry_find_by_name "time_now"))) == 1
