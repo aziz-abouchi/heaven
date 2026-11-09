@@ -1454,3 +1454,23 @@ mais pattern réel. N'affecte pas QBE (const_int, pas d'alloc).
 **Non localisé** : gpa sans stack trace (`MissingDebugInfo`).
 **Reporté** : instrumentation manuelle (compteur alloc/free dans
 `evalFn` + closures mutuelles) requise. Session dédiée, non prioritaire.
+
+## WASM supporté (2026-11-09, session 40)
+
+**Après fix `wasmtime --invoke main`** :
+
+| Prog | interp | QBE | WASM |
+|---|---|---|---|
+| 01-arith | 338350 | OK | ✅ 338350 |
+| 02-fib | 55 | OK | ✅ 55 |
+| 03-bool | 1 | OK | ✅ 1 |
+| 04-let | 10 | OK | ✅ 10 |
+| 05-list | 42 | OK | ❌ WASM_NO_BIN (cons/head) |
+| 06-mutual | true | OK | ✅ 1 (normalisé) |
+| 07-nested-if | 100 | OK | ✅ 100 |
+
+**Limitation WASM** : `cons`/`head`/`nil` (Peano lists) non supportés par
+le backend WASM. 1 prog sur 7.
+
+**5/7 en WASM, 7/7 interp+QBE.** Le faux diagnostic « WASM cassé » (sessions
+34-39) était dû à `wasmtime file.wat` (sans `--invoke main`).
