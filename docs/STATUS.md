@@ -155,11 +155,11 @@ depuis une string utilisateur, jamais d'evar dedans).
 | `prove by simplify` | ✅ | `verifyBySimplify` (fixpoint) | — |
 | perf `prove by simplify` | ✅ | t_distrib 1416ms -> 66ms (a0a8485/9c90969) | convergence structurelle du pipeline -- comparaison d'Id jamais valide sur arbres ré-alloués |
 | `prove by induction x` | ⚠️ | `verifyByInduction` | **pas testé** en suite standard |
-| `prove by rewrite` | ⚠️ | `verifyByRewrite` | dépend de `canonEqStr` (stub) |
+| `prove by rewrite` | ⚠️ | `verifyByRewrite` | dépend de `canonEqStr` (appelle structuralEql, canon.zig:234) |
 | `prove t by { ... }` (tactics) | ✅ | `runTacticsBlock` | simplify/refl/exact/induction/rewrite/apply/seq/try/repeat |
-| Kernel CIC | ⚠️ | `kernel.zig` (~780 L) | structural OK, type-check limité |
-| Types quotients | ❌ | — | — |
-| Proof irrelevance | ❌ | — | — |
+| Kernel CIC | ⚠️ | `src/kernel/` 2855 l. (peano 1973, typechecker 205, kernel 41) | structural OK, type-check limité |
+| Types quotients | ⚠️ | `src/kernel/test_quotient.zig` | kernel prêt, exposition .hvn reste à faire |
+| Proof irrelevance | ⚠️ | `src/kernel/test_proof_irrelevance.zig` | kernel prêt, non exposé en .hvn |
 | Skills (`:skill`) | ✅ | `skill.zig` + `ProofSession` | refactor v2 : `body: []const u8` unifié |
 
 ## Holes
@@ -197,7 +197,7 @@ depuis une string utilisateur, jamais d'evar dedans).
 | WebRTC | ⚠️ | `webrtc.zig` + stub | stub en prod |
 | TCC linké | ⚠️ | `vendor/tcc` | présent, non utilisé |
 | ABI C (`extern fn`) | ❌ | — | **documenté ch9, absent** |
-| Networking (TCP/UDP) | ⚠️ | TCP client (N1), UDP socket (N2), bitstrings P3 (74/74). Test N1 5/5, HTTP 13/13, UDP 2/2. | DNS pur Heaven non complet (escape \x manquant). TLS/T1 a faire. Voir _selfhosting_roadmap.md. |
+| Networking (TCP/UDP) | ⚠️ | TCP client (N1), UDP socket (N2), bitstrings P3 (74/74). Test N1 5/5, HTTP 13/13, UDP 2/2. | DNS pur Heaven non complet (escape \x manquant). TLS : `tls.zig` (122 l.) + `https.hvn` (24 l.) existent. |
 
 ## Bibliothèque standard
 
@@ -291,7 +291,7 @@ Résultats de référence (`docs/spec/_bench.md`) :
 | `heaven --run-test <file>` | ✅ | runner multi-lignes (parens + braces) |
 | `heaven --run-tests <dir>` | ✅ | itère sur les `*.hvn` d'un dossier |
 | Sync `test_suite.hvn` natif ↔ WASM | ⚠️ | manuelle via `cp` |
-| Kernel CIC tests | ✅ | 7 tests dans `kernel.zig` |
+| Kernel CIC tests | ✅ | 33 tests dans `src/kernel/` (0 dans kernel.zig, 33 dans les autres) |
 | EGraph tests | ✅ | 8 tests |
 
 ---

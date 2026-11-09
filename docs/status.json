@@ -466,7 +466,7 @@
           "name": "`prove by rewrite`",
           "tier": "partiel",
           "proof": "`verifyByRewrite`",
-          "limit": "dépend de `canonEqStr` (stub)"
+          "limit": "dépend de `canonEqStr` (appelle structuralEql, canon.zig:234)"
         },
         {
           "name": "`prove t by { ... }` (tactics)",
@@ -477,20 +477,20 @@
         {
           "name": "Kernel CIC",
           "tier": "partiel",
-          "proof": "`kernel.zig` (~780 L)",
+          "proof": "`src/kernel/` 2855 l. (peano 1973, typechecker 205, kernel 41)",
           "limit": "structural OK, type-check limité"
         },
         {
           "name": "Types quotients",
-          "tier": "absent",
-          "proof": "—",
-          "limit": "—"
+          "tier": "partiel",
+          "proof": "`src/kernel/test_quotient.zig`",
+          "limit": "kernel prêt, exposition .hvn reste à faire"
         },
         {
           "name": "Proof irrelevance",
-          "tier": "absent",
-          "proof": "—",
-          "limit": "—"
+          "tier": "partiel",
+          "proof": "`src/kernel/test_proof_irrelevance.zig`",
+          "limit": "kernel prêt, non exposé en .hvn"
         },
         {
           "name": "Skills (`:skill`)",
@@ -655,7 +655,7 @@
           "name": "Networking (TCP/UDP)",
           "tier": "partiel",
           "proof": "TCP client (N1), UDP socket (N2), bitstrings P3 (74/74). Test N1 5/5, HTTP 13/13, UDP 2/2.",
-          "limit": "DNS pur Heaven non complet (escape \\x manquant). TLS/T1 a faire. Voir _selfhosting_roadmap.md."
+          "limit": "DNS pur Heaven non complet (escape \\x manquant). TLS : `tls.zig` (122 l.) + `https.hvn` (24 l.) existent."
         }
       ]
     },
@@ -1010,7 +1010,7 @@
         {
           "name": "Kernel CIC tests",
           "tier": "stable",
-          "proof": "7 tests dans `kernel.zig`",
+          "proof": "33 tests dans `src/kernel/` (0 dans kernel.zig, 33 dans les autres)",
           "limit": "—"
         },
         {
