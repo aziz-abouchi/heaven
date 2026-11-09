@@ -12,7 +12,7 @@ for f in tests/diff/*.hvn; do
     if [ "$a_norm" = "$b" ]; then echo "OK  $n"; P=$((P+1)); else echo "FAIL $n: i='$a' q='$b'"; F=$((F+1)); fi
     if command -v wasmtime >/dev/null 2>&1; then
         "$H" compile-wasm "$f" -o "/tmp/$n.wat" >/dev/null 2>&1
-        c=$([ -f "/tmp/$n.wat" ] && timeout 5 wasmtime "/tmp/$n.wat" 2>/dev/null | grep -vE 'Memory clean|^\(\)$|^$' || echo "WASM_NO_BIN")
+        c=$([ -f "/tmp/$n.wat" ] && timeout 5 wasmtime --invoke main "/tmp/$n.wat" 2>/dev/null | grep -vE 'Memory clean|^\(\)$|^$' || echo "WASM_NO_BIN")
         [ "$a" = "$c" ] && echo "  OK wasm" || echo "  FAIL wasm: i='$a' w='$c'"
     fi
 done
