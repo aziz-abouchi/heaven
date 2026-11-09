@@ -1,0 +1,23 @@
+-- lib/tool_registry.hvn — Heaven Tool Registry (2026-11-09, session 41)
+-- RFC : docs/spec/_rfc_utcp_mcp.md
+-- Source de verite. MCP et UTCP seront des adaptateurs.
+
+import "lib/std/result.hvn" as R
+
+data Tool = Tool Str Str Int Int
+data ToolList = TLNil | TLCons Tool ToolList
+
+tool_name   (Tool n d p e) = n
+tool_desc   (Tool n d p e) = d
+tool_perms  (Tool n d p e) = p
+tool_effect (Tool n d p e) = e
+
+registry_builtin = (TLCons (Tool "check" "Verify a hvn file (syntax arity)" 1 1) (TLCons (Tool "run" "Execute a hvn file" 5 1) (TLCons (Tool "test" "Run test blocks in a hvn file" 1 1) TLNil)))
+
+registry_count TLNil = 0
+registry_count (TLCons t rest) = (+ 1 (registry_count rest))
+
+registry_find TLNil name = (R.Err "not found")
+registry_find (TLCons t rest) name = (if (== (tool_name t) name) (R.Ok t) (registry_find rest name))
+
+registry_has reg name = (R.result_is_ok (registry_find reg name))
