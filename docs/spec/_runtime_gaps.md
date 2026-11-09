@@ -1433,20 +1433,24 @@ vs QBE, pas bugs).
 
 Le test QBE seul confirme la valeur : `data Color = Red | Green` + `Green` → `1`.
 
-## Leak `fn` — RÉSOLU ou inexistant (2026-11-09, session 39)
+## Leak `fn` — pattern précis : récursion mutuelle (2026-11-09, session 39)
 
-**Tests comportementaux (session 39)** : 0 leak sur
-- `fn f(n) = true` (body constant)
-- `fn f(n) = 0` (body int)
-- `fn f(n) = (= n 0)` (body comparaison)
-- `fn f(n) = (if n 0 1)` (body if)
-- `fn f(n) = (if (= n 0) true 0)` (body if + bool)
+**Tests comportementaux** :
 
-**06-mutual** : [À COMPLÉTER selon test].
+| Cas | Leaks |
+|---|---|
+| `fn f(n) = true/0/(= n 0)/(if n 0 1)` (5 variantes simples) | **0** |
+| `fn a/b/c(n) = n` (3 fn simples) + call | **0** |
+| `fn f0..f9(n) = n` (10 fn simples) + call | **0** |
+| **`fn even(n) = …odd… ; fn odd(n) = …even…`** (mutuelle, sans call) | **2** |
+| `tests/diff/06-mutual.hvn` (mutuelle + call) | **2** |
 
-**Conclusion** : le « leak 8 bytes/fn » documenté session 36 n'est
-**plus reproductible** sur les `fn` simples. Soit fixé par un commit
-antérieur (session 37/38), soit conditionnel (mutual recursion ?).
-Inspection manuelle non nécessaire pour l'instant.
+**Pattern** : récursion **mutuelle** (cycle de N fonctions qui s'appellent).
+Pas « par fn » — 10 fn simples = 0 leak.
 
-**Impact** : nul si non reproductible. À re-tester si un leak réapparaît.
+**Impact** : 2 leaks × N cycles de récursion mutuelle. Négligeable
+mais pattern réel. N'affecte pas QBE (const_int, pas d'alloc).
+
+**Non localisé** : gpa sans stack trace (`MissingDebugInfo`).
+**Reporté** : instrumentation manuelle (compteur alloc/free dans
+`evalFn` + closures mutuelles) requise. Session dédiée, non prioritaire.
