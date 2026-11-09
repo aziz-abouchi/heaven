@@ -373,7 +373,7 @@ const mcp_tools = [_]McpTool{
     },
     .{
         .name = "heaven_integrate",
-        .description = "Compute symbolic integral of an expression",
+        .description = "WARNING EXPERIMENTAL: currently returns incorrect formulas (e.g. x^2 -> x^2*x instead of x^3/3). Do NOT use for verification. See docs/spec/_integrate_bug.md.",
         .input_schema = "{\"type\":\"object\",\"properties\":{\"expression\":{\"type\":\"string\"},\"variable\":{\"type\":\"string\",\"default\":\"x\"}},\"required\":[\"expression\"]}",
     },
     .{
@@ -413,7 +413,7 @@ const mcp_tools = [_]McpTool{
     },
     .{
         .name = "heaven_prove",
-        .description = "Attempt to prove a theorem or equivalence using Heaven's logical kernel (verified by construction). Returns proof status and certificate.",
+        .description = "Verify semantic equality of two expressions: a == b (eval LHS, eval RHS, compare). NOTE: the proof kernel is disabled (heaven_expr.zig evalProve panics on tactics). Not a general theorem prover.",
         .input_schema = "{\"type\":\"object\",\"properties\":{\"statement\":{\"type\":\"string\",\"description\":\"Theorem or equivalence to prove\"}},\"required\":[\"statement\"]}",
     },
 };
