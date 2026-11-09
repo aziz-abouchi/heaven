@@ -81,3 +81,19 @@ CI-verrouillé via `check_all.sh §7b` + `tests/hvn-check/` :
 - perform "WriteFile" (path, content) → unit.
 - perform "ReadLine" → string.
 - read_file manuel (raw_alloc+io_read) cassé : utiliser perform.
+## Std modules (2026-11-09)
+- `lib/std/result.hvn` : `Result a = Ok a | Err Str` (4 tests)
+- `lib/std/io.hvn` : `count_lines`, `first_line` (7 tests, via `perform "ReadFile"`)
+- `lib/std/stream.hvn` : `Stream a` + map/filter/take (16 tests)
+- `lib/std/channel.hvn` : `Channel = Channel Int Int L` (14 tests, type L local)
+
+## Interop (RFC 2026-11-09)
+- `_rfc_utcp_mcp.md` : architecture 3 couches (Tool Registry, MCP, UTCP)
+- Critère : `invoke_MCP ≡ invoke_UTCP ≡ invoke_Heaven` (test différentiel)
+- **Non implémenté** : RFC proposition
+
+## Limitations MIR / QBE (2026-11-09)
+- `data C = C [Int]` (type liste) : ✅
+- `[1,2,3]` (array literal en ctor) : ❌ UnboundVariable
+- `pair`, `string`, `closure` en QBE : ❌ (limitations QBE)
+- WASM : `unreachable` après `local.set` → stdout vide

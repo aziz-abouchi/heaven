@@ -1,6 +1,6 @@
 # Heaven — Statut des fonctionnalités
 
-Dernière mise à jour : 2026-11-05
+Dernière mise à jour : 2026-11-09
 
 Ce document est **genere** depuis `docs/status.json` par
 `scripts/status_gen.py`. Ne pas editer a la main.
@@ -122,7 +122,7 @@ depuis une string utilisateur, jamais d'evar dedans).
 | `let linear/erased/many x = … in …` | ✅ | `countSymUses` + tests | — |
 | Shadowing correct | ✅ | test `let_bind_shadowing_*` | — |
 | `LinearViolation` | ✅ | 4 tests | — |
-| **Documentation QTT** | ❌ | — | **absent du book** |
+| **Documentation QTT** | ❌ | — | **présent (ch. 29, ch. 31-SICP §1)** |
 
 ## Effets algébriques
 
@@ -182,7 +182,7 @@ depuis une string utilisateur, jamais d'evar dedans).
 |---|---|---|---|
 | `fn handler(state, msg) = …` | ✅ | test suite | — |
 | `let X = 0 with handler` | ✅ | test suite | — |
-| `send(X, msg)` | ✅ | test suite | acteur + handler ; séquentiel |
+| `send(X, msg)` | ✅ | test suite | acteur + handler ; mailbox multi-msg (5 msgs = 15), scheduler coopératif |
 | `state(X)` | ✅ | test suite | — |
 | Parallélisme réel | 🚧 | — | pas de scheduler |
 

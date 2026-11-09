@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-05",
+  "updated": "2026-11-09",
   "sections": [
     {
       "level": 2,
@@ -331,7 +331,7 @@
           "name": "**Documentation QTT**",
           "tier": "absent",
           "proof": "—",
-          "limit": "**absent du book**"
+          "limit": "**présent (ch. 29, ch. 31-SICP §1)**"
         }
       ]
     },
@@ -586,7 +586,7 @@
           "name": "`send(X, msg)`",
           "tier": "stable",
           "proof": "test suite",
-          "limit": "acteur + handler ; séquentiel"
+          "limit": "acteur + handler ; mailbox multi-msg (5 msgs = 15), scheduler coopératif"
         },
         {
           "name": "`state(X)`",

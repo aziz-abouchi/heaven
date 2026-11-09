@@ -157,4 +157,14 @@ Une fois le pilote validé, il devient le **référentiel** pour les 51 autres.
 - **Traduction anglaise** ? (le livre v1 est bilingue partiel — décision à prendre)
 - **Exercices** : réponses en annexe, ou pas de réponses (style LYAH) ?
 - **Compagnon code** : un repo `heaven-book/` séparé avec tous les exemples exécutables ?
+## État du livre v2 (2026-11-09)
 
+**34 chapitres, ~11 350 l., publié `https://aziz-abouchi.github.io/heaven/v2/`**
+
+- Partie I (7) : ch1–7
+- Partie II (9) : ch8–16-optiques
+- Partie III (12) : ch17-effects–24-reseau
+- Partie IV (6) : ch25-hab–30-conclusion
+- Ch31-sicp : SICP 1985 (derive, kanren, Y, MIR) — ajouté session 39
+
+**Sources d'inspiration** : LYAH, LYSE, PLFA, Idris2, SICP (5).
