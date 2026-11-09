@@ -168,3 +168,5 @@ Une fois le pilote validé, il devient le **référentiel** pour les 51 autres.
 - Ch31-sicp : SICP 1985 (derive, kanren, Y, MIR) — ajouté session 39
 
 **Sources d'inspiration** : LYAH, LYSE, PLFA, Idris2, SICP (5).
+
+Voir `docs/spec/_sicp_lineage.md` pour la table de correspondance SICP → Heaven.

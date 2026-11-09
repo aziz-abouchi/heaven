@@ -183,6 +183,112 @@ chapitre ne les répète pas :
 - **Évaluateur métacirculaire** (SICP ch. 4.1) : chapitre 28
   (`28-eval.md`). `heaven_eval.hvn` est un `eval` Scheme-like en Heaven.
 
+## 6. L'évaluateur métalinguistique : de SICP ch. 4 à `heaven_eval`
+
+SICP ch. 4.1 pose l'évaluateur comme un programme parmi d'autres :
+`eval` dispatch sur la syntaxe, `apply` applique une procédure. Le
+chapitre 28 a montré la version 96 lignes ; cette section relie les deux.
+
+Côté SICP :
+
+    (define (eval exp env)
+      (cond ((self-evaluating? exp) exp)
+            ((variable? exp) (lookup-variable-value exp env))
+            ((application? exp)
+             (apply (eval (operator exp) env)
+                    (list-of-values (operands exp) env)))
+            ...))
+
+    (define (apply procedure arguments)
+      (cond ((primitive-procedure? procedure)
+             (apply-primitive-procedure procedure arguments))
+            ((compound-procedure? procedure)
+             (eval-sequence (procedure-body procedure)
+                            (extend-environment ...)))))
+
+Côté Heaven (`src/core/heaven_expr.zig`, `engine_expr.zig`) :
+
+    eval  : Id  -> Engine!Id
+    apply : Id, args -> Engine!Id
+
+La différence structurelle : SICP manipule des **valeurs Scheme**
+directement, Heaven manipule des **`Id`** (index dans un `Store`
+hash-consé). L'égalité structurelle devient gratuite (deux
+`Cons 1 Nil` construits séparément partagent le même Id), mais
+l'évaluation doit consulter le store à chaque nœud.
+
+Voir `28-eval.md` pour la version 96 lignes, `27-selfhost.md` pour
+le chemin vers l'auto-hébergement.
+
+## 7. De `analyze` à l'effacement QTT
+
+SICP exercice 4.1 demande d'écrire `analyze` : une fonction qui prend
+une expression et retourne une procédure d'exécution pré-compilée.
+
+    (define (analyze exp)
+      (cond ((self-evaluating? exp)
+             (analyze-self-evaluating exp))
+            ((definition? exp)
+             (analyze-definition exp))
+            ...))
+
+    (define (analyze-self-evaluating exp)
+      (lambda (env) (eval exp env)))
+
+L'idée : transformer l'arbre en une closure qui capture la sémantique.
+Plus d'`eval` à chaque appel, plus de dispatch dynamique sur le type.
+
+Heaven implémente cette idée sous une autre forme : **QTT erasure**.
+Un paramètre marqué `erased` (multiplicité 0) n'est pas passé à
+l'exécution. Le compilateur construit une version du corps sans les
+paramètres effacés, et cette version est exécutée à chaque appel.
+
+    -- Source
+    f (erased n : Nat) (x : Int) = x + 1
+
+    -- Après erasure
+    f (x : Int) = x + 1
+
+C'est `analyze` à une autre échelle : SICP compile *l'expression*,
+QTT efface *le paramètre*. Les deux visent le même objectif —
+supprimer le dispatch dynamique là où le type permet de le faire.
+
+Voir `29-memoire.md` pour QTT.
+
+## 8. De `amb` aux effets algébriques
+
+SICP ch. 4.3 introduit `amb`, l'opérateur qui retourne un choix
+non-déterministe :
+
+    (define (require p)
+      (if (not p) (amb)))
+
+    (define (prime-sum-pair list1 list2)
+      (let ((a (an-element-of list1))
+            (b (an-element-of list2)))
+        (require (prime? (+ a b)))
+        (list a b)))
+
+`amb` est implémenté par des continuations : chaque choix capture le
+reste du calcul comme une continuation, qu'on peut rappeler pour
+essayer une autre branche.
+
+Heaven n'a pas `amb`. Il a `perform` et `handle_rec` (chapitres 17,
+18). C'est plus général : un effet algébrique déclare une opération,
+et un handler la résout avec `resume`. `amb` est un cas particulier —
+un handler qui, à chaque `perform "choose" ()`, relance le calcul
+avec la continuation `k` sur l'autre branche.
+
+    -- amb, traduit en effet algébrique
+    choose _ = perform "choose" ()
+    fail   _ = perform "fail" ()
+
+    -- handler qui implémente le backtracking (cf. ch. 18)
+
+La section 3 de ce chapitre (`VRecClosure`) couvre le côté récursif ;
+cette section couvre le côté non-déterministe. Les deux sont des
+héritages directs de SICP ch. 4.
+
 ## Exercices
 
 ### Ex. 1 — `derive` à la main (guidé)
@@ -228,3 +334,13 @@ Lesquelles sont **en plus** ?
    instructions.
 5. **SICP, 40 ans après** : trois idées (symbolique, registres, logique)
    qui restent des **choix architecturaux**, pas des exercices de style.
+
+## Voir aussi
+
+- `docs/spec/_sicp_lineage.md` — table de correspondance complète
+  SICP ch. 1-5 → modules Heaven, avec ce que Heaven ajoute et ce
+  qu'il perd.
+- `28-eval.md` — l'interpréteur 96 lignes (SICP ch. 4.1).
+- `27-selfhost.md` — le chemin vers l'auto-hébergement.
+- `17-effects.md`, `18-handlers.md` — effets algébriques (SICP 4.3).
+- `29-memoire.md` — QTT et effacement (SICP 4.1.6 `analyze`).
