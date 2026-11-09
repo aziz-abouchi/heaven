@@ -1314,3 +1314,18 @@ le parser (session 35+, pas prioritaire).
 
 **Patch `[T]` → `(List T)`** dans le parser data : **non commité** (working
 tree propre, `git log -- src/` ne le montre pas). À ré-appliquer si besoin.
+
+## WASM : main ne produit rien (2026-11-09, session 34)
+
+**Constat** : `compile-wasm` sur `(+ 1 2)` → `.wat` produit (46 KB), `wasmtime`
+exécute → `rc=0` mais **stdout vide**.
+
+**Cause visible** : le backend MIR→WAT émet `(unreachable)` après chaque
+`local.set` (voir `/tmp/w.wat`). Résultat : les `print`/`call` ne sont pas
+exécutés.
+
+**Impact** : WASM n'est pas testable end-to-end. **Interp et QBE restent OK**
+(suite différentielle 5/5).
+
+**Fix** : MIR→WAT backend (~1-2 sessions). Non prioritaire (les 2 autres
+backends sont valides).
