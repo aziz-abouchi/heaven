@@ -372,3 +372,10 @@ selfhost, plan renommage 16-effects reporté.
 - 176 tests `.hvn`, PROJET SAIN
 - 5 modules std CI-verrouillés
 - `_existant.md` 559 l., `_runtime_gaps.md` 1297 l.
+
+## RFC UTCP/MCP (2026-11-09, session 39)
+
+- `docs/spec/_rfc_utcp_mcp.md` : architecture à 3 couches (Tool Registry, MCP, UTCP).
+- Critère : `invoke_MCP ≡ invoke_UTCP ≡ invoke_Heaven` (test différentiel).
+- **Non implémenté** : RFC proposition, implémentation après pause.
+- Priorité : après stabilisation, avant multiplicités fn/params.
