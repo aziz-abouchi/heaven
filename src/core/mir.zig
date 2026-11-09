@@ -931,6 +931,20 @@ pub const MirFunction = struct {
             },
             .sym => {
                 const sym = node.payload;
+                // Ctors 0-arity booléens : résoudre en const_int.
+                // (fix 2026-11-09 — true/false étaient chargés comme
+                // variables non initialisées → 0)
+                const name = store.interner.resolve(sym);
+                if (std.mem.eql(u8, name, "true") or std.mem.eql(u8, name, "True")) {
+                    const dest = self.newReg();
+                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = 1 } });
+                    return dest;
+                }
+                if (std.mem.eql(u8, name, "false") or std.mem.eql(u8, name, "False")) {
+                    const dest = self.newReg();
+                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = 0 } });
+                    return dest;
+                }
                 if (locals.get(sym)) |reg| {
                     return reg;
                 }
