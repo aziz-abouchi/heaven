@@ -47,6 +47,7 @@ pub fn handleHoverWithText(allocator: std.mem.Allocator, id: i64, parser: *ts.TS
     defer diags.deinit();
 
     var bridge = Bridge.init(allocator, &store, &scope, &diags, text);
+    defer bridge.deinitRoots();
     bridge.buildFile(root) catch {};
 
     const info = scope.lookup(name);
@@ -193,6 +194,7 @@ pub fn runDiagnostics(allocator: std.mem.Allocator, parser: *ts.TSParser, uri: [
     defer diags.deinit();
 
     var bridge = Bridge.init(allocator, &store, &scope, &diags, text);
+    defer bridge.deinitRoots();
     bridge.buildFile(root) catch {};
 
     var typer = Typer.init(allocator, &store, &diags);

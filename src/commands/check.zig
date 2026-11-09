@@ -38,6 +38,7 @@ pub fn runCheck(allocator: std.mem.Allocator, file_path: []const u8) !void {
     defer diags.deinit();
 
     var bridge = Bridge.init(allocator, &store, &scope, &diags, source);
+    defer bridge.deinitRoots();
     try bridge.buildFile(root);
 
     var typer = Typer.init(allocator, &store, &diags);

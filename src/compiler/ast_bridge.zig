@@ -14,6 +14,9 @@ pub const Bridge = struct {
     diags: *DiagnosticList,
     source: []const u8,
     allocator: std.mem.Allocator,
+    /// Ids des nœuds top-level réellement définis (pas les fallbacks
+    /// tree-sitter `sym(ntype)`). Utilisé par unbound_check.
+    roots: std.ArrayListUnmanaged(Id) = .{},
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -29,6 +32,10 @@ pub const Bridge = struct {
             .source = source,
             .allocator = allocator,
         };
+    }
+
+    pub fn deinitRoots(self: *Bridge) void {
+        self.roots.deinit(self.allocator);
     }
 
     pub fn buildFile(self: *Bridge, root: ts.TSNode) !void {
@@ -58,7 +65,10 @@ pub const Bridge = struct {
                 self.diags.err(start.row, start.column, "syntax error in source");
                 continue;
             }
-            _ = try self.buildTopLevel(child);
+            const id = try self.buildTopLevel(child);
+            if (id != expr.NULL) {
+                try self.roots.append(self.allocator, id);
+            }
         }
     }
     //pub fn buildFile(self: *Bridge, root: ts.TSNode) anyerror!void {
@@ -109,7 +119,9 @@ pub const Bridge = struct {
         } else if (std.mem.eql(u8, ntype, "comment")) {
             return expr.NULL;
         } else {
-            return self.store.sym(ntype);
+            // Fallback : ne PAS stocker de `sym(ntype)` (faux positifs
+            // pour unbound_check : import_decl, eq_decl non gérés).
+            return expr.NULL;
         }
     }
 
