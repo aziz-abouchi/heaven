@@ -1372,3 +1372,22 @@ le `load`. Test : `true` → 1, `false` → 0, `06-mutual` OK.
 `heaven run` sur `06-mutual.hvn` → `MEMORY LEAK DETECTED` (2 allocations
 8 bytes). QBE pas affecté (const_int, pas d'allocation). Fix : session 36,
 ~30 min dans `engine_expr.zig` (ctor 0-arity alloué non libéré).
+
+## Leak `fn` déclaration — dette mineure (2026-11-09, session 36)
+
+**Constat** : `heaven run` sur fichier avec N `fn` déclarées → N × 8 bytes
+leaked (2 × 4 bytes par fn). `fn even(n) = ...` seul → 1 leak.
+`(if (= 0 0) true false)` top-level → 0 leak. `fn f(n) = true` sans appel → 0 leak.
+
+**Non localisé** (8 commandes de diagnostic) :
+- `FunctionDef.clauses` = array fixe `[32]` → pas d'alloc
+- `FunctionRegistry.deinit` libère `entry.key_ptr.*` → OK
+- Le leak est dans un autre chemin d'allocation par `fn`
+
+**Impact** : 8 bytes par `fn`. Négligeable (1000 fn = 8 KB). N'affecte pas
+QBE (pas d'allocation `const_int`).
+
+**Fix futur** : tracer `evalFn` / `register` / `Heaven.deinit` pour identifier
+l'allocation. 1 session dédiée. Non prioritaire.
+
+**Workaround** : aucun nécessaire (leak mineur, pas de crash).
