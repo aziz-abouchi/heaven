@@ -68,6 +68,35 @@ Heaven via des tools déclarés en Heaven.
 Total : **213 lignes de Heaven**. Deux tests : `tests/test_mcp.hvn` (protocol)
 et `tests/test_mcp_tools.hvn` (tools individuels).
 
+## 3bis. Ce que `heaven mcp` expose vraiment (audit 2026-11-09)
+
+> **Note d'audit.** Le serveur MCP par défaut — celui que lance la
+> commande `heaven mcp` — n'est **pas** `lib/mcp/`. C'est
+> `src/runtime/mcp_server.zig` (11 outils en Zig, dont 9 exposés
+> après l'audit). Les 5 outils Heaven de `lib/mcp/` (`echo`,
+> `fs_read`, `count_chars`, `time_now`, `time_ms`) ne sont **pas**
+> accessibles via `heaven mcp`.
+>
+> Le registre v2 (`lib/tool_registry.hvn`) déclare 16 outils, mais
+> un seul serveur les expose partiellement. La table ci-dessous
+> documente l'état réel.
+
+![16 outils déclarés, 9 exposés, 6 fiables](images/26-tool-status.svg)
+
+| Catégorie | Nombre | Outils |
+|---|---|---|
+| **Stable** (résultat correct) | 6 | `heaven_eval`, `heaven_derive`, `heaven_simplify`, `heaven_prove` (limité à `a == b`), `mlcpd_parse`, `mlcpd_equiv` |
+| **Expérimental** (résultat faux) | 2 | `heaven_integrate`, `heaven_solve` |
+| **Suspect** (résultat trivial) | 1 | `heaven_theorems` |
+| **Désactivé** (`3f878fc`) | 2 | `egraph_query` (panic), `heaven_expand` (rupture JSON-RPC) |
+| **Invisible** (pas dans `heaven mcp`) | 5 | `echo`, `fs_read`, `count_chars`, `time_now`, `time_ms` |
+
+Voir `docs/spec/_tool_audit_2026-11-09.md` pour la méthodologie et
+les traces. Les chantiers de correction (walker `check` v2,
+`heaven_integrate`, kernel `heaven_prove`) sont documentés dans
+`_check_v2_plan.md`, `_integrate_bug.md`,
+`_heaven_prove_kernel_bug.md`.
+
 ## 4. Piège : outils ≠ compilateur
 
 Vous pourriez croire qu'un LSP en Heaven signifie que **le compilateur** est en
