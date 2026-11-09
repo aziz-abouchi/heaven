@@ -211,10 +211,8 @@ pub const McpServer = struct {
                 defer self.allocator.free(res);
                 break :blk try self.allocator.dupe(u8, res);
             } else if (std.mem.eql(u8, name, "heaven_expand")) {
-                const expr_str = getArgString(args, "expression") orelse break :blk "error: missing 'expression'";
-                const res = h.expand(expr_str) catch break :blk "error: expand failed";
-                defer self.allocator.free(res);
-                break :blk try self.allocator.dupe(u8, res);
+                // Désactivé (audit 2026-11-09) : fuite de debug sur stdout rompt JSON-RPC.
+                break :blk try self.allocator.dupe(u8, "error: tool disabled (see docs/spec/_tool_audit_2026-11-09.md)");
             } else if (std.mem.eql(u8, name, "heaven_solve")) {
                 const expr_str = getArgString(args, "expression") orelse break :blk "error: missing 'expression'";
                 const var_name = getArgString(args, "variable") orelse "x";
@@ -275,11 +273,8 @@ pub const McpServer = struct {
                 const proof_available = if (equiv_result.proof != null) "true" else "false";
                 break :blk try std.fmt.allocPrint(self.allocator, "{{\"equivalent\":{s},\"strategy\":\"{s}\",\"proof_available\":{s},\"canon1\":\"{s}\",\"canon2\":\"{s}\"}}", .{ if (equiv_result.equivalent) "true" else "false", @tagName(equiv_result.strategy), proof_available, s1_str, s2_str });
             } else if (std.mem.eql(u8, name, "egraph_query")) {
-                const expr_str = getArgString(args, "expr") orelse break :blk "error: missing 'expr'";
-                var he = self.heaven.?;
-                const result = he.eval(expr_str) catch break :blk "error: eval failed";
-                defer self.allocator.free(result);
-                break :blk try std.fmt.allocPrint(self.allocator, "{{\"canonical_form\":\"{s}\"}}", .{result});
+                // Désactivé (audit 2026-11-09) : panic "Invalid free".
+                break :blk try self.allocator.dupe(u8, "error: tool disabled (see docs/spec/_tool_audit_2026-11-09.md)");
             } else if (std.mem.eql(u8, name, "heaven_prove")) {
                 const stmt = getArgString(args, "statement") orelse break :blk "error: missing 'statement'";
                 var he = self.heaven.?;
@@ -378,13 +373,8 @@ const mcp_tools = [_]McpTool{
     },
     .{
         .name = "heaven_solve",
-        .description = "Solve an equation for a variable",
+        .description = "WARNING EXPERIMENTAL: returns incorrect results (e.g. x+1=0 -> 'tout x'). Do NOT use for verification. See docs/spec/_tool_audit_2026-11-09.md.",
         .input_schema = "{\"type\":\"object\",\"properties\":{\"expression\":{\"type\":\"string\"},\"variable\":{\"type\":\"string\",\"default\":\"x\"}},\"required\":[\"expression\"]}",
-    },
-    .{
-        .name = "heaven_expand",
-        .description = "Expand algebraic expressions (binomial, polynomial)",
-        .input_schema = "{\"type\":\"object\",\"properties\":{\"expression\":{\"type\":\"string\"}},\"required\":[\"expression\"]}",
     },
     .{
         .name = "heaven_simplify",
@@ -393,7 +383,7 @@ const mcp_tools = [_]McpTool{
     },
     .{
         .name = "heaven_theorems",
-        .description = "List all axioms and theorems in the Heaven kernel",
+        .description = "SUSPECT (audit 2026-11-09): returns the literal 'theorems' string, not the actual list. Do NOT use.",
         .input_schema = "{\"type\":\"object\",\"properties\":{}}",
     },
     .{
@@ -405,11 +395,6 @@ const mcp_tools = [_]McpTool{
         .name = "mlcpd_equiv",
         .description = "Check structural equivalence of two MLCPD JSON files via EGraph canonization. Returns true if both normalize to the same canonical form.",
         .input_schema = "{\"type\":\"object\",\"properties\":{\"json1\":{\"type\":\"string\",\"description\":\"First MLCPD JSON\"},\"json2\":{\"type\":\"string\",\"description\":\"Second MLCPD JSON\"}},\"required\":[\"json1\",\"json2\"]}",
-    },
-    .{
-        .name = "egraph_query",
-        .description = "Query the EGraph saturation state for a given Heaven expression. Returns canonical form and e-class size.",
-        .input_schema = "{\"type\":\"object\",\"properties\":{\"expr\":{\"type\":\"string\",\"description\":\"Heaven expression string\"}},\"required\":[\"expr\"]}",
     },
     .{
         .name = "heaven_prove",
