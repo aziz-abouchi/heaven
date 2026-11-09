@@ -1,0 +1,1 @@
+(head (cons 42 (cons 7 nil)))
