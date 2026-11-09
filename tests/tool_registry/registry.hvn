@@ -1,0 +1,17 @@
+-- tests/tool_registry/registry.hvn — registry isole (session 41 ter)
+import "lib/tool_registry.hvn" as TR
+import "lib/std/result.hvn" as R
+
+test "count_3": (TR.registry_count (TR.registry_builtin 0)) == 3
+
+test "has_check": (TR.registry_has "check") == true
+test "has_run":   (TR.registry_has "run") == true
+test "has_test":  (TR.registry_has "test") == true
+test "not_bogus": (TR.registry_has "bogus") == false
+
+test "check_is_io":  (TR.tool_effect (R.result_unwrap (TR.registry_find_by_name "check"))) == 1
+test "run_is_io":    (TR.tool_effect (R.result_unwrap (TR.registry_find_by_name "run"))) == 1
+test "test_is_io":   (TR.tool_effect (R.result_unwrap (TR.registry_find_by_name "test"))) == 1
+
+test "run_has_exec": (TR.tool_perms (R.result_unwrap (TR.registry_find_by_name "run"))) == 5
+test "check_read_only": (TR.tool_perms (R.result_unwrap (TR.registry_find_by_name "check"))) == 1

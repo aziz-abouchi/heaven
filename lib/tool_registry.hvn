@@ -1,0 +1,35 @@
+-- lib/tool_registry.hvn — Heaven Tool Registry v0 (2026-11-09, session 41 ter)
+-- RFC : docs/spec/_rfc_utcp_mcp.md
+-- NOTE : registry_find_by_name utilise un if-chain (mono-arg) plutot
+-- qu'un pattern multi-arg, qui casse en v0 (voir _check_validator_bug.md
+-- et le test pm.hvn). registry_count garde son pattern mono-arg.
+
+import "lib/std/result.hvn" as R
+
+data Tool = Tool Str Str Int Int
+data ToolList = TLNil | TLCons Tool ToolList
+
+tool_name   (Tool n d p e) = n
+tool_desc   (Tool n d p e) = d
+tool_perms  (Tool n d p e) = p
+tool_effect (Tool n d p e) = e
+
+-- NOTE : registry_builtin est une fonction zero-arg (registry_builtin _),
+-- pas une valeur (registry_builtin =). Les references qualifiees a une
+-- valeur de module ne se resolvent pas cross-module en v0
+-- (voir _module_value_ref_bug.md).
+registry_builtin _ =
+  TLCons (Tool "check" "Verify a hvn file (syntax arity)" 1 1)
+    (TLCons (Tool "run" "Execute a hvn file" 5 1)
+      (TLCons (Tool "test" "Run test blocks in a hvn file" 1 1) TLNil))
+
+registry_count TLNil = 0
+registry_count (TLCons t rest) = (+ 1 (registry_count rest))
+
+registry_find_by_name name =
+  if name == "check" then (R.Ok (Tool "check" "Verify a hvn file (syntax arity)" 1 1))
+  else if name == "run" then (R.Ok (Tool "run" "Execute a hvn file" 5 1))
+  else if name == "test" then (R.Ok (Tool "test" "Run test blocks in a hvn file" 1 1))
+  else (R.Err "not found")
+
+registry_has name = (R.result_is_ok (registry_find_by_name name))
