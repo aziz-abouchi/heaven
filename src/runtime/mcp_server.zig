@@ -283,12 +283,36 @@ pub const McpServer = struct {
             } else if (std.mem.eql(u8, name, "heaven_prove")) {
                 const stmt = getArgString(args, "statement") orelse break :blk "error: missing 'statement'";
                 var he = self.heaven.?;
-                // Utiliser le noyau logique pour tenter une preuve
-                const result = he.eval(stmt) catch |err| {
-                    break :blk try std.fmt.allocPrint(self.allocator, "{{\"proved\":false,\"error\":\"{}\"}}", .{err});
-                };
-                defer self.allocator.free(result);
-                break :blk try std.fmt.allocPrint(self.allocator, "{{\"proved\":true,\"certificate\":\"{s}\"}}", .{result});
+
+                // NOTE : Heaven.evalProve n'est pas encore fiable :
+                //  - retourne Ok("Usage: prove [name] by …") sur entrée
+                //    invalide au lieu d'erreur (faux positif affiché comme
+                //    preuve kernel).
+                //  - panic "Invalid free" sur "prove x by { t1; t2 }".
+                // Voir docs/spec/_heaven_prove_kernel_bug.md.
+                // En attendant : branche sémantique ci-dessous uniquement.
+                // Le kernel sera réactivé quand ces bugs seront fixés.
+
+                // 1. Égalité sémantique "a == b" (eval LHS, eval RHS, compare)
+                if (std.mem.indexOf(u8, stmt, "==")) |pos| {
+                    const lhs_str = std.mem.trim(u8, stmt[0..pos], " \t");
+                    const rhs_str = std.mem.trim(u8, stmt[pos + 2 ..], " \t");
+                    if (lhs_str.len > 0 and rhs_str.len > 0) {
+                        if (he.eval(lhs_str)) |lhs_val| {
+                            defer self.allocator.free(lhs_val);
+                            if (he.eval(rhs_str)) |rhs_val| {
+                                defer self.allocator.free(rhs_val);
+                                const eq = std.mem.eql(u8, lhs_val, rhs_val);
+                                break :blk try std.fmt.allocPrint(self.allocator,
+                                    "{{\"proved\":{s},\"method\":\"semantic\",\"lhs\":\"{s}\",\"rhs\":\"{s}\"}}",
+                                    .{ if (eq) "true" else "false", lhs_val, rhs_val });
+                            } else |_| {}
+                        } else |_| {}
+                    }
+                }
+
+                // 2. Ni kernel, ni ==  → erreur explicite (plus de faux positif)
+                break :blk "{\"proved\":false,\"error\":\"statement must be 'prove name by { ... }' or an equality 'a == b'\"}";
             } else {
                 break :blk try std.fmt.allocPrint(self.allocator, "error: unknown tool '{s}'", .{name});
             }
