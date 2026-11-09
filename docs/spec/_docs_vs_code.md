@@ -46,10 +46,12 @@
 |---|---|
 | `fn` déclaration = 8 bytes/fn | Négligeable (1000 fn = 8 KB), non localisé |
 
-## Référence audit externe
+## Audit externe (28 lignes, non persisté)
 
-Voir `_docs_vs_code_audit.md` (28 lignes, preuves `fichier:ligne` + actions).
-Résumé : 11 stale, 8 contradictoires, 6 non appliqués, 2 à confirmer, 1 exact.
+Une session externe a produit 28 lignes (11 stale, 8 contradictoires, 6 non
+appliqués, 2 à confirmer, 1 exact) via un audit `STATUS.md` + `COMMANDS.md` +
+`README` vs code. **Le tableau complet n'est pas dans ce repo.**
 
 **Sessions 33-36 ont tranché 6 de ces claims** (kernel 41 l., canonEqStr
 → structuralEql, quotients OK, TLS OK, 13 commandes listées, `ai` absent).
+Les 22 lignes restantes sont perdues — à re-faire si nécessaire en session 38.
