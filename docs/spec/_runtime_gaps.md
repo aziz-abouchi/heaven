@@ -1391,3 +1391,20 @@ QBE (pas d'allocation `const_int`).
 l'allocation. 1 session dédiée. Non prioritaire.
 
 **Workaround** : aucun nécessaire (leak mineur, pas de crash).
+
+## QTT érasure runtime — RÉSOLU (2026-11-09, session 37)
+
+**Avant** : `let erased x = v in b` liait `x` à `v` (`bindSymWithBody`).
+`v` était évalué au runtime même si `x` jamais utilisé → pas d'érasure.
+
+**Fix** (`6534b58`) : dans `expr_parser.zig:774`, si `k == "erased"` et
+`uses == 0`, on **skip le bind** et on retourne `b` directement.
+
+**Test** : `(let erased x = (head nil) in 42) == 42` → 1/1.
+`(head nil)` aurait planté. Avec l'érasure, il n'est jamais évalué.
+
+**Limites** :
+- `linear`/`many` restent liés normalement (bind classique)
+- Multiplicités sur `fn` et paramètres : non traitées (session 38+)
+
+**Suite diff** : 7/7 OK après fix (pas de régression).
