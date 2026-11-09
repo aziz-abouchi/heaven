@@ -22,12 +22,14 @@ la signature du type **dit** qui possède quoi. Si `f : A → B` est linéaire, 
 runtime sait qu'il doit libérer `A` après l'appel, et qu'aucune copie n'est
 nécessaire. Pas de GC, pas de refcount, pas de fuite — **en théorie**.
 
-> **État réel (2026-10-26).** La syntaxe `let linear x = ...` est reconnue par
-> le parser. Les types `.linear` / `.erased` / `.many` sont présents dans
-> `types.zig`. Mais **aucun check n'est fait** sur le nombre d'usages réels.
-> `LinearChecker` est branché sur `cmdQTT` shell uniquement, pas sur le
-> pipeline d'élaboration. Un `let linear x = 42 in x + x` (violation) passe
-> **sans erreur**.
+> **État réel (2026-11-09).** La vérification des multiplicités est faite
+> **au parse** dans `expr_parser.zig:774` (`countSymUses` : `uses==1` pour
+> `linear`, `uses==0` pour `erased`). Un `let linear x = 42 in (x + x)` est
+> rejeté (`error.LinearViolation`). L'érasure runtime est **partielle** : la
+> forme S-expression `(let erased …)` skip le bind (valeur parsée, jamais
+> évaluée). **Ne sont pas couverts** : le REPL `let erased …` (évalue encore
+> la valeur), les multiplicités sur `fn`/paramètres, et le type-check
+> complet de la valeur effacée.
 
 ## 2. Les trois multiplicités en Heaven
 

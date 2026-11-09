@@ -1805,6 +1805,7 @@ pub const Heaven = struct {
             ctors.deinit(self.allocator);
         }
 
+        var ctor_idx: u8 = 0;
         var it = std.mem.splitScalar(u8, rhs, '|');
         while (it.next()) |raw| {
             const ctor_str = std.mem.trim(u8, raw, " \t");
@@ -1863,6 +1864,8 @@ pub const Heaven = struct {
             // Capture l'arité AVANT toOwnedSlice : la méthode vide la
             // liste, donc une lecture ultérieure donnerait 0.
             const arity: u8 = @intCast(arg_types.items.len);
+            const my_ctor_tag: u8 = ctor_idx;
+            ctor_idx += 1;
 
             try ctors.append(self.allocator, .{
                 .name = try self.allocator.dupe(u8, ctor_name),
@@ -1889,6 +1892,7 @@ pub const Heaven = struct {
                     gop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
                 }
                 gop.value_ptr.ctor_arity = arity;
+                if (!gop.found_existing) gop.value_ptr.ctor_tag = my_ctor_tag;
 
                 // Cacher le nom nu
                 const hidden_key = try self.allocator.dupe(u8, ctor_name);
@@ -1906,6 +1910,7 @@ pub const Heaven = struct {
                     gop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
                 }
                 gop.value_ptr.ctor_arity = arity;
+                if (!gop.found_existing) gop.value_ptr.ctor_tag = my_ctor_tag;
 
                 // Aliaser aussi sous `M.Ctor` si on est dans un module.
                 // Sans ca, `import "..." as M` puis `M.Ctor` echoue en
@@ -1925,6 +1930,7 @@ pub const Heaven = struct {
                         qgop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
                     }
                     qgop.value_ptr.ctor_arity = arity;
+                    if (!qgop.found_existing) qgop.value_ptr.ctor_tag = my_ctor_tag;
                 }
             }
 

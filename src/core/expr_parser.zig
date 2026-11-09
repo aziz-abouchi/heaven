@@ -773,14 +773,17 @@ pub const ExprParser = struct {
 
                 if (!ok) return error.LinearViolation;
 
-                // ERASURE (2026-11-09) : `let erased x = v in b` ne lie PAS
-                // x (uses==0 vérifié). `v` n'est jamais évalué au runtime.
-                // C'est l'érasure : coût zéro pour les preuves.
+                // Audit 2026-11-09 : la valeur DOIT être parsée avant
+                // de décider. `return b` avant parse laissait passer des
+                // termes malformés sous `erased` sans erreur.
+                const val_id = try self.parseExpression(qtt_val);
+
+                // ERASURE : la valeur est parsée (syntaxe vérifiée),
+                // mais pas liée et jamais évaluée au runtime.
                 if (std.mem.eql(u8, k, "erased")) {
                     return b;
                 }
 
-                const val_id = try self.parseExpression(qtt_val);
                 const name_sym = try self.store.interner.intern(qtt_name);
                 // Représentation Core : bind(name, val, body)
                 return try self.store.bindSymWithBody(name_sym, val_id, b);

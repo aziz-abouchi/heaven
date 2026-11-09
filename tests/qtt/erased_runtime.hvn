@@ -1,0 +1,15 @@
+-- tests/qtt/erased_runtime.hvn — érasure runtime (2026-11-09)
+-- Vérifie que la valeur sous erased n'est JAMAIS évaluée,
+-- mais qu'elle EST parsée (syntaxe vérifiée avant skip).
+
+-- La valeur (head nil) planterait à l'eval. Erasure => skip eval => 42.
+test "erased_skips_eval": (let erased x = (head nil) in 42) == 42
+
+-- Baseline : erased ne casse pas une valeur triviale.
+test "erased_baseline": (let erased x = 5 in 42) == 42
+
+-- many : comportement inchangé.
+test "many_ok": (let many x = 5 in (x + x)) == 10
+
+-- linear : comportement inchangé.
+test "linear_ok": (let linear x = 5 in x) == 5
