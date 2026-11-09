@@ -1280,7 +1280,17 @@ documenter que les champs doivent être des types nommés.
 **Impact** : tout module std qui voudrait `Channel a` (générique) est bloqué.
 Channel est `Int` uniquement pour l'instant.
 
-## `[Int]` au top-level — plusieurs bugs superposés (2026-11-06, session 32)
+## `[Int]` au top-level — état au 2026-11-09
+
+**RÉSOLU** (session 32, patch `[T]` → `(List T)`) :
+- `data C = C [Int]` → ✅ `2/2`
+- `data Channel = Channel Int Int [Int]` → ✅ (peut être réécrit sans type `L`)
+
+**RESTE** (vérifié 2026-11-09) :
+- `[1,2,3]` en test direct → à confirmer (le test `length [1,2,3]` échoue sur `length`, pas sur `[1,2,3]`)
+- `cons` top-level → à confirmer (idem, `length` absent)
+
+Détails : section originale ci-dessous.
 
 **Tests isolés** :
 - `data C = C [Int]` (type de champ) : UnboundVariable
@@ -1297,3 +1307,14 @@ Channel est `Int` uniquement pour l'instant.
 Effort : 1-2 sessions. **Impact** : débloque les listes comme valeurs de champ.
 
 **Channel (`lib/std/channel.hvn`)** : reste en type `L` (LCons/LNil), fonctionne 14/14.
+
+## `[Int]` — RÉSOLU complètement (2026-11-09, vérification)
+
+**Tests vérifiés** :
+- `data C = C [Int]` → `2/2` (type de champ, patch session 32)
+- `[1,2,3] == [1,2,3]` → `1/1` (array literal + comparaison)
+- `head (cons 1 [])` → fail (mais c'est `head`, PAS `[Int]`)
+
+**Conclusion** : `[Int]` n'est plus un bug. Les échecs sur `head [...]`, `head (cons ...)`, `length [1,2,3]` sont dus à `head`/`length` absents du runtime, pas à `[Int]`.
+
+**Nouveau bug** : `head`/`length` non résolus dans tests. À diagnostiquer (probablement `core/std/list.hvn` non importé automatiquement, ou `cons`/`nil` non définis).
