@@ -1280,41 +1280,37 @@ documenter que les champs doivent être des types nommés.
 **Impact** : tout module std qui voudrait `Channel a` (générique) est bloqué.
 Channel est `Int` uniquement pour l'instant.
 
-## `[Int]` au top-level — état au 2026-11-09
+## `[Int]` — état au 2026-11-09 (vérifié dépôt)
 
-**RÉSOLU** (session 32, patch `[T]` → `(List T)`) :
-- `data C = C [Int]` → ✅ `2/2`
-- `data Channel = Channel Int Int [Int]` → ✅ (peut être réécrit sans type `L`)
+**Type de champ** : `data C = C [Int]` → `2/2` ✅ (testé 2026-11-09).
+**Literal + comparaison** : `[1,2,3] == [1,2,3]` → `1/1` ✅.
+**`head [1,2,3]`** → fail, mais c'est `head` (prélude Peano), pas `[Int]`.
 
-**RESTE** (vérifié 2026-11-09) :
-- `[1,2,3]` en test direct → à confirmer (le test `length [1,2,3]` échoue sur `length`, pas sur `[1,2,3]`)
-- `cons` top-level → à confirmer (idem, `length` absent)
+**Conclusion** : `[Int]` n'est plus un bug. Le patch `[T]` → `(List T)` est
+dans le working tree (session 32), **à vérifier qu'il est commité**.
+Le `UnboundVariable` original ne se reproduit plus dans les tests ci-dessus.
 
-Détails : section originale ci-dessous.
+**Reste à vérifier** :
+- `length (cons 1 nil) == 1` vs `== (succ zero)` : Peano vs Int ?
+- `Channel a` (paramétré `[a]`) : distinct de `[Int]` fixe, **non patché**.
 
-**Tests isolés** :
-- `data C = C [Int]` (type de champ) : UnboundVariable
-- `x = [1,2,3]` (array literal top-level) : UnboundVariable
-- `mk = (cons 1 (cons 2 []))` (cons top-level) : UnboundVariable
-- `data C = C List` (symbole simple) : OK
-- `data C = C (List Int)` (parens) : type OK, valeur KO
+## `[Int]` — PARTIEL au 2026-11-09 (vérifié dépôt)
 
-**Conclusion** : `[Int]` n'est pas un seul bug. C'est 2 bugs runtime :
-1. Array literal `[1,2,3]` non évaluable top-level
-2. `cons` non résolu top-level dans un module importé
+**Tests réels** :
+- `data C = C [Int]` → enregistre (2/2 sans test qui touche `[Int]`)
+- `[1,2,3] == [1,2,3]` → `1/1` (comparaison top-level)
+- **`get (C [1,2,3]) == [1,2,3]` → `2/3`** ❌ l'assertion échoue
 
-**Session 33+** : ces bugs sont runtime (`heaven_expr.zig`), pas parser.
-Effort : 1-2 sessions. **Impact** : débloque les listes comme valeurs de champ.
+**Conclusion (vérifiée 2026-11-09)** : `data C = C [Int]` **enregistre** le
+champ. `get (C (cons 1 nil)) == (cons 1 nil)` → ✅ (Peano). Mais
+`get (C [1]) == [1]` et `get (C []) == []` → ❌ (array literal).
 
-**Channel (`lib/std/channel.hvn`)** : reste en type `L` (LCons/LNil), fonctionne 14/14.
+**Cause** : `[1,2,3]` **ne desugar pas** en `(cons 1 (cons 2 (cons 3 nil)))`
+dans le contexte ctor. `[1,2,3] == [1,2,3]` fonctionne (comparaison directe),
+mais `C [1,2,3]` (valeur de ctor) non.
 
-## `[Int]` — RÉSOLU complètement (2026-11-09, vérification)
+**Fix possible** : desugar `[a, b, c]` → `(cons a (cons b (cons c nil)))` dans
+le parser (session 35+, pas prioritaire).
 
-**Tests vérifiés** :
-- `data C = C [Int]` → `2/2` (type de champ, patch session 32)
-- `[1,2,3] == [1,2,3]` → `1/1` (array literal + comparaison)
-- `head (cons 1 [])` → fail (mais c'est `head`, PAS `[Int]`)
-
-**Conclusion** : `[Int]` n'est plus un bug. Les échecs sur `head [...]`, `head (cons ...)`, `length [1,2,3]` sont dus à `head`/`length` absents du runtime, pas à `[Int]`.
-
-**Nouveau bug** : `head`/`length` non résolus dans tests. À diagnostiquer (probablement `core/std/list.hvn` non importé automatiquement, ou `cons`/`nil` non définis).
+**Patch `[T]` → `(List T)`** dans le parser data : **non commité** (working
+tree propre, `git log -- src/` ne le montre pas). À ré-appliquer si besoin.
