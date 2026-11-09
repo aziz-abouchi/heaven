@@ -1498,3 +1498,21 @@ les tuples existent, `[Int]` en type fonctionne.
 
 **Impact sur `Channel a`** : `Channel a` générique reste bloqué (pas de
 listes paramétrées en syntaxe), mais `Channel` Int-only (14/14) fonctionne.
+
+## QTT `fn`/params — décision syntaxique requise (2026-11-09, session 40)
+
+**Constat** : QTT est **let-only** (`expr_parser.zig:1182-1232`).
+- `f (linear x) = (x + x)` : accepté, **pas de LinearViolation**
+- `g (erased x) = x` : accepté, **pas de LinearViolation**
+
+**Cause** : `(linear x)` est un **pattern ctor** (`linear` 1-arity, `x` var), pas un modificateur QTT. Le parser ne distingue pas.
+
+**Décision requise avant code** :
+- **Option A** : syntaxe dédiée `fn f [linear x] = …` ou `fn f (linear! x) = …`
+- **Option B** : `fn f(x) linear = …` (postfix)
+- **Option C** : accepter l'ambiguïté, patterns `linear(x)` sont des ctors (ne pas faire QTT sur fn)
+
+**Effort** : 1-2 sessions une fois la syntaxe décidée.
+
+**Impact** : le chapitre 29 du livre promet QTT « pour tout », seul `let` est couvert.
+**Non prioritaire** : UTCP/MCP (RFC `d9479d8`) a un impact supérieur.
