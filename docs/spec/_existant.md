@@ -584,3 +584,17 @@ récursive du parser). PAS un fix chirurgical.
 - **4 fichiers skipped** (dont `test_selfparse.hvn` partiel, `test_parser.hvn.skip`, `test_selfparse.hvn.skip`)
 
 **`STATUS.md` (1446) est stale** de ~21 tests — mis à jour via `status.json` session 35.
+
+## Suite différentielle (tests/diff/, 2026-11-09)
+
+**Script** : `tests/diff/run.sh` — compare interp / QBE / WASM sur 5 programmes.
+
+**Résultat** : interp == QBE sur 5/5 (arith, fib, bool, let, list).
+WASM produit stdout vide (à diagnostiquer : exit code ? pas de print ?).
+
+**Interp (heaven run)** : ~800 ms de startup, ~65 µs/iteration.
+Donc `bench-interp` sur N=100000 = ~7s, timeout 5s attendu.
+Les bench progs sont calibrés pour `bench-*` (timing), pas `run` (comparaison).
+
+**Valide** : les deux backends (interp, QBE) sont cohérents sur 5 programmes.
+**À vérifier** : WASM (comment lire la sortie ?), arith loop (arith.hvn original à N=100000).
