@@ -1857,6 +1857,17 @@ const Lexer = struct {
             const start = self.pos;
             while (self.pos < self.src.len and (std.ascii.isAlphanumeric(self.src[self.pos]) or self.src[self.pos] == '_' or self.src[self.pos] == '?'))
                 self.pos += 1;
+            // BUG FIX (Bug B) : autoriser les noms qualifies (R.Ok, M.f, ...)
+            // dans le lexer. Sans cela nativeToSExpr echoue sur '.', tombe
+            // dans le fallback de parseSExpr qui boucle jusqu'au depth
+            // limit -> expression entiere remplacee par sym(chaine brute).
+            while (self.pos + 1 < self.src.len and self.src[self.pos] == '.' and
+                   (std.ascii.isAlphabetic(self.src[self.pos + 1]) or self.src[self.pos + 1] == '_'))
+            {
+                self.pos += 1;
+                while (self.pos < self.src.len and (std.ascii.isAlphanumeric(self.src[self.pos]) or self.src[self.pos] == '_' or self.src[self.pos] == '?'))
+                    self.pos += 1;
+            }
             return .{ .kind = .ident, .text = self.src[start..self.pos] };
         }
 
