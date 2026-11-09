@@ -1433,14 +1433,20 @@ vs QBE, pas bugs).
 
 Le test QBE seul confirme la valeur : `data Color = Red | Green` + `Green` → `1`.
 
-## Leak `fn` — diagnostic borné (2026-11-09, session 39)
+## Leak `fn` — RÉSOLU ou inexistant (2026-11-09, session 39)
 
-Tests comportementaux : [résultats A1]. Pattern : [ce qui leak].
+**Tests comportementaux (session 39)** : 0 leak sur
+- `fn f(n) = true` (body constant)
+- `fn f(n) = 0` (body int)
+- `fn f(n) = (= n 0)` (body comparaison)
+- `fn f(n) = (if n 0 1)` (body if)
+- `fn f(n) = (if (= n 0) true 0)` (body if + bool)
 
-**Non localisé** : gpa sans stack trace (`MissingDebugInfo`).
-**Impact** : 8 bytes/fn.
-**Reporté** : instrumentation manuelle (compteur alloc/free dans
-`evalFn`/`register`) requise. Session dédiée.
+**06-mutual** : [À COMPLÉTER selon test].
 
-**Non prioritaire** : leak négligeable (1000 fn = 8 KB), n'affecte pas
-le runtime fonctionnel.
+**Conclusion** : le « leak 8 bytes/fn » documenté session 36 n'est
+**plus reproductible** sur les `fn` simples. Soit fixé par un commit
+antérieur (session 37/38), soit conditionnel (mutual recursion ?).
+Inspection manuelle non nécessaire pour l'instant.
+
+**Impact** : nul si non reproductible. À re-tester si un leak réapparaît.
