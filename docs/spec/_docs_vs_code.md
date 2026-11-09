@@ -48,6 +48,8 @@
 
 ## Référence audit externe
 
-Une session précédente a produit 28 lignes (11 stale, 8 contradictoires, 6 non appliqués,
-2 à confirmer, 1 exact) via un audit `STATUS.md` + `COMMANDS.md` + `README` vs code.
-Non persisté dans ce repo. À fusionner si nécessaire.
+Voir `_docs_vs_code_audit.md` (28 lignes, preuves `fichier:ligne` + actions).
+Résumé : 11 stale, 8 contradictoires, 6 non appliqués, 2 à confirmer, 1 exact.
+
+**Sessions 33-36 ont tranché 6 de ces claims** (kernel 41 l., canonEqStr
+→ structuralEql, quotients OK, TLS OK, 13 commandes listées, `ai` absent).
