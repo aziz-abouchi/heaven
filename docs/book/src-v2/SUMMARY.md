@@ -52,6 +52,7 @@
 - [Chapitre 28 — `heaven_eval` : un interpréteur en 96 lignes](28-eval.md)
 - [Chapitre 29 — Mémoire : QTT, multiplicités enforced (érasure à venir)](29-memoire.md)
 - [Chapitre 30 — Conclusion : un langage qui tend](30-conclusion.md)
+- [Chapitre 31 — SICP, quarante ans plus tard](31-sicp.md)
 
 ## Annexes
 
