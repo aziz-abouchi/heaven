@@ -12,6 +12,7 @@
 > - LYSE : https://learnyousomeerlang.com/content
 > - PLFA : https://plfa.github.io
 > - Idris2 : https://idris2.readthedocs.io/en/latest/tutorial
+> - SICP : https://mitpress.mit.edu/sites/default/files/sicp/full-text/book/book.html
 >
 > **Public** : littéraires, philosophes, mathématiciens, curieux.
 > Pas un manuel de référence — un voyage.

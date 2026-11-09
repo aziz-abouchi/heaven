@@ -1,8 +1,9 @@
 # Learn You Some Heaven for Great Good
 
 Tutoriel progressif pour Heaven, inspiré de
-[Learn You a Haskell](https://learnyouahaskell.github.io) et
-[Learn You Some Erlang](https://learnyousomeerlang.com).
+[Learn You a Haskell](https://learnyouahaskell.github.io),
+[Learn You Some Erlang](https://learnyousomeerlang.com) et
+[Structure and Interpretation of Computer Programs](https://mitpress.mit.edu/sites/default/files/sicp/full-text/book/book.html).
 
 ## Table des matières
 
