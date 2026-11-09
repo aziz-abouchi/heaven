@@ -21,7 +21,9 @@ par message) + `while (true)` présent.
 
 Régression testée dans `tests/test_actor_multi_msg.hvn`.
 
-## 3. Thunks top-level — bug confirmé 2026-11-05
+## 3. Thunks top-level — ✅ RÉSOLU 2026-11-05 (commit `9a301c7`)
+
+**Vérifié 2026-11-09** : `xyz = 3; test "t": xyz == 3` → `2/2` (le clause 0-pattern est évaluée dans `case .sym`). Marche.
 
     xyz = 3
     test "xyz_simple": xyz == 3   -- ECHOUE : `xyz != 3`

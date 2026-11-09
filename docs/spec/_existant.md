@@ -37,6 +37,8 @@ Limitation : message brut (`error.LinearViolation`) au lieu de pédagogique.
 
 ## `heaven check` (tree-sitter) — INCOMPLET
 
+**Vérifié 2026-11-09** : `valid.hvn` → rc=0 silencieux, `invalid.hvn` (`@@@`) → rc=1 + `syntax error in source`. **S2 confirmé** (détecte les erreurs). S3 (CI) : `tests/hvn-check/` couvre 3 cas. S4 (runtime) : partiel (pas d'unification complète).
+
 **48 flags sur 148 tests `.hvn` = faux positifs.** Cause : `grammar.js` ne
 couvre pas la syntaxe que `expr_parser.zig` accepte.
 
@@ -574,3 +576,11 @@ récursive du parser). PAS un fix chirurgical.
 - `[1,2,3]` top-level : UnboundVariable (array literal)
 - `(cons 1 ...)` top-level : UnboundVariable
 - Contournement : type local `L = LNil | LCons Int L`
+
+## Chiffres figés au 2026-11-09
+
+- **176 fichiers `.hvn`** scannés par `test_all_hvn.py`
+- **1467 assertions** (somme des `Total: n/n` par fichier)
+- **4 fichiers skipped** (dont `test_selfparse.hvn` partiel, `test_parser.hvn.skip`, `test_selfparse.hvn.skip`)
+
+**`STATUS.md` (1446) est stale** de ~21 tests — mis à jour via `status.json` session 35.
