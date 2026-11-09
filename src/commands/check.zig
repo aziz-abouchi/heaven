@@ -7,6 +7,7 @@ const Scope = @import("../compiler/scope.zig").Scope;
 const DiagnosticList = @import("../compiler/diagnostics.zig").DiagnosticList;
 const Bridge = @import("../compiler/ast_bridge.zig").Bridge;
 const Typer = @import("../compiler/typer.zig").Typer;
+const scope_check = @import("../core/scope_check.zig");
 
 pub fn runCheck(allocator: std.mem.Allocator, file_path: []const u8) !void {
     const source = platform.fs.cwd().readFileAlloc(allocator, file_path, 10 * 1024 * 1024) catch {
@@ -44,7 +45,10 @@ pub fn runCheck(allocator: std.mem.Allocator, file_path: []const u8) !void {
     defer typer.deinit();
     typer.checkAll();
 
-    if (diags.items.items.len > 0) {
+    // v2 : détection des variables non définies (walk store).
+    const unbound = scope_check.checkUnbound(allocator, &store, file_path);
+
+    if (diags.items.items.len > 0 or unbound > 0) {
         diags.print(file_path);
         return error.HasDiagnostics;
     }
