@@ -1,6 +1,6 @@
 # Check v2 — détection des variables non définies (plan)
 
-**Statut** : design en cours, non implémenté.
+**Statut** : fondation en place (commit `7430b15`), walker à implémenter.
 **Priorité** : moyenne (silence sur `x = y + 1` avec `y` non défini).
 **Tentative v0.1** : reverted (walk store naïf produit 20+ faux positifs).
 
@@ -11,6 +11,34 @@
     x = y + 1       -- y unbound
     f n = m + 1     -- m unbound (non signalé)
     f x = y + 1     -- y unbound (non signalé)
+
+## Fondation en place (commit `7430b15`)
+
+Préparation du walker réalisée :
+
+- `ast_bridge.zig` : champ `roots: ArrayListUnmanaged(Id)` accumulé
+  dans `buildFile`, `deinitRoots()`, fallback `buildTopLevel` retourne
+  `NULL` au lieu de `sym(ntype)` (fin des faux positifs `import_decl`,
+  `eq_decl`).
+- `check.zig` : `defer bridge.deinitRoots()` **avant** `try buildFile`
+  (ordre correct, pas de fuite sur error path).
+- `lsp/handler.zig` : `deinitRoots` aux 2 callers (Bridge.init × 2).
+
+Non-régression : `scheduler.hvn` — 0 leak (avant : 20+). Registry
+24/24. Le comportement de `check` reste inchangé sur les 6 cas unbound
+— le walker lui-même reste à écrire.
+
+## Reste à faire (Session 43)
+
+1. **Valider `roots.len()`** par fichier de test (avant tout code) :
+   si `roots.len() == 0` sur `x = y + 1`, Bridge.buildFile ne
+   remplit pas comme prévu → stop.
+2. **Walker `unbound_check.zig`** : input `roots`, `store`, `file_path`.
+   Walk récursif par tag. Distinction `.sym` référence vs définition
+   via position dans l'arbre.
+3. **Non-régression bloquante** : les 5 fichiers qui produisaient des
+   faux positifs (`os/scheduler`, `std/result`, `test_data`,
+   `test_stream`, `features_smoke`) doivent rester à `unbound=0`.
 
 ## Tentative v0.1 (reverted)
 
