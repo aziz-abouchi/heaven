@@ -183,7 +183,7 @@ Détail complet : `docs/spec/_runtime_gaps.md` (25 sections).
       let clean_path = (strip_query p) in
       let path0 = (if (clean_path == "/") "index.html" clean_path) in
       let path_raw = (strip_slash path0) in              -- ❌ déclenche
-      let path = (if (== path_raw "") "index.html" path_raw) in
+      let path = (if (path_raw == "") "index.html" path_raw) in
       ...
 
     -- Le serveur meurt dès la 1ère requête statique avec :

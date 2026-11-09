@@ -7,4 +7,9 @@ Chantier en cours (STATUS item 8).
 - `grammar.ebnf` — EBNF pure (Phase 2, à venir).
 - `errors.md` — catalogue des erreurs (Phase 2, à venir).
 
+- `_style_infix.md` — politique infixe par defaut (operateurs).
+- `_h1_qualified_sym.md` — Sym qualifie (module.Sym), comparaison.
+- `_if_qualified_bug.md` — noms qualifies dans les branches d'un if
+  (corrige 2026-11-09, commit 55430bf).
+
 Methodologie : voir `_audit.md`, section « TODO Phase 2 ».

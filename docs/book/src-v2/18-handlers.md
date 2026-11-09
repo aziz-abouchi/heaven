@@ -110,7 +110,7 @@ Le multi-handler sur même tag est un outil, pas un défaut.
 ```heaven
 (handle_rec
   (lambda s -> (if (< s 0) (perform "fail" "negatif") s))
-  (lambda v k -> (if (== v "negatif") v (k v)))
+  (lambda v k -> (if (v == "negatif") v (k v)))
   -5)
 # => "negatif"
 ```
@@ -191,7 +191,7 @@ Implémentez un effet `fail` polymorphe. Le handler rend `"negatif"` si
 ```heaven
 (handle_rec
   (lambda s -> (if (< s 0) (perform "fail" "negatif") s))
-  (lambda v k -> (if (== v "negatif") v (k v)))
+  (lambda v k -> (if (v == "negatif") v (k v)))
   -5)
 # => "negatif"
 ```

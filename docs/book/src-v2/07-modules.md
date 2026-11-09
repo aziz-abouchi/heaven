@@ -59,6 +59,25 @@ locuteur**, que le même mot peut avoir plusieurs usages selon le
 contexte. Heaven applique cette idée : `foo` et `M.foo` désignent
 la **même** fonction, mais avec deux degrés de précision.
 
+## 2.5 — Noms qualifiés : un atome comme un autre
+
+Quand on écrit `import "lib/std/result.hvn" as R`, le préfixe `R.` devient
+un qualificateur. En Heaven, `R.Ok` est **un seul token** — pas un `R`
+suivi d'un point suivi d'un `Ok`. C'est important pour la suite :
+
+- `R.Ok 1` se lit comme l'application de `R.Ok` à `1` — exactement comme `f 1` ;
+- `(R.Ok 1)` est un atome parenthésé — utilisable partout où un atome l'est ;
+- **dans un `if … then … else …`, une branche peut être un nom qualifié** :
+
+    find n = if (n == 0) then (R.Ok 1) else (R.Err "no")
+
+Avant la version courante, un bug du lexer faisait que tout `if` contenant
+un nom qualifié dans une branche corrompait silencieusement les **deux**
+branches — y compris la branche littérale. Corrigé (commit `55430bf`,
+voir `docs/spec/_if_qualified_bug.md`).
+
+![Pourquoi un R.Ok dans une branche if faisait échouer les deux branches](images/07-qualified-atom.svg)
+
 ## 3. Importer un fichier
 
 ![Deux manières d'appeler la même fonction](images/10-namespace.svg)

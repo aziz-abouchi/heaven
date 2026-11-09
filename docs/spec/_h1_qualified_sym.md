@@ -47,3 +47,14 @@ Effort : 1 session.
 
 N1 **RÉSOLU** (commit). N2 : 1 session. Le vrai bug bloquant
 (ADT importées) est à moitié fixé.
+
+## Voir aussi : noms qualifies dans les branches d'un if (2026-11-09)
+
+Bug distinct, corrige (commit `55430bf`) : le lexer de
+`nativeToSExpr` ne reconnaissait pas `.` dans `Module.membre`, ce
+qui corrompait les DEUX branches de tout `if` infixe contenant un
+nom qualifie. Voir `_if_qualified_bug.md`.
+
+Ce bug affectait l'*analyse lexicale* des noms qualifies. Le bug H1
+ci-dessus affecte la *comparaison structurelle* des Symboles deja
+lexes. Les deux sont independants.
