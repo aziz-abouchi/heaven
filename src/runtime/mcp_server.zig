@@ -312,7 +312,7 @@ pub const McpServer = struct {
                 }
 
                 // 2. Ni kernel, ni ==  → erreur explicite (plus de faux positif)
-                break :blk "{\"proved\":false,\"error\":\"statement must be 'prove name by { ... }' or an equality 'a == b'\"}";
+                break :blk try self.allocator.dupe(u8, "{\"proved\":false,\"error\":\"statement must be 'prove name by { ... }' or an equality 'a == b'\"}");
             } else {
                 break :blk try std.fmt.allocPrint(self.allocator, "error: unknown tool '{s}'", .{name});
             }
