@@ -1474,3 +1474,27 @@ le backend WASM. 1 prog sur 7.
 
 **5/7 en WASM, 7/7 interp+QBE.** Le faux diagnostic « WASM cassé » (sessions
 34-39) était dû à `wasmtime file.wat` (sans `--invoke main`).
+
+## Array literal `[1,2,3]` — syntaxe absente (2026-11-09, session 40)
+
+**Diagnostic** : `[1,2,3]` n'est **traité nulle part** dans le runtime parser.
+- `heaven_expr.zig` : aucune occurrence de `[`
+- `expr_parser.zig` : aucune occurrence de `case '['`
+- `engine_expr.zig` : `tuple` magic existe, rien pour `[...]`
+
+**Conséquence** :
+- `[1,2,3] == [1,2,3]` → **faux positif** (deux erreurs internes égales)
+- `print [1,2,3]` → `UnboundVariable` (correct)
+- `(head [1,2,3])` → tree-sitter garbage `(tuple head 1 2 3)` (bug grammar)
+
+**Ce n'est pas un bug du runtime, c'est une syntaxe absente.**
+
+**Pour une liste** : `(cons 1 (cons 2 (cons 3 nil)))`.
+**Pour un tuple** : `(tuple 1 2 3)`.
+
+**Si on veut la syntaxe** : ajouter `case '['` dans `parsePrimary` de
+`expr_parser.zig` (~30-45 min). Non prioritaire : les listes Peano existent,
+les tuples existent, `[Int]` en type fonctionne.
+
+**Impact sur `Channel a`** : `Channel a` générique reste bloqué (pas de
+listes paramétrées en syntaxe), mais `Channel` Int-only (14/14) fonctionne.
