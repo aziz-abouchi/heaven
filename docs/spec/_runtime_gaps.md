@@ -1392,7 +1392,22 @@ l'allocation. 1 session dédiée. Non prioritaire.
 
 **Workaround** : aucun nécessaire (leak mineur, pas de crash).
 
-## QTT érasure runtime — RÉSOLU (2026-11-09, session 37)
+## QTT érasure runtime — PARTIEL (2026-11-09, audit)
+
+**Couvert** : forme S-expression `(let erased x = v in b)` via
+`expr_parser.zig:774`. La valeur est parsée (syntaxe vérifiée), puis le
+bind est skippé → jamais évaluée. Test `tests/qtt/erased_runtime.hvn` (4/4).
+
+**NON couvert** :
+- **REPL `let erased x = v in b`** passe par `defs.zig:504-546`, qui évalue
+  la valeur (bug séparé, à aligner).
+- **Multiplicités sur `fn` et paramètres** : non traitées.
+- **Type-check de la valeur effacée** : `parseExpression` est syntaxique,
+  pas typé. Un terme bien formé mais non typable passe quand même.
+
+**Fix `6534b58` corrigé** : `return b` avant parse laissait passer des
+termes malformés. Maintenant `parseExpression(qtt_val)` est appelé avant
+la décision.
 
 **Avant** : `let erased x = v in b` liait `x` à `v` (`bindSymWithBody`).
 `v` était évalué au runtime même si `x` jamais utilisé → pas d'érasure.
@@ -1408,3 +1423,12 @@ l'allocation. 1 session dédiée. Non prioritaire.
 - Multiplicités sur `fn` et paramètres : non traitées (session 38+)
 
 **Suite diff** : 7/7 OK après fix (pas de régression).
+
+## `11-color` skip (2026-11-09, session 38)
+
+`tests/diff/11-color.hvn.skip` : interp affiche `Green` (nom du ctor),
+QBE affiche `1` (tag numérique). Même valeur, **représentation différente**.
+Même catégorie que `08-pair` / `09-string` / `10-closure` (limitations interp
+vs QBE, pas bugs).
+
+Le test QBE seul confirme la valeur : `data Color = Red | Green` + `Green` → `1`.

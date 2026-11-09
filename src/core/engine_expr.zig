@@ -123,6 +123,7 @@ pub const FunctionDef = struct {
     clauses: [32]FunctionClause,
     num_clauses: u8,
     ctor_arity: ?u8 = null, // null = fonction, sinon constructeur d'arité N
+    ctor_tag: ?u8 = null,   // position dans le data (0, 1, 2, ...) — 2026-11-09
 
     pub fn addClause(self: *FunctionDef, patterns: []const Id, body: Id) void {
         if (self.num_clauses >= 32) return;

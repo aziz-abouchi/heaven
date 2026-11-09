@@ -935,6 +935,8 @@ pub const MirFunction = struct {
                 // (fix 2026-11-09 — true/false étaient chargés comme
                 // variables non initialisées → 0)
                 const name = store.interner.resolve(sym);
+                // true/false AVANT le lookup général : ils ont un ctor_tag
+                // de bootstrap (0/1 inversés) qu'il ne faut pas utiliser.
                 if (std.mem.eql(u8, name, "true") or std.mem.eql(u8, name, "True")) {
                     const dest = self.newReg();
                     try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = 1 } });
@@ -944,6 +946,21 @@ pub const MirFunction = struct {
                     const dest = self.newReg();
                     try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = 0 } });
                     return dest;
+                }
+                // Ctors 0-arity user (Red, Green, ...) : tag général = position
+                // dans le `data` d'origine (2026-11-09).
+                if (self.engine) |eng| {
+                    if (eng.fns.get(name)) |fd| {
+                        if (fd.ctor_arity) |arity| {
+                            if (arity == 0) {
+                                if (fd.ctor_tag) |tag| {
+                                    const dest = self.newReg();
+                                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = @intCast(tag) } });
+                                    return dest;
+                                }
+                            }
+                        }
+                    }
                 }
                 if (locals.get(sym)) |reg| {
                     return reg;
