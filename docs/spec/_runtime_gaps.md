@@ -1432,3 +1432,15 @@ Même catégorie que `08-pair` / `09-string` / `10-closure` (limitations interp
 vs QBE, pas bugs).
 
 Le test QBE seul confirme la valeur : `data Color = Red | Green` + `Green` → `1`.
+
+## Leak `fn` — diagnostic borné (2026-11-09, session 39)
+
+Tests comportementaux : [résultats A1]. Pattern : [ce qui leak].
+
+**Non localisé** : gpa sans stack trace (`MissingDebugInfo`).
+**Impact** : 8 bytes/fn.
+**Reporté** : instrumentation manuelle (compteur alloc/free dans
+`evalFn`/`register`) requise. Session dédiée.
+
+**Non prioritaire** : leak négligeable (1000 fn = 8 KB), n'affecte pas
+le runtime fonctionnel.
