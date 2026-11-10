@@ -77,3 +77,32 @@ registry_find_by_name name =
   else (R.Err "not found")
 
 registry_has name = (R.result_is_ok (registry_find_by_name name))
+
+-- ── Sérialisation JSON (Session 46, pour MCP tools/list) ──
+-- Le registre est la source de vérité. Cette section produit
+-- {"tools":[{...},...]} consommable directement par un serveur MCP.
+-- Voir docs/spec/_registry_autoritaire_plan.md (à venir).
+
+q _ = @char_string 34
+qstr s = (q 0) + s + (q 0)
+n2s n = int_to_string n
+
+tool_to_json (Tool n d p e k) =
+  "{" + qstr "name" + ":" + qstr n + "," +
+        qstr "description" + ":" + qstr d + "," +
+        qstr "kind" + ":" + n2s k + "," +
+        qstr "inputSchema" + ":{" + qstr "type" + ":" + qstr "object" + "}" +
+  "}"
+
+is_empty_list TLNil = true
+is_empty_list _ = false
+
+tool_list_json TLNil = ""
+tool_list_json (TLCons t rest) =
+  (tool_to_json t) +
+  (if (is_empty_list rest) then "" else ",") +
+  (tool_list_json rest)
+
+-- Point d'entrée : "{"tools":[tool0,...,tool15]}"
+registry_to_json _ = "{" + qstr "tools" + ":[" + (tool_list_json (registry_builtin 0)) + "]}"
+
