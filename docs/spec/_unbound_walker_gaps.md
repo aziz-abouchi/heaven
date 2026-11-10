@@ -95,15 +95,61 @@ Activation par défaut quand **les 3 conditions** sont réunies :
 2. Cascade post-`data` disparaît (`scheduler.hvn` → 0 unbound)
 3. Taux de faux positifs mesuré sur `lib/` < 5 %
 
-## Prochains chantiers (par priorité)
+## Session 46 — tentative fix grammaire `data X a = …` (partiel)
 
-### Court terme — Session 46+
+Commit `054bb5b` : ajout de `repeat(field("tparam", $.identifier))`
+dans `data_decl`, régénération du parser via `tree-sitter generate`.
 
-1. **Grammaire tree-sitter `data X a = ...`** — 1-2h, dépendance
-   externe (`vendor/tree-sitter-heaven/grammar.js`). Débloque la
-   cascade sur `test_stream.hvn`, `scheduler.hvn`, plusieurs `lib/`.
-2. **Clauses multi-lignes** — si la grammaire ne les gère pas,
-   cascade résiduelle. Diagnostic à faire après (1).
+**Effet mesuré** :
+
+| Cas | Avant | Après |
+|---|---|---|
+| `parse data Stream a = …` | `ERROR [1:12-1:13]` | ✓ pas d'ERROR |
+| `parse data Color = …, Maybe<a> = …` | ✓ | ✓ |
+| `scheduler.hvn` unbound | 12 | **12** (inchangé) |
+| `test_stream.hvn` unbound | 2 | **2** (inchangé) |
+| `lib/` total unbound | 269 | **266** (−3) |
+
+**Constat important** : `data Stream a = …` parse maintenant
+correctement, ce qui débloque les fichiers qui l'utilisent
+(`tests/test_data.hvn`, `tests/test_stream.hvn` partiellement,
+`tests/verify_book.hvn`). Mais `scheduler.hvn` continue à échouer
+pour une **autre raison** (voir ci-dessous).
+
+**Limite contextuelle identifiée** : les tranches isolées de
+`scheduler.hvn` passent toutes (2-20 lignes), mais le fichier
+complet (60 lignes) échoue :
+
+    ERROR [7:23-10:22] `Int ... task_id (Mk`
+    ERROR [22:19-25:18] `0 ... -- pseudo_random_task`
+    ERROR [27:14-27:18] `% 10`
+
+Reproduction en tranches (2, 3, 4, 5, 20 lignes) : toutes passent.
+Le contexte exact qui casse n'est pas isolable en < 20 lignes.
+Causes possibles : cumul de déclarations, ordre, longueur de ligne,
+combinaison `data` + `if` + `%` + multi-clause `pick_task`.
+
+**Conclusion** : la grammaire tree-sitter est un puits pour cette
+session. Chaque fix résout un cas et en révèle un autre. Le
+différenciateur walker reste **opt-in** sur fichiers propres. La
+couverture complète de `lib/` demande plusieurs sessions.
+
+## Prochains chantiers (révisés)
+
+**Décision Session 46** : arrêt des patches grammaire. Le walker
+reste opt-in. Pivot vers les tools MCP cassés (`heaven_theorems`,
+`inputSchema`).
+
+### Moyen terme
+
+1. **`heaven_theorems`** (30 min, tool cassé) — retourne le
+   littéral `"theorems"` au lieu de la liste. Priorité Session 46b.
+2. **`inputSchema` enrichi** (1h) — properties/required dans le
+   registre. Améliore le contrat MCP côté client LLM.
+3. **`heaven_integrate` / `heaven_solve`** (session chacun) —
+   algèbre symbolique, résultats faux documentés.
+4. **Grammaire tree-sitter** (plusieurs sessions, basse priorité) —
+   couverture complète de `lib/`, cas contextuels.
 
 ### Moyen terme — Session 47+
 
