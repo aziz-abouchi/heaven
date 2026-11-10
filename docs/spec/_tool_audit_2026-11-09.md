@@ -21,7 +21,7 @@ suspect, 5 invisibles via `heaven mcp`, 1 non testé.
 | `heaven_simplify` | `x` | **stable** |
 | `heaven_prove` | `{"proved":true/false,"method":"kernel"}` ou `{"method":"semantic"}` | **stable** (kernel réactivé `805cdbe`, 2026-11-10 : `prove NAME by { tactics }` + fallback `a == b`. Cf. `_heaven_prove_kernel_bug.md`) |
 | `mlcpd_parse` | `{"nodes":0,"language":"unknown"}` | **stable** (mais `language:unknown` sur `{}` à investiguer) |
-| `heaven_theorems` | `"theorems"` (littéral) | **suspect** (retourne le mot-clé, pas la liste des axiomes) |
+| `heaven_theorems` | `"═══ Axioms ═══ / ═══ Theorems ═══"` | **stable** (correctif `08c864f` : `formatAll` au lieu du littéral) |
 | `heaven_integrate` | `x^2 → (* x^2 x) + C` | **faux** (cf. `_integrate_bug.md`) |
 | `heaven_solve` | `x+1=0 → "tout x (identite)"` | **faux** (non documenté avant cet audit) |
 | `heaven_expand` | debug `simplifyMath: …` sur stdout, pas de JSON-RPC | **cassé** (fuite de debug + protocole rompu) |
@@ -50,7 +50,7 @@ sont livrés :
 |---|---|---|
 | Stables et exposés | 6 | **11** (6 + 5 Heaven) |
 | Expérimentaux | 2 | 2 (`heaven_integrate`, `heaven_solve`) |
-| Suspects | 1 | 1 (`heaven_theorems`) |
+| Suspects | 1 | 0 (`heaven_theorems` fixé `08c864f`) |
 | Désactivés | 2 | 2 (`egraph_query`, `heaven_expand`) |
 | Invisibles via `heaven mcp` | 5 | **0** |
 | Non testé | 1 | 0 (`mlcpd_equiv` a été testé en B2/B3 via les tests
@@ -66,8 +66,8 @@ KO propre) — time_ms par symétrie.
 Limitations restantes :
 - `inputSchema` simplifié (`{"type":"object"}` sans
   properties/required) — cf. B2.
-- `heaven_integrate`, `heaven_solve`, `heaven_theorems` restent
-  marqués EXPÉRIMENTAL/SUSPECT.
+- `heaven_integrate`, `heaven_solve` restent marqués EXPÉRIMENTAL.
+  `heaven_theorems` est fixé (`08c864f`).
 - `egraph_query`, `heaven_expand` restent désactivés.
 
 ## Découvertes majeures
@@ -125,7 +125,7 @@ Trois options (à décider) :
 - Fix `egraph_query` : tracer la libération de chaîne (session dédiée).
 - Fix `heaven_expand` : retirer le debug + vérifier la sortie.
 - Fix `heaven_solve` : algèbre d'équations (session dédiée).
-- Fix `heaven_theorems` : retourne `"theorems"` — vérifier si c'est
+- Fix `heaven_theorems` : **résolu** `08c864f` (`formatAll`).
   un eval littéral ou un vrai listing.
 - Investiguer `mlcpd_parse language:unknown` sur `{}`.
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 580" font-family="monospace" font-size="13">
-  <text x="450" y="28" text-anchor="middle" font-size="17" font-weight="bold">16 outils déclarés → 16 exposés → 11 fiables</text>
+  <text x="450" y="28" text-anchor="middle" font-size="17" font-weight="bold">16 outils déclarés → 16 exposés → 12 fiables</text>
   <text x="450" y="50" text-anchor="middle" font-size="12" fill="#666">Audit 2026-11-09 · mis à jour B2/B3 (2026-11-10)</text>
 
   <text x="30" y="85" font-size="11" fill="#333">Déclaré au registre</text>
@@ -8,7 +8,7 @@
   <text x="200" y="85" font-size="11" fill="#333">Exposé par heaven mcp</text>
   <text x="200" y="102" font-size="14" font-weight="bold">16</text>
   <text x="420" y="85" font-size="11" fill="#333">Utilisable avec confiance</text>
-  <text x="420" y="102" font-size="14" font-weight="bold">11</text>
+  <text x="420" y="102" font-size="14" font-weight="bold">12</text>
   <text x="660" y="95" font-size="11" fill="#666" font-style="italic">Registre et serveur alignés depuis B2/B3.</text>
 
   <rect x="30" y="130" width="200" height="70" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="2"/>
@@ -43,9 +43,9 @@
   <text x="775" y="245" text-anchor="middle" font-weight="bold">heaven_solve</text>
   <text x="775" y="263" text-anchor="middle" font-size="11" fill="#a04000">expérimental</text>
 
-  <rect x="30" y="300" width="200" height="70" rx="6" fill="#fef9e7" stroke="#f1c40f" stroke-width="2"/>
+  <rect x="30" y="300" width="200" height="70" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="2"/>
   <text x="130" y="330" text-anchor="middle" font-weight="bold">heaven_theorems</text>
-  <text x="130" y="348" text-anchor="middle" font-size="11" fill="#7d6608">suspect</text>
+  <text x="130" y="348" text-anchor="middle" font-size="11" fill="#666">stable</text>
 
   <rect x="245" y="300" width="200" height="70" rx="6" fill="#fadbd8" stroke="#c0392b" stroke-width="2"/>
   <text x="345" y="330" text-anchor="middle" font-weight="bold">egraph_query</text>
@@ -78,11 +78,11 @@
   <line x1="30" y1="475" x2="870" y2="475" stroke="#ccc" stroke-width="1"/>
   <text x="30" y="500" font-size="11" font-weight="bold">Légende :</text>
   <rect x="110" y="488" width="15" height="15" fill="#eafaf1" stroke="#27ae60" stroke-width="2"/>
-  <text x="130" y="500" font-size="11">stable (11)</text>
+  <text x="130" y="500" font-size="11">stable (12)</text>
   <rect x="240" y="488" width="15" height="15" fill="#fef5e7" stroke="#e67e22" stroke-width="2"/>
   <text x="260" y="500" font-size="11">expérimental (2)</text>
   <rect x="400" y="488" width="15" height="15" fill="#fef9e7" stroke="#f1c40f" stroke-width="2"/>
-  <text x="420" y="500" font-size="11">suspect (1)</text>
+  <text x="420" y="500" font-size="11">suspect (0)</text>
   <rect x="510" y="488" width="15" height="15" fill="#fadbd8" stroke="#c0392b" stroke-width="2"/>
   <text x="530" y="500" font-size="11">désactivé (2)</text>
 

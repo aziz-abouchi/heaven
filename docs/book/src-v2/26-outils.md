@@ -86,13 +86,12 @@ et `tests/test_mcp_tools.hvn` (tools individuels).
 > `count_chars`, `time_now`, `time_ms`) sont intégrés au serveur
 > via `TT.run_tool`. La table ci-dessous reflète l'état réel.
 
-![16 outils déclarés, 16 exposés, 11 fiables](images/26-tool-status.svg)
+![16 outils déclarés, 16 exposés, 12 fiables](images/26-tool-status.svg)
 
 | Catégorie | Nombre | Outils |
 |---|---|---|
-| **Stable** (résultat correct) | 11 | `heaven_eval`, `heaven_derive`, `heaven_simplify`, `heaven_prove` (kernel + sémantique), `mlcpd_parse`, `mlcpd_equiv`, `echo`, `time_now`, `time_ms`, `fs_read`, `count_chars` |
+| **Stable** (résultat correct) | 12 | `heaven_eval`, `heaven_derive`, `heaven_simplify`, `heaven_prove` (kernel + sémantique), `mlcpd_parse`, `mlcpd_equiv`, `echo`, `time_now`, `time_ms`, `fs_read`, `count_chars`, `heaven_theorems` |
 | **Expérimental** (résultat faux) | 2 | `heaven_integrate`, `heaven_solve` |
-| **Suspect** (résultat trivial) | 1 | `heaven_theorems` |
 | **Désactivé** (`3f878fc`) | 2 | `egraph_query` (panic), `heaven_expand` (rupture JSON-RPC) |
 | **Invisible** via `heaven mcp` | **0** | — (les 5 Heaven intégrés par `8113a49` / `8686629`) |
 
