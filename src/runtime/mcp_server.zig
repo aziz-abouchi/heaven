@@ -52,6 +52,10 @@ pub const McpServer = struct {
     allocator: Allocator,
     heaven: ?*heaven_expr_mod.Heaven,
     tools: []const McpTool,
+    /// Cache de la sérialisation JSON du registre 16 tools
+    /// (`lib/tool_registry.hvn`). Rempli au premier `tools/list`
+    /// (700ms), réutilisé ensuite. Libéré dans `deinit`. Session 46.
+    registry_json_cache: ?[]u8 = null,
 
     pub fn init(allocator: Allocator) McpServer {
         return .{
@@ -64,12 +68,26 @@ pub const McpServer = struct {
     pub fn ensureHeaven(self: *McpServer) void {
         if (self.heaven == null) {
             self.heaven = heaven_expr_mod.Heaven.init(self.allocator) catch @panic("Failed to init Heaven");
+            // Charger le registre une fois (Session 46, B2). Si l'import
+            // échoue (ex. `heaven mcp` lancé hors racine), on log et on
+            // continue : `tools/list` tombera sur la liste vide, ce qui
+            // est préférable à un crash du serveur.
+            const h = self.heaven.?;
+            if (h.eval("import \"lib/tool_registry.hvn\" as TR")) |res| {
+                self.allocator.free(res);
+            } else |_| {
+                platform.debug.print("[mcp] warning: import tool_registry failed\n", .{});
+            }
         }
     }
 
     /// Libère l'état Heaven (store, e-graph, interner).
     /// Sans ceci, le GPA de main rapporte des milliers de leaks au shutdown.
     pub fn deinit(self: *McpServer) void {
+        if (self.registry_json_cache) |c| {
+            self.allocator.free(c);
+            self.registry_json_cache = null;
+        }
         if (self.heaven) |h| {
             h.deinit();
             self.allocator.destroy(h);
@@ -166,21 +184,32 @@ pub const McpServer = struct {
         return std.fmt.allocPrint(self.allocator, "{{\"jsonrpc\":\"2.0\",\"result\":{s},\"id\":null}}", .{result_json});
     }
 
-    fn formatToolsList(self: *McpServer, id: ?std.json.Value) ![]const u8 {
-        var buf = std.ArrayListUnmanaged(u8){};
-        defer buf.deinit(self.allocator);
-        const w = buf.writer(self.allocator);
-
-        try w.writeAll("{\"tools\":[");
-        for (self.tools, 0..) |tool, i| {
-            if (i > 0) try w.writeAll(",");
-            try w.print("{{\"name\":\"{s}\",\"description\":\"{s}\",\"inputSchema\":{s}}}", .{
-                tool.name, tool.description, tool.input_schema,
-            });
+    /// Charge (ou récupère du cache) le JSON du registre 16 tools.
+    /// `heaven.eval("(TR.registry_to_json 0)")` retourne la string quotée
+    /// `"{"tools":[...]}"` — on strippe les quotes externes. Les quotes
+    /// internes sont bruts (pas échappés) et sont corrects pour JSON.
+    fn loadRegistryJson(self: *McpServer) ![]const u8 {
+        if (self.registry_json_cache) |c| return c;
+        var h = self.heaven.?;
+        const raw = h.eval("(TR.registry_to_json 0)") catch {
+            const empty = try self.allocator.dupe(u8, "{\"tools\":[]}");
+            self.registry_json_cache = empty;
+            return empty;
+        };
+        defer self.allocator.free(raw);
+        var body = raw;
+        if (body.len >= 2 and body[0] == '"' and body[body.len - 1] == '"') {
+            body = body[1 .. body.len - 1];
         }
-        try w.writeAll("]}");
+        const owned = try self.allocator.dupe(u8, body);
+        self.registry_json_cache = owned;
+        return owned;
+    }
 
-        return self.formatResponse(id, buf.items);
+    fn formatToolsList(self: *McpServer, id: ?std.json.Value) ![]const u8 {
+        self.ensureHeaven();
+        const json = try self.loadRegistryJson();
+        return self.formatResponse(id, json);
     }
 
     fn callTool(self: *McpServer, id: ?std.json.Value, name: []const u8, args: ?std.json.Value) ![]const u8 {
