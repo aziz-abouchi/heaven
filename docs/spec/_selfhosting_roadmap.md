@@ -409,3 +409,88 @@ doivent être alignés à la session 49 :
 - Le bloc « Bootstrap » (B4 fixpoint) doit être positionné
   cohéremment (fin de Phase B, pas #10).
 
+
+---
+
+## Notes Session 49 (2026-11-11) — B0 contrat, B3 preuves, vision
+
+### B0 — contrat, pas commande
+
+B0 n'est pas une commande de debug. C'est le contrat expérimental
+entre les deux implémentations (Zig de référence et Heaven).
+
+Trois exigences :
+
+1. **Déterminisme** — même programme, même représentation,
+   indépendamment des IDs de hash-consing.
+2. **Complétude sémantique** — ne pas supprimer silencieusement
+   les informations dont B1 et B3 auront besoin : liaisons,
+   types, ordre d'application, fermetures lexicales, constructeurs,
+   infos de codegen.
+3. **Comparabilité** — pouvoir comparer deux représentations
+   structurellement, sans dépendre de détails accidentels de
+   sérialisation.
+
+Séparation :
+
+| Notion | Rôle |
+|---|---|
+| S-expr canonique | protocole stable, minimal, entre les 2 impl |
+| Dump diagnostic | outil de debug, enrichi (spans, IDs), non normatif |
+
+Découpage :
+
+- **B0.1** — S-expr canonique : `heaven parse --dump-sexpr`.
+  Déterministe, comparable. ~45 min.
+- **B0.2** — Audit de complétude sémantique : checklist
+  (bindings, types, ordre, closures, constructors, codegen).
+  ~30 min. **Bloquant pour B3.**
+- **B0.3** — Dump diagnostic (spans, IDs) : outil de debug,
+  non normatif. ~30 min.
+
+Critère de fermeture B0 : B0.1 + B0.2 + B0.3 verts sur les 7
+`tests/diff/*.hvn`, 3 `lib/` (scheduler, mcp/tools,
+heaven_parse), et `lib/heaven_parse.hvn` lui-même.
+
+**B0 est la première tâche de Session 49.** Aucun B1b.2 en
+parallèle, aucun B3 avant B0.2 vert.
+
+### B3 — trois preuves, pas une
+
+B3 n'est pas un seul jalon. Trois preuves progressives :
+
+| Preuve | Résultat attendu | Ce que ça ne valide pas |
+|---|---|---|
+| B3.1 | Heaven lit et reconstruit correctement le Core Zig | rien de plus |
+| B3.2 | Heaven produit un MIR équivalent (structurellement) | la génération de code |
+| B3.3 | Heaven produit un QBE équivalent au backend Zig | self-hosting complet |
+
+**B3.3 ne signifie pas self-hosting complet.** Le frontend reste
+Zig. C'est la preuve de capacité de compilation, pas l'autonomie.
+
+Critère d'équivalence : équivalence fonctionnelle sur la suite
+différentielle, **pas byte-for-byte** au premier run. Tant que
+les noms temporaires, l'ordre des blocs et les conventions de
+génération ne sont pas stabilisés, exiger byte-for-byte bloque
+inutilement. Byte-for-byte devient un critère de B4 (fixpoint),
+pas de B3.3.
+
+### Vision — capacités de preuve pour le compilateur
+
+À terme, Heaven pourrait utiliser ses capacités de preuve
+(QTT, EGraph, transformations avec préservation sémantique) pour
+vérifier certaines optimisations du compilateur.
+
+**C'est une direction architecturale, pas une dépendance.**
+Ne pas l'introduire comme critère de sortie de B3. Ne pas la
+transformer en nouvelle tâche de la roadmap avant B4.
+
+### Ordre Session 49
+
+1. **49.1** — Arbitrage P/C documenté (C retenue, critères
+   B3.1-B3.3, note vision). 15 min.
+2. **49.2** — B0.1 (S-expr canonique). 45 min.
+3. **49.3** — B0.2 (audit complétude). 30 min. Bloquant B3.
+4. **49.4** — B0.3 (dump diagnostic) si temps. 30 min.
+5. **Stop** — Pas de B1b.2, pas de B3 tant que B0.1+B0.2 ne
+   sont pas verts.

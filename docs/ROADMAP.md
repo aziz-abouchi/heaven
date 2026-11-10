@@ -1220,3 +1220,20 @@ réseau/acteurs), le quickchecker consolide les lois
 existantes, le fuzzer est un investissement plus long
 mais attrape une classe entière de bugs.
 
+
+### Décision Session 49 (2026-11-11)
+
+- **Voie C retenue** : B0 (S-expr canonique + audit complétude
+  + dump diag) → B3.1 → B3.2 → B3.3 → B2 → B1 → B4. Preuve de
+  capacité (QBE Heaven ≡ QBE Zig) avant le parseur de surface.
+- **B3 n'est pas un jalon unique** : 3 preuves (B3.1 lecture
+  Core, B3.2 MIR équivalent, B3.3 QBE équivalent). B3.3 ≠
+  self-hosting complet (frontend reste Zig).
+- **B0 est un contrat** (déterminisme, complétude sémantique,
+  comparabilité), pas une commande de debug. Découpage
+  B0.1 / B0.2 / B0.3. **B0.2 bloquant B3.**
+- **B1b.2 ne démarre pas en parallèle de B0.** Un seul chantier
+  à la fois sur la voie critique.
+
+Détails : `docs/spec/_selfhosting_roadmap.md` § « Notes
+Session 49 ».
