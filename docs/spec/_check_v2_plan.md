@@ -1,6 +1,8 @@
 # Check v2 — détection des variables non définies (plan)
 
-**Statut** : fondation en place (commit `7430b15`), walker à implémenter.
+**Statut** : walker v2 implémenté (`46e1a70`, opt-in via
+`HEAVEN_CHECK_STRICT=1`). 6 cas unitaires verts. Faux positifs
+résiduels sur fichiers existants (Session 45).
 **Priorité** : moyenne (silence sur `x = y + 1` avec `y` non défini).
 **Tentative v0.1** : reverted (walk store naïf produit 20+ faux positifs).
 
@@ -39,6 +41,49 @@ Non-régression : `scheduler.hvn` — 0 leak (avant : 20+). Registry
 3. **Non-régression bloquante** : les 5 fichiers qui produisaient des
    faux positifs (`os/scheduler`, `std/result`, `test_data`,
    `test_stream`, `features_smoke`) doivent rester à `unbound=0`.
+
+## Session 44 — Implémentation v2 (opt-in)
+
+`scope_check.checkUnboundV2` : walker AST sur `Bridge.roots`,
+2 passes (collecte définitions, walk références), filtres
+empiriques (builtins étendus, `*_decl`, nom qualifié, `comment`).
+
+**Wiring opt-in** : `HEAVEN_CHECK_STRICT=1` active le walker. Par
+défaut, `heaven check` garde le comportement tree-sitter + typer.
+
+Tests unitaires (6 cas verts) : `x = 1 + 1` ✓, `x = y + 1` ✗,
+`f n = n + 1` ✓, `f n = m + 1` ✗, `x = x + 1` ✓, `f x = y + 1` ✗.
+
+Non-régression mode défaut : `scheduler.hvn` unbound=0 (le walker
+n'est pas appelé), registry 24/24, build 0 erreur.
+
+## Session 45 — Limitations à corriger avant de basculer par défaut
+
+Deux catégories de faux positifs restent en mode `STRICT=1` sur
+fichiers existants :
+
+1. **Patterns de clause non collectés.** `rest` dans
+   `map f (Cons x rest) = ...`, `p` dans `filter p End = ...`,
+   `i` dans `task_id (MkTask i _) = i`. Le walker voit ces `.sym`
+   comme des références, mais ils sont liés par le pattern de la
+   clause.
+
+2. **Clauses non parsées par `Bridge.buildEqDecl`.** Certaines
+   clauses de `scheduler.hvn` retombent en `sym payload='eq_decl'`
+   (fallback ligne 102 de `ast_bridge.zig`). Leurs définitions
+   (`pick_higher`, `task_id`) ne sont pas dans `defined`, donc
+   tout usage ultérieur est signalé comme unbound.
+
+**Fix Session 45** :
+- `buildEqDecl` : collecter les noms de pattern (`(Cons x rest)`
+  → `x`, `rest`).
+- `buildEqDecl` : retourner `bind(name, …)` au lieu du fallback
+  `sym('eq_decl')` sur les cas multi-lignes / `|` / `where`.
+- Re-tester : `HEAVEN_CHECK_STRICT=1 heaven check lib/os/scheduler.hvn`
+  doit rapporter 0 unbound.
+
+Une fois Session 45 verte, basculer `HEAVEN_CHECK_STRICT` par défaut
+(opt-out via `HEAVEN_CHECK_LAX=1`).
 
 ## Tentative v0.1 (reverted)
 
