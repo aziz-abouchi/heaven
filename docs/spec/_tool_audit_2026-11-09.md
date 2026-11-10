@@ -70,6 +70,21 @@ Limitations restantes :
   `heaven_theorems` est fixé (`08c864f`).
 - `egraph_query`, `heaven_expand` restent désactivés.
 
+## Session 46 (post-audit) — synthèse
+
+Cinq correctifs et fixes sont intervenus après l'audit initial.
+
+| Commit | Contenu |
+|---|---|
+| `8113a49` | B2 : `tools/list` lit `registry_to_json`, 16 tools (avant : 9) |
+| `8686629` | B3 : `tools/call` dispatch les 5 Heaven via `TT.run_tool` |
+| `321a65c` | B4 : `scripts/mcp_diff_check.py` (8 cas, intégré CI) |
+| `66b8b25` | `parseSExpr` gère les quotes échappés (`\"`). Découvert par B4 (`echo "hello world"`). Cf. `_sexpr_escape_bug.md`. |
+| `08c864f` | `heaven_theorems` : `formatAll` au lieu de `describeKB` (rewrite rules) et `eval("theorems")` (littéral). |
+| `054bb5b` | Grammaire `data X a = …` acceptée (partiel). `lib/` 269 → 266. Cf. `_unbound_walker_gaps.md`. |
+
+**État MCP final** : 16/16 tools listables et callables. **12 stables** (avant : 6).
+
 ## Découvertes majeures
 
 ### 1. `egraph_query` panic
