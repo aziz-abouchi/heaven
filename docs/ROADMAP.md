@@ -52,14 +52,24 @@ point fixe et par une CI QBE.
 
 | # | Tache | Sortie |
 |---|---|---|
-| B1 | Parseur unique `heaven_parse.hvn` sur tous les `lib/*.hvn`, diff test contre le parseur Zig | 100 % des fichiers → meme AST |
+| B1 | Parseur unique `heaven_parse.hvn` sur tous les `lib/*.hvn`, diff test contre le parseur Zig | 100 % des fichiers → meme AST. **Effort réel 3-5 sessions** (pas 1-2, cf. _selfhosting_roadmap.md section B1b). Wrapper `parse` livré `2d2c505` (une expression), extension syntaxe complète en cours. |
 | B2 | `heaven_eval.hvn` execute `core/test_suite.hvn` | suite complete passee par l'evaluateur Heaven |
 | B3 | MIR et emission QBE en Heaven (le plus gros) | sortie identique au backend Zig |
-| B4 | Point fixe : etape 0 (Zig) compile etape 1 (Heaven), qui se compile elle-meme | etape 1 = etape 2, byte-for-byte |
+| B4 | Point fixe : etape 0 (Zig) compile etape 1 (Heaven), qui se compile elle-meme | etape 1 = etape 2, byte-for-byte. **Jalon final**, pas tache isolee. |
+| B0 | Dump S-expr canonique cote Zig (`heaven parse --dump-sexpr` ou equivalent) | reference AST stable pour B1b et B3. **Prerequis commun**, ~1h. |
 
-**Ordre total** : A1→A4 (3-5 sessions), B1→B4 (5-7 sessions). Volume
-8-12 sessions, coherent avec le RFC selfhost (6-9 sessions) en
-gardant les 4 bases comme prerequis durs.
+**Ordre total** : A1→A4 (3-5 sessions), B0→B4 (6-10 sessions avec B1=3-5).
+Volume **9-15 sessions**, plus que les 6-9 initialement annonces.
+
+**Deux voies stratégiques** à trancher en session 49 :
+- **P (parseur d'abord)** : B0→B1→B2→B3→B4. 3-5 sessions avant
+  la moindre ligne de génération de code Heaven. Fidele au plan.
+- **C (fin de chaîne d'abord)** : B0→B3 (MIR/QBE Heaven lisant
+  Core Zig)→B2→B1. Preuve de capacité (QBE byte-identique) plus
+  tot, parseur de surface en dernier.
+
+Le dump S-expr canonique (**B0**) est commun aux deux voies. A
+faire en priorité, quelle que soit la décision.
 
 ### Parallele semantique
 

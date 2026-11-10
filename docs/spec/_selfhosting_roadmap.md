@@ -298,3 +298,114 @@ fixe le top-level direct, pas la forme parenthésée.
 2. A2a-préalable (let-chain bug) : 0,5 session
 3. A2a (closures) : 1-2 sessions
 4. A2c (string QBE) : 0,5 session
+
+
+---
+
+## B1b — correction du diagnostic (2026-11-10, session 48 bis)
+
+**Statut** : B1a fermé (`2d2c505`). B1b **cadré, non commencé**.
+
+### Ce que B1a a livré
+
+Wrapper `parse` : lex + parse_one + EOF check. Fonctionne sur les
+S-expr purs. `(P.parse "(+ 1 2)")` → `(POk AST TNil)`.
+
+### Erreur du plan B1b.1 (`parse_file` seul)
+
+**Formulation erronée** dans la version initiale du plan :
+« B1b.1 = parse_file, 30 min, fait passer 01/02/06 ».
+
+Faux. Les 3 fichiers (01-arith, 02-fib, 06-mutual) ne sont **pas**
+des suites d'expressions préfixes. Ils utilisent la syntaxe de
+surface `fn sum_squares(n, acc) = ...` — arguments parenthésés
+séparés par virgules, keyword `fn`, `=`. Un `parse_file` en boucle
+naïve produirait `POk` avec un AST absurde (`fn`, `sum_squares`,
+`(n, acc)`, `=` traités comme des expressions séparées), **sans
+erreur**. Faux positif, pas jalon.
+
+### Critère de sortie B1b (corrigé)
+
+**Ne pas accepter `POk` comme preuve.** Le critère doit être
+**égalité d'AST avec le parseur de référence Zig**.
+
+Prérequis : un format de dump S-expr canonique stable. `heaven
+parse` affiche un AST, mais il n'expose pas (à ce jour) de
+sérialisation S-expr comparable. **Chantier préalable** : ajouter
+`heaven parse --dump-sexpr` ou équivalent, côté Zig, pour servir
+de référence.
+
+### Ce que B1b représente réellement
+
+Le parseur actuel (`lib/heaven_parse.hvn`) est un **parseur S-expr**,
+pas un parseur de la syntaxe Heaven. `lib/heaven_parse.hvn` lui-même
+contient 6 `data` et des multi-clauses — il **ne peut pas se parser
+lui-même**. C'est un jalon révélateur : « le parseur Heaven analyse
+son propre code » est la vraie cible.
+
+Sous-ensembles manquants :
+
+| Feature | Fichiers `lib/` concernés | Effort |
+|---|---|---|
+| `parse_file` (boucle multi-expr) | 0 (aucun lib n'est S-expr pur) | 30 min |
+| `data X = A \| B` | 14/32 | 0,5-1 session |
+| `import "path" as M` | 13/32 | 0,5 session |
+| Multi-clauses (`f x = 1` / `f y = 2`) | 29/32 | 1 session |
+| `fn name(a, b) = body` (surface) | 3 tests diff (01/02/06) | 1 session |
+| **Total B1b réaliste** | | **3-5 sessions** |
+
+**Correction d'estimation** : le plan `ROADMAP.md` disait
+« B1 = 1-2 sessions ». C'est **bas**. `_selfhosting_roadmap.md`
+disait « 3-5 sessions » — **correct**.
+
+### Deux voies stratégiques à trancher
+
+**Voie P (parseur de surface d'abord)** — plan actuel Phase B :
+B1 (parseur complet) → B2 (eval) → B3 (MIR/QBE Heaven) → B4 (fixpoint).
+
+- Avantage : fidèle à la feuille de route initiale.
+- Coût : 3-5 sessions **avant** d'écrire la moindre ligne de
+  génération de code en Heaven. Aucune preuve de capacité avant
+  B3.
+
+**Voie C (fin de chaîne d'abord)** — alternative :
+1. Le parseur **Zig** continue de produire Core (6 primitives).
+2. Écrire en Heaven le **MIR + émission QBE**, lisant le Core
+   depuis un dump S-expr stable (à produire côté Zig).
+3. Écrire ensuite l'**évaluateur** Heaven sur le même Core.
+4. Écrire le **parseur de surface** en dernier.
+
+- Avantage : la **preuve de capacité** (génération de code
+  identique) est obtenue plus tôt. Un compilateur Heaven qui
+  génère du QBE byte-identique au compilateur Zig est un
+  jalon démontrable **avant** d'avoir un parseur de surface
+  complet.
+- Coût : ordre non-standard, mais `_selfhosting_roadmap.md`
+  documentait déjà cette possibilité.
+
+**La voie C exige le dump S-expr canonique** (même prérequis que
+le critère de sortie B1b). **Ce dump est à construire en priorité**
+avant B1b ou C — ~1h côté Zig.
+
+### Décision
+
+À trancher au démarrage de la session 49 :
+
+- **P** : B1b complet (3-5 sessions). Suit le plan `181be95`.
+- **C** : dump S-expr + B3 (MIR/QBE Heaven) d'abord. Preuve de
+  capacité plus tôt, parseur de surface en dernier.
+
+Le dump S-expr canonique est **commun aux deux voies**. À faire
+en premier, quelle que soit la décision.
+
+### Correction de cohérence `ROADMAP.md`
+
+`181be95` a réordonné les priorités en mettant Phase A+B en tête,
+mais `_selfhosting_roadmap.md` garde B1 à « 3-5 sessions » et
+classe le bloc Bootstrap en dernier (#10/10). Les deux documents
+doivent être alignés à la session 49 :
+
+- `ROADMAP.md` doit refléter B1b = 3-5 sessions (pas 1-2).
+- Le bloc « Bootstrap » (B4 fixpoint) doit être positionné
+  cohéremment (fin de Phase B, pas #10).
+
