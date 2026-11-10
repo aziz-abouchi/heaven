@@ -68,15 +68,19 @@ pub const McpServer = struct {
     pub fn ensureHeaven(self: *McpServer) void {
         if (self.heaven == null) {
             self.heaven = heaven_expr_mod.Heaven.init(self.allocator) catch @panic("Failed to init Heaven");
-            // Charger le registre une fois (Session 46, B2). Si l'import
-            // échoue (ex. `heaven mcp` lancé hors racine), on log et on
-            // continue : `tools/list` tombera sur la liste vide, ce qui
-            // est préférable à un crash du serveur.
+            // Charger le registre + les tools Heaven une fois (Session 46,
+            // B2/B3). Si un import échoue, on log et on continue : les
+            // appels concernés retourneront une erreur propre.
             const h = self.heaven.?;
             if (h.eval("import \"lib/tool_registry.hvn\" as TR")) |res| {
                 self.allocator.free(res);
             } else |_| {
                 platform.debug.print("[mcp] warning: import tool_registry failed\n", .{});
+            }
+            if (h.eval("import \"lib/mcp/tools.hvn\" as TT")) |res| {
+                self.allocator.free(res);
+            } else |_| {
+                platform.debug.print("[mcp] warning: import mcp/tools failed\n", .{});
             }
         }
     }
@@ -184,6 +188,46 @@ pub const McpServer = struct {
         return std.fmt.allocPrint(self.allocator, "{{\"jsonrpc\":\"2.0\",\"result\":{s},\"id\":null}}", .{result_json});
     }
 
+    /// Dispatch un tool Heaven (kind=0) via `TT.run_tool`. Construit le
+    /// JSON body `{"name":"<name>","arguments":<args>}`, échappe les `"`
+    /// internes, et strippe les quotes externes du résultat (heaven.eval
+    /// retourne `"<result>"`). Session 46, B3.
+    fn callHeavenTool(self: *McpServer, name: []const u8, args: ?std.json.Value) ![]u8 {
+        var h = self.heaven.?;
+        var buf = std.ArrayListUnmanaged(u8){};
+        defer buf.deinit(self.allocator);
+        const w = buf.writer(self.allocator);
+        try w.writeAll("{\"name\":\"");
+        try w.writeAll(name);
+        try w.writeAll("\",\"arguments\":");
+        if (args) |a| {
+            try writeJsonValue(w, a);
+        } else {
+            try w.writeAll("{}");
+        }
+        try w.writeAll("}");
+
+        var escaped = std.ArrayListUnmanaged(u8){};
+        defer escaped.deinit(self.allocator);
+        for (buf.items) |c| {
+            if (c == '"') try escaped.append(self.allocator, '\\');
+            try escaped.append(self.allocator, c);
+        }
+
+        const expr = try std.fmt.allocPrint(self.allocator, "(TT.run_tool \"{s}\")", .{escaped.items});
+        defer self.allocator.free(expr);
+
+        const res = h.eval(expr) catch
+            return try self.allocator.dupe(u8, "error: heaven tool call failed");
+        defer self.allocator.free(res);
+
+        var body = res;
+        if (body.len >= 2 and body[0] == '"' and body[body.len - 1] == '"') {
+            body = body[1 .. body.len - 1];
+        }
+        return try self.allocator.dupe(u8, body);
+    }
+
     /// Charge (ou récupère du cache) le JSON du registre 16 tools.
     /// `heaven.eval("(TR.registry_to_json 0)")` retourne la string quotée
     /// `"{"tools":[...]}"` — on strippe les quotes externes. Les quotes
@@ -217,6 +261,17 @@ pub const McpServer = struct {
         var h = self.heaven.?;
 
         const result_text = blk: {
+            // 5 tools Heaven (kind=0 dans le registre) : dispatch via
+            // TT.run_tool (Session 46, B3). Liste fermée = 5 noms, cf.
+            // lib/tool_registry.hvn (kind=0).
+            if (std.mem.eql(u8, name, "echo") or
+                std.mem.eql(u8, name, "time_now") or
+                std.mem.eql(u8, name, "time_ms") or
+                std.mem.eql(u8, name, "fs_read") or
+                std.mem.eql(u8, name, "count_chars"))
+            {
+                break :blk try self.callHeavenTool(name, args);
+            }
             if (std.mem.eql(u8, name, "heaven_eval")) {
                 const expr_str = getArgString(args, "expression") orelse break :blk try self.allocator.dupe(u8, "error: missing 'expression'");
                 const res = h.eval(expr_str) catch break :blk "error: eval failed";
@@ -370,6 +425,63 @@ fn getArgString(args: ?std.json.Value, key: []const u8) ?[]const u8 {
     const v = a.object.get(key) orelse return null;
     if (v != .string) return null;
     return v.string;
+}
+
+/// Sérialisation JSON minimale, indépendante de `std.json.stringify`
+/// (API instable entre Zig 0.13/0.14/0.15). Couvre les variants de
+/// `std.json.Value` : null, bool, integer, float, number_string,
+/// string, array, object. Utilisée par `callHeavenTool` (Session 46,
+/// B3) pour passer les args à `TT.run_tool` via `heaven.eval`.
+fn writeJsonValue(w: anytype, v: std.json.Value) !void {
+    switch (v) {
+        .null => try w.writeAll("null"),
+        .bool => |b| try w.writeAll(if (b) "true" else "false"),
+        .integer => |i| try w.print("{d}", .{i}),
+        .float => |f| try w.print("{d}", .{f}),
+        .number_string => |s| try w.writeAll(s),
+        .string => |s| {
+            try w.writeByte('"');
+            for (s) |c| {
+                switch (c) {
+                    '"' => try w.writeAll("\\\""),
+                    '\\' => try w.writeAll("\\\\"),
+                    '\n' => try w.writeAll("\\n"),
+                    '\r' => try w.writeAll("\\r"),
+                    '\t' => try w.writeAll("\\t"),
+                    else => try w.writeByte(c),
+                }
+            }
+            try w.writeByte('"');
+        },
+        .array => |arr| {
+            try w.writeByte('[');
+            for (arr.items, 0..) |item, i| {
+                if (i > 0) try w.writeByte(',');
+                try writeJsonValue(w, item);
+            }
+            try w.writeByte(']');
+        },
+        .object => |obj| {
+            try w.writeByte('{');
+            var first = true;
+            var it = obj.iterator();
+            while (it.next()) |entry| {
+                if (!first) try w.writeByte(',');
+                first = false;
+                try w.writeByte('"');
+                for (entry.key_ptr.*) |c| {
+                    switch (c) {
+                        '"' => try w.writeAll("\\\""),
+                        '\\' => try w.writeAll("\\\\"),
+                        else => try w.writeByte(c),
+                    }
+                }
+                try w.writeAll("\":");
+                try writeJsonValue(w, entry.value_ptr.*);
+            }
+            try w.writeByte('}');
+        },
+    }
 }
 
 fn escapeJson(allocator: Allocator, s: []const u8) ![]const u8 {
