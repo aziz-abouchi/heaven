@@ -329,3 +329,64 @@ que `_platform.md` soit actée.
 - `docs/spec/_continuations.md` — Option B, prototype 3a
 - `docs/spec/_metrics.md` — à créer
 - `docs/spec/_runtime.md` — à créer
+
+## WASI v0.1 — validé 2026-11-10 (Session 48)
+
+### Build et exécution
+
+    zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall
+    → zig-out/bin/heaven-wasi.wasm (~586 KB)
+
+    wasmtime run zig-out/bin/heaven-wasi.wasm "1 + 2"        → 3
+    wasmtime run zig-out/bin/heaven-wasi.wasm "(+ 1 2)"      → 3
+    wasmtime run zig-out/bin/heaven-wasi.wasm --fuel 1000 "1 + 2"  → 3
+
+### Éval fichier — limitation WASI (pas un bug)
+
+    echo "1 + 2" > /tmp/wasi_test.hvn
+
+    # ✓ relative path + preopen
+    wasmtime run --dir /tmp heaven-wasi.wasm --eval-file wasi_test.hvn  → 3
+
+    # ✗ absolute path (WASI sandbox rejette)
+    wasmtime run --dir /tmp heaven-wasi.wasm --eval-file /tmp/wasi_test.hvn → FileNotFound
+    wasmtime run --dir /   heaven-wasi.wasm --eval-file /tmp/wasi_test.hvn → FileNotFound
+
+Le stub `openRead` (`src/platform/wasm32_wasi.zig:115`) passe le
+chemin tel quel à `path_open(3, ...)`. WASI exige un chemin
+**relatif** au preopen (fd 3 = premier `--dir`). Un chemin absolu
+est rejeté par la sandbox wasmtime, converti en `error.FileNotFound`
+par le stub.
+
+Usage correct : `--dir <hôte>` + chemin relatif depuis ce preopen.
+Mono-preopen uniquement (fd 3). Multi-preopen non supporté.
+
+### Stubs partiels (état 2026-11-10)
+
+| Primitive | État |
+|---|---|
+| print / dbg | ✓ |
+| writeStdout / readStdin | ✓ |
+| readFileAlloc | ✓ (chemin relatif, fd 3) |
+| createFile | ✗ error.Unsupported |
+| getenv | ✗ null |
+| milliTimestamp / nanoTimestamp | ✓ |
+| sleep | ✗ no-op |
+| net / TCP / TLS | ✗ partiel |
+
+### Test alternatif sans `--dir`
+
+Utiliser l'évaluation inline (pas de fs requis) :
+
+    wasmtime run heaven-wasi.wasm "map inc (cons 1 (cons 2 nil))"
+
+C'est le chemin le plus fiable pour tester le runtime WASI sans
+sandbox fs.
+
+### Ce qui n'est pas testé
+
+- `wasm32-freestanding` (target distinct, pour REPL navigateur
+  avec `@embedFile`)
+- Écriture fs, réseau, threads
+- WASI preview2 / component model (wasmtime 49 supporte, stub
+  non)
