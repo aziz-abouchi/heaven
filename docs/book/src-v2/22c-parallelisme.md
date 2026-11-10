@@ -147,7 +147,7 @@ dès le départ (c'est l'objet de `Option D`, `_concurrency.md` C2).
 
 ## Sous le capot — pourquoi `std.Thread` est interdit en WASM
 
-`src/core/heaven_expr.zig:7` :
+`src/core/heaven_expr.zig` :
 
     /// std.posix/std.Thread — interdits sur wasm32-freestanding. 2026-10-27 (E4).
 

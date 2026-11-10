@@ -104,7 +104,7 @@ est un `Int`. Donc `inc` prend un `Int` et rend un `Int`.
 
 > **État réel (2026-10-26).** L'inférence décrite ici est la
 > **cible**. Dans le code actuel, `TypeEnv.infer`
-> (`src/core/types.zig:266`) retourne `"Int"` pour toute expression —
+> (`src/core/types.zig`) retourne `"Int"` pour toute expression —
 > c'est un stub. `DependentChecker.piType` et `sigmaType` retournent
 > `0`. L'exemple `inc x = x + 1` donne `Int -> Int` par convention
 > (et parce que `+` est câblé), pas par une inférence Hindley-Milner

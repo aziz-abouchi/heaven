@@ -422,7 +422,7 @@ c'est une cible.
 - `docs/spec/_effects.md` — spec (285 l.), état + cible.
 - `docs/spec/_handle_rec_status.md` — chantier parallèle.
 - `docs/spec/_continuations.md` — continuations délimitées.
-- `src/core/engine_expr.zig:187-350` — `PendingCapture`,
+- `src/core/engine_expr.zig` — `PendingCapture`,
   `prompts`, scheduler.
 
 ## Exercices

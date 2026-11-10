@@ -23,7 +23,7 @@ runtime sait qu'il doit libérer `A` après l'appel, et qu'aucune copie n'est
 nécessaire. Pas de GC, pas de refcount, pas de fuite — **en théorie**.
 
 > **État réel (2026-11-09).** La vérification des multiplicités est faite
-> **au parse** dans `expr_parser.zig:774` (`countSymUses` : `uses==1` pour
+> **au parse** dans `expr_parser.zig` (`countSymUses` : `uses==1` pour
 > `linear`, `uses==0` pour `erased`). Un `let linear x = 42 in (x + x)` est
 > rejeté (`error.LinearViolation`). L'érasure runtime est **partielle** : la
 > forme S-expression `(let erased …)` skip le bind (valeur parsée, jamais
@@ -130,8 +130,8 @@ Voici l'état réel, sans complaisance :
 **Ce qui existe vraiment** :
 
 - Les mots-clés `linear` / `erased` / `many` sont reconnus par le parser
-- Les multiplicités sont propagées dans les types (`types.zig:145`)
-- Un `LinearChecker` existe (`types.zig:145`), mais **branché uniquement** sur
+- Les multiplicités sont propagées dans les types (`types.zig`)
+- Un `LinearChecker` existe (`types.zig`), mais **branché uniquement** sur
   `cmdQTT` shell — pas dans le pipeline `elab`
 
 **Ce qui n'existe pas** :
@@ -240,7 +240,7 @@ c'est exactement le point du chapitre.
    n'existe pas.
 2. **`linear` / `erased` / `many`** sont des mots-clés reconnus. Ils n'imposent
    **rien** au runtime aujourd'hui.
-3. **`LinearChecker` existe** (`types.zig:145`) mais n'est **pas branché** sur
+3. **`LinearChecker` existe** (`types.zig`) mais n'est **pas branché** sur
    `elab`. Il est appelé uniquement par `cmdQTT` shell.
 4. **Ce qui reste** : érasure runtime + drop-reuse (~5 sessions). Le check de multiplicité est fait (parse).
 5. **Syntaxe ≠ sémantique** : un `let linear x = 42 in x + x` compile. Ce n'est

@@ -155,7 +155,7 @@ Bug sémantique `runTestDir` (fixé). Vérifier la version.
 
 ### G.19 — `zig build` inutile pour `.hvn`
 
-`std_loader.zig:57` = `readFileAlloc` (runtime). 0 rebuild pour `.hvn`.
+`std_loader.zig` = `readFileAlloc` (runtime). 0 rebuild pour `.hvn`.
 
 ### G.20 — `mir.zig` touché = 2m05s
 
@@ -242,7 +242,7 @@ pratique la limite 5 est un bon garde-fou.
 
 ### G.25 — multi-clauses exclues [RESOLU 2026-10-30 soir]
 
-`precompileUserFns` (mir.zig:694) filtre `num_clauses != 1 → continue`.
+`precompileUserFns` (mir.zig) filtre `num_clauses != 1 → continue`.
 `dispatch 0 = 0 | dispatch 1 = 1 | ...` n'est jamais dans `fn_defs`
 → appels unresolved → stub `ret 0`. Tous les dispatches retournent 0.
 

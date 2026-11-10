@@ -29,7 +29,7 @@ suit n'est pas un jugement, c'est un constat.
 
 | Couche | Limitation | Chapitre |
 |---|---|---|
-| QTT (multiplicités) | **enforced au parse** (7/7), érasure à venir | ch. 29 |
+| QTT (multiplicités) | enforced (parse + erasure runtime) | ch. 29 |
 | LSP / MCP | briques testées, **intégration manuelle** | ch. 26 |
 | Selfhost | 15 + 96 l. de preuves de concept, **pas un compilateur** | ch. 27 |
 | Curryfication | edge case `(((f a) b) c)` | ch. 18 |
