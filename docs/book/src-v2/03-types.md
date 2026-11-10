@@ -542,12 +542,12 @@ encore des faux positifs :
 | `lib/heaven_parse.hvn` | 27 | cascade tree-sitter |
 | `lib/os/kernel.hvn` | 16 | cascade tree-sitter |
 
-Mesure globale sur `lib/` : **269 diagnostics** (contre 349 avant le
+Mesure globale sur `lib/` : **266 diagnostics** (contre 349 avant le
 fix du 2026-11-10). La cause dominante (77 %) est **tree-sitter qui
 ne parse pas `data X = A | B`**, pas le walker lui-même. Le walker
 est correct sur l'AST qu'il reçoit ; l'AST est incomplet.
 
-![Walker unbound : 349 → 269, résidu 269 = cascade tree-sitter](images/03-walker-gaps.svg)
+![Walker unbound : 349 → 266, résidu 266 = cascade tree-sitter](images/03-walker-gaps.svg)
 
 **Conséquence pratique** : n'activez `HEAVEN_CHECK_STRICT=1` que sur
 des fichiers récents dont vous savez qu'ils parsent bien (test unitaire

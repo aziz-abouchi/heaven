@@ -1,6 +1,6 @@
 # Registre autoritaire — plan et état (2026-11-10)
 
-**Statut** : B1-B3 livrés. B4-B6 à venir.
+**Statut** : B1-B4 livrés. B5-B6 à venir.
 **Fichier source** : `lib/tool_registry.hvn` (16 tools).
 **Voir aussi** : `_tool_audit_2026-11-09.md`, `_if_qualified_bug.md`,
 `_module_value_ref_bug.md`.
@@ -64,11 +64,17 @@ Effet : `tools/list` retourne 16 tools (avant : 9).
 Effet : les 16 tools sont callables (avant : 11 natifs + 5
 `unknown tool`).
 
-### B4 — Test différentiel MCP ≡ Heaven (à venir)
+### B4 — Test différentiel MCP ≡ Heaven (livré, `321a65c`)
 
-Un fichier `.hvn` qui appelle les 16 tools et vérifie les résultats
-attendus. Couvre `invoke_MCP ≡ invoke_Heaven`. Prérequis pour
-UTCP (B6) qui ajoutera `invoke_UTCP`.
+`scripts/mcp_diff_check.py` : 8 cas (5 tools Heaven, echo×2,
+count_chars×2, time_now, time_ms, fs_read OK+KO). Compare
+`heaven mcp` et `heaven run`. Intégré dans `ci-preflight.sh`.
+
+Couvre `invoke_MCP ≡ invoke_Heaven`. UTCP (B6) ajoutera
+`invoke_UTCP`.
+
+Note : les 11 tools natifs (kind=1) ne sont pas couverts (pas
+d'équivalent Heaven-side direct). B4b si pertinent.
 
 ### B5 — `inputSchema` enrichi (à venir)
 

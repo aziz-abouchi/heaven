@@ -41,4 +41,7 @@ Chantier en cours (STATUS item 8).
 - `_check_v2_plan.md` — détection des variables non définies.
   Fondation `Bridge.roots` en place (`7430b15`), walker à implémenter.
 
+- `_sexpr_escape_bug.md` — `parseSExpr` fragmente les strings avec
+  `\"` échappés (corrigé `66b8b25`).
+
 Méthodologie : voir `_audit.md`, section « TODO Phase 2 ».
