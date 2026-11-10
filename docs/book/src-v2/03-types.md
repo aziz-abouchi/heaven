@@ -524,6 +524,45 @@ C'est pour cela que QTT n'est pas un détail de typage : c'est
 Les solutions ne sont **pas** dans le livre — c'est en cherchant
 qu'on apprend.
 
+## `heaven check` : ce qu'il vérifie, ce qu'il ne vérifie pas (encore)
+
+Depuis la session 44, `heaven check` expose un mode optionnel qui
+détecte les variables non définies :
+
+    HEAVEN_CHECK_STRICT=1 heaven check fichier.hvn
+
+Sur un fichier neuf (`x = y + 1`), le walker signale correctement
+`y` comme non défini. Sur du code réel (`lib/`, `tests/`), il produit
+encore des faux positifs :
+
+| Fichier | Diagnostics (STRICT=1) | Cause principale |
+|---|---|---|
+| `lib/heaven_eval.hvn` | 135 | cascade tree-sitter |
+| `lib/tool_registry.hvn` | 38 | cascade tree-sitter |
+| `lib/heaven_parse.hvn` | 27 | cascade tree-sitter |
+| `lib/os/kernel.hvn` | 16 | cascade tree-sitter |
+
+Mesure globale sur `lib/` : **269 diagnostics** (contre 349 avant le
+fix du 2026-11-10). La cause dominante (77 %) est **tree-sitter qui
+ne parse pas `data X = A | B`**, pas le walker lui-même. Le walker
+est correct sur l'AST qu'il reçoit ; l'AST est incomplet.
+
+![Walker unbound : 349 → 269, résidu 269 = cascade tree-sitter](images/03-walker-gaps.svg)
+
+**Conséquence pratique** : n'activez `HEAVEN_CHECK_STRICT=1` que sur
+des fichiers récents dont vous savez qu'ils parsent bien (test unitaire
+simple, module isolé sans `data X = ...`). Pour le reste, le mode
+`--run-test` reste le chemin le plus sûr — il utilise `nativeToSExpr`,
+pas tree-sitter.
+
+**Ce qui manque** avant activation par défaut :
+
+1. Grammaire tree-sitter supportant `data X a = ...`
+2. Cascade post-`data` éliminée (`scheduler.hvn` → 0 unbound)
+3. Taux de faux positifs mesuré sur `lib/` < 5 %
+
+Détails, chiffres et plan : `docs/spec/_unbound_walker_gaps.md`.
+
 ## Ce qu'on a appris
 
 - Un **type** est une catégorie (Aristote) : une manière de

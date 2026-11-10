@@ -3,7 +3,7 @@
 > **⚠ BÊTA** — Ce livre est en cours d'écriture. Il remplace progressivement
 > le livre v1. Les sections « cible » sont marquées comme telles.
 >
-> **Heaven v0.1.0** — État au 2026-11-10. **31 chapitres v2**, ~10 700 lignes.
+> **Heaven v0.1.0** — État au 2026-11-10 (soir). **31 chapitres v2**, ~10 900 lignes.
 > Voir `docs/spec/_runtime_gaps.md` pour l'état réel du runtime, et
 > l'annexe G (en bas de ce sommaire) pour les pièges.
 

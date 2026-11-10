@@ -40,6 +40,20 @@ Pour valider un fichier `.hvn` :
     # au lieu de
     ./zig-out/bin/heaven check <file.hvn>        # faux positifs
 
+## Effet sur le walker unbound (Session 45, fix 2026-11-10)
+
+Le walker `checkUnboundV2` (`src/core/scope_check.zig`) travaille sur
+l'AST produit par tree-sitter. Quand tree-sitter échoue (`data X = A | B`
+non parsé), le Bridge ne produit pas de `bind` pour les clauses
+suivantes, et le walker les voit comme unbound. Ce n'est pas un bug
+du walker — c'est une conséquence directe de ce bug.
+
+Fix du 2026-11-10 (`3dba5e5`) : filtre `ERROR` et les payloads
+multi-lignes. Mesure : `lib/` 349 → 269 diagnostics (le résidu 269
+est la cascade tree-sitter).
+
+Cf. `_unbound_walker_gaps.md` pour les chiffres et le plan.
+
 ## Priorite
 
 Basse. Un fix necessiterait de remplacer ou de patcher tree-sitter

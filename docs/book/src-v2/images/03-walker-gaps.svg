@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 460" font-family="monospace" font-size="13">
+  <text x="450" y="28" text-anchor="middle" font-size="17" font-weight="bold">Walker unbound — 349 → 269 diagnostics</text>
+  <text x="450" y="50" text-anchor="middle" font-size="12" fill="#666">Mesure sur lib/ en mode HEAVEN_CHECK_STRICT=1</text>
+
+  <text x="60" y="95" font-size="12" font-weight="bold">Avant (commit c69bfd0)</text>
+  <rect x="60" y="105" width="240" height="50" rx="4" fill="#c0392b" stroke="#7d2419" stroke-width="1.5"/>
+  <text x="180" y="128" text-anchor="middle" fill="#fff" font-weight="bold">ERROR (tree-sitter)</text>
+  <text x="180" y="146" text-anchor="middle" fill="#fff" font-size="11">60 (17%)</text>
+
+  <rect x="305" y="105" width="80" height="50" rx="4" fill="#e67e22" stroke="#a84300" stroke-width="1.5"/>
+  <text x="345" y="128" text-anchor="middle" fill="#fff" font-weight="bold">Alias</text>
+  <text x="345" y="146" text-anchor="middle" fill="#fff" font-size="11">20 (6%)</text>
+
+  <rect x="390" y="105" width="450" height="50" rx="4" fill="#f5b7b1" stroke="#c0392b" stroke-width="1.5"/>
+  <text x="615" y="128" text-anchor="middle" fill="#7d2419" font-weight="bold">Cascade tree-sitter (data X = A | B)</text>
+  <text x="615" y="146" text-anchor="middle" fill="#7d2419" font-size="11">269 (77%)</text>
+
+  <text x="60" y="195" font-size="12" font-weight="bold">Après (commit 3dba5e5)</text>
+  <rect x="60" y="205" width="80" height="50" rx="4" fill="#27ae60" stroke="#1e8449" stroke-width="1.5"/>
+  <text x="100" y="228" text-anchor="middle" fill="#fff" font-weight="bold">ERROR</text>
+  <text x="100" y="246" text-anchor="middle" fill="#fff" font-size="11">0 ✓</text>
+
+  <rect x="145" y="205" width="80" height="50" rx="4" fill="#27ae60" stroke="#1e8449" stroke-width="1.5"/>
+  <text x="185" y="228" text-anchor="middle" fill="#fff" font-weight="bold">Alias</text>
+  <text x="185" y="246" text-anchor="middle" fill="#fff" font-size="11">0 ✓</text>
+
+  <rect x="230" y="205" width="610" height="50" rx="4" fill="#f5b7b1" stroke="#c0392b" stroke-width="1.5"/>
+  <text x="535" y="228" text-anchor="middle" fill="#7d2419" font-weight="bold">Cascade tree-sitter (résidu)</text>
+  <text x="535" y="246" text-anchor="middle" fill="#7d2419" font-size="11">269 — le walker est correct sur l'AST reçu, l'AST est incomplet</text>
+
+  <line x1="60" y1="285" x2="870" y2="285" stroke="#ccc" stroke-width="1"/>
+
+  <text x="60" y="310" font-size="12" font-weight="bold">Diagnostic</text>
+  <text x="60" y="332" font-size="11" fill="#333">• Bridge.buildFile traite tree-sitter ; quand tree-sitter échoue</text>
+  <text x="60" y="348" font-size="11" fill="#333">  sur `data X a = …`, les clauses suivantes ne deviennent jamais</text>
+  <text x="60" y="364" font-size="11" fill="#333">  des `bind` dans roots → le walker les voit unbound.</text>
+  <text x="60" y="388" font-size="11" fill="#333">• Le walker lui-même a été mesuré : 6/6 unitaires verts, 0</text>
+  <text x="60" y="404" font-size="11" fill="#333">  faux positif après filtre ERROR + alias (349 → 269, delta 80).</text>
+
+  <text x="450" y="440" text-anchor="middle" font-size="11" fill="#666" font-style="italic">Source : docs/spec/_unbound_walker_gaps.md · 2026-11-10</text>
+</svg>

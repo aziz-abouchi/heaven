@@ -2,7 +2,8 @@
 
 **Statut** : walker v2 implémenté (`46e1a70`, opt-in via
 `HEAVEN_CHECK_STRICT=1`). 6 cas unitaires verts. Faux positifs
-résiduels sur fichiers existants (Session 45).
+résiduels sur `lib/` : 269/349 (77 %, tree-sitter). Voir
+`_unbound_walker_gaps.md`.
 **Priorité** : moyenne (silence sur `x = y + 1` avec `y` non défini).
 **Tentative v0.1** : reverted (walk store naïf produit 20+ faux positifs).
 
@@ -56,6 +57,30 @@ Tests unitaires (6 cas verts) : `x = 1 + 1` ✓, `x = y + 1` ✗,
 
 Non-régression mode défaut : `scheduler.hvn` unbound=0 (le walker
 n'est pas appelé), registry 24/24, build 0 erreur.
+
+## Session 45 — Mesure sur lib/ et fix ERROR + alias
+
+La mesure réelle sur `lib/` (349 diagnostics) a invalidé le chiffre
+« 12 à la complétude » de Session 44. Le walker est correct sur
+l'AST reçu, mais l'AST est incomplet pour `data X = A | B` et les
+clauses multi-lignes. Voir `_unbound_walker_gaps.md` pour les
+détails.
+
+Deux fixes ciblés (commit `3dba5e5`) :
+
+- `isFilteredV2` rejette `ERROR` et les payloads multi-lignes.
+- `check.zig` scanne les alias d'import (` as X`) et les passe au
+  walker via `extra_defined`.
+
+Mesure après fix : 349 → 269 (−80). `ERROR` : 60 → 0. Alias :
+20 → 0. Le résidu 269 est tree-sitter (cascade `data X = …`).
+
+`HEAVEN_CHECK_STRICT` reste opt-in. Taux faux positifs mesuré
+77 % sur `lib/`, activation par défaut exclue tant que :
+
+1. tree-sitter ne parse pas `data X a = …`
+2. cascade post-`data` persiste (`scheduler.hvn` → 12 unbound)
+3. seuil < 5 % non atteint
 
 ## Session 45 — Fix `buildEqDecl`
 
