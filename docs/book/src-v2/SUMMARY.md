@@ -3,13 +3,9 @@
 > **⚠ BÊTA** — Ce livre est en cours d'écriture. Il remplace progressivement
 > le livre v1. Les sections « cible » sont marquées comme telles.
 >
-> **Heaven v0.1.0** — État au 2026-11-05. **31 chapitres v2**, ~11 100 lignes.
+> **Heaven v0.1.0** — État au 2026-11-10. **31 chapitres v2**, ~10 700 lignes.
 > Voir `docs/spec/_runtime_gaps.md` pour l'état réel du runtime, et
 > l'annexe G (en bas de ce sommaire) pour les pièges.
->
-> **Note numérotation** : `16-effects` et `16-optiques` portent tous deux
-> « Chapitre 16 » — conflit connu, fix = renommage en cascade (16-effects → 17-effects,
-> +1 à tous les suivants). Patch séparé, pas encore fait.
 
 ## Partie I — Découverte (lecteur littéraire bienvenu)
 

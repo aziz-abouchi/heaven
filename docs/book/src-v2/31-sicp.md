@@ -73,6 +73,10 @@ une différence majeure avec SICP qui renvoie un stream de substitutions.
 
 ```heaven
 -- Kanren : nombre de solutions à (test_mortel ?)
+fact test_mortel Socrate
+fact test_mortel Platon
+fact test_2args a b
+fact test_2args c d
 test "kanren_socrate": (query test_mortel Socrate) == 1
 test "kanren_aristote_absent": (query test_mortel Aristote) == 0
 test "kanren_wildcard": (query test_2args _ _) == 2

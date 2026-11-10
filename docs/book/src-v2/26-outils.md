@@ -2,8 +2,11 @@
 
 > **Piège d'entrée.** Vous vous attendez à ce qu'un langage en développement ait
 > des outils écrits dans son langage hôte (Zig, pour Heaven). C'est vrai pour le
-> compilateur. C'est **faux** pour les outils — LSP et MCP sont écrits en
-> Heaven pur. Ce chapitre explique pourquoi, comment, et où est la frontière.
+> compilateur. C'est **partiellement vrai** pour les outils — le LSP est en
+> Heaven pur (`lib/lsp/`), et le MCP a deux implémentations : `lib/mcp/` en
+> Heaven pur et `src/runtime/mcp_server.zig` en Zig. La commande `heaven mcp`
+> lance la seconde. Ce chapitre explique pourquoi, comment, et où est la
+> frontière.
 
 ## 1. L'auto-hébergement partiel
 
@@ -12,15 +15,19 @@ Heaven a deux couches :
 | Couche | Langage | Rôle |
 |---|---|---|
 | Compilateur | Zig | parse, type-check, eval, compile |
-| Outils | **Heaven** | LSP, MCP, handlers, dispatch |
+| Outils | **Heaven (partiel)** | LSP en Heaven pur ; MCP a deux implémentations |
 
 Le compilateur est en Zig parce qu'il faut un bootstrap — on ne peut pas écrire
 le premier parseur en Heaven sans parser du Heaven. Les outils, eux, s'appuient
-sur le compilateur (déjà là) et n'ont besoin que d'I/O et de JSON-RPC. D'où le
-choix : `lib/lsp/` et `lib/mcp/` sont des `.hvn` ordinaires.
+sur le compilateur (déjà là) et n'ont besoin que d'I/O et de JSON-RPC. Le LSP
+suit cette logique : `lib/lsp/` est un ensemble de `.hvn` ordinaires. Le MCP
+suit une logique **mixte** : `lib/mcp/` (5 outils) en Heaven pur, et
+`src/runtime/mcp_server.zig` (11 outils) en Zig. La commande `heaven mcp` lance
+le serveur Zig.
 
-**Conséquence pratique** : un bug dans `lib/mcp/server.hvn` se corrige avec
-`heaven test tests/test_mcp.hvn` — pas besoin de recompiler Zig.
+**Conséquence pratique** : un bug dans `lib/lsp/` se corrige en éditant un
+`.hvn` et en testant (`heaven test tests/test_lsp.hvn`) ; un bug dans
+`mcp_server.zig` requiert une recompilation Zig.
 
 ## 2. LSP en Heaven pur (`lib/lsp/`)
 

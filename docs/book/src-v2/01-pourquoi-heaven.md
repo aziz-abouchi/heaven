@@ -23,7 +23,7 @@ ouvrent ce livre sans être programmeurs — philosophes, littéraires,
 linguistes, curieux — et qui veulent comprendre *pourquoi* Heaven
 existe avant de voir *comment* il fonctionne.
 
-Si tu es déjà développeur, tu peux sauter directement au chapitre 1.
+Si tu es déjà développeur, tu peux sauter directement au chapitre 2.
 Reviens ici si tu te demandes un jour « mais pourquoi tout ça ? ».
 
 ![Règle vs calcul](images/00-regle-vs-calcul.svg)
