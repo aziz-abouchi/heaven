@@ -57,33 +57,62 @@ Tests unitaires (6 cas verts) : `x = 1 + 1` ✓, `x = y + 1` ✗,
 Non-régression mode défaut : `scheduler.hvn` unbound=0 (le walker
 n'est pas appelé), registry 24/24, build 0 erreur.
 
-## Session 45 — Limitations à corriger avant de basculer par défaut
+## Session 45 — Fix `buildEqDecl`
 
-Deux catégories de faux positifs restent en mode `STRICT=1` sur
-fichiers existants :
+### Ce qui a été corrigé
 
-1. **Patterns de clause non collectés.** `rest` dans
-   `map f (Cons x rest) = ...`, `p` dans `filter p End = ...`,
-   `i` dans `task_id (MkTask i _) = i`. Le walker voit ces `.sym`
-   comme des références, mais ils sont liés par le pattern de la
-   clause.
+`buildEqDecl` avait 3 bugs :
 
-2. **Clauses non parsées par `Bridge.buildEqDecl`.** Certaines
-   clauses de `scheduler.hvn` retombent en `sym payload='eq_decl'`
-   (fallback ligne 102 de `ast_bridge.zig`). Leurs définitions
-   (`pick_higher`, `task_id`) ne sont pas dans `defined`, donc
-   tout usage ultérieur est signalé comme unbound.
+1. **Name perdu** sur les clauses composites : `map f (Cons x rest) = ...`
+   retournait `bind 'f'` (fallback `identifier`) au lieu de `bind 'map'`.
+2. **Body non parsé** : `pick_higher t1 t2 = t1` retournait `sym 'eq_decl'`
+   parce que le body `t1` était de tag `identifier` et skippé AVANT la
+   vérification `seen_eq`.
+3. **Patterns textuels** : `(Cons x rest)` restait une string brute dans
+   `param_names`, jamais décomposée en `x`, `rest`.
 
-**Fix Session 45** :
-- `buildEqDecl` : collecter les noms de pattern (`(Cons x rest)`
-  → `x`, `rest`).
-- `buildEqDecl` : retourner `bind(name, …)` au lieu du fallback
-  `sym('eq_decl')` sur les cas multi-lignes / `|` / `where`.
-- Re-tester : `HEAVEN_CHECK_STRICT=1 heaven check lib/os/scheduler.hvn`
-  doit rapporter 0 unbound.
+Fix : prise du body strictement après `=`, quel que soit le tag ;
+descente récursive dans les `pattern` pour collecter les `identifier` ;
+name via `getFieldText(node, "name")` (déjà OK).
 
-Une fois Session 45 verte, basculer `HEAVEN_CHECK_STRICT` par défaut
-(opt-out via `HEAVEN_CHECK_LAX=1`).
+### Effet mesuré
+
+| Fichier | Avant | Après |
+|---|---|---|
+| `pick_higher t1 t2 = t1` isolé | `sym 'eq_decl'` | `bind 'pick_higher'` ✓ |
+| `task_id (MkTask i _) = i` isolé | (probablement eq_decl) | `bind 'task_id'` ✓ |
+| `scheduler.hvn` unbound | 16 | **12** |
+| `test_stream.hvn` unbound | 2 | 2 |
+
+### Limitation restante — tree-sitter, pas walker
+
+Les 14 unbound résiduels (`scheduler.hvn` × 12, `test_stream.hvn` × 2)
+ne viennent PAS du walker. Ils viennent de **tree-sitter qui ne parse
+pas certains fichiers** :
+
+- `scheduler.hvn` : `heaven parse` montre 3 zones ERROR
+  ([7:23-10:22], [22:19-25:18], [27:14]). Les clauses dans ces zones
+  (`pick_higher`, `member`, `task_id`, `run_n`) ne deviennent jamais
+  des `bind` dans `Bridge.roots` → walker les voit unbound.
+- `test_stream.hvn` : `data Stream a = ...` (paramètre de type) n'est
+  pas parsé par la grammaire. Tout le fichier tombe en cascade ERROR.
+  Cf. `_check_validator_bug.md` (les deux parseurs divergent).
+
+**Le walker est correct sur l'AST qu'il reçoit.** L'AST reçu est
+incomplet pour ces fichiers.
+
+### Prochaine étape (Session 46+)
+
+- **Option B** : patcher `vendor/tree-sitter-heaven/grammar.js` pour
+  supporter `data X a = ...` et les clauses multi-lignes. ~1-2h,
+  dépendance externe (vendor), risque moyen.
+- **Option C** : fallback `nativeToSExpr` quand `ts_node_has_error(root)`
+  → le bridge ne consomme que tree-sitter, gros refactor.
+- **Statu quo** : `HEAVEN_CHECK_STRICT=1` activable manuellement sur
+  fichiers qui parsent bien (`registry.hvn`, fichiers neufs).
+
+Décision Session 45 : **statu quo + fix partiel commité**. Le walker
+est prêt, la limitation est documentée et externe au walker.
 
 ## Tentative v0.1 (reverted)
 

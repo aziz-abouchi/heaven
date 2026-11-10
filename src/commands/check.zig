@@ -42,21 +42,6 @@ pub fn runCheck(allocator: std.mem.Allocator, file_path: []const u8) !void {
     defer bridge.deinitRoots();
     try bridge.buildFile(root);
 
-    // DEBUG temporaire (Session 44, étape 1) : valider roots.len()
-    // sur les fichiers de test avant d'écrire le walker.
-    // Activable par HEAVEN_CHECK_DEBUG=1.
-    if (std.process.hasEnvVar(allocator, "HEAVEN_CHECK_DEBUG") catch false) {
-        std.debug.print("[roots] {s}: roots.len()={d}\n", .{ file_path, bridge.roots.items.len });
-        for (bridge.roots.items, 0..) |rid, i| {
-            const rn = store.get(rid);
-            const nm = if (rn.payload < store.interner.list.items.len)
-                store.interner.resolve(rn.payload)
-            else
-                "?";
-            std.debug.print("  root[{d}] id={d} tag={s} payload='{s}'\n", .{ i, rid, @tagName(rn.tag), nm });
-        }
-    }
-
     var typer = Typer.init(allocator, &store, &diags);
     defer typer.deinit();
     typer.checkAll();

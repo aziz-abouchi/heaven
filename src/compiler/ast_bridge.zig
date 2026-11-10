@@ -221,10 +221,11 @@ pub const Bridge = struct {
     }
 
     fn buildEqDecl(self: *Bridge, node: ts.TSNode) anyerror!Id {
-        // Syntaxe: add x y = x + y
-        //   children: identifier 'add', pattern 'x', pattern 'y', '=', binary
+        // Syntaxe : add x y = x + y
+        //   children : identifier 'add', pattern 'x', pattern 'y', '=', body
+        // Le body peut être un identifier simple (t1) ou un call
+        // (Cons (f x) ...). Il est TOUJOURS pris après le '='.
         const name = self.getFieldText(node, "name") orelse blk: {
-            // fallback : premier identifier enfant
             const c = ts.ts_node_child_count(node);
             var k: u32 = 0;
             while (k < c) : (k += 1) {
@@ -246,17 +247,26 @@ pub const Bridge = struct {
         while (i < count) : (i += 1) {
             const child = ts.ts_node_child(node, i);
             const ct = self.nodeType(child);
-            if (std.mem.eql(u8, ct, "pattern")) {
-                // pattern simple ('x', 'y') est terminal : pas d'enfant,
-                // le texte est directement le nom du paramètre.
-                try param_names.append(self.allocator, self.nodeText(child));
-            } else if (std.mem.eql(u8, ct, "=")) {
+            if (std.mem.eql(u8, ct, "=")) {
                 seen_eq = true;
-            } else if (std.mem.eql(u8, ct, "identifier")) {
-                // skip : c'est le nom, déjà lu
-            } else if (seen_eq) {
-                body_id = try self.buildExpr(child);
+                continue;
             }
+            if (seen_eq and body_id == expr.NULL) {
+                // 1er enfant après '=' = body, quel que soit son tag
+                // (identifier, call, pattern, binary, …). Fix 2026-11-10 :
+                // l'ancienne boucle skippait 'identifier' AVANT de tester
+                // seen_eq, donc un body comme 't1' tombait en fallback.
+                body_id = try self.buildExpr(child);
+                continue;
+            }
+            if (std.mem.eql(u8, ct, "pattern")) {
+                // Descendre dans le pattern pour collecter les identifiers.
+                // 't1' (atomique) → 't1'. '(Cons x rest)' (composite) →
+                // 'Cons', 'x', 'rest'. Le walker filtre 'Cons' via ses
+                // builtins, donc on garde tout pour simplicité.
+                try self.collectPatternIdents(child, &param_names);
+            }
+            // identifier (name), pub, total, annotation_list → skip
         }
 
         if (body_id == expr.NULL) {
@@ -267,6 +277,20 @@ pub const Bridge = struct {
         const bind_id = try self.store.bind(name, fn_id);
         try self.scope.define(name, .{ .type_name = "fn", .expr_id = fn_id, .kind = .function });
         return bind_id;
+    }
+
+    fn collectPatternIdents(self: *Bridge, node: ts.TSNode, names: *std.ArrayListUnmanaged([]const u8)) !void {
+        const ct = self.nodeType(node);
+        if (std.mem.eql(u8, ct, "identifier")) {
+            try names.append(self.allocator, self.nodeText(node));
+            return;
+        }
+        if (std.mem.eql(u8, ct, "_")) return;
+        const count = ts.ts_node_child_count(node);
+        var i: u32 = 0;
+        while (i < count) : (i += 1) {
+            try self.collectPatternIdents(ts.ts_node_child(node, i), names);
+        }
     }
 
     fn buildBlock(self: *Bridge, node: ts.TSNode) anyerror!Id {
