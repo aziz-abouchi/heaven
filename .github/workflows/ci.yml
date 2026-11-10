@@ -41,6 +41,8 @@ jobs:
         run: bash build.sh
 
       - name: Run unit tests (no network)
+        env:
+          HEAVEN_STRICT_QBE: "1"
         run: zig build -Dnetwork=false test
 
       - name: Run functional test suite

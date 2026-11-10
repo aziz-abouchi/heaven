@@ -15,6 +15,15 @@ cd "$SANDBOX"
 ln -s "$ROOT/vendor" vendor 2>/dev/null || true
 ln -s "$ROOT/.zig-cache" .zig-cache 2>/dev/null || true
 
+# A1 : QBE obligatoire (strict). Sans QBE, test_mir_qbe skip
+# silencieusement et la CI reste verte sans vérifier le backend natif.
+if [ ! -x vendor/qbe-1.2/qbe ]; then
+    echo "[preflight] ERROR: vendor/qbe-1.2/qbe absent."
+    echo "  Fix: cd $ROOT && bash build.sh"
+    exit 1
+fi
+echo "[preflight] QBE OK ($(file -b vendor/qbe-1.2/qbe | cut -d, -f1))"
+
 echo "[preflight] build ReleaseFast"
 zig build -Doptimize=ReleaseFast
 

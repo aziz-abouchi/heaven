@@ -51,7 +51,14 @@ fn runNative(alloc: std.mem.Allocator, ssa: []const u8) !i64 {
     // binaire depuis .zig-cache/o/..., pas depuis la racine du repo,
     // donc tout chemin relatif est casse.
     const qbe_path = build_options.qbe_path;
-    std.fs.accessAbsolute(qbe_path, .{}) catch return error.SkipZigTest;
+    std.fs.accessAbsolute(qbe_path, .{}) catch {
+        // HEAVEN_STRICT_QBE=1 (CI) : panique au lieu de skipper, pour
+        // que la CI échoue si QBE n'est pas construit par build.sh.
+        // Sans cette var, comportement local inchangé (skip silencieux).
+        const strict = std.process.hasEnvVar(std.testing.allocator, "HEAVEN_STRICT_QBE") catch false;
+        if (strict) @panic("HEAVEN_STRICT_QBE=1 but qbe binary missing (vendor/qbe-1.2/qbe). Run 'bash build.sh' first.");
+        return error.SkipZigTest;
+    };
     try runCmd(alloc, &[_][]const u8{ qbe_path, "-o", "prog.s", "prog.ssa" }, tmp.dir);
     try runCmd(alloc, &[_][]const u8{ "cc", "-no-pie", "prog.s", "-o", "prog" }, tmp.dir);
     const out = try runCapture(alloc, &.{"./prog"}, tmp.dir);
