@@ -30,15 +30,105 @@ Session fondatrice : D10-D15. Voir `DECISIONS.md` pour le detail.
   0-arity, `let-in` parenthese dans les clauses, `@intCast` →
   `@bitCast` pour pointeurs 64-bit.
 
-### Pistes actives (ordre conseille)
+## Plan auto-hebergement (2026-11-10, session 47)
 
-1. **D9 Vessel** — decouplage et absorption par la stack HTTP Heaven.
-2. **QTT** — documenter dans le book (`_memory.md` point 4).
-3. **Multi-shot continuations** — clonage env + store (1 session).
-4. **C3 preemptif** — debloque conceptuellement par D8 3a-3.
-5. **`test_selfparse.hvn`** (4/5) — bug parser Heaven-en-Heaven.
-6. **Audit `Store.getInt`** (30 min).
-7. **Panic DebugAllocator** (session a froid).
+**Contexte** : apres Session 46 (MCP plateau 12/16 stables, kernel
+verifie), pivot vers la fondation. Le code self-host actuel
+(~325 lignes : `bin/heaven.hvn` 15, `lib/heaven_eval.hvn` 96,
+`lib/heaven_parse.hvn` 214) est un prototype, pas un compilateur.
+Les 9 tags `selfhost-*` (2026-10-30) restent non verifies par un
+point fixe et par une CI QBE.
+
+### Phase A — Fondations qui bloquent le self-hosting
+
+| # | Tache | Pourquoi | Effort | Sortie |
+|---|---|---|---|---|
+| A1 | Build reproductible avec QBE/TCC en CI | Verifier la branche QBE (les 9 tags selfhost ne sont pas verifiables sans QBE) | 1 session | CI verte depuis clone neuf, branche QBE incluse |
+| A2 | Backend MIR complet : closures (`10-closure`) et constructeurs (`11-color`) | Un compilateur manipule fonctions et donnees ; ces 2 cas sont en `.skip` | 1-2 sessions | suite differentielle sans skip |
+| A3 | Profondeur de recursion et appels terminaux | `build.sh` documente ~500-1000 niveaux ; un compilateur recursif sur ses listes peut depasser | 1 session | analyse 1000+ lignes sans debordement |
+| A4 | Leak check reactive par defaut | `HEAVEN_NO_LEAK_CHECK=1` masque les fuites, compilateur alloue beaucoup | 0.5-1 session | `zig build test` sans variable |
+
+### Phase B — Etapes de l'auto-hebergement
+
+| # | Tache | Sortie |
+|---|---|---|
+| B1 | Parseur unique `heaven_parse.hvn` sur tous les `lib/*.hvn`, diff test contre le parseur Zig | 100 % des fichiers → meme AST |
+| B2 | `heaven_eval.hvn` execute `core/test_suite.hvn` | suite complete passee par l'evaluateur Heaven |
+| B3 | MIR et emission QBE en Heaven (le plus gros) | sortie identique au backend Zig |
+| B4 | Point fixe : etape 0 (Zig) compile etape 1 (Heaven), qui se compile elle-meme | etape 1 = etape 2, byte-for-byte |
+
+**Ordre total** : A1→A4 (3-5 sessions), B1→B4 (5-7 sessions). Volume
+8-12 sessions, coherent avec le RFC selfhost (6-9 sessions) en
+gardant les 4 bases comme prerequis durs.
+
+### Parallele semantique
+
+- **QTT bindings fix** (`_qtt_bindings_bugs.md`) : 3 bugs pipeline
+  (top-level, S-expr, dans une def). 1-2 sessions.
+- **QTT fn impl** (`_qtt_fn_design.md`, decision `4ccf1bf`) :
+  parser + propagation erasure. 1-2 sessions apres A1-A2.
+
+### Ce qui n'est pas prioritaire avant Phase A+B
+
+- **D9 Vessel** — produit, pas langage.
+- **`heaven_integrate` / `heaven_solve`** — EXPERIMENTAL, resultats faux.
+- **UTCP v1** — 3e interface, apres Phase A stable.
+- **Grammaire tree-sitter** — **necessaire pour B1**. A traiter
+  *pendant* B1 (design, pas "puits"). Les cas contextuels restants
+  (266 unbound sur `lib/`) doivent etre diagnostiques avant B1.
+- **HoTT/Cubical** — recherche, hors scope.
+- **Auto-hebergement total** — jalon long terme, pas tache.
+
+### Decisions liees (etat 2026-11-10)
+
+- **D8 one-shot** : ✅ livre `2026-10-12` (53 tests verts).
+- **D8 multi-shot** : ouvert, 1 session.
+- **D9** : ouvert, 1-2 sessions, produit.
+- **QTT fn** : ✅ decide `4ccf1bf` (`_qtt_fn_design.md`).
+- **QTT bindings** : 3 bugs identifies (`_qtt_bindings_bugs.md`).
+- **MCP** : ✅ plateau 12/16 stables (`_tool_audit_2026-11-09.md`),
+  B5 `inputSchema` fixe `a38bfc6`.
+- **B5 regression B2** : ✅ fixe `a38bfc6`.
+
+### Documents de reference
+
+- `_qtt_fn_design.md` — decision `linear` nu.
+- `_qtt_bindings_bugs.md` — 3 bugs `let`.
+- `_tool_audit_2026-11-09.md` — etat MCP 16 tools.
+- `_registry_autoritaire_plan.md` — B1-B4 (MCP, different de B1-B4
+  selfhost). Note : renommer si confusion.
+- `_unbound_walker_gaps.md` — limites grammaire tree-sitter.
+- `docs/DECISIONS.md` — D8, D9, D10-D15.
+- `docs/spec/_selfhosting_roadmap.md` — plan selfhost original.
+
+### Pistes actives (reordonnees 2026-11-10, session 47)
+
+Ordre issu du diagnostic Session 46 (MCP plateau 12/16 stables,
+kernel verifie) et de la reevaluation des priorites : fondation et
+auto-hebergement avant interface et produit.
+
+1. **Phase A auto-hebergement** — A1 (QBE CI) → A2 (MIR
+   closures/ctors) → A3 (recursion) → A4 (leak check). Voir
+   section dediee ci-dessous.
+2. **QTT bindings fix** — 3 bugs pipeline identifies
+   (`_qtt_bindings_bugs.md`). 1-2 sessions. Debloque ch.29.
+3. **Phase B auto-hebergement** — B1 (parseur unique) → B2 (eval
+   test_suite) → B3 (MIR/QBE Heaven) → B4 (fixpoint). Voir
+   section dediee.
+4. **QTT fn impl** — decision prise (`_qtt_fn_design.md`,
+   `4ccf1bf`), implementation 1-2 sessions apres A1-A2.
+5. **D8 multi-shot continuations** — clonage env + store (1 session).
+6. **C3 preemptif** — infrastructure en place, tests a completer.
+7. **`test_selfparse.hvn`** (4/5) — bug parser Heaven-en-Heaven.
+8. **D9 Vessel** — decouplage et absorption stack HTTP (produit).
+9. **`heaven_integrate` / `heaven_solve`** — EXPERIMENTAL, sessions
+   separees par outil.
+10. **UTCP v1** — apres Phase A stable.
+11. **Audit `Store.getInt`** (30 min).
+12. **Panic DebugAllocator** (session a froid).
+
+Les items 1-4 sont les bloqueurs du self-hosting. Les items 5-12
+sont valables mais non bloquants.
 
 ---
 
