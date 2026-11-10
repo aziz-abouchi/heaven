@@ -19,7 +19,7 @@ suspect, 5 invisibles via `heaven mcp`, 1 non testé.
 | `heaven_eval` | `4` | **stable** |
 | `heaven_derive` | `(* 2 x)` | **stable** |
 | `heaven_simplify` | `x` | **stable** |
-| `heaven_prove` (eq) | `{"proved":true/false,"method":"semantic"}` | **stable** (périmètre : égalités `a == b` uniquement, kernel désactivé — cf. `_heaven_prove_kernel_bug.md`) |
+| `heaven_prove` | `{"proved":true/false,"method":"kernel"}` ou `{"method":"semantic"}` | **stable** (kernel réactivé `805cdbe`, 2026-11-10 : `prove NAME by { tactics }` + fallback `a == b`. Cf. `_heaven_prove_kernel_bug.md`) |
 | `mlcpd_parse` | `{"nodes":0,"language":"unknown"}` | **stable** (mais `language:unknown` sur `{}` à investiguer) |
 | `heaven_theorems` | `"theorems"` (littéral) | **suspect** (retourne le mot-clé, pas la liste des axiomes) |
 | `heaven_integrate` | `x^2 → (* x^2 x) + C` | **faux** (cf. `_integrate_bug.md`) |

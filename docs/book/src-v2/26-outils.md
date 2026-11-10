@@ -85,7 +85,7 @@ et `tests/test_mcp_tools.hvn` (tools individuels).
 
 | Catégorie | Nombre | Outils |
 |---|---|---|
-| **Stable** (résultat correct) | 6 | `heaven_eval`, `heaven_derive`, `heaven_simplify`, `heaven_prove` (limité à `a == b`), `mlcpd_parse`, `mlcpd_equiv` |
+| **Stable** (résultat correct) | 6 | `heaven_eval`, `heaven_derive`, `heaven_simplify`, `heaven_prove` (kernel + sémantique), `mlcpd_parse`, `mlcpd_equiv` |
 | **Expérimental** (résultat faux) | 2 | `heaven_integrate`, `heaven_solve` |
 | **Suspect** (résultat trivial) | 1 | `heaven_theorems` |
 | **Désactivé** (`3f878fc`) | 2 | `egraph_query` (panic), `heaven_expand` (rupture JSON-RPC) |
