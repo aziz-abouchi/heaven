@@ -35,3 +35,10 @@ test "kind_native": contains json_str ":1" == true
 
 test "inputSchema": contains json_str "inputSchema" == true
 test "no_trailing_comma": contains json_str ",]" == false
+
+-- Schémas détaillés (B5, session 47) — pas de { ni } littéraux
+test "schema_echo_text": contains (TR.schema_for "echo") "text" == true
+test "schema_heaven_eval_expr": contains (TR.schema_for "heaven_eval") "expression" == true
+test "schema_derive_variable": contains (TR.schema_for "heaven_derive") "variable" == true
+test "schema_prove_statement": contains (TR.schema_for "heaven_prove") "statement" == true
+test "schema_default": contains (TR.schema_for "bogus_tool") "type" == true

@@ -15,6 +15,28 @@ tool_perms  (Tool n d p e k) = p
 tool_effect (Tool n d p e k) = e
 tool_kind   (Tool n d p e k) = k
 
+-- ── Schémas d'entrée détaillés (Session 47, B5) ──
+-- Le registre ne stocke pas le JSON Schema dans `data Tool` (6ᵉ champ
+-- = ~32 littéraux à modifier). On le fournit par une if-chain 16 branches,
+-- comme find_by_name. Source de vérité unique.
+schema_for "echo" = "{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\"}},\"required\":[\"text\"]}"
+schema_for "time_now" = "{\"type\":\"object\",\"properties\":{}}"
+schema_for "time_ms" = "{\"type\":\"object\",\"properties\":{}}"
+schema_for "fs_read" = "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"]}"
+schema_for "count_chars" = "{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\"}},\"required\":[\"text\"]}"
+schema_for "heaven_eval" = "{\"type\":\"object\",\"properties\":{\"expression\":{\"type\":\"string\",\"description\":\"Heaven expression to evaluate\"}},\"required\":[\"expression\"]}"
+schema_for "heaven_derive" = "{\"type\":\"object\",\"properties\":{\"expression\":{\"type\":\"string\"},\"variable\":{\"type\":\"string\",\"default\":\"x\"}},\"required\":[\"expression\"]}"
+schema_for "heaven_integrate" = "{\"type\":\"object\",\"properties\":{\"expression\":{\"type\":\"string\"},\"variable\":{\"type\":\"string\",\"default\":\"x\"}},\"required\":[\"expression\"]}"
+schema_for "heaven_solve" = "{\"type\":\"object\",\"properties\":{\"expression\":{\"type\":\"string\"},\"variable\":{\"type\":\"string\",\"default\":\"x\"}},\"required\":[\"expression\"]}"
+schema_for "heaven_expand" = "{\"type\":\"object\",\"properties\":{\"expression\":{\"type\":\"string\"}},\"required\":[\"expression\"]}"
+schema_for "heaven_simplify" = "{\"type\":\"object\",\"properties\":{\"expression\":{\"type\":\"string\"}},\"required\":[\"expression\"]}"
+schema_for "heaven_theorems" = "{\"type\":\"object\",\"properties\":{}}"
+schema_for "mlcpd_parse" = "{\"type\":\"object\",\"properties\":{\"json\":{\"type\":\"string\",\"description\":\"MLCPD JSON data\"}},\"required\":[\"json\"]}"
+schema_for "mlcpd_equiv" = "{\"type\":\"object\",\"properties\":{\"json1\":{\"type\":\"string\"},\"json2\":{\"type\":\"string\"}},\"required\":[\"json1\",\"json2\"]}"
+schema_for "egraph_query" = "{\"type\":\"object\",\"properties\":{\"expr\":{\"type\":\"string\"}},\"required\":[\"expr\"]}"
+schema_for "heaven_prove" = "{\"type\":\"object\",\"properties\":{\"statement\":{\"type\":\"string\",\"description\":\"Theorem or equivalence to prove\"}},\"required\":[\"statement\"]}"
+schema_for _ = "{\"type\":\"object\"}"
+
 -- 16 tools = 5 heaven + 11 native.
 -- Convention : perms (0 = pure, 1 = read, 5 = exec), effect (0 = pure,
 -- 1 = IO/impure).
@@ -91,7 +113,7 @@ tool_to_json (Tool n d p e k) =
   "{" + qstr "name" + ":" + qstr n + "," +
         qstr "description" + ":" + qstr d + "," +
         qstr "kind" + ":" + n2s k + "," +
-        qstr "inputSchema" + ":{" + qstr "type" + ":" + qstr "object" + "}" +
+        qstr "inputSchema" + ":" + (schema_for n) +
   "}"
 
 is_empty_list TLNil = true
