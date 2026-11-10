@@ -279,16 +279,18 @@ pub const McpServer = struct {
                 const stmt = getArgString(args, "statement") orelse break :blk "error: missing 'statement'";
                 var he = self.heaven.?;
 
-                // NOTE : Heaven.evalProve n'est pas encore fiable :
-                //  - retourne Ok("Usage: prove [name] by …") sur entrée
-                //    invalide au lieu d'erreur (faux positif affiché comme
-                //    preuve kernel).
-                //  - panic "Invalid free" sur "prove x by { t1; t2 }".
-                // Voir docs/spec/_heaven_prove_kernel_bug.md.
-                // En attendant : branche sémantique ci-dessous uniquement.
-                // Le kernel sera réactivé quand ces bugs seront fixés.
+                // 1. Kernel de preuve : syntaxe "prove <name> by { ... }"
+                //    (fix 2026-11-10 : fake "Usage" + panic résolus,
+                //    préfixe "prove " stripé dans evalProve).
+                if (std.mem.indexOf(u8, stmt, " by ") != null) {
+                    if (he.evalProve(stmt)) |result| {
+                        defer self.allocator.free(result);
+                        break :blk try std.fmt.allocPrint(self.allocator,
+                            "{{\"proved\":true,\"method\":\"kernel\",\"certificate\":\"{s}\"}}", .{result});
+                    } else |_| {}
+                }
 
-                // 1. Égalité sémantique "a == b" (eval LHS, eval RHS, compare)
+                // 2. Égalité sémantique "a == b" (eval LHS, eval RHS, compare)
                 if (std.mem.indexOf(u8, stmt, "==")) |pos| {
                     const lhs_str = std.mem.trim(u8, stmt[0..pos], " \t");
                     const rhs_str = std.mem.trim(u8, stmt[pos + 2 ..], " \t");
@@ -398,7 +400,7 @@ const mcp_tools = [_]McpTool{
     },
     .{
         .name = "heaven_prove",
-        .description = "Verify semantic equality of two expressions: a == b (eval LHS, eval RHS, compare). NOTE: the proof kernel is disabled (heaven_expr.zig evalProve panics on tactics). Not a general theorem prover.",
+        .description = "Verify equality via two methods: (1) kernel: 'prove NAME by { tactics }' on registered theorems, using simplification/induction; (2) semantic: 'a == b' comparing evaluated results. See _heaven_prove_kernel_bug.md (fixed 2026-11-10).",
         .input_schema = "{\"type\":\"object\",\"properties\":{\"statement\":{\"type\":\"string\",\"description\":\"Theorem or equivalence to prove\"}},\"required\":[\"statement\"]}",
     },
 };

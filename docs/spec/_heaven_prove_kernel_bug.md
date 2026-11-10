@@ -1,8 +1,33 @@
 # Bug : Heaven.evalProve — faux positif "Usage:" et panic "Invalid free" (2026-11-09)
 
+**Statut** : **corrigé 2026-11-10** (commit à venir).
+**Impact** : `heaven_prove` MCP expose maintenant les deux modes —
+kernel (`prove NAME by { tactics }`) et sémantique (`a == b`).
+
+## Résolution 2026-11-10
+
+Trois patches appliqués :
+
+1. `src/core/commands/proofs.zig:260` : `return error.InvalidSyntax`
+   au lieu de `allocator.dupe(u8, "Usage: prove …")`.
+2. `src/core/heaven_expr.zig` `evalProve` : strip le préfixe `"prove "`
+   avant de chercher le nom du théorème (le caller MCP passe la forme
+   complète, le parser interne attend le nom seul).
+3. `src/runtime/mcp_server.zig` `callTool` : réactive la branche
+   kernel avant le fallback sémantique.
+
+Note : le panic `Invalid free` (mentionné dans Symptôme 2 plus bas)
+avait déjà été éliminé par `5d239bd` (dupe sur la string statique).
+Le présent fix rétablit l'usage effectif du kernel.
+
+Vérifié : `theorem t1 : x + 0 = x` + `prove t1 by { simplify }` via
+MCP retourne `{"proved":true,"method":"kernel","certificate":"✓ [t1] proved (tactics)"}`.
+
+## Historique (avant fix)
+
 **Statut** : identifié, contourné dans mcp_server.zig (priorité 2).
-**Impact** : `heaven_prove` MCP se limite à l'égalité sémantique `a == b`
-en attendant. Le kernel (`prove name by { … }`) est désactivé.
+**Impact** : `heaven_prove` MCP se limitait à l'égalité sémantique
+`a == b`. Le kernel (`prove name by { … }`) était désactivé.
 
 ## Symptôme 1 — faux positif sur entrée invalide
 

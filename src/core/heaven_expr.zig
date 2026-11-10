@@ -3159,10 +3159,17 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
         // ─── Tactics v1 : `prove <name> by { t1; t2; ... }` ───
         // Intercepté AVANT le chemin classique pour ne pas casser
         // `by simplify` / `by eval` / `by induction x` (compat).
-        if (std.mem.indexOf(u8, src, " by {")) |pos| {
-            const name = std.mem.trim(u8, src[0..pos], " \t");
+        // Strip le préfixe "prove " si présent (MCP appelle avec la
+        // forme complète, le parser interne attend le nom seul).
+        const src_trim = std.mem.trim(u8, src, " \t");
+        const src_body = if (std.mem.startsWith(u8, src_trim, "prove "))
+            std.mem.trim(u8, src_trim["prove ".len..], " \t")
+        else
+            src_trim;
+        if (std.mem.indexOf(u8, src_body, " by {")) |pos| {
+            const name = std.mem.trim(u8, src_body[0..pos], " \t");
             if (name.len == 0) return error.InvalidSyntax;
-            const rest = src[pos + " by {".len ..];
+            const rest = src_body[pos + " by {".len ..];
             const close = std.mem.lastIndexOfScalar(u8, rest, '}') orelse
                 return error.InvalidSyntax;
             const body = rest[0..close];

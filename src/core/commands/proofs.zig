@@ -257,7 +257,7 @@ pub fn evalProve(cmds: anytype, input: []const u8) anyerror![]u8 {
         cmds.pending_proof_request.* = request_msg;
         return proveWith(cmds, name, skill_name, induction_var);
     }
-    return try cmds.allocator.dupe(u8, "Usage: prove [name] by <method> [on <var>]");
+    return error.InvalidSyntax;
 }
 
 pub fn evalSkill(cmds: anytype, input: []const u8) anyerror![]u8 {
