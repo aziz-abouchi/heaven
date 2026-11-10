@@ -45,3 +45,11 @@ Chantier en cours (STATUS item 8).
   `\"` échappés (corrigé `66b8b25`).
 
 Méthodologie : voir `_audit.md`, section « TODO Phase 2 ».
+
+## Session 48 — nouveaux documents (2026-11-10)
+
+- `_qtt_fn_design.md` — décision QTT fn : `linear` nu (4ccf1bf).
+- `_qtt_bindings_bugs.md` — 3 bugs pipeline `let linear`.
+- `_selfhosting_roadmap.md` — roadmap auto-hébergement (Phase A+B, Session 49).
+- `_registry_autoritaire_plan.md` — plan B1-B5 MCP (B5 a38bfc6).
+- `_unbound_walker_gaps.md` — limites walker unbound (269→266 sur lib/).

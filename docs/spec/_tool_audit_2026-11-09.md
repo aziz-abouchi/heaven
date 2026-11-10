@@ -156,3 +156,16 @@ Trois options (à décider) :
 - `_heaven_prove_kernel_bug.md`
 - `_check_validator_bug.md` (tree-sitter faux positifs)
 - `lib/tool_registry.hvn` (registre v2)
+
+## Session 48 — état MCP après fixes
+
+- B2 8113a49 : tools/list lit registry_to_json (16 tools)
+- B3 8686629 : tools/call dispatch 5 Heaven via TT.run_tool
+- B4 321a65c : mcp_diff_check.py (8 cas, CI)
+- B5 a38bfc6 : inputSchema détaillé par tool (régression B2)
+- QTT fn 4ccf1bf : décision `linear` nu
+- A1 f73972f : QBE strict env + preflight CI
+- B1a 2d2c505 : wrapper parse (S-expr purs)
+- B1b b2de0ec : cadré 3-5 sessions, critère AST
+
+État final : 16/16 tools listables+callables, 12 stables.

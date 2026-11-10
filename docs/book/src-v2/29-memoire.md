@@ -248,3 +248,23 @@ c'est exactement le point du chapitre.
 
 Le chapitre suivant conclut le livre v2 : où en est Heaven, ce qui marche, ce
 qui est cible, et pourquoi le langage **tend** vers quelque chose de précis.
+
+## QTT sur les paramètres de fonction — décision (2026-11-10)
+
+Le QTT sur les **bindings** est couvert ci-dessus (`let linear x`,
+`let erased proof`, `let many xs`). QTT sur les **paramètres** est
+une décision récente (4ccf1bf), non encore implémentée.
+
+Syntaxe retenue : mot-clé nu, réservé contextuellement.
+
+    fn f (linear x) = x + 1
+    fn g (erased proof) = 42
+    fn h (many xs) = map g xs
+
+Cohérent avec `let linear x`. Les mots-clés sont réservés uniquement
+en position de pattern `fn`. Un ctor `linear(x)` reste possible hors
+de ce contexte.
+
+Statut : décision prise, implémentation Session 48+.
+Limitations : `_qtt_bindings_bugs.md` (3 bugs pipeline let).
+Décision complète : `docs/spec/_qtt_fn_design.md`.
