@@ -304,7 +304,12 @@ pub const McpServer = struct {
                 defer self.allocator.free(res);
                 break :blk try self.allocator.dupe(u8, res);
             } else if (std.mem.eql(u8, name, "heaven_theorems")) {
-                const res = h.eval("theorems") catch break :blk "error: theorems failed";
+                // Fix 2026-11-10 : h.eval("theorems") tombait dans le
+                // branchement is_command de heaven_expr.zig qui retourne
+                // la chaîne brute ("theorems") au lieu de la liste.
+                // describeKB() itère proof_core.theorems/axioms et
+                // formate "═══ Axioms ═══" + "═══ Theorems ═══".
+                const res = h.describeKB() catch break :blk "error: theorems failed";
                 defer self.allocator.free(res);
                 break :blk try self.allocator.dupe(u8, res);
             } else if (std.mem.eql(u8, name, "mlcpd_parse")) {
