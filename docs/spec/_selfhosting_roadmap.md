@@ -251,3 +251,26 @@ devrait recevoir la reponse. Parser la reponse est l'etape V1.
 
 **Pourquoi c'est OK** : le code est correct, la sandbox seule
 bloque. N2 debloque quand on teste sur VPS.
+
+## Notes Session 48 (2026-11-10)
+
+### A1 — QBE/TCC CI (fermé `a2a929a`+)
+
+- `HEAVEN_STRICT_QBE=1` active l'échec dur si QBE absent.
+- `ci-preflight.sh` vérifie QBE avant build.
+- Test clone frais confirmé : `build.sh` construit QBE (~5 min).
+
+### A2 — signal `warn: unresolved call sym=0xDEADBEEF`
+
+Observé pendant la vérification A1 (test_mir_qbe passe mais
+warning silencieux). Le MIR émetteur utilise un sentinel
+`0xDEADBEEF` (3735928559) pour les symboles non résolus, mais
+ne **fail** pas dessus.
+
+**Impact A2/B3/B4** : pour le fixpoint B4 (step1 == step2
+byte-for-byte), un tel warning est inacceptable. A2 doit :
+1. Identifier la source du sym non résolu (probablement un cas
+   de test qui utilise `emitQbe` sur un MIR incomplet).
+2. Soit le résoudre, soit le transformer en `error.UnresolvedSymbol`.
+
+À traiter dans A2 ou en préalable à B3.
