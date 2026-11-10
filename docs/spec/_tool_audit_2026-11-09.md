@@ -33,6 +33,43 @@ suspect, 5 invisibles via `heaven mcp`, 1 non testé.
 | `time_now` | `error: unknown tool 'time_now'` | **invisible** |
 | `time_ms` | (assumé idem `time_now`) | **invisible** |
 
+## Mise à jour 2026-11-10 (soir) — B2 + B3
+
+Depuis l'audit initial, deux sous-chantiers du registre autoritaire
+sont livrés :
+
+- **B2** (`8113a49`) : `tools/list` lit `TR.registry_to_json 0` au lieu
+  de l'array hardcodé. 16 tools listés (avant : 9).
+- **B3** (`8686629`) : `tools/call` dispatch les 5 tools Heaven
+  (`echo`, `fs_read`, `count_chars`, `time_now`, `time_ms`) via
+  `TT.run_tool`. 16 tools callables (avant : 9 + 5 "unknown tool").
+
+**Table corrigée** :
+
+| Catégorie | Avant | Après |
+|---|---|---|
+| Stables et exposés | 6 | **11** (6 + 5 Heaven) |
+| Expérimentaux | 2 | 2 (`heaven_integrate`, `heaven_solve`) |
+| Suspects | 1 | 1 (`heaven_theorems`) |
+| Désactivés | 2 | 2 (`egraph_query`, `heaven_expand`) |
+| Invisibles via `heaven mcp` | 5 | **0** |
+| Non testé | 1 | 0 (`mlcpd_equiv` a été testé en B2/B3 via les tests
+  registry) |
+
+Funnel : **16 déclarés → 16 exposés → 11 fiables** (au lieu de
+16 → 9 → 6).
+
+Les 5 tools Heaven sont désormais listés ET callables. Leur stabilité
+a été vérifiée en B3 : echo, count_chars, time_now, fs_read (OK +
+KO propre) — time_ms par symétrie.
+
+Limitations restantes :
+- `inputSchema` simplifié (`{"type":"object"}` sans
+  properties/required) — cf. B2.
+- `heaven_integrate`, `heaven_solve`, `heaven_theorems` restent
+  marqués EXPÉRIMENTAL/SUSPECT.
+- `egraph_query`, `heaven_expand` restent désactivés.
+
 ## Découvertes majeures
 
 ### 1. `egraph_query` panic
