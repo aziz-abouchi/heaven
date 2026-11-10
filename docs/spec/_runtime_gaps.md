@@ -1507,10 +1507,17 @@ listes paramétrées en syntaxe), mais `Channel` Int-only (14/14) fonctionne.
 
 **Cause** : `(linear x)` est un **pattern ctor** (`linear` 1-arity, `x` var), pas un modificateur QTT. Le parser ne distingue pas.
 
-**Décision requise avant code** :
-- **Option A** : syntaxe dédiée `fn f [linear x] = …` ou `fn f (linear! x) = …`
-- **Option B** : `fn f(x) linear = …` (postfix)
-- **Option C** : accepter l'ambiguïté, patterns `linear(x)` sont des ctors (ne pas faire QTT sur fn)
+**Décision (2026-11-10, session 47)** : Option A, mot-clé **nu**
+`linear` / `erased` / `many` en position de pattern de paramètre.
+Cohérent avec `let linear x`, pas de nouvelle syntaxe. Réservation
+contextuelle des mots-clés dans ce contexte uniquement. Design
+complet : `_qtt_fn_design.md`.
+
+Options écartées :
+- `linear!` : nouvelle syntaxe `!`
+- `[linear x]` : conflit patterns liste `[a,b]`
+- postfix `fn f(x) linear` : non conventionnel
+- Ne rien faire : contredit ch.29
 
 **Effort** : 1-2 sessions une fois la syntaxe décidée.
 
