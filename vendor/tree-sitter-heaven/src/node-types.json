@@ -5249,6 +5249,16 @@
             "named": true
           }
         ]
+      },
+      "tparam": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
       }
     },
     "children": {

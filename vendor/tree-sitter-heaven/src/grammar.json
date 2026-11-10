@@ -2694,6 +2694,17 @@
           ]
         },
         {
+          "type": "REPEAT",
+          "content": {
+            "type": "FIELD",
+            "name": "tparam",
+            "content": {
+              "type": "SYMBOL",
+              "name": "identifier"
+            }
+          }
+        },
+        {
           "type": "STRING",
           "value": "="
         },

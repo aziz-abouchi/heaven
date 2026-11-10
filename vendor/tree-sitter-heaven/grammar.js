@@ -413,6 +413,10 @@ data_decl: ($) => seq(
   "data",
   field("name", choice($.type_name, $.prim_type)),
   optional($.tparams),
+  // Bare type params (Session 47, fix 2026-11-10) : `data Stream a = …`.
+  // `optional($.tparams)` exige `<a>`, mais la syntaxe courante utilise
+  // `a b c` sans angle brackets. Cf. tests/test_data.hvn ligne 1.
+  repeat(field("tparam", $.identifier)),
   "=",
   $.data_constructor,
   repeat(seq('|', $.data_constructor))
