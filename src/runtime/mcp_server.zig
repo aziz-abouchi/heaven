@@ -304,12 +304,10 @@ pub const McpServer = struct {
                 defer self.allocator.free(res);
                 break :blk try self.allocator.dupe(u8, res);
             } else if (std.mem.eql(u8, name, "heaven_theorems")) {
-                // Fix 2026-11-10 : h.eval("theorems") tombait dans le
-                // branchement is_command de heaven_expr.zig qui retourne
-                // la chaîne brute ("theorems") au lieu de la liste.
-                // describeKB() itère proof_core.theorems/axioms et
-                // formate "═══ Axioms ═══" + "═══ Theorems ═══".
-                const res = h.describeKB() catch break :blk "error: theorems failed";
+                // Correctif 2d8d8d2 (qui retournait les rewrite rules
+                // via describeKB — mauvais type). h.listTheorems() appelle
+                // proof_core.formatAll() : '═══ Axioms ═══' + '═══ Theorems ═══'.
+                const res = h.listTheorems() catch break :blk "error: theorems failed";
                 defer self.allocator.free(res);
                 break :blk try self.allocator.dupe(u8, res);
             } else if (std.mem.eql(u8, name, "mlcpd_parse")) {

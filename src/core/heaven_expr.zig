@@ -3205,6 +3205,19 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
             else => error.EvaluationFailed,
         };
     }
+    /// Liste les théorèmes et axiomes du ProofCore (formatAll).
+    /// Différent de describeKB() qui retourne les rewrite rules de
+    /// l'EGraph (mauvais type pour heaven_theorems — cf. audit).
+    /// Session 46, correctif de 2d8d8d2.
+    pub fn listTheorems(self: *Heaven) HeavenError![]u8 {
+        const pc = self.proof_core_inst orelse
+            return self.allocator.dupe(u8,
+                "═══ Theorems ═══\n(no theorems declared yet)\n");
+        // formatAll retourne error{OutOfMemory} uniquement (ArrayList).
+        // Pas d'else — Zig refuse (unreachable prong).
+        return pc.formatAll(self.allocator) catch error.OutOfMemory;
+    }
+
     pub fn describeKB(self: *Heaven) HeavenError![]u8 {
         const cmds = self.ensureCommands() orelse
             return self.allocator.dupe(u8, "KB: commands unavailable");
