@@ -189,24 +189,24 @@ pub const McpServer = struct {
 
         const result_text = blk: {
             if (std.mem.eql(u8, name, "heaven_eval")) {
-                const expr_str = getArgString(args, "expression") orelse break :blk "error: missing 'expression'";
+                const expr_str = getArgString(args, "expression") orelse break :blk try self.allocator.dupe(u8, "error: missing 'expression'");
                 const res = h.eval(expr_str) catch break :blk "error: eval failed";
                 defer self.allocator.free(res);
                 break :blk try self.allocator.dupe(u8, res);
             } else if (std.mem.eql(u8, name, "heaven_derive")) {
-                const expr_str = getArgString(args, "expression") orelse break :blk "error: missing 'expression'";
+                const expr_str = getArgString(args, "expression") orelse break :blk try self.allocator.dupe(u8, "error: missing 'expression'");
                 const var_name = getArgString(args, "variable") orelse "x";
                 const res = h.derive(expr_str, var_name) catch break :blk "error: derive failed";
                 defer self.allocator.free(res);
                 break :blk try self.allocator.dupe(u8, res);
             } else if (std.mem.eql(u8, name, "heaven_integrate")) {
-                const expr_str = getArgString(args, "expression") orelse break :blk "error: missing 'expression'";
+                const expr_str = getArgString(args, "expression") orelse break :blk try self.allocator.dupe(u8, "error: missing 'expression'");
                 const var_name = getArgString(args, "variable") orelse "x";
                 const res = h.integrate(expr_str, var_name) catch break :blk "error: integrate failed";
                 defer self.allocator.free(res);
                 break :blk try self.allocator.dupe(u8, res);
             } else if (std.mem.eql(u8, name, "heaven_simplify")) {
-                const expr_str = getArgString(args, "expression") orelse break :blk "error: missing 'expression'";
+                const expr_str = getArgString(args, "expression") orelse break :blk try self.allocator.dupe(u8, "error: missing 'expression'");
                 const res = h.simplify(expr_str) catch break :blk "error: simplify failed";
                 defer self.allocator.free(res);
                 break :blk try self.allocator.dupe(u8, res);
@@ -214,7 +214,7 @@ pub const McpServer = struct {
                 // Désactivé (audit 2026-11-09) : fuite de debug sur stdout rompt JSON-RPC.
                 break :blk try self.allocator.dupe(u8, "error: tool disabled (see docs/spec/_tool_audit_2026-11-09.md)");
             } else if (std.mem.eql(u8, name, "heaven_solve")) {
-                const expr_str = getArgString(args, "expression") orelse break :blk "error: missing 'expression'";
+                const expr_str = getArgString(args, "expression") orelse break :blk try self.allocator.dupe(u8, "error: missing 'expression'");
                 const var_name = getArgString(args, "variable") orelse "x";
                 const res = h.solve(expr_str, var_name) catch break :blk "no solution";
                 defer self.allocator.free(res);
@@ -224,7 +224,7 @@ pub const McpServer = struct {
                 defer self.allocator.free(res);
                 break :blk try self.allocator.dupe(u8, res);
             } else if (std.mem.eql(u8, name, "mlcpd_parse")) {
-                const json_data = getArgString(args, "json") orelse break :blk "error: missing 'json'";
+                const json_data = getArgString(args, "json") orelse break :blk try self.allocator.dupe(u8, "error: missing 'json'");
                 var parsed = mlcpd_mod.parseMlcpdJson(self.allocator, json_data) catch break :blk "error: MLCPD parse failed";
                 defer parsed.deinit();
                 break :blk try std.fmt.allocPrint(self.allocator, "{{\"nodes\":{d},\"language\":\"{s}\"}}", .{
@@ -232,8 +232,8 @@ pub const McpServer = struct {
                     @tagName(parsed.metadata.language),
                 });
             } else if (std.mem.eql(u8, name, "mlcpd_equiv")) {
-                const json1 = getArgString(args, "json1") orelse break :blk "error: missing 'json1'";
-                const json2 = getArgString(args, "json2") orelse break :blk "error: missing 'json2'";
+                const json1 = getArgString(args, "json1") orelse break :blk try self.allocator.dupe(u8, "error: missing 'json1'");
+                const json2 = getArgString(args, "json2") orelse break :blk try self.allocator.dupe(u8, "error: missing 'json2'");
                 var he = self.heaven.?;
 
                 var p1 = mlcpd_mod.parseMlcpdJson(self.allocator, json1) catch break :blk "error: parse failed for json1";
@@ -276,7 +276,7 @@ pub const McpServer = struct {
                 // Désactivé (audit 2026-11-09) : panic "Invalid free".
                 break :blk try self.allocator.dupe(u8, "error: tool disabled (see docs/spec/_tool_audit_2026-11-09.md)");
             } else if (std.mem.eql(u8, name, "heaven_prove")) {
-                const stmt = getArgString(args, "statement") orelse break :blk "error: missing 'statement'";
+                const stmt = getArgString(args, "statement") orelse break :blk try self.allocator.dupe(u8, "error: missing 'statement'");
                 var he = self.heaven.?;
 
                 // 1. Kernel de preuve : syntaxe "prove <name> by { ... }"
@@ -285,8 +285,14 @@ pub const McpServer = struct {
                 if (std.mem.indexOf(u8, stmt, " by ") != null) {
                     if (he.evalProve(stmt)) |result| {
                         defer self.allocator.free(result);
+                        // evalProve retourne Ok("✓ …") sur succès et
+                        // Ok("✗ …") sur échec. Un '✗' ne doit PAS être
+                        // traduit en proved:true (faux positif — bug 2026-11-10).
+                        const trimmed = std.mem.trim(u8, result, " \t\r\n");
+                        const is_ok = trimmed.len > 0 and std.mem.startsWith(u8, trimmed, "✓");
                         break :blk try std.fmt.allocPrint(self.allocator,
-                            "{{\"proved\":true,\"method\":\"kernel\",\"certificate\":\"{s}\"}}", .{result});
+                            "{{\"proved\":{s},\"method\":\"kernel\",\"certificate\":\"{s}\"}}",
+                            .{ if (is_ok) "true" else "false", result });
                     } else |_| {}
                 }
 
