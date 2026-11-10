@@ -1,11 +1,11 @@
-# Chapitre 29 — Mémoire : QTT, multiplicités enforced (érasure à venir)
+# Chapitre 29 — Mémoire : QTT, multiplicités enforced
 
 > **Piège d'entrée.** Vous avez lu le ch. 3 (« QTT spec/runtime »), et vous vous
 > attendez à ce que le ch. 29 vous montre comment Heaven libère la mémoire.
-> **La vérification des multiplicités est faite** (au parse, `expr_parser.zig:774`,
-> testée 7/7). Ce qui manque : l'érasure runtime (le terme `erased` est encore
-> évalué) et le drop-reuse. Ce chapitre explique QTT, ce qui est enforced, et ce
-> qui reste à faire.
+> **La vérification des multiplicités est faite** (au parse) et **l'érasure
+> runtime est faite** (`erased` n'est pas évalué, voir le test `erased_runtime`).
+> Ce qui manque : le drop-reuse. Ce chapitre explique QTT, ce qui est enforced,
+> et ce qui reste à faire.
 
 ## 1. Le problème : qui libère ?
 
@@ -185,6 +185,7 @@ reste : l'érasure runtime (le terme `erased` est encore évalué) et le drop-re
 ### Ex. 1 — `linear` est enforced au parse (guidé)
 
 Écrivez un fichier `.hvn` :
+<!-- doctest: expect-fail -->
 ```heaven
 test "linear_violation": (let linear x = 42 in x + x) == 84
 ```
@@ -204,6 +205,7 @@ Trouvez `LinearChecker` dans `src/core/types.zig`. Regardez ce qu'il vérifie
 ### Ex. 3 — Écrire un test de violation (libre)
 
 Ajoutez un test à `tests/test_qtt.hvn` (s'il existe) ou créez-le :
+<!-- doctest: expect-fail -->
 ```heaven
 -- Ce test DOIT échouer (linear 2 usages) — enforcement fait 2026-11-06
 test "linear_violation_expected_fail":
