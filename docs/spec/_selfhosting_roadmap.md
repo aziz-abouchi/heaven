@@ -260,17 +260,39 @@ bloque. N2 debloque quand on teste sur VPS.
 - `ci-preflight.sh` vérifie QBE avant build.
 - Test clone frais confirmé : `build.sh` construit QBE (~5 min).
 
-### A2 — signal `warn: unresolved call sym=0xDEADBEEF`
+### A2 — matrice réelle des 4 `.skip` (Session 48, corrigé)
 
-Observé pendant la vérification A1 (test_mir_qbe passe mais
-warning silencieux). Le MIR émetteur utilise un sentinel
-`0xDEADBEEF` (3735928559) pour les symboles non résolus, mais
-ne **fail** pas dessus.
+**Correction** : la note précédente (warn `0xDEADBEEF` masqué)
+était erronée. `test_mir_qbe.zig:171` (`.name = 0xDEADBEEF`)
+est un **test intentionnel** (`"qbe — rejet : call_user hors
+fn_defs"`). Le warning est exigé par le test. À durcir sous
+`HEAVEN_STRICT_QBE=1` en B3, **pas en A2**.
 
-**Impact A2/B3/B4** : pour le fixpoint B4 (step1 == step2
-byte-for-byte), un tel warning est inacceptable. A2 doit :
-1. Identifier la source du sym non résolu (probablement un cas
-   de test qui utilise `emitQbe` sur un MIR incomplet).
-2. Soit le résoudre, soit le transformer en `error.UnresolvedSymbol`.
+Matrice réelle mesurée (Session 48) :
 
-À traiter dans A2 ou en préalable à B3.
+| Cas | Interp | QBE | Verdict |
+|---|---|---|---|
+| `(pair 1 2)` | retourne `(pair 1 2)` | `855229088` (offset) | Cassé des deux côtés |
+| `(string_concat "hello" "world")` | `"helloworld"` ✓ | `error.UnsupportedOp` | Interp OK, QBE unsupported |
+| `(let f (lambda x (+ x 1)) (f 41))` | `(f := (lambda ...))` (bind non évalué) | `error.UnsupportedOp` | Interp cassé (let-chain) + QBE unsupported |
+| `data Color = Red \| Green ; Green` | `Green` ✓ | `1` (+ warn) | À vérifier (Red=0/Green=1 ?) |
+
+**Révision d'estimation A2** (plan disait 1-2 sessions) :
+
+| Sous-bloc | Effort réel |
+|---|---|
+| A2a Closures | **2-3 sessions** — interp `let-chain` cassé + QBE unsupported |
+| A2b Ctors (pair + enum) | **1-2 sessions** — pair cassé des deux côtés |
+| A2c String QBE | **0,5-1 session** — `string_concat` à implémenter |
+| **Total A2** | **3-6 sessions** |
+
+**Bug préalable à A2a** : `(let f (lambda …) (f 41))` retourne
+`(f := …)` — le `let-chain` en S-expr n'est pas évalué. C'est le
+bug documenté dans `status.json` (2026-10-19) : `normalizeLetChain`
+fixe le top-level direct, pas la forme parenthésée.
+
+**Ordre suggéré** (à valider par test enum) :
+1. A2b (ctors, si enum OK en QBE) : 1 session
+2. A2a-préalable (let-chain bug) : 0,5 session
+3. A2a (closures) : 1-2 sessions
+4. A2c (string QBE) : 0,5 session
