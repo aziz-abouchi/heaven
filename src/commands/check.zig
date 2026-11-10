@@ -46,11 +46,28 @@ pub fn runCheck(allocator: std.mem.Allocator, file_path: []const u8) !void {
     defer typer.deinit();
     typer.checkAll();
 
-    // v2 : walker unbound. Opt-in via HEAVEN_CHECK_STRICT=1 tant que
-    // les patterns de clause ne sont pas collectés (cf. _check_v2_plan.md).
+    // v2 : walker unbound. Opt-in via HEAVEN_CHECK_STRICT=1.
     var unbound: usize = 0;
     if (std.process.hasEnvVar(allocator, "HEAVEN_CHECK_STRICT") catch false) {
-        unbound = scope_check.checkUnboundV2(allocator, &store, bridge.roots.items, file_path);
+        // Scan source pour les alias d'import (`import "..." as X`).
+        // Bridge.buildFile ne traite pas import_decl, donc le walker
+        // ne voit jamais les alias sans ce scan. Session 45, fix
+        // 2026-11-10.
+        var aliases: std.ArrayListUnmanaged([]const u8) = .{};
+        defer aliases.deinit(allocator);
+        {
+            var idx: usize = 0;
+            while (std.mem.indexOfPos(u8, source, idx, " as ")) |pos| {
+                const start = pos + 4;
+                var end = start;
+                while (end < source.len and (std.ascii.isAlphanumeric(source[end]) or source[end] == '_')) : (end += 1) {}
+                if (end > start) {
+                    aliases.append(allocator, source[start..end]) catch {};
+                }
+                idx = end;
+            }
+        }
+        unbound = scope_check.checkUnboundV2(allocator, &store, bridge.roots.items, aliases.items, file_path);
     }
 
     if (diags.items.items.len > 0 or unbound > 0) {

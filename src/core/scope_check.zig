@@ -128,10 +128,18 @@ pub fn checkUnboundV2(
     allocator: std.mem.Allocator,
     store: *expr.Store,
     roots: []const expr.Id,
+    extra_defined: []const []const u8,
     file_path: []const u8,
 ) usize {
     var defined = std.StringHashMap(void).init(allocator);
     defer defined.deinit();
+
+    // Alias d'import pré-collectés par le caller (Session 45, fix
+    // 2026-11-10). Bridge.buildFile ne traite pas import_decl → le
+    // walker ne voyait jamais `R` (alias de lib/std/result.hvn).
+    for (extra_defined) |name| {
+        if (name.len > 0) defined.put(name, {}) catch {};
+    }
 
     const builtins = [_][]const u8{
         // Opérateurs binaires et unaires
@@ -189,6 +197,15 @@ fn isFilteredV2(name: []const u8) bool {
     if (isDigit(name[0])) return true;
     if (std.mem.indexOfScalar(u8, name, '.') != null) return true;
     if (std.mem.endsWith(u8, name, "_decl")) return true;
+    // Nœuds d'erreur tree-sitter (Session 45, fix 2026-11-10) :
+    // le parser émet sym("ERROR") quand il ne peut pas récupérer.
+    // Ce n'est pas une variable utilisateur — toujours filtrer.
+    if (std.mem.eql(u8, name, "ERROR")) return true;
+    // Fragments multi-lignes (source brute) : rejeter les payloads
+    // contenant des sauts de ligne ou des caractères non-ident.
+    for (name) |c| {
+        if (!std.ascii.isAlphanumeric(c) and c != '_' and c != '?' and c != '.') return true;
+    }
     return false;
 }
 
