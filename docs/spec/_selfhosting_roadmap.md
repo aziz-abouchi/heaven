@@ -275,7 +275,9 @@ Matrice réelle mesurée (Session 48) :
 | `(pair 1 2)` | retourne `(pair 1 2)` | `855229088` (offset) | Cassé des deux côtés |
 | `(string_concat "hello" "world")` | `"helloworld"` ✓ | `error.UnsupportedOp` | Interp OK, QBE unsupported |
 | `(let f (lambda x (+ x 1)) (f 41))` | `(f := (lambda ...))` (bind non évalué) | `error.UnsupportedOp` | Interp cassé (let-chain) + QBE unsupported |
-| `data Color = Red \| Green ; Green` | `Green` ✓ | `1` (+ warn) | À vérifier (Red=0/Green=1 ?) |
+| `data Color = Red \| Green ; Green` | `Green` ✓ | `1` (+ warn sym=336 cosmétique) | ✓ enum OK des deux côtés |
+
+**Enum Color fonctionne**, interp et QBE. Le warn `sym=336` est cosmétique (résultat correct). **A2b ne concerne que `pair`.**
 
 **Révision d'estimation A2** (plan disait 1-2 sessions) :
 
