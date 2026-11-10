@@ -466,8 +466,21 @@ pub const ExprParser = struct {
         var start: usize = 0;
         var in_token = false;
         var in_str = false;
+        var skip_next = false;
         for (inner, 0..) |ch, idx| {
+            if (skip_next) {
+                skip_next = false;
+                continue;
+            }
             if (in_str) {
+                if (ch == '\\') {
+                    // Bug fix 2026-11-10 : gérer les quotes échappés
+                    // dans les strings. Sans ceci, `"\"name\"..."` est
+                    // fragmenté au premier `\"`. Cf. cas run_tool avec
+                    // body JSON.
+                    skip_next = true;
+                    continue;
+                }
                 if (ch == '"') in_str = false;
                 continue;
             }
