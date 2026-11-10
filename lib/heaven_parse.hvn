@@ -65,6 +65,13 @@ data Strs = SNil | SCons Str Strs
 parse_one TNil = (PErr "fin de flux")
 parse_one (TCons t rest) = (parse_one_go t rest 0)
 parse_one_go t rest n = (if (> n 100) (PErr "parse_one: overflow") (parse_tok t rest))
+-- Wrapper parse (Session 48, B1) : lex + parse_one + EOF check.
+-- POk e  : succès, e = AST, plus de tokens.
+-- PErr m : erreur de lexing/parsing, OU tokens restants.
+parse s = (parse_wrap (parse_one (lex s)))
+parse_wrap (POk e TNil) = (POk e TNil)
+parse_wrap (POk e _rest) = (PErr "parse: trailing tokens after expression")
+parse_wrap (PErr e) = (PErr e)
 
 parse_tok (TIntTok n) rest = (POk (ELitI n) rest)
 parse_tok (TStrTok s) rest = (POk (ELitS s) rest)
