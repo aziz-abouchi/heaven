@@ -77,26 +77,24 @@ et `tests/test_mcp_tools.hvn` (tools individuels).
 
 ## 3bis. Ce que `heaven mcp` expose vraiment (audit 2026-11-09)
 
-> **Note d'audit.** Le serveur MCP par défaut — celui que lance la
-> commande `heaven mcp` — n'est **pas** `lib/mcp/`. C'est
-> `src/runtime/mcp_server.zig` (11 outils en Zig, dont 9 exposés
-> après l'audit). Les 5 outils Heaven de `lib/mcp/` (`echo`,
-> `fs_read`, `count_chars`, `time_now`, `time_ms`) ne sont **pas**
-> accessibles via `heaven mcp`.
->
-> Le registre v2 (`lib/tool_registry.hvn`) déclare 16 outils, mais
-> un seul serveur les expose partiellement. La table ci-dessous
-> documente l'état réel.
+> **Note d'audit (mise à jour 2026-11-10).** Le serveur MCP par
+> défaut — celui que lance la commande `heaven mcp` — utilise
+> `src/runtime/mcp_server.zig`. Depuis les commits `8113a49` (B2)
+> et `8686629` (B3), ce serveur lit le registre
+> `lib/tool_registry.hvn` : **16 outils listés, 16 callables**.
+> Les 5 outils Heaven de `lib/mcp/` (`echo`, `fs_read`,
+> `count_chars`, `time_now`, `time_ms`) sont intégrés au serveur
+> via `TT.run_tool`. La table ci-dessous reflète l'état réel.
 
-![16 outils déclarés, 9 exposés, 6 fiables](images/26-tool-status.svg)
+![16 outils déclarés, 16 exposés, 11 fiables](images/26-tool-status.svg)
 
 | Catégorie | Nombre | Outils |
 |---|---|---|
-| **Stable** (résultat correct) | 6 | `heaven_eval`, `heaven_derive`, `heaven_simplify`, `heaven_prove` (kernel + sémantique), `mlcpd_parse`, `mlcpd_equiv` |
+| **Stable** (résultat correct) | 11 | `heaven_eval`, `heaven_derive`, `heaven_simplify`, `heaven_prove` (kernel + sémantique), `mlcpd_parse`, `mlcpd_equiv`, `echo`, `time_now`, `time_ms`, `fs_read`, `count_chars` |
 | **Expérimental** (résultat faux) | 2 | `heaven_integrate`, `heaven_solve` |
 | **Suspect** (résultat trivial) | 1 | `heaven_theorems` |
 | **Désactivé** (`3f878fc`) | 2 | `egraph_query` (panic), `heaven_expand` (rupture JSON-RPC) |
-| **Invisible** (pas dans `heaven mcp`) | 5 | `echo`, `fs_read`, `count_chars`, `time_now`, `time_ms` |
+| **Invisible** via `heaven mcp` | **0** | — (les 5 Heaven intégrés par `8113a49` / `8686629`) |
 
 Voir `docs/spec/_tool_audit_2026-11-09.md` pour la méthodologie et
 les traces. Les chantiers de correction (walker `check` v2,
