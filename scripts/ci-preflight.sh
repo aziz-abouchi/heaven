@@ -21,6 +21,9 @@ zig build -Doptimize=ReleaseFast
 echo "[preflight] book_check_v2 (docs/book/src-v2/*.md)"
 HEAVEN_NO_LEAK_CHECK=1 python3 scripts/book_check_v2.py --check
 
+echo "[preflight] mcp_diff_check (MCP ≡ Heaven)"
+HEAVEN_NO_LEAK_CHECK=1 python3 scripts/mcp_diff_check.py --check
+
 echo "[preflight] test-files"
 HEAVEN_NO_LEAK_CHECK=1 zig build -Dnetwork=false test-files
 
