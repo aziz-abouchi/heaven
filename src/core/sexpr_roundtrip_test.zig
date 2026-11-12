@@ -10,9 +10,8 @@
 //!                pas les relire. Le dump n'est donc pas relisible pour ces
 //!                caractères : c'est une entorse au critère, pas une dette
 //!                cosmétique. Corriger en B0.2 (decodeEscapes ou format).
-//!   - lambda   : round-trip string-level OK (paren-branch), couvert si besoin
-//!                via un apply(sym("lambda"), …) ; pas testé ici pour ne pas
-//!                figer un format que B3 peut vouloir revoir
+//!   - lambda   : couvert en relecture depuis a5723ed (`(lambda n y)` testé).
+//!                Format susceptible d'évoluer en B3 ; l'ajuster à ce moment-là.
 
 const std = @import("std");
 const expr = @import("expr");
@@ -53,7 +52,7 @@ test "roundtrip B0.1 — int, float, str, sym, apply, bind (string-level)" {
     const five = try store.int(5);
     const str_ab = try store.interner.intern("a\\b");
 
-    const cases = [_]struct { id: expr.Id, expect: ?[]const u8 }{
+    const cases = [_]struct { id: expr.Id, expect: ?[]const u8, min_len: usize = 0 }{
         .{ .id = try store.int(3),                  .expect = "3" },
         .{ .id = try store.float(3.0),              .expect = "3.0" },
         .{ .id = try store.lit(.{ .str = str_ab }), .expect = "\"a\\\\b\"" },
@@ -61,8 +60,8 @@ test "roundtrip B0.1 — int, float, str, sym, apply, bind (string-level)" {
         .{ .id = try store.apply(f, &.{ a, b }),    .expect = "(f 1 2)" },
         .{ .id = try store.bindSymWithBody(n_sym, five, y), .expect = "(let n 5 y)" },
         // Float extrêmes : {d} sans exposant, ~300 caractères. Tampon fixe crashait.
-        .{ .id = try store.float(1e300),  .expect = null }, // vérifié par non-vacuité + round-trip
-        .{ .id = try store.float(1e-300), .expect = null },
+        .{ .id = try store.float(1e300),  .expect = null, .min_len = 250 },
+        .{ .id = try store.float(1e-300), .expect = null, .min_len = 250 },
         // Lambda : couvre la 5e primitive (relation reste exclue, cf. en-tête).
         .{ .id = try store.lambda(&[_][]const u8{"n"}, y), .expect = "(lambda n y)" },
     };
@@ -73,7 +72,11 @@ test "roundtrip B0.1 — int, float, str, sym, apply, bind (string-level)" {
         if (c.expect) |exp| {
             try std.testing.expectEqualStrings(exp, s1);
         } else {
-            try std.testing.expect(s1.len > 0);
+            // Floats extrêmes : {d} sans exposant, ~300 caractères.
+            // Vérifie que la sortie est longue, pas juste non-vide — le
+            // bug initial (bufPrint[64]) aurait produit NoSpaceLeft.
+            const min: usize = if (c.min_len == 0) 1 else c.min_len;
+            try std.testing.expect(s1.len >= min);
         }
 
         // 2) parseSExpr relit, formatId re-produit : idempotence string-level
