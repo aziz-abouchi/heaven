@@ -1372,6 +1372,14 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr", .module = expr_mod },
         },
     }) });
+    const test_sexpr_dump = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/core/sexpr_dump.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+        },
+    }) });
     const test_abi_precision = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/platform/abi/precision.zig"),
         .target = target,
@@ -1859,6 +1867,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_kanren_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_continuation).step);
+    test_step.dependOn(&b.addRunArtifact(test_sexpr_dump).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_precision).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_error).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_capability).step);

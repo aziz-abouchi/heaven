@@ -15,7 +15,8 @@
 //!   apply(f, a…)  → `(f a1 a2 …)`
 //!   bind(n, v)    → `(bind n v)`
 //!   lambda(p, b)  → `(lambda p b)`
-//!   conditional   → `(if c t e)`
+//!   conditional   → `(if c t e)` — encodé comme apply(sym("if"), [c,t,e]),
+//!                   donc couvert par le case .apply, pas de Tag dédié.
 //!   letrec        → `(letrec n v b)`
 //!
 //! Tag inconnu → `error.UnsupportedTag` (jamais d'omission
@@ -55,7 +56,7 @@ fn formatInto(
     const w = buf.writer(allocator);
     switch (node.tag) {
         .lit => {
-            const v = store.litValue(id);
+            const v = store.getLit(node.aux);
             switch (v) {
                 .int => |n| try w.print("{d}", .{n}),
                 .float => |f| try w.print("{d}", .{f}),
@@ -76,7 +77,7 @@ fn formatInto(
             try w.writeAll(store.interner.resolve(node.payload));
         },
         .apply => {
-            const args = store.spanSliceConst(node.span_a);
+            const args = store.applyArgs(node);
             try w.writeByte('(');
             try formatInto(store, node.payload, buf, allocator);
             for (args) |a| {
@@ -101,24 +102,45 @@ fn formatInto(
             if (body.len > 0) try formatInto(store, body[0], buf, allocator);
             try w.writeByte(')');
         },
-        .conditional => |c| {
-            try w.writeAll("(if ");
-            try formatInto(store, c.cond, buf, allocator);
-            try w.writeByte(' ');
-            try formatInto(store, c.then_branch, buf, allocator);
-            try w.writeByte(' ');
-            try formatInto(store, c.else_branch, buf, allocator);
-            try w.writeByte(')');
-        },
-        .letrec => |l| {
-            try w.writeAll("(letrec ");
-            try w.writeAll(store.interner.resolve(l.name));
-            try w.writeByte(' ');
-            try formatInto(store, l.val, buf, allocator);
-            try w.writeByte(' ');
-            try formatInto(store, l.body, buf, allocator);
-            try w.writeByte(')');
-        },
         else => return error.UnsupportedTag,
+    }
+}
+
+test "compile-check" {
+    // Force la compilation du fichier par `zig build test`.
+    // refAllDecls analyse le corps de formatId ; `_ = formatId;`
+    // ne vérifiait que sa signature (lazy analysis).
+    std.testing.refAllDecls(@This());
+}
+
+
+test "smoke — int / sym / apply / if" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    // int(42) -> "42"
+    {
+        const id = try store.int(42);
+        const s = try formatId(&store, id, allocator);
+        defer allocator.free(s);
+        try std.testing.expectEqualStrings("42", s);
+    }
+    // sym("f") -> "f" (sans quotes, sans ID — cf. docstring)
+    {
+        const id = try store.sym("f");
+        const s = try formatId(&store, id, allocator);
+        defer allocator.free(s);
+        try std.testing.expectEqualStrings("f", s);
+    }
+    // (f 1 2) — via apply
+    {
+        const f = try store.sym("f");
+        const a = try store.int(1);
+        const b = try store.int(2);
+        const id = try store.apply(f, &.{ a, b });
+        const s = try formatId(&store, id, allocator);
+        defer allocator.free(s);
+        try std.testing.expectEqualStrings("(f 1 2)", s);
     }
 }
