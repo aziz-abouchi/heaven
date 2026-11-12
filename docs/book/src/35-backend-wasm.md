@@ -16,15 +16,20 @@
 - `mir_wat.zig` émet le WAT pour arith / if / fns user
 - Heap → `unreachable` trap (au lieu d'erreur bloquante)
 
-## Ce qui échoue
+## Ce qui échoue (par conception)
 
-- `(+ 1 2)` → `UnsupportedCall` (checkCallUsers sans stubs)
+- `(+ 1 2)` → `UnsupportedCall` — `+` est un builtin, pas une fn
+  utilisateur ; `checkCallUsers` le rejette. Comportement voulu
+  depuis `31b5ba1` (2026-11-12), qui a révoqué les stubs retournant 0.
 - `(choose 1)` → `UnsupportedExpr` (pipeline WAT incomplet)
 - Entry `_start` WASI absente (freestanding)
 
 ## 3-4 sessions nécessaires
 
-1. Skip `checkCallUsers` en warn + stubs
+1. ~~Skip `checkCallUsers` en warn + stubs~~ **Abandonné** — `31b5ba1`
+   a choisi le rejet explicite. Remplacé par : compiler les builtins
+   (`+`, `-`, `@strcmp`, …) en `fn_defs` pour les rendre disponibles
+   au backend.
 2. Entry `_start` WASI + fd_write pour printf
 3. Heap WASM (memory.grow, load/store WASI)
 4. Strings/bytes + tests

@@ -433,15 +433,25 @@ fn user destinée à QBE. Garder `@strcmp` inline dans `main`.
 
 Voir aussi : G.25 (mise à jour merge), G.31 (skip fn_defs str_pool).
 
-### G.35 — `call_user` unresolved en WASM (fail-fast) [RESOLU]
+### G.35 — `call_user` unresolved en WASM [REJET EXPLICITE]
 
 `mir_wat.zig` levait `error.UnsupportedCall` pour tout `call_user`
 dont le sym n'était pas dans `fn_defs`. Une fn std non compilée
 bloquait la compilation, même `main = 42`.
 
-**RESOLU** (commit selfhost-wasm-v0) : stub silencieux
-`(local.set $rN (i64.const 0)) ;; stub fN` au lieu de fail. Même
-pattern que G.31 pour QBE.
+**Première "résolution"** (commit selfhost-wasm-v0) : stub silencieux
+`(local.set $rN (i64.const 0)) ;; stub fN` au lieu de fail, même
+pattern que G.31 pour QBE. **Révoquée** : un stub retournant 0
+masquait un résultat faux, indistinguable d'un résultat correct.
+
+**État actuel** (commit `31b5ba1`, 2026-11-12) : retour au rejet
+explicite (`error.UnsupportedCall`), conforme à MIR_CONTRACT §6.
+QBE et WAT ont la même politique ; un programme partiellement
+compilé ne s'exécute plus avec des résultats faux.
+
+Conséquence : toute fn std non compilée (`+`, `@strcmp`, etc.)
+bloque la compilation — c'est le prix de la justesse. Levée
+prévue : compiler les builtins en `fn_defs` (cf. G.31).
 
 ### G.36 — `main = EXPR` ignoré en WASM [RESOLU]
 
