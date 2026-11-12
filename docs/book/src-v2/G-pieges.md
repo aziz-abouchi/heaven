@@ -421,8 +421,8 @@ Diagnostic 2026-10-30 (test B) :
 
 Cause : `@strcmp __x "version"` dans `cmp.fn_mir` remplit
 `cmp.fn_mir.str_pool`. Le workaround (skip l'émission des fns
-avec `str_pool` non vide) faisait donc que `cmp` n'était pas émise. Donc `cmp` n'est pas émise, et `main`
-appelle `$f<N>` → undef.
+avec `str_pool` non vide) faisait que `cmp` n'était pas émise, et
+`main` appelait `$f<N>` → undef.
 
 **Fix prévu** : pool global partagé (root.str_pool utilisé par tous
 les fn_defs). Alors `emitInstr.const_str` utilise le pool du root, et
