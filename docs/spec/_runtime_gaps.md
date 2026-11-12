@@ -1,5 +1,18 @@
 # Runtime gaps (OTP + Hab, 2026-10-28)
 
+> **Note historique (2026-11-12)** — Ce fichier est un journal daté
+> conservé comme record de diagnostic. Certaines sections pré-`31b5ba1`
+> sont périmées, notamment :
+> - L576, L580 : « `(+ 1 2)` → `UnsupportedCall` » — faux depuis
+>   l'arm natif `.add` de `compileExpr.apply` (`mir.zig`). `+`/`-`/`*`/
+>   `/` et comparaisons ne produisent pas de `call_user`.
+> - L622-623 : « `mir_wat.zig` levait `UnsupportedCall`. Fix : stub » —
+>   contrat inversé par `31b5ba1` (rejet explicite restauré). Voir
+>   `MIR_CONTRACT.md` §6, §8.
+>
+> État courant : `804ee84` (ch.35 corrigé). Ne pas lire ces sections
+> comme représentant l'état actuel du binaire.
+
 Dettes identifiées pendant O4.1. Bloquent l'actor mailbox Hab.
 
 ## 1. `heaven check` est un stub

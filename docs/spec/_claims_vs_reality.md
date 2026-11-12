@@ -2,7 +2,7 @@
 
 > Registre des affirmations du livre / de la spec confrontées au code
 > réel. But : éviter de confondre la **vision cible** avec l'**état du
-> binaire**. Mis à jour au 2026-10-29.
+> binaire**. Mis à jour au 2026-11-12 (commit `804ee84`).
 
 ## Statut du binaire
 
@@ -66,7 +66,7 @@ Ce document est la **vérité terrain** pour planifier — pas le livre.
 | S2 | `@puts`/`@printf`/`@getenv`/`@strcmp` | extern_call glibc | OK |
 | S3 | `@argv N` (ABI SysV) | wrapper `l $main(l, l)` | OK |
 | S4 | Dispatch CLI | `@strcmp` + cascade `if` (V0.6) | OK |
-| S5 | Multi-clauses `dispatch 0=0 \| ...` | exclu de `precompileUserFns` | G.25 |
+| S5 | Multi-clauses `dispatch 0=0 \| ...` | exclu de `precompileUserFns` ; appel → `error.UnsupportedCall` (rejet explicite depuis `31b5ba1`) | G.25 |
 | S6 | `@argv` dans fn user | segfault (`argv_sym` local) | G.33 |
 | S7 | `@strcmp "str"` dans fn user | `undef fN` (`str_pool` local) | G.34 |
 | S8 | WASM selfhost (`mir_wat`) | primitives non émises | TODO |
@@ -86,9 +86,26 @@ Voir `docs/book/src/39-selfhosting.md` et annexe G (G.25 → G.34).
 | E6 | `let` | non géré (G.38) | ❌ Parser |
 | W1 | `compile-wasm main=42` | wat2wasm --enable-tail-call + node → 42 | OK |
 | W2 | `compile-wasm (+ 1 2)` | → 3 exécutable | OK |
-| W3 | `@puts` en WASM | `unreachable` (extern_call) | ❌ TODO |
+| W3 | `@puts` en WASM | `extern_call` émis → `unreachable` dans le WAT (trap runtime, pas rejet à la compilation). WASI `fd_write` absent | ❌ TODO |
 
 Voir `docs/book/src/40-heaven-eval.md` et annexe G (G.35 → G.39).
+
+
+## Contrat d'appel MIR → backend (2026-11-12)
+
+Trois issues distinctes pour un `Instr.call_user`, selon la cible :
+
+| Cible | Résolution | Comportement backend |
+|---|---|---|
+| `fn_defs[name]` | lambda compilée | émise (QBE : `call $fN` ; WAT : `call $fN`) |
+| `engine.fns[name]` (fn utilisateur hors `fn_defs`) | exclue par `precompileUserFns` (multi-clause, garde, pattern non-sym) | **`error.UnsupportedCall`** (`31b5ba1`) |
+| nom inconnu (ni fn, ni `@xxx`) | arm `compileExpr.apply` épuisé | **`error.UnsupportedOp`** à `compileExpr` |
+
+Et une issue distincte pour `@xxx` :
+
+| `@xxx` (externe) | `.extern_call` émis | QBE : link libc ; WAT : `unreachable` (trap runtime, pas rejet) |
+
+Voir `docs/MIR_CONTRACT.md` §6, §8 (source de vérité).
 
 | 15 | Selfhost = compilateur Heaven | briques (parse+eval) partiellement en .hvn, PAS un compilateur. head-18 passe, full-file cyclique. | WIP |
 | 16 | heaven check = typechecker | syntax + arité (48/148 faux positifs tree-sitter). Pas d'unification. | Partiel |
