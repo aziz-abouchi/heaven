@@ -1889,7 +1889,18 @@ pub fn build(b: *std.Build) void {
     }) });
 
     test_step.dependOn(&b.addRunArtifact(test_sexpr_dump).step);
+    const test_mir_soundness = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/core/test_mir_soundness.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
+            .{ .name = "mir", .module = mir_mod },
+        },
+    }) });
     test_step.dependOn(&b.addRunArtifact(test_sexpr_roundtrip).step);
+    test_step.dependOn(&b.addRunArtifact(test_mir_soundness).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_precision).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_error).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_capability).step);

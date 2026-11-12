@@ -717,6 +717,13 @@ pub const MirFunction = struct {
             if (fn_def_user.num_clauses != 1) continue;
 
             const clause = fn_def_user.clauses[0];
+
+            // Soundness : MIR ne compile pas les gardes. Compiler une
+            // clause gardée sans appliquer sa garde produit une réponse
+            // fausse à l'exécution. Exclure tant que MIR ne sait pas les
+            // traiter ; l'interpréteur prend le relais.
+            if (clause.guard != null) continue;
+
             var all_syms = true;
             for (0..clause.num_patterns) |i| {
                 const pat = store.get(clause.patterns[i]);
