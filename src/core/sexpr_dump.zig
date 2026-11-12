@@ -61,8 +61,10 @@ fn formatInto(
                 .int => |n| try w.print("{d}", .{n}),
                 .float => |f| {
                     if (!std.math.isFinite(f)) return error.UnsupportedTag;
-                    var tmp: [64]u8 = undefined;
-                    const s = std.fmt.bufPrint(&tmp, "{d}", .{f}) catch unreachable; // 64o >> max f64 (~24o)
+                    // `{d}` n'utilise pas d'exposant : 1e-300 produit ~300 caractères,
+                    // 1e300 ~301. Pas de tampon fixe, allocPrint.
+                    const s = try std.fmt.allocPrint(allocator, "{d}", .{f});
+                    defer allocator.free(s);
                     try w.writeAll(s);
                     if (std.mem.indexOfAny(u8, s, ".eE") == null) try w.writeAll(".0");
                 },
@@ -84,7 +86,8 @@ fn formatInto(
                 },
                 .boolean => |b| try w.writeAll(if (b) "true" else "false"),
                 .unit => try w.writeAll("unit"),
-                else => return error.UnsupportedTag,
+                // Lit est une union(enum) : nouvelle variante = erreur de compilation ici.
+                .runtime => return error.UnsupportedTag,
             }
         },
         .sym => {
