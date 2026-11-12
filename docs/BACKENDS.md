@@ -122,9 +122,17 @@ explicite. Ce document est docs-only.
 
 ## 9. Dettes documentaires
 
-README : « 39 tests unitaires » (réel : 175+), « MIR ~40 % »,
-`zig build wasm` inexistant (chemin réel : `bash build.sh`).
-STATUS.md : lignes TCO et kernel CIC à rafraîchir (d9d35ba, c620281).
+Aucune connue au 2026-11-12.
+
+L'audit du 2026-09-29 listait quatre points, tous résolus ou erronés :
+- README « 39 tests unitaires » → régénéré par `scripts/docgen.py`
+  (422 tests Zig au 2026-11-12, cf. e494754).
+- README « MIR ~40 % » → retiré.
+- README « `zig build wasm` inexistant » → retiré ; chemin réel
+  documenté (`bash build.sh` pour heaven.wasm).
+- STATUS.md « lignes TCO et kernel CIC à rafraîchir » → non confirmé :
+  `grep` des refs `d9d35ba`/`c620281` ne les trouve plus ; les lignes
+  TCO 268-269 décrivent QBE/WASM de 2026-09-30/10-02, fraîches.
 
 ### Note (2026-10-08)
 Tous les backends (QBE, WASM) consomment désormais exclusivement le MIR généré depuis 'core.Expr.Store', rendant 'SurvivalTranspiler' (C) obsolète.
