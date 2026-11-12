@@ -59,12 +59,26 @@ fn formatInto(
             const v = store.getLit(node.aux);
             switch (v) {
                 .int => |n| try w.print("{d}", .{n}),
-                .float => |f| try w.print("{d}", .{f}),
+                .float => |f| {
+                    if (!std.math.isFinite(f)) return error.UnsupportedTag;
+                    var tmp: [64]u8 = undefined;
+                    const s = std.fmt.bufPrint(&tmp, "{d}", .{f}) catch unreachable; // 64o >> max f64 (~24o)
+                    try w.writeAll(s);
+                    if (std.mem.indexOfAny(u8, s, ".eE") == null) try w.writeAll(".0");
+                },
                 .str => |s| {
                     const name = store.interner.resolve(s);
                     try w.writeByte('"');
                     for (name) |c| {
-                        if (c == '"') try w.writeAll("\\\"") else try w.writeByte(c);
+                        switch (c) {
+                            '"' => try w.writeAll("\\\""),
+                            '\\' => try w.writeAll("\\\\"),
+                            '\n' => try w.writeAll("\\n"),
+                            '\r' => try w.writeAll("\\r"),
+                            '\t' => try w.writeAll("\\t"),
+                            0...8, 11, 12, 14...0x1f, 0x7f => try w.print("\\x{x:0>2}", .{c}),
+                            else => try w.writeByte(c),
+                        }
                     }
                     try w.writeByte('"');
                 },
@@ -91,7 +105,8 @@ fn formatInto(
             try w.writeAll(store.interner.resolve(node.payload));
             try w.writeByte(' ');
             const val = store.spanSliceConst(node.span_a);
-            if (val.len > 0) try formatInto(store, val[0], buf, allocator);
+            if (val.len == 0) return error.UnsupportedTag;
+            try formatInto(store, val[0], buf, allocator);
             try w.writeByte(')');
         },
         .lambda => {
@@ -99,7 +114,8 @@ fn formatInto(
             try w.writeAll(store.interner.resolve(node.payload));
             try w.writeByte(' ');
             const body = store.spanSliceConst(node.span_a);
-            if (body.len > 0) try formatInto(store, body[0], buf, allocator);
+            if (body.len == 0) return error.UnsupportedTag;
+            try formatInto(store, body[0], buf, allocator);
             try w.writeByte(')');
         },
         else => return error.UnsupportedTag,
@@ -143,4 +159,54 @@ test "smoke — int / sym / apply / if" {
         defer allocator.free(s);
         try std.testing.expectEqualStrings("(f 1 2)", s);
     }
+}
+
+
+test "float — 3.0 et 3 sont distinguables (injectivité)" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    const f = try store.float(3.0);
+    const i = try store.int(3);
+    const sf = try formatId(&store, f, allocator);
+    defer allocator.free(sf);
+    const si = try formatId(&store, i, allocator);
+    defer allocator.free(si);
+    try std.testing.expectEqualStrings("3.0", sf);
+    try std.testing.expectEqualStrings("3", si);
+    try std.testing.expect(!std.mem.eql(u8, sf, si));
+}
+
+test "str — échappements table-driven" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    const cases = [_]struct { raw: []const u8, expected: []const u8 }{
+        .{ .raw = "a",    .expected = "\"a\"" },
+        .{ .raw = "a\"b", .expected = "\"a\\\"b\"" },
+        .{ .raw = "a\\b", .expected = "\"a\\\\b\"" },
+        .{ .raw = "a\nb", .expected = "\"a\\nb\"" },
+        .{ .raw = "a\tb", .expected = "\"a\\tb\"" },
+    };
+    for (cases) |c| {
+        const sym = try store.interner.intern(c.raw);
+        const id = try store.lit(.{ .str = sym });
+        const s = try formatId(&store, id, allocator);
+        defer allocator.free(s);
+        try std.testing.expectEqualStrings(c.expected, s);
+    }
+}
+test "bind — corps vide doit échouer (pas d'omission silencieuse)" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    const name = try store.interner.intern("y");
+    const id = try store.addNode(.{
+        .tag = .bind, .payload = name, .aux = 0,
+        .span_a = expr.Span.EMPTY, .span_b = expr.Span.EMPTY,
+    });
+    try std.testing.expectError(error.UnsupportedTag, formatId(&store, id, allocator));
 }
