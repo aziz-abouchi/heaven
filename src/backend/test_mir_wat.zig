@@ -4,6 +4,7 @@
 const std = @import("std");
 const mir = @import("mir");
 const expr = @import("expr");
+const engine_expr = @import("engine_expr");
 const wat = @import("mir_wat.zig");
 
 const Store = expr.Store;
@@ -117,8 +118,9 @@ test "wat — fn_defs : fonction séparée et appel" {
     try std.testing.expect(has(out, "(local.set $r2 (call $f42 (local.get $r0) (local.get $r1)))"));
 }
 
-test "wat — call_user hors fn_defs : stub silencieux" {
-    // 2026-11-02 : contrat §6 changé (stub au lieu de rejet).
+test "wat — call_user hors fn_defs → UnsupportedCall" {
+    // Contrat : call_user hors fn_defs → error.UnsupportedCall.
+    // Un stub i64.const 0 retournerait un résultat faux silencieux : refusé.
     const alloc = std.testing.allocator;
     var root = MirFunction.init(alloc);
     defer root.deinit();
@@ -126,9 +128,12 @@ test "wat — call_user hors fn_defs : stub silencieux" {
     const a = root.newReg();
     try root.blocks.items[entry].instrs.append(alloc, .{ .call_user = .{ .dest = a, .name = 7, .args = &.{} } });
     root.blocks.items[entry].terminator = .{ .ret = a };
-    const wat_src = try wat.emitWat(alloc, &root);
-    defer alloc.free(wat_src);
-    try std.testing.expect(std.mem.indexOf(u8, wat_src, ";; stub f7") != null);
+    if (wat.emitWat(alloc, &root)) |buf| {
+        alloc.free(buf);
+        return error.TestExpectedError;
+    } else |err| {
+        try std.testing.expectEqual(@as(anyerror, error.UnsupportedCall), @as(anyerror, err));
+    }
 }
 
 test "wat — M2b : oracle mir.execute vs wasmtime" {
@@ -219,4 +224,68 @@ fn oracleCheck(alloc: std.mem.Allocator, store: *Store, body: expr.Id, expected:
     defer alloc.free(src);
     const got = try runWasmtime(alloc, src);
     try std.testing.expectEqual(expected, got);
+}
+
+
+test "wat — transitif : éligible appelle exclu → UnsupportedCall" {
+    // Arena : libère store, env, engine, mf, et engine.fns (hash map
+    // alloué par put) d'un coup. Les defer existants deviennent des
+    // no-ops (arena.free = no-op) mais restent pour la lisibilité.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    var store = Store.init(alloc);
+    defer store.deinit();
+    const env = try expr.Env.create(alloc);
+    defer env.unref();
+    var engine = engine_expr.Engine.initTest(alloc, &store, env);
+
+    {
+        const n_id = try store.sym("n");
+        const g_id = try store.sym("g");
+        const f_body = try store.apply(g_id, &.{n_id});
+        const key_sym = try store.interner.intern("f");
+        const key = store.interner.resolve(key_sym);
+        var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
+        fd.addClause(&.{n_id}, f_body);
+        try engine.fns.put(alloc, key, fd);
+    }
+    {
+        const n_id = try store.sym("n");
+        const g_body = try store.int(1);
+        const g_guard = try store.boolean(true);
+        const key_sym = try store.interner.intern("g");
+        const key = store.interner.resolve(key_sym);
+        var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
+        fd.addClause(&.{n_id}, g_body);
+        fd.setLastGuard(g_guard);
+        try engine.fns.put(alloc, key, fd);
+    }
+
+    var mf = MirFunction.initWithStore(alloc, &store);
+    defer mf.deinit();
+    mf.engine = &engine;
+    try mf.precompileUserFns();
+
+    const f_sym = store.interner.lookup("f").?;
+    const g_sym = store.interner.lookup("g").?;
+    try std.testing.expect(mf.fn_defs.contains(f_sym));
+    try std.testing.expect(!mf.fn_defs.contains(g_sym));
+
+    const entry = try mf.newBlock();
+    var locals = std.AutoHashMap(u32, Reg).init(alloc);
+    defer locals.deinit();
+    const f_id = try store.sym("f");
+    const root_body = try store.apply(f_id, &.{try store.int(1)});
+    const result = try mf.compileExpr(&store, root_body, entry, locals);
+    if (mf.blocks.items[entry].terminator == .fallthrough) {
+        mf.blocks.items[entry].terminator = .{ .ret = result };
+    }
+
+    if (wat.emitWat(alloc, &mf)) |buf| {
+        alloc.free(buf);
+        return error.TestExpectedError;
+    } else |err| {
+        try std.testing.expectEqual(@as(anyerror, error.UnsupportedCall), @as(anyerror, err));
+    }
 }

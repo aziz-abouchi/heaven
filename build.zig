@@ -1323,6 +1323,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "mir", .module = mir_mod },
             .{ .name = "expr", .module = expr_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
         },
     }) });
     test_mir_qbe.root_module.addOptions("build_options", options);
@@ -1334,6 +1335,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "mir", .module = mir_mod },
             .{ .name = "expr", .module = expr_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
         },
     }) });
     const run_test_mir_wat = b.addRunArtifact(test_mir_wat);

@@ -77,19 +77,9 @@ pub fn emitQbeLoop(
     errdefer buf.deinit(allocator);
     const w = buf.writer(allocator);
 
-    // 2026-10-30 : stubs pour call_user non résolus. QBE refuse undefined
-    // symbol au link. On émet une fn stub 'ret 0' pour chaque sym orphelin
-    // (fn std non compilée, builtin absent). Résultat faux si vraiment
-    // appelée, mais programme compile et passe QBE.
-    {
-        var unresolved = std.AutoHashMap(u32, void).init(allocator);
-        defer unresolved.deinit();
-        try collectUnresolvedCalls(root, &unresolved);
-        var uit = unresolved.keyIterator();
-        while (uit.next()) |k| {
-            try w.print("function l $f{d}() {{\n@start\n    ret 0\n}}\n\n", .{k.*});
-        }
-    }
+    // 2026-11-12 : suppression des stubs ret 0. checkCallUsers rejette
+    // désormais les call_user non résolus (contrat §6). Aucun stub n'est
+    // jamais atteint ici.
 
     var global_set = std.AutoHashMap(u32, void).init(allocator);
     defer global_set.deinit();
@@ -222,17 +212,13 @@ fn checkCallUsers(root: *const MirFunction) !void {
 }
 
 fn checkBlocks(f: *const MirFunction, defs: *const std.AutoHashMap(u32, FnDef)) !void {
-    // NB : f est *const. On ne réécrit PAS le MIR (impossible).
-    // On warn uniquement. L'émission QBE émettra call $fXXX même si
-    // non défini, ce que QBE refuse au link.
-    // Alternative : marquer les calls non résolus et les skipper à l'émission.
+    // Contrat §6 : rejet explicite, pas de stub silencieux.
+    // Un stub ret 0 masquerait un résultat faux.
     for (f.blocks.items) |*blk| {
         for (blk.instrs.items) |inst| {
             switch (inst) {
                 .call_user => |c| {
-                    if (!defs.contains(c.name)) {
-                        std.debug.print("[mir_qbe] warn: unresolved call sym={d}\n", .{c.name});
-                    }
+                    if (!defs.contains(c.name)) return error.UnsupportedCall;
                 },
                 else => {},
             }

@@ -4,6 +4,7 @@
 const std = @import("std");
 const mir = @import("mir");
 const expr = @import("expr");
+const engine_expr = @import("engine_expr");
 const qbe = @import("mir_qbe.zig");
 const build_options = @import("build_options");
 
@@ -174,10 +175,16 @@ test "qbe — rejet : call_user hors fn_defs (contrat §6)" {
     });
     mf.blocks.items[entry].terminator = .{ .ret = 0 };
 
-    // 2026-11-02 : contrat §6 changé (stub au lieu de rejet).
-    const ssa_stub = try qbe.emitQbe(alloc, &mf);
-    defer alloc.free(ssa_stub);
-    try std.testing.expect(std.mem.indexOf(u8, ssa_stub, "function l $f") != null);
+    // Contrat : call_user hors fn_defs → error.UnsupportedCall.
+    // Un stub ret 0 retournerait un résultat faux silencieux : refusé.
+    // if/catch explicite (pas expectError) : sur succès, le buffer
+    // doit être libéré, sinon leak.
+    if (qbe.emitQbe(alloc, &mf)) |buf| {
+        alloc.free(buf);
+        return error.TestExpectedError;
+    } else |err| {
+        try std.testing.expectEqual(@as(anyerror, error.UnsupportedCall), @as(anyerror, err));
+    }
 }
 
 test "qbe — shape : emitQbe produit la structure attendue (sans QBE)" {
@@ -221,4 +228,70 @@ test "qbe — shape : emitQbe produit la structure attendue (sans QBE)" {
 
 fn has(haystack: []const u8, needle: []const u8) bool {
     return std.mem.indexOf(u8, haystack, needle) != null;
+}
+
+
+test "qbe — transitif : éligible appelle exclu → UnsupportedCall" {
+    // Arena : libère store, env, engine, mf, et engine.fns (hash map
+    // alloué par put) d'un coup. Les defer existants deviennent des
+    // no-ops (arena.free = no-op) mais restent pour la lisibilité.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    var store = Store.init(alloc);
+    defer store.deinit();
+    const env = try expr.Env.create(alloc);
+    defer env.unref();
+    var engine = engine_expr.Engine.initTest(alloc, &store, env);
+
+    // f : 1 clause, pattern sym, corps = (g n) → éligible
+    {
+        const n_id = try store.sym("n");
+        const g_id = try store.sym("g");
+        const f_body = try store.apply(g_id, &.{n_id});
+        const key_sym = try store.interner.intern("f");
+        const key = store.interner.resolve(key_sym);
+        var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
+        fd.addClause(&.{n_id}, f_body);
+        try engine.fns.put(alloc, key, fd);
+    }
+    // g : 1 clause gardée → exclue
+    {
+        const n_id = try store.sym("n");
+        const g_body = try store.int(1);
+        const g_guard = try store.boolean(true);
+        const key_sym = try store.interner.intern("g");
+        const key = store.interner.resolve(key_sym);
+        var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
+        fd.addClause(&.{n_id}, g_body);
+        fd.setLastGuard(g_guard);
+        try engine.fns.put(alloc, key, fd);
+    }
+
+    var mf = MirFunction.initWithStore(alloc, &store);
+    defer mf.deinit();
+    mf.engine = &engine;
+    try mf.precompileUserFns();
+
+    const f_sym = store.interner.lookup("f").?;
+    const g_sym = store.interner.lookup("g").?;
+    try std.testing.expect(mf.fn_defs.contains(f_sym));
+    try std.testing.expect(!mf.fn_defs.contains(g_sym));
+
+    const entry = try mf.newBlock();
+    var locals = std.AutoHashMap(u32, Reg).init(alloc);
+    defer locals.deinit();
+    const f_id = try store.sym("f");
+    const root_body = try store.apply(f_id, &.{try store.int(1)});
+    const result = try mf.compileExpr(&store, root_body, entry, locals);
+    if (mf.blocks.items[entry].terminator == .fallthrough) {
+        mf.blocks.items[entry].terminator = .{ .ret = result };
+    }
+
+    if (qbe.emitQbe(alloc, &mf)) |buf| {
+        alloc.free(buf);
+        return error.TestExpectedError;
+    } else |err| {
+        try std.testing.expectEqual(@as(anyerror, error.UnsupportedCall), @as(anyerror, err));
+    }
 }
