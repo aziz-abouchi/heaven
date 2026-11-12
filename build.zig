@@ -1372,6 +1372,15 @@ pub fn build(b: *std.Build) void {
             .{ .name = "expr", .module = expr_mod },
         },
     }) });
+    const sexpr_dump_mod = b.addModule("sexpr_dump", .{
+        .root_source_file = b.path("src/core/sexpr_dump.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+        },
+    });
+
     const test_sexpr_dump = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/core/sexpr_dump.zig"),
         .target = target,
@@ -1867,7 +1876,20 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_kanren_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_continuation).step);
+    const test_sexpr_roundtrip = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/core/sexpr_roundtrip_test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
+            .{ .name = "parse", .module = parse_mod },
+            .{ .name = "sexpr_dump", .module = sexpr_dump_mod },
+        },
+    }) });
+
     test_step.dependOn(&b.addRunArtifact(test_sexpr_dump).step);
+    test_step.dependOn(&b.addRunArtifact(test_sexpr_roundtrip).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_precision).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_error).step);
     test_step.dependOn(&b.addRunArtifact(test_abi_capability).step);
