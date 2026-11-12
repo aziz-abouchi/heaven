@@ -70,11 +70,12 @@ Deux résolutions, dans cet ordre :
 ## 8. Sous-ensemble consommé par M2 (mir_wat.zig)
 const_int, add, sub, mul, div, cmp_lt, cmp_eq, jump, branch, ret,
 phi (→ local.set prédécesseur), load/store (→ globals WASM),
-call_user restreint à fn_defs. **Stub + warn sinon**
-(2026-11-02 : changement de comportement, cf. tag `mir-stub-contract`).
-Le backend émet `function l $fN() { ret 0 }` (QBE) ou
-`(local.set $rN (i64.const 0)) ;; stub fN` (WAT) au lieu de rejeter.
-Raison : les fn std non compilées (prelude) bloquaient la compilation
-de tout programme selfhost (VRecClosure, `if..then..else`). Le warn
-reste émis ; le binaire peut crasher si le stub est vraiment appelé
-à l'exécution, mais c'est détectable.
+call_user restreint à fn_defs. **Rejet explicite sinon**
+(conforme à §6) : `checkCallUsers` retourne `error.UnsupportedCall`
+avant toute émission d'octet (`src/backend/mir_qbe.zig`,
+`src/backend/mir_wat.zig`).
+
+**Historique (2026-11-02 → 2026-11-12)** : stubs `ret 0` / `i64.const 0`
+émis au lieu de rejeter (tag `mir-stub-contract`), pour débloquer les
+programmes selfhost avec fn std non compilées. Révoqué par `31b5ba1`
+(contrat §6 restauré, vérifié par 4 tests QBE/WAT base + transitif).
