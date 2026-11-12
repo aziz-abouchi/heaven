@@ -5,7 +5,7 @@
 -- Ce qui marche : view, set, over, compose, lens/ prism/ iso de base.
 -- Ce qui NE marche PAS : profunctor encoding (Kmett) = rank-2 explicite,
 -- necessite `forall p f. (Profunctor p, Functor f) => ...` — non supporte.
--- Voir docs/spec/_hkt_rank2_plan.md (TODO).
+-- Voir docs/ROADMAP.md#hkt-2 (TODO).
 
 data Lens s a = MkLens (s -> a) (a -> s -> s)
 data Prism s a = MkPrism (s -> Maybe_a) (a -> s)
