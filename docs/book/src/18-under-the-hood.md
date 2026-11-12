@@ -112,6 +112,12 @@ fonction `snapshotArgs` du Store encapsule ce pattern.
 
 ## 4. L'évaluateur et l'environnement
 
+> **Phase bootstrap** : au démarrage, `std_loader.zig` charge d'abord
+> `core/bootstrap.hvn` (add/mul Peano + stubs theorem/prove/…), puis
+> `core/std.hvn`. Le bootstrap reste volontairement autonome (pas
+> d'import) pour permettre de tester le noyau en isolation.
+
+
 L'évaluateur est une fonction récursive `evaluate(store, env, engine,
 id, depth)`. Elle prend un `Id` et rend un `Id` (la forme évaluée).
 

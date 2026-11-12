@@ -1,9 +1,21 @@
+-- core/bootstrap.hvn
+-- Bootstrap minimal chargé AVANT core/std.hvn par std_loader.zig.
+-- Doit rester AUTONOME : pas d'import (le noyau n'est pas encore prêt).
+-- Conséquence : add/mul sont dupliqués de core/std.hvn volontairement,
+-- pour pouvoir tester le noyau en isolation.
 add zero n = n
 add (succ n) m = succ (add n m)
 
 mul zero n = zero
 mul (succ n) m = add m (mul n m)
 
+-- ── Stubs de surface (implémentation côté Zig) ─────────────────────
+-- theorem, prove → src/kernel/ (CIC type-checker)
+-- skill          → src/runtime/shell/commands.zig (cmdSkill)
+-- spawn, hook    → src/core/expr.zig (acteurs)
+-- help           → src/runtime/shell/ (dispatch REPL)
+-- Voir STATUS.md:218 (« add/mul OK ; signatures theorem/prove sans corps »).
+-- Conserver ces signatures : le parser les exige.
 theorem : String -> Expr -> Expr -> Theorem
 prove : Theorem -> Tactic -> Proof
 skill : String -> Skill

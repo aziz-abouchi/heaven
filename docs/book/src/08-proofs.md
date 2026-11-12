@@ -94,6 +94,12 @@ etc. Le CIC est le moteur sous le capot.
 
 ## 4. Théorème et tactiques
 
+> **Référence** : les signatures `theorem`, `prove`, `skill` sont
+> déclarées dans `core/bootstrap.hvn` (stubs — l'implémentation vit
+> dans `src/kernel/` et `src/runtime/shell/`). Voir `STATUS.md:218` :
+> « add/mul OK ; signatures theorem/prove sans corps ».
+
+
 En Heaven, un **théorème** est une affirmation. Une **preuve** est
 sa justification. On écrit :
 
@@ -313,4 +319,3 @@ monde extérieur.
 *Vérifiable : les théorèmes et les commandes `:hole`/`:refine` de
 ce chapitre fonctionnent tels quels dans le REPL (sauf les limites
 V0 documentées).*
-

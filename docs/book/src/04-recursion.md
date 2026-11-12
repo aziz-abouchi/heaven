@@ -37,6 +37,13 @@ est **récursive** : chaque nombre est défini en termes du précédent.
 En Heaven, ces deux règles s'écrivent :
 
     heaven> data Nat = Zero | Succ Nat
+
+> **Référence** : l'implémentation de référence de `add` et `mul` en
+> Peano se trouve dans `core/bootstrap.hvn` (chargé avant `core/std.hvn`
+> par `std_loader.zig`). `core/std.hvn` en contient une copie —
+> duplication **volontaire**, voir le commentaire d'en-tête de
+> `bootstrap.hvn`.
+
     ✓ data Nat registered (2 constructors)
 
 Deux constructeurs, une seule ligne. Tout le reste suivra par
@@ -278,4 +285,3 @@ et c'est là que le code fonctionnel devient vraiment concis.
 *Vérifiable : les définitions `hanoi`, `isEven`, `isOdd`
 fonctionnent telles quelles dans le REPL (sauf la TCO mutuelle
 pour de très grandes valeurs).*
-

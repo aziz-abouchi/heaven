@@ -62,3 +62,21 @@ jobs:
 
       - name: Check STATUS.md freshness (status_gen --check)
         run: python3 scripts/status_gen.py --check
+  vfs-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: vfs_manifest entries must exist on disk
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, sys
+          m = json.load(open('src/vessel/public/vfs_manifest.json'))
+          missing = [e for e in m if not pathlib.Path(e).is_file()]
+          if missing:
+              for e in missing:
+                  print(f"::error::manifest entry missing on disk: {e}")
+              sys.exit(1)
+          print(f"OK: {len(m)} entries, all present")
+          PY
