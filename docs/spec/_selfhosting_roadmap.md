@@ -555,3 +555,39 @@ round-trip (stabilité sur 3 runs) — **pas** contre tree-sitter
 5. **49.5** — B0.1c (`import` + `test "` + erreur). 0,5 session.
 6. **Stop** — Pas de B1b.2, pas de B3 tant que B0.1 + B0.2 ne
    sont pas verts.
+
+### B0.1 — post-state viable (mesuré 2026-11-12 soir)
+
+Le diagnostic `registerClause` (`heaven_expr.zig:667`) confirme
+le post-state comme seule voie fiable.
+
+**`fn` et `f x = body` convergent vers `registerClause`.**
+`evalFnDef` (`commands/defs.zig:298`) transforme `fn name(a, b) = body`
+en `name a b`, wrap en `(name a b)`, puis route vers le même
+`registerClause` que `evalEquation`.
+
+**Structure post-state :**
+- `self.engine.fns : StringHashMapUnmanaged(FunctionDef)`
+- `FunctionDef = { clauses: [32]FunctionClause, num_clauses: u8 }`
+- `registerClause(name, patterns: []const Id, body: Id)` — les `Id`
+  sont déjà canoniques.
+
+**B0.1 = walker `fns` (pas dispatcher par branche) :**
+1. `splitStatements` → liste ordonnée.
+2. Pour chaque statement : `Heaven.eval(stmt)` (enregistre clause,
+   data, ou évalue expression).
+3. Diff `fns.count()` avant/après → si delta, formatter les
+   nouvelles clauses.
+4. Pareil pour `data` (map à localiser, cf. `evalDataDecl`).
+5. Formatter l'`Id` retourné pour les expressions pures
+   (`test "…"`, S-expr).
+6. Sortie : `(stmt N …)` dans l'ordre.
+
+**Deux manques à lever avant écriture (Session 50, 15 min) :**
+1. `FunctionClause` — champs exacts (`patterns`, `body`, `guard` ?)
+2. `evalDataDecl` — où les `data` sont stockés (map ? array ?)
+
+Sans ces 2 lectures, écrire B0.1a risquerait l'erreur `POk e`
+partiel de `2d8c505`. Ordre : diagnostic → formatteur → test.
+
+**Effort B0.1 confirmé 1-2 sessions.**
