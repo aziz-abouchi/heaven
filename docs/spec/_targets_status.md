@@ -1,5 +1,19 @@
 # Cibles de compilation : etat reel
 
+> **Note (2026-11-12, `d47e1d5`)** — Ce fichier couvre les **cibles
+> de build** (plateformes, linkers, stubs plateforme), pas les
+> capacités sémantiques du backend. Pour l'état des capacités
+> (`call_user` résolu vs rejeté, `extern_call`, primitives MIR),
+> voir `_claims_vs_reality.md` (section « Contrat d'appel MIR →
+> backend ») et `MIR_CONTRACT.md` §6, §8.
+>
+> Changement post-`31b5ba1` : un programme qui appelle une `fn`
+> utilisateur multi-clause / gardée / à patterns est désormais
+> **rejeté à la compilation** (`error.UnsupportedCall`), non plus
+> stubbé à 0. Les exemples ci-dessous (`main = 42`, `(+ 1 2)`)
+> restent valides — ce sont les programmes selfhost avec `fn`
+> multi-clause qui ne compilent plus.
+
 **Date** : 2026-10-15
 **Statut** : audit. Cross-compilation non garantie.
 
