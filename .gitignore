@@ -123,4 +123,4 @@ __pycache__/
 
 # mdbook v2
 docs/book-v2/book/
-*.bak-*
+*.bak*

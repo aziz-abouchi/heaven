@@ -68,6 +68,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: No .bak files tracked
+        run: |
+          if git ls-files | grep -E '\.bak'; then
+            echo "::error::tracked .bak files (should not be committed):"
+            git ls-files | grep -E '\.bak'
+            exit 1
+          fi
+
       - name: vfs_manifest entries must exist on disk
         run: |
           python3 - <<'PY'
