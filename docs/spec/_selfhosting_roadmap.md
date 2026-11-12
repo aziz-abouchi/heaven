@@ -591,3 +591,34 @@ Sans ces 2 lectures, écrire B0.1a risquerait l'erreur `POk e`
 partiel de `2d8c505`. Ordre : diagnostic → formatteur → test.
 
 **Effort B0.1 confirmé 1-2 sessions.**
+
+### B0.1 — toStringInfix n'est PAS canonique (mesuré 2026-11-12)
+
+**Correction** : `toStringInfix` (`expr.zig:553`) est déterministe
+et sans IDs/spans, mais produit un format **mixte** :
+
+- `(let f (lambda …) (f 41))` → `(f := (lambda x (+ x 1)))` — `:=` infixe
+- `(\x. x)` → `(lambda x x)` — S-expr
+- `(cons 1 (cons 2 nil))` → S-expr
+- `(+ 1 2)` → `3` (évalué, atom)
+
+**Pas réutilisable pour B0.1.** B3 doit parser le dump ;
+`:=` n'est pas un opérateur du parseur natif (il a un traitement
+spécial dans `evalFnDef`, pas dans `parseExpression`).
+
+**Conséquence** : B0.1 requiert un `formatIdSexpr` dédié.
+
+| Sous-bloc | Contenu | Effort |
+|---|---|---|
+| B0.1a.0 | `formatIdSexpr` (6 Tags : lit, sym, apply, bind, lambda, conditional) | 45 min |
+| B0.1a.1 | Dispatcher statements + CLI `--dump-sexpr` | 45 min |
+| B0.1a.2 | Tests 4 tests/diff + diff vs toStringInfix | 30 min |
+| **B0.1a total** | | **1,5-2h** |
+
+B0.1b (`fn`, `data`, `import`) : +0,5-1 session.
+B0.1c (`test "`, erreur explicite) : +0,5 session.
+**Total B0.1** : 2-3 sessions.
+
+**5ᵉ révision d'estimation en 2 sessions (48 et 49).** La règle empirique :
+tout sous-bloc qui doit *découvrir* une structure implicite est
+sous-estimé d'un facteur 2. B0.1 en fait partie.
