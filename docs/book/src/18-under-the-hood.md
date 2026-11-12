@@ -117,7 +117,6 @@ fonction `snapshotArgs` du Store encapsule ce pattern.
 > `core/std.hvn`. Le bootstrap reste volontairement autonome (pas
 > d'import) pour permettre de tester le noyau en isolation.
 
-
 L'évaluateur est une fonction récursive `evaluate(store, env, engine,
 id, depth)`. Elle prend un `Id` et rend un `Id` (la forme évaluée).
 
@@ -482,7 +481,6 @@ Trois principes structurent Heaven dans cet esprit :
 
 3. **Iso-fonctionnalité.** Le natif et le web font la même chose.
    Le test `test_suite.hvn` tourne dans les deux.
-
 
 ## 14. Outils de test (2026-10)
 

@@ -173,7 +173,6 @@ un chantier ouvert, documenté dans `docs/ROADMAP.md`.
 *Vérifiable : les définitions `fac`, `facAux` et `length`
 fonctionnent telles quelles dans le REPL.*
 
-
 ## 5. La tour de Hanoi
 
 ![La tour de Hanoi](images/04-hanoi.svg)

@@ -99,7 +99,6 @@ etc. Le CIC est le moteur sous le capot.
 > dans `src/kernel/` et `src/runtime/shell/`). Voir `STATUS.md:218` :
 > « add/mul OK ; signatures theorem/prove sans corps ».
 
-
 En Heaven, un **théorème** est une affirmation. Une **preuve** est
 sa justification. On écrit :
 
@@ -160,7 +159,6 @@ re-vérifiés par un noyau séparé des tactiques.
 `deux_plus_deux` et `add_comm` s'exécutent sans erreur. Ce n'est
 pas la même chose que « vérifiés par un noyau indépendant » — voir
 la section « État réel » plus haut.*
-
 
 ## 5. Trou et raffinement
 
