@@ -101,24 +101,53 @@ fn formatInto(
             try w.writeByte(')');
         },
         .bind => {
-            try w.writeAll("(bind ");
+            if (node.aux != 0) return error.UnsupportedTag;
+            const span = store.spanSliceConst(node.span_a);
+            if (span.len != 2) return error.UnsupportedTag;
+            try w.writeAll("(let ");
             try w.writeAll(store.interner.resolve(node.payload));
             try w.writeByte(' ');
-            const val = store.spanSliceConst(node.span_a);
-            if (val.len == 0) return error.UnsupportedTag;
-            try formatInto(store, val[0], buf, allocator);
+            try formatInto(store, span[0], buf, allocator);
+            try w.writeByte(' ');
+            try formatInto(store, span[1], buf, allocator);
             try w.writeByte(')');
         },
         .lambda => {
+            if (node.payload == 0) return error.UnsupportedTag;
+            if (node.aux != 0) return error.UnsupportedTag;
+            const body = store.spanSliceConst(node.span_a);
+            if (body.len != 1) return error.UnsupportedTag;
             try w.writeAll("(lambda ");
             try w.writeAll(store.interner.resolve(node.payload));
             try w.writeByte(' ');
-            const body = store.spanSliceConst(node.span_a);
-            if (body.len == 0) return error.UnsupportedTag;
             try formatInto(store, body[0], buf, allocator);
             try w.writeByte(')');
         },
-        else => return error.UnsupportedTag,
+        .relation => {
+            if (node.aux != 0) return error.UnsupportedTag;
+            try w.writeAll("(relation ");
+            try w.writeAll(store.interner.resolve(node.payload));
+            try w.writeAll(" (");
+            const lhs = store.spanSliceConst(node.span_a);
+            for (lhs, 0..) |a, k| {
+                if (k > 0) try w.writeByte(' ');
+                try formatInto(store, a, buf, allocator);
+            }
+            try w.writeAll(") (");
+            const rhs = store.spanSliceConst(node.span_b);
+            for (rhs, 0..) |r, k| {
+                if (k > 0) try w.writeByte(' ');
+                try formatInto(store, r, buf, allocator);
+            }
+            try w.writeAll("))");
+        },
+        // Exhaustif : tout ajout à expr.Tag casse la compilation ici.
+        .hole, .evar, .true, .false, .int, .float, .string, .var_tag, .let, .letrec,
+        .fun, .eq, .add, .sub, .mul, .div, .mod, .and_tag, .or_tag, .not, .cons,
+        .head, .tail, .tuple, .block, .seq, .unit_lit, .vector, .vector_lit, .sum,
+        .aggregate, .source_file, .block_legacy, .call, .binary, .unary, .identifier,
+        .str_legacy, .bool_lit, .pi_tag, .universe_tag, .ctor, .data, .forall,
+        .exists, .arrow, .sigma, .pair, .thunk => return error.UnsupportedTag,
     }
 }
 
@@ -207,6 +236,76 @@ test "bind — corps vide doit échouer (pas d'omission silencieuse)" {
     const id = try store.addNode(.{
         .tag = .bind, .payload = name, .aux = 0,
         .span_a = expr.Span.EMPTY, .span_b = expr.Span.EMPTY,
+    });
+    try std.testing.expectError(error.UnsupportedTag, formatId(&store, id, allocator));
+}
+
+
+test "bind — (let n val body) via bindSymWithBody" {
+    // .bind est une primitive Core (span_a = [val, body], aux = 0).
+    // .let (produit par letIn) est une extension frontend, rejetée
+    // par le dump (voir le switch exhaustif plus haut).
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    const val = try store.int(5);
+    const body = try store.sym("y");
+    const name = try store.interner.intern("y");
+    const id = try store.bindSymWithBody(name, val, body);
+    const s = try formatId(&store, id, allocator);
+    defer allocator.free(s);
+    try std.testing.expectEqualStrings("(let y 5 y)", s);
+}
+
+test "let — extension frontend rejetée (UnsupportedTag)" {
+    // letIn produit .tag = .let, non-Core. Le dump doit refuser,
+    // pas formater silencieusement.
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    const val = try store.int(5);
+    const body = try store.sym("y");
+    const id = try store.letIn("y", val, body);
+    try std.testing.expectError(error.UnsupportedTag, formatId(&store, id, allocator));
+}
+
+test "lambda — sans paramètre (payload 0) → UnsupportedTag" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    const body = try store.int(1);
+    const id = try store.lambda(&[_][]const u8{}, body);
+    try std.testing.expectError(error.UnsupportedTag, formatId(&store, id, allocator));
+}
+
+test "relation — (relation Eq (1) (2))" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    const a = try store.int(1);
+    const b = try store.int(2);
+    const id = try store.relation("Eq", &.{a}, &.{b});
+    const s = try formatId(&store, id, allocator);
+    defer allocator.free(s);
+    try std.testing.expectEqualStrings("(relation Eq (1) (2))", s);
+}
+
+test "relation — aux != 0 → UnsupportedTag" {
+    const allocator = std.testing.allocator;
+    var store = expr.Store.init(allocator);
+    defer store.deinit();
+
+    const head = try store.interner.intern("Eq");
+    const id = try store.addNode(.{
+        .tag = .relation,
+        .payload = head,
+        .aux = 1,
+        .span_a = expr.Span.EMPTY,
+        .span_b = expr.Span.EMPTY,
     });
     try std.testing.expectError(error.UnsupportedTag, formatId(&store, id, allocator));
 }
