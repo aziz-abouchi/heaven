@@ -796,10 +796,13 @@ pub const MirFunction = struct {
                 try locals.put(def.param_names[i], reg);
             }
 
-            // Le corps de la clause est en forme frontend (.binop,
-            // .call, etc.). MIR attend du Core (.apply, .lit, .sym).
-            // lowerRec fait la conversion (meme pipeline que parseLastExpr
-            // dans qbe_cmd.zig / wasm_cmd.zig).
+            // Le corps est en forme frontend (tags legacy `.call`,
+            // `.binary`, etc.). MIR attend du Core (`.apply`, `.lit`,
+            // `.sym`). Note : `store.binop(op, a, b)` n'est PAS un
+            // tag — c'est un helper qui construit
+            // `apply(sym(op), [a, b])`. La conversion legacy → Core
+            // se fait en amont via `lower`/`lowerRec` (expr.zig) et
+            // le même pipeline que `parseLastExpr` (qbe_cmd/wasm_cmd).
             const lowered_body = store.lowerRec(clause.body) catch {
                 if (self.fn_defs.fetchRemove(name_sym)) |kv| {
                     var v = kv.value;

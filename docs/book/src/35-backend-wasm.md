@@ -16,25 +16,46 @@
 - `mir_wat.zig` émet le WAT pour arith / if / fns user
 - Heap → `unreachable` trap (au lieu d'erreur bloquante)
 
-## Ce qui échoue (par conception)
+## Ce qui échoue (par conception, 2026-11-12)
 
-- `(+ 1 2)` → `UnsupportedCall` — `+` est un builtin, pas une fn
-  utilisateur ; `checkCallUsers` le rejette. Comportement voulu
-  depuis `31b5ba1` (2026-11-12), qui a révoqué les stubs retournant 0.
-- `(choose 1)` → `UnsupportedExpr` (pipeline WAT incomplet)
-- Entry `_start` WASI absente (freestanding)
+**Rejet à la compilation** (`error.UnsupportedCall`, cf.
+`MIR_CONTRACT.md` §6 et §8, restauré par `31b5ba1`) :
 
-## 3-4 sessions nécessaires
+- Appel à une `fn` utilisateur non précompilée : multi-clause,
+  garde, ou pattern non-symbole (cf. `precompileUserFns`, `b2e6564`).
+- Appel à un symbole inconnu (ni builtin natif, ni `fn` utilisateur,
+  ni `@xxx` externe) à 2 arguments → `error.UnsupportedOp`
+  (cf. `compileExpr.apply`, `mir.zig`).
 
-1. ~~Skip `checkCallUsers` en warn + stubs~~ **Abandonné** — `31b5ba1`
-   a choisi le rejet explicite. Remplacé par : compiler les builtins
-   (`+`, `-`, `@strcmp`, …) en `fn_defs` pour les rendre disponibles
-   au backend.
-2. Entry `_start` WASI + fd_write pour printf
-3. Heap WASM (memory.grow, load/store WASI)
-4. Strings/bytes + tests
+**Ne se rejettent pas, mais échouent en aval** :
 
-Prérequis : split `mir.zig` (45 min).
+- `@xxx` (externe) → `extern_call` émis. QBE tente le link
+  (libc) ; WAT émet `unreachable` → trap à l'exécution, pas
+  rejet à la compilation.
+- `(choose 1)` → `UnsupportedExpr` (pipeline WAT incomplet, à
+  vérifier sur le commit courant).
+- Entry `_start` WASI absente (freestanding).
+
+## Travaux restants (v0.2)
+
+1. `fn` utilisateur multi-clause / patterns / gardes : exclues de
+   `fn_defs` par `precompileUserFns` (`b2e6564`). Support complet =
+   arbre de décision sur constructeurs / littéraux / gardes
+   (cf. A2, estimation 3-6 sessions).
+2. `@xxx` en WASM : brancher WASI (`fd_write` pour `@printf`/`@puts`,
+   table d'imports pour le reste). Aujourd'hui `unreachable`
+   (trap runtime).
+3. Primitives présentes dans `Engine.eval` mais absentes de
+   `compileExpr.apply` : `%`, `and`/`or`, `band`/`bor`/`shl`/`shr`/
+   `>>>`, `!`/`neq`, `seq`/`block`/`let`/`tuple`, `string_*`. Aucun
+   arm natif à ajouter sans vérifier la précédence avec les
+   `FunctionDef` du même nom dans `core/bootstrap.hvn`
+   (cf. `add`, `mul`).
+4. Entry `_start` WASI + heap WASM (memory.grow, load/store) +
+   strings/bytes.
+
+Prérequis commun à (1)–(4) : split `mir.zig` (45 min) — le fichier
+mélange IR, précompilation, fusion SCC, migration str_pool.
 
 ## Fichiers WASI existants
 
