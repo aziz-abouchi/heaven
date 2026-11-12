@@ -361,7 +361,7 @@ Vérifié :
 Dispatch réel (strcmp + if) : session suivante (nécessite `extern_call
 strcmp` + multi-clauses ou cascade if sur char*).
 
-Voir aussi : G.28 (string binding), G.30 (strings + espaces), G.31.
+Voir aussi : G.28 (string binding), G.30 (strings + espaces), G.34 (@strcmp dans fn user).
 
 ### G.32-bis — `@strcmp` natif (via extern_call)
 
@@ -420,18 +420,18 @@ Diagnostic 2026-10-30 (test B) :
     → ld: référence indéfinie vers « f<N> » (exit ChildFailed)
 
 Cause : `@strcmp __x "version"` dans `cmp.fn_mir` remplit
-`cmp.fn_mir.str_pool`. G.31 (workaround) skip l'émission des fns
-avec `str_pool` non vide. Donc `cmp` n'est pas émise, et `main`
+`cmp.fn_mir.str_pool`. Le workaround (skip l'émission des fns
+avec `str_pool` non vide) faisait donc que `cmp` n'était pas émise. Donc `cmp` n'est pas émise, et `main`
 appelle `$f<N>` → undef.
 
 **Fix prévu** : pool global partagé (root.str_pool utilisé par tous
 les fn_defs). Alors `emitInstr.const_str` utilise le pool du root, et
-G.31 devient inutile.
+le workaround (skip fns avec str_pool non vide) devient inutile.
 
 **Contournement actuel** : ne pas mettre de string littérale dans une
 fn user destinée à QBE. Garder `@strcmp` inline dans `main`.
 
-Voir aussi : G.25 (mise à jour merge), G.31 (skip fn_defs str_pool).
+Voir aussi : G.25 (mise à jour merge).
 
 ### G.35 — `call_user` unresolved en WASM [REJET EXPLICITE]
 
@@ -440,8 +440,8 @@ dont le sym n'était pas dans `fn_defs`. Une fn std non compilée
 bloquait la compilation, même `main = 42`.
 
 **Première "résolution"** (commit selfhost-wasm-v0) : stub silencieux
-`(local.set $rN (i64.const 0)) ;; stub fN` au lieu de fail, même
-pattern que G.31 pour QBE. **Révoquée** : un stub retournant 0
+`(local.set $rN (i64.const 0)) ;; stub fN` au lieu de fail, dans le
+même esprit que les contournements de l'époque (cf. G.34). **Révoquée** : un stub retournant 0
 masquait un résultat faux, indistinguable d'un résultat correct.
 
 **État actuel** (commit `31b5ba1`, 2026-11-12) : retour au rejet
@@ -451,7 +451,7 @@ compilé ne s'exécute plus avec des résultats faux.
 
 Conséquence : toute fn std non compilée (`+`, `@strcmp`, etc.)
 bloque la compilation — c'est le prix de la justesse. Levée
-prévue : compiler les builtins en `fn_defs` (cf. G.31).
+prévue : compiler les builtins en `fn_defs` (cf. ch. 39 selfhosting).
 
 ### G.36 — `main = EXPR` ignoré en WASM [RESOLU]
 
@@ -461,7 +461,7 @@ prévue : compiler les builtins en `fn_defs` (cf. G.31).
 **RESOLU** (commit selfhost-wasm-v0) : détection `main =` avant
 `isDefinition`, port du fix qbe_cmd.
 
-Voir aussi : ch. 39 selfhosting, G.25/G.31 (patterns QBE équivalents).
+Voir aussi : ch. 39 selfhosting, G.25/G.34 (patterns QBE équivalents).
 
 ### G.37 — `parse_file` sur token unique → programme vide [RESOLU 2026-11-02]
 
