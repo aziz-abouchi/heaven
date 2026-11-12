@@ -485,12 +485,73 @@ vérifier certaines optimisations du compilateur.
 Ne pas l'introduire comme critère de sortie de B3. Ne pas la
 transformer en nouvelle tâche de la roadmap avant B4.
 
-### Ordre Session 49
+### Ordre Session 49 (corrigé 2026-11-12)
+
+**Correction** (après diagnostic Session 49) : `heaven parse`
+n'affiche **pas** un AST — il n'affiche que les erreurs
+tree-sitter. L'erreur précédente (Session 49 initial) est
+révisée. Voir section « B0.1 — nature réelle » ci-dessous.
+
+### B0.1 — nature réelle (mesuré 2026-11-12)
+
+**Le Core d'un fichier n'est pas un arbre.** C'est une suite
+d'instructions typées, produite par `test_runner.splitStatements`,
+où chaque instruction est aiguillée par `Heaven.eval` sur un
+**préfixe de chaîne** (`type`, `import`, `fn `, `data`, `let`,
+`test "`, `theorem`, `class`, `instance`, ...).
+
+Conséquences :
+
+- Les instructions « expression » passent par
+  `Heaven.parseExpression(input) → Id` (`heaven_expr.zig:2842`).
+  C'est la **seule** voie qui produit un `Id` directement
+  formatable.
+- Les **déclarations** (équations, `fn`, `data`, `import`)
+  **modifient l'état du moteur** et renvoient un message
+  (« clause enregistrée »). Elles ne produisent pas un `Id`
+  racine au sens strict.
+- Il n'existe **aucun équivalent de `Bridge.roots`** côté
+  parseur natif.
+- `splitStatements` (`test_runner.zig:37`) est un découpage
+  textuel naïf (indentation + accolades), pas un parseur.
+
+**B0.1 n'est donc pas un « formatter racines → S-expr ».** C'est
+un **dispatcher statements → forme typée** :
+
+1. `splitStatements` → liste de statements.
+2. Pour chaque statement, dispatch par préfixe :
+   - expression pure → `parseExpression` → formatage du Store
+   - `test "..." : expr` → formatage de `expr`
+   - `fn name(args) = body` → formatage de `(fn name (args)
+     body)` au moment où le moteur enregistre la clause
+   - `data X = A | B` → formatage de `(data X A B)`
+   - `import "path" as M` → formatage de `(import "path" M)`
+   - **genre non géré** → erreur explicite `unsupported
+     statement kind`, **jamais d'omission silencieuse**
+     (exigence 2 du contrat B0)
+3. Les formes `fn ` (branche `heaven_expr.zig:~1242`) et le
+   point d'enregistrement des clauses (`heaven_expr.zig:~2629`)
+   sont à lire avant d'écrire le formateur — c'est la prochaine
+   étape de diagnostic.
+
+**Estimation B0.1 révisée** : **1 à 2 sessions** (pas 0,5-1).
+Trois sous-blocs :
+- B0.1a — dispatcher + formatage expressions pures (0,5 session)
+- B0.1b — `fn ` + clauses + `data` (0,5 session)
+- B0.1c — `import` + `test "` + erreur explicite (0,5 session)
+
+**Tests** : 7 `tests/diff/*.hvn` + 3 `lib/` (scheduler, mcp/tools,
+heaven_parse). Comparaison contre le formateur lui-même en
+round-trip (stabilité sur 3 runs) — **pas** contre tree-sitter
+(divergent, cf. `_check_validator_bug.md`).
+
+### Ordre Session 49 (révisé)
 
 1. **49.1** — Arbitrage P/C documenté (C retenue, critères
-   B3.1-B3.3, note vision). 15 min.
-2. **49.2** — B0.1 (S-expr canonique). 45 min.
-3. **49.3** — B0.2 (audit complétude). 30 min. Bloquant B3.
-4. **49.4** — B0.3 (dump diagnostic) si temps. 30 min.
-5. **Stop** — Pas de B1b.2, pas de B3 tant que B0.1+B0.2 ne
+   B3.1-B3.3, note vision). 15 min. ✓
+2. **49.2** — Diagnostic `fn ` branch + clause registration. 15 min.
+3. **49.3** — B0.1a (dispatcher + expressions pures). 0,5 session.
+4. **49.4** — B0.1b (`fn ` + clauses + `data`). 0,5 session.
+5. **49.5** — B0.1c (`import` + `test "` + erreur). 0,5 session.
+6. **Stop** — Pas de B1b.2, pas de B3 tant que B0.1 + B0.2 ne
    sont pas verts.
