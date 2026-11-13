@@ -108,7 +108,6 @@ fn dumpFileSexpr(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     defer allocator.free(content);
 
     const test_runner = @import("runtime/test_runner.zig");
-    const sexpr_dump = @import("core/sexpr_dump.zig");
 
     var statements: std.ArrayListUnmanaged([]const u8) = .{};
     defer {
@@ -147,7 +146,7 @@ fn dumpFileSexpr(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
             try w.print("# ERROR parse: {s} ({s})\n", .{ t[0..tok_end], @errorName(err) });
             continue;
         };
-        const sline = sexpr_dump.formatId(h.store, id, allocator) catch |err| {
+        const sline = expr.toStringInfix(h.store, id, allocator) catch |err| {
             try w.print("# ERROR format: {s} ({s})\n", .{ t[0..tok_end], @errorName(err) });
             continue;
         };
@@ -412,7 +411,7 @@ pub fn main() !void {
         if (try test_runner.runTestDir(allocator, args[2])) requested_exit = 1;
         return;
     }
-    if (std.mem.eql(u8, args[1], "--dump-sexpr") and args.len >= 3) {
+    if (std.mem.eql(u8, args[1], "--dump-infix") and args.len >= 3) {
         const output = dumpFileSexpr(allocator, args[2]) catch |err| {
             platform.debug.print("dump-sexpr failed: {s}\n", .{@errorName(err)});
             std.process.exit(1);
