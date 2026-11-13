@@ -144,8 +144,8 @@ Claim #2 - CIC substantially implemented (PASS B used wrong path):
     reactivated 2026-10-19, tested by test_proof_irrelevance.zig
   STRATUM 3 (OK): Quotients primitive in ast.zig:56
     tested by test_quotient.zig and test_transform.zig
-  STRATUM 4 (UNVERIFIED): Impredicativity of Prop (Pi over Prop returns Prop)
-  Status: SUBSTANTIAL (3 of 4 components implemented and tested).
+  STRATUM 4 (OK): Prop impredicative, typechecker.zig:46-47 (codomain Prop returns Prop)
+  Status: FULL (4 of 4 components implemented and tested).
   Meta: PASS B grep-ed src/core/kernel.zig (does not exist).
     Real path is src/kernel/kernel.zig. Other claims may be under-reported.
 
