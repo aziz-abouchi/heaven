@@ -200,3 +200,25 @@ Correction (2026-11-13) - Update 3 ABI mismatch diagnosis was WRONG:
   Suspected source: shiftInstr call_user path or copyBlocksForFusionN
   passing an undefined arg through. Under investigation.
 
+Update 5 (2026-11-13) - fuseTailSCCs execution works
+  Update 3 (1054e6e) said "ABI mismatch between wrapper and body". WRONG.
+  Full trace: wrapper sends [def.param_regs.., tag_r], body param_regs =
+  [def0.param_regs+REG_BASE.., tag_reg=0], executeLegacy maps arg[i] to
+  param_regs[i]. Coherent.
+  Real crash (index 0xAAAAAAAB) was cloneFunction shallow-copying:
+    - clone shared call_user.args slice with parent fn_def.fn_mir
+    - temp_mir.deinit() freed those shared slices
+    - arena reclaimed last block, parent.args became 0xAAAAAAAA
+    - next clone read 0xAAAAAAAA + reg_off = 0xAAAAAAB5 as arg -> OOB
+  Fixed in 464a344: deep-copy args/incoming in cloneFunction.
+  Verified in 8e4c54f: even(3)=0 and odd(10)=0 discriminators prove real
+  recursion (not accidental cmp(undef==0)=true).
+  Claim #5 status:
+    Level 1 (findTailSCCs groups {even, odd}):        PROVEN
+    Level 2 (fuseTailSCCs produces scc_sym):          PROVEN
+    Level 3a (executeLegacy before/after = same):     PROVEN
+    Level 3b (QBE compiled equivalence):              UNTESTED
+  Gate ddd6446 (HEAVEN_SCC_FUSION opt-in, default off) STAYS OFF until
+  level 3b is proven on a QBE-compiled binary. The 3a result is oracle-
+  level only; production trust requires running through QBE.
+
