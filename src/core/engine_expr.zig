@@ -110,6 +110,9 @@ pub const EvalError = error{
     ExtensionNotLowered,
     NotALambda,
     CapabilityDenied,
+    // AddClause capacity errors (2026-11-13)
+    TooManyClauses,
+    ArityTooHigh,
 };
 
 pub const FunctionClause = struct {
@@ -120,15 +123,21 @@ pub const FunctionClause = struct {
 };
 
 pub const FunctionDef = struct {
-    clauses: [32]FunctionClause,
+    clauses: [64]FunctionClause,
     num_clauses: u8,
     ctor_arity: ?u8 = null, // null = fonction, sinon constructeur d'arité N
     ctor_tag: ?u8 = null,   // position dans le data (0, 1, 2, ...) — 2026-11-09
 
-    pub fn addClause(self: *FunctionDef, patterns: []const Id, body: Id) void {
-        if (self.num_clauses >= 32) return;
-        var clause = FunctionClause{ .patterns = undefined, .num_patterns = @intCast(@min(patterns.len, 8)), .body = body };
-        @memcpy(clause.patterns[0..clause.num_patterns], patterns[0..clause.num_patterns]);
+    pub const AddClauseError = error{
+        TooManyClauses,
+        ArityTooHigh,
+    };
+
+    pub fn addClause(self: *FunctionDef, patterns: []const Id, body: Id) AddClauseError!void {
+        if (self.num_clauses >= 64) return error.TooManyClauses;
+        if (patterns.len > 8) return error.ArityTooHigh;
+        var clause = FunctionClause{ .patterns = undefined, .num_patterns = @intCast(patterns.len), .body = body };
+        @memcpy(clause.patterns[0..clause.num_patterns], patterns);
         self.clauses[self.num_clauses] = clause;
         self.num_clauses += 1;
     }
@@ -157,11 +166,11 @@ pub const FunctionRegistry = struct {
     }
     pub fn register(self: *FunctionRegistry, name: []const u8, patterns: []const Id, body: Id) !void {
         if (self.functions.getEntry(name)) |entry| {
-            entry.value_ptr.addClause(patterns, body);
+            try entry.value_ptr.addClause(patterns, body);
         } else {
             const owned = try self.allocator.dupe(u8, name);
             var def = FunctionDef{ .clauses = undefined, .num_clauses = 0 };
-            def.addClause(patterns, body);
+            try def.addClause(patterns, body);
             try self.functions.put(self.allocator, owned, def);
         }
     }
@@ -3843,7 +3852,7 @@ const PatternFixture = struct {
         } else {
             gop.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
         }
-        gop.value_ptr.addClause(patterns, body);
+        try gop.value_ptr.addClause(patterns, body);
     }
 };
 
@@ -3977,3 +3986,35 @@ test "pattern — litteral" {
     const r2 = fx.engine.evalFunction(fx.env, "is42", &.{v43});
     try std.testing.expectError(error.ArityMismatch, r2);
 }
+
+// --- AddClause capacity tests (2026-11-13) ---
+
+test "addClause - 64 clauses ok, 65th returns TooManyClauses" {
+    var def = FunctionDef{ .clauses = undefined, .num_clauses = 0 };
+    var i: u8 = 0;
+    while (i < 64) : (i += 1) {
+        try def.addClause(&.{}, 0);
+    }
+    try std.testing.expectEqual(@as(u8, 64), def.num_clauses);
+    try std.testing.expectError(error.TooManyClauses, def.addClause(&.{}, 0));
+}
+
+test "addClause - 8 patterns ok, 9 returns ArityTooHigh" {
+    var def = FunctionDef{ .clauses = undefined, .num_clauses = 0 };
+    const p8 = [_]Id{ 0, 0, 0, 0, 0, 0, 0, 0 };
+    try def.addClause(&p8, 0);
+    try std.testing.expectEqual(@as(usize, 8), def.clauses[0].num_patterns);
+    const p9 = [_]Id{ 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    try std.testing.expectError(error.ArityTooHigh, def.addClause(&p9, 0));
+}
+
+test "register - TooManyClauses propagates from addClause" {
+    var reg = FunctionRegistry.init(std.testing.allocator);
+    defer reg.deinit();
+    var i: u8 = 0;
+    while (i < 64) : (i += 1) {
+        try reg.register("f", &.{}, 0);
+    }
+    try std.testing.expectError(error.TooManyClauses, reg.register("f", &.{}, 0));
+}
+

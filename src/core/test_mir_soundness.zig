@@ -29,7 +29,7 @@ test "precompileUserFns — clause gardée exclue de fn_defs (soundness)" {
         const key_sym = try store.interner.intern("f_unguarded");
         const key = store.interner.resolve(key_sym);
         var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
-        fd.addClause(&.{pat}, body);
+        try fd.addClause(&.{pat}, body);
         try engine.fns.put(alloc, key, fd);
 
         var mf = mir.MirFunction.initWithStore(alloc, &store);
@@ -50,7 +50,7 @@ test "precompileUserFns — clause gardée exclue de fn_defs (soundness)" {
         const key_sym = try store.interner.intern("f_guarded");
         const key = store.interner.resolve(key_sym);
         var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
-        fd.addClause(&.{pat}, body);
+        try fd.addClause(&.{pat}, body);
         fd.setLastGuard(guard);
         try engine.fns.put(alloc, key, fd);
 
@@ -79,8 +79,8 @@ test "precompileUserFns — multi-clause exclue de fn_defs" {
     const key_sym = try store.interner.intern("f_multi");
     const key = store.interner.resolve(key_sym);
     var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
-    fd.addClause(&.{pat}, try store.int(0));
-    fd.addClause(&.{pat}, try store.int(1));
+    try fd.addClause(&.{pat}, try store.int(0));
+    try fd.addClause(&.{pat}, try store.int(1));
     try engine.fns.put(alloc, key, fd);
 
     var mf = mir.MirFunction.initWithStore(alloc, &store);
@@ -104,7 +104,7 @@ test "precompileUserFns — motif constructeur exclu de fn_defs" {
     const key_sym = try store.interner.intern("f_pattern");
     const key = store.interner.resolve(key_sym);
     var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
-    fd.addClause(&.{lit_pat}, try store.int(1));
+    try fd.addClause(&.{lit_pat}, try store.int(1));
     try engine.fns.put(alloc, key, fd);
 
     var mf = mir.MirFunction.initWithStore(alloc, &store);

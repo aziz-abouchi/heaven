@@ -16,6 +16,8 @@ pub const ElabError = error{
     OutOfMemory,
     NoSpaceLeft,
     TypeError,
+    TooManyClauses,
+    ArityTooHigh,
 };
 
 pub const Elaborator = struct {
@@ -218,7 +220,7 @@ pub const Elaborator = struct {
 
         if (self.registry) |reg| {
             // Enregistre la clause dans le FunctionRegistry (multi-clause safe)
-            reg.register(name, patterns.items, body) catch {};
+            try reg.register(name, patterns.items, body);
             // Retourne un nœud symbolique neutre (le registre est la vraie source)
             return self.store.sym(name);
         } else {

@@ -369,7 +369,9 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
         // (bug multi-clauses : put ecrasait les clauses precedentes).
         if (cmds.engine.fns.getPtr(name)) |existing| {
             const clause = def.clauses[0];
-            existing.addClause(clause.patterns[0..clause.num_patterns], clause.body);
+            existing.addClause(clause.patterns[0..clause.num_patterns], clause.body) catch |err| {
+                return std.fmt.allocPrint(cmds.engine.allocator, "clause limit: {s}", .{@errorName(err)});
+            };
         } else {
             const owned_name = try cmds.engine.allocator.dupe(u8, name);
             cmds.engine.fns.put(cmds.engine.allocator, owned_name, def) catch |err| {
@@ -471,7 +473,9 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
             };
         } else if (cmds.engine.fns.getPtr(name)) |existing| {
             const clause = def.clauses[0];
-            existing.addClause(clause.patterns[0..clause.num_patterns], clause.body);
+            existing.addClause(clause.patterns[0..clause.num_patterns], clause.body) catch |err| {
+                return std.fmt.allocPrint(cmds.engine.allocator, "clause limit: {s}", .{@errorName(err)});
+            };
         } else {
             const owned_name = try cmds.engine.allocator.dupe(u8, name);
             cmds.engine.fns.put(cmds.engine.allocator, owned_name, def) catch |err| {

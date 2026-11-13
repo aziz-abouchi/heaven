@@ -252,7 +252,7 @@ test "qbe — transitif : éligible appelle exclu → UnsupportedCall" {
         const key_sym = try store.interner.intern("f");
         const key = store.interner.resolve(key_sym);
         var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
-        fd.addClause(&.{n_id}, f_body);
+        try fd.addClause(&.{n_id}, f_body);
         try engine.fns.put(alloc, key, fd);
     }
     // g : 1 clause gardée → exclue
@@ -263,7 +263,7 @@ test "qbe — transitif : éligible appelle exclu → UnsupportedCall" {
         const key_sym = try store.interner.intern("g");
         const key = store.interner.resolve(key_sym);
         var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
-        fd.addClause(&.{n_id}, g_body);
+        try fd.addClause(&.{n_id}, g_body);
         fd.setLastGuard(g_guard);
         try engine.fns.put(alloc, key, fd);
     }

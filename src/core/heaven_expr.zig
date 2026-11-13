@@ -480,7 +480,7 @@ pub const Heaven = struct {
             while (i < def.num_clauses) : (i += 1) {
                 const clause = def.clauses[i];
                 self.registerClause(name, clause.patterns[0..clause.num_patterns], clause.body) catch |err| {
-                    debugPrint("[registerClause] '{s}' failed: {any}\n", .{name, err});
+                    debugPrint("[registerClause] '{s}' failed: {s}\n", .{name, @errorName(err)});
                 };
             }
         }
@@ -672,7 +672,7 @@ pub const Heaven = struct {
         } else {
             result.value_ptr.* = .{ .clauses = undefined, .num_clauses = 0 };
         }
-        result.value_ptr.addClause(patterns, body);
+        try result.value_ptr.addClause(patterns, body);
     }
 
     /// v2e : remplace les `Tag.hole` par des `Tag.evar` frais,
@@ -2617,7 +2617,7 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
                     .{ m, name },
                 );
                 defer self.allocator.free(qualified);
-                self.registerClause(qualified, patterns.items, body_used) catch {};
+                try self.registerClause(qualified, patterns.items, body_used);
                 if (guard_id != null) self.setClauseGuard(qualified, guard_id);
             }
         }
