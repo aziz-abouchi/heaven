@@ -136,3 +136,16 @@ Claim #3 - two strata, one implemented:
   Workaround: none - runtime checker verifies declarations, no drop-reuse optimizer
   Status: PARTIAL (runtime tracking OK, zero-GC Perceus not implemented).
 
+<!-- CIC-EVIDENCE 2026-11-13 -->
+
+Claim #2 - CIC substantially implemented (PASS B used wrong path):
+  STRATUM 1 (OK): Sort.Prop in typechecker.zig:47, ast.zig:56
+  STRATUM 2 (OK): Proof irrelevance active in conversion.zig:23-26
+    reactivated 2026-10-19, tested by test_proof_irrelevance.zig
+  STRATUM 3 (OK): Quotients primitive in ast.zig:56
+    tested by test_quotient.zig and test_transform.zig
+  STRATUM 4 (UNVERIFIED): Impredicativity of Prop (Pi over Prop returns Prop)
+  Status: SUBSTANTIAL (3 of 4 components implemented and tested).
+  Meta: PASS B grep-ed src/core/kernel.zig (does not exist).
+    Real path is src/kernel/kernel.zig. Other claims may be under-reported.
+
