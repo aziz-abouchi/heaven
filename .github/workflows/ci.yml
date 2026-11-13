@@ -76,6 +76,9 @@ jobs:
             exit 1
           fi
 
+      - name: Generate book_suite.hvn (gitignored, needed by vfs_manifest)
+        run: bash tools/extract_book_tests.sh
+
       - name: vfs_manifest entries must exist on disk
         run: |
           python3 - <<'PY'
