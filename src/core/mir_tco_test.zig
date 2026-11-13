@@ -131,3 +131,61 @@ test "tco_mutual — execute identique avant/après fusion" {
     std.debug.print("[TCO] after  fusion: even(10) = {d}\n", .{after});
     try std.testing.expectEqual(before, after);
 }
+
+
+// ─── Factorial (auto-récursion, non-tail) ────────────────────────────
+fn registerFactorialFn(mf: *MirFunction, alloc: std.mem.Allocator, sym: u32) !void {
+    var f = MirFunction.init(alloc);
+    const b0 = try f.newBlock();
+    const b_then = try f.newBlock();
+    const b_else = try f.newBlock();
+    f.next_value = 1; // reg 0 = n
+    const zero_r = f.newReg();
+    const cmp_r = f.newReg();
+    try f.blocks.items[b0].instrs.append(alloc, .{ .const_int = .{ .dest = zero_r, .value = 0 } });
+    try f.blocks.items[b0].instrs.append(alloc, .{ .cmp_eq = .{ .dest = cmp_r, .lhs = 0, .rhs = zero_r } });
+    f.blocks.items[b0].terminator = .{ .branch = .{ .cond = cmp_r, .then_block = b_then, .else_block = b_else } };
+
+    const one_then = f.newReg();
+    try f.blocks.items[b_then].instrs.append(alloc, .{ .const_int = .{ .dest = one_then, .value = 1 } });
+    f.blocks.items[b_then].terminator = .{ .ret = one_then };
+
+    const one_else = f.newReg();
+    const nm1_r = f.newReg();
+    const call_r = f.newReg();
+    const mul_r = f.newReg();
+    try f.blocks.items[b_else].instrs.append(alloc, .{ .const_int = .{ .dest = one_else, .value = 1 } });
+    try f.blocks.items[b_else].instrs.append(alloc, .{ .sub = .{ .dest = nm1_r, .lhs = 0, .rhs = one_else } });
+    const args = try alloc.alloc(Reg, 1);
+    args[0] = nm1_r;
+    try f.blocks.items[b_else].instrs.append(alloc, .{ .call_user = .{ .dest = call_r, .name = sym, .args = args } });
+    try f.blocks.items[b_else].instrs.append(alloc, .{ .mul = .{ .dest = mul_r, .lhs = 0, .rhs = call_r } });
+    f.blocks.items[b_else].terminator = .{ .ret = mul_r };
+
+    const param_regs = try alloc.alloc(Reg, 1);
+    param_regs[0] = 0;
+    const param_names = try alloc.alloc(Sym, 1);
+    param_names[0] = 0;
+    try mf.fnDefsMut().put(sym, .{ .fn_mir = f, .param_names = param_names, .param_regs = param_regs });
+}
+
+test "recursion — fac(5) = 120 via executeLegacy" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var mf = MirFunction.init(a);
+    try registerFactorialFn(&mf, a, 0);
+    const entry = try mf.newBlock();
+    const five_r = mf.newReg();
+    const result_r = mf.newReg();
+    try mf.blocks.items[entry].instrs.append(a, .{ .const_int = .{ .dest = five_r, .value = 5 } });
+    const args = try a.alloc(Reg, 1);
+    args[0] = five_r;
+    try mf.blocks.items[entry].instrs.append(a, .{ .call_user = .{ .dest = result_r, .name = 0, .args = args } });
+    mf.blocks.items[entry].terminator = .{ .ret = result_r };
+    var g = std.AutoHashMap(u32, i64).init(a);
+    defer g.deinit();
+    const result = try mf.execute(&g);
+    std.debug.print("[FAC] fac(5) = {d}\n", .{result});
+    try std.testing.expectEqual(@as(i64, 120), result);
+}

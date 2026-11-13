@@ -229,6 +229,7 @@ pub const MirFunction = struct {
     engine: ?*engine_mod.Engine = null,
     store_ref: ?*Store = null,
     fn_defs: std.AutoHashMap(Sym, FnDef),
+    owns_fn_defs: bool = true,
     values: std.ArrayListUnmanaged(i64),
     // 2026-10-30 : pool de strings pour const_str (index = sym)
     str_pool: std.ArrayListUnmanaged([]const u8) = .{},
@@ -673,14 +674,17 @@ pub const MirFunction = struct {
                 self.break_values.deinit(self.allocator);
         self.str_pool.deinit(self.allocator);
 
-        // Libérer les définitions de fonctions
-        var it = self.fn_defs.valueIterator();
-        while (it.next()) |def| {
-            def.fn_mir.deinit();
-            self.allocator.free(def.param_names);
-            self.allocator.free(def.param_regs);
+        // Libérer les définitions de fonctions (uniquement si propriétaire ;
+        // les clones partagent fn_defs et ne doivent pas le libérer)
+        if (self.owns_fn_defs) {
+            var it = self.fn_defs.valueIterator();
+            while (it.next()) |def| {
+                def.fn_mir.deinit();
+                self.allocator.free(def.param_names);
+                self.allocator.free(def.param_regs);
+            }
+            self.fn_defs.deinit();
         }
-        self.fn_defs.deinit();
 
         self.values.deinit(self.allocator);
     }
@@ -1491,7 +1495,12 @@ pub const MirFunction = struct {
         new_mir.store = self.store;
         new_mir.engine = self.engine;
         new_mir.store_ref = self.store_ref;
-        // On pourrait copier d'autres choses si besoin
+        // FIX (2026-11-13): partager fn_defs pour que executeLegacy
+        // résolve les call_user récursifs (even/odd, fac, fib).
+        // Le clone ne libère pas (owns_fn_defs = false) : le root
+        // reste seul propriétaire de la map.
+        new_mir.fn_defs = self.fn_defs;
+        new_mir.owns_fn_defs = false;
         new_mir.values = .{};
         return new_mir;
     }
