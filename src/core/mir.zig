@@ -1495,7 +1495,26 @@ pub const MirFunction = struct {
             };
             try new_block.instrs.ensureTotalCapacity(self.allocator, block.instrs.items.len);
             for (block.instrs.items) |inst| {
-                try new_block.instrs.append(self.allocator, inst);
+                var new_inst = inst;
+                switch (inst) {
+                    .call_user => |c| {
+                        const new_args = try self.allocator.alloc(Reg, c.args.len);
+                        @memcpy(new_args, c.args);
+                        new_inst.call_user.args = new_args;
+                    },
+                    .extern_call => |c| {
+                        const new_args = try self.allocator.alloc(Reg, c.args.len);
+                        @memcpy(new_args, c.args);
+                        new_inst.extern_call.args = new_args;
+                    },
+                    .phi => |ph| {
+                        const new_inc = try self.allocator.alloc(PhiEntry, ph.incoming.len);
+                        @memcpy(new_inc, ph.incoming);
+                        new_inst.phi.incoming = new_inc;
+                    },
+                    else => {},
+                }
+                try new_block.instrs.append(self.allocator, new_inst);
             }
             try new_mir.blocks.append(self.allocator, new_block);
         }
