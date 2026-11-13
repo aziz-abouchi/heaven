@@ -550,6 +550,9 @@ pub fn toString(store: *const Store, id: Id, allocator: std.mem.Allocator) ![]u8
     return store.toString(id, allocator);
 }
 
+// WARNING: toStringInfix is an alias of toString, which uses serialize()
+// (prefix-only output). Name is misleading. For real infix, use formatInfix
+// (commit 81e2bd9). Kept for backward compatibility with 48 call sites.
 pub fn toStringInfix(store: *const Store, id: Id, allocator: std.mem.Allocator) ![]u8 {
     return store.toString(id, allocator);
 }
