@@ -48,7 +48,16 @@ fn compileRoot(
     else
         false;
     if (!skip_std) try mf.precompileUserFns();
-    const scc_infos = try mf.fuseTailSCCs(mf.allocator);
+    // HEAVEN_SCC_FUSION: opt-in gate, default off. SCC fusion emits MIR
+    // with a broken wrapper ABI (cf _claims_vs_reality.md claim #5 Update 3).
+    // Set HEAVEN_SCC_FUSION=1 to opt in once the ABI is fixed. This gate
+    // does NOT fix the ABI, it only protects the default compilation path.
+    const scc_infos = if (mir.sccFusionEnabledFromEnv(
+        platform.getenv("HEAVEN_SCC_FUSION"),
+    ))
+        try mf.fuseTailSCCs(mf.allocator)
+    else
+        &.{};
     defer {
         for (scc_infos) |info| mf.allocator.free(info.members);
         mf.allocator.free(scc_infos);

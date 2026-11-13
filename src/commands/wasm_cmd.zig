@@ -27,7 +27,13 @@ fn compileRoot(
     errdefer mf.deinit();
     mf.engine = engine;
     try mf.precompileUserFns();
-    const scc_infos = try mf.fuseTailSCCs(mf.allocator);
+    // HEAVEN_SCC_FUSION: opt-in gate, default off. See qbe_cmd.zig comment.
+    const scc_infos = if (mir.sccFusionEnabledFromEnv(
+        platform.getenv("HEAVEN_SCC_FUSION"),
+    ))
+        try mf.fuseTailSCCs(mf.allocator)
+    else
+        &.{};
     defer {
         for (scc_infos) |info| mf.allocator.free(info.members);
         mf.allocator.free(scc_infos);

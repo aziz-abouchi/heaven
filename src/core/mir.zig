@@ -218,6 +218,14 @@ fn shiftInstr(allocator: std.mem.Allocator, inst: Instr, reg_off: u32, block_off
     };
 }
 
+/// Pure predicate for SCC fusion gating. Inverse convention of
+/// HEAVEN_NO_* flags: opt-in because the wrapper ABI is broken
+/// (cf _claims_vs_reality.md claim #5 Update 3). Default off.
+pub fn sccFusionEnabledFromEnv(env_val: ?[]const u8) bool {
+    const v = env_val orelse return false;
+    return v.len > 0 and !std.mem.eql(u8, v, "0");
+}
+
 pub const MirFunction = struct {
     allocator: std.mem.Allocator,
     blocks: std.ArrayListUnmanaged(BasicBlock),

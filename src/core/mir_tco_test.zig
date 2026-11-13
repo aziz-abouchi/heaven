@@ -194,3 +194,28 @@ test "recursion — fac(5) = 120 via executeLegacy" {
     std.debug.print("[FAC] fac(5) = {d}\n", .{result});
     try std.testing.expectEqual(@as(i64, 120), result);
 }
+
+// --- SCC fusion gate tests (2026-11-13) ---
+
+test "sccFusionEnabledFromEnv - default off when env absent" {
+    try std.testing.expectEqual(false, mir.sccFusionEnabledFromEnv(null));
+}
+
+test "sccFusionEnabledFromEnv - off for empty string" {
+    try std.testing.expectEqual(false, mir.sccFusionEnabledFromEnv(""));
+}
+
+test "sccFusionEnabledFromEnv - off for literal zero" {
+    try std.testing.expectEqual(false, mir.sccFusionEnabledFromEnv("0"));
+}
+
+test "sccFusionEnabledFromEnv - on for 1" {
+    try std.testing.expectEqual(true, mir.sccFusionEnabledFromEnv("1"));
+}
+
+test "sccFusionEnabledFromEnv - on for any non-zero" {
+    try std.testing.expectEqual(true, mir.sccFusionEnabledFromEnv("yes"));
+    try std.testing.expectEqual(true, mir.sccFusionEnabledFromEnv("true"));
+    try std.testing.expectEqual(true, mir.sccFusionEnabledFromEnv("2"));
+}
+
