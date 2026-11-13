@@ -303,7 +303,7 @@ pub const MirFunction = struct {
         return &self.fn_defs;
     }
 
-pub fn findTailSCCs(self: *MirFunction, allocator: std.mem.Allocator) ![]const []const u32 {
+    pub fn findTailSCCs(self: *MirFunction, allocator: std.mem.Allocator) ![]const []const u32 {
         var syms: std.ArrayListUnmanaged(u32) = .{};
         defer syms.deinit(allocator);
         var it = self.fn_defs.keyIterator();
