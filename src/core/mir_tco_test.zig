@@ -219,3 +219,48 @@ test "sccFusionEnabledFromEnv - on for any non-zero" {
     try std.testing.expectEqual(true, mir.sccFusionEnabledFromEnv("2"));
 }
 
+// --- RECUR-CHECK: discriminate real recursion from accidental cmp(undef==0) ---
+// even(3) and odd(10) must return 0. If the test returned 1, it would
+// mean the recursion never runs (cmp of undefined==0 fires true and
+// returns the base case immediately). This catches regressions of
+// 464a344 (deep-copy in cloneFunction) that would silently reintroduce
+// undefined-param reads.
+test "tco_mutual - even(3) = 0 and odd(10) = 0 prove real recursion" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var mf = MirFunction.init(a);
+    try registerParityFn(&mf, a, 0, 1, 1); // even
+    try registerParityFn(&mf, a, 1, 0, 0); // odd
+
+    // even(3) = 0
+    {
+        const entry = try mf.newBlock();
+        const three_r = mf.newReg();
+        const res_r = mf.newReg();
+        try mf.blocks.items[entry].instrs.append(a, .{ .const_int = .{ .dest = three_r, .value = 3 } });
+        const args = try a.alloc(Reg, 1);
+        args[0] = three_r;
+        try mf.blocks.items[entry].instrs.append(a, .{ .call_user = .{ .dest = res_r, .name = 0, .args = args } });
+        mf.blocks.items[entry].terminator = .{ .ret = res_r };
+        var g = std.AutoHashMap(u32, i64).init(a);
+        defer g.deinit();
+        try std.testing.expectEqual(@as(i64, 0), try mf.execute(&g));
+    }
+
+    // odd(10) = 0
+    {
+        const entry = try mf.newBlock();
+        const ten_r = mf.newReg();
+        const res_r = mf.newReg();
+        try mf.blocks.items[entry].instrs.append(a, .{ .const_int = .{ .dest = ten_r, .value = 10 } });
+        const args = try a.alloc(Reg, 1);
+        args[0] = ten_r;
+        try mf.blocks.items[entry].instrs.append(a, .{ .call_user = .{ .dest = res_r, .name = 1, .args = args } });
+        mf.blocks.items[entry].terminator = .{ .ret = res_r };
+        var g = std.AutoHashMap(u32, i64).init(a);
+        defer g.deinit();
+        try std.testing.expectEqual(@as(i64, 0), try mf.execute(&g));
+    }
+}
+
