@@ -149,3 +149,14 @@ Claim #2 - CIC substantially implemented (PASS B used wrong path):
   Meta: PASS B grep-ed src/core/kernel.zig (does not exist).
     Real path is src/kernel/kernel.zig. Other claims may be under-reported.
 
+<!-- HOTT-EVIDENCE 2026-11-13 -->
+
+Claim #1 - HoTT facade only, no kernel native:
+  STRATUM 1 (OK): lib/hott/path.hvn exists, covered by test_hott_path.hvn (14+ tests pass)
+  STRATUM 2 (OK): integer encoding - path_witness returns Int, refl=0, trans=sum
+  STRATUM 3 (ABSENT): no Path type in src/kernel/*.zig
+  STRATUM 4 (ABSENT): no univalence, no HIT, no higher inductive types
+  STRATUM 5 (ABSENT): kernel refl is CIC Eq-refl (typechecker.zig:166), not HoTT Path-refl
+  Status: FACADE (rank-1 simulated paths, kernel native HoTT absent).
+  Meta: PASS B was accurate for claim 1 (correctly reported 0 hits).
+
