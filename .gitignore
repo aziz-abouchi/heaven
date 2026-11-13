@@ -124,3 +124,6 @@ __pycache__/
 # mdbook v2
 docs/book-v2/book/
 *.bak*
+
+# Backups créés par les scripts de session (pattern /tmp/…/pre_fix.*)
+*.pre_fix.*
