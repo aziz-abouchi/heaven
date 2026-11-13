@@ -158,8 +158,9 @@ Conséquences pour l'écriture `.hvn` :
   Le parser normalise `==` en `=` à l'affichage infixe, c'est voulu.
 - **Définition de clause** : `(f x) = body` — forme clause, pas une
   expression parenthésée. Ne pas confondre avec `(x = y)`.
-- **Assignation** : `:=` (forme `bind`). Non utilisable comme expression
-  binaire — reste en apply préfixe dans `--dump-infix`.
+- **Assignation** : `:=`. Non-binaire pour le parser (reste en apply préfixe
+  dans `--dump-infix`). Tag interne (`.bind` ou `.relation` ou apply(sym)) non
+  documenté ici — voir `parse.zig` si besoin.
 - `=` seul dans une expression parenthésée n'est pas formaté en infixe
   par `formatInfix`. Si l'intention est la comparaison, préférer `(x == y)`.
 
