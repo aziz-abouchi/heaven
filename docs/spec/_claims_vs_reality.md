@@ -172,3 +172,19 @@ Update 3 (2026-11-13) - fuseTailSCCs ABI mismatch precise diagnosis:
     Test 3 stays neutralized. Fix needs: align ABI + separate wrapper for pairs/scc +
     verify QBE consumption. Estimated: dedicated session, production code.
 
+
+Correction (2026-11-13) - 7c0495d impact claim was wrong:
+  Commit message claimed four test files (test_hashmap 50, test_list 46,
+  test_bitstrings 42, test_dns_v1 40) already exceeded 32 clauses and were
+  being silently truncated at load.
+  That audit was WRONG. Correct scan (regex that skips test/let and distinguishes
+  == from =) across 202 .hvn files in lib/, tests/, core/:
+    max clauses for a single function = 19
+    zero functions > 32 clauses
+  No .hvn was actually losing clauses before 7c0495d.
+  The fix remains valid as defensive hardening:
+    - silent truncation in addClause was a real latent bug
+    - 3 inline tests prove the new explicit-error behavior
+    - [32]->[64] gives margin for future growth
+  But the "four files were truncated" narrative is incorrect.
+
