@@ -554,6 +554,10 @@ pub fn toStringInfix(store: *const Store, id: Id, allocator: std.mem.Allocator) 
     return store.toString(id, allocator);
 }
 
+pub fn formatInfix(store: *const Store, id: Id, allocator: std.mem.Allocator) ![]u8 {
+    return store.formatInfix(id, allocator);
+}
+
 /// Decode les sequences d'echappement dans une string litterale :
 /// \n -> LF, \r -> CR, \t -> TAB, \\ -> backslash, \" -> quote, \0 -> NUL.
 /// Toute autre sequence \x reste inchangee (x litteral).
@@ -1557,6 +1561,61 @@ pub const Store = struct {
 
     pub fn toStringInfix(self: *const Store, id: Id, allocator: Allocator) Allocator.Error![]u8 {
         return self.toString(id, allocator);
+    }
+
+    /// Formatter S-expr -> infixe pour operateurs binaires connus.
+    /// Distinct de serialize() pour ne pas casser le REPL/JSON/roundtrip.
+    /// Utilise par `heaven --dump-infix`.
+    pub fn formatInfix(self: *const Store, id: Id, allocator: Allocator) Allocator.Error![]u8 {
+        var buf: std.ArrayList(u8) = .empty;
+        defer buf.deinit(allocator);
+        try self.formatInfixRec(id, &buf, allocator, 0);
+        return buf.toOwnedSlice(allocator);
+    }
+
+    fn formatInfixRec(self: *const Store, id: Id, buf: *std.ArrayList(u8), allocator: Allocator, parent_prec: u8) Allocator.Error!void {
+        const node = self.get(id);
+        switch (node.tag) {
+            .apply => {
+                const args = node.span_a.slice(self.pool.items);
+                if (args.len == 3) {
+                    const head_node = self.get(args[0]);
+                    if (head_node.tag == .sym) {
+                        const op = self.interner.resolve(head_node.payload);
+                        if (binaryPrec(op)) |prec| {
+                            const need_parens = prec < parent_prec;
+                            if (need_parens) try buf.append(allocator, '(');
+                            try self.formatInfixRec(args[1], buf, allocator, prec + 1);
+                            try buf.append(allocator, ' ');
+                            try buf.appendSlice(allocator, op);
+                            try buf.append(allocator, ' ');
+                            try self.formatInfixRec(args[2], buf, allocator, prec);
+                            if (need_parens) try buf.append(allocator, ')');
+                            return;
+                        }
+                    }
+                }
+                try buf.append(allocator, '(');
+                for (args, 0..) |arg, i| {
+                    if (i > 0) try buf.append(allocator, ' ');
+                    try self.formatInfixRec(arg, buf, allocator, 0);
+                }
+                try buf.append(allocator, ')');
+            },
+            else => try self.serialize(id, buf, allocator),
+        }
+    }
+
+    fn binaryPrec(op: []const u8) ?u8 {
+        const eq = std.mem.eql;
+        if (eq(u8, op, "=")) return 1;
+        if (eq(u8, op, "||")) return 2;
+        if (eq(u8, op, "&&")) return 3;
+        if (eq(u8, op, "==") or eq(u8, op, "!=")) return 4;
+        if (eq(u8, op, "<") or eq(u8, op, ">") or eq(u8, op, "<=") or eq(u8, op, ">=")) return 5;
+        if (eq(u8, op, "+") or eq(u8, op, "-")) return 6;
+        if (eq(u8, op, "*") or eq(u8, op, "/") or eq(u8, op, "%") or eq(u8, op, "^")) return 7;
+        return null;
     }
 
     fn serialize(self: *const Store, id: Id, buf: *std.ArrayList(u8), allocator: Allocator) Allocator.Error!void {

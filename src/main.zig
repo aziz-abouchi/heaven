@@ -146,7 +146,7 @@ fn dumpFileSexpr(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
             try w.print("# ERROR parse: {s} ({s})\n", .{ t[0..tok_end], @errorName(err) });
             continue;
         };
-        const sline = expr.toStringInfix(h.store, id, allocator) catch |err| {
+        const sline = expr.formatInfix(h.store, id, allocator) catch |err| {
             try w.print("# ERROR format: {s} ({s})\n", .{ t[0..tok_end], @errorName(err) });
             continue;
         };
