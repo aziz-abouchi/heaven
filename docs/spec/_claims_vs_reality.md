@@ -112,4 +112,10 @@ Voir `docs/MIR_CONTRACT.md` §6, §8 (source de vérité).
 
 
 <!-- TCO-MUTUAL-EVIDENCE 2026-11-13 -->
+Update 2 (2026-11-13): cloneFunction fix landed (4a483f7).
+Pre-fusion execution works (even(10)=1, fac(5)=120 via executeLegacy).
+Post-fusion execute crashes on uninitialized register — fuseTailSCCs
+emits QBE-only ABI (tag@reg0, params@reg4+), incompatible with
+executeLegacy. Level 3a blocked; level 3b (QBE run) untested.
+Claim status: detection+fusion proven (1+2), execution blocked (3a/3b).
 Preuves exécutables: `src/core/mir_tco_test.zig` (2 tests actifs, 1 neutralisé). Build: 425/426 pass. Bug kernel: `cloneFunction` ne propage pas `fn_defs`. Ticket séparé pour fix.
