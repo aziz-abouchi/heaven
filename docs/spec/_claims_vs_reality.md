@@ -188,3 +188,15 @@ Correction (2026-11-13) - 7c0495d impact claim was wrong:
     - [32]->[64] gives margin for future growth
   But the "four files were truncated" narrative is incorrect.
 
+
+Correction (2026-11-13) - Update 3 ABI mismatch diagnosis was WRONG:
+  Update 3 claimed wrapper and body had mismatched ABI: "wrapper sends
+  [params..K-1, tag@K], body expects [tag@0, zero@1, cond@2, const@3, params@4+]".
+  Full trace shows this is consistent: body param_regs = [def0.param_regs+4..., 0],
+  wrapper sends [def.param_regs..., tag_r]. executeLegacy maps arg[i] to
+  param_regs[i], so params land in [4..] and tag lands in [0]. Coherent.
+  The real crash is index 0xAAAAAAAB on values, i.e. an undefined reg read
+  as call_user arg, in executeLegacy where cu.args have no bounds check.
+  Suspected source: shiftInstr call_user path or copyBlocksForFusionN
+  passing an undefined arg through. Under investigation.
+
