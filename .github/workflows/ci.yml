@@ -68,7 +68,7 @@ jobs:
       - name: Check doc freshness (docgen --check)
         run: python3 scripts/docgen.py --check  # equivalent: zig build docgen-check
 
-      - name: Doctest book (warn-only, 6 residus connus)
+      - name: Doctest book (warn-only, 16 residus connus, see docs/spec/_doctest_known_failures.md)
         run: python3 scripts/doctest.py --warn-only
 
       - name: Check STATUS.md freshness (status_gen --check)
