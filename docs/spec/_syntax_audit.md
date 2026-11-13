@@ -141,3 +141,30 @@ Ordre de risque croissant (chacun test_suite en garde-fou) :
 Regle : convertir UNIQUEMENT les operateurs purs (`(* a b)` ->
 `a * b`, `(+ a b)` -> `a + b`). Les `if` S-expr restent tels
 quels tant que le bug `if-multiligne-let-in` n'est pas fixe.
+
+## Opérateurs = / == / := (2026-11-13)
+Observation empirique via `heaven --dump-infix` sur `/tmp/t4.hvn` :
+
+| Syntaxe d'entrée | Sortie `--dump-infix` | Interprétation |
+|---|---|---|
+| `(x == y)` | `x = y` | `==` est un opérateur binaire reconnu ; formaté en infixe avec `=` |
+| `(x != y)` | `x != y` | `!=` binaire reconnu, préfixe préservé (pas de réécriture) |
+| `(x = y)` | `(x = y)` | `=` seul n'est pas un opérateur binaire ; reste en apply préfixe |
+| `(x := y)` | `(x := y)` | `:=` n'est pas un opérateur binaire ; reste en apply préfixe |
+
+Conséquences pour l'écriture `.hvn` :
+
+- **Comparaison booléenne** : utiliser `==` (ou `!=`, `<`, `>`, `<=`, `>=`).
+  Le parser normalise `==` en `=` à l'affichage infixe, c'est voulu.
+- **Définition de clause** : `(f x) = body` — forme clause, pas une
+  expression parenthésée. Ne pas confondre avec `(x = y)`.
+- **Assignation** : `:=` (forme `bind`). Non utilisable comme expression
+  binaire — reste en apply préfixe dans `--dump-infix`.
+- `=` seul dans une expression parenthésée n'est pas formaté en infixe
+  par `formatInfix`. Si l'intention est la comparaison, préférer `(x == y)`.
+
+Cette distinction était invisible dans la doc avant cette session. Elle a
+causé au moins une confusion (le commit `a2c0439` a cru que `--dump-infix`
+ne produisait pas d'infixe, alors que la sortie `f2 = λx. (* x 2)` venait
+de `--dump-sexpr`, pas de `--dump-infix` sur un `==`).
+
