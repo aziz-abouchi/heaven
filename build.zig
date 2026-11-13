@@ -1875,6 +1875,20 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_expr).step);
     test_step.dependOn(&run_test_mir_wat.step);
     test_step.dependOn(&b.addRunArtifact(test_mir_qbe).step);
+
+    // TCO MUTUAL test registration v2 (2026-11-12)
+    const test_mir_tco = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/core/mir_tco_test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "mir", .module = mir_mod },
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "engine_expr", .module = engine_expr_mod },
+        },
+    }) });
+    test_step.dependOn(&b.addRunArtifact(test_mir_tco).step);
+
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_kanren_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_continuation).step);

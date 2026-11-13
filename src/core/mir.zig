@@ -297,7 +297,13 @@ pub const MirFunction = struct {
     /// Algorithme : fermeture transitive (Floyd-Warshall booleen) sur
     /// la matrice d'adjacence. Pour N fonctions (< 100), le cout
     /// O(N^3) est negligeable.
-    pub fn findTailSCCs(self: *MirFunction, allocator: std.mem.Allocator) ![]const []const u32 {
+    
+    // TCO ACCESSOR (2026-11-12)
+    pub fn fnDefsMut(self: *MirFunction) *@TypeOf(self.fn_defs) {
+        return &self.fn_defs;
+    }
+
+pub fn findTailSCCs(self: *MirFunction, allocator: std.mem.Allocator) ![]const []const u32 {
         var syms: std.ArrayListUnmanaged(u32) = .{};
         defer syms.deinit(allocator);
         var it = self.fn_defs.keyIterator();
