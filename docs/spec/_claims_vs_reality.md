@@ -160,3 +160,15 @@ Claim #1 - HoTT facade only, no kernel native:
   Status: FACADE (rank-1 simulated paths, kernel native HoTT absent).
   Meta: PASS B was accurate for claim 1 (correctly reported 0 hits).
 
+
+Update 3 (2026-11-13) - fuseTailSCCs ABI mismatch precise diagnosis:
+  BUG 1: wrapper wrapWithSccCall (mir.zig:378-408) sends args=[params..K-1, tag@K]
+    body fuseTailSCCs (mir.zig:570-574) expects [tag@0, zero@1, cond@2, const@3, params@4+]
+  BUG 2: wrapWithSccCall shared by fuseTailPairs (L499-500) and fuseTailSCCs (L637)
+    changing wrapper ABI breaks pairs; separate wrapper needed
+  BUG 3: mir_qbe.zig has 0 mention of scc_sym - backend consumption unclear
+    comment L413-414 claims QBE TCO rewrites call_user to jmp @b0 but no trace in backend
+  Status: fuseTailSCCs emits MIR that is broken at wrapper boundary.
+    Test 3 stays neutralized. Fix needs: align ABI + separate wrapper for pairs/scc +
+    verify QBE consumption. Estimated: dedicated session, production code.
+
