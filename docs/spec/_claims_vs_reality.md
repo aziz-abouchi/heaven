@@ -118,4 +118,12 @@ Post-fusion execute crashes on uninitialized register — fuseTailSCCs
 emits QBE-only ABI (tag@reg0, params@reg4+), incompatible with
 executeLegacy. Level 3a blocked; level 3b (QBE run) untested.
 Claim status: detection+fusion proven (1+2), execution blocked (3a/3b).
-Preuves exécutables: `src/core/mir_tco_test.zig` (2 tests actifs, 1 neutralisé). Build: 425/426 pass. Bug kernel: `cloneFunction` ne propage pas `fn_defs`. Ticket séparé pour fix.
+Preuves exécutables: `src/core/mir_tco_test.zig` (2 tests actifs, 1 neutralisé). Build: 425/426 pass. Bug kernel: `cloneFunction` ne propage pas `fn_defs`. Ticket séparé pour fix.<!-- HOLES-EVIDENCE 2026-11-13 -->
+
+Claim #4 - three strata, two implemented:
+  STRATUM 1 (SOLID): hole_runtime.zig inferHoleType arith->Int cmp->Bool
+  STRATUM 2 (OK): HoleState.refine stores hole->expr mapping
+  STRATUM 3 (ABSENT): no AST rewrite, @hole still yields -1 after refine
+  Workaround: refine_tdd identity in core/std/tdd.hvn:6
+  Status: PARTIAL (recording OK, substitution 0%).
+
