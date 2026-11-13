@@ -622,3 +622,35 @@ B0.1c (`test "`, erreur explicite) : +0,5 session.
 **5ᵉ révision d'estimation en 2 sessions (48 et 49).** La règle empirique :
 tout sous-bloc qui doit *découvrir* une structure implicite est
 sous-estimé d'un facteur 2. B0.1 en fait partie.
+
+Correction (2026-11-13) - B0.1a.0 deja livre sous le nom sexpr_dump
+La section B0.1 ci-dessus (L600-624) a ete ecrite avant la creation de
+`src/core/sexpr_dump.zig` et n'a jamais ete mise a jour. Verification
+factuelle (2026-11-13) :
+
+  B0.1a.0 | formatIdSexpr (6 Tags) | 45 min   ->  DEJA LIVRE
+
+Preuves :
+  - src/core/sexpr_dump.zig (314 lignes) implemente pub fn formatId()
+  - Couvre les 6 tags spec : lit, sym, apply, bind, lambda, conditional
+    (conditional est couvert via apply(sym("if"), [c,t,e]), documente L19)
+  - Bonus : relation et letrec
+  - UnsupportedTag retourne sur les tags non geres (pas d'omission
+    silencieuse, exigence 2 du contrat B0 respectee)
+  - Tests inline dans sexpr_dump.zig (10 tests, L179-314)
+  - Roundtrip test dans sexpr_roundtrip_test.zig (1 test, formatId ->
+    parseSExpr -> formatId idempotent)
+  - Inscrits dans build.zig :
+      test_sexpr_dump       L1386-1387, dependOn L1907
+      test_sexpr_roundtrip  L1895-1896, dependOn L1918
+  - Tourne dans `zig build test` (435/436 sur HEAD 2ca75f7)
+
+Conclusion : la prochaine etape selfhost n'est PAS B0.1a.0 (deja fait),
+c'est B0.1a.1 : dispatcher statements + CLI --dump-sexpr.
+
+Cette correction n'invalide pas les estimations L616-624 (1,5-2h pour
+B0.1a total) - elle constate qu'un sous-bloc sur trois est deja livre.
+Charge reelle restante pour B0.1a : B0.1a.1 + B0.1a.2, soit 45+30 min
+nominal, potentiellement moins car formatId est reutilisable pour les
+tests.
+
