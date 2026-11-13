@@ -18,7 +18,7 @@
 | 2 | TCB CIC complet (quotients, proof irrelevance, Prop imprédicatif) | Prop imprédicatif : 0 %. Proof irrelevance : 0 %. Quotients : prototype isolé | ❌ Partiel |
 | 3 | QTT zero-GC (Perceus) | QTT runtime vérifié (`LinearViolation` testé), pas de FBIP/Perceus dans les backends | ⚠️ Runtime seul |
 | 4 | Holes + refine interactif (`:hole`, `:refine`) | `@hole` sentinelle `-1`, `refine_tdd` = identité déguisée. Vrai AST refine : 5 % | ⚠️ Prototype |
-| 5 | TCO O(1) mutuelle | TCO directe OK, mutuelle limitée par SCC dans MIR (STATUS.md:303) | ⚠️ Partiel |
+| 5 | TCO O(1) mutuelle | **Détection + fusion prouvées** : `findTailSCCs` regroupe {even, odd}, `fuseTailSCCs` produit un scc_sym unique (`src/core/mir_tco_test.zig`, commit d1ceb7c). **Exécution équivalente : bloquée** par bug `cloneFunction` (mir.zig:1475-1497, ne propage pas `fn_defs`). TCO compilé (QBE) : non testé. | ⚠️ Partiel (1+2 prouvés, 3 bloqué) |
 | 6 | Versioning v0.5 / v0.6 « ACTUEL » | Binaire `v0.1.0` | ❌ Décalage |
 | 7 | MPST généralisé | Runtime seul pour acteurs (`protocol.hvn`). Streams, réseau, UI : 0 % | ⚠️ Acteurs seulement |
 | 8 | HKT Rank 1 (`Strategy ∀h`) | ✅ Implémenté et testé (O2.2) | ✅ |
@@ -109,3 +109,7 @@ Voir `docs/MIR_CONTRACT.md` §6, §8 (source de vérité).
 
 | 15 | Selfhost = compilateur Heaven | briques (parse+eval) partiellement en .hvn, PAS un compilateur. head-18 passe, full-file cyclique. | WIP |
 | 16 | heaven check = typechecker | syntax + arité (48/148 faux positifs tree-sitter). Pas d'unification. | Partiel |
+
+
+<!-- TCO-MUTUAL-EVIDENCE 2026-11-13 -->
+Preuves exécutables: `src/core/mir_tco_test.zig` (2 tests actifs, 1 neutralisé). Build: 425/426 pass. Bug kernel: `cloneFunction` ne propage pas `fn_defs`. Ticket séparé pour fix.
