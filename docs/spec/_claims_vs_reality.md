@@ -127,3 +127,12 @@ Claim #4 - three strata, two implemented:
   Workaround: refine_tdd identity in core/std/tdd.hvn:6
   Status: PARTIAL (recording OK, substitution 0%).
 
+<!-- QTT-EVIDENCE 2026-11-13 -->
+
+Claim #3 - two strata, one implemented:
+  STRATUM 1 (OK): LinearChecker src/core/types.zig:148, Quantity one/zero/many
+  STRATUM 2 (OK): shell :qtt integration, commands.zig:871, test_qtt_linear.hvn 8 pass
+  STRATUM 3 (ABSENT): no Perceus/FBIP in src/*.zig, only docs/_memory.md and _backend_strategy.md mention it
+  Workaround: none - runtime checker verifies declarations, no drop-reuse optimizer
+  Status: PARTIAL (runtime tracking OK, zero-GC Perceus not implemented).
+
