@@ -103,6 +103,60 @@ pub fn syncMatrixWithFile(_: *matrix_lib.Matrix, _: *autofab_lib.AutoFab, _: std
     return;
 }
 
+fn dumpFileSexpr(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
+    const content = try std.fs.cwd().readFileAlloc(allocator, path, 10 * 1024 * 1024);
+    defer allocator.free(content);
+
+    const test_runner = @import("runtime/test_runner.zig");
+    const sexpr_dump = @import("core/sexpr_dump.zig");
+
+    var statements: std.ArrayListUnmanaged([]const u8) = .{};
+    defer {
+        for (statements.items) |st| allocator.free(st);
+        statements.deinit(allocator);
+    }
+    try test_runner.splitStatements(allocator, content, &statements);
+
+    var out: std.ArrayListUnmanaged(u8) = .{};
+    errdefer out.deinit(allocator);
+    const w = out.writer(allocator);
+
+    var h = try heaven_expr.Heaven.init(allocator);
+    defer {
+        h.deinit();
+        allocator.destroy(h);
+    }
+
+    for (statements.items) |stmt| {
+        const t = std.mem.trim(u8, stmt, " \t\r\n");
+        if (t.len == 0) continue;
+        const is_decl = std.mem.startsWith(u8, t, "fn ") or
+            std.mem.startsWith(u8, t, "data ") or
+            std.mem.startsWith(u8, t, "import ") or
+            std.mem.startsWith(u8, t, "test \"") or
+            std.mem.startsWith(u8, t, "let ") or
+            std.mem.startsWith(u8, t, "theorem ") or
+            std.mem.startsWith(u8, t, "class ") or
+            std.mem.startsWith(u8, t, "instance ");
+        const tok_end = std.mem.indexOfAny(u8, t, " \t\n") orelse t.len;
+        if (is_decl) {
+            try w.print("# UNSUPPORTED (B0.1b/c): {s}\n", .{t[0..tok_end]});
+            continue;
+        }
+        const id = h.parseExpression(t) catch |err| {
+            try w.print("# ERROR parse: {s} ({s})\n", .{ t[0..tok_end], @errorName(err) });
+            continue;
+        };
+        const sline = sexpr_dump.formatId(h.store, id, allocator) catch |err| {
+            try w.print("# ERROR format: {s} ({s})\n", .{ t[0..tok_end], @errorName(err) });
+            continue;
+        };
+        defer allocator.free(sline);
+        try w.print("{s}\n", .{sline});
+    }
+    return try out.toOwnedSlice(allocator);
+}
+
 pub fn main() !void {
     // Windows : forcer la console en UTF-8 avant tout affichage.
     // No-op sur Unix.
@@ -356,6 +410,15 @@ pub fn main() !void {
     if (std.mem.eql(u8, args[1], "--run-tests")) {
         const test_runner = @import("runtime/test_runner.zig");
         if (try test_runner.runTestDir(allocator, args[2])) requested_exit = 1;
+        return;
+    }
+    if (std.mem.eql(u8, args[1], "--dump-sexpr") and args.len >= 3) {
+        const output = dumpFileSexpr(allocator, args[2]) catch |err| {
+            platform.debug.print("dump-sexpr failed: {s}\n", .{@errorName(err)});
+            std.process.exit(1);
+        };
+        defer allocator.free(output);
+        platform.debug.print("{s}", .{output});
         return;
     }
     if (std.mem.eql(u8, args[1], "--eval-file") and args.len >= 3) {
