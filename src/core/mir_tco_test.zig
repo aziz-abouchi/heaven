@@ -102,7 +102,12 @@ test "tco_mutual — fuseTailSCCs produit un scc_sym unique" {
 
 // EXEC-TEST-DISABLED: cloneFunction ne propage pas fn_defs (bug mir.zig:1475-1497).
 test "tco_mutual — execute identique avant/après fusion" {
-    if (true) return; // TODO: débloquer après fix cloneFunction
+    if (true) return; // BLOCKED (2026-11-13): cloneFunction fix landed (4a483f7), and
+// pre-fusion even(10) now works. Post-fusion execute crashes on
+// uninitialized register (0xAAAAAAAB) — fuseTailSCCs likely uses
+// a QBE-only ABI (dispatch tag at reg 0, params at reg 4+)
+// incompatible with executeLegacy. Level 3a needs QBE path, not
+// MIR oracle. Tracked separately.
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
