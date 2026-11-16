@@ -68,7 +68,7 @@ jobs:
       - name: Check doc freshness (docgen --check)
         run: python3 scripts/docgen.py --check  # equivalent: zig build docgen-check
 
-      - name: Doctest book (warn-only, 16 residus connus, see docs/spec/_doctest_known_failures.md)
+      - name: Doctest book (warn-only, 10 files / 24 real errors, see docs/spec/_doctest_known_failures.md)
         run: python3 scripts/doctest.py --warn-only
 
       - name: Proof soundness discriminator (warn-only until Phase 5)
