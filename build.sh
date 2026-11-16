@@ -140,7 +140,15 @@ if [ ! -d "$QBE_DIR" ]; then
     mkdir -p "$QBE_CACHE_DIR"
     if [ ! -f "$QBE_TARBALL_CACHE" ]; then
         echo "[FORGE] Téléchargement $QBE_TARBALL_URL..."
-        curl -sL "$QBE_TARBALL_URL" -o "$QBE_TARBALL_CACHE"
+        if ! curl -sL --max-time 60 --retry 3 --retry-delay 5 \
+             -w "[FORGE] QBE download: HTTP %{http_code}, %{time_total}s, %{size_download} bytes\n" \
+             "$QBE_TARBALL_URL" -o "$QBE_TARBALL_CACHE"; then
+            echo "[FORGE] ERROR: QBE download failed after 3 retries (exit $?)"
+            echo "[FORGE] URL: $QBE_TARBALL_URL"
+            echo "[FORGE] Cache path: $QBE_TARBALL_CACHE"
+            rm -f "$QBE_TARBALL_CACHE"
+            exit 1
+        fi
     fi
     # Verifier que c'est bien un tarball (et pas une page d'erreur).
     if ! file "$QBE_TARBALL_CACHE" | grep -q "XZ compressed"; then
