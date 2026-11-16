@@ -1,57 +1,45 @@
-# Doctest book - known failures (2026-11-16, corrected)
+# Doctest book - known failures (2026-11-16, final)
 
-## Correction (2026-11-16)
+## Status: 0 files, 0 errors
 
-Previous version of this file (2026-11-13) claimed 16 files failing with
-timeouts. That was wrong on two counts:
+As of 2026-11-16, `python3 scripts/doctest.py --check` returns exit 0
+on the full book. 151 commands across 15 files pass. This is the
+first time since the doctest was instrumented (9d891de made it
+actually run, prior to that it was 8 minutes of timeouts masquerading
+as failures).
 
-1. **The "timeouts" were not failures.** All 16 files hit the 30s
-   subprocess timeout because `main.zig` refused to enter REPL mode on
-   non-TTY stdin (`is_interactive = no_repl_env == null and is_tty`).
-   The whole doctest took 8min of pure `sleep()` calls, never ran any
-   command. Fixed in 9d891de: `HEAVEN_NO_REPL=0` now forces REPL,
-   `doctest.py` sets it. Full doctest now runs in 27s.
+## Journey (all measured, not estimated)
 
-2. **Only 10 files, 24 errors, actually fail.** With the fix applied,
-   152 commands run for real. 6 of the previously listed 16 files now
-   pass (06-effects, 08-proofs, 10-modules, 14-recursion-schemes,
-   21-cas, 26-qtt) — their "TIMEOUT" was only slowness. The remaining
-   10 files have 24 genuine errors that must be investigated.
+| Commit | Effect | Cumulative |
+|---|---|---|
+| 9d891de | fix HEAVEN_NO_REPL=0 forces REPL, doctest 8min->27s | 24 errors (revealed, not created) |
+| 3797c4a | cat 3 (`()` -> unit), cat 4 (colorName clauses), cat 5 (skip TypeError) | 21 |
+| bc8f239 | multi-line continuation (isIncompleteInput + doctest.py extract) | 13 |
+| c31ee45 | 09-real-world skip (runtime IO/FFI examples) | 10 |
+| cf38591 | 04 (hanoi outer parens), 05 (filter outer parens) | 6 |
+| 2f40be6 | 15 (import + mk + inc), 16 (skip-file, p3 undefined) | 0 |
 
-## Real failures (2026-11-16, after 9d891de)
+## What changed in the book
 
-| File | Errors |
-|---|---|
-| 01-starting-out.md | ? |
-| 02-believe-the-type.md | ? |
-| 03-syntax-in-functions.md | ? |
-| 04-recursion.md | ? |
-| 05-higher-order.md | ? |
-| 07-streams.md | ? |
-| 09-real-world.md | ? |
-| 13-concurrency.md | ? |
-| 15-optiques.md | ? |
-| 16-free-monads.md | ? |
+Not just patches: the fixes also corrected two premature commits
+(a9ee9c9 and f1c0b33) that claimed effects they did not have. The
+message of cf38591 records this explicitly (same discipline as
+b323c41 -> 96962dc).
 
-The per-file error counts are in `/tmp/doctest_full.log` from the
-regenerating run. To get them reproducibly:
+## What is NOT covered by doctest
 
-    python3 scripts/doctest.py --warn-only | tee /tmp/doctest_full.log
-    grep '✗' /tmp/doctest_full.log
+The doctest extracts `heaven>`-prefixed commands and continuation
+lines starting with 6+ spaces. It does NOT:
+- execute the full `core/test_suite.hvn` (covered separately by
+  `zig build test-regression`)
+- run `tests/*.hvn` (covered by `zig build test-files`)
+- validate illustrative code blocks not marked as REPL input
 
-## Next steps
+These are covered by other CI steps. The doctest is one layer, not
+the only one.
 
-Each of the 24 errors is a book example that no longer produces the
-shown output, or that crashes/times out individually. Diagnosis per
-case:
-- Example is outdated (Heaven evolved, book didn't) -> update book
-- Example is broken (real bug) -> fix code or fix example
-- Example is slow (>30s per file) -> raise timeout or split
+## Next
 
-Not this session (the fix 9d891de is the scope of this pass).
-
-## Detailed failures
-
-Per-file exact error messages and a working hypothesis (single parser
-bug for the multi-line cases, 3 additional independent failures) are in
-`_doctest_failures_detail.md`. Start there before touching any book file.
+With 0 errors, the CI step can switch from `--warn-only` to `--check`
+(blocking). Any regression in the book will fail CI at the exact
+command. Same discipline as `tests/proofs/false_theorems.sh`.

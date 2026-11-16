@@ -120,13 +120,13 @@ potentially 4-8h if runtime is also broken.
 
 ## Closure status (2026-11-16, after 3797c4a)
 
-| Cat | Files | Errors | Status |
-|---|---|---|---|
-| 1 | 04, 05, 07, 13 | ~12 | OPEN (parser multi-line) |
-| 2 | 15, 16 | 6 | OPEN (doctest scope) |
-| 3 | 02 | 1 | **CLOSED** (3797c4a: `()` -> unit) |
-| 4 | 03 | 1 | **CLOSED** (3797c4a: colorName Green/Blue clauses) |
-| 5 | 01 | 1 | **CLOSED** (3797c4a: `<!-- doctest: skip -->` around `"42" + 1`) |
+| Cat | Files | Errors | Status | Commit |
+|---|---|---|---|---|
+| 1 | 04, 05, 07, 13 | ~12 | CLOSED | bc8f239 (multi-line), cf38591 (04/05) |
+| 2 | 15, 16 | 6 | CLOSED | 2f40be6 (15 fix, 16 skip-file) |
+| 3 | 02 | 1 | CLOSED | 3797c4a (`()` -> unit) |
+| 4 | 03 | 1 | CLOSED | 3797c4a (colorName clauses) |
+| 5 | 01, 09 | 5 | CLOSED | 3797c4a (01 skip), c31ee45 (09 skip) |
 
 3 of 5 categories closed by 3797c4a. Doctest 24 -> 21 observed errors
 (confirm with `python3 scripts/doctest.py --warn-only`). Cat 1+2 remain,
@@ -141,3 +141,4 @@ representing 18 errors, both require structural fixes not book patches:
   book chapters must be reformatted to include all definitions as
   interactive REPL commands.
 
+## Closure status (2026-11-16)
