@@ -651,6 +651,12 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const proof_status_mod = b.addModule("proof_status", .{
+        .root_source_file = b.path("src/core/proof_status.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const proof_mod = b.createModule(.{
         .root_source_file = b.path("src/core/proof.zig"),
         .target = target,
@@ -750,12 +756,6 @@ pub fn build(b: *std.Build) void {
             .{ .name = "parzig", .module = parzig_mod },
             .{ .name = "platform", .module = platform_mod },
         },
-    });
-
-    const proof_status_mod = b.addModule("proof_status", .{
-        .root_source_file = b.path("src/core/proof_status.zig"),
-        .target = target,
-        .optimize = optimize,
     });
 
     const proof_core_mod = b.addModule("proof_core", .{
