@@ -461,9 +461,20 @@ fn cmdSkillWithInduction(self: *Shell, skill_name: []const u8, induction_var: []
 }
 
 pub fn cmdTheorems(self: *Shell) void {
-    const s = self.proofs.formatAll(self.allocator) catch return;
-    defer self.allocator.free(s);
-    platform.debug.print("{s}", .{s});
+    // 2026-11-16: bridge to ProofCore (the real one), not ProofEnv (stub).
+    // ProofEnv.formatAll is a placeholder returning "ProofEnv: stub".
+    // The Phase D.1 displayLabel changes live in ProofCore.formatAll,
+    // so :theorems must call that, not ProofEnv.
+    if (self.heaven.proof_core_inst) |pc| {
+        const s = pc.formatAll(self.allocator) catch return;
+        defer self.allocator.free(s);
+        platform.debug.print("{s}", .{s});
+    } else {
+        // Fallback to stub for environments where proof_core is not wired.
+        const s = self.proofs.formatAll(self.allocator) catch return;
+        defer self.allocator.free(s);
+        platform.debug.print("{s}", .{s});
+    }
 }
 
 pub fn cmdSpawn(self: *Shell, input: []const u8) void {
