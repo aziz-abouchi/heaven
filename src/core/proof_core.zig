@@ -591,9 +591,7 @@ pub const ProofCore = struct {
         var it = self.theorems.iterator();
         while (it.next()) |entry| {
             const thm = entry.value_ptr.*;
-            const icon: []const u8 = if (thm.verified) "✓" else "✗";
-            const status: []const u8 = if (thm.verified) "proved" else "unproved";
-            try std.fmt.format(w, "  {s} theorem {s} : {s} [{s}]\n", .{ icon, thm.name, thm.statement, status });
+            try std.fmt.format(w, "  {s} theorem {s} : {s}\n", .{ proof_status.displayLabel(thm.status), thm.name, thm.statement });
         }
         return buf.toOwnedSlice(allocator);
     }
