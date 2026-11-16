@@ -1044,6 +1044,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "egraph", .module = egraph_mod },
             .{ .name = "canon", .module = canon_mod },
             .{ .name = "proof", .module = proof_mod },
+            .{ .name = "proof_status", .module = proof_status_mod },
             .{ .name = "skill", .module = skill_mod },
             .{ .name = "mir", .module = mir_mod },
             .{ .name = "x86_64", .module = x86_64_mod },
@@ -1914,6 +1915,18 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }) });
     test_step.dependOn(&b.addRunArtifact(test_proof_status).step);
+
+    const test_session = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/runtime/session.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "proof", .module = proof_mod },
+            .{ .name = "proof_status", .module = proof_status_mod },
+            .{ .name = "platform", .module = platform_mod },
+        },
+    }) });
+    test_step.dependOn(&b.addRunArtifact(test_session).step);
 
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_kanren_expr).step);
