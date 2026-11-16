@@ -752,11 +752,18 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const proof_status_mod = b.addModule("proof_status", .{
+        .root_source_file = b.path("src/core/proof_status.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const proof_core_mod = b.addModule("proof_core", .{
         .root_source_file = b.path("src/core/proof_core.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
+            .{ .name = "proof_status", .module = proof_status_mod },
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "engine_expr", .module = engine_expr_mod },
             .{ .name = "platform", .module = platform_mod },

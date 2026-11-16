@@ -1,4 +1,5 @@
 const std = @import("std");
+const proof_status = @import("proof_status");
 const Allocator = std.mem.Allocator;
 const expr = @import("expr");
 const Store = expr.Store;
@@ -28,6 +29,8 @@ pub const ProofTerm = union(enum) {
     qed: void,
 };
 
+pub const Status = proof_status.Status;
+
 pub const Theorem = struct {
     name: []const u8,
     statement: []const u8,
@@ -35,6 +38,7 @@ pub const Theorem = struct {
     rhs: u32,
     proof: ?*const ProofTerm,
     verified: bool,
+    status: Status = .proposed,
 };
 
 pub const ProofCore = struct {
