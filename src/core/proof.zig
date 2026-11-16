@@ -1,12 +1,14 @@
 const std = @import("std");
+const proof_status = @import("proof_status");
+const Status = proof_status.Status;
 const expr = @import("expr");
 const Store = expr.Store;
 const Id = expr.Id;
 const pattern = @import("pattern");
 
 pub const ProofEnv = struct {
-    axioms: std.ArrayListUnmanaged(struct { name: []const u8, statement: []const u8, lhs: u32, rhs: u32, proof: ?u32, verified: bool }) = .{},
-    theorems: std.StringHashMapUnmanaged(struct { name: []const u8, statement: []const u8, lhs: u32, rhs: u32, proof: ?u32, verified: bool }) = .{},
+    axioms: std.ArrayListUnmanaged(struct { name: []const u8, statement: []const u8, lhs: u32, rhs: u32, proof: ?u32, verified: bool, status: Status = .proposed }) = .{},
+    theorems: std.StringHashMapUnmanaged(struct { name: []const u8, statement: []const u8, lhs: u32, rhs: u32, proof: ?u32, verified: bool, status: Status = .proposed }) = .{},
 
     pub fn init(allocator: std.mem.Allocator) ProofEnv {
         _ = allocator;

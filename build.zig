@@ -666,6 +666,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "engine_expr", .module = engine_expr_mod },
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "canon", .module = canon_mod },
+            .{ .name = "proof_status", .module = proof_status_mod },
         },
     });
 
@@ -1621,6 +1622,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "engine_expr", .module = engine_expr_mod },
             .{ .name = "platform", .module = platform_mod },
             .{ .name = "canon", .module = canon_mod },
+            .{ .name = "proof_status", .module = proof_status_mod },
         },
     }) });
 
