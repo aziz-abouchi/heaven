@@ -77,3 +77,64 @@ Statut propose : solved, commentaire ad-hoc a revoir.
 - 17 writers + 7 readers mappes
 - migration legacy acceptee
 - Phase B (enum + migration JSON) peut demarrer
+
+## Phase D status (2026-11-16)
+
+### D.1 -- formatAll (shell :theorems) DONE
+
+Verified end-to-end with ed181d4. `:theorems` on two theorems now shows:
+
+    ═══ Theorems ═══
+    [ ] theorem t_proposed : 1 + 1 = 2
+    [EQ] theorem t_solved : x + 0 = x
+
+[EQ] on t_solved (proved by simplify, so canonically_equivalent not
+kernel_certified) and [ ] on t_proposed (declared, no proof). Before
+ed181d4, `:theorems` called ProofEnv.formatAll which returned the
+literal string "ProofEnv: stub". Two prior commits (2df2b0a, 3e96f09)
+modified ProofCore.formatAll but neither was reached: the stub was
+the entire visible output. Same triple-correction pattern as
+a9ee9c9/f1c0b33->cf38591.
+
+### D.2 -- WASM heavenTheorems NOT WIRED, do not patch
+
+grep heavenTheorems in site/, vessel/, src/vessel/public/ returns
+zero callers. site/repl/repl-frame.html uses `prove NAME by METHOD`
+(l.138) and displays proof results via data.result (l.157), which
+comes from proofResult (heaven_expr.zig), not from heavenTheorems.
+Patching wasm_entry.zig:673 ([P]/[ ] -> displayLabel) would be a
+4th unreachable commit. Skip until a web UI adds a "list theorems"
+button that actually calls heavenTheorems.
+
+### D.3 -- site/repl proof display NOT a status reader
+
+repl-frame.html:157 shows `data.result` from a prove action
+(`✓ [name] proved (method)`). This is proofResult output, not the
+theorem's persistent status. Phase D does not need to touch it:
+verifyBy* already returns the method name, and the format is honest
+(it names what ran, not what is certified). No change.
+
+### D -- remaining work before Phase E
+
+Only formatAll (shell) is bridged. Session.save/load still uses
+verified:bool AND status (B3 dual-field). Phase E (retrait verified)
+will need:
+
+1. session.zig: drop `verified` from save JSON, keep only status
+2. session.zig load: migrate old JSON (verified:true -> legacy_unclassified)
+3. 5 tests in session.zig that read thm.verified -> switch to status checks
+4. proof_core.zig:269 `if (thm.verified) thm.status = ...` -> status only
+5. Independent test: old .heaven_session.json with verified:true only,
+   load, verify status == legacy_unclassified and verified is gone
+
+Estimated: 1.5-2h with migration tests. Session dedicated.
+
+### Summary
+
+| Step | Status | Commit |
+|---|---|---|
+| D.1 formatAll shell | DONE | ed181d4 |
+| D.2 WASM heavenTheorems | NOT WIRED (skip) | n/a |
+| D.3 site/repl proof | NOT A READER (skip) | n/a |
+| E retrait verified | TODO | n/a |
+
