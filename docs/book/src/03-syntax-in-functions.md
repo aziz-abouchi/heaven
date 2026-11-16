@@ -84,6 +84,10 @@ On peut écrire une fonction qui les distingue :
 
     heaven> colorName Red = "rouge"
     ✓ clause enregistrée pour 'colorName'
+    heaven> colorName Green = "vert"
+    ✓ clause enregistrée pour 'colorName'
+    heaven> colorName Blue = "bleu"
+    ✓ clause enregistrée pour 'colorName'
 
     heaven> colorName Blue
     "bleu"

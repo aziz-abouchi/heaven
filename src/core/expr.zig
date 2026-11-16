@@ -2249,6 +2249,10 @@ const NativeParser = struct {
                 // token est un operateur (symbole .op ou mot-cle .ident
                 // d'operateur connu), on construit `(op arg1 arg2 ...)`.
                 const next = try self.lex.peek();
+                if (next.kind == .rparen) {
+                    _ = try self.lex.next();
+                    return try self.allocator.dupe(u8, "unit");
+                }
                 // HEAVEN:IF_SEXPR_FIX — `(if ...)` : deux formes.
                 // (a) S-expr pur : (if c a b)       -- pas de `then`.
                 // (b) keyword-in-parens : (if c then a else b).

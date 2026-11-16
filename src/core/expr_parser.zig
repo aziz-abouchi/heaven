@@ -526,7 +526,7 @@ pub const ExprParser = struct {
             try tokens.append(self.allocator, inner[start..]);
         }
 
-        if (tokens.items.len == 0) return error.InvalidSyntax;
+        if (tokens.items.len == 0) return try self.store.sym("unit");
 
         const first = tokens.items[0];
         //platform.dbg("[parseSExpr] first token: '{s}' (len={d})\n", .{ first, first.len });

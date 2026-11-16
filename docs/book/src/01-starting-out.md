@@ -215,7 +215,9 @@ lecture, pas une essence cachée.
 
 Heaven t'aidera à respecter ces catégories. Si tu écris :
 
+<!-- doctest: skip -->
     heaven> "42" + 1
+<!-- /doctest -->
 
 Il refusera. Pourquoi ? Parce que `"42"` n'est pas dans la catégorie
 des choses qu'on peut additionner à un nombre. C'est une chaîne de
