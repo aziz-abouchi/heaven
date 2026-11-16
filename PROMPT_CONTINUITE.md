@@ -4,6 +4,9 @@ Copie-colle ce bloc au début de la nouvelle conversation.
 
 ---
 
+**⚠ La section la plus récente (état actuel) est en BAS de ce fichier.**
+
+
 ## ⚠ LIRE AVANT TOUT CHANTIER — `docs/spec/_existant.md`
 
 Ce qui est **déjà fait et testé** (ne pas refaire) :
@@ -379,3 +382,126 @@ selfhost, plan renommage 16-effects reporté.
 - Critère : `invoke_MCP ≡ invoke_UTCP ≡ invoke_Heaven` (test différentiel).
 - **Non implémenté** : RFC proposition, implémentation après pause.
 - Priorité : après stabilisation, avant multiplicités fn/params.
+
+## Session 2026-11-13 → 2026-11-16 (état actuel, dernier commit ac4c831)
+
+### Ce qui a changé depuis P1c-sessions 1-3 (2026-11-05)
+
+Trois chantiers clos, quatre commits de correction d'audit trail visible,
+zéro régression sur les discriminateurs.
+
+### Chantier 1 — P0 soundness Phase 3 (status enum)
+
+Le booléen `verified: bool` sur `Theorem`, `ProofEnv.axioms`,
+`ProofEnv.theorems`, `ProofEntry` coexistait avec 11 writers silencieux
+(tactiques, simplify, induction, axioms). Un `verified = true` pouvait
+signifier "prouvé par le noyau", "tactique a tourné" ou "axiome postulé"
+sans distinction possible.
+
+Décision (`_proof_soundness.md`, `_status_mapping.md`) : introduire
+`status: enum { proposed, solved, axiom, canonically_equivalent,
+trusted, kernel_certified, legacy_unclassified }`. Seul
+`kernel_certified` autorise `[PROVED]`. `legacy_unclassified` est la
+valeur conservatrice pour les anciens `verified:true` (ne promeut jamais).
+
+Livré :
+- `_proof_soundness.md` (commit 87d2aee) : décision architecturale
+- `proof_status.zig` (a6c22f4) : 7 statuts + isCertified + statusFromLegacy + 5 tests
+- `Theorem.status` (eeb0543), `ProofEnv.status` (3295c2b), `ProofEntry.status` (015b51c)
+- `session.save`/`load` JSON migration (b0a4ea1) : 5 tests de migration legacy
+- 11 writers mappés (`f4121ad`) : axiom→.axiom, theorem→.proposed,
+  verifyByEval/Simplify/Synthesis/Rewrite→.canonically_equivalent,
+  tactics/finish→.solved, verifyByInduction→conditionnel sur 3 locals
+
+`verified: bool` reste (Phase D et E pas faites).
+
+### Chantier 2 — Doctest book (8min → 27s, 24 erreurs révélées)
+
+Le doctest CI tournait en 8min de timeouts silencieux parce que
+`main.zig` refusait le REPL sur stdin non-TTY (`is_interactive =
+no_repl_env == null and is_tty`). `HEAVEN_NO_REPL=0` ne forçait rien,
+la condition testait la présence pas la valeur.
+
+Fix (`9d891de`) : `HEAVEN_NO_REPL=0` force REPL explicitement,
+`doctest.py` le pose dans l'env subprocess. Doctest passe de 8min
+(timeouts) à 27s (exécution réelle).
+
+Révélation : 24 erreurs réelles dans 10 fichiers (le doc précédent
+disait "16 timeouts" — c'était un faux diagnostic). Catégorisées dans
+`_doctest_failures_detail.md` (`ac4c831`) :
+
+| Cat | Cause | Files | Errors |
+|---|---|---|---|
+| 1 | Parser multi-ligne REPL | 04, 05, 07, 13 | ~12 |
+| 2 | Doctest scope (defs hors `heaven>`) | 15, 16 | 6 |
+| 3 | Unit type `()` | 02 | 1 |
+| 4 | Data ctor arity | 03 | 1 |
+| 5 | TypeError output format | 01 | 1 |
+
+Cat 1+2 = 18/24. Confirmation manuelle de cat 1 :
+`printf 'f x =\n  x + 1\nf 5\n' | HEAVEN_NO_REPL=0 heaven repl`
+→ UnboundVariable x2 + ArityMismatch (le REPL ne gère pas le multi-ligne).
+
+### Chantier 3 — QBE indépendant du réseau
+
+c9x.me (amont QBE 1.2) HTTP 000 pendant >1h le 16 nov. Fallback
+Wayback (`456e358`) fonctionne mais peut disparaître.
+
+Fix définitif (`42319b7`) : tarball `qbe-1.2.tar.xz` (246364 bytes,
+SHA256 a6d50eb...5368225d) commité dans `vendor/cache/`. Exception
+`.gitignore` tight (seul ce fichier). `build.sh` skip le download si
+présent. CI clone + compile from cache au lieu de télécharger.
+
+### Métriques actuelles (2026-11-16)
+
+| Métrique | Valeur |
+|---|---|
+| Dernier commit | `ac4c831` |
+| `zig build test` | 456/457, 1 skipped |
+| `python3 scripts/status_gen.py --check` | OK |
+| `python3 scripts/docgen.py --check` | exit 0 |
+| `python3 scripts/doctest.py --warn-only` | 27s, 24 errors (catégorisées) |
+| `bash tests/proofs/false_theorems.sh` | OK (6 false / 4 true) |
+| `bash tests/proofs/mcp_soundness.sh` | OK (2 invariants) |
+| CI GitHub | verte (dernier check sur a8e92fe→456e358) |
+
+### Prochains chantiers (par ordre de priorité)
+
+1. **Parser multi-ligne REPL** (cat 1, 12 erreurs) — 1-2h, fix central
+   dans `parse.zig`/`engine_expr.zig`. Test discriminant :
+   `printf 'f x =\n  x + 1\nf 5\n' | heaven repl` → `6`.
+2. **Doctest scope** (cat 2, 6 erreurs) — 30-60 min, `doctest.py` doit
+   extraire aussi les définitions en blocs de code non-`heaven>` (setup).
+3. **3 erreurs isolées** (cat 3-5) — unit type `()`, data ctor arity,
+   TypeError output format. ~30 min chacune.
+4. **Phase D** — readers `status` → affichage (`[PROVED]/[AXIOM]/[EQ]/[SOLVED]/[LEGACY]/[ ]`).
+   `verified:bool` reste tant que D+E pas faites.
+5. **Phase E** — retrait `verified:bool` après Phase D validée.
+6. **Phase 1b MCP integration test** — bloqué : `heaven mcp` est
+   persistant (JSON-RPC sur stdin), il faut un client Python qui garde
+   stdin ouvert et lit la réponse.
+
+### Décisions figées à ne pas rouvrir
+
+- **`HEAVEN_NO_REPL=0` force REPL** (9d891de). Sémantique : `=1` ou
+  non-vide → serveur, `=0` → REPL, absent → auto (TTY).
+- **QBE tarball commité** (42319b7 + 4e702c0), pas de fallback réseau.
+- **`verified:bool` reste** tant que Phase D+E ne sont pas faites.
+- **`HEAVEN_SCC_FUSION` reste off** (gate ddd6446) jusqu'à preuve QBE
+  du niveau 3b (test compilé, pas juste oracle MIR).
+- **7 statuts figés** : proposed, solved, axiom, canonically_equivalent,
+  trusted, kernel_certified, legacy_unclassified.
+
+### Ne PAS (nouvelles règles)
+
+- **Ne pas skip-lister les 24 doctest errors sans diagnostic.** Ils sont
+  catégorisés (`_doctest_failures_detail.md`), il faut les fixer par
+  catégorie, pas les masquer avec `<!-- doctest: skip-file -->`.
+- **Ne pas retirer `verified:bool`** avant que Phase D ne soit validée
+  (les readers `[P]` en dépendent encore).
+- **Ne pas activer `HEAVEN_SCC_FUSION` par défaut** sans preuve QBE 3b.
+- **Ne pas skipper le test `false_theorems.sh`** lors des patches
+  `proof_core.zig` / `heaven_expr.zig` : c'est le discriminateur soundness.
+- **Lancer `zig build test` après chaque commit** (règle `b323c41`,
+  déjà appliquée sur 4 commits aujourd'hui).
+
