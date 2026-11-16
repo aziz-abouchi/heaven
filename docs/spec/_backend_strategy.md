@@ -96,3 +96,10 @@ fn user), G.34 (`@strcmp "str"` fn user), G.31 (workaround skip
 fn_defs avec str_pool).
 
 Voir `docs/book/src/39-selfhosting.md`.
+
+<!-- QBE-FALLBACK-2026-11-16 -->
+**Note infra (2026-11-16)** : `build.sh` a un fallback Wayback pour QBE 1.2
+(c9x.me etait injoignable HTTP 000 pendant >1h). Le tarball archive
+(SHA256 a6d50eb...5368225d) est identique a l upstream. Dette long terme :
+Wayback peut disparaitre aussi. Option durable : commiter
+`vendor/cache/qbe-1.2.tar.xz` (246 Ko) une fois, supprimer la dependance reseau.
