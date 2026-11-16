@@ -69,6 +69,26 @@ pub fn run(self: *Shell) !void {
             }
         }
 
+        // Continuation multiligne (parenthèses ouvertes ou fin par =, in, then, else, ->)
+        if (isIncompleteInput(line)) {
+            var buf = std.ArrayListUnmanaged(u8){};
+            defer buf.deinit(self.allocator);
+            try buf.appendSlice(self.allocator, line);
+            while (isIncompleteInput(buf.items)) {
+                const cont = reader.readLine("... ") catch |err| {
+                    if (err == error.EndOfStream) break;
+                    return err;
+                };
+                defer self.allocator.free(cont);
+                const cont_t = std.mem.trim(u8, cont, " \t\r");
+                if (cont_t.len == 0) break;
+                try buf.append(self.allocator, ' ');
+                try buf.appendSlice(self.allocator, cont_t);
+            }
+            if (!try processLine(self, buf.items, &history)) break :outer;
+            continue :outer;
+        }
+
         // Traiter la ligne
         if (!try processLine(self, line, &history)) break :outer;
     }
@@ -405,3 +425,107 @@ fn runMlcpdEquivCommand(self: *Shell, args: []const u8) !void {
         platform.debug.print("❌ NOT EQUIVALENT.\n", .{});
     }
 }
+
+fn isIncompleteInput(text: []const u8) bool {
+    const trimmed = std.mem.trimRight(u8, text, " \t\r\n");
+    if (trimmed.len == 0) return false;
+    if (trimmed[0] == ':') return false;
+
+    var paren: i32 = 0;
+    var brace: i32 = 0;
+    var bracket: i32 = 0;
+    var in_str = false;
+    var escape = false;
+
+    for (trimmed) |c| {
+        if (in_str) {
+            if (escape) {
+                escape = false;
+            } else if (c == '\\') {
+                escape = true;
+            } else if (c == '"') {
+                in_str = false;
+            }
+            continue;
+        }
+        switch (c) {
+            '"' => in_str = true,
+            '(' => paren += 1,
+            ')' => paren -= 1,
+            '{' => brace += 1,
+            '}' => brace -= 1,
+            '[' => bracket += 1,
+            ']' => bracket -= 1,
+            else => {},
+        }
+    }
+
+    if (in_str or paren > 0 or brace > 0 or bracket > 0) return true;
+
+    if (std.mem.endsWith(u8, trimmed, "=") and
+        !std.mem.endsWith(u8, trimmed, "==") and
+        !std.mem.endsWith(u8, trimmed, "!=") and
+        !std.mem.endsWith(u8, trimmed, "<=") and
+        !std.mem.endsWith(u8, trimmed, ">="))
+    {
+        return true;
+    }
+    if (std.mem.endsWith(u8, trimmed, "->") or std.mem.endsWith(u8, trimmed, "=>")) return true;
+
+    const kws = [_][]const u8{ "in", "then", "else", "do", "where", "of" };
+    for (kws) |kw| {
+        if (std.mem.endsWith(u8, trimmed, kw)) {
+            if (trimmed.len == kw.len) return true;
+            const prev = trimmed[trimmed.len - kw.len - 1];
+            if (prev == ' ' or prev == '\t' or prev == '\n' or prev == ')') return true;
+        }
+    }
+    return false;
+}
+
+// --- Tests isIncompleteInput (2026-11-16) ---
+
+test "isIncompleteInput: simple complete = false" {
+    try std.testing.expect(!isIncompleteInput("f x = 5"));
+    try std.testing.expect(!isIncompleteInput("42"));
+    try std.testing.expect(!isIncompleteInput("(cons 1 nil)"));
+}
+
+test "isIncompleteInput: trailing = is incomplete" {
+    try std.testing.expect(isIncompleteInput("f x ="));
+    try std.testing.expect(isIncompleteInput("hanoi n from to via ="));
+}
+
+test "isIncompleteInput: open parens is incomplete" {
+    try std.testing.expect(isIncompleteInput("(cons 1"));
+    try std.testing.expect(isIncompleteInput("(if x"));
+    try std.testing.expect(isIncompleteInput("(foo (bar"));
+}
+
+test "isIncompleteInput: closed parens complete" {
+    try std.testing.expect(!isIncompleteInput("(cons 1 (cons 2 nil))"));
+    try std.testing.expect(!isIncompleteInput("(foo (bar) baz)"));
+}
+
+test "isIncompleteInput: comparison operators not confused" {
+    try std.testing.expect(!isIncompleteInput("x == y"));
+    try std.testing.expect(!isIncompleteInput("x != y"));
+    try std.testing.expect(!isIncompleteInput("x <= y"));
+    try std.testing.expect(!isIncompleteInput("x >= y"));
+}
+
+test "isIncompleteInput: string with open paren ignored" {
+    try std.testing.expect(!isIncompleteInput("\"hello (world\""));
+}
+
+test "isIncompleteInput: keywords at EOL" {
+    try std.testing.expect(isIncompleteInput("if x then"));
+    try std.testing.expect(isIncompleteInput("if x then 1 else"));
+    try std.testing.expect(!isIncompleteInput("then"));
+}
+
+test "isIncompleteInput: commands start with colon skipped" {
+    try std.testing.expect(!isIncompleteInput(":help"));
+    try std.testing.expect(!isIncompleteInput(":type ("));
+}
+

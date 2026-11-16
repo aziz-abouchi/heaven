@@ -52,7 +52,12 @@ def extract_commands(md_path):
         m = CMD_RE.match(line)
         if m:
             if not skip_next:
-                cmds.append(m.group(1))
+                cmd_lines = [m.group(1)]
+                j = i + 1
+                while j < len(lines) and lines[j].startswith("      ") and lines[j].strip():
+                    cmd_lines.append(lines[j].strip())
+                    j += 1
+                cmds.append("\n".join(cmd_lines))
             else:
                 # Note : on ne reinitialise PAS skip_next ici -- un
                 # skip peut couvrir plusieurs lignes consecutives.
