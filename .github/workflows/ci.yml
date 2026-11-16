@@ -71,6 +71,9 @@ jobs:
       - name: Doctest book (warn-only, 16 residus connus, see docs/spec/_doctest_known_failures.md)
         run: python3 scripts/doctest.py --warn-only
 
+      - name: Proof soundness discriminator (warn-only until Phase 5)
+        run: bash tests/proofs/false_theorems.sh || echo "WARN: soundness discriminator failed (see _proof_soundness.md Phase 5)"
+
       - name: Check STATUS.md freshness (status_gen --check)
         run: python3 scripts/status_gen.py --check
   vfs-manifest:

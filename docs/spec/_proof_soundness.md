@@ -25,3 +25,12 @@ Seul `kernel_certified` autorise un affichage public [PROVED].
 ## Lien
 
 P0 soundness. Precede MIR multi-clauses. Voir _claims_vs_reality.md Update 5.
+
+## Etat Phase 2 (2026-11-16)
+
+- Phase 2 complete: b323c41 (initial, incomplete) then 96962dc (correction).
+- `verifyByInduction` returns `final_verified` (init false, set inside `if(step_ok)`), no stale value.
+- `commands.zig:437` redundant assignment removed.
+- Commits: 05368ec (Phase 1), b323c41 + 96962dc (Phase 2), 87d2aee (Phase 0).
+- Behavior: unchanged for CLI (induction unreachable via --run-test). Corrected for MCP (no stale proof from prior simplify).
+- Phase 1b (MCP discriminator) still pending: the fix is verified by reading, not by test.
