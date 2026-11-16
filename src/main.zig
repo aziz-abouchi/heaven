@@ -607,7 +607,12 @@ pub fn main() !void {
     // Le REPL interactif necessite un TTY foreground.
     const no_repl_env = platform.getenv("HEAVEN_NO_REPL");
     const is_tty = platform.isatty();
-    const is_interactive = (no_repl_env == null) and is_tty;
+    // 2026-11-16: HEAVEN_NO_REPL=0 forces REPL even on non-TTY stdin
+    // (used by scripts/doctest.py to pipe commands). =1 or any other
+    // non-empty value forces server mode. Absent = auto (TTY check).
+    const force_repl = if (no_repl_env) |v| std.mem.eql(u8, v, "0") else false;
+    const force_server = if (no_repl_env) |v| v.len > 0 and !std.mem.eql(u8, v, "0") else false;
+    const is_interactive = force_repl or (if (force_server) false else is_tty);
 
     if (is_interactive) {
         var shell = shell_lib.Shell.init(allocator, &matrix, &heaven_engine, &uni_ingest, port);

@@ -71,12 +71,16 @@ def run_session(commands, timeout=30):
         return None
     inp = "\n".join(commands) + "\n"
     try:
+        import os as _os
+        _env = dict(_os.environ)
+        _env["HEAVEN_NO_REPL"] = "0"  # force REPL even on non-TTY stdin
         r = subprocess.run(
             [HEAVEN_BIN, "repl"],
             input=inp,
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=_env,
         )
     except subprocess.TimeoutExpired:
         return ("TIMEOUT", [(0, commands[0], "TIMEOUT")])
