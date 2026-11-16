@@ -540,7 +540,7 @@ pub const ProofCore = struct {
             // Le type-check complet de nat_ind sera activé quand le typage du prédicat sera corrigé
             thm.verified = step_ok and structural_ok and type_ok; // plus de ✓ tant que type_check=false
         }
-        return step_ok;
+        return thm.verified;
     }
 
     pub fn verifyByRewrite(self: *ProofCore, name: []const u8, heaven: anytype) !bool {
