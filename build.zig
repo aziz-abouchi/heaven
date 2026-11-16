@@ -1897,6 +1897,14 @@ pub fn build(b: *std.Build) void {
     }) });
     test_step.dependOn(&b.addRunArtifact(test_mcp_label).step);
 
+    // proof_status helpers (Phase B1, 2026-11-16)
+    const test_proof_status = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/core/proof_status.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+    test_step.dependOn(&b.addRunArtifact(test_proof_status).step);
+
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_kanren_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_continuation).step);
