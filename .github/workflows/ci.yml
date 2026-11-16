@@ -68,8 +68,8 @@ jobs:
       - name: Check doc freshness (docgen --check)
         run: python3 scripts/docgen.py --check  # equivalent: zig build docgen-check
 
-      - name: Doctest book (warn-only, 10 files / 24 real errors, see docs/spec/_doctest_known_failures.md)
-        run: python3 scripts/doctest.py --warn-only
+      - name: Doctest book (0 known failures, see docs/spec/_doctest_known_failures.md)
+        run: python3 scripts/doctest.py --check
 
       - name: Proof soundness discriminator (warn-only until Phase 5)
         run: 'bash tests/proofs/false_theorems.sh || echo "WARN: soundness discriminator failed (see _proof_soundness.md Phase 5)"'
