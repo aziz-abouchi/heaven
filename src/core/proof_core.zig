@@ -585,7 +585,7 @@ pub const ProofCore = struct {
         const w = buf.writer(allocator);
         try w.writeAll("  ═══ Axioms ═══\n");
         for (self.axioms.items) |ax| {
-            try std.fmt.format(w, "  ✓ axiom {s} : {s}\n", .{ ax.name, ax.statement });
+            try std.fmt.format(w, "  [AXIOM] axiom {s} : {s}\n", .{ ax.name, ax.statement });
         }
         try w.writeAll("\n  ═══ Theorems ═══\n");
         var it = self.theorems.iterator();
