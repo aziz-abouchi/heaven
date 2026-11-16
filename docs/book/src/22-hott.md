@@ -136,3 +136,14 @@ stub dans `types.zig`. 14 tests dans `tests/test_hott_path.hvn`.
 Voir aussi : `docs/spec/_hott_roadmap.md` (5-6 sessions pour HIT
 complet, eliminateur, rank-2).
 
+<!-- HORIZON-CUBICAL-2026-11-16 -->
+## Note de clarification (2026-11-16)
+
+La voie Cubical Type Theory explorée dans ce chapitre reste exploratoire et dépend de trois conditions cumulatives avant tout raccordement au chemin de certification :
+
+1. **Soundness** — aucun théorème marqué `verified` sans validation indépendante par le noyau de confiance.
+2. **Noyau CIC consolidé** — application dépendante correctement vérifiée, quotients et conversion β implémentés avec vérification complète.
+3. **Type `Path` natif** — sémantique effective pour l'univalence et les types inductifs supérieurs (HIT), pas seulement une façade symbolique (voir `lib/hott/path.hvn`, rang-1, witness entier).
+
+Voir aussi le chapitre 41 (section 41.7) pour la mécanisation Cubical Agda.
+

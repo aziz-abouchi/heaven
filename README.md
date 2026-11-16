@@ -304,6 +304,8 @@ Ce qui est planifié :
 - Auto-hébergement (BigInt, I/O, structures de données, puis self-parse)
 
 ---
+- Horizon recherche (non engagé) — **π-calcul (canaux mobiles)** : à partir de MPST. Support actuel : runtime acteurs (`mpst.zig`, 31 tests déclarés) ; la vérification de conformité dans `elab.zig` n'est pas raccordée. <!-- HORIZON-README-2026-11-16 -->
+- Horizon recherche (non engagé) — **Cubical HoTT** : voir chapitres 22 et 41 du livre. Conditions cumulatives : certification sound (aucun `verified` sans noyau), noyau CIC consolidé, type `Path` natif avec sémantique effective.
 
 ## Licence
 

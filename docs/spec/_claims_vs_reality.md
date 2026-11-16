@@ -222,3 +222,13 @@ Update 5 (2026-11-13) - fuseTailSCCs execution works
   level 3b is proven on a QBE-compiled binary. The 3a result is oracle-
   level only; production trust requires running through QBE.
 
+<!-- AMBITIONS-VS-CLAIMS-2026-11-16 -->
+**Ambitions vs claims (2026-11-16)**
+
+Deux ambitions déclarées dans README et ROADMAP ne sont pas des claims :
+
+- **π-calcul (canaux mobiles)** : voir ligne 23 (MPST généralisé — runtime seul). Aucun composant π-calcul dans `src/`. La vérification de conformité MPST dans `elab.zig` n'est pas raccordée à `mpst.zig` (import neutralisé).
+- **Cubical HoTT** : voir ligne 17 (HoTT cubique natif — Spec) et le bloc `HOTT-EVIDENCE` (2026-11-13) qui distingue la façade `lib/hott/path.hvn` (rang-1, witness entier) du noyau natif. Aucun type `Path` natif dans `src/kernel/`.
+
+Conditions cumulatives pour tout futur claim cubical : soundness du noyau (aucun `verified` sans validation), noyau CIC consolidé, `Path` natif avec sémantique effective. Voir aussi chapitres 22 et 41 du livre.
+

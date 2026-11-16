@@ -83,3 +83,9 @@ C, des I/O. Ce qu'on spécifie mais non implémente : Path, univalence.
 
 **Session A terminée** = squelette + `_core_syntax.md` draft v0.
 **Session B** = retour au code : **Propagators V1**.
+
+<!-- HORIZON-CUBICAL-CH41-2026-11-16 -->
+### Note de clarification (2026-11-16)
+
+La mécanisation Cubical Agda mentionnée en 41.7 reste exploratoire. Trois conditions cumulatives sont requises avant tout raccordement au chemin de certification : (a) soundness du noyau (aucun `verified` sans validation indépendante), (b) noyau CIC consolidé (application dépendante, quotients, conversion β vérifiés), (c) type `Path` natif avec sémantique effective (univalence, HIT), distinct de la façade symbolique `lib/hott/path.hvn`. Voir chapitre 22 pour la discussion HoTT/HITs/univalence.
+

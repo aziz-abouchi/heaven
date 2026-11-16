@@ -1237,3 +1237,12 @@ mais attrape une classe entière de bugs.
 
 Détails : `docs/spec/_selfhosting_roadmap.md` § « Notes
 Session 49 ».
+
+<!-- HORIZON-RESEARCH-2026-11-16 -->
+## Horizons de recherche (non engagés)
+
+Les pistes π-calcul/MPST et Cubical HoTT constituent des horizons de recherche. Elles ne représentent ni des fonctionnalités implémentées ni des engagements de livraison. Leur progression est conditionnée par la soundness du noyau (Phase A) et les jalons de mécanisation existants (Phase B). Voir README « Statut — Ce qui est planifié » et chapitres 22/41 du livre.
+
+- **π-calcul (canaux mobiles)** : à partir de MPST. Support actuel : runtime acteurs (`mpst.zig`, 31 tests déclarés) ; vérification de conformité dans `elab.zig` non raccordée. Aucun composant π-calcul dans `src/`.
+- **Cubical HoTT** : conditions cumulatives (soundness, CIC consolidé, `Path` natif avec sémantique effective). Façade existante `lib/hott/path.hvn` = rank-1 symbolique, ne compte pas comme prérequis.
+
