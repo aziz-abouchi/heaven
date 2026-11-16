@@ -53,9 +53,6 @@ vendor/cache/*
 !vendor/cache/qbe-1.2.tar.xz
 vendor/tree-sitter-pie/node_modules/
 vendor/tree-sitter-pie/bindings/
-!vendor/cache/
-vendor/cache/*
-!vendor/cache/qbe-1.2.tar.xz
 
 # Git backups
 .git.bak/
