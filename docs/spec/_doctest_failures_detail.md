@@ -128,7 +128,7 @@ potentially 4-8h if runtime is also broken.
 | 4 | 03 | 1 | **CLOSED** (3797c4a: colorName Green/Blue clauses) |
 | 5 | 01 | 1 | **CLOSED** (3797c4a: `<!-- doctest: skip -->` around `"42" + 1`) |
 
-3 of 5 categories closed by 3797c4a. Doctest 24 -> 19 errors expected
+3 of 5 categories closed by 3797c4a. Doctest 24 -> 21 observed errors
 (confirm with `python3 scripts/doctest.py --warn-only`). Cat 1+2 remain,
 representing 18 errors, both require structural fixes not book patches:
 
