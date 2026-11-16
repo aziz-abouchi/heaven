@@ -49,3 +49,9 @@ case:
 - Example is slow (>30s per file) -> raise timeout or split
 
 Not this session (the fix 9d891de is the scope of this pass).
+
+## Detailed failures
+
+Per-file exact error messages and a working hypothesis (single parser
+bug for the multi-line cases, 3 additional independent failures) are in
+`_doctest_failures_detail.md`. Start there before touching any book file.
