@@ -43,3 +43,15 @@ P0 soundness. Precede MIR multi-clauses. Voir _claims_vs_reality.md Update 5.
 - Cause: heaven mcp est un serveur persistant (port 9000), pas un CLI one-shot.
 - Prochain essai: client Python JSON-RPC persistant, session dediee.
 - Priorite: Phase 3 (enum) peut demarrer sans bloquer sur ce test.
+
+## Correctif Phase 1b (2026-11-16, apres probe MCP)
+
+- fe1a0c1 disait "serveur persistant (port 9000)". FAUX.
+- mcp_server.zig:107-109 = while(true) avec break sur read==0 (EOF).
+- heaven mcp est one-shot quand stdin ferme (printf | heaven mcp).
+- Le crash terminal venait des control chars / unicode atteignant le tty,
+- pas du process qui refuse de mourir. Redirection vers /tmp le confirme.
+- Probe: good1 et bad1 by simplify -> proved:false, method:unverified-by-kernel.
+- Fix 915b273 ACTIF: method n est jamais "kernel" (si hardcode, on aurait vu).
+- Bug evalProve (parse multi-ligne) decouvert: target prend tout le statement,
+- pas le nom. A documenter separement, hors Phase 1b.
