@@ -76,6 +76,7 @@ pub const ProofEnv = struct {
             .rhs = rhs,
             .proof = null,
             .verified = true,
+            .status = .axiom,
         });
     }
 };

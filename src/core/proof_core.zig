@@ -77,6 +77,7 @@ pub const ProofCore = struct {
             .rhs = rhs,
             .proof = null,
             .verified = true,
+            .status = .axiom,
         });
     }
 
@@ -90,6 +91,7 @@ pub const ProofCore = struct {
             .rhs = rhs,
             .proof = null,
             .verified = false,
+            .status = .proposed,
         });
     }
 
@@ -162,11 +164,13 @@ pub const ProofCore = struct {
             };
             if (same) {
                 thm.verified = true;
+                thm.status = .canonically_equivalent;
                 return true;
             }
         }
         if (lhs_val == rhs_val) {
             thm.verified = true;
+            thm.status = .canonically_equivalent;
             return true;
         }
         return false;
@@ -191,6 +195,7 @@ pub const ProofCore = struct {
             // Le kernel Peano est une couche supplémentaire de vérification,
             // mais la convergence vers la même forme canonique suffit.
             thm.verified = true;
+            thm.status = .canonically_equivalent;
             return true;
         }
         return false;
@@ -261,6 +266,7 @@ pub const ProofCore = struct {
         const result = try rewriter.search(thm.lhs, max_cost_limit);
         if (result) |res| {
             thm.verified = (res.eclass_id == thm.rhs);
+            if (thm.verified) thm.status = .canonically_equivalent;
             return thm.verified;
         }
         return false;
@@ -544,6 +550,9 @@ pub const ProofCore = struct {
             // Preuve acceptée si step symbolique passe ET structure du proof term valide
             // Le type-check complet de nat_ind sera activé quand le typage du prédicat sera corrigé
             thm.verified = step_ok and structural_ok and type_ok; // plus de checkmark tant que type_check=false
+            thm.status = if (step_ok and structural_ok and type_ok) .kernel_certified
+                         else if (step_ok) .solved
+                         else .proposed;
             final_verified = thm.verified;
         }
         return final_verified;
@@ -566,6 +575,7 @@ pub const ProofCore = struct {
         const ok = try canon.canonEqStr(store_ref, current, rhs, heaven.allocator);
         if (ok) {
             thm.verified = true;
+            thm.status = .canonically_equivalent;
         }
         return ok;
     }

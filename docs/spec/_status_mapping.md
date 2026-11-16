@@ -18,9 +18,9 @@ Invariant : seul kernel_certified autorise [PROVED] public.
 
 | Site | Evenement | Statut |
 |---|---|---|
-| proof.zig:76 | axiom() | axiom |
-| proof_core.zig:75 | axiom() | axiom |
-| proof_core.zig:88 | theorem() | proposed |
+| proof.zig:78 | axiom() | axiom |
+| proof_core.zig:79 | axiom() | axiom |
+| proof_core.zig:92 | theorem() | proposed |
 | session.zig:78 | load axiome | axiom |
 | session.zig:89 | load theoreme (pattern verified:true) | legacy_unclassified ou proposed |
 | wasm_entry.zig:500 | ctor theoreme non prouve | proposed |
@@ -28,12 +28,12 @@ Invariant : seul kernel_certified autorise [PROVED] public.
 | wasm_entry.zig:628 | induction finie 0..11 + swap syntaxique (D1) | solved propose |
 | heaven_expr.zig:3010 | tactiques resolues (TODO noyau) | solved |
 | heaven_expr.zig:3091 | ProofSession.finish | solved |
-| proof_core.zig:160 | verifyByEval: booleans egaux | canonically_equivalent |
-| proof_core.zig:165 | verifyByEval: ints egaux | canonically_equivalent |
-| proof_core.zig:189 | verifyBySimplify: structural eql apres rewrite | canonically_equivalent |
-| proof_core.zig:259 | verifyBySynthesis: eclass match | canonically_equivalent |
-| proof_core.zig:542 | verifyByInduction (3 booleens en scope) | kernel_certified / solved / proposed |
-| proof_core.zig:564 | verifyByRewrite: canonEqStr | canonically_equivalent |
+| proof_core.zig:164 | verifyByEval: booleans egaux | canonically_equivalent |
+| proof_core.zig:169 | verifyByEval: ints egaux | canonically_equivalent |
+| proof_core.zig:193 | verifyBySimplify: structural eql apres rewrite | canonically_equivalent |
+| proof_core.zig:263 | verifyBySynthesis: eclass match | canonically_equivalent |
+| proof_core.zig:546 | verifyByInduction (3 booleens en scope) | kernel_certified / solved / proposed |
+| proof_core.zig:568 | verifyByRewrite: canonEqStr | canonically_equivalent |
 | heaven_expr.zig:3342 | mirror qualified name | inherit source (pas de statut propre) |
 
 Note proof_core.zig:542 : les 3 booleens step_ok, structural_ok, type_ok
