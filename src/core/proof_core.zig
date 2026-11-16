@@ -460,6 +460,7 @@ pub const ProofCore = struct {
         // Restaurer l'environnement
         if (old_binding) |ob| heaven.env.put(var_sym, ob) catch {};
 
+        var final_verified = false;
         if (step_ok) {
             // ═══ VÉRIFICATION PAR LE NOYAU LOGIQUE ═══
             // Construire le vrai terme de preuve par induction et le vérifier
@@ -538,9 +539,10 @@ pub const ProofCore = struct {
 
             // Preuve acceptée si step symbolique passe ET structure du proof term valide
             // Le type-check complet de nat_ind sera activé quand le typage du prédicat sera corrigé
-            thm.verified = step_ok and structural_ok and type_ok; // plus de ✓ tant que type_check=false
+            thm.verified = step_ok and structural_ok and type_ok; // plus de checkmark tant que type_check=false
+            final_verified = thm.verified;
         }
-        return thm.verified;
+        return final_verified;
     }
 
     pub fn verifyByRewrite(self: *ProofCore, name: []const u8, heaven: anytype) !bool {
