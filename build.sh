@@ -132,6 +132,9 @@ echo "[FORGE] TCC présent."
 QBE_VERSION="1.2"
 QBE_DIR="$VENDOR_DIR/qbe-$QBE_VERSION"
 QBE_TARBALL_URL="https://c9x.me/compile/release/qbe-$QBE_VERSION.tar.xz"
+# Fallback mirror (c9x.me was unreachable 2026-11-16, Debian/Ubuntu carries
+# the identical orig.tar.xz since QBE is DFSG-compliant).
+QBE_TARBALL_FALLBACK="https://web.archive.org/web/20250211081009/https://c9x.me/compile/release/qbe-1.2.tar.xz"
 QBE_CACHE_DIR="$VENDOR_DIR/cache"
 QBE_TARBALL_CACHE="$QBE_CACHE_DIR/qbe-$QBE_VERSION.tar.xz"
 
@@ -140,12 +143,24 @@ if [ ! -d "$QBE_DIR" ]; then
     mkdir -p "$QBE_CACHE_DIR"
     if [ ! -f "$QBE_TARBALL_CACHE" ]; then
         echo "[FORGE] Téléchargement $QBE_TARBALL_URL..."
-        if ! curl -sL --max-time 60 --retry 3 --retry-delay 5 \
-             -w "[FORGE] QBE download: HTTP %{http_code}, %{time_total}s, %{size_download} bytes\n" \
+        if ! curl -sL --max-time 60 --retry 2 --retry-delay 5 \
+             -w "[FORGE] QBE primary: HTTP %{http_code}, %{time_total}s, %{size_download} bytes\n" \
              "$QBE_TARBALL_URL" -o "$QBE_TARBALL_CACHE"; then
-            echo "[FORGE] ERROR: QBE download failed after 3 retries (exit $?)"
-            echo "[FORGE] URL: $QBE_TARBALL_URL"
-            echo "[FORGE] Cache path: $QBE_TARBALL_CACHE"
+            echo "[FORGE] Primary unreachable, trying fallback mirror..."
+            rm -f "$QBE_TARBALL_CACHE"
+            if ! curl -sL --max-time 60 --retry 2 --retry-delay 5 \
+                 -w "[FORGE] QBE fallback: HTTP %{http_code}, %{time_total}s, %{size_download} bytes\n" \
+                 "$QBE_TARBALL_FALLBACK" -o "$QBE_TARBALL_CACHE"; then
+                echo "[FORGE] ERROR: both primary and fallback failed"
+                echo "[FORGE] Primary: $QBE_TARBALL_URL"
+                echo "[FORGE] Fallback: $QBE_TARBALL_FALLBACK"
+                rm -f "$QBE_TARBALL_CACHE"
+                exit 1
+            fi
+        fi
+        # Sanity: tarball must extract and contain qbe-<ver>/
+        if ! tar -tJf "$QBE_TARBALL_CACHE" 2>/dev/null | head -1 | grep -q "^qbe-$QBE_VERSION/"; then
+            echo "[FORGE] ERROR: downloaded tarball does not contain qbe-$QBE_VERSION/"
             rm -f "$QBE_TARBALL_CACHE"
             exit 1
         fi
