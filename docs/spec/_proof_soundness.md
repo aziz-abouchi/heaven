@@ -34,3 +34,12 @@ P0 soundness. Precede MIR multi-clauses. Voir _claims_vs_reality.md Update 5.
 - Commits: 05368ec (Phase 1), b323c41 + 96962dc (Phase 2), 87d2aee (Phase 0).
 - Behavior: unchanged for CLI (induction unreachable via --run-test). Corrected for MCP (no stale proof from prior simplify).
 - Phase 1b (MCP discriminator) still pending: the fix is verified by reading, not by test.
+
+## Etat Phase 1b (2026-11-16)
+
+- 915b273: mcp_server.zig:381 method derived from labelFromEvalProve, certified:false, 11 tests unitaires.
+- kernel banni des 2 branches (proved (kernel) et via kernel).
+- Manque: test d integration MCP (mcp_soundness.sh).
+- Cause: heaven mcp est un serveur persistant (port 9000), pas un CLI one-shot.
+- Prochain essai: client Python JSON-RPC persistant, session dediee.
+- Priorite: Phase 3 (enum) peut demarrer sans bloquer sur ce test.
