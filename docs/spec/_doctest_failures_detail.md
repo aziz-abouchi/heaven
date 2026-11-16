@@ -12,10 +12,41 @@ messages for the 24 real failures revealed by the REPL fix (9d891de).
 | `error.TypeError` | 1 | 01 |
 | `error.InvalidSyntax` | 1 | 02 |
 
-## Hypothesis: single parser bug (multi-line clauses)
+## CORRECTED (2026-11-16 evening): 5 categories, not 1
 
-All 15 `ArityMismatch` and 6 `UnboundVariable` failures occur after
-multi-line clause definitions in the chapters:
+Initial hypothesis "one parser bug" was too unified. Manual test
+`printf 'f x =\n  x + 1\nf 5\n' | HEAVEN_NO_REPL=0 heaven repl` confirmed
+multi-line REPL fails (UnboundVariable x2 then ArityMismatch). That
+explains 04, 05, 07, 13 (~12 errors).
+
+But 15-optiques and 16-free-monads have NO multi-line definitions in
+their extracted commands. They call `view`, `lens_snd`, `mk`,
+`run_stack`, `p1` which are **never defined** in `heaven>`-prefixed
+lines. The definitions exist in the chapter as raw code blocks (not
+`heaven>`-prefixed); `doctest.py` doesn't extract them. That's a
+different cause (extraction scope, not parser).
+
+02 (`:type ()`) and 03 (data constructor arity) are separate single
+cases. 01 is an output format issue (TypeError message).
+
+### Category breakdown
+
+| Cat | Cause | Files | Errors | Fix location |
+|---|---|---|---|---|
+| 1 | Parser multi-line REPL | 04, 05, 07, 13 | ~12 | parse.zig / engine_expr.zig |
+| 2 | Doctest scope: defs in non-heaven> blocks | 15, 16 | 6 | doctest.py extract, or reformat book |
+| 3 | Unit type () | 02 | 1 | parser or book |
+| 4 | Data ctor arity | 03 | 1 | engine or book |
+| 5 | TypeError output format | 01 | 1 | doctest comparison |
+
+Category 1 and 2 explain 18/24. Fixing both (~3-4h) reduces
+24 failures to 6.
+
+### Original (partially wrong) hypothesis
+
+The 15 `ArityMismatch` and 6 `UnboundVariable` observed after
+multi-line clause definitions did not all come from the same cause.
+Sub-groups:
 
 - 04-recursion: `hanoi n from to via =` (body on next lines)
 - 05-higher-order: `filter p (cons x xs) =` (body on next lines)
