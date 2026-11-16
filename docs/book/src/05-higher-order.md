@@ -81,6 +81,9 @@ Ceux qui satisfont un prédicat sont gardés ; les autres sont jetés.
                  (filter p xs)
     ✓ clause enregistrée pour 'filter'
 
+    heaven> even x = (x % 2) == 0
+    ✓ clause enregistrée pour 'even'
+
     heaven> filter even maListe
     (cons 2 (cons 4 nil))
 
