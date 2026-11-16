@@ -1244,6 +1244,7 @@ pub fn build(b: *std.Build) void {
                     .{ .name = "triple_store", .module = triple_store_mod },
                     .{ .name = "turtle_parser", .module = turtle_parser_mod },
                     .{ .name = "proof", .module = proof_mod },
+                    .{ .name = "proof_status", .module = proof_status_mod },
                     .{ .name = "skill", .module = skill_mod },
                     .{ .name = "synthesis", .module = synthesis_mod },
                     .{ .name = "elab", .module = elab_mod },

@@ -7,6 +7,8 @@ const ProofCore = @import("proof_core").ProofCore;
 const Agent = @import("agent").Agent;
 const MatrixBridge = @import("matrix_bridge").MatrixBridge;
 const simplify_engine = @import("simplify_engine");
+const proof_status = @import("proof_status");
+const Status = proof_status.Status;
 
 var bridge: MatrixBridge = undefined;
 var parser: Parser = undefined;
@@ -100,7 +102,7 @@ pub fn log(
 const allocator = platform.allocator;
 
 var heaven: ?*Heaven = null;
-const ProofEntry = struct { name: [64]u8, name_len: u8, stmt: [128]u8, stmt_len: u8, verified: bool };
+const ProofEntry = struct { name: [64]u8, name_len: u8, stmt: [128]u8, stmt_len: u8, verified: bool, status: Status = .proposed };
 var proof_list: [64]ProofEntry = undefined;
 var proof_count: u32 = 0;
 var axiom_list: [32]ProofEntry = undefined;
@@ -498,6 +500,7 @@ export fn heavenTheorem(len: u32) u32 {
         @memcpy(entry.stmt[0..sl], stmt[0..sl]);
         entry.stmt_len = @intCast(sl);
         entry.verified = false;
+        entry.status = .proposed;
         proof_count += 1;
     }
     _ = lhs;
@@ -542,6 +545,7 @@ export fn heavenAxiom(len: u32) u32 {
         @memcpy(entry.stmt[0..sl], stmt[0..sl]);
         entry.stmt_len = @intCast(sl);
         entry.verified = true;
+        entry.status = .axiom;
         axiom_count += 1;
     }
     _ = lhs;
@@ -625,7 +629,10 @@ export fn heavenProof(len: u32) u32 {
                 }
             }
         }
-        if (proved) proof_list[idx].verified = true;
+        if (proved) {
+            proof_list[idx].verified = true;
+            proof_list[idx].status = .solved;
+        }
         var buf2: [256]u8 = undefined;
         const icon: []const u8 = if (proved) "\xe2\x9c\x93" else "\xe2\x9c\x97";
         const msg2 = std.fmt.bufPrint(&buf2, "{s} {s} {s} by {s}", .{ icon, name, if (proved) "proved" else "NOT proved", method }) catch "?";
