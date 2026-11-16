@@ -1889,6 +1889,14 @@ pub fn build(b: *std.Build) void {
     }) });
     test_step.dependOn(&b.addRunArtifact(test_mir_tco).step);
 
+    // MCP label helper tests (Phase 1b, 2026-11-16)
+    const test_mcp_label = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/runtime/mcp_label.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+    test_step.dependOn(&b.addRunArtifact(test_mcp_label).step);
+
     test_step.dependOn(&b.addRunArtifact(test_bridge).step);
     test_step.dependOn(&b.addRunArtifact(test_kanren_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_continuation).step);

@@ -16,6 +16,7 @@
 //   - egraph_query: Requêter l'EGraph saturé
 
 const std = @import("std");
+const mcp_label = @import("mcp_label.zig");
 const Allocator = std.mem.Allocator;
 const platform = @import("platform");
 const heaven_expr_mod = @import("heaven_expr");
@@ -378,8 +379,8 @@ pub const McpServer = struct {
                         const trimmed = std.mem.trim(u8, result, " \t\r\n");
                         const is_ok = trimmed.len > 0 and std.mem.startsWith(u8, trimmed, "✓");
                         break :blk try std.fmt.allocPrint(self.allocator,
-                            "{{\"proved\":{s},\"method\":\"kernel\",\"certificate\":\"{s}\"}}",
-                            .{ if (is_ok) "true" else "false", result });
+                            "{{\"proved\":{s},\"method\":\"{s}\",\"certified\":false,\"certificate\":\"{s}\"}}",
+                            .{ if (is_ok) "true" else "false", mcp_label.labelFromEvalProve(trimmed), result });
                     } else |_| {}
                 }
 
