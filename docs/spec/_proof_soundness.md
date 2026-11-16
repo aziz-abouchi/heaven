@@ -55,3 +55,25 @@ P0 soundness. Precede MIR multi-clauses. Voir _claims_vs_reality.md Update 5.
 - Fix 915b273 ACTIF: method n est jamais "kernel" (si hardcode, on aurait vu).
 - Bug evalProve (parse multi-ligne) decouvert: target prend tout le statement,
 - pas le nom. A documenter separement, hors Phase 1b.
+
+## Design gap: evalProve interface (2026-11-16)
+
+Revele par probe MCP: heaven_prove envoie statement multi-ligne
+("theorem X : Y\nprove X by METHOD"). heaven_expr.evalProve ne strippe
+pas "prove " (le texte commence par "theorem "), delegue a cmds.evalProve
+qui split sur " by " et prend TOUT le prefixe comme target.
+
+Consequence: target = "theorem good1 : x + 0 = x\nprove good1", le
+theoreme n est jamais declare. verifyBySimplify retourne false pour
+UnknownTheorem, pas pour preuve invalide. Le certificate dit "proof
+failed (simplify)" -- trompeur: la preuve n a pas ete tentee.
+
+Options: (A) extraire le dernier token avant by -- pire car masque
+l erreur derriere un faux nom. (B) parser le multi-ligne dans MCP,
+declarer + prouver -- vrai fix, ~1h, change contrat MCP. (C) documenter
+que heaven_prove attend "prove NAME by METHOD" une ligne, theorem
+declare au prealable (aucun outil MCP ne declare aujourd hui).
+
+Phase 1b n a PAS besoin de ce fix: invariants (method != kernel,
+certified=false) tiennent. Cas positif (proved=true) hors scope.
+Phase 5 (CI bloquant) restera partielle jusqu a B ou C.
