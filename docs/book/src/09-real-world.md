@@ -40,7 +40,9 @@ La porte la plus simple vers le monde : les fichiers.
 fichier n'existe pas, l'appel produit une erreur — qu'on peut
 capturer avec `handle` (chapitre 6) :
 
+<!-- doctest: skip -->
     heaven> handle (readFile "data.txt") errorHandler
+<!-- /doctest -->
 
 L'écriture est symétrique :
 
@@ -136,10 +138,12 @@ Binary Interface).
 
 En Heaven, l'appel à C se déclare avec `extern fn` :
 
+<!-- doctest: skip -->
     heaven> extern fn c_func : Int -> Int
     ✓ extern c_func : Int -> Int
 
     heaven> c_func 21
+<!-- /doctest -->
     42
 
 La déclaration dit à Heaven : « il existe une fonction `c_func`
