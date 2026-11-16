@@ -77,3 +77,12 @@ declare au prealable (aucun outil MCP ne declare aujourd hui).
 Phase 1b n a PAS besoin de ce fix: invariants (method != kernel,
 certified=false) tiennent. Cas positif (proved=true) hors scope.
 Phase 5 (CI bloquant) restera partielle jusqu a B ou C.
+
+## Decision C (2026-11-16): heaven_prove contract is single-line
+
+Le multi-ligne (theorem X : Y\nprove X by M) reste undefined pour MCP.
+Aucun outil MCP ne declare de theoreme. mcp_soundness.sh teste donc les
+invariants negatifs (method != kernel, certified=false), pas proved=true.
+Cas positif differe a Phase 3+ (quand status enum permet de distinguer
+resolu de certifie). Le formulaire multi-ligne est documente comme non
+supporte dans _proof_soundness.md, pas silencieusement accepte.
