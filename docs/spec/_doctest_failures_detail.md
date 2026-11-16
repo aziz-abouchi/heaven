@@ -117,3 +117,27 @@ All commands fail. `free` / `Free` may have been renamed.
 
 Estimated effort once hypothesis confirmed: 2-4h for parser + data,
 potentially 4-8h if runtime is also broken.
+
+## Closure status (2026-11-16, after 3797c4a)
+
+| Cat | Files | Errors | Status |
+|---|---|---|---|
+| 1 | 04, 05, 07, 13 | ~12 | OPEN (parser multi-line) |
+| 2 | 15, 16 | 6 | OPEN (doctest scope) |
+| 3 | 02 | 1 | **CLOSED** (3797c4a: `()` -> unit) |
+| 4 | 03 | 1 | **CLOSED** (3797c4a: colorName Green/Blue clauses) |
+| 5 | 01 | 1 | **CLOSED** (3797c4a: `<!-- doctest: skip -->` around `"42" + 1`) |
+
+3 of 5 categories closed by 3797c4a. Doctest 24 -> 19 errors expected
+(confirm with `python3 scripts/doctest.py --warn-only`). Cat 1+2 remain,
+representing 18 errors, both require structural fixes not book patches:
+
+- Cat 1: parser multi-line REPL. Test discriminant:
+  `printf 'f x =\n  x + 1\nf 5\n' | HEAVEN_NO_REPL=0 heaven repl` -> 6.
+  Fix in parse.zig or engine_expr.zig.
+- Cat 2: doctest.py extracts only `heaven>`-prefixed lines. Definitions
+  in raw code blocks (not heaven>-prefixed) are invisible to the runner.
+  Either doctest.py must extract a setup phase from those blocks, or the
+  book chapters must be reformatted to include all definitions as
+  interactive REPL commands.
+
