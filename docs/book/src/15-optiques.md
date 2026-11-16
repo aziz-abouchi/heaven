@@ -82,6 +82,15 @@ changé `pp_fst` de 1 à 99, `snd` vaut toujours 3.
 
 L'exemple le plus simple, en REPL :
 
+    heaven> import "core/std/lens.hvn"
+    ✓ import core/std/lens.hvn as lens
+
+    heaven> mk _ = (pair 1 3)
+    ✓ clause enregistrée pour 'mk'
+
+    heaven> inc x = x + 1
+    ✓ clause enregistrée pour 'inc'
+
     heaven> view (lens_snd 0) (mk 0)
     3
     heaven> view (lens_snd 0) (set_via (lens_snd 0) 30 (mk 0))

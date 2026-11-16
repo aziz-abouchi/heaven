@@ -4,6 +4,11 @@
 > ni faux. C'est un texte en attente de lecture. »*
 > — à la manière de Roland Barthes, *La mort de l'auteur* (1968)
 
+<!-- doctest: skip-file -->
+<!-- Note: examples use p1/p2/p3 which are inline prose, not module
+     definitions. The executable version of this chapter is in
+     tests/test_free.hvn (14 tests). See _doctest_failures_detail.md. -->
+
 Jusqu'ici, quand on a voulu faire quelque chose, on l'a fait tout de
 suite : `(+ 1 2)` calcule, `perform` signale, `writeFile` écrit. Le
 programme **est** son exécution.
