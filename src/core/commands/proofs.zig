@@ -35,7 +35,6 @@ fn proveWith(cmds: anytype, target: []const u8, skill_name: []const u8, inductio
 
 fn proofResult(cmds: anytype, target: []const u8, ok: bool, method: []const u8) anyerror![]u8 {
     if (ok) {
-        //if (cmds.proof_core.theorems.getPtr(target)) |thm| thm.verified = true;
         var buf: [128]u8 = undefined;
         const msg = try std.fmt.bufPrint(&buf, "✓ [{s}] proved ({s})", .{ target, method });
         return try cmds.allocator.dupe(u8, msg);
@@ -267,7 +266,6 @@ pub fn evalSkill(cmds: anytype, input: []const u8) anyerror![]u8 {
     _ = thm;
     const ok = if (std.mem.eql(u8, skill_name, "simplify")) try cmds.proof_core.verifyBySimplify(target, cmds) else if (std.mem.eql(u8, skill_name, "eval")) try cmds.proof_core.verifyByEval(target, cmds.engine, cmds.env, cmds.store) else if (std.mem.eql(u8, skill_name, "induction")) try cmds.proof_core.verifyByInduction(target, "n", cmds, cmds.store) else if (std.mem.eql(u8, skill_name, "algebra")) try cmds.proof_core.verifyBySimplify(target, cmds) else return try cmds.allocator.dupe(u8, "skill: unknown tactic");
     if (ok) {
-        //thm.verified = true;
         var buf: [128]u8 = undefined;
         const msg = try std.fmt.bufPrint(&buf, "✓ [{s}] proved ({s})", .{ target, skill_name });
         return try cmds.allocator.dupe(u8, msg);

@@ -3007,7 +3007,6 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
         // 4. Vérifier
         if (state.solved()) {
             // TODO : extraire le ProofTerm de state, le traduire, verify
-            thm.verified = true; // temporaire — en attendant le routage
             thm.status = .solved;
             return std.fmt.allocPrint(self.allocator, "✓ [{s}] proved (tactics)\n", .{theorem_name});
         }
@@ -3089,7 +3088,6 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
             _ = self.heaven.ensureCommands();
             const pc = self.heaven.proof_core_inst orelse return false;
             const thm = pc.theorems.getPtr(self.theorem_name) orelse return false;
-            thm.verified = true;
             thm.status = .solved;
             return true;
         }
@@ -3341,7 +3339,7 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
                                         .lhs = thm.lhs,
                                         .rhs = thm.rhs,
                                         .proof = thm.proof,
-                                        .verified = thm.verified,
+                                        .status = thm.status,
                                     };
                                 }
                             }

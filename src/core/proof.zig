@@ -7,8 +7,8 @@ const Id = expr.Id;
 const pattern = @import("pattern");
 
 pub const ProofEnv = struct {
-    axioms: std.ArrayListUnmanaged(struct { name: []const u8, statement: []const u8, lhs: u32, rhs: u32, proof: ?u32, verified: bool, status: Status = .proposed }) = .{},
-    theorems: std.StringHashMapUnmanaged(struct { name: []const u8, statement: []const u8, lhs: u32, rhs: u32, proof: ?u32, verified: bool, status: Status = .proposed }) = .{},
+    axioms: std.ArrayListUnmanaged(struct { name: []const u8, statement: []const u8, lhs: u32, rhs: u32, proof: ?u32, status: Status = .proposed }) = .{},
+    theorems: std.StringHashMapUnmanaged(struct { name: []const u8, statement: []const u8, lhs: u32, rhs: u32, proof: ?u32, status: Status = .proposed }) = .{},
 
     pub fn init(allocator: std.mem.Allocator) ProofEnv {
         _ = allocator;
@@ -75,7 +75,6 @@ pub const ProofEnv = struct {
             .lhs = lhs,
             .rhs = rhs,
             .proof = null,
-            .verified = true,
             .status = .axiom,
         });
     }

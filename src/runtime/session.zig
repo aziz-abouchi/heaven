@@ -30,7 +30,7 @@ fn saveTo(proofs: *const ProofEnv, allocator: Allocator, path: []const u8) !void
         const thm = entry.value_ptr.*;
         if (!first) try w.writeAll(",\n");
         first = false;
-        try std.fmt.format(w, "    {{\"name\": \"{s}\", \"statement\": \"{s}\", \"verified\": {s}, \"status\": \"{s}\"}}", .{ thm.name, thm.statement, if (thm.verified) "true" else "false", @tagName(thm.status) });
+        try std.fmt.format(w, "    {{\"name\": \"{s}\", \"statement\": \"{s}\", \"verified\": {s}, \"status\": \"{s}\"}}", .{ thm.name, thm.statement, if (proof_status.isProved(thm.status)) "true" else "false", @tagName(thm.status) });
     }
     try w.writeAll("\n  ]\n}\n");
 
@@ -85,7 +85,6 @@ fn loadFrom(proofs: *ProofEnv, allocator: Allocator, path: []const u8) !void {
                 .lhs = 0,
                 .rhs = 0,
                 .proof = null,
-                .verified = true,
                 .status = .axiom,
             });
             // platform.dbg("[SESSION] Axiome restauré: {s}\n", .{owned_name});
@@ -99,14 +98,12 @@ fn loadFrom(proofs: *ProofEnv, allocator: Allocator, path: []const u8) !void {
                 }
                 break :blk .proposed;
             };
-            const verified = verifiedFromStatus(status);
             try proofs.theorems.put(allocator, owned_name, .{
                 .name = owned_name,
                 .statement = owned_stmt,
                 .lhs = 0,
                 .rhs = 0,
                 .proof = null,
-                .verified = verified,
                 .status = status,
             });
             // platform.dbg("[SESSION] Théorème restauré: {s} [{s}]\n", .{ owned_name, if (verified) "prouvé" else "non prouvé" });
@@ -123,13 +120,6 @@ fn parseStatus(s: []const u8) ?Status {
     if (std.mem.eql(u8, s, "kernel_certified")) return .kernel_certified;
     if (std.mem.eql(u8, s, "legacy_unclassified")) return .legacy_unclassified;
     return null;
-}
-
-fn verifiedFromStatus(s: Status) bool {
-    return switch (s) {
-        .kernel_certified, .axiom, .canonically_equivalent, .trusted => true,
-        .proposed, .solved, .legacy_unclassified => false,
-    };
 }
 
 fn extractField(json_obj: []const u8, field: []const u8) ?[]const u8 {
@@ -166,7 +156,6 @@ test "save_load_roundtrip_theorem" {
         .lhs = 0,
         .rhs = 0,
         .proof = null,
-        .verified = true,
         .status = .kernel_certified,
     });
     try saveTo(&proofs1, alloc, TEST_SESSION_PATH);
@@ -177,7 +166,7 @@ test "save_load_roundtrip_theorem" {
 
     const thm = proofs2.theorems.get("t1") orelse return error.TestUnexpectedResult;
     try std.testing.expectEqual(Status.kernel_certified, thm.status);
-    try std.testing.expect(thm.verified);
+    try std.testing.expect(proof_status.isProved(thm.status));
 }
 
 test "load_legacy_verified_true_maps_to_legacy_unclassified" {
@@ -192,7 +181,7 @@ test "load_legacy_verified_true_maps_to_legacy_unclassified" {
     try loadFrom(&proofs, alloc, TEST_SESSION_PATH);
     const thm = proofs.theorems.get("x") orelse return error.TestUnexpectedResult;
     try std.testing.expectEqual(Status.legacy_unclassified, thm.status);
-    try std.testing.expect(!thm.verified);
+    try std.testing.expect(!proof_status.isProved(thm.status));
 }
 
 test "load_legacy_verified_false_maps_to_proposed" {
@@ -207,7 +196,7 @@ test "load_legacy_verified_false_maps_to_proposed" {
     try loadFrom(&proofs, alloc, TEST_SESSION_PATH);
     const thm = proofs.theorems.get("x") orelse return error.TestUnexpectedResult;
     try std.testing.expectEqual(Status.proposed, thm.status);
-    try std.testing.expect(!thm.verified);
+    try std.testing.expect(!proof_status.isProved(thm.status));
 }
 
 test "load_new_status_kernel_certified" {
@@ -222,7 +211,7 @@ test "load_new_status_kernel_certified" {
     try loadFrom(&proofs, alloc, TEST_SESSION_PATH);
     const thm = proofs.theorems.get("x") orelse return error.TestUnexpectedResult;
     try std.testing.expectEqual(Status.kernel_certified, thm.status);
-    try std.testing.expect(thm.verified);
+    try std.testing.expect(proof_status.isProved(thm.status));
 }
 
 test "load_unknown_status_falls_back_to_legacy_unclassified" {
@@ -237,6 +226,6 @@ test "load_unknown_status_falls_back_to_legacy_unclassified" {
     try loadFrom(&proofs, alloc, TEST_SESSION_PATH);
     const thm = proofs.theorems.get("x") orelse return error.TestUnexpectedResult;
     try std.testing.expectEqual(Status.legacy_unclassified, thm.status);
-    try std.testing.expect(!thm.verified);
+    try std.testing.expect(!proof_status.isProved(thm.status));
 }
 

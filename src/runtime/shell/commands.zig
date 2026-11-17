@@ -434,7 +434,7 @@ pub fn cmdProof(self: *Shell, input: []const u8) void {
         };
         if (ok) {
             platform.debug.print("  \xe2\x9c\x93 {s} proved by induction on {s}\n", .{ name, var_name });
-            // thm.verified already set by verifyByInduction
+            // thm.status already set by verifyByInduction
             session_lib.save(self.proofs, self.allocator) catch {};
         } else {
             platform.debug.print("  \xe2\x9c\x97 {s} NOT proved by induction on {s}\n", .{ name, var_name });

@@ -37,7 +37,6 @@ pub const Theorem = struct {
     lhs: u32,
     rhs: u32,
     proof: ?*const ProofTerm,
-    verified: bool,
     status: Status = .proposed,
 };
 
@@ -76,7 +75,6 @@ pub const ProofCore = struct {
             .lhs = lhs,
             .rhs = rhs,
             .proof = null,
-            .verified = true,
             .status = .axiom,
         });
     }
@@ -90,7 +88,6 @@ pub const ProofCore = struct {
             .lhs = lhs,
             .rhs = rhs,
             .proof = null,
-            .verified = false,
             .status = .proposed,
         });
     }
@@ -163,13 +160,11 @@ pub const ProofCore = struct {
                 else => false,
             };
             if (same) {
-                thm.verified = true;
                 thm.status = .canonically_equivalent;
                 return true;
             }
         }
         if (lhs_val == rhs_val) {
-            thm.verified = true;
             thm.status = .canonically_equivalent;
             return true;
         }
@@ -194,7 +189,6 @@ pub const ProofCore = struct {
             // Égalité structurelle après simplification canonique = preuve valide
             // Le kernel Peano est une couche supplémentaire de vérification,
             // mais la convergence vers la même forme canonique suffit.
-            thm.verified = true;
             thm.status = .canonically_equivalent;
             return true;
         }
@@ -265,9 +259,11 @@ pub const ProofCore = struct {
         const max_cost_limit = 1000;
         const result = try rewriter.search(thm.lhs, max_cost_limit);
         if (result) |res| {
-            thm.verified = (res.eclass_id == thm.rhs);
-            if (thm.verified) thm.status = .canonically_equivalent;
-            return thm.verified;
+            if (res.eclass_id == thm.rhs) {
+                thm.status = .canonically_equivalent;
+                return true;
+            }
+            return false;
         }
         return false;
     }
@@ -549,11 +545,10 @@ pub const ProofCore = struct {
 
             // Preuve acceptée si step symbolique passe ET structure du proof term valide
             // Le type-check complet de nat_ind sera activé quand le typage du prédicat sera corrigé
-            thm.verified = step_ok and structural_ok and type_ok; // plus de checkmark tant que type_check=false
             thm.status = if (step_ok and structural_ok and type_ok) .kernel_certified
                          else if (step_ok) .solved
                          else .proposed;
-            final_verified = thm.verified;
+            final_verified = proof_status.isProved(thm.status);
         }
         return final_verified;
     }
@@ -574,7 +569,6 @@ pub const ProofCore = struct {
         const store_ref: *const expr.Store = if (@TypeOf(heaven.store) == expr.Store) &heaven.store else heaven.store;
         const ok = try canon.canonEqStr(store_ref, current, rhs, heaven.allocator);
         if (ok) {
-            thm.verified = true;
             thm.status = .canonically_equivalent;
         }
         return ok;

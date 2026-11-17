@@ -18,6 +18,13 @@ pub fn statusFromLegacy(v: bool) Status {
     return if (v) .legacy_unclassified else .proposed;
 }
 
+pub fn isProved(s: Status) bool {
+    return switch (s) {
+        .kernel_certified, .axiom, .canonically_equivalent, .trusted => true,
+        .proposed, .solved, .legacy_unclassified => false,
+    };
+}
+
 pub fn displayLabel(s: Status) []const u8 {
     return switch (s) {
         .proposed => "[ ]",

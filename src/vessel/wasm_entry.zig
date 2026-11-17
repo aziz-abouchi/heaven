@@ -102,7 +102,7 @@ pub fn log(
 const allocator = platform.allocator;
 
 var heaven: ?*Heaven = null;
-const ProofEntry = struct { name: [64]u8, name_len: u8, stmt: [128]u8, stmt_len: u8, verified: bool, status: Status = .proposed };
+const ProofEntry = struct { name: [64]u8, name_len: u8, stmt: [128]u8, stmt_len: u8, status: Status = .proposed };
 var proof_list: [64]ProofEntry = undefined;
 var proof_count: u32 = 0;
 var axiom_list: [32]ProofEntry = undefined;
@@ -499,7 +499,6 @@ export fn heavenTheorem(len: u32) u32 {
         const sl = @min(stmt.len, 128);
         @memcpy(entry.stmt[0..sl], stmt[0..sl]);
         entry.stmt_len = @intCast(sl);
-        entry.verified = false;
         entry.status = .proposed;
         proof_count += 1;
     }
@@ -544,7 +543,6 @@ export fn heavenAxiom(len: u32) u32 {
         const sl = @min(stmt.len, 128);
         @memcpy(entry.stmt[0..sl], stmt[0..sl]);
         entry.stmt_len = @intCast(sl);
-        entry.verified = true;
         entry.status = .axiom;
         axiom_count += 1;
     }
@@ -630,7 +628,6 @@ export fn heavenProof(len: u32) u32 {
             }
         }
         if (proved) {
-            proof_list[idx].verified = true;
             proof_list[idx].status = .solved;
         }
         var buf2: [256]u8 = undefined;
@@ -670,9 +667,13 @@ export fn heavenTheorems(_: u32) u32 {
     pos += header2.len;
     for (0..proof_count) |i| {
         const e = proof_list[i];
-        const icon: []const u8 = if (e.verified) " [P] " else " [ ] ";
-        @memcpy(buf[pos .. pos + icon.len], icon);
-        pos += icon.len;
+        const label = proof_status.displayLabel(e.status);
+        buf[pos] = 32;
+        pos += 1;
+        @memcpy(buf[pos .. pos + label.len], label);
+        pos += label.len;
+        buf[pos] = 32;
+        pos += 1;
         @memcpy(buf[pos .. pos + e.name_len], e.name[0..e.name_len]);
         pos += e.name_len;
         buf[pos] = ':';
