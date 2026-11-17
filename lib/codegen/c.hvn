@@ -19,7 +19,7 @@ emit_apply2 (HP.EApply (HP.ESym "if") c) t f = emit_if c t f
 emit_apply2 (HP.ESym op) a b = emit_bin op a b
 emit_apply2 _ _ _ = "0"
 
-emit_if c t f = cat3 "(" (emit_expr c) (cat3 " ? " (emit_expr t) (cat3 " : " (cat3 (emit_expr f) ")"))))
-emit_bin op a b = cat3 "(" (emit_expr a) (cat3 " " (cat3 op (cat3 " " (cat3 (emit_expr b) ")"))))
+emit_if c t f = cat3 "(" (emit_expr c) (cat3 " ? " (emit_expr t) (cat3 " : " (emit_expr f) ")")))
+emit_bin op a b = cat3 "(" (emit_expr a) (cat3 " " op (cat3 " " (emit_expr b) ")")))
 
-emit_c_program ast = cat3 "#include <stdio.h>\n\nint main() {\n    printf(\"%d\\n\", " (cat3 (emit_expr ast) ");\n    return 0;\n}\n")
+emit_c_program ast = cat3 "#include <stdio.h>\n\nint main() {\n    printf(\"%d\\n\", " (emit_expr ast) ");\n    return 0;\n}\n"
