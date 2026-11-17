@@ -1,14 +1,14 @@
--- lib/parse/infix.hvn -- parseur infixe minimal (E1.1, 2026-10-24)
+-- lib/parse/infix.hvn -- parseur infixe (E1.2, 2026-11-17)
 -- Surface = infixe. S-Expr = interne (HP.Expr).
 -- Pipeline : .hvn -> HP.lex -> HP.Expr (consomme par heaven_eval).
--- Scope E1.1 : int, str, sym, + - * (precedence * > + -), chaines, parens.
--- Erreur : ESym "PARSE_ERR" (meme convention que HP.parse_one).
+-- Scope E1.2 : atom, mul (*), add (+ -), cmp (< > ==), if-then-else.
 
 import "lib/heaven_parse.hvn" as HP
 
 data IRes = IOk HP.Expr HP.Toks | IErr Str
 
 mk_apply op a b = HP.EApply (HP.EApply (HP.ESym op) a) b
+mk_if c t f = HP.EApply (HP.EApply (HP.EApply (HP.ESym "if") c) t) f
 
 parse_atom (HP.TCons (HP.TIntTok n) rest) = IOk (HP.ELitI n) rest
 parse_atom (HP.TCons (HP.TStrTok s) rest) = IOk (HP.ELitS s) rest
@@ -16,7 +16,7 @@ parse_atom (HP.TCons (HP.TSymTok s) rest) = IOk (HP.ESym s) rest
 parse_atom (HP.TCons HP.TLParen rest) = open_paren rest
 parse_atom _ = IErr "atom expected"
 
-open_paren toks = close_paren (parse_add toks)
+open_paren toks = close_paren (parse_expr toks)
 close_paren (IOk e (HP.TCons HP.TRParen rest)) = IOk e rest
 close_paren (IOk _ _) = IErr "expected close paren"
 close_paren (IErr e) = IErr e
@@ -38,7 +38,33 @@ parse_add toks = start_add (parse_mul toks)
 start_add (IOk a rest) = step_add a rest
 start_add (IErr e) = IErr e
 
+step_cmp a (HP.TCons (HP.TSymTok "<") rest)  = continue_cmp "<" a (parse_add rest)
+step_cmp a (HP.TCons (HP.TSymTok ">") rest)  = continue_cmp ">" a (parse_add rest)
+step_cmp a (HP.TCons (HP.TSymTok "==") rest) = continue_cmp "==" a (parse_add rest)
+step_cmp a rest = IOk a rest
+continue_cmp op a (IOk b rest) = step_cmp (mk_apply op a b) rest
+continue_cmp _ _ (IErr e) = IErr e
+parse_cmp toks = start_cmp (parse_add toks)
+start_cmp (IOk a rest) = step_cmp a rest
+start_cmp (IErr e) = IErr e
+
+parse_if (HP.TCons (HP.TSymTok "if") rest) = parse_if_then (parse_expr rest)
+parse_if toks = parse_cmp toks
+
+parse_if_then (IOk c (HP.TCons (HP.TSymTok "then") rest)) = parse_if_else c (parse_expr rest)
+parse_if_then (IOk _ _) = IErr "expected 'then'"
+parse_if_then (IErr e) = IErr e
+
+parse_if_else c (IOk t (HP.TCons (HP.TSymTok "else") rest)) = finish_if c t (parse_expr rest)
+parse_if_else _ (IOk _ _) = IErr "expected 'else'"
+parse_if_else _ (IErr e) = IErr e
+
+finish_if c t (IOk f rest) = IOk (mk_if c t f) rest
+finish_if _ _ (IErr e) = IErr e
+
+parse_expr toks = parse_if toks
+
 to_expr (IOk e HP.TNil) = e
 to_expr (IOk _ _) = HP.ESym "PARSE_ERR"
 to_expr (IErr _) = HP.ESym "PARSE_ERR"
-parse_infix src = to_expr (parse_add (HP.lex src))
+parse_infix src = to_expr (parse_expr (HP.lex src))
