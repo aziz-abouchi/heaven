@@ -1,0 +1,17 @@
+-- lib/codegen/c.hvn -- Générateur de code C auto-hébergé (E2.1, 2026-11-17)
+-- Traduction des 6 primitives Heaven vers C ANSI/C99.
+
+import "lib/heaven_parse.hvn" as HP
+
+-- Formate un littéral ou un symbole en expression C
+emit_expr (HP.ELitI n) = Str.from_int n
+emit_expr (HP.ELitS s) = Str.concat "\"" (Str.concat s "\"")
+emit_expr (HP.ESym s)  = s
+emit_expr (HP.EApply (HP.EApply (HP.ESym op) a) b) = 
+    Str.concat "(" (Str.concat (emit_expr a) (Str.concat " " (Str.concat op (Str.concat " " (Str.concat (emit_expr b) ")")))))
+emit_expr _ = "/* unsupported expr */"
+
+-- Génère le squelette d'un fichier C complet avec main()
+emit_c_program expr_src = 
+    Str.concat "#include <stdio.h>\n\nint main() {\n    printf(\"%d\\n\", " 
+               (Str.concat (emit_expr expr_src) ");\n    return 0;\n}\n")
