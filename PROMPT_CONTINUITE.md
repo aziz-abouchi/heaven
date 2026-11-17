@@ -483,6 +483,8 @@ présent. CI clone + compile from cache au lieu de télécharger.
 
 ### Décisions figées à ne pas rouvrir
 
+- **2026-11-17 : `verified:bool` est supprimé (5f05a37), le statut enum est la seule source de vérité.** Ignorer les lignes de ce fichier qui disent de le garder ou de ne pas le retirer ; la section est à réécrire en début de prochaine session.
+
 - **`HEAVEN_NO_REPL=0` force REPL** (9d891de). Sémantique : `=1` ou
   non-vide → serveur, `=0` → REPL, absent → auto (TTY).
 - **QBE tarball commité** (42319b7 + 4e702c0), pas de fallback réseau.
