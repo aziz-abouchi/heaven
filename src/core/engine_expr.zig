@@ -502,8 +502,9 @@ pub const Engine = struct {
         // Cleanup thunks (D12)
         var _thunk_it = self.thunks.iterator();
         while (_thunk_it.next()) |entry| {
+            // unref() destroys on refcount==0, calling destroy() here too
+            // was a double-free (exposed by D-RAWALLOC tracker 15ff9cd).
             entry.value_ptr.env.unref();
-            self.allocator.destroy(entry.value_ptr.env);
         }
         self.thunks.deinit(self.allocator);
         // StringHashMapUnmanaged.deinit libère les buckets, PAS les clés.
@@ -1723,8 +1724,9 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         });
         defer {
             if (engine.captures.fetchRemove(token)) |kv| {
+                // Same double-free pattern as thunks (Engine.deinit): unref()
+                // is the sole correct destructor. See 15ff9cd tracker.
                 kv.value.env.unref();
-                engine.allocator.destroy(kv.value.env);
             }
         }
 
