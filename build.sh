@@ -10,6 +10,11 @@ export HEAVEN_NO_LEAK_CHECK="${HEAVEN_NO_LEAK_CHECK:-1}"
 ROOT_DIR=$(pwd)
 VENDOR_DIR="$ROOT_DIR/vendor"
 
+#─── Pins vendor (A1 — build reproductible) ───
+# Voir vendor/manifest.lock. Ne jamais remplacer un pin par un clone
+# de master : c'est ce qui a rendu la provenance irrécupérable.
+TCC_COMMIT="0fb54300b56512754221d80adda85ddb9815bceb"  # release_0_9_27-1442
+
 #─── Bootstrap parsers tree-sitter ───
 setup_parser() {
     local name=$1
@@ -46,8 +51,9 @@ echo "[FORGE] Parsers prêts."
 
 # TCC
 if [ ! -d "$VENDOR_DIR/tcc" ]; then
-    echo "[FORGE] Clonage TCC..."
+    echo "[FORGE] Clonage TCC (epingle $TCC_COMMIT)..."
     git clone https://github.com/TinyCC/tinycc.git "$VENDOR_DIR/tcc"
+    git -C "$VENDOR_DIR/tcc" checkout --detach "$TCC_COMMIT"
 fi
 
 rm -f vendor/tcc/config.h
@@ -206,9 +212,12 @@ echo "[FORGE] libdatachannel présent."
 cp core/test_suite.hvn src/vessel/public/test_suite.hvn
 
 # WASM : optionnel, desactive via HEAVEN_NO_WASM=1.
-# Le wasm32-freestanding tire encore std.posix (sockaddr, SEEK, ...)
-# et std.Thread, non supportes en freestanding. Fix en cours. En
-# attendant, la CI passe avec HEAVEN_NO_WASM=1.
+# Mis a jour 2026-11-17 : wasm32-freestanding COMPILE sans erreur, en
+# Debug comme en ReleaseSmall (mesure Guix / Zig 0.15.2). L'ancien
+# commentaire (std.posix / std.Thread bloquants, CI forcee a
+# HEAVEN_NO_WASM=1) est perime. Le flag reste utile pour les builds
+# rapides, mais n'est plus un contournement necessaire.
+# Distinct : l'IO runtime WASM (W3, @puts -> unreachable) reste ouvert.
 if [ "${HEAVEN_NO_WASM:-0}" = "1" ]; then
     echo "[FORGE] WASM desactive (HEAVEN_NO_WASM=1)."
 else

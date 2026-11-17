@@ -1,0 +1,16 @@
+# vendor/manifest.lock — pins de build reproductible (A1)
+# 2026-11-17. Ne pas remplacer un pin par un clone de master.
+#
+# tree-sitter        github.com/tree-sitter/tree-sitter   UNPINNED  snapshot master (Makefile 0.27.0, lib.c != tag v0.27.0)
+# tree-sitter-c      github.com/tree-sitter/tree-sitter-c UNPINNED  copie nue, src/ seul, 3872019 o
+# tree-sitter-zig    github.com/maxxnino/tree-sitter-zig  UNPINNED  copie nue, src/ seul, 5147602 o
+# tinycc             github.com/TinyCC/tinycc             EPINGLE   0fb54300b56512754221d80adda85ddb9815bceb
+# qbe                c9x.me/compile/release/qbe-1.2       EPINGLE   tarball cache tracké dans git
+# libdatachannel     github.com/paullouisageneau/...      UNPINNED
+# tree-sitter-heaven in-repo                              OK        tracké
+# tree-sitter-pie    in-repo                              OK        tracké
+#
+# Empreintes de reference — ce qui marche, mesure le 2026-11-17 :
+# lib.c        4e28f87edb86e5134d36ff7ba7e09a964ba9966a4b620c2735e3572b53c157d3
+# c/parser.c   aa7ad42226d22eb61bdd8e9199901712bb3c314f750b83399e730f7faccc5179
+# zig/parser.c eb33e631b120744b53489e035c6cf1041e4bf86ca74eb13e2538a21fd5499030

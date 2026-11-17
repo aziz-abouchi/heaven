@@ -141,6 +141,21 @@ pub fn build(b: *std.Build) void {
     } else null;
 
     // ─── Tree‑sitter : bibliothèque statique ───
+    // A1 (build reproductible) : vendor/* est gitignore, donc un clone
+    // frais n'a pas le runtime tree-sitter. zig build echouait alors sur
+    // un cryptique "file_hash FileNotFound". Garde explicite et actionnable.
+    if (target.query.cpu_arch != .wasm32) {
+        std.fs.cwd().access(b.pathFromRoot("vendor/tree-sitter/lib/src/lib.c"), .{}) catch {
+            std.debug.print(
+                "\n[heaven] vendor/ incomplet : runtime tree-sitter absent.\n" ++
+                    "         Lance `bash build.sh` une fois avant `zig build`.\n" ++
+                    "         (vendor/* est gitignore : un clone frais est nu.)\n\n",
+                .{},
+            );
+            @panic("vendor manquant — bootstrap requis : bash build.sh");
+        };
+    }
+
     const tree_sitter_lib = if (target.query.cpu_arch != .wasm32) blk: {
         const lib = b.addLibrary(.{
             .name = "tree-sitter",

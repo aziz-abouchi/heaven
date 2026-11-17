@@ -19,8 +19,14 @@ from pathlib import Path
 DOCS = [Path("README.md")]
 
 
+# Codes de retour des suites : une suite qui echoue ne doit jamais
+# produire de chiffres verts dans la doc.
+EXIT_CODES = {}
+
+
 def sh(*cmd):
     r = subprocess.run(list(cmd), capture_output=True, text=True)
+    EXIT_CODES[" ".join(cmd)] = r.returncode
     return r.stdout + r.stderr
 
 
@@ -38,12 +44,15 @@ def extract_facts():
     # Ce n'est pas un compte de declarations `test "..."` mais de
     # resultats "N passed" effectifs (assert_eq comptent aussi).
     n_reg = 0
+    n_reg_total = 0
     out = sh("zig", "build", "-Dnetwork=false", "test-regression")
     for m in re.finditer(r"Total: (\d+) / (\d+)", out):
-        n_reg = int(m.group(1))
+        n_reg, n_reg_total = int(m.group(1)), int(m.group(2))
+    n_reg_leaks = out.count("MEMORY LEAK DETECTED")
     n_files = 0
     n_files_total = 0
     out = sh("zig", "build", "-Dnetwork=false", "test-files")
+    n_files_leaks = out.count("MEMORY LEAK DETECTED")
     totals = re.findall(r"Total: (\d+) / (\d+)", out)
     if totals:
         # Somme de tous les "Total: X / Y" (une par fichier de tests)
@@ -57,9 +66,22 @@ def extract_facts():
     f["date"] = date.today().isoformat()
 
     # test-regression / test-files : valeurs string pour README
-    f["test_regression"] = f"{n_reg}/{n_reg}" if n_reg else "?"
+    # Le denominateur vient du log, PAS du numerateur : l'ancienne
+    # ecriture f"{n_reg}/{n_reg}" etait une tautologie incapable de
+    # rapporter un echec.
+    f["test_regression"] = f"{n_reg}/{n_reg_total}" if n_reg_total else "?"
     f["test_files"] = f"{n_files}/{n_files_total}" if n_files_total else "?"
     f["test_files_count"] = str(len(list(Path("tests").glob("*.hvn"))))
+
+    red = []
+    for cmd, rc in EXIT_CODES.items():
+        if rc != 0:
+            red.append(f"{cmd} -> exit {rc}")
+    if n_reg_leaks:
+        red.append(f"test-regression : {n_reg_leaks} fuite(s)")
+    if n_files_leaks:
+        red.append(f"test-files : {n_files_leaks} fuite(s)")
+    f["_red"] = red
 
     return f
 
@@ -89,6 +111,13 @@ def main():
     facts = extract_facts()
     for k, v in sorted(facts.items()):
         print(f"  {k} = {v}")
+
+    red = facts.pop("_red", [])
+    if red:
+        print("\n✗ SUITE ROUGE — publication des chiffres refusee :", file=sys.stderr)
+        for r in red:
+            print(f"    {r}", file=sys.stderr)
+        sys.exit(1)
 
     any_change = False
     for doc in DOCS:

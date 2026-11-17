@@ -130,3 +130,7 @@ docs/book-v2/book/
 
 # Backups créés par les scripts de session (pattern /tmp/…/pre_fix.*)
 *.pre_fix.*
+
+# Dump de contexte genere localement (6 Mo)
+context_heaven.txt
+!vendor/manifest.lock

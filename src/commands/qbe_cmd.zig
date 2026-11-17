@@ -48,10 +48,15 @@ fn compileRoot(
     else
         false;
     if (!skip_std) try mf.precompileUserFns();
-    // HEAVEN_SCC_FUSION: opt-in gate, default off. SCC fusion emits MIR
-    // with a broken wrapper ABI (cf _claims_vs_reality.md claim #5 Update 3).
-    // Set HEAVEN_SCC_FUSION=1 to opt in once the ABI is fixed. This gate
-    // does NOT fix the ABI, it only protects the default compilation path.
+    // HEAVEN_SCC_FUSION: opt-in gate, default off.
+    // Historique : ce gate citait une « broken wrapper ABI » (claim #5
+    // Update 3). Update 5 RETRACTE ce diagnostic : l'ABI wrapper/corps
+    // etait coherente ; le bug reel etait le shallow-copy de
+    // cloneFunction, corrige en 464a344.
+    // Etat 2026-11-17 : niveaux 1/2/3a/3b PROUVES — even(2_000_000) == 1
+    // en binaire natif QBE (suite 457/458, seul skip = lower_test range).
+    // Le gate reste OFF par prudence : la bascule par defaut est une
+    // decision separee, pas un effet de bord de ce commentaire.
     const scc_infos = if (mir.sccFusionEnabledFromEnv(
         platform.getenv("HEAVEN_SCC_FUSION"),
     ))

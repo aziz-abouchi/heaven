@@ -133,7 +133,12 @@ testé, non encore branché sur le Core (Phase 3 : SMT-LIB).
 
 ## Quickstart
 
-Compiler (natif, Linux / macOS) :
+Depuis un clone frais, `vendor/` est vide (gitignore). Le bootstrap
+telecharge et construit les dependances natives :
+
+    bash build.sh        # une fois : tree-sitter, TCC, QBE, libdatachannel
+
+Ensuite, au quotidien (natif, Linux / macOS) :
 
     zig build
 
@@ -265,15 +270,15 @@ _concurrency.md, _continuations.md, _ontology.md, _bench.md, _serialize.md).
 
 ## Tests
 
-    zig build test              # tests unitaires Zig (<!-- DOCGEN:tests_zig -->456<!-- /DOCGEN -->)
+    zig build test              # tests unitaires Zig (<!-- DOCGEN:tests_zig -->457<!-- /DOCGEN -->)
     zig build test-regression   # tests Heaven core (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN -->)
     zig build test-files        # tests/*.hvn, <!-- DOCGEN:test_files_count -->148<!-- /DOCGEN --> fichiers (<!-- DOCGEN:test_files -->1342/1342<!-- /DOCGEN -->)
 
-<!-- DOCGEN:tests_zig -->456<!-- /DOCGEN --> tests Zig passent, ainsi que
+<!-- DOCGEN:tests_zig -->457<!-- /DOCGEN --> tests Zig passent, ainsi que
 <!-- DOCGEN:tests_heaven -->1440<!-- /DOCGEN --> tests Heaven
 (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN --> via `test-regression`
 + <!-- DOCGEN:test_files -->1342/1342<!-- /DOCGEN --> via `test-files`).
-Mesure <!-- DOCGEN:date -->2026-11-16<!-- /DOCGEN -->.
+Mesure <!-- DOCGEN:date -->2026-11-17<!-- /DOCGEN -->.
 
 ---
 
