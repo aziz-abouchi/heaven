@@ -18,7 +18,7 @@
 | 2 | TCB CIC complet (quotients, proof irrelevance, Prop imprédicatif) | Prop imprédicatif : 0 %. Proof irrelevance : 0 %. Quotients : prototype isolé | ❌ Partiel |
 | 3 | QTT zero-GC (Perceus) | QTT runtime vérifié (`LinearViolation` testé), pas de FBIP/Perceus dans les backends | ⚠️ Runtime seul |
 | 4 | Holes + refine interactif (`:hole`, `:refine`) | `@hole` sentinelle `-1`, `refine_tdd` = identité déguisée. Vrai AST refine : 5 % | ⚠️ Prototype |
-| 5 | TCO O(1) mutuelle | **Détection + fusion prouvées** : `findTailSCCs` regroupe {even, odd}, `fuseTailSCCs` produit un scc_sym unique (`src/core/mir_tco_test.zig`, commit d1ceb7c). **Exécution équivalente : bloquée** par bug `cloneFunction` (mir.zig:1475-1497, ne propage pas `fn_defs`). TCO compilé (QBE) : non testé. | ⚠️ Partiel (1+2 prouvés, 3 bloqué) |
+| 5 | TCO O(1) mutuelle | **Détection + fusion + exécution MIR prouvées** : `findTailSCCs`, `fuseTailSCCs` et exécution avant/après fusion (`even(10) = 1`) passent dans `src/core/mir_tco_test.zig`. TCO compilé (QBE) : non testé. | ⚠️ MIR ✅ / QBE non testé |
 | 6 | Versioning v0.5 / v0.6 « ACTUEL » | Binaire `v0.1.0` | ❌ Décalage |
 | 7 | MPST généralisé | Runtime seul pour acteurs (`protocol.hvn`). Streams, réseau, UI : 0 % | ⚠️ Acteurs seulement |
 | 8 | HKT Rank 1 (`Strategy ∀h`) | ✅ Implémenté et testé (O2.2) | ✅ |
@@ -31,6 +31,9 @@
 | 15 | `heaven test` tous les tests | Oui, si on utilise `heaven test tests/`. `heaven run` = 1 test | ⚠️ Piège |
 
 ## Ce qui **est** vrai (livré et testé)
+
+- Solidité des preuves & statut explicite : enum `Status` à 7 valeurs (`[PROVED]`, `[SOLVED]`, `[EQ]`, `[AXIOM]`, `[TRUSTED]`, `[LEGACY]`, `[ ]`), `verified:bool` supprimé (`5f05a37`), discriminateurs `false_theorems.sh` + `mcp_soundness.sh` (avec `heaven_prove` multi-ligne `d123b96`) bloquants en CI
+- Livre & REPL : 151/151 commandes doctest passent en CI bloquante (`de1b635`), continuation multiligne REPL (`bc8f239`)
 
 - OTP core : GenServer, links, trap_exit, 3 stratégies superviseurs, event-driven (27 tests)
 - MPST runtime pour acteurs : `mpst_trace`, `check_dual`, `check_protocol` (3 tests)
