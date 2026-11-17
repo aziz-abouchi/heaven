@@ -1,4 +1,4 @@
--- lib/codegen/c.hvn -- Générateur C (E2)
+-- lib/codegen/c.hvn -- Générateur C auto-hébergé (E2)
 import "lib/heaven_parse.hvn" as HP
 
 cat3 a b c = Str.concat a (Str.concat b c)
@@ -8,15 +8,20 @@ cat5 a b c d e = Str.concat a (cat4 b c d e)
 emit_expr (HP.ELitI n) = Str.from_int n
 emit_expr (HP.ELitS s) = cat3 "\"" s "\""
 emit_expr (HP.ESym s)  = s
-emit_expr (HP.EApply f x) = emit_app f x
+emit_expr (HP.EApply f x) = emit_apply f x
 emit_expr _ = "0"
 
-emit_app (HP.EApply f a) b = emit_app2 f a b
-emit_app (HP.ELambda var body) val = cat5 "({ int " var " = " (emit_expr val) (cat3 "; " (emit_expr body) "; })")
-emit_app _ _ = "0"
+emit_apply (HP.ELambda var body) val = emit_let var val body
+emit_apply (HP.EApply g a) b = emit_apply2 g a b
+emit_apply _ _ = "0"
 
-emit_app2 (HP.EApply (HP.ESym "if") c) t f = cat5 "(" (emit_expr c) " ? " (emit_expr t) (cat3 " : " (emit_expr f) ")")
-emit_app2 (HP.ESym op) a b = cat5 "(" (emit_expr a) (cat3 " " op " ") (emit_expr b) ")"
-emit_app2 _ _ _ = "0"
+emit_let var val body = cat5 "({ int " var " = " (emit_expr val) (cat3 "; " (emit_expr body) "; })")
+
+emit_apply2 (HP.EApply (HP.ESym "if") c) t f = emit_if c t f
+emit_apply2 (HP.ESym op) a b = emit_bin op a b
+emit_apply2 _ _ _ = "0"
+
+emit_if c t f = cat5 "(" (emit_expr c) " ? " (emit_expr t) (cat3 " : " (emit_expr f) ")")
+emit_bin op a b = cat5 "(" (emit_expr a) (cat3 " " op " ") (emit_expr b) ")"
 
 emit_c_program ast = cat3 "#include <stdio.h>\n\nint main() {\n    printf(\"%d\\n\", " (emit_expr ast) ");\n    return 0;\n}\n"
