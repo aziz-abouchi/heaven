@@ -1,17 +1,21 @@
--- lib/codegen/c.hvn -- Générateur de code C auto-hébergé (E2.1, 2026-11-17)
--- Traduction des 6 primitives Heaven vers C ANSI/C99.
+-- lib/codegen/c.hvn -- Générateur de code C auto-hébergé (E2.2, 2026-11-17)
+-- Traduction des 6 primitives & structures de base Heaven vers C ANSI/C99.
 
 import "lib/heaven_parse.hvn" as HP
 
--- Formate un littéral ou un symbole en expression C
+-- Traduction d'une expression AST vers C
 emit_expr (HP.ELitI n) = Str.from_int n
 emit_expr (HP.ELitS s) = Str.concat "\"" (Str.concat s "\"")
 emit_expr (HP.ESym s)  = s
+emit_expr (HP.EApply (HP.EApply (HP.EApply (HP.ESym "if") c) t) f) =
+    Str.concat "(" (Str.concat (emit_expr c) (Str.concat " ? " (Str.concat (emit_expr t) (Str.concat " : " (Str.concat (emit_expr f) ")")))))
 emit_expr (HP.EApply (HP.EApply (HP.ESym op) a) b) = 
     Str.concat "(" (Str.concat (emit_expr a) (Str.concat " " (Str.concat op (Str.concat " " (Str.concat (emit_expr b) ")")))))
-emit_expr _ = "/* unsupported expr */"
+emit_expr (HP.EApply (HP.ELambda var body) val) =
+    Str.concat "({ int " (Str.concat var (Str.concat " = " (Str.concat (emit_expr val) (Str.concat "; " (Str.concat (emit_expr body) "; })")))))
+emit_expr _ = "0"
 
--- Génère le squelette d'un fichier C complet avec main()
-emit_c_program expr_src = 
+-- Génère un programme C exécutable complet
+emit_c_program expr_ast = 
     Str.concat "#include <stdio.h>\n\nint main() {\n    printf(\"%d\\n\", " 
-               (Str.concat (emit_expr expr_src) ");\n    return 0;\n}\n")
+               (Str.concat (emit_expr expr_ast) ");\n    return 0;\n}\n")

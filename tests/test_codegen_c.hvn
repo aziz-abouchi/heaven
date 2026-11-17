@@ -1,0 +1,7 @@
+-- tests/test_codegen_c.hvn -- Validation du générateur de code C (E2)
+
+import "lib/parse/infix.hvn" as Inf
+import "lib/codegen/c.hvn" as CG
+
+ast = Inf.parse_infix "let x = 10 in if x > 5 then x * 2 else 0"
+c_code = CG.emit_c_program ast
