@@ -129,12 +129,30 @@ will need:
 
 Estimated: 1.5-2h with migration tests. Session dedicated.
 
-### Summary
+## Phase E status (2026-11-17) -- DONE (5f05a37)
 
-| Step | Status | Commit |
+Removed `verified: bool` from all core and runtime structs (`Theorem` in
+`proof_core.zig`, `ProofEnv` in `proof.zig`, `ProofEntry` in `wasm_entry.zig`).
+`status: Status` is now the single source of truth across the entire codebase
+(`0` remaining `.verified` / `verified:` references in `src/`).
+
+- Added `proof_status.isProved(status)` helper and unit tests.
+- `session.zig`: derives `"verified"` on JSON save via `isProved(thm.status)` for
+  backward compatibility and migrates legacy `"verified": true` to
+  `legacy_unclassified` on load.
+- `wasm_entry.zig`: `heavenTheorems` updated to use `displayLabel(e.status)`.
+- Verified: `zig build test`, `doctest.py --check` (151/151), `false_theorems.sh`,
+  and `mcp_soundness.sh` all green.
+
+### Summary (Phases A -> E : 100% DONE)
+
+| Phase / Step | Status | Commit |
 |---|---|---|
-| D.1 formatAll shell | DONE | ed181d4 |
-| D.2 WASM heavenTheorems | NOT WIRED (skip) | n/a |
-| D.3 site/repl proof | NOT A READER (skip) | n/a |
-| E retrait verified | TODO | n/a |
+| A Classification (7 statuts, 17 writers, 7 readers) | DONE | 71cbacd..b0a4ea1 |
+| B Enum Status + migration JSON session | DONE | 71cbacd..b0a4ea1 |
+| C Writers migration (11 writers -> Status) | DONE | f4121ad |
+| D.1 formatAll shell (`:theorems`) | DONE | ed181d4 |
+| D.2 WASM `heavenTheorems` (`displayLabel`) | DONE | 5f05a37 |
+| D.3 site/repl proof result | NOT A READER (skip) | n/a |
+| E Retrait complet de `verified: bool` | DONE | 5f05a37 |
 
