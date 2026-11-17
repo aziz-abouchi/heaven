@@ -387,7 +387,7 @@ Mesure finale : `zig build test-files` → exit=1, **3 fuites** (toutes
 | ID | Dette | Effort | Priorité | Ticket |
 |---|---|---|---|---|
 | D-SIGSEGV | ~~6 fichiers blanchis~~ -> **0 SIGSEGV** (3 réintégrés : `test_bigint`, `test_heaven_eval_prims`, `test_mcp` ; 2 attribués à `D-RAWALLOC`, 1 `TestFailed` connu `test_bigint_d20`) | 3-5 sessions | Fermé / Reclassé | Fait |
-| D-RAWALLOC | Magic `raw_alloc` sans `raw_free` symétrique | 2-3 sessions | Moyenne | Spec du magic + tracker des buffers vivants |
+| D-RAWALLOC | ~~Magic `raw_alloc` sans `raw_free` symétrique~~ -> **RÉSOLU** (`Engine.raw_buffers` libère les buffers vivants dans `deinit` ; `test_hashmap` et `test_lexer` réintégrés, 0 leak) | 2-3 sessions | Fermé | Fait |
 | D-PIN | tree-sitter-c, tree-sitter-zig, libdatachannel non épinglés dans `build.sh` | 1 session | Moyenne (reproductibilité) | Cloner à tag précis, sha256 dans manifest |
 | D-DOCGEN | ~~`test_files_count = 148`~~ -> **RÉSOLU** (`README.md` aligné sur 150 `.hvn` réels) | 30 min | Fermé | Fait |
 | D-COVERAGE | ~~`DEBUG_SKIP_FILES` sans avertissement~~ -> **RÉSOLU** (log runtime + note `README.md` + retrait entrée fantôme) | 15 min | Fermé | Fait |

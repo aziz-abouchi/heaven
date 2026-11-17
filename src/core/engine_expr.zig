@@ -444,6 +444,8 @@ pub const Engine = struct {
     /// HKT-V1a : classes et instances declarees (metadata, 0 dispatch).
     class_names: std.StringHashMapUnmanaged(void) = .{},
     instance_pairs: std.StringHashMapUnmanaged(void) = .{},
+    /// D-RAWALLOC : suivi des tampons alloués par `raw_alloc` et non encore libérés par `raw_free`.
+    raw_buffers: std.AutoHashMapUnmanaged(usize, usize) = .{},
     /// A-2 (3a-3b pre-vol) : active la capture de frames dans
     /// evaluate. false par defaut : aucun impact, aucune alloc.
     /// true uniquement pendant evalWithBudget (scheduler).
@@ -518,6 +520,14 @@ pub const Engine = struct {
         }
         self.class_names.deinit(self.allocator);
         self.instance_pairs.deinit(self.allocator);
+        {
+            var raw_it = self.raw_buffers.iterator();
+            while (raw_it.next()) |e| {
+                const ptr: [*]u8 = @ptrFromInt(e.key_ptr.*);
+                self.allocator.free(ptr[0..e.value_ptr.*]);
+            }
+            self.raw_buffers.deinit(self.allocator);
+        }
         var it = self.fns.iterator();
         while (it.next()) |entry| {
             platform.dbg("[fns.deinit] freeing key='{s}' addr={d}\n", .{ entry.key_ptr.*, @intFromPtr(entry.key_ptr.*.ptr) });
@@ -2018,7 +2028,10 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (nl != .int) return error.TypeError;
         const sz: usize = @intCast(nl.int);
         const buf = engine.allocator.alloc(u8, sz) catch return error.OutOfMemory;
-        const buf_u64: u64 = @intCast(@intFromPtr(buf.ptr));
+        errdefer engine.allocator.free(buf);
+        const addr: usize = @intFromPtr(buf.ptr);
+        try engine.raw_buffers.put(engine.allocator, addr, sz);
+        const buf_u64: u64 = @intCast(addr);
         return try store.int(@bitCast(buf_u64));
     }
     // target_os : renvoie "linux", "macos", "windows", "wasm".
@@ -2048,6 +2061,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         if (pl != .int or nl != .int) return error.TypeError;
         const addr: usize = @truncate(@as(u64, @bitCast(pl.int)));
         const sz: usize = @intCast(nl.int);
+        _ = engine.raw_buffers.remove(addr);
         const buf: [*]u8 = @ptrFromInt(addr);
         engine.allocator.free(buf[0..sz]);
         return try store.unitLit();
