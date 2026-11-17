@@ -1,0 +1,12 @@
+-- tests/test_infix.hvn -- Validation complète du parseur infixe (E1)
+
+import "lib/parse/infix.hvn" as Inf
+
+-- Test 1 : Arithmétique & Précédence (* avant +)
+t1 = Inf.parse_infix "1 + 2 * 3"
+
+-- Test 2 : Conditionnelle & Comparaison
+t2 = Inf.parse_infix "if 10 > 5 then 42 else 0"
+
+-- Test 3 : Liaison Let-In
+t3 = Inf.parse_infix "let x = 5 in x + 1"
