@@ -366,3 +366,42 @@ intermittent Debug-only** (cf. `DEBUG_SKIP_FILES` + `_runner_crashes_2026-10.md`
 depuis le 2026-10-27, jamais corrigés). La corruption mémoire Debug et
 les fuites partagent le même runtime ; une fois les leaks closes,
 relancer les 6 fichiers blanchis est le prochain chantier mémoire.
+
+<!-- SESSION-CLOSURE-EVIDENCE 2026-11-17 -->
+**Clôture de session (2026-11-17, 17:00→21:00).**
+
+Commits atterris sur `main` :
+- `1486238` : DWARF en Debug (`.strip = optimize != .Debug`) — permet de
+  symboliser les fuites du GPA
+- `cacfd8a` : A1 (bootstrap explicite, TCC épinglé, garde vendor dans
+  build.zig) + docgen non tautologique (suppression du `N/N` tautologique,
+  capture du returncode, refus de publier sur suite rouge)
+- `3cdca7d` : A4 class/instance (itérateur explicite dans `Engine.deinit`,
+  8 → 3 fuites sur 12 fichiers transversaux)
+
+Mesure finale : `zig build test-files` → exit=1, **3 fuites** (toutes
+`raw_alloc`, dette documentée TODO). Suite de tests Zig : 457/458.
+
+**Dettes formalisées (plus inconnues) :**
+
+| ID | Dette | Effort | Priorité | Ticket |
+|---|---|---|---|---|
+| D-SIGSEGV | 6 fichiers blanchis pour SIGSEGV Debug intermittent depuis 2026-10-27 (`DEBUG_SKIP_FILES`) | 3-5 sessions | Haute (runtime instable) | Relancer avec DWARF activé, attribuer chaque crash |
+| D-RAWALLOC | Magic `raw_alloc` sans `raw_free` symétrique | 2-3 sessions | Moyenne | Spec du magic + tracker des buffers vivants |
+| D-PIN | tree-sitter-c, tree-sitter-zig, libdatachannel non épinglés dans `build.sh` | 1 session | Moyenne (reproductibilité) | Cloner à tag précis, sha256 dans manifest |
+| D-DOCGEN | `test_files_count = 148` mais `tests/` contient 149 `.hvn` | 30 min | Faible | Ajouter le 149e fichier ou aligner le comptage |
+| D-COVERAGE | `DEBUG_SKIP_FILES` sans avertissement au runtime ni dans le README | 15 min | Faible | Print « skipping N files (Debug, SIGSEGV) » |
+
+**Dettes fermées cette session (ne plus y revenir) :**
+- `MissingDebugInfo` : causé par `.strip = true` inconditionnel
+- Fuite bucket hash_map résiduelle : disparue après le fix class/instance,
+  à reclasser comme non-reproductible si réapparaît
+- `HEAVEN_SCC_FUSION` gate : commentaire réécrit, diagnostic rétracté
+- Registre de vérité : reconstruit depuis 12 lignes à 319+ lignes
+
+**Hypothèses rejetées pendant la session (à ne pas re-chasser) :**
+- `cc` alias shell (FAUX : symlink gcc-toolchain-16.2.0)
+- v2f comme chantier prioritaire (FAUX : unify.zig est kanren legacy)
+- Contrôle de fuite par fichier (FAUX : par évaluation)
+- Mismatch d'allocateur class/instance (FAUX : self.allocator == self.engine.allocator)
+- 14 fuites = 14 allocs (FAUX : 56 allocations perdues sur 14 verdicts)
