@@ -389,8 +389,8 @@ Mesure finale : `zig build test-files` → exit=1, **3 fuites** (toutes
 | D-SIGSEGV | 6 fichiers blanchis pour SIGSEGV Debug intermittent depuis 2026-10-27 (`DEBUG_SKIP_FILES`) | 3-5 sessions | Haute (runtime instable) | Relancer avec DWARF activé, attribuer chaque crash |
 | D-RAWALLOC | Magic `raw_alloc` sans `raw_free` symétrique | 2-3 sessions | Moyenne | Spec du magic + tracker des buffers vivants |
 | D-PIN | tree-sitter-c, tree-sitter-zig, libdatachannel non épinglés dans `build.sh` | 1 session | Moyenne (reproductibilité) | Cloner à tag précis, sha256 dans manifest |
-| D-DOCGEN | `test_files_count = 148` mais `tests/` contient 149 `.hvn` | 30 min | Faible | Ajouter le 149e fichier ou aligner le comptage |
-| D-COVERAGE | `DEBUG_SKIP_FILES` sans avertissement au runtime ni dans le README | 15 min | Faible | Print « skipping N files (Debug, SIGSEGV) » |
+| D-DOCGEN | ~~`test_files_count = 148`~~ -> **RÉSOLU** (`README.md` aligné sur 150 `.hvn` réels) | 30 min | Fermé | Fait |
+| D-COVERAGE | ~~`DEBUG_SKIP_FILES` sans avertissement~~ -> **RÉSOLU** (log runtime + note `README.md` + retrait entrée fantôme) | 15 min | Fermé | Fait |
 
 **Dettes fermées cette session (ne plus y revenir) :**
 - `MissingDebugInfo` : causé par `.strip = true` inconditionnel

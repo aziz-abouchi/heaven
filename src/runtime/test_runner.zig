@@ -314,7 +314,6 @@ const DEBUG_SKIP_FILES = [_][]const u8{
     "test_heaven_eval_prims.hvn",
     "test_lexer.hvn",
     "test_mcp.hvn",
-    "test_web_ontology.hvn",
 };
 
 fn shouldSkipDebug(name: []const u8) bool {
@@ -336,12 +335,22 @@ pub fn runTestDir(allocator: std.mem.Allocator, dir_path: []const u8) !bool {
         files.deinit(allocator);
     }
 
+    var skipped_debug: usize = 0;
     while (try it.next()) |entry| {
         if (entry.kind != .file) continue;
         if (!std.mem.endsWith(u8, entry.name, ".hvn")) continue;
-        if (shouldSkipDebug(entry.name)) continue;
+        if (shouldSkipDebug(entry.name)) {
+            skipped_debug += 1;
+            continue;
+        }
         const full = try std.fs.path.join(allocator, &.{ dir_path, entry.name });
         try files.append(allocator, full);
+    }
+    if (skipped_debug > 0) {
+        std.debug.print(
+            "[test-runner] skipping {d} file(s) in Debug (known intermittent SIGSEGV, see docs/spec/_runner_crashes_2026-10.md)\n",
+            .{skipped_debug},
+        );
     }
 
     if (files.items.len == 0) return true;
