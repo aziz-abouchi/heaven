@@ -504,6 +504,18 @@ pub const Engine = struct {
             self.allocator.destroy(entry.value_ptr.env);
         }
         self.thunks.deinit(self.allocator);
+        // StringHashMapUnmanaged.deinit libère les buckets, PAS les clés.
+        // Chaque clé stockée (class name, instance key) doit être libérée
+        // avec le même allocateur qui l'a dupée. Cf. _claims_vs_reality.md
+        // A4-CLASS-INSTANCE-EVIDENCE.
+        {
+            var it = self.class_names.iterator();
+            while (it.next()) |e| self.allocator.free(e.key_ptr.*);
+        }
+        {
+            var it = self.instance_pairs.iterator();
+            while (it.next()) |e| self.allocator.free(e.key_ptr.*);
+        }
         self.class_names.deinit(self.allocator);
         self.instance_pairs.deinit(self.allocator);
         var it = self.fns.iterator();

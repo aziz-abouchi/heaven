@@ -331,3 +331,38 @@ section « debug » restante : `.gnu_debuglink`. Corrigé le 2026-11-17 :
 mode. Corruption mémoire et fuites dans un même runtime ne font
 probablement pas deux chantiers. Le census des fuites en Debug est
 incomplet : les 6 fichiers écartés n'y sont pas comptés.
+
+<!-- A4-CLASS-INSTANCE-EVIDENCE 2026-11-17 -->
+**Fuites class/instance et dette `raw_alloc` (2026-11-17).**
+
+56 allocations perdues, classées par site d'allocation. Trois catégories
+distinctes, à ne pas traiter ensemble :
+
+| Catégorie | Sites | Nombre | Statut |
+|---|---|---|---|
+| Clés class/instance non libérées | `heaven_expr.zig:1044`, `:1054` (stockage) + `engine_expr.zig:507-508` (deinit libère buckets mais pas clés) | 5 | ✅ Corrigé par libération explicite des clés |
+| Magic `raw_alloc` sans libérateur | `engine_expr.zig:2008` | 2 | ⚠️ Dette documentée (TODO dans le code) |
+| Hash map interne (bucket allocation) | `hash_map.zig:1478` | 1 | Effet collatéral de la catégorie 1 |
+
+**API `StringHashMapUnmanaged.deinit`** : libère les buckets, pas les clés
+string. Ce n'est pas un bug de l'API, c'est son contrat — mais Heaven
+le méconnaissait en stockant des `[]const u8` dupés sans les libérer
+explicitement.
+
+**Hypothèse rejetée — pas de mismatch d'allocateur.** `Heaven.init` fait
+`Engine.initTest(allocator, …)` : `self.engine.allocator == self.allocator`.
+Pas d'UB à la ligne 1044 de `heaven_expr.zig`. Un patch d'uniformisation
+aurait été correct mais pour la mauvaise raison.
+
+**Dette `raw_alloc` à traiter séparément.** Le magic alloue via
+`engine.allocator.alloc(u8, sz)` et le commentaire dit `TODO` pour
+`raw_free`. Ce n'est pas une fuite accidentelle : c'est une absence de
+libérateur symétrique dans le runtime. Le chantier correct nécessite
+un magic `@raw_free` + un tracker des buffers vivants + une spec. Hors
+scope du fix A4 immédiat.
+
+**Dette corrélée toujours ouverte : 6 fichiers blanchis pour SIGSEGV
+intermittent Debug-only** (cf. `DEBUG_SKIP_FILES` + `_runner_crashes_2026-10.md`
+depuis le 2026-10-27, jamais corrigés). La corruption mémoire Debug et
+les fuites partagent le même runtime ; une fois les leaks closes,
+relancer les 6 fichiers blanchis est le prochain chantier mémoire.
