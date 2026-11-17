@@ -305,15 +305,13 @@ pub fn runEvalFile(allocator: std.mem.Allocator, path: []const u8) !void {
 /// bloquer `zig build test-files` ; exécutables manuellement et
 /// passent en ReleaseFast.
 const DEBUG_SKIP_FILES = [_][]const u8{
-    // Auto-généré 2026-10-27. Crashes Debug-only (SIGSEGV),
-    // passent en ReleaseFast et isolément. Cf.
-    // docs/spec/_runner_crashes_2026-10.md.
-    "test_bigint.hvn",
+    // Requalifié 2026-11-17 après diagnostic DWARF (0 SIGSEGV ;
+    // test_bigint, test_heaven_eval_prims et test_mcp réintégrés) :
+    // - test_bigint_d20.hvn : TestFailed connu (bdiv 1000, _runtime_gaps.md:724)
+    // - test_hashmap.hvn, test_lexer.hvn : fuite raw_alloc (engine_expr.zig:2020, D-RAWALLOC)
     "test_bigint_d20.hvn",
     "test_hashmap.hvn",
-    "test_heaven_eval_prims.hvn",
     "test_lexer.hvn",
-    "test_mcp.hvn",
 };
 
 fn shouldSkipDebug(name: []const u8) bool {

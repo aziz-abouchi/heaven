@@ -386,7 +386,7 @@ Mesure finale : `zig build test-files` → exit=1, **3 fuites** (toutes
 
 | ID | Dette | Effort | Priorité | Ticket |
 |---|---|---|---|---|
-| D-SIGSEGV | 6 fichiers blanchis pour SIGSEGV Debug intermittent depuis 2026-10-27 (`DEBUG_SKIP_FILES`) | 3-5 sessions | Haute (runtime instable) | Relancer avec DWARF activé, attribuer chaque crash |
+| D-SIGSEGV | ~~6 fichiers blanchis~~ -> **0 SIGSEGV** (3 réintégrés : `test_bigint`, `test_heaven_eval_prims`, `test_mcp` ; 2 attribués à `D-RAWALLOC`, 1 `TestFailed` connu `test_bigint_d20`) | 3-5 sessions | Fermé / Reclassé | Fait |
 | D-RAWALLOC | Magic `raw_alloc` sans `raw_free` symétrique | 2-3 sessions | Moyenne | Spec du magic + tracker des buffers vivants |
 | D-PIN | tree-sitter-c, tree-sitter-zig, libdatachannel non épinglés dans `build.sh` | 1 session | Moyenne (reproductibilité) | Cloner à tag précis, sha256 dans manifest |
 | D-DOCGEN | ~~`test_files_count = 148`~~ -> **RÉSOLU** (`README.md` aligné sur 150 `.hvn` réels) | 30 min | Fermé | Fait |
