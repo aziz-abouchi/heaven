@@ -86,3 +86,12 @@ invariants negatifs (method != kernel, certified=false), pas proved=true.
 Cas positif differe a Phase 3+ (quand status enum permet de distinguer
 resolu de certifie). Le formulaire multi-ligne est documente comme non
 supporte dans _proof_soundness.md, pas silencieusement accepte.
+
+## Resolution Option B (2026-11-17) -- DONE (d123b96)
+
+`Heaven.evalProve` (`src/core/heaven_expr.zig`) now splits multi-line input,
+evaluates preceding declarations (`theorem ...`, `axiom ...`) via `self.eval`,
+and strips the `prove ` prefix before delegating to `cmds.evalProve`.
+`tests/proofs/mcp_soundness.sh` now asserts both `proved:true` on `good1`
+and `proved:false` on `bad1` while preserving `method != "kernel"` and
+`certified:false`.
