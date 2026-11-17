@@ -821,7 +821,11 @@ pub const MirFunction = struct {
             // `apply(sym(op), [a, b])`. La conversion legacy → Core
             // se fait en amont via `lower`/`lowerRec` (expr.zig) et
             // le même pipeline que `parseLastExpr` (qbe_cmd/wasm_cmd).
-            const lowered_body = store.lowerRec(clause.body) catch {
+            const lowered_body = store.lowerRec(clause.body) catch |err| {
+                std.debug.print(
+                    "[MIR precompile] lowerRec failed: {s}: {s}\\n",
+                    .{ name_str, @errorName(err) },
+                );
                 if (self.fn_defs.fetchRemove(name_sym)) |kv| {
                     var v = kv.value;
                     v.fn_mir.deinit();
@@ -830,7 +834,11 @@ pub const MirFunction = struct {
                 }
                 continue;
             };
-            const result = def.fn_mir.compileExpr(store, lowered_body, 0, locals) catch {
+            const result = def.fn_mir.compileExpr(store, lowered_body, 0, locals) catch |err| {
+                std.debug.print(
+                    "[MIR precompile] compileExpr failed: {s}: {s}\\n",
+                    .{ name_str, @errorName(err) },
+                );
                 // 2026-10-30 : skip propre (fetchRemove) au lieu de stub
                 // (le stub cassait les phis MIR).
                 if (self.fn_defs.fetchRemove(name_sym)) |kv| {

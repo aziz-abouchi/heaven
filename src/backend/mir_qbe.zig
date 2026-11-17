@@ -204,21 +204,35 @@ pub fn emitQbeLoop(
 /// mais on verifie par prudence).
 fn checkCallUsers(root: *const MirFunction) !void {
     const defs = &root.fn_defs;
-    try checkBlocks(root, defs);
-    var it = defs.valueIterator();
-    while (it.next()) |def| {
-        try checkBlocks(&def.fn_mir, defs);
+    const store = root.store orelse return error.UnsupportedCall;
+    try checkBlocks(root, defs, store.interner, "<root>");
+
+    var it = defs.iterator();
+    while (it.next()) |entry| {
+        const caller_name = store.interner.resolve(entry.key_ptr.*);
+        try checkBlocks(&entry.value_ptr.fn_mir, defs, store.interner, caller_name);
     }
 }
 
-fn checkBlocks(f: *const MirFunction, defs: *const std.AutoHashMap(u32, FnDef)) !void {
+fn checkBlocks(
+    f: *const MirFunction,
+    defs: *const std.AutoHashMap(u32, FnDef),
+    interner: anytype,
+    caller_name: []const u8,
+) !void {
     // Contrat §6 : rejet explicite, pas de stub silencieux.
-    // Un stub ret 0 masquerait un résultat faux.
     for (f.blocks.items) |*blk| {
         for (blk.instrs.items) |inst| {
             switch (inst) {
                 .call_user => |c| {
-                    if (!defs.contains(c.name)) return error.UnsupportedCall;
+                    if (!defs.contains(c.name)) {
+                        const missing_name = interner.resolve(c.name);
+                        std.debug.print(
+                            "[QBE] UnsupportedCall: caller={s}, missing={s}, symbol={d}\\n",
+                            .{ caller_name, missing_name, c.name },
+                        );
+                        return error.UnsupportedCall;
+                    }
                 },
                 else => {},
             }
