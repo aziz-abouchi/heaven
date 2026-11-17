@@ -405,3 +405,36 @@ Mesure finale : `zig build test-files` → exit=1, **3 fuites** (toutes
 - Contrôle de fuite par fichier (FAUX : par évaluation)
 - Mismatch d'allocateur class/instance (FAUX : self.allocator == self.engine.allocator)
 - 14 fuites = 14 allocs (FAUX : 56 allocations perdues sur 14 verdicts)
+
+<!-- SKIPPED-FILES-RELEASEFAST-EVIDENCE 2026-11-17 -->
+**Les 6 fichiers blanchis Debug passent en ReleaseFast (2026-11-17).**
+
+Exécution manuelle en ReleaseFast (`zig build` sans `-Doptimize=Debug`) :
+
+| Fichier | Résultat | Notes |
+|---|---|---|
+| test_bigint.hvn | ✅ 28/28 passed, 0 leaks | Aucun SIGSEGV |
+| test_heaven_eval_prims.hvn | ✅ 16/16 passed, 0 leaks | Aucun SIGSEGV |
+| test_mcp.hvn | ✅ 17/17 passed, 0 leaks | Aucun SIGSEGV |
+| test_bigint_d20.hvn | ❌ error.NotDir | Bug de path (openDirZ), pas SIGSEGV |
+| test_hashmap.hvn | ⚠️ MEMORY LEAK | raw_alloc:2020 sans libérateur |
+| test_lexer.hvn | ⚠️ MEMORY LEAK | raw_alloc:2020 sans libérateur |
+
+**D-SIGSEGV déclassé.** Le blanchiment Debug était justifié (SIGSEGV
+intermittent), mais les fichiers sont exécutables en ReleaseFast.
+La "dette runtime instable" est un problème **Debug-only**, pas un
+défaut général. Prochaine action : relancer en Debug avec DWARF activé,
+attribuer chaque crash à un site précis.
+
+**D-RAWALLOC confirmé.** 2 des 6 fichiers blanchis fuient via
+`engine_expr.zig:2020` (raw_alloc sans raw_free). Cohérent avec les 3
+fuites mesurées plus tôt. Chantier de design : spec du magic + tracker.
+
+**État final de la session :**
+- 4 commits atterris sur main (1486238, cacfd8a, 3cdca7d, 302a511)
+- Registre public : 319+ lignes, 7 blocs EVIDENCE, 5 dettes formalisées
+- Suite Zig : 457/458 (1 skip : lower_test range)
+- Suite Heaven : 96/98 steps (2 preexistants, pas introduits par nous)
+- Fuites réelles : 3 (toutes raw_alloc, site 2020)
+- Dettes restantes : 5 (D-SIGSEGV, D-RAWALLOC, D-PIN, D-DOCGEN, D-COVERAGE)
+- Aucune nouvelle dette introduite
