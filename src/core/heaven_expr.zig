@@ -3156,16 +3156,33 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
     }
 
     pub fn evalProve(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        // Support multi-ligne (MCP) : exécuter les déclarations préalables
+        // (ex: `theorem good1 : x + 0 = x`) avant la commande `prove ...`.
+        var effective_src: []const u8 = std.mem.trim(u8, src, " \t\r\n");
+        if (std.mem.indexOfScalar(u8, effective_src, '\n') != null) {
+            var last_non_empty: []const u8 = "";
+            var it = std.mem.splitScalar(u8, effective_src, '\n');
+            while (it.next()) |raw_line| {
+                const line = std.mem.trim(u8, raw_line, " \t\r");
+                if (line.len == 0) continue;
+                if (last_non_empty.len > 0) {
+                    const res = try self.eval(last_non_empty);
+                    self.allocator.free(res);
+                }
+                last_non_empty = line;
+            }
+            if (last_non_empty.len > 0) effective_src = last_non_empty;
+        }
+
         // ─── Tactics v1 : `prove <name> by { t1; t2; ... }` ───
         // Intercepté AVANT le chemin classique pour ne pas casser
         // `by simplify` / `by eval` / `by induction x` (compat).
         // Strip le préfixe "prove " si présent (MCP appelle avec la
         // forme complète, le parser interne attend le nom seul).
-        const src_trim = std.mem.trim(u8, src, " \t");
-        const src_body = if (std.mem.startsWith(u8, src_trim, "prove "))
-            std.mem.trim(u8, src_trim["prove ".len..], " \t")
+        const src_body = if (std.mem.startsWith(u8, effective_src, "prove "))
+            std.mem.trim(u8, effective_src["prove ".len..], " \t")
         else
-            src_trim;
+            effective_src;
         if (std.mem.indexOf(u8, src_body, " by {")) |pos| {
             const name = std.mem.trim(u8, src_body[0..pos], " \t");
             if (name.len == 0) return error.InvalidSyntax;
@@ -3177,7 +3194,7 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
         }
 
         if (self.ensureCommands()) |cmds| {
-            return cmds.evalProve(src) catch |err| {
+            return cmds.evalProve(src_body) catch |err| {
                 return switch (err) {
                     error.OutOfMemory => HeavenError.OutOfMemory,
                     else => HeavenError.EvaluationFailed,

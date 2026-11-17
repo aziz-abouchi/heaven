@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# mcp_soundness.sh -- integration test for MCP method label (Phase 1b).
+# mcp_soundness.sh -- integration test for MCP method label (Phase 1b + Option B).
 # Output redirected to /tmp (never to tty): heaven mcp emits control chars.
 # Invariant: method is never "kernel" (no path certifies by kernel today).
 # Invariant: certified is always false.
+# Invariant: multi-line theorem + prove evaluates proved=true on valid theorem and proved=false on invalid theorem.
 
 set -u
 HEAVEN=${1:-./zig-out/bin/heaven}
@@ -11,7 +12,7 @@ HEAVEN=${1:-./zig-out/bin/heaven}
 FAILS=0
 
 probe() {
-    local label="$1" stmt="$2"
+    local label="$1" expected_proved="$2" stmt="$3"
     local tmp=$(mktemp /tmp/mcp_probe.XXXXXX)
     printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"heaven_prove","arguments":{"statement":%s}}}\n' \
         "$(printf '%s' "$stmt" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')" \
@@ -30,13 +31,14 @@ except Exception as e:
     echo "$inner" | grep -q 'PARSE_ERROR' && { echo "FAIL [$label]: $inner"; FAILS=$((FAILS+1)); return; }
     echo "$inner" | grep -q '"method":"kernel"' && { echo "FAIL [$label]: method=kernel (banned)"; FAILS=$((FAILS+1)); } || echo "OK [$label]: method not kernel"
     echo "$inner" | grep -q '"certified":false' && echo "OK [$label]: certified=false" || { echo "FAIL [$label]: certified missing"; FAILS=$((FAILS+1)); }
+    echo "$inner" | grep -q "\"proved\":$expected_proved" && echo "OK [$label]: proved=$expected_proved" || { echo "FAIL [$label]: expected proved=$expected_proved, got $inner"; FAILS=$((FAILS+1)); }
 }
 
-probe "true_theorem" "theorem good1 : x + 0 = x
+probe "true_theorem" "true" "theorem good1 : x + 0 = x
 prove good1 by simplify"
 
-probe "false_theorem" "theorem bad1 : x + 1 = x
+probe "false_theorem" "false" "theorem bad1 : x + 1 = x
 prove bad1 by simplify"
 
-if [ "$FAILS" -eq 0 ]; then echo "OK: 2/2 invariants hold"; exit 0; fi
+if [ "$FAILS" -eq 0 ]; then echo "OK: all invariants hold"; exit 0; fi
 echo "FAIL: $FAILS violations"; exit 1
