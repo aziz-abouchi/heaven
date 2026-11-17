@@ -507,6 +507,7 @@ pub const Engine = struct {
             entry.value_ptr.env.unref();
         }
         self.thunks.deinit(self.allocator);
+        self.captures.deinit(self.allocator);
         // StringHashMapUnmanaged.deinit libère les buckets, PAS les clés.
         // Chaque clé stockée (class name, instance key) doit être libérée
         // avec le même allocateur qui l'a dupée. Cf. _claims_vs_reality.md
