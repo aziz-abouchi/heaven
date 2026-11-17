@@ -1,0 +1,7 @@
+import "lib/parse/infix.hvn" as Inf
+import "lib/heaven_parse.hvn" as HP
+
+test "add": Inf.parse_infix "1 + 2" == HP.EApply (HP.EApply (HP.ESym "+") (HP.ELitI 1)) (HP.ELitI 2)
+test "mul prec": Inf.parse_infix "1 + 2 * 3" == HP.EApply (HP.EApply (HP.ESym "+") (HP.ELitI 1)) (HP.EApply (HP.EApply (HP.ESym "*") (HP.ELitI 2)) (HP.ELitI 3))
+test "cmp": Inf.parse_infix "1 < 2" == HP.EApply (HP.EApply (HP.ESym "<") (HP.ELitI 1)) (HP.ELitI 2)
+test "if": Inf.parse_infix "if 1 < 2 then 3 else 4" == HP.EApply (HP.EApply (HP.EApply (HP.ESym "if") (HP.EApply (HP.EApply (HP.ESym "<") (HP.ELitI 1)) (HP.ELitI 2))) (HP.ELitI 3)) (HP.ELitI 4)
