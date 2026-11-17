@@ -1,7 +1,7 @@
--- lib/parse/infix.hvn -- parseur infixe (E1.2, 2026-11-17)
+-- lib/parse/infix.hvn -- parseur infixe (E1.3, 2026-11-17)
 -- Surface = infixe. S-Expr = interne (HP.Expr).
 -- Pipeline : .hvn -> HP.lex -> HP.Expr (consomme par heaven_eval).
--- Scope E1.2 : atom, mul (*), add (+ -), cmp (< > ==), if-then-else.
+-- Scope E1.3 : atom, mul (*), add (+ -), cmp (< > ==), if-then-else, let-in.
 
 import "lib/heaven_parse.hvn" as HP
 
@@ -9,6 +9,7 @@ data IRes = IOk HP.Expr HP.Toks | IErr Str
 
 mk_apply op a b = HP.EApply (HP.EApply (HP.ESym op) a) b
 mk_if c t f = HP.EApply (HP.EApply (HP.EApply (HP.ESym "if") c) t) f
+mk_let var val body = HP.EApply (HP.ELambda var body) val
 
 parse_atom (HP.TCons (HP.TIntTok n) rest) = IOk (HP.ELitI n) rest
 parse_atom (HP.TCons (HP.TStrTok s) rest) = IOk (HP.ELitS s) rest
@@ -49,7 +50,7 @@ start_cmp (IOk a rest) = step_cmp a rest
 start_cmp (IErr e) = IErr e
 
 parse_if (HP.TCons (HP.TSymTok "if") rest) = parse_if_then (parse_expr rest)
-parse_if toks = parse_cmp toks
+parse_if toks = parse_let toks
 
 parse_if_then (IOk c (HP.TCons (HP.TSymTok "then") rest)) = parse_if_else c (parse_expr rest)
 parse_if_then (IOk _ _) = IErr "expected 'then'"
@@ -61,6 +62,16 @@ parse_if_else _ (IErr e) = IErr e
 
 finish_if c t (IOk f rest) = IOk (mk_if c t f) rest
 finish_if _ _ (IErr e) = IErr e
+
+parse_let (HP.TCons (HP.TSymTok "let") (HP.TCons (HP.TSymTok var) (HP.TCons (HP.TSymTok "=") rest))) = parse_let_in var (parse_expr rest)
+parse_let toks = parse_cmp toks
+
+parse_let_in var (IOk val (HP.TCons (HP.TSymTok "in") rest)) = finish_let var val (parse_expr rest)
+parse_let_in _ (IOk _ _) = IErr "expected 'in'"
+parse_let_in _ (IErr e) = IErr e
+
+finish_let var val (IOk body rest) = IOk (mk_let var val body) rest
+finish_let _ _ (IErr e) = IErr e
 
 parse_expr toks = parse_if toks
 
