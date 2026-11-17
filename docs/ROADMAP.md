@@ -43,10 +43,10 @@ point fixe et par une CI QBE.
 
 | # | Tache | Pourquoi | Effort | Sortie |
 |---|---|---|---|---|
-| A1 | Build reproductible avec QBE/TCC en CI | Verifier la branche QBE (les 9 tags selfhost ne sont pas verifiables sans QBE) | 1 session | CI verte depuis clone neuf, branche QBE incluse |
+| A1 ✅ | Build reproductible avec QBE/TCC en CI | Verifier la branche QBE (les 9 tags selfhost ne sont pas verifiables sans QBE) | 1 session | CI verte depuis clone neuf, branche QBE incluse |
 | A2 | Backend MIR complet : closures (`10-closure`) et constructeurs (`11-color`) | Un compilateur manipule fonctions et donnees ; ces 2 cas sont en `.skip` | 1-2 sessions | suite differentielle sans skip |
 | A3 | Profondeur de recursion et appels terminaux | `build.sh` documente ~500-1000 niveaux ; un compilateur recursif sur ses listes peut depasser | 1 session | analyse 1000+ lignes sans debordement |
-| A4 | Leak check reactive par defaut | `HEAVEN_NO_LEAK_CHECK=1` masque les fuites, compilateur alloue beaucoup | 0.5-1 session | `zig build test` sans variable |
+| A4 ✅ | Leak check reactive par defaut | `HEAVEN_NO_LEAK_CHECK=1` masque les fuites, compilateur alloue beaucoup | 0.5-1 session | `zig build test` sans variable |
 
 ### Phase B — Etapes de l'auto-hebergement
 
