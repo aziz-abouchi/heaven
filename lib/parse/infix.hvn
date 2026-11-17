@@ -45,16 +45,16 @@ parse_cmp toks = start_cmp (parse_add toks)
 start_cmp (IOk a rest) = step_cmp a rest
 start_cmp (IErr e) = IErr e
 
-parse_if (HP.TCons (HP.TSymTok "if") rest) = parse_if_then (parse_expr rest)
-parse_if toks = parse_let toks
+parse_cond (HP.TCons (HP.TSymTok "if") rest) = parse_cond_then (parse_expr rest)
+parse_cond toks = parse_let toks
 
-parse_if_then (IOk c (HP.TCons (HP.TSymTok "then") rest)) = parse_if_else c (parse_expr rest)
-parse_if_then (IOk _ _) = IErr "expected 'then'"
-parse_if_then (IErr e) = IErr e
+parse_cond_then (IOk c (HP.TCons (HP.TSymTok "then") rest)) = parse_cond_else c (parse_expr rest)
+parse_cond_then (IOk _ _) = IErr "expected 'then'"
+parse_cond_then (IErr e) = IErr e
 
-parse_if_else c (IOk t (HP.TCons (HP.TSymTok "else") rest)) = finish_if c t (parse_expr rest)
-parse_if_else _ (IOk _ _) = IErr "expected 'else'"
-parse_if_else _ (IErr e) = IErr e
+parse_cond_else c (IOk t (HP.TCons (HP.TSymTok "else") rest)) = finish_if c t (parse_expr rest)
+parse_cond_else _ (IOk _ _) = IErr "expected 'else'"
+parse_cond_else _ (IErr e) = IErr e
 
 finish_if c t (IOk f rest) = IOk (mk_if c t f) rest
 finish_if _ _ (IErr e) = IErr e
@@ -78,7 +78,7 @@ parse_let_in _ (IErr e) = IErr e
 finish_let var val (IOk body rest) = IOk (mk_let var val body) rest
 finish_let _ _ (IErr e) = IErr e
 
-parse_expr toks = parse_if toks
+parse_expr toks = parse_cond toks
 
 to_expr (IOk e HP.TNil) = e
 to_expr (IOk _ _) = HP.ESym "PARSE_ERR"
