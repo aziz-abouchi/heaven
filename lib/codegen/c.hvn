@@ -1,24 +1,9 @@
 -- lib/codegen/c.hvn -- Générateur C (E2)
 import "lib/heaven_parse.hvn" as HP
 
-fmt_let var val body = Str.concat "({ int " (Str.concat var (Str.concat " = " (Str.concat val (Str.concat "; " (Str.concat body "; })")))))
-fmt_if c t f = Str.concat "(" (Str.concat c (Str.concat " ? " (Str.concat t (Str.concat " : " (Str.concat f ")")))))
-fmt_bin op a b = Str.concat "(" (Str.concat a (Str.concat " " (Str.concat op (Str.concat " " (Str.concat b ")")))))
-
-emit_expr (HP.ELitI n) = Str.from_int n
-emit_expr (HP.ELitS s) = Str.concat "\"" (Str.Voici une version nettoyée et très lisible de `lib/codegen/c.hvn` et `lib/parse/infix.hvn` utilisant de petits utilitaires de concaténation (`cat3`, `cat5`) pour éliminer la répétition de `Str.concat`.
-
-### Commandes à copier/coller :
-
-```bash
-# 1. Mise à jour de lib/codegen/c.hvn avec utilitaires cat3 / cat5
-cat << 'EOF' > lib/codegen/c.hvn
--- lib/codegen/c.hvn -- Générateur C (E2)
-import "lib/heaven_parse.hvn" as HP
-
-cat2 a b = Str.concat a b
 cat3 a b c = Str.concat a (Str.concat b c)
-cat5 a b c d e = cat3 a b (cat3 c d e)
+cat4 a b c d = Str.concat a (cat3 b c d)
+cat5 a b c d e = Str.concat a (cat4 b c d e)
 
 emit_expr (HP.ELitI n) = Str.from_int n
 emit_expr (HP.ELitS s) = cat3 "\"" s "\""
