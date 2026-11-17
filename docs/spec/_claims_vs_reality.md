@@ -301,8 +301,8 @@ les 14 fuites, les corriger, et rendre docgen sensible au code de retour.
 
 | # | Affirmation | Réalité mesurée | Statut |
 |---|---|---|---|
-| C1 | `test-files` couvre `tests/*.hvn` | NON. `test_runner.zig:311-317` porte une liste d'exclusion codée en dur : test_bigint, test_bigint_d20, test_hashmap, test_heaven_eval_prims, test_lexer, test_mcp, test_web_ontology. 6 existent et ne sont jamais lancés ; test_web_ontology.hvn n'existe pas (entrée fantôme). Aucun avertissement imprimé | ❌ Trou silencieux |
-| C2 | Une seule mécanique d'exclusion | NON. Deux, indépendantes : la liste Zig, et `scripts/test_all_hvn_known_fails.txt` (script shell seul). La seconde documente les raisons, la première non | ⚠️ À réconcilier |
+| C1 | `test-files` couvre `tests/*.hvn` | PARTIEL. `DEBUG_SKIP_FILES` (`test_runner.zig:307-318`) écarte 7 noms **en Debug seulement** (`shouldSkipDebug` retourne false hors Debug). 6 existent, `test_web_ontology.hvn` est une entrée fantôme. La raison EST documentée : SIGSEGV intermittent Debug-only, auto-généré 2026-10-27, cf. `docs/spec/_runner_crashes_2026-10.md`. Défaut réel : aucun avertissement au runtime, et le mode par défaut de `zig build` étant Debug, l'invocation par défaut couvre 6 fichiers de moins que le chiffre du README | ⚠️ Couverture réduite non divulguée |
+| C2 | Une seule mécanique d'exclusion | NON. Deux : `DEBUG_SKIP_FILES` (Zig, Debug-only, raison documentée) et `scripts/test_all_hvn_known_fails.txt` (script shell, raisons documentées). Elles ne se recouvrent pas et ne se consultent pas | ⚠️ À réconcilier |
 | C3 | Le contrôle de fuite est par fichier | NON. Il est par évaluation : les verdicts apparaissent entre deux tests d'un même fichier. 128 clean + 14 leak = 142 événements, pas 142 fichiers | 📌 Note de méthode |
 | C4 | docgen publie des chiffres mesurés | NON. Trois défauts corrigés : `sh()` jetait le returncode ; `test_regression = f"{n_reg}/{n_reg}"` était une tautologie incapable de rapporter un échec ; fuites non comptées. docgen refuse désormais de publier sur suite rouge | ✅ Corrigé |
 
@@ -317,3 +317,17 @@ toutes les 3-5 min (E1.2 → E2.2, 17:04→17:32). Le commit `ecc4e01` a écras�
 ce registre (237 → 12 lignes) et l'a poussé. Reconstruction depuis
 `origin/main` d'avant `ecc4e01`. Deux sessions sur un même dépôt : tout
 travail non commité peut être absorbé ou détruit.
+
+**Cause du `MissingDebugInfo`.** `build.zig` posait `.strip = true`
+**inconditionnellement** sur le module de l'exécutable principal
+(`src/main.zig`), Debug compris. Aucune DWARF, donc le
+GeneralPurposeAllocator ne pouvait pas symboliser les fuites. Seule
+section « debug » restante : `.gnu_debuglink`. Corrigé le 2026-11-17 :
+`.strip = optimize != .Debug`.
+
+**Dette corrélée à traiter comme un seul chantier.** Les 6 fichiers
+écartés le sont pour SIGSEGV intermittent en Debug, blanchis le
+2026-10-27 et jamais corrigés. Les 14 fuites sont mesurées dans ce même
+mode. Corruption mémoire et fuites dans un même runtime ne font
+probablement pas deux chantiers. Le census des fuites en Debug est
+incomplet : les 6 fichiers écartés n'y sont pas comptés.

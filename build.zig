@@ -1237,7 +1237,7 @@ pub fn build(b: *std.Build) void {
                 ),
                 .target = target,
                 .optimize = optimize,
-                .strip = true,
+                .strip = optimize != .Debug,
                 .imports = &.{
                     .{ .name = "expr", .module = expr_mod },
                     .{ .name = "bridge_expr", .module = bridge_mod },
