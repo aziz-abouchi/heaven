@@ -315,6 +315,11 @@ pub fn main() !void {
         try lsp_cmd.runLspCmd(allocator);
         return;
     }
+    if (std.mem.eql(u8, args[1], "compile-c") and args.len >= 5 and std.mem.eql(u8, args[3], "-o")) {
+        const compile_c_cmd = @import("commands/compile_c_cmd.zig");
+        try compile_c_cmd.runCompileC(allocator, args[2], args[4]);
+        return;
+    }
     if (std.mem.eql(u8, args[1], "compile") and args.len >= 3) {
         const compile_cmd = @import("commands/compile.zig");
         try compile_cmd.runCompile(allocator, args[2]);
