@@ -202,22 +202,29 @@ pub fn emitQbeLoop(
 /// dans root.fn_defs. Couvre root et chaque fn_def (contrat §6 :
 /// les corps de fn_def sont des lambdas compilees sans call_user,
 /// mais on verifie par prudence).
+fn resolveSymSafe(store_opt: anytype, sym: u32) []const u8 {
+    const store = store_opt orelse return "<no-store>";
+    if (sym < store.interner.list.items.len) {
+        return store.interner.resolve(sym);
+    }
+    return "<synthetic>";
+}
+
 fn checkCallUsers(root: *const MirFunction) !void {
     const defs = &root.fn_defs;
-    const store = root.store orelse return error.UnsupportedCall;
-    try checkBlocks(root, defs, store.interner, "<root>");
+    try checkBlocks(root, defs, root.store, "<root>");
 
     var it = defs.iterator();
     while (it.next()) |entry| {
-        const caller_name = store.interner.resolve(entry.key_ptr.*);
-        try checkBlocks(&entry.value_ptr.fn_mir, defs, store.interner, caller_name);
+        const caller_name = resolveSymSafe(root.store, entry.key_ptr.*);
+        try checkBlocks(&entry.value_ptr.fn_mir, defs, root.store, caller_name);
     }
 }
 
 fn checkBlocks(
     f: *const MirFunction,
     defs: *const std.AutoHashMap(u32, FnDef),
-    interner: anytype,
+    store_opt: anytype,
     caller_name: []const u8,
 ) !void {
     // Contrat §6 : rejet explicite, pas de stub silencieux.
@@ -226,9 +233,9 @@ fn checkBlocks(
             switch (inst) {
                 .call_user => |c| {
                     if (!defs.contains(c.name)) {
-                        const missing_name = interner.resolve(c.name);
+                        const missing_name = resolveSymSafe(store_opt, c.name);
                         std.debug.print(
-                            "[QBE] UnsupportedCall: caller={s}, missing={s}, symbol={d}\\n",
+                            "[QBE] UnsupportedCall: caller={s}, missing={s}, symbol={d}\n",
                             .{ caller_name, missing_name, c.name },
                         );
                         return error.UnsupportedCall;
