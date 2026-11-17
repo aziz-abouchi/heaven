@@ -295,3 +295,68 @@ test "qbe — transitif : éligible appelle exclu → UnsupportedCall" {
         try std.testing.expectEqual(@as(anyerror, error.UnsupportedCall), @as(anyerror, err));
     }
 }
+
+fn buildQbeParityFn(alloc: std.mem.Allocator, other_sym: u32, base_value: i64) !MirFunction {
+    var mf = MirFunction.init(alloc);
+    const b0 = try mf.newBlock();
+    const b_then = try mf.newBlock();
+    const b_else = try mf.newBlock();
+    mf.next_value = 1; // reg 0 = n
+    const zero_r = mf.newReg();
+    const cmp_r = mf.newReg();
+    const then_r = mf.newReg();
+    const one_r = mf.newReg();
+    const nm1_r = mf.newReg();
+    const call_r = mf.newReg();
+    try mf.blocks.items[b0].instrs.append(alloc, .{ .const_int = .{ .dest = zero_r, .value = 0 } });
+    try mf.blocks.items[b0].instrs.append(alloc, .{ .cmp_eq = .{ .dest = cmp_r, .lhs = 0, .rhs = zero_r } });
+    mf.blocks.items[b0].terminator = .{ .branch = .{ .cond = cmp_r, .then_block = b_then, .else_block = b_else } };
+    try mf.blocks.items[b_then].instrs.append(alloc, .{ .const_int = .{ .dest = then_r, .value = base_value } });
+    mf.blocks.items[b_then].terminator = .{ .ret = then_r };
+    try mf.blocks.items[b_else].instrs.append(alloc, .{ .const_int = .{ .dest = one_r, .value = 1 } });
+    try mf.blocks.items[b_else].instrs.append(alloc, .{ .sub = .{ .dest = nm1_r, .lhs = 0, .rhs = one_r } });
+    const args = try alloc.alloc(Reg, 1);
+    args[0] = nm1_r;
+    try mf.blocks.items[b_else].instrs.append(alloc, .{ .call_user = .{ .dest = call_r, .name = other_sym, .args = args } });
+    mf.blocks.items[b_else].terminator = .{ .ret = call_r };
+    return mf;
+}
+
+test "qbe — TCO mutuelle O(1) via fuseTailSCCs : even(2000000) == 1 natif" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    var mf = MirFunction.init(a);
+    // sym 0 = even (base 1), sym 1 = odd (base 0)
+    inline for (.{ .{ 0, 1, 1 }, .{ 1, 0, 0 } }) |spec| {
+        const fn_mir = try buildQbeParityFn(a, spec[1], spec[2]);
+        const param_regs = try a.alloc(Reg, 1);
+        param_regs[0] = 0;
+        const param_names = try a.alloc(expr.Sym, 1);
+        param_names[0] = 0;
+        try mf.fnDefsMut().put(spec[0], .{
+            .fn_mir = fn_mir,
+            .param_names = param_names,
+            .param_regs = param_regs,
+        });
+    }
+
+    const infos = try mf.fuseTailSCCs(a);
+    try std.testing.expectEqual(@as(usize, 1), infos.len);
+
+    // Appel racine : even(2_000_000) — déborderait la pile sans TCO O(1)
+    const entry = try mf.newBlock();
+    const n_r = mf.newReg();
+    const res_r = mf.newReg();
+    try mf.blocks.items[entry].instrs.append(a, .{ .const_int = .{ .dest = n_r, .value = 2_000_000 } });
+    const args = try a.alloc(Reg, 1);
+    args[0] = n_r;
+    try mf.blocks.items[entry].instrs.append(a, .{ .call_user = .{ .dest = res_r, .name = 0, .args = args } });
+    mf.blocks.items[entry].terminator = .{ .ret = res_r };
+
+    const ssa = try qbe.emitQbe(a, &mf);
+    try std.testing.expect(has(ssa, "phi @entry"));
+    const native_val = try runNative(a, ssa);
+    try std.testing.expectEqual(@as(i64, 1), native_val);
+}
