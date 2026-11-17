@@ -1,8 +1,4 @@
--- lib/parse/infix.hvn -- parseur infixe (E1.3, 2026-11-17)
--- Surface = infixe. S-Expr = interne (HP.Expr).
--- Pipeline : .hvn -> HP.lex -> HP.Expr (consomme par heaven_eval).
--- Scope E1.3 : atom, mul (*), add (+ -), cmp (< > ==), if-then-else, let-in.
-
+-- lib/parse/infix.hvn -- parseur infixe (E1.3)
 import "lib/heaven_parse.hvn" as HP
 
 data IRes = IOk HP.Expr HP.Toks | IErr Str
@@ -63,8 +59,14 @@ parse_if_else _ (IErr e) = IErr e
 finish_if c t (IOk f rest) = IOk (mk_if c t f) rest
 finish_if _ _ (IErr e) = IErr e
 
-parse_let (HP.TCons (HP.TSymTok "let") (HP.TCons (HP.TSymTok var) (HP.TCons (HP.TSymTok "=") rest))) = parse_let_in var (parse_expr rest)
+parse_let (HP.TCons (HP.TSymTok "let") rest) = parse_let_var rest
 parse_let toks = parse_cmp toks
+
+parse_let_var (HP.TCons (HP.TSymTok var) rest) = parse_let_eq var rest
+parse_let_var _ = IErr "expected var name"
+
+parse_let_eq var (HP.TCons (HP.TSymTok "=") rest) = parse_let_in var (parse_expr rest)
+parse_let_eq _ _ = IErr "expected '='"
 
 parse_let_in var (IOk val (HP.TCons (HP.TSymTok "in") rest)) = finish_let var val (parse_expr rest)
 parse_let_in _ (IOk _ _) = IErr "expected 'in'"
