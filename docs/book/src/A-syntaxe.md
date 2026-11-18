@@ -141,12 +141,15 @@ Liaison locale. Le nom est visible dans la partie après `in`.
 
 ## if
 
-    if cond then a else b          -- forme infixe
-    (if cond a b)                  -- forme prefixe
+La forme Heaven à privilégier est la forme infixe :
 
-Les deux formes sont acceptees et equivalentes. La forme infixe
-`if cond then a else b` est la plus lisible pour les expressions
-courantes ; la forme prefixe reste utile pour les cas imbriques.
+    if cond then a else b
+
+La forme préfixe `(if cond a b)` est également reconnue par certains
+chemins du parseur, mais reste une notation de compatibilité. Elle ne
+doit pas être utilisée comme forme de référence dans les programmes,
+les exemples ou les tests. Pour les expressions imbriquées, conserver
+la syntaxe Heaven infixe.
 
 ## data
 

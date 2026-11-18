@@ -73,41 +73,20 @@ début.
 
 *Vérifiable : cette commande fonctionne telle quelle dans le REPL.*
 
-## 3. Deux notations pour dire la même chose
+## 3. La syntaxe naturelle de Heaven
 
-Heaven accepte deux façons de dire la même chose.
+Heaven privilégie la **notation infixe** : l’opérateur se place entre ses arguments, comme en mathématiques.
 
-![Infixe vs préfixe](images/01-infix-prefix.svg)
-
-La première, celle qu'on vient d'utiliser, s'appelle la **notation
-infixe** : l'opérateur `+` est *entre* ses deux arguments, comme
-dans `1 + 2`. C'est ce que tu écris sur une feuille de papier.
-
-La seconde vient d'un autre jeu de langage, né dans les années
-1950 avec le langage **Lisp** (inventé par John McCarthy). On écrit :
-
-    heaven> (+ 1 2)
+    heaven> 1 + 2
     3
 
-Ici, l'opérateur `+` est *au début*, comme un prédicat en logique
-formelle. Le mathématicien Gottlob Frege, à la fin du XIXᵉ siècle,
-avait déjà remarqué que la notation `+ 1 2` (sans infixe) est plus
-**régulière** que `1 + 2` : elle ne souffre d'aucune ambiguïté.
-C'est la notation qu'il utilisait dans sa *Begriffsschrift* (1879),
-le livre qui a fondé la logique moderne.
+C’est la syntaxe à employer dans les programmes, les exemples et les exercices de ce livre.
 
-Frege avait une idée profonde : le signe `+` n'est pas un objet,
-c'est un **concept** — une fonction incomplète qui attend ses
-arguments. `1 + 2` et `(+ 1 2)` sont deux manières de « remplir »
-ce concept avec ses arguments.
+La notation préfixe `(+ 1 2)`, historiquement associée à Lisp et à la logique formelle, reste utile pour comprendre certaines représentations internes et des exemples de compatibilité. Elle est secondaire : ce n’est pas la syntaxe de référence pour écrire du Heaven.
 
-Les deux notations se valent. C'est une affaire de **style**, pas de
-**vérité**. Dans ce livre, on utilisera le plus souvent l'infixe,
-plus familier. Mais tu verras parfois la notation de Frege, notamment
-quand on parlera de fonctions qui prennent plusieurs arguments.
+Frege utilisait une notation fonctionnelle dans sa *Begriffsschrift* (1879). Cette parenté historique est intéressante, mais Heaven privilégie la lisibilité de l’infixe.
 
-*Vérifiable : les exemples ci-dessus fonctionnent tels quels.*
-
+*Vérifiable : `1 + 2` fonctionne directement dans le REPL.*
 
 ## 4. Une fonction, c'est un concept
 
@@ -271,8 +250,10 @@ le REPL. `"42" + 1` produit une erreur de type.*
 - Un **jeu de langage** (Wittgenstein) : des règles qu'on suit
   sans avoir besoin de les justifier.
 - Un **REPL** : boucle interactive *lire-évaluer-afficher-recommencer*.
-- Deux notations pour la même chose : **infixe** (`1 + 2`) et
-  **préfixe** (`(+ 1 2)`, notation de Frege).
+- La syntaxe **infixe** de Heaven : `1 + 2`. C'est la forme
+  normale à privilégier dans les programmes, les exemples et les tests.
+  Les S-expressions (`(+ 1 2)`) relèvent des représentations internes
+  et des explications bas niveau.
 - Une **fonction** est un concept (Frege) : une règle qui prend
   un argument et rend un résultat.
 - La **récursion** : une définition qui s'appelle elle-même,
