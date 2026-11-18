@@ -732,10 +732,26 @@ pub const MirFunction = struct {
         return true;
     }
 
-    /// Un pattern litteral entier ou booleen (true -> 1, false -> 0).
-    fn scalarPatternLit(store: *Store, pat_id: Id) !?Id {
+    /// Un pattern scalaire compilable par egalite entiere :
+    /// entier, booleen (true/True -> 1, false/False -> 0), ou constructeur ADT 0-aire.
+    fn scalarPatternLit(self: *MirFunction, store: *Store, pat_id: Id) !?Id {
         const lp = store.lowerRec(pat_id) catch return null;
         const n = store.get(lp);
+        if (n.tag == .sym) {
+            const name = store.interner.resolve(n.payload);
+            if (std.mem.eql(u8, name, "true") or std.mem.eql(u8, name, "True")) return try store.int(1);
+            if (std.mem.eql(u8, name, "false") or std.mem.eql(u8, name, "False")) return try store.int(0);
+            if (self.engine) |eng| {
+                if (eng.fns.get(name)) |fd| {
+                    if (fd.ctor_arity) |arity| {
+                        if (arity == 0) {
+                            if (fd.ctor_tag) |tag| return try store.int(@intCast(tag));
+                        }
+                    }
+                }
+            }
+            return null;
+        }
         if (n.tag != .lit) return null;
         return switch (store.lits.items[n.aux]) {
             .int => lp,
@@ -758,7 +774,7 @@ pub const MirFunction = struct {
             for (0..c.num_patterns) |i| {
                 const pid = c.patterns[i];
                 if (self.isVarPattern(store, pid)) continue;
-                const slit = scalarPatternLit(store, pid) catch return false;
+                const slit = self.scalarPatternLit(store, pid) catch return false;
                 if (slit != null) continue;
                 return false;
             }
@@ -786,7 +802,7 @@ pub const MirFunction = struct {
             // conjonction des tests scalaires (entiers / booleens) et de la garde
             var cond: ?Id = null;
             for (0..c.num_patterns) |i| {
-                const lp = (try scalarPatternLit(store, c.patterns[i])) orelse continue;
+                const lp = (try self.scalarPatternLit(store, c.patterns[i])) orelse continue;
                 const psym = try multiParamSym(store, i);
                 const arg = try store.sym(store.interner.resolve(psym));
                 const t = try store.binop("=", arg, lp);

@@ -180,6 +180,7 @@ fn parseClause(trimmed: []const u8) ?struct { name: []const u8, info: ClauseInfo
     if (std.mem.indexOfScalar(u8, pattern, ' ') != null) return null;
     if (std.mem.eql(u8, name, "main")) return null;
     if (std.mem.eql(u8, pattern, "true") or std.mem.eql(u8, pattern, "false")) return null;
+    if (std.ascii.isUpper(pattern[0])) return null;
     return .{ .name = name, .info = .{ .pattern = pattern, .body = rhs } };
 }
 
