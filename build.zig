@@ -1835,6 +1835,8 @@ pub fn build(b: *std.Build) void {
     const run_test_knowledge = b.addRunArtifact(test_knowledge);
 
     const test_step = b.step("test", "Run all tests");
+    const test_engine_step = b.step("test-engine", "Run engine_expr tests only");
+    test_engine_step.dependOn(&b.addRunArtifact(test_engine).step);
 
     const test_serialize = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/core/serialize.zig"),
