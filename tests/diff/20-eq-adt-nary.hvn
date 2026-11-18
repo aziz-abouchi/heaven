@@ -1,0 +1,8 @@
+data IList = INil | ICons Int IList
+lenL INil = 0
+lenL (ICons _ r) = (+ 1 (lenL r))
+lenL _ = 0
+sumL INil = 0
+sumL (ICons h t) = (+ h (sumL t))
+sumL _ = 0
+(+ (lenL (ICons 10 (ICons 20 (ICons 30 INil)))) (sumL (ICons 10 (ICons 20 (ICons 30 INil)))))

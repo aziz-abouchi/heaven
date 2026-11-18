@@ -324,6 +324,7 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
     defer if (owned_lhs) |s| cmds.allocator.free(s);
     if (std.mem.indexOfScalar(u8, lhs, '(') != null) {
         const open = std.mem.indexOfScalar(u8, lhs, '(') orelse return cmds.allocator.dupe(u8, "syntax error");
+        if (std.mem.indexOfScalar(u8, lhs[0..open], ' ') == null) {
         const close = std.mem.indexOfScalar(u8, lhs, ')') orelse return cmds.allocator.dupe(u8, "syntax error");
         if (close != lhs.len - 1) return cmds.allocator.dupe(u8, "syntax error: unexpected chars after )");
         const name = std.mem.trim(u8, lhs[0..open], " ");
@@ -338,6 +339,7 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
         }
         owned_lhs = try converted.toOwnedSlice(cmds.allocator);
         lhs = owned_lhs.?;
+        }
     }
 
     const wrapped_lhs = try std.fmt.allocPrint(cmds.allocator, "({s})", .{lhs});

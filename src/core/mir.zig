@@ -763,6 +763,71 @@ pub const MirFunction = struct {
     /// Soundness : on ne compile que ce qu'on sait traduire fidelement.
     /// Supporte : variables, wildcards `_`, entiers, booleens (`true`/`false`),
     /// et gardes (`| cond`) avec derniere clause generale non gardee.
+    const NaryCtorPat = struct {
+        tag: u8,
+        args: [8]Id,
+        len: usize,
+    };
+
+    /// Deroule une application potentiellement curryfiee `((Ctor a0) a1) ...`
+    /// vers la tete symbole et la liste plate d'arguments `[a0, a1, ...]`.
+    fn unwindCurriedApply(store: *Store, root_id: Id, out_args: *[8]Id) ?struct { head_sym: Sym, len: usize } {
+        var cur = root_id;
+        var rev: [8]Id = undefined;
+        var count: usize = 0;
+        while (true) {
+            const n = store.get(cur);
+            if (n.tag != .apply) break;
+            const raw = n.span_a.slice(store.pool.items);
+            if (n.payload == 0) {
+                if (raw.len < 2) return null;
+                var i: usize = raw.len;
+                while (i > 1) {
+                    i -= 1;
+                    if (count >= 8) return null;
+                    rev[count] = raw[i];
+                    count += 1;
+                }
+                cur = raw[0];
+                continue;
+            }
+            const head_matches = raw.len > 0 and (raw[0] == n.payload or
+                (store.get(raw[0]).tag == .sym and store.get(n.payload).tag == .sym and
+                 store.get(raw[0]).payload == store.get(n.payload).payload));
+            const slice = if (head_matches) raw[1..] else raw;
+            var i: usize = slice.len;
+            while (i > 0) {
+                i -= 1;
+                if (count >= 8) return null;
+                rev[count] = slice[i];
+                count += 1;
+            }
+            cur = n.payload;
+        }
+        if (count == 0) return null;
+        const head = store.get(cur);
+        if (head.tag != .sym) return null;
+        for (0..count) |k| {
+            out_args[k] = rev[count - 1 - k];
+        }
+        return .{ .head_sym = head.payload, .len = count };
+    }
+
+    fn naryCtorPattern(self: *MirFunction, store: *Store, pat_id: Id) ?NaryCtorPat {
+        var args_buf: [8]Id = undefined;
+        const unwound = unwindCurriedApply(store, pat_id, &args_buf) orelse return null;
+        const cname = store.interner.resolve(unwound.head_sym);
+        const eng = self.engine orelse return null;
+        const fd = eng.fns.get(cname) orelse return null;
+        const arity = fd.ctor_arity orelse return null;
+        if (arity == 0 or unwound.len != arity) return null;
+        const tag = fd.ctor_tag orelse return null;
+        for (0..unwound.len) |i| {
+            if (!self.isVarPattern(store, args_buf[i])) return null;
+        }
+        return .{ .tag = tag, .args = args_buf, .len = unwound.len };
+    }
+
     fn multiClauseEligible(self: *MirFunction, def: *const engine_mod.FunctionDef) bool {
         const store = self.store orelse return false;
         const n = def.num_clauses;
@@ -776,6 +841,7 @@ pub const MirFunction = struct {
                 if (self.isVarPattern(store, pid)) continue;
                 const slit = self.scalarPatternLit(store, pid) catch return false;
                 if (slit != null) continue;
+                if (self.naryCtorPattern(store, pid) != null) continue;
                 return false;
             }
         }
@@ -797,9 +863,62 @@ pub const MirFunction = struct {
         while (ci > 0) {
             ci -= 1;
             const c = def.clauses[ci];
-            const body = try store.lowerRec(c.body);
+            var inner_body = try store.lowerRec(c.body);
 
-            // conjonction des tests scalaires (entiers / booleens) et de la garde
+            var pi_field: usize = c.num_patterns;
+            while (pi_field > 0) {
+                pi_field -= 1;
+                const nc = self.naryCtorPattern(store, c.patterns[pi_field]) orelse continue;
+                const psym = try multiParamSym(store, pi_field);
+                var fi: usize = nc.len;
+                while (fi > 0) {
+                    fi -= 1;
+                    const sub = nc.args[fi];
+                    if (store.get(sub).tag != .sym) continue;
+                    const fname = store.interner.resolve(store.get(sub).payload);
+                    if (std.mem.eql(u8, fname, "_")) continue;
+                    const arg = try store.sym(store.interner.resolve(psym));
+                    const off_id = try store.int(@intCast((fi + 1) * 8));
+                    const load_expr = try store.apply(try store.sym("__mir_load_at"), &.{ arg, off_id });
+                    const b = try store.bind(fname, load_expr);
+                    const bn = store.get(b);
+                    store.pool.items[bn.span_a.start + 1] = inner_body;
+                    inner_body = b;
+                }
+            }
+
+            if (c.guard) |g| {
+                if (!have_result) return error.UnsupportedExpr;
+                const lg = try store.lowerRec(g);
+                inner_body = try store.apply(try store.sym("if"), &.{ lg, inner_body, result });
+            }
+
+            var pi_tag: usize = c.num_patterns;
+            while (pi_tag > 0) {
+                pi_tag -= 1;
+                const nc = self.naryCtorPattern(store, c.patterns[pi_tag]) orelse continue;
+                if (!have_result) return error.UnsupportedExpr;
+                const psym = try multiParamSym(store, pi_tag);
+                const arg_tag = try store.sym(store.interner.resolve(psym));
+                const zero_off = try store.int(0);
+                const loaded_tag = try store.apply(try store.sym("__mir_load_at"), &.{ arg_tag, zero_off });
+                const expected_tag = try store.int(@intCast(nc.tag));
+                const tag_eq = try store.binop("=", loaded_tag, expected_tag);
+                inner_body = try store.apply(try store.sym("if"), &.{ tag_eq, inner_body, result });
+            }
+
+            var pi_ptr: usize = c.num_patterns;
+            while (pi_ptr > 0) {
+                pi_ptr -= 1;
+                if (self.naryCtorPattern(store, c.patterns[pi_ptr]) == null) continue;
+                if (!have_result) return error.UnsupportedExpr;
+                const psym = try multiParamSym(store, pi_ptr);
+                const arg_ptr = try store.sym(store.interner.resolve(psym));
+                const min_ptr = try store.int(4096);
+                const is_ptr = try store.binop(">=", arg_ptr, min_ptr);
+                inner_body = try store.apply(try store.sym("if"), &.{ is_ptr, inner_body, result });
+            }
+
             var cond: ?Id = null;
             for (0..c.num_patterns) |i| {
                 const lp = (try self.scalarPatternLit(store, c.patterns[i])) orelse continue;
@@ -808,21 +927,11 @@ pub const MirFunction = struct {
                 const t = try store.binop("=", arg, lp);
                 cond = if (cond) |prev| try store.binop("*", prev, t) else t;
             }
-            if (c.guard) |g| {
-                const lg = try store.lowerRec(g);
-                cond = if (cond) |prev| try store.binop("*", prev, lg) else lg;
-            }
-
-            var clause_expr: Id = undefined;
             if (cond) |cnd| {
                 if (!have_result) return error.UnsupportedExpr;
-                clause_expr = try store.apply(try store.sym("if"), &.{ cnd, body, result });
-            } else {
-                clause_expr = body; // clause generale : masque les suivantes
+                inner_body = try store.apply(try store.sym("if"), &.{ cnd, inner_body, result });
             }
 
-            // lier les variables de pattern aux parametres autour de (if cond body result)
-            // afin que la garde ET le corps aient acces aux variables liees
             var pi: usize = c.num_patterns;
             while (pi > 0) {
                 pi -= 1;
@@ -835,11 +944,11 @@ pub const MirFunction = struct {
                 const arg = try store.sym(store.interner.resolve(psym));
                 const b = try store.bind(pname, arg);
                 const bn = store.get(b);
-                store.pool.items[bn.span_a.start + 1] = clause_expr;
-                clause_expr = b;
+                store.pool.items[bn.span_a.start + 1] = inner_body;
+                inner_body = b;
             }
 
-            result = clause_expr;
+            result = inner_body;
             have_result = true;
         }
         return result;
@@ -907,9 +1016,6 @@ pub const MirFunction = struct {
             if (fn_def_user.ctor_arity != null) continue;
             if (fn_def_user.num_clauses == 0) continue;
             if (fn_def_user.num_clauses > 1) {
-                // Multi-clauses : seul le sous-ensemble desugarable
-                // (patterns variable/entier, sans garde, derniere clause
-                // generale) est compile. Le reste reste a l'interpreteur.
                 if (!self.multiClauseEligible(&fn_def_user)) continue;
                 try eligible.append(self.allocator, name_str);
                 continue;
@@ -1229,21 +1335,58 @@ pub const MirFunction = struct {
                 }
             },
             .apply => {
+                if (self.engine) |engine| {
+                    var curried_args: [8]Id = undefined;
+                    if (unwindCurriedApply(store, id, &curried_args)) |unwound| {
+                        const cname = store.interner.resolve(unwound.head_sym);
+                        if (engine.fns.get(cname)) |fd| {
+                            if (fd.ctor_arity) |arity| {
+                                if (arity > 0 and unwound.len == arity) {
+                                    const tag = fd.ctor_tag orelse return error.UnsupportedExpr;
+                                    const dest = self.newReg();
+                                    const total_bytes: u32 = @as(u32, arity + 1) * 8;
+                                    try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                        .alloc = .{ .dest = dest, .size = total_bytes },
+                                    });
+                                    const tag_reg = self.newReg();
+                                    try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                        .const_int = .{ .dest = tag_reg, .value = @intCast(tag) },
+                                    });
+                                    try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                        .store_at = .{ .base = dest, .offset = 0, .src = tag_reg },
+                                    });
+                                    for (0..unwound.len) |k| {
+                                        const arg_reg = try self.compileExpr(store, curried_args[k], target_block, locals);
+                                        try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                            .store_at = .{ .base = dest, .offset = @intCast((k + 1) * 8), .src = arg_reg },
+                                        });
+                                    }
+                                    return dest;
+                                }
+                            }
+                        }
+                    }
+                }
+                var unwound_buf: [8]Id = undefined;
+                var op_name: []const u8 = undefined;
+                var op_sym: Sym = 0;
+                var args: []const Id = undefined;
                 const func_node = store.get(node.payload);
-                if (func_node.tag != .sym) {
+                if (func_node.tag == .sym) {
+                    op_sym = func_node.payload;
+                    op_name = store.interner.resolve(op_sym);
+                    const raw_args = node.span_a.slice(store.pool.items);
+                    args = if (raw_args.len > 0 and raw_args[0] == node.payload)
+                        raw_args[1..]
+                    else
+                        raw_args;
+                } else if (unwindCurriedApply(store, id, &unwound_buf)) |uw| {
+                    op_sym = uw.head_sym;
+                    op_name = store.interner.resolve(op_sym);
+                    args = unwound_buf[0..uw.len];
+                } else {
                     return error.UnsupportedExpr;
                 }
-                const op_name = store.interner.resolve(func_node.payload);
-                // Convention Store : span_a[0] = func_id (docs/spec/
-                // _store_invariants.md). Certains tests construisent
-                // span_a = [arg0, arg1, ...] (sans le func). On
-                // normalise : si le premier arg est le func lui-meme,
-                // on le saute.
-                const raw_args = node.span_a.slice(store.pool.items);
-                const args = if (raw_args.len > 0 and raw_args[0] == node.payload)
-                    raw_args[1..]
-                else
-                    raw_args;
 
                 if (std.mem.eql(u8, op_name, "while") and args.len == 2) {
                     return try self.compileWhile(store, args[0], args[1], target_block, locals);
@@ -1303,10 +1446,14 @@ pub const MirFunction = struct {
 
                 if (args.len == 2 and (std.mem.eql(u8, op_name, "==") or std.mem.eql(u8, op_name, "eq") or
                     std.mem.eql(u8, op_name, "!=") or std.mem.eql(u8, op_name, "neq") or
-                    std.mem.eql(u8, op_name, "lt") or std.mem.eql(u8, op_name, "gt") or
-                    std.mem.eql(u8, op_name, "le") or std.mem.eql(u8, op_name, "ge") or
-                    std.mem.eql(u8, op_name, "add") or std.mem.eql(u8, op_name, "sub") or
-                    std.mem.eql(u8, op_name, "mul") or std.mem.eql(u8, op_name, "div")))
+                    std.mem.eql(u8, op_name, "lt") or std.mem.eql(u8, op_name, "<") or std.mem.eql(u8, op_name, "gt") or std.mem.eql(u8, op_name, ">") or
+                    std.mem.eql(u8, op_name, "le") or std.mem.eql(u8, op_name, "<=") or std.mem.eql(u8, op_name, "ge") or std.mem.eql(u8, op_name, ">=") or
+                    std.mem.eql(u8, op_name, "<") or std.mem.eql(u8, op_name, ">") or
+                    std.mem.eql(u8, op_name, "<=") or std.mem.eql(u8, op_name, ">=") or
+                    std.mem.eql(u8, op_name, "add") or std.mem.eql(u8, op_name, "+") or std.mem.eql(u8, op_name, "sub") or std.mem.eql(u8, op_name, "-") or
+                    std.mem.eql(u8, op_name, "mul") or std.mem.eql(u8, op_name, "*") or std.mem.eql(u8, op_name, "div") or std.mem.eql(u8, op_name, "/") or
+                    std.mem.eql(u8, op_name, "+") or std.mem.eql(u8, op_name, "-") or
+                    std.mem.eql(u8, op_name, "*") or std.mem.eql(u8, op_name, "/")))
                 {
                     const lhs = try self.compileExpr(store, args[0], target_block, locals);
                     const rhs = try self.compileExpr(store, args[1], target_block, locals);
@@ -1320,36 +1467,77 @@ pub const MirFunction = struct {
                         const one = self.newReg();
                         try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
                         try instrs.append(self.allocator, .{ .sub = .{ .dest = dest, .lhs = one, .rhs = eq } });
-                    } else if (std.mem.eql(u8, op_name, "lt")) {
+                    } else if (std.mem.eql(u8, op_name, "lt") or std.mem.eql(u8, op_name, "<")) {
                         try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
-                    } else if (std.mem.eql(u8, op_name, "gt")) {
+                    } else if (std.mem.eql(u8, op_name, "gt") or std.mem.eql(u8, op_name, ">")) {
                         try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = dest, .lhs = rhs, .rhs = lhs } });
-                    } else if (std.mem.eql(u8, op_name, "le")) {
+                    } else if (std.mem.eql(u8, op_name, "le") or std.mem.eql(u8, op_name, "<=")) {
                         const lt = self.newReg();
                         try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = lt, .lhs = rhs, .rhs = lhs } });
                         const one = self.newReg();
                         try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
                         try instrs.append(self.allocator, .{ .sub = .{ .dest = dest, .lhs = one, .rhs = lt } });
-                    } else if (std.mem.eql(u8, op_name, "ge")) {
+                    } else if (std.mem.eql(u8, op_name, "ge") or std.mem.eql(u8, op_name, ">=")) {
                         const lt = self.newReg();
                         try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = lt, .lhs = lhs, .rhs = rhs } });
                         const one = self.newReg();
                         try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
                         try instrs.append(self.allocator, .{ .sub = .{ .dest = dest, .lhs = one, .rhs = lt } });
-                    } else if (std.mem.eql(u8, op_name, "add")) {
+                    } else if (std.mem.eql(u8, op_name, "add") or std.mem.eql(u8, op_name, "+")) {
                         try instrs.append(self.allocator, .{ .add = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
-                    } else if (std.mem.eql(u8, op_name, "sub")) {
+                    } else if (std.mem.eql(u8, op_name, "sub") or std.mem.eql(u8, op_name, "-")) {
                         try instrs.append(self.allocator, .{ .sub = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
-                    } else if (std.mem.eql(u8, op_name, "mul")) {
+                    } else if (std.mem.eql(u8, op_name, "mul") or std.mem.eql(u8, op_name, "*")) {
                         try instrs.append(self.allocator, .{ .mul = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
-                    } else if (std.mem.eql(u8, op_name, "div")) {
+                    } else if (std.mem.eql(u8, op_name, "div") or std.mem.eql(u8, op_name, "/")) {
                         try instrs.append(self.allocator, .{ .div = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
                     }
                     return dest;
                 }
 
-                // Appel de fonction utilisateur
+                if (std.mem.eql(u8, op_name, "__mir_load_at") and args.len == 2) {
+                    const p_in = try self.compileExpr(store, args[0], target_block, locals);
+                    const off_node = store.get(args[1]);
+                    if (off_node.tag != .lit) return error.UnsupportedExpr;
+                    const off_val = switch (store.lits.items[off_node.aux]) {
+                        .int => |v| v,
+                        else => return error.UnsupportedExpr,
+                    };
+                    const dest = self.newReg();
+                    try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                        .load_at = .{ .dest = dest, .base = p_in, .offset = @intCast(off_val) },
+                    });
+                    return dest;
+                }
+
+                // Appel de fonction utilisateur ou constructeur ADT n-aire
                 if (self.engine) |engine| {
+                    if (engine.fns.get(op_name)) |fd| {
+                        if (fd.ctor_arity) |arity| {
+                            if (arity > 0 and args.len == arity) {
+                                const tag = fd.ctor_tag orelse return error.UnsupportedExpr;
+                                const dest = self.newReg();
+                                const total_bytes: u32 = @as(u32, arity + 1) * 8;
+                                try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                    .alloc = .{ .dest = dest, .size = total_bytes },
+                                });
+                                const tag_reg = self.newReg();
+                                try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                    .const_int = .{ .dest = tag_reg, .value = @intCast(tag) },
+                                });
+                                try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                    .store_at = .{ .base = dest, .offset = 0, .src = tag_reg },
+                                });
+                                for (args, 0..) |arg, k| {
+                                    const arg_reg = try self.compileExpr(store, arg, target_block, locals);
+                                    try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                        .store_at = .{ .base = dest, .offset = @intCast((k + 1) * 8), .src = arg_reg },
+                                    });
+                                }
+                                return dest;
+                            }
+                        }
+                    }
                     if (engine.fns.get(op_name) != null) {
                         var arg_regs = std.ArrayListUnmanaged(Id){};
                         defer arg_regs.deinit(self.allocator);
@@ -1358,7 +1546,7 @@ pub const MirFunction = struct {
                             try arg_regs.append(self.allocator, arg_reg);
                         }
                         const dest = self.newReg();
-                        const name_sym = func_node.payload;
+                        const name_sym = op_sym;
                         const arg_slice = try self.allocator.dupe(Id, arg_regs.items);
                         errdefer self.allocator.free(arg_slice);
                         try self.blocks.items[target_block].instrs.append(self.allocator, .{
@@ -1400,7 +1588,7 @@ pub const MirFunction = struct {
                         try arg_regs.append(self.allocator, arg_reg);
                     }
                     const dest = self.newReg();
-                    const name_sym = func_node.payload;
+                    const name_sym = op_sym;
                     const arg_slice = try self.allocator.dupe(Id, arg_regs.items);
                     errdefer self.allocator.free(arg_slice);
                     try self.blocks.items[target_block].instrs.append(self.allocator, .{

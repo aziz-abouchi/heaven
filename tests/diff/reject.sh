@@ -11,8 +11,8 @@ check() {  # nom source
   "$H" compile-qbe "$tmp/$1.hvn" -o "$tmp/$1.bin" >/dev/null 2>&1
   if [ -x "$tmp/$1.bin" ]; then echo "FAIL $1 : binaire produit (valeur inventee ?)"; fail=$((fail+1)); else echo "OK   $1 rejete"; fi
 }
-check nocatch      $'g 0 = 1\ng 1 = 2\n(g 5)'
-check nocatch2     $'g 0 a = 1\ng 1 a = 2\n(g 5 0)'
+check nocatch       $'g 0 = 1\ng 1 = 2\n(g 5)'
+check nocatch2      $'g 0 a = 1\ng 1 a = 2\n(g 5 0)'
 check guard_nocatch $'h n | n > 0 = 1\nh n | n < 0 = 2\n(h 0)'
-check ctor         $'data L = nil | cons x xs\nlen nil = 0\nlen (cons _ r) = 1 + len r\n(len (cons 1 (cons 2 nil)))'
+check nested_ctor   $'data L = Nil | Cons x xs\nlen (Cons (Cons _ _) r) = 1 + len r\nlen _ = 0\n(len (Cons Nil Nil))'
 echo "reject: $fail echec(s)"; exit $fail
