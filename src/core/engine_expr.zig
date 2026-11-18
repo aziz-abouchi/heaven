@@ -1032,8 +1032,8 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
             return error.UnboundVariable;
         },
         .apply => {
-            const pool = store.pool.items;
-            const all_args = node.span_a.slice(pool);
+            const all_args = try store.copyPoolSlice(store.spanSliceConst(node.span_a));
+            defer store.allocator.free(all_args);
             if (all_args.len == 0) {
                 return error.ArityMismatch;
             }

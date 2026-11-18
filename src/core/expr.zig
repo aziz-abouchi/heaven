@@ -684,7 +684,7 @@ pub const Store = struct {
         return copy;
     }
 
-    fn copyPoolSlice(self: *Store, s: []const Id) ![]Id {
+    pub fn copyPoolSlice(self: *Store, s: []const Id) ![]Id {
         const copy = try self.allocator.alloc(Id, s.len);
         @memcpy(copy, s);
         return copy;
