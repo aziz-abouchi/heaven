@@ -177,6 +177,28 @@ fn parseClause(trimmed: []const u8) ?struct { name: []const u8, info: ClauseInfo
     return .{ .name = name, .info = .{ .pattern = pattern, .body = rhs } };
 }
 
+/// Enregistre les clauses d'origine telles quelles dans l'engine.
+/// precompileUserFns (mir.zig) desugare celles qui sont eligibles et
+/// rejette explicitement les autres (UnsupportedCall), au lieu de
+/// fabriquer une reponse par defaut.
+fn registerClausesRaw(
+    alloc: std.mem.Allocator,
+    heaven: *heaven_expr.Heaven,
+    name: []const u8,
+    clauses: []const ClauseInfo,
+) !void {
+    for (clauses) |c| {
+        var cb: std.ArrayList(u8) = .empty;
+        defer cb.deinit(alloc);
+        try cb.writer(alloc).print("{s} {s} = {s}", .{ name, c.pattern, c.body });
+        const m2 = heaven.eval(cb.items) catch |e2| {
+            platform.debug.print("[compile-qbe] warn: clause {s} {s} rejetee ({s})\n", .{ name, c.pattern, @errorName(e2) });
+            continue;
+        };
+        alloc.free(m2);
+    }
+}
+
 fn flushPendingClauses(
     alloc: std.mem.Allocator,
     heaven: *heaven_expr.Heaven,
@@ -216,11 +238,20 @@ fn flushPendingClauses(
                 try w.writeByte(ca.body[j]);
                 j += 1;
             }
-        } else try w.writeAll("0");
+        } else {
+            // Pas de clause generale : l'ancienne fusion retournait 0 en
+            // silence (reponse fausse vs interpreteur). On n'invente plus de
+            // valeur par defaut : repli sur l'engine, rejet explicite si
+            // non desugarable.
+            platform.debug.print("[compile-qbe] warn: {s} sans clause generale -> pas de valeur par defaut\n", .{name});
+            try registerClausesRaw(alloc, heaven, name, clauses);
+            continue;
+        }
         for (0..n_ifs) |_| try w.writeByte(')');
         const merged = buf.items;
         const msg = heaven.eval(merged) catch |e| {
-            platform.debug.print("[compile-qbe] warn: merge {s} echoue ({s})\n", .{ name, @errorName(e) });
+            platform.debug.print("[compile-qbe] warn: merge texte {s} echoue ({s}) -> clauses enregistrees telles quelles (MIR multi-clauses)\n", .{ name, @errorName(e) });
+            try registerClausesRaw(alloc, heaven, name, clauses);
             continue;
         };
         alloc.free(msg);

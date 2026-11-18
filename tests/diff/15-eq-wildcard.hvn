@@ -1,0 +1,4 @@
+pick 0 _ = 10
+pick _ 0 = 20
+pick a b = a * b
+(pick 3 4) + (pick 0 9) * 100 + (pick 5 0) * 10000

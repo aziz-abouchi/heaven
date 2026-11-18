@@ -275,7 +275,10 @@ test "qbe — transitif : éligible appelle exclu → UnsupportedCall" {
 
     const f_sym = store.interner.lookup("f").?;
     const g_sym = store.interner.lookup("g").?;
-    try std.testing.expect(mf.fn_defs.contains(f_sym));
+    // Contrat (retrait transitif) : f (eligible) appelle g (exclue) -> f est
+    // retiree de fn_defs au lieu d'empoisonner tout le module. L'appel de la
+    // racine vers f reste rejete explicitement (UnsupportedCall), jamais stubbe.
+    try std.testing.expect(!mf.fn_defs.contains(f_sym));
     try std.testing.expect(!mf.fn_defs.contains(g_sym));
 
     const entry = try mf.newBlock();
