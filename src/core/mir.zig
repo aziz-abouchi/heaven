@@ -707,6 +707,179 @@ pub const MirFunction = struct {
         };
     }
 
+    /// Nom du parametre synthetique i d'une fonction multi-clauses.
+    fn multiParamSym(store: *Store, i: usize) !Sym {
+        var buf: [16]u8 = undefined;
+        const nm = try std.fmt.bufPrint(&buf, "__a{d}", .{i});
+        return try store.interner.intern(nm);
+    }
+
+    /// Un pattern de clause est une *variable* s'il s'agit d'un symbole qui
+    /// n'est ni un constructeur connu, ni true/false, ni capitalise.
+    fn isVarPattern(self: *MirFunction, store: *Store, pat_id: Id) bool {
+        const pat = store.get(pat_id);
+        if (pat.tag == .hole) return true; // wildcard `_`
+        if (pat.tag != .sym) return false;
+        const name = store.interner.resolve(pat.payload);
+        if (name.len == 0) return false;
+        if (std.ascii.isUpper(name[0])) return false;
+        if (std.mem.eql(u8, name, "true") or std.mem.eql(u8, name, "false")) return false;
+        if (self.engine) |eng| {
+            if (eng.fns.get(name)) |f| {
+                if (f.ctor_arity != null) return false;
+            }
+        }
+        return true;
+    }
+
+    /// Un pattern scalaire compilable par egalite entiere :
+    /// entier, booleen (true/True -> 1, false/False -> 0), ou constructeur ADT 0-aire.
+    fn scalarPatternLit(self: *MirFunction, store: *Store, pat_id: Id) !?Id {
+        const lp = store.lowerRec(pat_id) catch return null;
+        const n = store.get(lp);
+        if (n.tag == .sym) {
+            const name = store.interner.resolve(n.payload);
+            if (std.mem.eql(u8, name, "true") or std.mem.eql(u8, name, "True")) return try store.int(1);
+            if (std.mem.eql(u8, name, "false") or std.mem.eql(u8, name, "False")) return try store.int(0);
+            if (self.engine) |eng| {
+                if (eng.fns.get(name)) |fd| {
+                    if (fd.ctor_arity) |arity| {
+                        if (arity == 0) {
+                            if (fd.ctor_tag) |tag| return try store.int(@intCast(tag));
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+        if (n.tag != .lit) return null;
+        return switch (store.lits.items[n.aux]) {
+            .int => lp,
+            .boolean => |b| try store.int(if (b) 1 else 0),
+            else => null,
+        };
+    }
+
+    /// Soundness : on ne compile que ce qu'on sait traduire fidelement.
+    /// Supporte : variables, wildcards `_`, entiers, booleens (`true`/`false`),
+    /// et gardes (`| cond`) avec derniere clause generale non gardee.
+    fn multiClauseEligible(self: *MirFunction, def: *const engine_mod.FunctionDef) bool {
+        const store = self.store orelse return false;
+        const n = def.num_clauses;
+        const arity = def.clauses[0].num_patterns;
+        if (arity == 0) return false;
+        for (0..n) |ci| {
+            const c = def.clauses[ci];
+            if (c.num_patterns != arity) return false;
+            for (0..c.num_patterns) |i| {
+                const pid = c.patterns[i];
+                if (self.isVarPattern(store, pid)) continue;
+                const slit = self.scalarPatternLit(store, pid) catch return false;
+                if (slit != null) continue;
+                return false;
+            }
+        }
+        const last = def.clauses[n - 1];
+        if (last.guard != null) return false;
+        for (0..last.num_patterns) |i| {
+            if (!self.isVarPattern(store, last.patterns[i])) return false;
+        }
+        return true;
+    }
+
+    /// Desugare les clauses en une expression Core :
+    ///   let vars in (if (tests_et_garde) body1 (if ...))
+    fn desugarClauses(self: *MirFunction, store: *Store, def: *const engine_mod.FunctionDef) !Id {
+        const n = def.num_clauses;
+        var result: Id = 0;
+        var have_result = false;
+        var ci: usize = n;
+        while (ci > 0) {
+            ci -= 1;
+            const c = def.clauses[ci];
+            const body = try store.lowerRec(c.body);
+
+            // conjonction des tests scalaires (entiers / booleens) et de la garde
+            var cond: ?Id = null;
+            for (0..c.num_patterns) |i| {
+                const lp = (try self.scalarPatternLit(store, c.patterns[i])) orelse continue;
+                const psym = try multiParamSym(store, i);
+                const arg = try store.sym(store.interner.resolve(psym));
+                const t = try store.binop("=", arg, lp);
+                cond = if (cond) |prev| try store.binop("*", prev, t) else t;
+            }
+            if (c.guard) |g| {
+                const lg = try store.lowerRec(g);
+                cond = if (cond) |prev| try store.binop("*", prev, lg) else lg;
+            }
+
+            var clause_expr: Id = undefined;
+            if (cond) |cnd| {
+                if (!have_result) return error.UnsupportedExpr;
+                clause_expr = try store.apply(try store.sym("if"), &.{ cnd, body, result });
+            } else {
+                clause_expr = body; // clause generale : masque les suivantes
+            }
+
+            // lier les variables de pattern aux parametres autour de (if cond body result)
+            // afin que la garde ET le corps aient acces aux variables liees
+            var pi: usize = c.num_patterns;
+            while (pi > 0) {
+                pi -= 1;
+                const pid = c.patterns[pi];
+                if (!self.isVarPattern(store, pid)) continue;
+                if (store.get(pid).tag != .sym) continue;
+                const pname = store.interner.resolve(store.get(pid).payload);
+                if (std.mem.eql(u8, pname, "_")) continue;
+                const psym = try multiParamSym(store, pi);
+                const arg = try store.sym(store.interner.resolve(psym));
+                const b = try store.bind(pname, arg);
+                const bn = store.get(b);
+                store.pool.items[bn.span_a.start + 1] = clause_expr;
+                clause_expr = b;
+            }
+
+            result = clause_expr;
+            have_result = true;
+        }
+        return result;
+    }
+
+    /// Retire de fn_defs, jusqu'au point fixe, toute fonction qui appelle
+    /// une fonction absente de fn_defs.
+    fn pruneOrphanCallers(self: *MirFunction) !void {
+        var doomed: std.ArrayListUnmanaged(Sym) = .{};
+        defer doomed.deinit(self.allocator);
+        while (true) {
+            doomed.clearRetainingCapacity();
+            var it = self.fn_defs.iterator();
+            while (it.next()) |entry| {
+                var orphan = false;
+                for (entry.value_ptr.fn_mir.blocks.items) |*blk| {
+                    for (blk.instrs.items) |inst| {
+                        switch (inst) {
+                            .call_user => |c| {
+                                if (!self.fn_defs.contains(c.name)) orphan = true;
+                            },
+                            else => {},
+                        }
+                    }
+                    if (orphan) break;
+                }
+                if (orphan) try doomed.append(self.allocator, entry.key_ptr.*);
+            }
+            if (doomed.items.len == 0) return;
+            for (doomed.items) |name_sym| {
+                if (self.fn_defs.fetchRemove(name_sym)) |kv| {
+                    var v = kv.value;
+                    v.fn_mir.deinit();
+                    self.allocator.free(v.param_names);
+                    self.allocator.free(v.param_regs);
+                }
+            }
+        }
+    }
+
     /// Precompile les fonctions utilisateur (engine.fns) en fn_defs MIR.
     /// Permet a compileExpr de resoudre les `call_user` vers des
     /// fonctions definies par equation (`fn name(args) = body`).
@@ -732,7 +905,15 @@ pub const MirFunction = struct {
             const fn_def_user = entry.value_ptr.*;
 
             if (fn_def_user.ctor_arity != null) continue;
-            if (fn_def_user.num_clauses != 1) continue;
+            if (fn_def_user.num_clauses == 0) continue;
+            if (fn_def_user.num_clauses > 1) {
+                // Multi-clauses : seul le sous-ensemble desugarable
+                // (patterns variable/entier, sans garde, derniere clause
+                // generale) est compile. Le reste reste a l'interpreteur.
+                if (!self.multiClauseEligible(&fn_def_user)) continue;
+                try eligible.append(self.allocator, name_str);
+                continue;
+            }
 
             const clause = fn_def_user.clauses[0];
 
@@ -782,7 +963,10 @@ pub const MirFunction = struct {
 
             for (0..clause.num_patterns) |i| {
                 const pat_node = store.get(clause.patterns[i]);
-                const param_sym = pat_node.payload;
+                const param_sym = if (fn_def_user.num_clauses > 1)
+                    try multiParamSym(store, i)
+                else
+                    pat_node.payload;
                 const reg = fn_mir.newReg();
                 param_regs[i] = reg;
                 param_names[i] = param_sym;
@@ -821,7 +1005,10 @@ pub const MirFunction = struct {
             // `apply(sym(op), [a, b])`. La conversion legacy → Core
             // se fait en amont via `lower`/`lowerRec` (expr.zig) et
             // le même pipeline que `parseLastExpr` (qbe_cmd/wasm_cmd).
-            const lowered_body = store.lowerRec(clause.body) catch |err| {
+            const lowered_body = (if (fn_def_user.num_clauses > 1)
+                self.desugarClauses(store, &fn_def_user)
+            else
+                store.lowerRec(clause.body)) catch |err| {
                 std.debug.print(
                     "[MIR precompile] lowerRec failed: {s}: {s}\\n",
                     .{ name_str, @errorName(err) },
@@ -853,6 +1040,15 @@ pub const MirFunction = struct {
                 def.fn_mir.blocks.items[0].terminator = .{ .ret = result };
             }
         }
+
+        // Retrait transitif des fonctions orphelines : une fonction dont le
+        // corps appelle (call_user) un nom absent de fn_defs ne peut pas etre
+        // emise (checkCallUsers la rejette a juste titre, sans stub). Sans ce
+        // retrait, UNE fonction non compilable du prelude (ex. sup_restart,
+        // multi-clauses a constructeurs) fait echouer TOUT programme.
+        // Le root, lui, reste verifie plus tard : un appel reel vers une
+        // fonction retiree donne toujours UnsupportedCall (rejet explicite).
+        try self.pruneOrphanCallers();
 
         // G.34 fix : migrer str_pool des fn_defs vers root.
         // Pour chaque const_str dans chaque fn_def, on ajoute la
@@ -1013,6 +1209,11 @@ pub const MirFunction = struct {
                         try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = v } });
                         return dest;
                     },
+                    .boolean => |b| {
+                        const dest = self.newReg();
+                        try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = if (b) 1 else 0 } });
+                        return dest;
+                    },
                     .str => |sym| {
                         // 2026-10-30 : strings litterales via const_str.
                         // Sym = index interner, bytes valides tant que
@@ -1100,6 +1301,53 @@ pub const MirFunction = struct {
                     return dest;
                 }
 
+                if (args.len == 2 and (std.mem.eql(u8, op_name, "==") or std.mem.eql(u8, op_name, "eq") or
+                    std.mem.eql(u8, op_name, "!=") or std.mem.eql(u8, op_name, "neq") or
+                    std.mem.eql(u8, op_name, "lt") or std.mem.eql(u8, op_name, "gt") or
+                    std.mem.eql(u8, op_name, "le") or std.mem.eql(u8, op_name, "ge") or
+                    std.mem.eql(u8, op_name, "add") or std.mem.eql(u8, op_name, "sub") or
+                    std.mem.eql(u8, op_name, "mul") or std.mem.eql(u8, op_name, "div")))
+                {
+                    const lhs = try self.compileExpr(store, args[0], target_block, locals);
+                    const rhs = try self.compileExpr(store, args[1], target_block, locals);
+                    const dest = self.newReg();
+                    const instrs = &self.blocks.items[target_block].instrs;
+                    if (std.mem.eql(u8, op_name, "==") or std.mem.eql(u8, op_name, "eq")) {
+                        try instrs.append(self.allocator, .{ .cmp_eq = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    } else if (std.mem.eql(u8, op_name, "!=") or std.mem.eql(u8, op_name, "neq")) {
+                        const eq = self.newReg();
+                        try instrs.append(self.allocator, .{ .cmp_eq = .{ .dest = eq, .lhs = lhs, .rhs = rhs } });
+                        const one = self.newReg();
+                        try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
+                        try instrs.append(self.allocator, .{ .sub = .{ .dest = dest, .lhs = one, .rhs = eq } });
+                    } else if (std.mem.eql(u8, op_name, "lt")) {
+                        try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    } else if (std.mem.eql(u8, op_name, "gt")) {
+                        try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = dest, .lhs = rhs, .rhs = lhs } });
+                    } else if (std.mem.eql(u8, op_name, "le")) {
+                        const lt = self.newReg();
+                        try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = lt, .lhs = rhs, .rhs = lhs } });
+                        const one = self.newReg();
+                        try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
+                        try instrs.append(self.allocator, .{ .sub = .{ .dest = dest, .lhs = one, .rhs = lt } });
+                    } else if (std.mem.eql(u8, op_name, "ge")) {
+                        const lt = self.newReg();
+                        try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = lt, .lhs = lhs, .rhs = rhs } });
+                        const one = self.newReg();
+                        try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
+                        try instrs.append(self.allocator, .{ .sub = .{ .dest = dest, .lhs = one, .rhs = lt } });
+                    } else if (std.mem.eql(u8, op_name, "add")) {
+                        try instrs.append(self.allocator, .{ .add = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    } else if (std.mem.eql(u8, op_name, "sub")) {
+                        try instrs.append(self.allocator, .{ .sub = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    } else if (std.mem.eql(u8, op_name, "mul")) {
+                        try instrs.append(self.allocator, .{ .mul = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    } else if (std.mem.eql(u8, op_name, "div")) {
+                        try instrs.append(self.allocator, .{ .div = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    }
+                    return dest;
+                }
+
                 // Appel de fonction utilisateur
                 if (self.engine) |engine| {
                     if (engine.fns.get(op_name) != null) {
@@ -1175,8 +1423,16 @@ pub const MirFunction = struct {
                         .{ .div = .{ .dest = dest, .lhs = lhs, .rhs = rhs } }
                     else if (std.mem.eql(u8, op_name, "<"))
                         .{ .cmp_lt = .{ .dest = dest, .lhs = lhs, .rhs = rhs } }
-                    else if (std.mem.eql(u8, op_name, "="))
+                    else if (std.mem.eql(u8, op_name, "=") or std.mem.eql(u8, op_name, "=="))
                         .{ .cmp_eq = .{ .dest = dest, .lhs = lhs, .rhs = rhs } }
+                    else if (std.mem.eql(u8, op_name, "!=")) blk: {
+                        const eq = self.newReg();
+                        const instrs = &self.blocks.items[target_block].instrs;
+                        try instrs.append(self.allocator, .{ .cmp_eq = .{ .dest = eq, .lhs = lhs, .rhs = rhs } });
+                        const one = self.newReg();
+                        try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
+                        break :blk .{ .sub = .{ .dest = dest, .lhs = one, .rhs = eq } };
+                    }
                     else if (std.mem.eql(u8, op_name, ">"))
                         .{ .cmp_lt = .{ .dest = dest, .lhs = rhs, .rhs = lhs } }
                     else if (std.mem.eql(u8, op_name, "<=")) blk: {

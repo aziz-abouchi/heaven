@@ -1,0 +1,4 @@
+classify n | n > 0 = 10
+classify n | n == 0 = 20
+classify n = 30
+(+ (+ (classify 5) (classify 0)) (classify (- 0 3)))

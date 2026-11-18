@@ -66,7 +66,7 @@ test "precompileUserFns — clause gardée exclue de fn_defs (soundness)" {
 }
 
 
-test "precompileUserFns — multi-clause exclue de fn_defs" {
+test "precompileUserFns — multi-clause sans clause generale exclue de fn_defs" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
@@ -75,12 +75,13 @@ test "precompileUserFns — multi-clause exclue de fn_defs" {
     const env = try expr.Env.create(alloc);
     var engine = engine_expr.Engine.initTest(alloc, &store, env);
 
-    const pat = try store.sym("n");
+    // f 0 = 0 ; f 1 = 1 : aucune clause generale -> pas de valeur par
+    // defaut inventee, la fonction reste hors de fn_defs (rejet explicite).
     const key_sym = try store.interner.intern("f_multi");
     const key = store.interner.resolve(key_sym);
     var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
-    try fd.addClause(&.{pat}, try store.int(0));
-    try fd.addClause(&.{pat}, try store.int(1));
+    try fd.addClause(&.{try store.int(0)}, try store.int(0));
+    try fd.addClause(&.{try store.int(1)}, try store.int(1));
     try engine.fns.put(alloc, key, fd);
 
     var mf = mir.MirFunction.initWithStore(alloc, &store);
@@ -89,6 +90,31 @@ test "precompileUserFns — multi-clause exclue de fn_defs" {
     try mf.precompileUserFns();
 
     try std.testing.expect(!mf.fn_defs.contains(key_sym));
+}
+
+test "precompileUserFns — multi-clause entier + clause generale compilee" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var store = expr.Store.init(alloc);
+    const env = try expr.Env.create(alloc);
+    var engine = engine_expr.Engine.initTest(alloc, &store, env);
+
+    // f 0 = 1 ; f n = 2
+    const key_sym = try store.interner.intern("f_eq");
+    const key = store.interner.resolve(key_sym);
+    var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
+    try fd.addClause(&.{try store.int(0)}, try store.int(1));
+    try fd.addClause(&.{try store.sym("n")}, try store.int(2));
+    try engine.fns.put(alloc, key, fd);
+
+    var mf = mir.MirFunction.initWithStore(alloc, &store);
+    defer mf.deinit();
+    mf.engine = &engine;
+    try mf.precompileUserFns();
+
+    try std.testing.expect(mf.fn_defs.contains(key_sym));
 }
 
 test "precompileUserFns — motif constructeur exclu de fn_defs" {

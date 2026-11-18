@@ -1138,37 +1138,48 @@ return try evalMagic(store, env, engine, op_name, args, depth);
         .bind => {
             if (node.span_a.len < 1) return error.ArityMismatch;
             const val = try evaluate(store, env, engine, store.spanSliceConst(node.span_a)[0], depth + 1);
+            const previous = env.get(node.payload);
             try env.put(node.payload, val);
-            const result = if (node.span_a.len >= 2)
+            defer {
+                if (previous) |old| {
+                    const slot = env.bindings.getPtr(node.payload) orelse unreachable;
+                    slot.* = old;
+                } else {
+                    env.delete(node.payload);
+                }
+            }
+            return if (node.span_a.len >= 2)
                 try evaluate(store, env, engine, store.spanSliceConst(node.span_a)[1], depth + 1)
             else
                 val;
-            env.delete(node.payload);
-            return result;
         },
         .letrec => {
             // letrec : la variable est visible dans sa propre valeur (pour récursion)
             if (node.span_a.len < 1) return error.ArityMismatch;
 
-            // Créer un placeholder pour le binding (permet la référence circulaire)
+            const previous = env.get(node.payload);
             const placeholder = try store.sym("__letrec_placeholder__");
             try env.put(node.payload, placeholder);
+            defer {
+                if (previous) |old| {
+                    const slot = env.bindings.getPtr(node.payload) orelse unreachable;
+                    slot.* = old;
+                } else {
+                    env.delete(node.payload);
+                }
+            }
 
-            // Évaluer la valeur avec le binding déjà présent (pour récursion)
+            // Évaluer la valeur avec le placeholder déjà présent.
             const val = try evaluate(store, env, engine, store.spanSliceConst(node.span_a)[0], depth + 1);
 
-            // Mettre à jour le binding avec la vraie valeur
-            env.delete(node.payload);
-            try env.put(node.payload, val);
+            // Remplacer le placeholder sans supprimer la clé de l'environnement.
+            const slot = env.bindings.getPtr(node.payload) orelse unreachable;
+            slot.* = val;
 
-            // Évaluer le body
-            const result = if (node.span_a.len >= 2)
+            return if (node.span_a.len >= 2)
                 try evaluate(store, env, engine, store.spanSliceConst(node.span_a)[1], depth + 1)
             else
                 val;
-
-            env.delete(node.payload);
-            return result;
         },
         .lambda => {
             return id;
@@ -3690,6 +3701,82 @@ test "engine evaluates lowered expression" {
     const lowered = try engine.store.lowerRec(frontend);
     try engine.store.assertCoreExpr(lowered);
     _ = try engine.eval(lowered);
+}
+
+test "bind imbrique restaure le binding lexical externe" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    var env = try Env.create(allocator);
+    defer env.unref();
+    var engine = Engine.initTest(allocator, &store, env);
+    defer engine.deinit();
+
+    const sym_x = try store.interner.intern("x");
+    const x_ref = try store.sym("x");
+    const one = try store.int(1);
+    const two = try store.int(2);
+    const inner = try store.bindSymWithBody(sym_x, two, x_ref);
+    const body = try store.binop("+", inner, x_ref);
+    const outer = try store.bindSymWithBody(sym_x, one, body);
+
+    const result = try engine.eval(outer);
+    const node = store.get(result);
+    try std.testing.expectEqual(expr.Tag.lit, node.tag);
+    const actual = switch (store.getLit(node.aux)) {
+        .int => |v| v,
+        else => return error.TestUnexpectedResult,
+    };
+    try std.testing.expectEqual(@as(i64, 3), actual);
+}
+
+test "bind restaure le binding apres erreur du corps" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    var env = try Env.create(allocator);
+    defer env.unref();
+    var engine = Engine.initTest(allocator, &store, env);
+    defer engine.deinit();
+
+    const sym_x = try store.interner.intern("x");
+    const one = try store.int(7);
+    const two = try store.int(2);
+    const unbound = try store.sym("missing");
+    try env.put(sym_x, one);
+
+    const binding = try store.bindSymWithBody(sym_x, two, unbound);
+    try std.testing.expectError(error.UnboundVariable, engine.eval(binding));
+    try std.testing.expectEqual(@as(?Id, one), env.get(sym_x));
+}
+
+test "letrec restaure le binding apres erreur de valeur" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+    var env = try Env.create(allocator);
+    defer env.unref();
+    var engine = Engine.initTest(allocator, &store, env);
+    defer engine.deinit();
+
+    const sym_x = try store.interner.intern("x");
+    const one = try store.int(7);
+    const missing = try store.sym("missing");
+    const x_ref = try store.sym("x");
+    try env.put(sym_x, one);
+
+    const span = try store.reserveSpan(2);
+    store.pool.items[span.start] = missing;
+    store.pool.items[span.start + 1] = x_ref;
+    const binding = try store.addNode(.{
+        .tag = .letrec,
+        .payload = sym_x,
+        .aux = 0,
+        .span_a = span,
+        .span_b = .{ .start = 0, .len = 0 },
+    });
+    try std.testing.expectError(error.UnboundVariable, engine.eval(binding));
+    try std.testing.expectEqual(@as(?Id, one), env.get(sym_x));
 }
 
 test "Env.get ne crash pas après init" {

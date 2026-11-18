@@ -1,0 +1,5 @@
+data Color = Red | Green | Blue
+code Red = 10
+code Green = 20
+code _ = 30
+(+ (+ (code Red) (code Green)) (code Blue))

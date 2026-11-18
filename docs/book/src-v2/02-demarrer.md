@@ -48,7 +48,7 @@ Puis lance-le :
 Trois choses à noter :
 
 1. L'expression s'écrit **en infixe** : `1 + 2`, pas `(+ 1 2)`.
-   Les deux formes marchent — mais l'infixe est la forme par défaut.
+   L’infixe est la syntaxe de référence de Heaven.
 2. Pas de `print`, pas de `main`. Le fichier entier est une expression.
    Heaven l'évalue et affiche le résultat. C'est le mode « script ».
 3. Le résultat s'affiche après une flèche informelle — c'est un
