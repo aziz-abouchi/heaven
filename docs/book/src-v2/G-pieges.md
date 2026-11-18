@@ -463,85 +463,97 @@ prévue : compiler les builtins en `fn_defs` (cf. ch. 39 selfhosting).
 
 Voir aussi : ch. 39 selfhosting, G.25/G.34 (patterns QBE équivalents).
 
-### G.37 — `parse_file` sur token unique → programme vide [RESOLU 2026-11-02]
+### G.37 — `parse_file` sur token unique et erreurs silencieuses
 
-> **RESOLU 2026-11-02** : `parse_top (TCons (TSymTok name) TNil) = (parse_one (TCons (TSymTok name) TNil))` ajouté. `nil`/`true`/`false` bare → `(ECons (ESym "...") ENil)`. Non-régression : `f x = ...` reste parsé via `top_named` → `def_scan`. 13/13 `test_eval`, 7/7 `test_meta_if`.
+> **Correctif du 2026-11-02 :** `parse_top` traite désormais un symbole isolé en appelant `parse_one`. Ainsi, `nil`, `true` et `false` peuvent être analysés comme des symboles seuls. Le correctif `[16]` → `[32]` dans `engine_expr.zig` a également débloqué 14 tests (`test_eval` : 4, `test_meta_if` : 10) en restaurant des clauses de `eval_apply2` et des cascades `EApply` qui étaient silencieusement supprimées.
 
-> **Mise à jour 2026-11-02.** `[16]`→`[32]` dans `engine_expr.zig` a
-> débloqué 14 tests (`test_eval` 4, `test_meta_if` 10) : les clauses
-> `VClosure`/`VRecClosure`/catch-all de `eval_apply2` (17-19) et les
-> cascades `EApply` de `parse_if` étaient silencieusement droppées.
-> Une partie des `ArityMismatch` attribués à ce piège venait en fait
-> de `[16]`, pas du parser. Les limitations restantes (listées
-> ci-dessous) sont vérifiées après `[32]`.
+La correction du cas du symbole isolé ne signifie pas que `parse_file`
+signale correctement toutes les erreurs.
 
-Découvert 2026-10-30 (session heaven_eval). `HP.parse_file (HP.lex "nil")`
-retourne `ENil` (programme vide) au lieu d'un programme à 1 instruction.
+**Limitation vérifiée dans `lib/heaven_parse.hvn` :**
 
-Conséquence : `HE.eval_file (HP.parse_file (HP.lex "nil")) HE.EnvNil`
-retourne `EnvNil` au lieu de `VListNil`.
+- `parse_file TNil = ENil` : `ENil` représente une liste vide
+  d'expressions analysées, pas la valeur Heaven `nil`.
+- `parse_top` délègue le symbole isolé à `parse_one`.
+- `parse_file_go2 (PErr e) acc _n` retourne la liste déjà accumulée :
+  l'erreur est donc silencieusement ignorée.
+- `parse_file_go` arrête également l'analyse après 5 000 formes,
+  sans retourner d'erreur de dépassement.
 
-**Contournement** : tester dans un contexte multi-token (`(if true 42 99)`,
-`(+ true 0)`), pas en bare.
+Il faut distinguer le parsing de `nil` (`ESym "nil"`) de son
+interprétation par `heaven_eval.hvn`, où `eval_sym "nil"` produit
+`VListNil`.
 
-**À investiguer** : `parse_file` (lib/heaven_parse.hvn) a probablement
-un pattern qui nécessite au moins 2 tokens. Session dédiée si le bare
-single-token devient critique.
+**Règle :** ne pas confondre liste d'expressions vide (`ENil`) et
+valeur de liste vide (`VListNil`). Une liste partielle retournée par
+`parse_file` ne garantit pas que le fichier a été entièrement analysé.
 
-Voir aussi : ch. 39 selfhosting, heaven_eval_v0.2.
+Voir aussi : G.38, ch. 39 selfhosting.
 
-### G.38 — `HP.lex`/`HP.parse_file` échouent sur `let`/`lambda` [RESOLU 2026-11-02]
+### G.38 — Routage des expressions `let` et `lambda` : heuristique à surveiller
 
-> **RESOLU 2026-11-02.** Cause exacte : `heaven_expr.zig::eval` ligne ~1262 utilisait `std.mem.indexOf(trimmed, "let ")` (brut, y compris dans les strings) pour router `(let ...)`/`(lambda ...)` vers `importExpr`. Pour `(HP.lex "let x")`, `"let x"` contient `"let "` → branche `importExpr` → thunk au lieu de `(HP.lex ...)`. Fix : helper `containsKeywordAtRoot` (skip strings) remplace `indexOf`. `HP.lex "let x"` → `(TCons (TSymTok "let") ...)`. 13/13 `test_eval`, 7/7 `test_meta_if`. Tag `g38-resolved`.
+Le correctif du 2026-11-02 a remplacé une recherche brute de
+`"let "` par `containsKeywordAtRoot` dans `heaven_expr.zig`.
+Cette fonction ignore les occurrences situées dans les chaînes
+lors du choix du chemin d'évaluation Zig. Elle évite ainsi qu'un
+mot-clé présent dans le texte d'une chaîne déclenche ce routage.
+Ce correctif concerne le dispatch de l'évaluateur, pas
+l'implémentation de `HP.lex` elle-même.
 
+**Limite de l'implémentation actuelle :** malgré son nom,
+`containsKeywordAtRoot` ne suit pas la profondeur des parenthèses.
+Elle recherche le mot-clé partout hors des chaînes et ne gère pas
+correctement les guillemets échappés. Le routage reste donc une
+heuristique lexicale, pas une analyse syntaxique.
 
+Le chemin spécial des expressions parenthésées contenant `let ` ou
+`lambda` utilise encore `self.bridge.importExpr`. Il faut distinguer
+ce routage Zig du parseur auto-hébergé `HP.lex` / `HP.parse_file`.
 
-> **Vérifié 2026-11-02 après [32] :** `λ`/`fn` marchent maintenant (cf. G.39). `let` échoue toujours (`(HP.parse_file (HP.lex "(let x 5 x)"))` retourne un thunk non forcé).
+Une observation du 2026-11-02 après le correctif `[32]` signalait
+qu'une expression telle que `(let x 5 x)` retournait un thunk non
+forcé. Cela ne suffit pas à conclure que `HP.parse_file` ne sait pas
+analyser `let` : parsing, évaluation et forçage du résultat sont
+trois étapes distinctes.
 
-> **Mise à jour 2026-11-02.** `[16]`→`[32]` dans `engine_expr.zig` a
-> débloqué 14 tests (`test_eval` 4, `test_meta_if` 10) : les clauses
-> `VClosure`/`VRecClosure`/catch-all de `eval_apply2` (17-19) et les
-> cascades `EApply` de `parse_if` étaient silencieusement droppées.
-> Une partie des `ArityMismatch` attribués à ce piège venait en fait
-> de `[16]`, pas du parser. Les limitations restantes (listées
-> ci-dessous) sont vérifiées après `[32]`.
+**Règle :** vérifier séparément les tokens produits par `HP.lex`,
+l'AST produit par `HP.parse_file` et le résultat de `HE.eval_file`.
+Ne pas déduire un échec du parseur d'un thunk non forcé.
 
-Découvert 2026-10-30 (session heaven_eval). `HP.parse_file` sur
-`(lambda x x)` ou `(let x 5 x)` ne force pas le thunk (s'affiche brut)
-ou lève `UnboundVariable`/`ArityMismatch` (Zig, pas `VErr`).
+Voir aussi : G.37, G.39, ch. 39 selfhosting.
 
-Contournement : AST hardcodé (`HP.ELambda`, `HP.EApply`, ...) ou
-primitives sans keywords (`+`, `cons`, `string_concat`).
+### G.39 — Application de lambda et ancien `ArityMismatch`
 
-**À investiguer** (session parser) : `lex_loop`/`parse_file` doivent
-forcer l'évaluation et accepter les keywords comme symbols.
+Le problème historique d'`ArityMismatch` ne venait pas de Tree-sitter
+qui aurait interprété le contenu d'une chaîne comme du code.
 
-Voir aussi : G.37 (1 token → ENil), ch. 39 selfhosting.
+La grammaire Tree-sitter traite le contenu d'une chaîne comme un
+littéral (`str`) : elle ne le reparcourt pas récursivement comme une
+expression Heaven.
 
-### G.39 — `λ`/`fn` dans un string littéral `.hvn` → ArityMismatch [RESOLU 2026-11-02]
+**Cause historique documentée dans `heaven_expr.zig` :** l'ancien
+chemin utilisant le bridge pouvait mal analyser une lambda courte
+comme `(\x. ...)`, en produisant une application d'un symbole au lieu
+d'un nœud lambda. La bêta-réduction recevait alors un AST incorrect,
+ce qui pouvait provoquer `ArityMismatch`.
 
-> **RESOLU par [32]** : `HP.parse_file (HP.lex "(λ x x)")` produit maintenant `(ECons (EApply (EApply (ESym "λ") (ESym "x")) (ESym "x")) ENil)`. Le problème n'était pas le host parser mais les clauses `VClosure`/`VRecClosure` droppées par `[16]`. `test_eval` 13/13, `test_meta_if` 7/7.
+Pour les expressions S-expression qui ne passent pas par la branche
+spéciale `let` / `lambda`, le chemin utilise `parseExpression` puis
+`engine.eval`. Des tests Zig vérifient que `λx.x` est analysé comme
+un nœud `.lambda` et que son application est analysée comme un nœud
+`.apply`.
 
-> **Mise à jour 2026-11-02.** `[16]`→`[32]` dans `engine_expr.zig` a
-> débloqué 14 tests (`test_eval` 4, `test_meta_if` 10) : les clauses
-> `VClosure`/`VRecClosure`/catch-all de `eval_apply2` (17-19) et les
-> cascades `EApply` de `parse_if` étaient silencieusement droppées.
-> Une partie des `ArityMismatch` attribués à ce piège venait en fait
-> de `[16]`, pas du parser. Les limitations restantes (listées
-> ci-dessous) sont vérifiées après `[32]`.
+**Limites à conserver dans le diagnostic :**
 
-Découvert 2026-10-30 (session parser). Le parser tree-sitter de Heaven
-(qui parse le `.hvn` de test) intercepte `λ`/`fn` **même dans une
-string** `"...((λ x x)...)"` → `error.ArityMismatch` (Zig, avant
-l'éval).
+- le routage spécial `let` / `lambda` utilise encore
+  `self.bridge.importExpr` ;
+- les tests de parsing de lambda vérifient la forme de l'AST,
+  pas nécessairement l'évaluation effective de l'application ;
+- la non-régression de l'ancien chemin du bridge n'est pas établie
+  par ces seuls tests.
 
-`HP.lex`/`parse_file` marchent pourtant correctement sur ces mots
-(testé via `HP.lex "(λ x x)"` → tokens corrects). C'est le parser
-**de l'hôte** (le `.hvn` qui contient la string) qui chie.
-
-Conséquence : tester `heaven_eval` sur `((λ x x) 5)` via `heaven run
-/tmp/test.hvn` échoue. Contournement : AST hardcodé
-(`HP.ELambda`, `HP.EApply`) ou parens sans keywords (`((+ x 1) 5)`).
+Le statut est donc : cause historique identifiée et chemin général
+corrigé, mais couverture de non-régression encore incomplète.
 
 Voir aussi : G.37, G.38, ch. 39 selfhosting.
 
