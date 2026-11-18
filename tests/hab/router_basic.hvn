@@ -18,7 +18,7 @@ test "route_lookup_empty":
 
 -- Loi Lens via helper (s hors scope après ==)
 router_lens_law s =
-  (= (router_get (router_set (router_get s) s)) (router_get s))
+  (router_get (router_set (router_get s) s)) == (router_get s)
 
 test "router_lens_laws":
   (router_lens_law (pair "/" 42)) == true

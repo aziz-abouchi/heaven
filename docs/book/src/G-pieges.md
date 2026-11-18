@@ -32,7 +32,7 @@
 
     -- CORRECT : == top-level
     test "x":
-      (+ 1 2) == 3
+      1 + 2 == 3
 
 ### G.4 — N lets + body = N+1 closes
 
@@ -40,13 +40,13 @@
     test "x":
       (let many a = 1 in
        (let many b = 2 in
-        (+ a b)) == 3
+        a + b) == 3
 
     -- CORRECT : 2 lets + body = 3 closes
     test "x":
       (let many a = 1 in
        (let many b = 2 in
-        (+ a b))) == 3
+        a + b)) == 3
 
 Règle : `scripts/check_parens.py` vérifie l'équilibre.
 

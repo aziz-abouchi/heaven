@@ -10,7 +10,7 @@
      tests/test_free.hvn (14 tests). See _doctest_failures_detail.md. -->
 
 Jusqu'ici, quand on a voulu faire quelque chose, on l'a fait tout de
-suite : `(+ 1 2)` calcule, `perform` signale, `writeFile` écrit. Le
+suite : `1 + 2` calcule, `perform` signale, `writeFile` écrit. Le
 programme **est** son exécution.
 
 Mais dans beaucoup de cas, on voudrait **décrire** un programme sans
@@ -130,7 +130,7 @@ l'AST en maintenant une pile d'entiers :
     run_eval (Pure _) stack = (if (null stack) 0 (head stack))
     run_eval (Push n rest) stack = (run_eval rest (cons n stack))
     run_eval (Add rest) stack =
-      (run_eval rest (cons (+ (head stack) (head (tail stack)))
+      (run_eval rest (cons (head stack) + (head (tail stack))
                            (tail (tail stack))))
     ...
 

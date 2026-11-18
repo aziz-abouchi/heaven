@@ -194,7 +194,7 @@ de résolution savent reconnaître et ce que le noyau sait certifier.
   dépendant les unes des autres.
 - Les preuves générales d'équivalence entre fonctions.
 
-Une expression comme `(< 2 3)` peut être calculée et produire
+Une expression comme `2 < 3` peut être calculée et produire
 `true`. Cela ne signifie pas que le système sait construire et
 certifier une preuve propositionnelle générale de `2 < 3`.
 

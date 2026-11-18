@@ -15,7 +15,7 @@ l'arbre avec une algèbre par constructeur.
 ## Implémentation
 
     html_render (pair t p) =
-      if (= t "leaf")
+      if (t == "leaf")
         p
         (string_concat "<" (string_concat t
           (string_concat ">" (string_concat

@@ -148,7 +148,7 @@ C'est intentionnel (sandbox Vessel).
 
 Exemple (testé dans `stdlib/http_body.hvn`) :
 
-    test "read_index": (> (string_length (fs_read_public "index.html")) 100)
+    test "read_index": (string_length (fs_read_public "index.html")) > 100
 
 Pour lire hors de `src/vessel/public/`, acquérir la capability
 correspondante :
@@ -190,8 +190,8 @@ Exemple (compteur d'effets) :
 
     test "handle_rec countdown 5":
       (handle_rec
-        (lambda s -> (if (= s 0) 0 (perform "tick" s)))
-        (lambda v k -> (if (= v 0) 0 (k (- v 1))))
+        (lambda s -> (if (s == 0) 0 (perform "tick" s)))
+        (lambda v k -> (if (v == 0) 0 (k (v - 1))))
         5) == 0
 
 Le handler reçoit `(v, k)` : la valeur de `perform` et la
@@ -350,7 +350,7 @@ ignorer le query string (`?t=123`, cache-buster). Sans ça,
 
     strip_query s =
       let i = (string_index_of s 63) in  -- 63 = '?'
-      (if (< i 0) s (string_substring s 0 i))
+      (if (i < 0) s (string_substring s 0 i))
 
 Validation :
 

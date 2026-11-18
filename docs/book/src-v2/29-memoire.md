@@ -26,7 +26,7 @@ nécessaire. Pas de GC, pas de refcount, pas de fuite — **en théorie**.
 > **au parse** dans `expr_parser.zig` (`countSymUses` : `uses==1` pour
 > `linear`, `uses==0` pour `erased`). Un `let linear x = 42 in (x + x)` est
 > rejeté (`error.LinearViolation`). L'érasure runtime est **partielle** : la
-> forme S-expression `(let erased …)` skip le bind (valeur parsée, jamais
+> forme interne en S-expression `(let erased …)` ignore le bind (valeur parsée, jamais
 > évaluée). **Ne sont pas couverts** : le REPL `let erased …` (évalue encore
 > la valeur), les multiplicités sur `fn`/paramètres, et le type-check
 > complet de la valeur effacée.

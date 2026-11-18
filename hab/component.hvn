@@ -35,4 +35,4 @@ leaf text                = (pair "leaf" text)
 node tag children        = (pair tag children)
 tree_tag  (pair t _)     = t
 tree_payload (pair _ p)  = p
-is_leaf (pair t _)       = (= t "leaf")
+is_leaf (pair t _)       = (t == "leaf")

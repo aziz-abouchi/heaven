@@ -4,7 +4,7 @@
 > — Gary Larson
 
 Heaven n'évalue pas seulement : il **simplifie**. Une expression
-comme `(+ x 0)` devient `x`. `(* 1 y)` devient `y`. Et si on
+comme `x + 0` devient `x`. `1 * y` devient `y`. Et si on
 pousse plus loin, on peut **démontrer** que `(a + b) + c == a + (b + c)`
 — c'est l'associativité, une règle que le moteur applique.
 
@@ -25,12 +25,12 @@ Un **E-Graph** (equality graph) est une structure qui stocke
 
 Prenons `x + 0`. Au départ, on a deux formes :
 
-    Forme A : (+ x 0)
+    Forme A : x + 0
     Forme B : x
 
-On **sait** que `(+ x 0) == x` (identité à droite pour l'addition).
+On **sait** que `x + 0 == x` (identité à droite pour l'addition).
 Alors on **fusionne** les deux formes dans une seule **classe
-d'équivalence**. Maintenant, toute règle qui s'applique à `(+ x 0)`
+d'équivalence**. Maintenant, toute règle qui s'applique à `x + 0`
 s'applique aussi à `x`.
 
 Au fur et à mesure, l'E-Graph **sature** : il ajoute les
@@ -74,14 +74,14 @@ direction, il **explore toutes**.
 
 Au REPL :
 
-    heaven> :simplify (+ x 0)
+    heaven> :simplify x + 0
     x
 
-    heaven> :simplify (* 1 (* 2 3))
+    heaven> :simplify 1 * (2 * 3)
     6
 
-    heaven> :derive (* x (sin x))
-    (+ (sin x) (* x (cos x)))
+    heaven> :derive x * x
+    x + x
 
 Le simplifier est **économe** : il applique les règles en un seul
 passage. L'E-Graph est **exhaustif** : il explore toutes les

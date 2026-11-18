@@ -18,7 +18,7 @@ router_over f s = (pair (fst s) (f (snd s)))
 -- Retourne le Child du premier route qui matche, sinon default.
 route_lookup nil path default = default
 route_lookup routes path default =
-  (if (= (fst (head routes)) path)
+  (if ((fst (head routes)) == path)
     (snd (head routes))
     (route_lookup (tail routes) path default))
 

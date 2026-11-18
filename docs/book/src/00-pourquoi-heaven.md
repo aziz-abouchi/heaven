@@ -152,7 +152,7 @@ exemples sont expliqués comme des phrases, pas comme du code.
 
 **Si tu veux juste voir Heaven en action** — essaie le REPL web
 à `https://aziz-abouchi.github.io/heaven/repl`. Tape
-`(+ 1 2)`, regarde ce qui se passe, puis reviens lire le
+`1 + 2`, regarde ce qui se passe, puis reviens lire le
 chapitre 1.
 
 ## Glossaire pour non-initiés

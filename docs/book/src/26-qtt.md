@@ -207,7 +207,7 @@ en allocation.
 
 > **Note (recon R9, 2026-10-20)** : les 3 premières lignes ✅ signifient
 > « accepté au parse et au run », pas « contrainte enforced ». `f _ =
-> let linear x = 5 in (+ x x)` (2 usages) passe silencieusement sur
+> let linear x = 5 in x + x` (2 usages) passe silencieusement sur
 > `heaven run` — le check `expr_parser.zig:742` ne fire pas. Chantier
 > Phase 2 de `_stdlib_v2_plan.md` : brancher sur `heaven run`.
 

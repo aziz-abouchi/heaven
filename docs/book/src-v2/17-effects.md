@@ -69,7 +69,7 @@ n'intercepte. Si on écrit `process 5` sans handler, le signal est
 
 ## 3. `perform` : émettre un signal
 
-`perform` s'écrit en préfixe (notation de Frege, chapitre 1) :
+`perform` introduit une opération d'effet, suivie de son nom et de sa charge utile :
 
     perform "Log" 42
 

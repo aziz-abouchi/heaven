@@ -32,7 +32,7 @@ importer le module concerne.
 
 Le type de l'argument est incompatible avec l'operation.
 
-    (+ 1 "hello")   -- addition entre int et string
+    1 + "hello"   -- addition entre int et string
 
 **Causes** : arguments de types differents, comparaison
 incompatible.
@@ -88,8 +88,8 @@ Sur `)` orpheline. Corrige en 2026-10-07 par guard `if (depth > 0)`.
 
 Le runner de test exige un operateur `==` explicite dans le body.
 
-    test "x": (> 3 0)              -- ✗ '==' manquant
-    test "x": (> 3 0) == true      -- ✓
+    test "x": 3 > 0              -- ✗ '==' manquant
+    test "x": 3 > 0 == true      -- ✓
 
 ### `':' manquant apres le nom`
 

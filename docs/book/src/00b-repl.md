@@ -21,4 +21,4 @@ Vous pouvez l'utiliser directement, sans installation.
   })();
 </script>
 
-**Astuce** : tapez `(+ 1 2)` puis Entrée pour vérifier que tout fonctionne.
+**Astuce** : tapez `1 + 2` puis Entrée pour vérifier que tout fonctionne.

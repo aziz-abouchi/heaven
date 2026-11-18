@@ -10,10 +10,10 @@ import "hab/component.hvn" as H
 counter_init _ = 0
 
 counter_update state msg =
-  (if (= msg "inc")
-    (+ state 1)
-    (if (= msg "dec")
-      (- state 1)
+  (if (msg == "inc")
+    (state + 1)
+    (if (msg == "dec")
+      (state - 1)
       state))
 
 counter_view state = (H.node "button" (cons (H.leaf (int_to_string state)) nil))

@@ -121,7 +121,7 @@ Ne **tracke pas** les appels — c'est le rôle de smocker.
     call (pair calls value) arg = (pair (cons arg calls) value)
     result (pair _ value) = value
     count (pair cs _) = ...     -- nombre d'appels
-    verify (pair cs _) expected = (= cs expected)  -- LIFO
+    verify (pair cs _) expected = cs == expected  -- LIFO
 
     seq returns = (pair nil (pair "INIT" returns))
     call_seq (pair calls (pair _ (cons v rest))) arg = ...
@@ -131,7 +131,7 @@ Le state est **threadé explicitement** via `let many`. Usage :
 
     (let many s0 = (S.mock "FAKE") in
      (let many s1 = (S.call s0 "url1") in
-      (and (= (S.result s1) "FAKE")
+      (and ((S.result s1) == "FAKE")
            (S.verify s1 (cons "url1" nil)))))
 
 ### quickcheck — propriétés sur points
@@ -145,7 +145,7 @@ Usage typique :
 
     test "add_comm":
       (Q.check
-        (lambda x -> (= (+ x 1) (+ 1 x)))
+        (lambda x -> (x + 1) == (1 + x))
         (lambda s -> (Q.gen_int s))
         100) == true
 

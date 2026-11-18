@@ -53,7 +53,7 @@ en attente. `force` la déclenche. Le résultat est **mémorisé** : un
 thunk n'est calculé qu'une fois, même si on le force plusieurs fois.
 
     heaven> let t = (delay (1 + 2)) in
-              (+ (force t) (force t))
+              (force t) + (force t)
     6
 
 Déroulons :

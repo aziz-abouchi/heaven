@@ -18,7 +18,7 @@ Loi : `router_get (router_set (router_get s) s) = router_get s`.
 
     route_lookup nil path default = default
     route_lookup routes path default =
-      if (= (fst (head routes)) path)
+      if (fst (head routes) == path)
         (snd (head routes))
         (route_lookup (tail routes) path default)
 

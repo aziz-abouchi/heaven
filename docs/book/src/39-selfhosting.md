@@ -66,8 +66,8 @@ data $heaven_argv = { l 0 }
 
 ```hvn
 -- bin/heaven.hvn V0.6
-main = (if (= (@strcmp (@argv 1) "version") 0) 1
-        (if (= (@strcmp (@argv 1) "help") 0) 2 0))
+main = (if ((@strcmp (@argv 1) "version") == 0) 1
+        (if ((@strcmp (@argv 1) "help") == 0) 2 0))
 ```
 
 ```bash

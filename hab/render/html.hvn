@@ -11,7 +11,7 @@ html_children (cons c rest) =
 
 -- catamorphisme principal
 html_render (pair t p) =
-  (if (= t "leaf")
+  (if (t == "leaf")
     p
     (string_concat "<" (string_concat t
       (string_concat ">" (string_concat

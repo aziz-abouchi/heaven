@@ -28,28 +28,26 @@ test "apply_msgs_empty": (H.apply_msgs (C.counter unit) 7 nil) == 7
 -- ═══ Propriétés quickcheck ═══
 test "prop_update_deterministic":
   (Q.check
-    (lambda n -> (= (H.apply_one (C.counter unit) n "inc")
-                    (H.apply_one (C.counter unit) n "inc")))
+    (lambda n -> (H.apply_one (C.counter unit) n "inc") == (H.apply_one (C.counter unit) n "inc"))
     (lambda s -> (Q.gen_int s)) 100) == true
 
 test "prop_inc_dec_identity":
   (Q.check
-    (lambda n -> (= (H.apply_msgs (C.counter unit) n (cons "inc" (cons "dec" nil))) n))
+    (lambda n -> (H.apply_msgs (C.counter unit) n (cons "inc" (cons "dec" nil))) == n)
     (lambda s -> (Q.gen_int s)) 100) == true
 
 replicate_msg msg 0 = nil
-replicate_msg msg n = (cons msg (replicate_msg msg (- n 1)))
+replicate_msg msg n = (cons msg (replicate_msg msg (n - 1)))
 
 test "prop_n_incs":
   (Q.check
-    (lambda n -> (= (H.apply_msgs (C.counter unit) 0 (replicate_msg "inc" n)) n))
+    (lambda n -> (H.apply_msgs (C.counter unit) 0 (replicate_msg "inc" n)) == n)
     (lambda s -> (Q.gen_range 1 20 s)) 50) == true
 
 -- ═══ Purity ═══
 test "view_pure":
-  (= ((H.component_view (C.counter unit)) 42)
-     ((H.component_view (C.counter unit)) 42)) == true
+  ((H.component_view (C.counter unit)) 42) == ((H.component_view (C.counter unit)) 42)
 
 test "view_ignores_effects":
   (let many stub = (M.fixed "SHOULD_NOT_APPEAR") in
-    (= (H.tree_tag ((H.component_view (C.counter unit)) 5)) "button")) == true
+    ((H.tree_tag ((H.component_view (C.counter unit)) 5)) == "button")) == true

@@ -74,7 +74,7 @@ construit à partir d'eux.
 
 Note : `:type ()` et `:type Float` fonctionnent dans le REPL. Il
 n'y a pas de type `Float` littéral ici, mais un calcul comme
-`(/ 3 2)` en produit.
+`3 / 2` en produit.
 
 ## 3. Le langage devine : l'inférence
 

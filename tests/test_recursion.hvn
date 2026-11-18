@@ -4,21 +4,21 @@
 -- donc on utilise des fonctions nommees.
 
 -- ─── Helpers nommes ───
-sum_f x acc = (+ x acc)
-length_f _ acc = (+ acc 1)
-product_f x acc = (* x acc)
+sum_f x acc = x + acc
+length_f _ acc = acc + 1
+product_f x acc = x * acc
 first_f x _ = x
 
 -- ana : genere [0..n-1]
-ana_test_f n = (if (< n 3) (some (pair n (+ n 1))) none)
+ana_test_f n = (if (n < 3) (some (pair n (n + 1))) none)
 ana_none _ = none
 
 -- hylo : genere [0..4] et somme
-hylo_gen n = (if (< n 5) (some (pair n (+ n 1))) none)
+hylo_gen n = (if (n < 5) (some (pair n (n + 1))) none)
 
 -- para : compte les elements (le 2e arg est la queue, ignore)
-para_count_f _ _ acc = (+ acc 1)
-para_sum_f x _ acc = (+ x acc)
+para_count_f _ _ acc = acc + 1
+para_sum_f x _ acc = x + acc
 
 -- ─── cata : consommer une structure ───
 test "cata sum nil = 0":          (cata sum_f 0 nil) == 0
