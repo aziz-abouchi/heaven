@@ -10,25 +10,10 @@
 
 ## 1. Une question simple
 
-Quand tu poses 3 + 4 sur une feuille de papier, que fais-tu ?
-
-Tu ne **penses** pas à quelque chose. Tu **suis une règle**. Une
-règle que tu as apprise enfant, qui dit : « pour additionner deux
-nombres, écris-les côte à côte et applique la table d'addition. »
-Tu regardes. Tu ne philosophes pas. Tu appliques.
-
-C'est ce que Wittgenstein appelait un **jeu de langage** : une
-activité humaine régie par des règles, où le sens des mots se
-montre dans l'usage qu'on en fait — pas dans une définition
-préalable. Une règle ne dit pas *ce qu'elle est*, elle dit *ce
-qu'il faut faire*. Le sens d'une règle, c'est la pratique qu'elle
-engendre.
-
-Heaven est un jeu de langage. C'est un ensemble de règles pour
-décrire des calculs. Ces règles, tu vas les apprendre comme on
-apprend une langue — en écoutant, en répétant, en voyant ce qui
-marche et ce qui ne marche pas. Pas besoin de comprendre *pourquoi*
-ces règles ; au début, il suffit de **regarder**.
+Apprendre Heaven, c'est apprendre un ensemble de règles pour
+décrire des calculs. Tu vas les découvrir comme on apprend une
+langue : en écoutant, en répétant, et en observant ce qui marche
+ou non. Au début, il suffit de **regarder**.
 
 ## 2. Le REPL : un dialogue socratique
 
@@ -229,23 +214,11 @@ au chapitre 2.
 
 ## 7. Pourquoi tout ce formalisme ?
 
-Platon, dans le *Ménon*, pose une question restée célèbre : quelle
-est la différence entre une **opinion vraie** et un **savoir** ?
-
-Son exemple : un esclave, sans éducation, peut répondre
-correctement à une question de géométrie. Il a une opinion vraie.
-Mais peut-il la **justifier** ? Non. Il ne sait pas *pourquoi* sa
-réponse est correcte. Il a une croyance vraie, pas une connaissance.
-
-Un programme qui passe tous ses tests ressemble à l'esclave du
-*Ménon*. Il **marche**. Il fait ce qu'il fait. Mais peut-on
-*prouver* qu'il fait toujours ce qu'il prétend ? C'est une autre
-question.
-
-Heaven essaie de répondre à cette question. Il permet d'écrire
-des programmes qu'on peut non seulement **exécuter**, mais
-**prouver** corrects. C'est l'ambition du chapitre 8 (« Preuves et
-théorèmes »).
+Le chapitre d'ouverture a posé la distinction du *Ménon* entre
+opinion vraie et savoir : réussir un test ne suffit pas à justifier
+qu'un programme est correct. Ici, l'enjeu devient technique :
+les types, les preuves et le noyau de vérification doivent permettre
+de transformer cette ambition en garanties formelles.
 
 Cette ambition n'est pas nouvelle. Elle traverse toute l'histoire
 de la logique — de Frege à Gödel, de Hilbert à Turing. Elle a
