@@ -253,12 +253,11 @@ test "wat — transitif : éligible appelle exclu → UnsupportedCall" {
     {
         const n_id = try store.sym("n");
         const g_body = try store.int(1);
-        const g_guard = try store.boolean(true);
         const key_sym = try store.interner.intern("g");
         const key = store.interner.resolve(key_sym);
         var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
         try fd.addClause(&.{n_id}, g_body);
-        fd.setLastGuard(g_guard);
+        fd.clauses[0].patterns[0] = try store.lit(.{ .str = try store.interner.intern("excluded") });
         try engine.fns.put(alloc, key, fd);
     }
 

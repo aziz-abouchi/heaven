@@ -99,12 +99,17 @@ fn isDefinition(trimmed: []const u8) bool {
     if (std.mem.startsWith(u8, trimmed, "data ")) return true;
     if (std.mem.startsWith(u8, trimmed, "theorem ")) return true;
     if (std.mem.startsWith(u8, trimmed, "actor ")) return true;
-    // Pattern `name args = body` (equations multi-clauses) OU
-    // `name(args) = body` : definition sans prefixe `fn`.
-    const eq_idx = std.mem.indexOfScalar(u8, trimmed, '=') orelse return false;
-    // Exclure les comparaisons (== , <= , >= , !=)
-    if (eq_idx + 1 < trimmed.len and trimmed[eq_idx + 1] == '=') return false;
-    if (eq_idx > 0 and (trimmed[eq_idx - 1] == '<' or trimmed[eq_idx - 1] == '>' or trimmed[eq_idx - 1] == '!')) return false;
+    // Pattern `name args = body` (equations multi-clauses, y compris gardes `| cond == val = body`)
+    // Chercher le premier `=` autonome (ni `==`, `<=`, `>=`, `!=`).
+    var eq_idx_opt: ?usize = null;
+    for (trimmed, 0..) |ch, idx| {
+        if (ch != '=') continue;
+        if (idx + 1 < trimmed.len and trimmed[idx + 1] == '=') continue;
+        if (idx > 0 and (trimmed[idx - 1] == '=' or trimmed[idx - 1] == '<' or trimmed[idx - 1] == '>' or trimmed[idx - 1] == '!')) continue;
+        eq_idx_opt = idx;
+        break;
+    }
+    const eq_idx = eq_idx_opt orelse return false;
     // LHS ne doit pas commencer par une parenthese (sinon = expression).
     const lhs = std.mem.trimLeft(u8, trimmed[0..eq_idx], " \t");
     if (lhs.len == 0 or lhs[0] == '(') return false;
@@ -174,6 +179,7 @@ fn parseClause(trimmed: []const u8) ?struct { name: []const u8, info: ClauseInfo
     if (name.len == 0 or pattern.len == 0) return null;
     if (std.mem.indexOfScalar(u8, pattern, ' ') != null) return null;
     if (std.mem.eql(u8, name, "main")) return null;
+    if (std.mem.eql(u8, pattern, "true") or std.mem.eql(u8, pattern, "false")) return null;
     return .{ .name = name, .info = .{ .pattern = pattern, .body = rhs } };
 }
 

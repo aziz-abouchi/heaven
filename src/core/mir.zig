@@ -732,22 +732,21 @@ pub const MirFunction = struct {
         return true;
     }
 
-    /// Un pattern entier : litteral Core entier apres lowering.
-    fn intPatternLit(store: *Store, pat_id: Id) ?Id {
+    /// Un pattern litteral entier ou booleen (true -> 1, false -> 0).
+    fn scalarPatternLit(store: *Store, pat_id: Id) !?Id {
         const lp = store.lowerRec(pat_id) catch return null;
         const n = store.get(lp);
         if (n.tag != .lit) return null;
         return switch (store.lits.items[n.aux]) {
             .int => lp,
+            .boolean => |b| try store.int(if (b) 1 else 0),
             else => null,
         };
     }
 
     /// Soundness : on ne compile que ce qu'on sait traduire fidelement.
-    /// Exclu (=> interpreteur / erreur explicite plutot que reponse fausse) :
-    /// gardes, patterns de constructeurs/chaines/flottants, aritees
-    /// differentes, et absence de clause finale generale (le texte actuel
-    /// de compile-qbe retournait 0 en silence dans ce cas).
+    /// Supporte : variables, wildcards `_`, entiers, booleens (`true`/`false`),
+    /// et gardes (`| cond`) avec derniere clause generale non gardee.
     fn multiClauseEligible(self: *MirFunction, def: *const engine_mod.FunctionDef) bool {
         const store = self.store orelse return false;
         const n = def.num_clauses;
@@ -755,16 +754,17 @@ pub const MirFunction = struct {
         if (arity == 0) return false;
         for (0..n) |ci| {
             const c = def.clauses[ci];
-            if (c.guard != null) return false;
             if (c.num_patterns != arity) return false;
             for (0..c.num_patterns) |i| {
                 const pid = c.patterns[i];
                 if (self.isVarPattern(store, pid)) continue;
-                if (intPatternLit(store, pid) != null) continue;
+                const slit = scalarPatternLit(store, pid) catch return false;
+                if (slit != null) continue;
                 return false;
             }
         }
         const last = def.clauses[n - 1];
+        if (last.guard != null) return false;
         for (0..last.num_patterns) |i| {
             if (!self.isVarPattern(store, last.patterns[i])) return false;
         }
@@ -772,10 +772,7 @@ pub const MirFunction = struct {
     }
 
     /// Desugare les clauses en une expression Core :
-    ///   if (tests clause1) (let vars in body1) (if (tests clause2) ... )
-    /// Les parametres sont les symboles synthetiques __a0..__aN. Les
-    /// conjonctions de tests utilisent le produit de comparaisons (0/1),
-    /// ce qui evite de dupliquer la suite des clauses.
+    ///   let vars in (if (tests_et_garde) body1 (if ...))
     fn desugarClauses(self: *MirFunction, store: *Store, def: *const engine_mod.FunctionDef) !Id {
         const n = def.num_clauses;
         var result: Id = 0;
@@ -784,39 +781,49 @@ pub const MirFunction = struct {
         while (ci > 0) {
             ci -= 1;
             const c = def.clauses[ci];
-            var body = try store.lowerRec(c.body);
-            // lier les variables de pattern aux parametres (ordre inverse
-            // pour que le premier binding soit le plus externe)
+            const body = try store.lowerRec(c.body);
+
+            // conjonction des tests scalaires (entiers / booleens) et de la garde
+            var cond: ?Id = null;
+            for (0..c.num_patterns) |i| {
+                const lp = (try scalarPatternLit(store, c.patterns[i])) orelse continue;
+                const psym = try multiParamSym(store, i);
+                const arg = try store.sym(store.interner.resolve(psym));
+                const t = try store.binop("=", arg, lp);
+                cond = if (cond) |prev| try store.binop("*", prev, t) else t;
+            }
+            if (c.guard) |g| {
+                const lg = try store.lowerRec(g);
+                cond = if (cond) |prev| try store.binop("*", prev, lg) else lg;
+            }
+
+            var clause_expr: Id = undefined;
+            if (cond) |cnd| {
+                if (!have_result) return error.UnsupportedExpr;
+                clause_expr = try store.apply(try store.sym("if"), &.{ cnd, body, result });
+            } else {
+                clause_expr = body; // clause generale : masque les suivantes
+            }
+
+            // lier les variables de pattern aux parametres autour de (if cond body result)
+            // afin que la garde ET le corps aient acces aux variables liees
             var pi: usize = c.num_patterns;
             while (pi > 0) {
                 pi -= 1;
                 const pid = c.patterns[pi];
                 if (!self.isVarPattern(store, pid)) continue;
-                if (store.get(pid).tag != .sym) continue; // wildcard : rien a lier
+                if (store.get(pid).tag != .sym) continue;
                 const pname = store.interner.resolve(store.get(pid).payload);
                 if (std.mem.eql(u8, pname, "_")) continue;
                 const psym = try multiParamSym(store, pi);
                 const arg = try store.sym(store.interner.resolve(psym));
                 const b = try store.bind(pname, arg);
                 const bn = store.get(b);
-                store.pool.items[bn.span_a.start + 1] = body;
-                body = b;
+                store.pool.items[bn.span_a.start + 1] = clause_expr;
+                clause_expr = b;
             }
-            // conjonction des tests entiers
-            var cond: ?Id = null;
-            for (0..c.num_patterns) |i| {
-                const lp = intPatternLit(store, c.patterns[i]) orelse continue;
-                const psym = try multiParamSym(store, i);
-                const arg = try store.sym(store.interner.resolve(psym));
-                const t = try store.binop("=", arg, lp);
-                cond = if (cond) |prev| try store.binop("*", prev, t) else t;
-            }
-            if (cond) |cnd| {
-                if (!have_result) return error.UnsupportedExpr; // derniere clause non generale (garde-fou)
-                result = try store.apply(try store.sym("if"), &.{ cnd, body, result });
-            } else {
-                result = body; // clause generale : masque les suivantes
-            }
+
+            result = clause_expr;
             have_result = true;
         }
         return result;
@@ -1186,6 +1193,11 @@ pub const MirFunction = struct {
                         try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = v } });
                         return dest;
                     },
+                    .boolean => |b| {
+                        const dest = self.newReg();
+                        try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = if (b) 1 else 0 } });
+                        return dest;
+                    },
                     .str => |sym| {
                         // 2026-10-30 : strings litterales via const_str.
                         // Sym = index interner, bytes valides tant que
@@ -1273,6 +1285,53 @@ pub const MirFunction = struct {
                     return dest;
                 }
 
+                if (args.len == 2 and (std.mem.eql(u8, op_name, "==") or std.mem.eql(u8, op_name, "eq") or
+                    std.mem.eql(u8, op_name, "!=") or std.mem.eql(u8, op_name, "neq") or
+                    std.mem.eql(u8, op_name, "lt") or std.mem.eql(u8, op_name, "gt") or
+                    std.mem.eql(u8, op_name, "le") or std.mem.eql(u8, op_name, "ge") or
+                    std.mem.eql(u8, op_name, "add") or std.mem.eql(u8, op_name, "sub") or
+                    std.mem.eql(u8, op_name, "mul") or std.mem.eql(u8, op_name, "div")))
+                {
+                    const lhs = try self.compileExpr(store, args[0], target_block, locals);
+                    const rhs = try self.compileExpr(store, args[1], target_block, locals);
+                    const dest = self.newReg();
+                    const instrs = &self.blocks.items[target_block].instrs;
+                    if (std.mem.eql(u8, op_name, "==") or std.mem.eql(u8, op_name, "eq")) {
+                        try instrs.append(self.allocator, .{ .cmp_eq = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    } else if (std.mem.eql(u8, op_name, "!=") or std.mem.eql(u8, op_name, "neq")) {
+                        const eq = self.newReg();
+                        try instrs.append(self.allocator, .{ .cmp_eq = .{ .dest = eq, .lhs = lhs, .rhs = rhs } });
+                        const one = self.newReg();
+                        try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
+                        try instrs.append(self.allocator, .{ .sub = .{ .dest = dest, .lhs = one, .rhs = eq } });
+                    } else if (std.mem.eql(u8, op_name, "lt")) {
+                        try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    } else if (std.mem.eql(u8, op_name, "gt")) {
+                        try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = dest, .lhs = rhs, .rhs = lhs } });
+                    } else if (std.mem.eql(u8, op_name, "le")) {
+                        const lt = self.newReg();
+                        try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = lt, .lhs = rhs, .rhs = lhs } });
+                        const one = self.newReg();
+                        try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
+                        try instrs.append(self.allocator, .{ .sub = .{ .dest = dest, .lhs = one, .rhs = lt } });
+                    } else if (std.mem.eql(u8, op_name, "ge")) {
+                        const lt = self.newReg();
+                        try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = lt, .lhs = lhs, .rhs = rhs } });
+                        const one = self.newReg();
+                        try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
+                        try instrs.append(self.allocator, .{ .sub = .{ .dest = dest, .lhs = one, .rhs = lt } });
+                    } else if (std.mem.eql(u8, op_name, "add")) {
+                        try instrs.append(self.allocator, .{ .add = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    } else if (std.mem.eql(u8, op_name, "sub")) {
+                        try instrs.append(self.allocator, .{ .sub = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    } else if (std.mem.eql(u8, op_name, "mul")) {
+                        try instrs.append(self.allocator, .{ .mul = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    } else if (std.mem.eql(u8, op_name, "div")) {
+                        try instrs.append(self.allocator, .{ .div = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    }
+                    return dest;
+                }
+
                 // Appel de fonction utilisateur
                 if (self.engine) |engine| {
                     if (engine.fns.get(op_name) != null) {
@@ -1348,8 +1407,16 @@ pub const MirFunction = struct {
                         .{ .div = .{ .dest = dest, .lhs = lhs, .rhs = rhs } }
                     else if (std.mem.eql(u8, op_name, "<"))
                         .{ .cmp_lt = .{ .dest = dest, .lhs = lhs, .rhs = rhs } }
-                    else if (std.mem.eql(u8, op_name, "="))
+                    else if (std.mem.eql(u8, op_name, "=") or std.mem.eql(u8, op_name, "=="))
                         .{ .cmp_eq = .{ .dest = dest, .lhs = lhs, .rhs = rhs } }
+                    else if (std.mem.eql(u8, op_name, "!=")) blk: {
+                        const eq = self.newReg();
+                        const instrs = &self.blocks.items[target_block].instrs;
+                        try instrs.append(self.allocator, .{ .cmp_eq = .{ .dest = eq, .lhs = lhs, .rhs = rhs } });
+                        const one = self.newReg();
+                        try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
+                        break :blk .{ .sub = .{ .dest = dest, .lhs = one, .rhs = eq } };
+                    }
                     else if (std.mem.eql(u8, op_name, ">"))
                         .{ .cmp_lt = .{ .dest = dest, .lhs = rhs, .rhs = lhs } }
                     else if (std.mem.eql(u8, op_name, "<=")) blk: {

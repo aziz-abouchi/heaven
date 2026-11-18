@@ -255,16 +255,15 @@ test "qbe — transitif : éligible appelle exclu → UnsupportedCall" {
         try fd.addClause(&.{n_id}, f_body);
         try engine.fns.put(alloc, key, fd);
     }
-    // g : 1 clause gardée → exclue
+    // g : 1 clause avec pattern string → exclue
     {
-        const n_id = try store.sym("n");
+        const str_sym = try store.interner.intern("excluded");
+        const pat_id = try store.lit(.{ .str = str_sym });
         const g_body = try store.int(1);
-        const g_guard = try store.boolean(true);
         const key_sym = try store.interner.intern("g");
         const key = store.interner.resolve(key_sym);
         var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
-        try fd.addClause(&.{n_id}, g_body);
-        fd.setLastGuard(g_guard);
+        try fd.addClause(&.{pat_id}, g_body);
         try engine.fns.put(alloc, key, fd);
     }
 

@@ -1,0 +1,4 @@
+bnot true = false
+bnot false = true
+bnot _ = false
+(if (bnot false) (if (bnot true) 0 42) 0)
