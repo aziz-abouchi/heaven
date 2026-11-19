@@ -93,7 +93,9 @@ fn isSkippable(line: []const u8) bool {
 /// Detecte une ligne de definition (fn, let, data, theorem) qui doit
 /// etre evaluee pour peupler engine.fns / engine.macros / etc., plutot
 /// que compilee directement en MIR.
-fn isDefinition(trimmed: []const u8) bool {
+/// Source unique de la regle "cette ligne est une definition" (partagee avec
+/// wasm_cmd : deux copies avaient diverge, d'ou des gardes `==` perdues).
+pub fn isDefinition(trimmed: []const u8) bool {
     if (std.mem.startsWith(u8, trimmed, "fn ")) return true;
     if (std.mem.startsWith(u8, trimmed, "let ")) return true;
     if (std.mem.startsWith(u8, trimmed, "data ")) return true;

@@ -5,6 +5,7 @@
 //! texte directement, pas besoin de wat2wasm.
 
 const std = @import("std");
+const qbe_cmd = @import("qbe_cmd.zig");
 const expr = @import("expr");
 const parse = @import("parse");
 const heaven_expr = @import("heaven_expr");
@@ -58,19 +59,6 @@ fn isSkippable(line: []const u8) bool {
     return false;
 }
 
-fn isDefinition(trimmed: []const u8) bool {
-    if (std.mem.startsWith(u8, trimmed, "fn ")) return true;
-    if (std.mem.startsWith(u8, trimmed, "let ")) return true;
-    if (std.mem.startsWith(u8, trimmed, "data ")) return true;
-    if (std.mem.startsWith(u8, trimmed, "theorem ")) return true;
-    if (std.mem.startsWith(u8, trimmed, "actor ")) return true;
-    const eq_idx = std.mem.indexOfScalar(u8, trimmed, '=') orelse return false;
-    const paren_idx = std.mem.indexOfScalar(u8, trimmed, '(') orelse return false;
-    if (paren_idx > eq_idx) return false;
-    if (eq_idx + 1 < trimmed.len and trimmed[eq_idx + 1] == '=') return false;
-    return true;
-}
-
 fn parseLastExpr(
     alloc: std.mem.Allocator,
     heaven: *heaven_expr.Heaven,
@@ -99,7 +87,7 @@ fn parseLastExpr(
             }
         }
 
-        if (isDefinition(trimmed)) {
+        if (qbe_cmd.isDefinition(trimmed)) {
             const msg = heaven.eval(trimmed) catch |e| {
                 platform.debug.print(
                     "[compile-wasm] warn: definition ignoree ({s}): {s}\n",
