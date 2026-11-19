@@ -2210,16 +2210,33 @@ const NativeParser = struct {
     }
 
     /// `let x = v in body` -> `((lambda x body) v)`.
+    /// `let linear|erased|many x = v in body` -> `(let-<kw> x v body)`
+    /// (forme S-expr QTT reconnue par ExprParser.parseSExpr, qui applique
+    /// les verifications d'usage). Un identifiant nomme `many`/`linear`/
+    /// `erased` suivi directement de `=` reste un nom de variable ordinaire.
     fn parseLetExpr(self: *NativeParser) NativeError![]u8 {
-        const name_tok = try self.lex.next();
-        if (name_tok.kind != .ident) return error.InvalidSyntax;
-        const eq_tok = try self.lex.next();
-        if (eq_tok.kind != .op or !eq(eq_tok.text, "=")) return error.InvalidSyntax;
+        const first_tok = try self.lex.next();
+        if (first_tok.kind != .ident) return error.InvalidSyntax;
+        var name = first_tok.text;
+        var qtt: ?[]const u8 = null;
+        var next_tok = try self.lex.next();
+        const is_qtt_kw = eq(first_tok.text, "linear") or
+            eq(first_tok.text, "erased") or
+            eq(first_tok.text, "many");
+        if (is_qtt_kw and next_tok.kind == .ident) {
+            qtt = first_tok.text;
+            name = next_tok.text;
+            next_tok = try self.lex.next();
+        }
+        if (next_tok.kind != .op or !eq(next_tok.text, "=")) return error.InvalidSyntax;
         const val = try self.parseExpr(0);
         const in_tok = try self.lex.next();
         if (in_tok.kind != .ident or !eq(in_tok.text, "in")) return error.InvalidSyntax;
         const body = try self.parseExpr(0);
-        return std.fmt.allocPrint(self.allocator, "((lambda {s} {s}) {s})", .{ name_tok.text, body, val });
+        if (qtt) |kw| {
+            return std.fmt.allocPrint(self.allocator, "(let-{s} {s} {s} {s})", .{ kw, name, val, body });
+        }
+        return std.fmt.allocPrint(self.allocator, "((lambda {s} {s}) {s})", .{ name, body, val });
     }
 
     /// `if cond then a else b` -> `(if cond a b)`.

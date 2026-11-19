@@ -1,0 +1,22 @@
+-- let QTT (many/linear/erased) avec valeur ou corps infixe non parenthese.
+-- Avant : la detection infixe de parseSExpr deleguait au parseur natif,
+-- qui ne connaissait pas les mots-cles QTT -> InvalidSyntax.
+
+test "qtt_body_infix_cmp": (let many s = 1 in (s + 1) == 2) == true
+test "qtt_body_parenthesized": (let many s = 1 in ((s + 1) == 2)) == true
+test "qtt_value_infix": (let many s = 1 + 1 in s) == 2
+test "qtt_value_and_body_infix": (let many s = 2 * 3 in s + 1) == 7
+test "qtt_linear_infix_body": (let linear x = 5 in x + 1) == 6
+test "qtt_erased_infix_body": (let erased x = 5 in 42 + 1) == 43
+test "qtt_linear_value_infix": (let linear x = 2 + 3 in x) == 5
+
+-- Un identifiant nomme `many` reste un nom de variable ordinaire.
+test "let_var_named_many": (let many = 3 in many + 1) == 4
+
+-- Violations QTT toujours rejetees (avec corps infixe).
+test "qtt_linear_twice_rejected": assert_err (let linear x = 5 in x + x)
+test "qtt_linear_unused_rejected": assert_err (let linear x = 5 in 1 + 2)
+test "qtt_erased_used_rejected": assert_err (let erased x = 5 in x + 1)
+
+-- Non-regression : forme sans QTT.
+test "let_plain_infix": (let s = 1 + 1 in s) == 2
