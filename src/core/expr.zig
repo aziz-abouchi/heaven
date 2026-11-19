@@ -1586,13 +1586,16 @@ pub const Store = struct {
                     if (head_node.tag == .sym) {
                         const op = self.interner.resolve(head_node.payload);
                         if (binaryPrec(op)) |prec| {
+                            const is_right_assoc = std.mem.eql(u8, op, "^");
+                            const lhs_prec: u8 = if (is_right_assoc) prec + 1 else prec;
+                            const rhs_prec: u8 = if (is_right_assoc) prec else prec + 1;
                             const need_parens = prec < parent_prec;
                             if (need_parens) try buf.append(allocator, '(');
-                            try self.formatInfixRec(args[1], buf, allocator, prec);
+                            try self.formatInfixRec(args[1], buf, allocator, lhs_prec);
                             try buf.append(allocator, ' ');
                             try buf.appendSlice(allocator, op);
                             try buf.append(allocator, ' ');
-                            try self.formatInfixRec(args[2], buf, allocator, prec + 1);
+                            try self.formatInfixRec(args[2], buf, allocator, rhs_prec);
                             if (need_parens) try buf.append(allocator, ')');
                             return;
                         }
@@ -1611,13 +1614,13 @@ pub const Store = struct {
 
     fn binaryPrec(op: []const u8) ?u8 {
         const eq = std.mem.eql;
-        if (eq(u8, op, "=")) return 1;
-        if (eq(u8, op, "||")) return 2;
-        if (eq(u8, op, "&&")) return 3;
-        if (eq(u8, op, "==") or eq(u8, op, "!=")) return 4;
-        if (eq(u8, op, "<") or eq(u8, op, ">") or eq(u8, op, "<=") or eq(u8, op, ">=")) return 5;
-        if (eq(u8, op, "+") or eq(u8, op, "-")) return 6;
-        if (eq(u8, op, "*") or eq(u8, op, "/") or eq(u8, op, "%") or eq(u8, op, "^")) return 7;
+        if (eq(u8, op, "||") or eq(u8, op, "or")) return 1;
+        if (eq(u8, op, "&&") or eq(u8, op, "and")) return 2;
+        if (eq(u8, op, "==") or eq(u8, op, "=") or eq(u8, op, "!=")) return 3;
+        if (eq(u8, op, "<") or eq(u8, op, ">") or eq(u8, op, "<=") or eq(u8, op, ">=")) return 4;
+        if (eq(u8, op, "+") or eq(u8, op, "-")) return 5;
+        if (eq(u8, op, "*") or eq(u8, op, "/") or eq(u8, op, "%")) return 6;
+        if (eq(u8, op, "^")) return 8;
         return null;
     }
 
@@ -2541,7 +2544,7 @@ test "formatInfix — preserve equality and logical precedence" {
     const formatted = try store.formatInfix(expr, std.testing.allocator);
     defer std.testing.allocator.free(formatted);
 
-    try std.testing.expectEqualStrings("x = y || z", formatted);
+    try std.testing.expectEqualStrings("x = (y || z)", formatted);
 }
 
 test "core invariant — lowered expression contains only six primitives" {
@@ -2897,4 +2900,24 @@ test "evar — isEvar rejette les non-evar" {
 
     const i = try store.int(42);
     try std.testing.expect(store.isEvar(i) == null);
+}
+
+test "formatInfix — preserve right-associative power" {
+    var store = Store.init(std.testing.allocator);
+    defer store.deinit();
+
+    const pow_op = try store.sym("^");
+    const a = try store.sym("a");
+    const b = try store.sym("b");
+    const c = try store.sym("c");
+
+    const right_nested = try store.apply(pow_op, &.{ a, try store.apply(pow_op, &.{ b, c }) });
+    const right_fmt = try store.formatInfix(right_nested, std.testing.allocator);
+    defer std.testing.allocator.free(right_fmt);
+    try std.testing.expectEqualStrings("a ^ b ^ c", right_fmt);
+
+    const left_nested = try store.apply(pow_op, &.{ try store.apply(pow_op, &.{ a, b }), c });
+    const left_fmt = try store.formatInfix(left_nested, std.testing.allocator);
+    defer std.testing.allocator.free(left_fmt);
+    try std.testing.expectEqualStrings("(a ^ b) ^ c", left_fmt);
 }

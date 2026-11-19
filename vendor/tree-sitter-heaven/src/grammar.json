@@ -10002,6 +10002,27 @@
         },
         {
           "type": "PREC_RIGHT",
+          "value": 9,
+          "content": {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "_expr"
+              },
+              {
+                "type": "STRING",
+                "value": "^"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_expr"
+              }
+            ]
+          }
+        },
+        {
+          "type": "PREC_RIGHT",
           "value": 0,
           "content": {
             "type": "SEQ",

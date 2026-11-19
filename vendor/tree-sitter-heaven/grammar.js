@@ -1608,6 +1608,7 @@ binary: ($) =>
     prec.left(5, seq($._expr, choice("++", "∘", "<>"), $._expr)),
     prec.left(6, seq($._expr, choice("+", "-"), $._expr)),
     prec.left(7, seq($._expr, choice("*", "/", "%", "×", "÷"), $._expr)),
+    prec.right(9, seq($._expr, "^", $._expr)),
     prec.right(0, seq($._expr, ">>=", $._expr)),
     prec.right(0, seq($._expr, ">>", $._expr)),
   ),
