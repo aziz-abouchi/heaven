@@ -1156,8 +1156,12 @@ pub const MirFunction = struct {
                 }
                 continue;
             };
-            if (def.fn_mir.blocks.items[0].terminator == .fallthrough) {
-                def.fn_mir.blocks.items[0].terminator = .{ .ret = result };
+            // `ret` va sur le bloc ACTIF (blk_zero) : apres un `if` le corps se
+            // termine dans le bloc de fusion, pas dans le bloc 0 (celui-ci finit
+            // par cond_br). Poser le ret sur le bloc 0 laissait la fonction sans
+            // retour : toute fonction dont le corps est un `if` renvoyait 0.
+            if (def.fn_mir.blocks.items[blk_zero].terminator == .fallthrough) {
+                def.fn_mir.blocks.items[blk_zero].terminator = .{ .ret = result };
             }
         }
 

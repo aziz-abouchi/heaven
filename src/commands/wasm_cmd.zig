@@ -44,8 +44,9 @@ fn compileRoot(
     defer locals.deinit();
     var cur_entry = entry;
     const result = try mf.compileExpr(store, body, &cur_entry, locals);
-    if (mf.blocks.items[entry].terminator == .fallthrough) {
-        mf.blocks.items[entry].terminator = .{ .ret = result };
+    // bloc ACTIF (cur_entry) : apres un `if` racine, la valeur sort du bloc de fusion.
+    if (mf.blocks.items[cur_entry].terminator == .fallthrough) {
+        mf.blocks.items[cur_entry].terminator = .{ .ret = result };
     }
     return mf;
 }
