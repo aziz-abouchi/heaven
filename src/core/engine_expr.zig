@@ -4148,6 +4148,50 @@ test "pattern — echec de clause restaure binding herite" {
     try std.testing.expectEqual(outer, result);
 }
 
+test "pattern — restaure le neuvieme binding apres echec imbrique" {
+    const allocator = std.testing.allocator;
+    var fx = try PatternFixture.init(allocator);
+    defer fx.deinit();
+
+    try fx.ctor("Pair", 2);
+    const pair = try fx.store.sym("Pair");
+
+    const names = [_][]const u8{
+        "x1", "x2", "x3", "x4", "x5",
+        "x6", "x7", "x8", "x9",
+    };
+    var vars: [9]Id = undefined;
+    for (names, 0..) |name, i| {
+        vars[i] = try fx.store.sym(name);
+    }
+
+    const outer = try fx.store.int(99);
+    try fx.env.put(vars[8], outer);
+
+    const zero = try fx.store.int(0);
+    const one = try fx.store.int(1);
+    const value = try fx.store.int(42);
+
+    // Neuf variables, puis un litteral qui provoque l'echec final.
+    var pat = try fx.store.apply(pair, &.{ vars[8], zero });
+    var arg = try fx.store.apply(pair, &.{ vars[8], one });
+
+    var i: usize = 8;
+    while (i > 0) {
+        i -= 1;
+        pat = try fx.store.apply(pair, &.{ vars[i], pat });
+        arg = try fx.store.apply(pair, &.{ value, arg });
+    }
+
+    try fx.clause("deepFallback", &.{pat}, one);
+
+    const hole = try fx.store.hole(0);
+    try fx.clause("deepFallback", &.{hole}, vars[8]);
+
+    const result = try fx.engine.evalFunction(fx.env, "deepFallback", &.{arg});
+    try std.testing.expectEqual(outer, result);
+}
+
 test "pattern — litteral" {
     const allocator = std.testing.allocator;
     var fx = try PatternFixture.init(allocator);
