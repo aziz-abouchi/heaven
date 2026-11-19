@@ -32,16 +32,73 @@ pub fn validateHpSymbol(sym: []const u8) !void {
     }
 }
 
+fn extractHpHeadAndArgs(store: *Store, node: expr.Id, out_args: *[4]expr.Id) ?struct { name: []const u8, len: usize } {
+    const n = store.get(node);
+    if (n.tag != .apply) return null;
+    const raw = n.span_a.slice(store.pool.items);
+    if (raw.len == 0) return null;
+    const head_node = store.get(raw[0]);
+    if (head_node.tag != .sym) return null;
+    const name = store.interner.resolve(head_node.payload);
+    const arg_slice = raw[1..];
+    if (arg_slice.len > out_args.len) return null;
+    for (arg_slice, 0..) |a, i| out_args[i] = a;
+    return .{ .name = name, .len = arg_slice.len };
+}
+
+fn litStringValue(store: *Store, id: expr.Id) ?[]const u8 {
+    const n = store.get(id);
+    if (n.tag != .lit) return null;
+    return switch (store.getLit(n.aux)) {
+        .str => |s| store.interner.resolve(s),
+        else => null,
+    };
+}
+
+fn litIntValue(store: *Store, id: expr.Id) ?i64 {
+    const n = store.get(id);
+    if (n.tag != .lit) return null;
+    return switch (store.getLit(n.aux)) {
+        .int => |v| v,
+        else => null,
+    };
+}
+
 /// Baisse les formes AST `HP.*` (`ELitI`, `ELitS`, `ESym`, `EApply`, `ELambda`) vers `Store`.
 pub fn lowerHpToStore(
     alloc: std.mem.Allocator,
     store: *Store,
     node: expr.Id,
 ) !expr.Id {
+    var hp_args: [4]expr.Id = undefined;
+    if (extractHpHeadAndArgs(store, node, &hp_args)) |hp| {
+        if (std.mem.eql(u8, hp.name, "HP.ELitI") and hp.len == 1) {
+            if (litIntValue(store, hp_args[0])) |v| return try store.int(v);
+        } else if (std.mem.eql(u8, hp.name, "HP.ELitS") and hp.len == 1) {
+            if (litStringValue(store, hp_args[0])) |s| {
+                return try store.lit(.{ .str = try store.interner.intern(s) });
+            }
+        } else if (std.mem.eql(u8, hp.name, "HP.ESym") and hp.len == 1) {
+            if (litStringValue(store, hp_args[0])) |s| {
+                try validateHpSymbol(s);
+                return try store.sym(s);
+            }
+        } else if (std.mem.eql(u8, hp.name, "HP.EApply") and hp.len == 2) {
+            const f_id = try lowerHpToStore(alloc, store, hp_args[0]);
+            const a_id = try lowerHpToStore(alloc, store, hp_args[1]);
+            return try store.apply(f_id, &.{a_id});
+        } else if (std.mem.eql(u8, hp.name, "HP.ELambda") and hp.len == 2) {
+            if (litStringValue(store, hp_args[0])) |param_name| {
+                const body_id = try lowerHpToStore(alloc, store, hp_args[1]);
+                return try store.lambda(&.{param_name}, body_id);
+            }
+        }
+    }
+
     const n = store.get(node);
     switch (n.tag) {
         .lit => {
-            const lit_val = store.getLit(node);
+            const lit_val = store.getLit(n.aux);
             switch (lit_val) {
                 .int => |v| return try store.int(v),
                 .str => |s_id| {
@@ -62,17 +119,16 @@ pub fn lowerHpToStore(
             return try store.bindSymWithBody(n.payload, val_id, body_id);
         },
         .apply => {
-            const fn_id = store.pool.items[n.span_a.start];
-            const arg_id = store.pool.items[n.span_a.start + 1];
-            const fn_node = store.get(fn_id);
-            if (fn_node.tag == .lambda) {
-                const val_id = try lowerHpToStore(alloc, store, arg_id);
-                const body_id = try lowerHpToStore(alloc, store, store.pool.items[fn_node.span_a.start + 1]);
-                return try store.bindSymWithBody(fn_node.payload, val_id, body_id);
+            const f_id = try lowerHpToStore(alloc, store, n.payload);
+            const source_args = store.applyArgs(n);
+            const lowered_args = try alloc.alloc(expr.Id, source_args.len);
+            defer alloc.free(lowered_args);
+
+            for (source_args, 0..) |arg_id, i| {
+                lowered_args[i] = try lowerHpToStore(alloc, store, arg_id);
             }
-            const f_id = try lowerHpToStore(alloc, store, fn_id);
-            const a_id = try lowerHpToStore(alloc, store, arg_id);
-            return try store.apply(f_id, &.{a_id});
+
+            return try store.apply(f_id, lowered_args);
         },
         else => return node,
     }
@@ -87,15 +143,20 @@ pub fn buildMirFunctionFromStore(
     errdefer mf.deinit();
     try mf.precompileUserFns();
 
-    const entry = try mf.newBlock();
+    var cur_block = try mf.newBlock();
     var locals = std.AutoHashMap(u32, Reg).init(alloc);
     defer locals.deinit();
 
-    const result = try mf.compileExpr(store, root_id, entry, locals);
-    if (mf.blocks.items[entry].terminator == .fallthrough) {
-        mf.blocks.items[entry].terminator = .{ .ret = result };
+    const result = try mf.compileExpr(store, root_id, &cur_block, locals);
+    if (mf.blocks.items[cur_block].terminator == .fallthrough) {
+        mf.blocks.items[cur_block].terminator = .{ .ret = result };
     }
     return mf;
+}
+
+pub fn isImportFailureMessage(message: []const u8) bool {
+    const trimmed = std.mem.trim(u8, message, " \t\r\n");
+    return std.mem.startsWith(u8, trimmed, "✗");
 }
 
 pub fn runCompileC(allocator: std.mem.Allocator, src_path: []const u8, out_path: []const u8) !void {
@@ -108,17 +169,26 @@ pub fn runCompileC(allocator: std.mem.Allocator, src_path: []const u8, out_path:
         allocator.destroy(heaven);
     }
 
-    _ = heaven.eval("import \"lib/parse/infix.hvn\" as Inf") catch {};
+    const import_msg = try heaven.eval("import \"lib/parse/infix.hvn\" as Inf");
+    defer allocator.free(import_msg);
+    if (isImportFailureMessage(import_msg)) {
+        platform.debug.print("[compile-c] échec import parser infixe: {s}\n", .{import_msg});
+        return error.InfixParserImportError;
+    }
 
     var cmd_buf: std.ArrayList(u8) = .empty;
     defer cmd_buf.deinit(allocator);
-    try cmd_buf.appendSlice(allocator, "Inf.parse_infix ");
+    try cmd_buf.appendSlice(allocator, "(Inf.parse_infix ");
     try appendEscapedHeavenString(allocator, &cmd_buf, std.mem.trim(u8, src_code, " \t\r\n"));
+    try cmd_buf.append(allocator, ')');
 
-    const ast_repr = try heaven.eval(cmd_buf.items);
+    const call_id = try heaven.parseExpression(cmd_buf.items);
+    const eval_id = try heaven.engine.eval(call_id);
+    const ast_repr = try expr.toStringInfix(heaven.store, eval_id, allocator);
     defer allocator.free(ast_repr);
 
     const trimmed_ast = std.mem.trim(u8, ast_repr, " \t\r\n");
+    platform.debug.print("[infix ast_repr] {s}\n", .{ trimmed_ast });
     if (std.mem.indexOf(u8, trimmed_ast, "PARSE_ERR") != null or
         std.mem.indexOf(u8, trimmed_ast, "HORS_LIMITE") != null)
     {

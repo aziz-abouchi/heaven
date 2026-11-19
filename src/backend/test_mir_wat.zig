@@ -33,10 +33,11 @@ fn compileRoot(alloc: std.mem.Allocator, store: *Store, body: expr.Id) !MirFunct
     const entry = try mf.newBlock();
     var locals = std.AutoHashMap(u32, Reg).init(alloc);
     defer locals.deinit();
-    const result = try mf.compileExpr(store, body, entry, locals);
+    var cur_entry = entry;
+    const result = try mf.compileExpr(store, body, &cur_entry, locals);
     // Ne pas écraser un terminator posé par compileIf (branch).
-    if (mf.blocks.items[entry].terminator == .fallthrough) {
-        mf.blocks.items[entry].terminator = .{ .ret = result };
+    if (mf.blocks.items[cur_entry].terminator == .fallthrough) {
+        mf.blocks.items[cur_entry].terminator = .{ .ret = result };
     }
     return mf;
 }
@@ -279,9 +280,10 @@ test "wat — transitif : éligible appelle exclu → UnsupportedCall" {
     defer locals.deinit();
     const f_id = try store.sym("f");
     const root_body = try store.apply(f_id, &.{try store.int(1)});
-    const result = try mf.compileExpr(&store, root_body, entry, locals);
-    if (mf.blocks.items[entry].terminator == .fallthrough) {
-        mf.blocks.items[entry].terminator = .{ .ret = result };
+    var cur_entry = entry;
+    const result = try mf.compileExpr(&store, root_body, &cur_entry, locals);
+    if (mf.blocks.items[cur_entry].terminator == .fallthrough) {
+        mf.blocks.items[cur_entry].terminator = .{ .ret = result };
     }
 
     if (wat.emitWat(alloc, &mf)) |buf| {
@@ -290,4 +292,74 @@ test "wat — transitif : éligible appelle exclu → UnsupportedCall" {
     } else |err| {
         try std.testing.expectEqual(@as(anyerror, error.UnsupportedCall), @as(anyerror, err));
     }
+}
+
+test "wat — non-terminal if in arithmetic expression with let binding" {
+    const alloc = std.testing.allocator;
+    var store = Store.init(alloc);
+    defer store.deinit();
+
+    const cond = try applyNoFunc(&store, try store.sym("<"), &.{ try store.int(1), try store.int(2) });
+    const if_expr = try applyNoFunc(&store, try store.sym("if"), &.{ cond, try store.int(2), try store.int(3) });
+    const add_expr = try applyNoFunc(&store, try store.sym("+"), &.{ if_expr, try store.int(1) });
+
+    var mf = try compileRoot(alloc, &store, add_expr);
+    defer mf.deinit();
+
+    var globals = std.AutoHashMap(u32, i64).init(alloc);
+    defer globals.deinit();
+    const oracle = try mf.execute(&globals);
+    try std.testing.expectEqual(@as(i64, 3), oracle);
+
+    const out_wat = try wat.emitWat(alloc, &mf);
+    defer alloc.free(out_wat);
+    try std.testing.expect(out_wat.len > 0);
+}
+
+test "wat — nested non-terminal if inside arithmetic expression" {
+    const alloc = std.testing.allocator;
+    var store = Store.init(alloc);
+    defer store.deinit();
+
+    const outer_cond = try applyNoFunc(&store, try store.sym("<"), &.{ try store.int(1), try store.int(2) });
+    const inner_cond = try applyNoFunc(&store, try store.sym(">"), &.{ try store.int(5), try store.int(2) });
+    const inner_if = try applyNoFunc(&store, try store.sym("if"), &.{ inner_cond, try store.int(10), try store.int(20) });
+    const outer_if = try applyNoFunc(&store, try store.sym("if"), &.{ outer_cond, inner_if, try store.int(30) });
+    const mul_expr = try applyNoFunc(&store, try store.sym("*"), &.{ outer_if, try store.int(2) });
+
+    var mf = try compileRoot(alloc, &store, mul_expr);
+    defer mf.deinit();
+
+    var globals = std.AutoHashMap(u32, i64).init(alloc);
+    defer globals.deinit();
+    const oracle = try mf.execute(&globals);
+    try std.testing.expectEqual(@as(i64, 20), oracle);
+
+    const out_wat = try wat.emitWat(alloc, &mf);
+    defer alloc.free(out_wat);
+    try std.testing.expect(out_wat.len > 0);
+}
+
+test "wat — non-terminal if inside break expression" {
+    const alloc = std.testing.allocator;
+    var store = Store.init(alloc);
+    defer store.deinit();
+
+    const if_cond = try applyNoFunc(&store, try store.sym("<"), &.{ try store.int(1), try store.int(2) });
+    const if_val = try applyNoFunc(&store, try store.sym("if"), &.{ if_cond, try store.int(42), try store.int(99) });
+    const brk = try applyNoFunc(&store, try store.sym("break"), &.{if_val});
+    const loop_cond = try applyNoFunc(&store, try store.sym("<"), &.{ try store.int(0), try store.int(1) });
+    const loop_expr = try applyNoFunc(&store, try store.sym("while"), &.{ loop_cond, brk });
+
+    var mf = try compileRoot(alloc, &store, loop_expr);
+    defer mf.deinit();
+
+    var globals = std.AutoHashMap(u32, i64).init(alloc);
+    defer globals.deinit();
+    const oracle = try mf.execute(&globals);
+    try std.testing.expectEqual(@as(i64, 42), oracle);
+
+    const out_wat = try wat.emitWat(alloc, &mf);
+    defer alloc.free(out_wat);
+    try std.testing.expect(out_wat.len > 0);
 }

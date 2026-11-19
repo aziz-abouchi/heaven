@@ -42,7 +42,8 @@ fn compileRoot(
     const entry = try mf.newBlock();
     var locals = std.AutoHashMap(u32, Reg).init(alloc);
     defer locals.deinit();
-    const result = try mf.compileExpr(store, body, entry, locals);
+    var cur_entry = entry;
+    const result = try mf.compileExpr(store, body, &cur_entry, locals);
     if (mf.blocks.items[entry].terminator == .fallthrough) {
         mf.blocks.items[entry].terminator = .{ .ret = result };
     }

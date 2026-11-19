@@ -62,7 +62,8 @@ pub fn evalAsm(cmds: anytype, input: []const u8) anyerror![]u8 {
     const entry_block = try mir_func.newBlock();
     var locals = std.AutoHashMap(u32, mir.Id).init(cmds.allocator);
     defer locals.deinit();
-    _ = try mir_func.compileExpr(cmds.store, id, entry_block, locals);
+    var blk_64: @import("mir").BlockId = entry_block;
+    _ = try mir_func.compileExpr(cmds.store, id, &blk_64, locals);
     mir_func.blocks.items[entry_block].terminator = .{ .ret = 0 };
     var buf = std.ArrayListUnmanaged(u8){};
     defer buf.deinit(cmds.allocator);
@@ -118,7 +119,8 @@ pub fn evalMir(cmds: anytype, input: []const u8) anyerror![]u8 {
     const entry_block = try mir_func.newBlock();
     var locals = std.AutoHashMap(u32, mir.Id).init(cmds.allocator);
     defer locals.deinit();
-    const result_val = try mir_func.compileExpr(cmds.store, id, entry_block, locals);
+    var blk_120: @import("mir").BlockId = entry_block;
+    const result_val = try mir_func.compileExpr(cmds.store, id, &blk_120, locals);
     if (mir_func.blocks.items[entry_block].terminator == .fallthrough) {
         mir_func.blocks.items[entry_block].terminator = .{ .ret = result_val };
     }

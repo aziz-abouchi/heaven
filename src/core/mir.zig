@@ -1140,7 +1140,8 @@ pub const MirFunction = struct {
                 }
                 continue;
             };
-            const result = def.fn_mir.compileExpr(store, lowered_body, 0, locals) catch |err| {
+            var blk_zero: BlockId = 0;
+            const result = def.fn_mir.compileExpr(store, lowered_body, &blk_zero, locals) catch |err| {
                 std.debug.print(
                     "[MIR precompile] compileExpr failed: {s}: {s}\\n",
                     .{ name_str, @errorName(err) },
@@ -1239,9 +1240,11 @@ pub const MirFunction = struct {
             try param_map.put(p, reg);
         }
         // Compiler le corps dans la nouvelle fonction
-        const entry = try fn_mir.newBlock();
-        const result_reg = try fn_mir.compileExpr(store, current_id, entry, param_map);
-        fn_mir.blocks.items[entry].terminator = .{ .ret = result_reg };
+        var cur_block = try fn_mir.newBlock();
+        const result_reg = try fn_mir.compileExpr(store, current_id, &cur_block, param_map);
+        if (fn_mir.blocks.items[cur_block].terminator == .fallthrough) {
+            fn_mir.blocks.items[cur_block].terminator = .{ .ret = result_reg };
+        }
         // Créer la définition
         return FnDef{
             .fn_mir = fn_mir,
@@ -1250,7 +1253,7 @@ pub const MirFunction = struct {
         };
     }
 
-    pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: BlockId, locals: std.AutoHashMap(u32, Reg)) MirError!Reg {
+    pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: *BlockId, locals: std.AutoHashMap(u32, Reg)) MirError!Reg {
         const node = store.get(id);
         // std.debug.print("[mir-tag] compileExpr tag={any}\n", .{node.tag});
         switch (node.tag) {
@@ -1290,12 +1293,12 @@ pub const MirFunction = struct {
                 // de bootstrap (0/1 inversés) qu'il ne faut pas utiliser.
                 if (std.mem.eql(u8, name, "true") or std.mem.eql(u8, name, "True")) {
                     const dest = self.newReg();
-                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = 1 } });
+                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = 1 } });
                     return dest;
                 }
                 if (std.mem.eql(u8, name, "false") or std.mem.eql(u8, name, "False")) {
                     const dest = self.newReg();
-                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = 0 } });
+                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = 0 } });
                     return dest;
                 }
                 // Ctors 0-arity user (Red, Green, ...) : tag général = position
@@ -1306,7 +1309,7 @@ pub const MirFunction = struct {
                             if (arity == 0) {
                                 if (fd.ctor_tag) |tag| {
                                     const dest = self.newReg();
-                                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = @intCast(tag) } });
+                                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = @intCast(tag) } });
                                     return dest;
                                 }
                             }
@@ -1317,7 +1320,7 @@ pub const MirFunction = struct {
                     return reg;
                 }
                 const dest = self.newReg();
-                try self.blocks.items[target_block].instrs.append(self.allocator, .{ .load = .{ .dest = dest, .sym = sym } });
+                try self.blocks.items[target_block.*].instrs.append(self.allocator, .{ .load = .{ .dest = dest, .sym = sym } });
                 return dest;
             },
             .lit => {
@@ -1325,12 +1328,12 @@ pub const MirFunction = struct {
                 switch (l) {
                     .int => |v| {
                         const dest = self.newReg();
-                        try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = v } });
+                        try self.blocks.items[target_block.*].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = v } });
                         return dest;
                     },
                     .boolean => |b| {
                         const dest = self.newReg();
-                        try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = if (b) 1 else 0 } });
+                        try self.blocks.items[target_block.*].instrs.append(self.allocator, .{ .const_int = .{ .dest = dest, .value = if (b) 1 else 0 } });
                         return dest;
                     },
                     .str => |sym| {
@@ -1341,7 +1344,7 @@ pub const MirFunction = struct {
                         const pool_idx: u32 = @intCast(self.str_pool.items.len);
                         try self.str_pool.append(self.allocator, bytes);
                         const dest = self.newReg();
-                        try self.blocks.items[target_block].instrs.append(self.allocator, .{ .const_str = .{ .dest = dest, .sym = pool_idx } });
+                        try self.blocks.items[target_block.*].instrs.append(self.allocator, .{ .const_str = .{ .dest = dest, .sym = pool_idx } });
                         return dest;
                     },
                     else => return error.UnsupportedLiteral,
@@ -1358,19 +1361,19 @@ pub const MirFunction = struct {
                                     const tag = fd.ctor_tag orelse return error.UnsupportedExpr;
                                     const dest = self.newReg();
                                     const total_bytes: u32 = @as(u32, arity + 1) * 8;
-                                    try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
                                         .alloc = .{ .dest = dest, .size = total_bytes },
                                     });
                                     const tag_reg = self.newReg();
-                                    try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
                                         .const_int = .{ .dest = tag_reg, .value = @intCast(tag) },
                                     });
-                                    try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
                                         .store_at = .{ .base = dest, .offset = 0, .src = tag_reg },
                                     });
                                     for (0..unwound.len) |k| {
                                         const arg_reg = try self.compileExpr(store, curried_args[k], target_block, locals);
-                                        try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                        try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
                                             .store_at = .{ .base = dest, .offset = @intCast((k + 1) * 8), .src = arg_reg },
                                         });
                                     }
@@ -1378,6 +1381,22 @@ pub const MirFunction = struct {
                                 }
                             }
                         }
+                    }
+                }
+                const apply_func_node = store.get(node.payload);
+                if (apply_func_node.tag == .lambda) {
+                    const raw_apply = node.span_a.slice(store.pool.items);
+                    const arg_slice = if (raw_apply.len > 0 and raw_apply[0] == node.payload)
+                        raw_apply[1..]
+                    else
+                        raw_apply;
+                    const lambda_bodies = apply_func_node.span_a.slice(store.pool.items);
+                    if (arg_slice.len == 1 and lambda_bodies.len >= 1) {
+                        const val_reg = try self.compileExpr(store, arg_slice[0], target_block, locals);
+                        var new_locals = try locals.clone();
+                        defer new_locals.deinit();
+                        try new_locals.put(apply_func_node.payload, val_reg);
+                        return try self.compileExpr(store, lambda_bodies[0], target_block, new_locals);
                     }
                 }
                 var unwound_buf: [8]Id = undefined;
@@ -1402,16 +1421,16 @@ pub const MirFunction = struct {
                 }
 
                 if (std.mem.eql(u8, op_name, "while") and args.len == 2) {
-                    return try self.compileWhile(store, args[0], args[1], target_block, locals);
+                    return try self.compileWhile(store, args[0], args[1], target_block.*, locals);
                 }
                 if (std.mem.eql(u8, op_name, "if") and args.len == 3) {
-                    return try self.compileIf(store, args[0], args[1], args[2], target_block, locals);
+                    return try self.compileIf(store, args[0], args[1], args[2], target_block.*, target_block, locals);
                 }
                 if (std.mem.eql(u8, op_name, "break") and args.len == 1) {
-                    return try self.compileBreak(store, args[0], target_block, locals);
+                    return try self.compileBreak(store, args[0], target_block.*, locals);
                 }
                 if ((std.mem.eql(u8, op_name, "^") or std.mem.eql(u8, op_name, "pow")) and args.len == 2) {
-                    return try self.compilePow(store, args[0], args[1], target_block, locals);
+                    return try self.compilePow(store, args[0], args[1], target_block.*, locals);
                 }
 
                 // 2026-10-30 : builtins heap (pair, fst, snd, cons, head, tail)
@@ -1419,7 +1438,7 @@ pub const MirFunction = struct {
                     const a = try self.compileExpr(store, args[0], target_block, locals);
                     const b = try self.compileExpr(store, args[1], target_block, locals);
                     const dest = self.newReg();
-                    const instrs = &self.blocks.items[target_block].instrs;
+                    const instrs = &self.blocks.items[target_block.*].instrs;
                     try instrs.append(self.allocator, .{ .alloc = .{ .dest = dest, .size = 16 } });
                     try instrs.append(self.allocator, .{ .store_at = .{ .base = dest, .offset = 0, .src = a } });
                     try instrs.append(self.allocator, .{ .store_at = .{ .base = dest, .offset = 8, .src = b } });
@@ -1428,20 +1447,20 @@ pub const MirFunction = struct {
                 if (std.mem.eql(u8, op_name, "fst") and args.len == 1) {
                     const p_in = try self.compileExpr(store, args[0], target_block, locals);
                     const dest = self.newReg();
-                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = p_in, .offset = 0 } });
+                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = p_in, .offset = 0 } });
                     return dest;
                 }
                 if (std.mem.eql(u8, op_name, "snd") and args.len == 1) {
                     const p_in = try self.compileExpr(store, args[0], target_block, locals);
                     const dest = self.newReg();
-                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = p_in, .offset = 8 } });
+                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = p_in, .offset = 8 } });
                     return dest;
                 }
                 if (std.mem.eql(u8, op_name, "cons") and args.len == 2) {
                     const a = try self.compileExpr(store, args[0], target_block, locals);
                     const b = try self.compileExpr(store, args[1], target_block, locals);
                     const dest = self.newReg();
-                    const instrs = &self.blocks.items[target_block].instrs;
+                    const instrs = &self.blocks.items[target_block.*].instrs;
                     try instrs.append(self.allocator, .{ .alloc = .{ .dest = dest, .size = 16 } });
                     try instrs.append(self.allocator, .{ .store_at = .{ .base = dest, .offset = 0, .src = a } });
                     try instrs.append(self.allocator, .{ .store_at = .{ .base = dest, .offset = 8, .src = b } });
@@ -1450,13 +1469,13 @@ pub const MirFunction = struct {
                 if (std.mem.eql(u8, op_name, "head") and args.len == 1) {
                     const p_in = try self.compileExpr(store, args[0], target_block, locals);
                     const dest = self.newReg();
-                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = p_in, .offset = 0 } });
+                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = p_in, .offset = 0 } });
                     return dest;
                 }
                 if (std.mem.eql(u8, op_name, "tail") and args.len == 1) {
                     const p_in = try self.compileExpr(store, args[0], target_block, locals);
                     const dest = self.newReg();
-                    try self.blocks.items[target_block].instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = p_in, .offset = 8 } });
+                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{ .load_at = .{ .dest = dest, .base = p_in, .offset = 8 } });
                     return dest;
                 }
 
@@ -1475,7 +1494,7 @@ pub const MirFunction = struct {
                     const lhs = try self.compileExpr(store, args[0], target_block, locals);
                     const rhs = try self.compileExpr(store, args[1], target_block, locals);
                     const dest = self.newReg();
-                    const instrs = &self.blocks.items[target_block].instrs;
+                    const instrs = &self.blocks.items[target_block.*].instrs;
                     if (std.mem.eql(u8, op_name, "==") or std.mem.eql(u8, op_name, "eq")) {
                         try instrs.append(self.allocator, .{ .cmp_eq = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
                     } else if (std.mem.eql(u8, op_name, "!=") or std.mem.eql(u8, op_name, "neq")) {
@@ -1523,7 +1542,7 @@ pub const MirFunction = struct {
                         else => return error.UnsupportedExpr,
                     };
                     const dest = self.newReg();
-                    try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
                         .load_at = .{ .dest = dest, .base = p_in, .offset = @intCast(off_val) },
                     });
                     return dest;
@@ -1537,19 +1556,19 @@ pub const MirFunction = struct {
                                 const tag = fd.ctor_tag orelse return error.UnsupportedExpr;
                                 const dest = self.newReg();
                                 const total_bytes: u32 = @as(u32, arity + 1) * 8;
-                                try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
                                     .alloc = .{ .dest = dest, .size = total_bytes },
                                 });
                                 const tag_reg = self.newReg();
-                                try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
                                     .const_int = .{ .dest = tag_reg, .value = @intCast(tag) },
                                 });
-                                try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
                                     .store_at = .{ .base = dest, .offset = 0, .src = tag_reg },
                                 });
                                 for (args, 0..) |arg, k| {
                                     const arg_reg = try self.compileExpr(store, arg, target_block, locals);
-                                    try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
                                         .store_at = .{ .base = dest, .offset = @intCast((k + 1) * 8), .src = arg_reg },
                                     });
                                 }
@@ -1568,7 +1587,7 @@ pub const MirFunction = struct {
                         const name_sym = op_sym;
                         const arg_slice = try self.allocator.dupe(Id, arg_regs.items);
                         errdefer self.allocator.free(arg_slice);
-                        try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                        try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
                             .call_user = .{ .dest = dest, .name = name_sym, .args = arg_slice },
                         });
                         return dest;
@@ -1583,7 +1602,7 @@ pub const MirFunction = struct {
                         self.argv_sym = try store_ref.interner.intern("heaven_argv");
                     }
                     const idx = try self.compileExpr(store, args[0], target_block, locals);
-                    const instrs = &self.blocks.items[target_block].instrs;
+                    const instrs = &self.blocks.items[target_block.*].instrs;
                     const eight = self.newReg();
                     try instrs.append(self.allocator, .{ .const_int = .{ .dest = eight, .value = 8 } });
                     const off = self.newReg();
@@ -1610,7 +1629,7 @@ pub const MirFunction = struct {
                     const name_sym = op_sym;
                     const arg_slice = try self.allocator.dupe(Id, arg_regs.items);
                     errdefer self.allocator.free(arg_slice);
-                    try self.blocks.items[target_block].instrs.append(self.allocator, .{
+                    try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
                         .extern_call = .{ .dest = dest, .name = name_sym, .args = arg_slice },
                     });
                     return dest;
@@ -1634,7 +1653,7 @@ pub const MirFunction = struct {
                         .{ .cmp_eq = .{ .dest = dest, .lhs = lhs, .rhs = rhs } }
                     else if (std.mem.eql(u8, op_name, "!=")) blk: {
                         const eq = self.newReg();
-                        const instrs = &self.blocks.items[target_block].instrs;
+                        const instrs = &self.blocks.items[target_block.*].instrs;
                         try instrs.append(self.allocator, .{ .cmp_eq = .{ .dest = eq, .lhs = lhs, .rhs = rhs } });
                         const one = self.newReg();
                         try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
@@ -1645,7 +1664,7 @@ pub const MirFunction = struct {
                     else if (std.mem.eql(u8, op_name, "<=")) blk: {
                         // x <= y  ≡  not(y < x)  →  1 - cmp_lt(y,x)
                         const lt = self.newReg();
-                        const instrs = &self.blocks.items[target_block].instrs;
+                        const instrs = &self.blocks.items[target_block.*].instrs;
                         try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = lt, .lhs = rhs, .rhs = lhs } });
                         const one = self.newReg();
                         try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
@@ -1654,7 +1673,7 @@ pub const MirFunction = struct {
                     else if (std.mem.eql(u8, op_name, ">=")) blk: {
                         // x >= y  ≡  not(x < y)
                         const lt = self.newReg();
-                        const instrs = &self.blocks.items[target_block].instrs;
+                        const instrs = &self.blocks.items[target_block.*].instrs;
                         try instrs.append(self.allocator, .{ .cmp_lt = .{ .dest = lt, .lhs = lhs, .rhs = rhs } });
                         const one = self.newReg();
                         try instrs.append(self.allocator, .{ .const_int = .{ .dest = one, .value = 1 } });
@@ -1662,7 +1681,7 @@ pub const MirFunction = struct {
                     }
                     else
                         return error.UnsupportedOp;
-                    try self.blocks.items[target_block].instrs.append(self.allocator, op);
+                    try self.blocks.items[target_block.*].instrs.append(self.allocator, op);
                     return dest;
                 }
                 return error.UnsupportedExpr;
@@ -1673,49 +1692,51 @@ pub const MirFunction = struct {
         }
     }
 
-    fn compileIf(self: *MirFunction, store: *Store, cond_id: Reg, then_id: Reg, else_id: Reg, entry_block: BlockId, locals: std.AutoHashMap(u32, Reg)) MirError!Id {
-        const cond_val = try self.compileExpr(store, cond_id, entry_block, locals);
+    fn compileIf(self: *MirFunction, store: *Store, cond_id: Reg, then_id: Reg, else_id: Reg, entry_block: BlockId, current_block: *BlockId, locals: std.AutoHashMap(u32, Reg)) MirError!Id {
+        var b_entry = entry_block;
+        const cond_val = try self.compileExpr(store, cond_id, &b_entry, locals);
         const then_block = try self.newBlock();
         const else_block = try self.newBlock();
         const merge_block = try self.newBlock();
 
-        self.blocks.items[entry_block].terminator = .{ .branch = .{ .cond = cond_val, .then_block = then_block, .else_block = else_block } };
+        self.blocks.items[b_entry].terminator = .{ .branch = .{ .cond = cond_val, .then_block = then_block, .else_block = else_block } };
 
-        const then_val = try self.compileExpr(store, then_id, then_block, locals);
-        // Si le bloc then ne s'est pas déjà terminé (par un break/ret), on jump au merge
-        if (std.meta.activeTag(self.blocks.items[then_block].terminator) == .fallthrough) {
-            self.blocks.items[then_block].terminator = .{ .jump = merge_block };
+        var b_then = then_block;
+        const then_val = try self.compileExpr(store, then_id, &b_then, locals);
+        // Si le bloc courant de la branche then ne s'est pas déjà terminé (par un break/ret), on jump au merge
+        if (std.meta.activeTag(self.blocks.items[b_then].terminator) == .fallthrough) {
+            self.blocks.items[b_then].terminator = .{ .jump = merge_block };
         }
 
-        const else_val = try self.compileExpr(store, else_id, else_block, locals);
-        if (self.blocks.items[else_block].terminator == .fallthrough) {
-            self.blocks.items[else_block].terminator = .{ .jump = merge_block };
+        var b_else = else_block;
+        const else_val = try self.compileExpr(store, else_id, &b_else, locals);
+        if (self.blocks.items[b_else].terminator == .fallthrough) {
+            self.blocks.items[b_else].terminator = .{ .jump = merge_block };
         }
 
         const phi_dest = self.newReg();
-        // Ne collecter que les blocs qui jumpent vers merge_block
+        // Ne collecter que les blocs terminaux qui jumpent vers merge_block
         var incoming = std.ArrayListUnmanaged(PhiEntry){};
         defer incoming.deinit(self.allocator);
 
-        if (std.meta.activeTag(self.blocks.items[then_block].terminator) == .jump and self.blocks.items[then_block].terminator.jump == merge_block) {
-            try incoming.append(self.allocator, .{ .value = then_val, .block = then_block });
+        if (std.meta.activeTag(self.blocks.items[b_then].terminator) == .jump and self.blocks.items[b_then].terminator.jump == merge_block) {
+            try incoming.append(self.allocator, .{ .value = then_val, .block = b_then });
         }
-        if (self.blocks.items[else_block].terminator == .jump and self.blocks.items[else_block].terminator.jump == merge_block) {
-            try incoming.append(self.allocator, .{ .value = else_val, .block = else_block });
+        if (std.meta.activeTag(self.blocks.items[b_else].terminator) == .jump and self.blocks.items[b_else].terminator.jump == merge_block) {
+            try incoming.append(self.allocator, .{ .value = else_val, .block = b_else });
         }
 
-        // S'il y a au moins un incoming, on crée un phi
+        // S'il y a au moins un incoming, on crée un phi ; on laisse merge_block en fallthrough
+        // pour permettre la poursuite dans une expression englobante.
         if (incoming.items.len > 0) {
             const incoming_copy = try self.allocator.dupe(PhiEntry, incoming.items);
             errdefer self.allocator.free(incoming_copy);
             try self.blocks.items[merge_block].instrs.append(self.allocator, .{ .phi = .{ .dest = phi_dest, .incoming = incoming_copy } });
-            self.blocks.items[merge_block].terminator = .{ .ret = phi_dest };
         } else {
-            // Pas de phi nécessaire, retourner 0
             try self.blocks.items[merge_block].instrs.append(self.allocator, .{ .const_int = .{ .dest = phi_dest, .value = 0 } });
-            self.blocks.items[merge_block].terminator = .{ .ret = phi_dest };
         }
 
+        current_block.* = merge_block;
         return phi_dest;
     }
 
@@ -1732,7 +1753,8 @@ pub const MirFunction = struct {
 
         self.blocks.items[entry_block].terminator = .{ .jump = cond_block };
 
-        const cond_val = try self.compileExpr(store, cond_id, cond_block, locals);
+        var b_cond = cond_block;
+        const cond_val = try self.compileExpr(store, cond_id, &b_cond, locals);
 
         // Valeur de sortie normale (condition fausse). Doit figurer
         // comme incoming du phi de sortie si des breaks existent : le
@@ -1744,10 +1766,11 @@ pub const MirFunction = struct {
 
         self.blocks.items[cond_block].terminator = .{ .branch = .{ .cond = cond_val, .then_block = body_block, .else_block = exit_block } };
 
-        _ = try self.compileExpr(store, body_id, body_block, locals);
-        // Si le corps ne s'est pas terminé par un break, on reboucle
-        if (self.blocks.items[body_block].terminator == .fallthrough) {
-            self.blocks.items[body_block].terminator = .{ .jump = cond_block };
+        var b_body = body_block;
+        _ = try self.compileExpr(store, body_id, &b_body, locals);
+        // Si le corps ne s'est pas terminé par un break, on reboucle depuis le bloc courant final
+        if (self.blocks.items[b_body].terminator == .fallthrough) {
+            self.blocks.items[b_body].terminator = .{ .jump = cond_block };
         }
 
         // Collecter les valeurs de break pour le phi à la sortie
@@ -1781,13 +1804,14 @@ pub const MirFunction = struct {
 
     fn compileBreak(self: *MirFunction, store: *Store, value_expr_id: Reg, target_block: BlockId, locals: std.AutoHashMap(u32, Reg)) MirError!Id {
         const exit_block = self.loop_exit_block orelse return error.BreakOutsideLoop;
-        const val_reg = try self.compileExpr(store, value_expr_id, target_block, locals);
+        var b_target = target_block;
+        const val_reg = try self.compileExpr(store, value_expr_id, &b_target, locals);
 
-        // Enregistrer la valeur de break pour le phi à la sortie
-        try self.break_values.append(self.allocator, .{ .value = val_reg, .block = target_block });
+        // Enregistrer la valeur de break pour le phi à la sortie depuis le bloc courant final
+        try self.break_values.append(self.allocator, .{ .value = val_reg, .block = b_target });
 
         // Sauter au bloc de sortie de la boucle
-        self.blocks.items[target_block].terminator = .{ .jump = exit_block };
+        self.blocks.items[b_target].terminator = .{ .jump = exit_block };
         return val_reg;
     }
 
@@ -1799,8 +1823,9 @@ pub const MirFunction = struct {
         entry_block: BlockId,
         locals: std.AutoHashMap(u32, Reg),
     ) MirError!Reg {
-        const base_val = try self.compileExpr(store, base_id, entry_block, locals);
-        const exp_val = try self.compileExpr(store, exp_id, entry_block, locals);
+        var b_entry = entry_block;
+        const base_val = try self.compileExpr(store, base_id, &b_entry, locals);
+        const exp_val = try self.compileExpr(store, exp_id, &b_entry, locals);
 
         const acc0 = self.newReg();
         try self.blocks.items[entry_block].instrs.append(self.allocator, .{
@@ -2140,7 +2165,8 @@ test "mir — simple arithmetic" {
     defer mir.deinit();
 
     const entry = try mir.newBlock();
-    _ = try mir.compileExpr(&store, expr_id, entry, std.AutoHashMap(u32, Reg).init(allocator));
+    var test_blk_2164: BlockId = entry;
+    _ = try mir.compileExpr(&store, expr_id, &test_blk_2164, std.AutoHashMap(u32, Reg).init(allocator));
     mir.blocks.items[entry].terminator = .{ .ret = 0 };
 
     var globals = std.AutoHashMap(u32, i64).init(allocator);
@@ -2162,7 +2188,8 @@ test "mir — if/else" {
     const entry = try mir.newBlock();
     var locals = std.AutoHashMap(u32, Reg).init(allocator);
     defer locals.deinit();
-    _ = try mir.compileExpr(&store, expr_id, entry, locals);
+    var test_blk_2186: BlockId = entry;
+    _ = try mir.compileExpr(&store, expr_id, &test_blk_2186, locals);
 
     var globals = std.AutoHashMap(u32, i64).init(allocator);
     defer globals.deinit();
@@ -2192,7 +2219,8 @@ test "mir — while loop" {
     defer locals.deinit();
     // let x = 0
     const x_init = try store.bind("x", try store.int(0), while_expr);
-    _ = try mir.compileExpr(&store, x_init, entry, locals);
+    var test_blk_2216: BlockId = entry;
+    _ = try mir.compileExpr(&store, x_init, &test_blk_2216, locals);
 
     var globals = std.AutoHashMap(u32, i64).init(allocator);
     defer globals.deinit();
@@ -2217,7 +2245,8 @@ test "mir — break in while" {
     const entry = try mir.newBlock();
     var locals = std.AutoHashMap(u32, Reg).init(allocator);
     defer locals.deinit();
-    _ = try mir.compileExpr(&store, while_expr, entry, locals);
+    var test_blk_2241: BlockId = entry;
+    _ = try mir.compileExpr(&store, while_expr, &test_blk_2241, locals);
 
     var globals = std.AutoHashMap(u32, i64).init(allocator);
     defer globals.deinit();
@@ -2251,7 +2280,8 @@ test "mir — if with break in while" {
 
     // let x = 0 in while(...)
     const full_expr = try store.bind("x", try store.int(0), while_expr);
-    _ = try mir.compileExpr(&store, full_expr, entry, locals);
+    var test_blk_2275: BlockId = entry;
+    _ = try mir.compileExpr(&store, full_expr, &test_blk_2275, locals);
 
     var globals = std.AutoHashMap(u32, i64).init(allocator);
     defer globals.deinit();
@@ -2284,7 +2314,8 @@ test "mir — user function definition and call" {
     const entry = try mir.newBlock();
     var locals = std.AutoHashMap(u32, Reg).init(allocator);
     defer locals.deinit();
-    _ = try mir.compileExpr(&store, let_expr, entry, locals);
+    var test_blk_2308: BlockId = entry;
+    _ = try mir.compileExpr(&store, let_expr, &test_blk_2308, locals);
     // On doit s'assurer que le dernier bloc a un ret
     // On peut ajouter un ret du dernier résultat
     // Pour simplifier, on va modifier compileExpr pour qu'il ajoute un ret automatiquement.
@@ -2486,7 +2517,8 @@ test "mir — lowering et unlowering d'un lambda avec binding" {
     var locals = std.AutoHashMap(u32, Reg).init(allocator);
     defer locals.deinit();
 
-    const res_reg = try mir.compileExpr(&store, bind_id, entry, locals);
+    var test_blk_2510: BlockId = entry;
+    const res_reg = try mir.compileExpr(&store, bind_id, &test_blk_2510, locals);
     mir.blocks.items[entry].terminator = .{ .ret = res_reg };
 
     var globals = std.AutoHashMap(u32, i64).init(allocator);

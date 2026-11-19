@@ -1145,6 +1145,20 @@ pub fn build(b: *std.Build) void {
     });
     heaven_expr_mod.addOptions("build_options", options);
 
+    const compile_c_cmd_mod = b.createModule(.{
+        .root_source_file = b.path("src/commands/compile_c_cmd.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "platform", .module = platform_mod },
+            .{ .name = "expr", .module = expr_mod },
+            .{ .name = "heaven_expr", .module = heaven_expr_mod },
+            .{ .name = "mir", .module = mir_mod },
+            .{ .name = "mir_qbe", .module = mir_qbe_mod },
+            .{ .name = "mir_wat", .module = mir_wat_mod },
+        },
+    });
+
     const mcp_server_mod = b.createModule(.{
         .root_source_file = b.path("src/runtime/mcp_server.zig"),
         .target = target,
@@ -1916,6 +1930,20 @@ pub fn build(b: *std.Build) void {
         },
     }) });
     test_step.dependOn(&b.addRunArtifact(test_mir_tco).step);
+
+    // compile-c lowering characterization tests
+    const test_compile_c_cmd = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/commands/compile_c_cmd_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "compile_c_cmd", .module = compile_c_cmd_mod },
+                .{ .name = "expr", .module = expr_mod },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(test_compile_c_cmd).step);
 
     // MCP label helper tests (Phase 1b, 2026-11-16)
     const test_mcp_label = b.addTest(.{ .root_module = b.createModule(.{

@@ -81,8 +81,7 @@ parse_let_var _ = IErr "expected var name"
 parse_let_eq var (HP.TCons (HP.TSymTok s) rest) = check_let_eq var s rest
 parse_let_eq _ _ = IErr "expected '='"
 
-check_let_eq var "=" rest = parse_let_in var (parse_expr rest)
-check_let_eq _ _ _ = IErr "expected '='"
+check_let_eq var s rest = (if (= s "=") (parse_let_in var (parse_expr rest)) (IErr "expected '='"))
 
 parse_let_in var (IOk val (HP.TCons (HP.TSymTok "in") rest)) = finish_let var val (parse_expr rest)
 parse_let_in _ (IOk _ _) = IErr "expected 'in'"
