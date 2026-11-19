@@ -1614,13 +1614,16 @@ pub const Store = struct {
 
     fn binaryPrec(op: []const u8) ?u8 {
         const eq = std.mem.eql;
-        if (eq(u8, op, "||") or eq(u8, op, "or")) return 1;
-        if (eq(u8, op, "&&") or eq(u8, op, "and")) return 2;
-        if (eq(u8, op, "==") or eq(u8, op, "=") or eq(u8, op, "!=")) return 3;
-        if (eq(u8, op, "<") or eq(u8, op, ">") or eq(u8, op, "<=") or eq(u8, op, ">=")) return 4;
-        if (eq(u8, op, "+") or eq(u8, op, "-")) return 5;
-        if (eq(u8, op, "*") or eq(u8, op, "/") or eq(u8, op, "%")) return 6;
-        if (eq(u8, op, "^")) return 8;
+        if (eq(u8, op, "implies")) return 1;
+        if (eq(u8, op, "within") or eq(u8, op, ">>") or eq(u8, op, ">>=")) return 1;
+        if (eq(u8, op, "||") or eq(u8, op, "or")) return 2;
+        if (eq(u8, op, "&&") or eq(u8, op, "and")) return 3;
+        if (eq(u8, op, "==") or eq(u8, op, "=") or eq(u8, op, "!=")) return 4;
+        if (eq(u8, op, "<") or eq(u8, op, ">") or eq(u8, op, "<=") or eq(u8, op, ">=")) return 5;
+        if (eq(u8, op, "++") or eq(u8, op, "<>") or eq(u8, op, "∘")) return 6;
+        if (eq(u8, op, "+") or eq(u8, op, "-")) return 7;
+        if (eq(u8, op, "*") or eq(u8, op, "/") or eq(u8, op, "%") or eq(u8, op, "×") or eq(u8, op, "÷")) return 8;
+        if (eq(u8, op, "^")) return 9;
         return null;
     }
 
@@ -2920,4 +2923,19 @@ test "formatInfix — preserve right-associative power" {
     const left_fmt = try store.formatInfix(left_nested, std.testing.allocator);
     defer std.testing.allocator.free(left_fmt);
     try std.testing.expectEqualStrings("(a ^ b) ^ c", left_fmt);
+}
+
+test "formatInfix — extended grammar binary operators" {
+    var store = Store.init(std.testing.allocator);
+    defer store.deinit();
+
+    const cat_op = try store.sym("++");
+    const a = try store.sym("a");
+    const b = try store.sym("b");
+    const c = try store.sym("c");
+
+    const expr = try store.apply(cat_op, &.{ try store.apply(cat_op, &.{ a, b }), c });
+    const fmt = try store.formatInfix(expr, std.testing.allocator);
+    defer std.testing.allocator.free(fmt);
+    try std.testing.expectEqualStrings("a ++ b ++ c", fmt);
 }

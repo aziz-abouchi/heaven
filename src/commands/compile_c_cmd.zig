@@ -1,59 +1,145 @@
 const std = @import("std");
 const platform = @import("platform");
+const expr = @import("expr");
 const heaven_expr = @import("heaven_expr");
+const mir = @import("mir");
+const mir_qbe = @import("mir_qbe");
+const mir_wat = @import("mir_wat");
 
-pub fn runCompileC(allocator: std.mem.Allocator, src_path: []const u8, out_path: []const u8) !void {
-    // 1. Lire le fichier source .hvn
-    const file = platform.fs.cwd().openFile(src_path, .{}) catch |err| {
-        platform.debug.print("Erreur : impossible d'ouvrir {s} ({})\n", .{ src_path, err });
-        return err;
-    };
-    defer file.close();
-    const src_code = try file.readToEndAlloc(allocator, 10 * 1024 * 1024);
-    defer allocator.free(src_code);
+const Store = expr.Store;
+const MirFunction = mir.MirFunction;
+const Reg = mir.Reg;
 
-    // 2. Initialiser Heaven
-    var heaven = try heaven_expr.Heaven.init(allocator);
-    defer heaven.deinit();
-
-    // 3. Importer les modules auto-hébergés
-    _ = heaven.eval("import \"lib/parse/infix.hvn\" as Inf") catch {};
-    _ = heaven.eval("import \"lib/codegen/c.hvn\" as CG") catch {};
-
-    // 4. Parser l'expression infixe vers l'AST
-    const parse_cmd = try std.fmt.allocPrint(allocator, "Inf.parse_infix \"{s}\"", .{src_code});
-    defer allocator.free(parse_cmd);
-    const ast = try heaven.eval(parse_cmd);
-
-    // 5. Générer le code C depuis l'AST
-    const gen_cmd = try std.fmt.allocPrint(allocator, "CG.emit_c_program ({s})", .{ast});
-    defer allocator.free(gen_cmd);
-    var c_code = try heaven.eval(gen_cmd);
-
-    if (c_code.len >= 2 and c_code[0] == '"' and c_code[c_code.len - 1] == '"') {
-        c_code = c_code[1 .. c_code.len - 1];
+fn appendEscapedHeavenString(alloc: std.mem.Allocator, out: *std.ArrayList(u8), raw: []const u8) !void {
+    try out.append(alloc, '"');
+    for (raw) |ch| {
+        switch (ch) {
+            '\\' => try out.appendSlice(alloc, "\\\\"),
+            '"' => try out.appendSlice(alloc, "\\\""),
+            '\n' => try out.appendSlice(alloc, "\\n"),
+            '\r' => try out.appendSlice(alloc, "\\r"),
+            '\t' => try out.appendSlice(alloc, "\\t"),
+            else => try out.append(alloc, ch),
+        }
     }
+    try out.append(alloc, '"');
+}
 
-    // 6. Écrire le C temporaire et compiler avec gcc
-    const tmp_c_path = "/tmp/heaven_gen.c";
-    const tmp_file = try platform.fs.cwd().createFile(tmp_c_path, .{});
-    try tmp_file.writeAll(c_code);
-    tmp_file.close();
+/// Rejette explicitement les symboles sentinelles d'erreur produits par `Inf.parse_infix`.
+pub fn validateHpSymbol(sym: []const u8) !void {
+    if (std.mem.eql(u8, sym, "PARSE_ERR") or std.mem.eql(u8, sym, "HORS_LIMITE")) {
+        return error.InfixParseError;
+    }
+}
 
-    var child = std.process.Child.init(&[_][]const u8{ "gcc", "-O2", tmp_c_path, "-o", out_path }, allocator);
-    const term = try child.spawnAndWait();
-    switch (term) {
-        .Exited => |code| {
-            if (code != 0) {
-                platform.debug.print("Erreur lors de la compilation avec gcc (code {d}).\n", .{code});
-                return error.CompilationFailed;
+/// Baisse les formes AST `HP.*` (`ELitI`, `ELitS`, `ESym`, `EApply`, `ELambda`) vers `Store`.
+pub fn lowerHpToStore(
+    alloc: std.mem.Allocator,
+    store: *Store,
+    node: expr.Id,
+) !expr.Id {
+    const n = store.get(node);
+    switch (n.tag) {
+        .lit => {
+            const lit_val = store.getLit(node);
+            switch (lit_val) {
+                .int => |v| return try store.int(v),
+                .str => |s_id| {
+                    const s = store.interner.resolve(s_id);
+                    return try store.lit(.{ .str = try store.interner.intern(s) });
+                },
+                else => return node,
             }
         },
-        else => {
-            platform.debug.print("Erreur lors de la compilation avec gcc.\n", .{});
-            return error.CompilationFailed;
+        .sym => {
+            const name = store.interner.resolve(n.payload);
+            try validateHpSymbol(name);
+            return try store.sym(name);
         },
+        .bind => {
+            const val_id = try lowerHpToStore(alloc, store, store.pool.items[n.span_a.start]);
+            const body_id = try lowerHpToStore(alloc, store, store.pool.items[n.span_a.start + 1]);
+            return try store.bindSymWithBody(n.payload, val_id, body_id);
+        },
+        .apply => {
+            const fn_id = store.pool.items[n.span_a.start];
+            const arg_id = store.pool.items[n.span_a.start + 1];
+            const fn_node = store.get(fn_id);
+            if (fn_node.tag == .lambda) {
+                const val_id = try lowerHpToStore(alloc, store, arg_id);
+                const body_id = try lowerHpToStore(alloc, store, store.pool.items[fn_node.span_a.start + 1]);
+                return try store.bindSymWithBody(fn_node.payload, val_id, body_id);
+            }
+            const f_id = try lowerHpToStore(alloc, store, fn_id);
+            const a_id = try lowerHpToStore(alloc, store, arg_id);
+            return try store.apply(f_id, &.{a_id});
+        },
+        else => return node,
+    }
+}
+
+pub fn buildMirFunctionFromStore(
+    alloc: std.mem.Allocator,
+    store: *Store,
+    root_id: expr.Id,
+) !MirFunction {
+    var mf = MirFunction.initWithStore(alloc, store);
+    errdefer mf.deinit();
+    try mf.precompileUserFns();
+
+    const entry = try mf.newBlock();
+    var locals = std.AutoHashMap(u32, Reg).init(alloc);
+    defer locals.deinit();
+
+    const result = try mf.compileExpr(store, root_id, entry, locals);
+    if (mf.blocks.items[entry].terminator == .fallthrough) {
+        mf.blocks.items[entry].terminator = .{ .ret = result };
+    }
+    return mf;
+}
+
+pub fn runCompileC(allocator: std.mem.Allocator, src_path: []const u8, out_path: []const u8) !void {
+    const src_code = try std.fs.cwd().readFileAlloc(allocator, src_path, 10 * 1024 * 1024);
+    defer allocator.free(src_code);
+
+    var heaven = heaven_expr.Heaven.init(allocator) catch return error.HeavenInit;
+    defer {
+        heaven.deinit();
+        allocator.destroy(heaven);
     }
 
-    platform.debug.print("✓ Binaire natif généré avec succès : {s}\n", .{out_path});
+    _ = heaven.eval("import \"lib/parse/infix.hvn\" as Inf") catch {};
+
+    var cmd_buf: std.ArrayList(u8) = .empty;
+    defer cmd_buf.deinit(allocator);
+    try cmd_buf.appendSlice(allocator, "Inf.parse_infix ");
+    try appendEscapedHeavenString(allocator, &cmd_buf, std.mem.trim(u8, src_code, " \t\r\n"));
+
+    const ast_repr = try heaven.eval(cmd_buf.items);
+    defer allocator.free(ast_repr);
+
+    const trimmed_ast = std.mem.trim(u8, ast_repr, " \t\r\n");
+    if (std.mem.indexOf(u8, trimmed_ast, "PARSE_ERR") != null or
+        std.mem.indexOf(u8, trimmed_ast, "HORS_LIMITE") != null)
+    {
+        return error.InfixParseError;
+    }
+
+    const parsed_id = try heaven.parseExpression(trimmed_ast);
+    const lowered_id = try lowerHpToStore(allocator, heaven.store, parsed_id);
+
+    var mf = try buildMirFunctionFromStore(allocator, heaven.store, lowered_id);
+    defer mf.deinit();
+
+    const qbe_ssa = try mir_qbe.emitQbe(allocator, &mf);
+    defer allocator.free(qbe_ssa);
+
+    const wat_src = try mir_wat.emitWat(allocator, &mf);
+    defer allocator.free(wat_src);
+
+    try std.fs.cwd().writeFile(.{ .sub_path = out_path, .data = qbe_ssa });
+    platform.debug.print(
+        "✓ MIR émis ({d} octets QBE, {d} octets WAT) -> {s}\n",
+        .{ qbe_ssa.len, wat_src.len, out_path },
+    );
 }

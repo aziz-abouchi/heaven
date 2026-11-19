@@ -683,6 +683,15 @@ pub const Engine = struct {
                     return false;
                 }
             }
+            // Variable : si déjà liée dans ce motif, exiger l'égalité structurelle
+            for (bound_syms[0..bound_count.*]) |prev_sym| {
+                if (prev_sym == pp_node.payload) {
+                    if (new_env.get(pp_node.payload)) |prev_val| {
+                        return pattern_mod.exprStructuralEq(store, prev_val, aa);
+                    }
+                    break;
+                }
+            }
             // Variable : binder
             try new_env.put(pp_node.payload, aa);
             if (bound_count.* < 8) {
@@ -4083,6 +4092,29 @@ test "pattern — ctor imbrique depth 3 avec variable" {
     const arg = try fx.store.apply(cons_sym, &.{ inner_arg, nil_arg });
     const result = try fx.engine.evalFunction(fx.env, "f", &.{arg});
     try std.testing.expectEqual(v42, result);
+}
+
+test "pattern — variable répétée exige la même valeur" {
+    const allocator = std.testing.allocator;
+    var fx = try PatternFixture.init(allocator);
+    defer fx.deinit();
+
+    const x = try fx.store.sym("x");
+    const body = try fx.store.int(1);
+    try fx.clause("same", &.{ x, x }, body);
+
+    const v42 = try fx.store.int(42);
+    const v43 = try fx.store.int(43);
+
+    try std.testing.expect(v42 != v43);
+    try std.testing.expect(pattern_mod.exprStructuralEq(&fx.store, v42, v42));
+    try std.testing.expect(!pattern_mod.exprStructuralEq(&fx.store, v42, v43));
+
+    const equal = try fx.engine.evalFunction(fx.env, "same", &.{ v42, v42 });
+    try std.testing.expectEqual(body, equal);
+
+    const unequal = fx.engine.evalFunction(fx.env, "same", &.{ v42, v43 });
+    try std.testing.expectError(error.ArityMismatch, unequal);
 }
 
 test "pattern — litteral" {

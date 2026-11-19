@@ -36,6 +36,7 @@ pub const Instr = union(enum) {
     sub: struct { dest: Reg, lhs: Reg, rhs: Reg },
     mul: struct { dest: Reg, lhs: Reg, rhs: Reg },
     div: struct { dest: Reg, lhs: Reg, rhs: Reg },
+    rem: struct { dest: Reg, lhs: Reg, rhs: Reg },
     cmp_lt: struct { dest: Reg, lhs: Reg, rhs: Reg },
     cmp_eq: struct { dest: Reg, lhs: Reg, rhs: Reg },
     jump: struct { target: BlockId },
@@ -192,6 +193,7 @@ fn shiftInstr(allocator: std.mem.Allocator, inst: Instr, reg_off: u32, block_off
         .sub => |a| .{ .sub = .{ .dest = a.dest + reg_off, .lhs = a.lhs + reg_off, .rhs = a.rhs + reg_off } },
         .mul => |a| .{ .mul = .{ .dest = a.dest + reg_off, .lhs = a.lhs + reg_off, .rhs = a.rhs + reg_off } },
         .div => |a| .{ .div = .{ .dest = a.dest + reg_off, .lhs = a.lhs + reg_off, .rhs = a.rhs + reg_off } },
+        .rem => |a| .{ .rem = .{ .dest = a.dest + reg_off, .lhs = a.lhs + reg_off, .rhs = a.rhs + reg_off } },
         .cmp_lt => |a| .{ .cmp_lt = .{ .dest = a.dest + reg_off, .lhs = a.lhs + reg_off, .rhs = a.rhs + reg_off } },
         .cmp_eq => |a| .{ .cmp_eq = .{ .dest = a.dest + reg_off, .lhs = a.lhs + reg_off, .rhs = a.rhs + reg_off } },
         .load => |l| .{ .load = .{ .dest = l.dest + reg_off, .sym = l.sym } },
@@ -1408,6 +1410,9 @@ pub const MirFunction = struct {
                 if (std.mem.eql(u8, op_name, "break") and args.len == 1) {
                     return try self.compileBreak(store, args[0], target_block, locals);
                 }
+                if ((std.mem.eql(u8, op_name, "^") or std.mem.eql(u8, op_name, "pow")) and args.len == 2) {
+                    return try self.compilePow(store, args[0], args[1], target_block, locals);
+                }
 
                 // 2026-10-30 : builtins heap (pair, fst, snd, cons, head, tail)
                 if (std.mem.eql(u8, op_name, "pair") and args.len == 2) {
@@ -1463,6 +1468,7 @@ pub const MirFunction = struct {
                     std.mem.eql(u8, op_name, "<=") or std.mem.eql(u8, op_name, ">=") or
                     std.mem.eql(u8, op_name, "add") or std.mem.eql(u8, op_name, "+") or std.mem.eql(u8, op_name, "sub") or std.mem.eql(u8, op_name, "-") or
                     std.mem.eql(u8, op_name, "mul") or std.mem.eql(u8, op_name, "*") or std.mem.eql(u8, op_name, "div") or std.mem.eql(u8, op_name, "/") or
+                    std.mem.eql(u8, op_name, "rem") or std.mem.eql(u8, op_name, "%") or
                     std.mem.eql(u8, op_name, "+") or std.mem.eql(u8, op_name, "-") or
                     std.mem.eql(u8, op_name, "*") or std.mem.eql(u8, op_name, "/")))
                 {
@@ -1502,6 +1508,8 @@ pub const MirFunction = struct {
                         try instrs.append(self.allocator, .{ .mul = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
                     } else if (std.mem.eql(u8, op_name, "div") or std.mem.eql(u8, op_name, "/")) {
                         try instrs.append(self.allocator, .{ .div = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
+                    } else if (std.mem.eql(u8, op_name, "rem") or std.mem.eql(u8, op_name, "%")) {
+                        try instrs.append(self.allocator, .{ .rem = .{ .dest = dest, .lhs = lhs, .rhs = rhs } });
                     }
                     return dest;
                 }
@@ -1783,6 +1791,81 @@ pub const MirFunction = struct {
         return val_reg;
     }
 
+    fn compilePow(
+        self: *MirFunction,
+        store: *Store,
+        base_id: Id,
+        exp_id: Id,
+        entry_block: BlockId,
+        locals: std.AutoHashMap(u32, Reg),
+    ) MirError!Reg {
+        const base_val = try self.compileExpr(store, base_id, entry_block, locals);
+        const exp_val = try self.compileExpr(store, exp_id, entry_block, locals);
+
+        const acc0 = self.newReg();
+        try self.blocks.items[entry_block].instrs.append(self.allocator, .{
+            .const_int = .{ .dest = acc0, .value = 1 },
+        });
+
+        const hdr_block = try self.newBlock();
+        const body_block = try self.newBlock();
+        const exit_block = try self.newBlock();
+
+        self.blocks.items[entry_block].terminator = .{ .jump = hdr_block };
+
+        const cur_acc = self.newReg();
+        const cur_exp = self.newReg();
+        const acc_next = self.newReg();
+        const exp_next = self.newReg();
+
+        const hdr_acc_in = try self.allocator.dupe(PhiEntry, &.{
+            .{ .value = acc0, .block = entry_block },
+            .{ .value = acc_next, .block = body_block },
+        });
+        errdefer self.allocator.free(hdr_acc_in);
+        try self.blocks.items[hdr_block].instrs.append(self.allocator, .{
+            .phi = .{ .dest = cur_acc, .incoming = hdr_acc_in },
+        });
+
+        const hdr_exp_in = try self.allocator.dupe(PhiEntry, &.{
+            .{ .value = exp_val, .block = entry_block },
+            .{ .value = exp_next, .block = body_block },
+        });
+        errdefer self.allocator.free(hdr_exp_in);
+        try self.blocks.items[hdr_block].instrs.append(self.allocator, .{
+            .phi = .{ .dest = cur_exp, .incoming = hdr_exp_in },
+        });
+
+        const zero = self.newReg();
+        try self.blocks.items[hdr_block].instrs.append(self.allocator, .{
+            .const_int = .{ .dest = zero, .value = 0 },
+        });
+        const cond = self.newReg();
+        try self.blocks.items[hdr_block].instrs.append(self.allocator, .{
+            .cmp_lt = .{ .dest = cond, .lhs = zero, .rhs = cur_exp },
+        });
+        self.blocks.items[hdr_block].terminator = .{ .branch = .{
+            .cond = cond,
+            .then_block = body_block,
+            .else_block = exit_block,
+        } };
+
+        try self.blocks.items[body_block].instrs.append(self.allocator, .{
+            .mul = .{ .dest = acc_next, .lhs = cur_acc, .rhs = base_val },
+        });
+        const one = self.newReg();
+        try self.blocks.items[body_block].instrs.append(self.allocator, .{
+            .const_int = .{ .dest = one, .value = 1 },
+        });
+        try self.blocks.items[body_block].instrs.append(self.allocator, .{
+            .sub = .{ .dest = exp_next, .lhs = cur_exp, .rhs = one },
+        });
+        self.blocks.items[body_block].terminator = .{ .jump = hdr_block };
+
+        self.blocks.items[exit_block].terminator = .fallthrough;
+        return cur_acc;
+    }
+
     pub fn execute(self: *MirFunction, global_vars: *std.AutoHashMap(u32, i64)) MirError!i64 {
         return self.executeLegacy(global_vars);
     }
@@ -1822,6 +1905,11 @@ pub const MirFunction = struct {
                         self.values.items[a.dest] = self.values.items[a.lhs] * self.values.items[a.rhs];
                     },
                     .div => |a| {
+                        if (a.dest >= self.values.items.len) try self.values.resize(self.allocator, a.dest + 1);
+                        if (self.values.items[a.rhs] == 0) return error.DivisionByzero;
+                        self.values.items[a.dest] = @divTrunc(self.values.items[a.lhs], self.values.items[a.rhs]);
+                    },
+                    .rem => |a| {
                         if (a.dest >= self.values.items.len) try self.values.resize(self.allocator, a.dest + 1);
                         if (self.values.items[a.rhs] == 0) return error.DivisionByzero;
                         self.values.items[a.dest] = @divTrunc(self.values.items[a.lhs], self.values.items[a.rhs]);

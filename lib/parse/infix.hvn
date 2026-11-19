@@ -18,11 +18,21 @@ close_paren (IOk e (HP.TCons HP.TRParen rest)) = IOk e rest
 close_paren (IOk _ _) = IErr "expected close paren"
 close_paren (IErr e) = IErr e
 
-step_mul a (HP.TCons (HP.TSymTok "*") rest) = continue_mul a (parse_atom rest)
+finish_pow a (IOk b rest) = IOk (mk_apply "^" a b) rest
+finish_pow _ (IErr e) = IErr e
+step_pow a (HP.TCons (HP.TSymTok "^") rest) = finish_pow a (parse_pow rest)
+step_pow a rest = IOk a rest
+parse_pow toks = start_pow (parse_atom toks)
+start_pow (IOk a rest) = step_pow a rest
+start_pow (IErr e) = IErr e
+
+step_mul a (HP.TCons (HP.TSymTok "*") rest) = continue_mul "*" a (parse_pow rest)
+step_mul a (HP.TCons (HP.TSymTok "/") rest) = continue_mul "/" a (parse_pow rest)
+step_mul a (HP.TCons (HP.TSymTok "%") rest) = continue_mul "%" a (parse_pow rest)
 step_mul a rest = IOk a rest
-continue_mul a (IOk b rest) = step_mul (mk_apply "*" a b) rest
-continue_mul _ (IErr e) = IErr e
-parse_mul toks = start_mul (parse_atom toks)
+continue_mul op a (IOk b rest) = step_mul (mk_apply op a b) rest
+continue_mul _ _ (IErr e) = IErr e
+parse_mul toks = start_mul (parse_pow toks)
 start_mul (IOk a rest) = step_mul a rest
 start_mul (IErr e) = IErr e
 
@@ -37,7 +47,10 @@ start_add (IErr e) = IErr e
 
 step_cmp a (HP.TCons (HP.TSymTok "<") rest)  = continue_cmp "<" a (parse_add rest)
 step_cmp a (HP.TCons (HP.TSymTok ">") rest)  = continue_cmp ">" a (parse_add rest)
+step_cmp a (HP.TCons (HP.TSymTok "<=") rest) = continue_cmp "<=" a (parse_add rest)
+step_cmp a (HP.TCons (HP.TSymTok ">=") rest) = continue_cmp ">=" a (parse_add rest)
 step_cmp a (HP.TCons (HP.TSymTok "==") rest) = continue_cmp "==" a (parse_add rest)
+step_cmp a (HP.TCons (HP.TSymTok "!=") rest) = continue_cmp "!=" a (parse_add rest)
 step_cmp a rest = IOk a rest
 continue_cmp op a (IOk b rest) = step_cmp (mk_apply op a b) rest
 continue_cmp _ _ (IErr e) = IErr e

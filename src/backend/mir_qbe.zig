@@ -417,6 +417,7 @@ fn emitInstr(w: anytype, inst: Instr, tmp: *Reg, store: anytype) !void {
         .sub => |a| try w.print("    %r{d} =l sub %r{d}, %r{d}\n", .{ a.dest, a.lhs, a.rhs }),
         .mul => |a| try w.print("    %r{d} =l mul %r{d}, %r{d}\n", .{ a.dest, a.lhs, a.rhs }),
         .div => |a| try w.print("    %r{d} =l div %r{d}, %r{d}\n", .{ a.dest, a.lhs, a.rhs }),
+        .rem => |a| try w.print("    %r{d} =l rem %r{d}, %r{d}\n", .{ a.dest, a.lhs, a.rhs }),
         .cmp_lt => |a| {
             try w.print("    %t{d} =w csltw %r{d}, %r{d}\n", .{ tmp.*, a.lhs, a.rhs });
             try w.print("    %r{d} =l extsw %t{d}\n", .{ a.dest, tmp.* });

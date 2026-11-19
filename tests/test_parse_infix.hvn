@@ -13,3 +13,7 @@ test "parens": get_int (ev "(1 + 2) * 3") == 9
 test "assoc_sub": get_int (ev "10 - 3 - 2") == 5
 test "neg_zero": get_int (ev "0 - 5") == (0 - 5)
 test "deep": get_int (ev "((1 + 2) * (3 + 4))") == 21
+test "div_mod": (get_int (ev "20 / 4 + 10 % 3")) == 6
+test "cmp_ops": (get_int (ev "if 5 <= 5 then 1 else 0")) == 1
+test "neq_op": (get_int (ev "if 5 != 3 then 2 else 0")) == 2
+test "pow_ast": (I.parse_infix "2 ^ 3 ^ 2") == (HP.EApply (HP.EApply (HP.ESym "^") (HP.ELitI 2)) (HP.EApply (HP.EApply (HP.ESym "^") (HP.ELitI 3)) (HP.ELitI 2)))

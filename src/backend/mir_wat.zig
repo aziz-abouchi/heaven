@@ -197,6 +197,7 @@ fn emitInstr(w: anytype, inst: Instr, fdefs: *const FnDefs) !void {
         .sub => |a| try w.print("(local.set $r{d} (i64.sub (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
         .mul => |a| try w.print("(local.set $r{d} (i64.mul (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
         .div => |a| try w.print("(local.set $r{d} (i64.div_s (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
+        .rem => |a| try w.print("(local.set $r{d} (i64.rem_s (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
         .cmp_lt => |a| try w.print("(local.set $r{d} (i64.extend_i32_s (i64.lt_s (local.get $r{d}) (local.get $r{d}))))\n", .{ a.dest, a.lhs, a.rhs }),
         .cmp_eq => |a| try w.print("(local.set $r{d} (i64.extend_i32_s (i64.eq (local.get $r{d}) (local.get $r{d}))))\n", .{ a.dest, a.lhs, a.rhs }),
         .load => |l| try w.print("(local.set $r{d} (global.get $g{d}))\n", .{ l.dest, l.sym }),
