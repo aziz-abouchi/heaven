@@ -122,6 +122,21 @@ pub const FunctionClause = struct {
     body: expr.Id,
 };
 
+const PatternBinding = struct {
+    sym: Sym,
+    previous: ?Id,
+};
+
+fn restorePatternBindings(env: *Env, bindings: []const PatternBinding) void {
+    for (bindings) |binding| {
+        if (binding.previous) |value| {
+            env.put(binding.sym, value) catch unreachable;
+        } else {
+            env.delete(binding.sym);
+        }
+    }
+}
+
 pub const FunctionDef = struct {
     clauses: [64]FunctionClause,
     num_clauses: u8,
@@ -655,15 +670,14 @@ pub const Engine = struct {
     /// Pattern matching recursif : gere les patterns imbriques a
     /// profondeur >= 2 en liant les variables dans `new_env`.
     /// Retourne true si `pp` matche `aa`. Les variables liees sont
-    /// trackees dans `bound_syms`/`bound_count` pour le cleanup TCO.
+    /// trackees avec leur binding precedent pour restaurer l'environnement.
     fn matchPatternDeep(
         self: *Engine,
         store: *Store,
         pp: Id,
         aa: Id,
         new_env: *Env,
-        bound_syms: *[8]Sym,
-        bound_count: *u8,
+        bindings: *std.ArrayList(PatternBinding),
     ) EvalError!bool {
         const pp_node = store.get(pp);
 
@@ -684,20 +698,20 @@ pub const Engine = struct {
                 }
             }
             // Variable : si déjà liée dans ce motif, exiger l'égalité structurelle
-            for (bound_syms[0..bound_count.*]) |prev_sym| {
-                if (prev_sym == pp_node.payload) {
+            for (bindings.items) |binding| {
+                if (binding.sym == pp_node.payload) {
                     if (new_env.get(pp_node.payload)) |prev_val| {
                         return pattern_mod.exprStructuralEq(store, prev_val, aa);
                     }
-                    break;
+                    return false;
                 }
             }
-            // Variable : binder
+            // Première occurrence dans ce motif : mémoriser le binding hérité.
+            try bindings.append(self.allocator, .{
+                .sym = pp_node.payload,
+                .previous = new_env.get(pp_node.payload),
+            });
             try new_env.put(pp_node.payload, aa);
-            if (bound_count.* < 8) {
-                bound_syms[bound_count.*] = pp_node.payload;
-                bound_count.* += 1;
-            }
             return true;
         }
 
@@ -720,7 +734,7 @@ pub const Engine = struct {
                     if (!patternArgMatches(store, sub_pp, sub_aa)) return false;
                     continue;
                 }
-                if (!try self.matchPatternDeep(store, sub_pp, sub_aa, new_env, bound_syms, bound_count))
+                if (!try self.matchPatternDeep(store, sub_pp, sub_aa, new_env, bindings))
                     return false;
             }
             return true;
@@ -795,14 +809,14 @@ pub const Engine = struct {
             for (fn_def.clauses[0..fn_def.num_clauses]) |clause| {
                 if (current_args_len != clause.num_patterns) continue;
 
-                // Tracker les bindings ajoutés par le pattern (pour nettoyage TCO)
-                var bound_syms: [8]Sym = undefined;
-                var bound_count: u8 = 0;
+                // Tracker les bindings locaux et leurs valeurs héritées.
+                var bindings: std.ArrayList(PatternBinding) = .empty;
+                defer bindings.deinit(self.allocator);
 
                 var matched = true;
                 for (clause.patterns[0..clause.num_patterns], 0..) |p, i| {
                     const arg_val = current_args_buf[i];
-                    if (!try self.matchPatternDeep(store, p, arg_val, new_env, &bound_syms, &bound_count)) {
+                    if (!try self.matchPatternDeep(store, p, arg_val, new_env, &bindings)) {
                         matched = false;
                         break;
                     }
@@ -823,9 +837,7 @@ pub const Engine = struct {
                             }
                         }
                         if (!guard_ok) {
-                            for (bound_syms[0..bound_count]) |sym| {
-                                new_env.delete(sym);
-                            }
+                            restorePatternBindings(new_env, bindings.items);
                             continue;
                         }
                     }
@@ -838,9 +850,7 @@ pub const Engine = struct {
                     // ─── TCO : self-tail-call détecté → boucler ───
                     if (self.tco_args_len > 0) {
                         // Nettoyer les bindings de cette clause avant de reboucler
-                        for (bound_syms[0..bound_count]) |sym| {
-                            new_env.delete(sym);
-                        }
+                        restorePatternBindings(new_env, bindings.items);
                         @memcpy(current_args_buf[0..self.tco_args_len], self.tco_args_buf[0..self.tco_args_len]);
                         continue :tco_loop;
                     }
@@ -857,12 +867,12 @@ pub const Engine = struct {
                     // retourner. Meme technique que la beta-reduction
                     // ligne 843.
                     var final_result = result;
-                    if (bound_count > 0) {
+                    if (bindings.items.len > 0) {
                         const rnode = store.get(result);
                         if (rnode.tag == .lambda or rnode.tag == .apply) {
-                            for (bound_syms[0..bound_count]) |sym| {
-                                if (new_env.get(sym)) |val| {
-                                    final_result = try store.substSym(final_result, sym, val);
+                            for (bindings.items) |binding| {
+                                if (new_env.get(binding.sym)) |val| {
+                                    final_result = try store.substSym(final_result, binding.sym, val);
                                 }
                             }
                         }
@@ -870,9 +880,7 @@ pub const Engine = struct {
                     return final_result;
                 }
                 // Clause non matchée : nettoyer les bindings ajoutés pendant le matching
-                for (bound_syms[0..bound_count]) |sym| {
-                    new_env.delete(sym);
-                }
+                restorePatternBindings(new_env, bindings.items);
             }
 
             // ─── Currying partiel ───
@@ -4115,6 +4123,29 @@ test "pattern — variable répétée exige la même valeur" {
 
     const unequal = fx.engine.evalFunction(fx.env, "same", &.{ v42, v43 });
     try std.testing.expectError(error.ArityMismatch, unequal);
+}
+
+test "pattern — echec de clause restaure binding herite" {
+    const allocator = std.testing.allocator;
+    var fx = try PatternFixture.init(allocator);
+    defer fx.deinit();
+
+    const x = try fx.store.sym("x");
+    const outer = try fx.store.int(99);
+    try fx.env.put(x, outer);
+
+    const zero = try fx.store.int(0);
+    const one = try fx.store.int(1);
+    try fx.clause("fallback", &.{ x, zero }, one);
+
+    const hole = try fx.store.hole(0);
+    try fx.clause("fallback", &.{ hole, hole }, x);
+
+    const v42 = try fx.store.int(42);
+    const v43 = try fx.store.int(43);
+    const result = try fx.engine.evalFunction(fx.env, "fallback", &.{ v42, v43 });
+
+    try std.testing.expectEqual(outer, result);
 }
 
 test "pattern — litteral" {

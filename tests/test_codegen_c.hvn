@@ -1,5 +1,15 @@
 -- tests/test_codegen_c.hvn -- Validation de la descente infixe vers MirFunction (QBE / WAT)
 
 import "lib/parse/infix.hvn" as Inf
+import "lib/heaven_eval.hvn" as HE
+
+eval_inf s = HE.eval (Inf.parse_infix s) HE.EnvNil
+as_int (HE.VInt n) = n
+as_int _ = 0 - 999
 
 ast = Inf.parse_infix "let x = 10 in if x > 5 then x * 2 else 0"
+
+test "mir_let_if_gt": as_int (eval_inf "let x = 10 in if x > 5 then x * 2 else 0") == 20
+test "mir_let_if_else": as_int (eval_inf "let x = 3 in if x > 5 then x * 2 else 7") == 7
+test "mir_assoc_div": as_int (eval_inf "24 / 6 / 2") == 2
+test "mir_pow_right_assoc": (Inf.parse_infix "2 ^ 3 ^ 2") == (HP.EApply (HP.EApply (HP.ESym "^") (HP.ELitI 2)) (HP.EApply (HP.EApply (HP.ESym "^") (HP.ELitI 3)) (HP.ELitI 2)))
