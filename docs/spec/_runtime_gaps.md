@@ -531,8 +531,9 @@ pré-existant à notre patch.
 Fonctionne car on saute les 37 fns std.
 
 **Sessions futures** :
-1. Fix compileIf/compileWhile phis (1 session) — débloque compile-qbe
-   avec std fns
+1. [Partiellement adressé en `9d83aef`] Propagation de `*BlockId` dans `compileExpr` /
+   `compileIf` (`merge_block` en fallthrough) et blocs finaux `b_body` / `b_target` dans
+   `compileWhile` / `compileBreak` ; re-valider sur l'ensemble des `fn std` précompilées.
 2. Split mir.zig types/compile (30 min) — rebuild de 60s à 10s
 3. WASM backend (3-4 sessions)
 
