@@ -1588,11 +1588,11 @@ pub const Store = struct {
                         if (binaryPrec(op)) |prec| {
                             const need_parens = prec < parent_prec;
                             if (need_parens) try buf.append(allocator, '(');
-                            try self.formatInfixRec(args[1], buf, allocator, prec + 1);
+                            try self.formatInfixRec(args[1], buf, allocator, prec);
                             try buf.append(allocator, ' ');
                             try buf.appendSlice(allocator, op);
                             try buf.append(allocator, ' ');
-                            try self.formatInfixRec(args[2], buf, allocator, prec);
+                            try self.formatInfixRec(args[2], buf, allocator, prec + 1);
                             if (need_parens) try buf.append(allocator, ')');
                             return;
                         }
@@ -2508,6 +2508,40 @@ test "applyArgs — noeud non-apply : retourne span_a entier" {
     // lambda : span_a = [body], pas de func en tête
     try std.testing.expectEqual(@as(usize, 1), args.len);
     try std.testing.expectEqual(body, args[0]);
+}
+
+test "formatInfix — preserve right-nested subtraction" {
+    var store = Store.init(std.testing.allocator);
+    defer store.deinit();
+
+    const x = try store.sym("x");
+    const y = try store.sym("y");
+    const z = try store.sym("z");
+
+    const inner = try store.binop("-", y, z);
+    const expr = try store.binop("-", x, inner);
+
+    const formatted = try store.formatInfix(expr, std.testing.allocator);
+    defer std.testing.allocator.free(formatted);
+
+    try std.testing.expectEqualStrings("x - (y - z)", formatted);
+}
+
+test "formatInfix — preserve equality and logical precedence" {
+    var store = Store.init(std.testing.allocator);
+    defer store.deinit();
+
+    const x = try store.sym("x");
+    const y = try store.sym("y");
+    const z = try store.sym("z");
+
+    const inner = try store.binop("||", y, z);
+    const expr = try store.binop("=", x, inner);
+
+    const formatted = try store.formatInfix(expr, std.testing.allocator);
+    defer std.testing.allocator.free(formatted);
+
+    try std.testing.expectEqualStrings("x = y || z", formatted);
 }
 
 test "core invariant — lowered expression contains only six primitives" {
