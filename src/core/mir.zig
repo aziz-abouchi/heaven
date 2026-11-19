@@ -226,6 +226,16 @@ pub fn sccFusionEnabledFromEnv(env_val: ?[]const u8) bool {
     return v.len > 0 and !std.mem.eql(u8, v, "0");
 }
 
+/// `pair` et `cons` sont des builtins heap SANS tag : champs aux offsets 0 et 8
+/// (cf. compileExpr, lus par fst/snd/head/tail). Le chemin des constructeurs ADT
+/// n-aires ecrit au contraire un tag a l'offset 0 et les champs a partir de 8.
+/// Mele a ces builtins, `head (cons 42 ...)` lisait le tag (1) au lieu de 42
+/// (reponse fausse silencieuse, regression c880598). Ces deux noms restent donc
+/// sur leur disposition builtin : ni construction ADT, ni filtrage ADT.
+fn isBuiltinHeapCtor(name: []const u8) bool {
+    return std.mem.eql(u8, name, "pair") or std.mem.eql(u8, name, "cons");
+}
+
 pub const MirFunction = struct {
     allocator: std.mem.Allocator,
     blocks: std.ArrayListUnmanaged(BasicBlock),
@@ -817,6 +827,7 @@ pub const MirFunction = struct {
         var args_buf: [8]Id = undefined;
         const unwound = unwindCurriedApply(store, pat_id, &args_buf) orelse return null;
         const cname = store.interner.resolve(unwound.head_sym);
+        if (isBuiltinHeapCtor(cname)) return null;
         const eng = self.engine orelse return null;
         const fd = eng.fns.get(cname) orelse return null;
         const arity = fd.ctor_arity orelse return null;
@@ -1339,7 +1350,7 @@ pub const MirFunction = struct {
                     var curried_args: [8]Id = undefined;
                     if (unwindCurriedApply(store, id, &curried_args)) |unwound| {
                         const cname = store.interner.resolve(unwound.head_sym);
-                        if (engine.fns.get(cname)) |fd| {
+                        if (if (isBuiltinHeapCtor(cname)) null else engine.fns.get(cname)) |fd| {
                             if (fd.ctor_arity) |arity| {
                                 if (arity > 0 and unwound.len == arity) {
                                     const tag = fd.ctor_tag orelse return error.UnsupportedExpr;
@@ -1512,7 +1523,7 @@ pub const MirFunction = struct {
 
                 // Appel de fonction utilisateur ou constructeur ADT n-aire
                 if (self.engine) |engine| {
-                    if (engine.fns.get(op_name)) |fd| {
+                    if (if (isBuiltinHeapCtor(op_name)) null else engine.fns.get(op_name)) |fd| {
                         if (fd.ctor_arity) |arity| {
                             if (arity > 0 and args.len == arity) {
                                 const tag = fd.ctor_tag orelse return error.UnsupportedExpr;

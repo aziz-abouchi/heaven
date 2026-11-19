@@ -1,0 +1,1 @@
+(+ (head (tail (cons 1 (cons 2 nil)))) (+ (fst (pair 30 4)) (snd (pair 3 400))))
