@@ -34,14 +34,15 @@ Exemple minimal : une boucle de 3 itérations qui accumule un compteur dans
 Décomposons :
 
 1. `body 0` → `(perform "loop" 1)`.
-2. Handler : `v = 1`. `(k 1)` reprend `body` juste après le `perform`,
-   avec `1` en place de l'appel.
-3. `body 1` → `(perform "loop" 2)`. Etc.
-4. `body 3` → `3` (cas de base, pas de `perform`).
+2. Le handler reçoit `v = 1`, puis appelle `(k 1)`.
+3. `k` transmet `1` comme nouvel état et relance `body` depuis son entrée.
+4. `body 1` → `(perform "loop" 2)`. Le cycle recommence.
+5. `body 3` → `3` (cas de base, sans `perform`).
 
-**Point clé** : `k v` n'incrémente rien. C'est `body` qui a calculé `(+ s 1)`
-*avant* le `perform`, et qui le reprend via `k`. L'état « circule » dans
-`body`, pas dans le handler. **`init` est l'amorce de ce circuit.**
+**Point clé**** : `k v` ne reprend pas l'exécution à l'instruction qui suit
+`perform`. Il demande une nouvelle évaluation de `body` avec `v` comme état.
+C'est `body` qui calcule le prochain état avant le `perform`, et le handler
+qui décide s'il faut poursuivre en appelant `k`. **`init` amorce ce cycle.**
 
 > **Capot pratique.** Si votre `body` ne fait pas varier `s`, `handle_rec`
 > boucle. La terminaison est votre responsabilité. `handle_rec` ne détecte
