@@ -2414,6 +2414,74 @@ pub fn countSymUses(store: *const Store, id: Id, name: []const u8) usize {
     }
 }
 
+test "native parser — precedence and associativity" {
+    const cases = .{
+        .{ "2 + 3 * x^2", "(+ 2 (* 3 (^ x 2)))" },
+        .{ "a - b - c", "(- (- a b) c)" },
+        .{ "a ^ b ^ c", "(^ a (^ b c))" },
+        .{ "(a + b) * c", "(* (+ a b) c)" },
+        .{ "x == 0 && y != 1", "(and (= x 0) (!= y 1))" },
+    };
+
+    inline for (cases) |case| {
+        const result = try nativeToSExpr(case[0], std.testing.allocator);
+        defer std.testing.allocator.free(result);
+        try std.testing.expectEqualStrings(case[1], result);
+    }
+}
+
+test "native parser — application and unary expressions" {
+    const cases = .{
+        .{ "f x + y", "(+ (f x) y)" },
+        .{ "f (x + y)", "(f (+ x y))" },
+        .{ "f(x, y)", "(f x y)" },
+        .{ "-x", "(- 0 x)" },
+        .{ "-5", "-5" },
+        .{ "!ready", "(! ready)" },
+    };
+
+    inline for (cases) |case| {
+        const result = try nativeToSExpr(case[0], std.testing.allocator);
+        defer std.testing.allocator.free(result);
+        try std.testing.expectEqualStrings(case[1], result);
+    }
+}
+
+test "native parser — lambda let and if expressions" {
+    const cases = .{
+        .{ "lambda x -> x + 1", "(lambda x (+ x 1))" },
+        .{ "lambda x x * 2", "(lambda x (* x 2))" },
+        .{ "let x = 1 in x + 2", "((lambda x (+ x 2)) 1)" },
+        .{ "if x == 0 then 1 else 2", "(if (= x 0) 1 2)" },
+        .{ "if ready then left + 1 else right * 2", "(if ready (+ left 1) (* right 2))" },
+    };
+
+    inline for (cases) |case| {
+        const result = try nativeToSExpr(case[0], std.testing.allocator);
+        defer std.testing.allocator.free(result);
+        try std.testing.expectEqualStrings(case[1], result);
+    }
+}
+
+test "native parser — rejects malformed syntax and trailing tokens" {
+    const cases = .{
+        "",
+        "1 +",
+        "(x + 1",
+        "if x then 1",
+        "let = 1 in x",
+        "x )",
+        "x @",
+    };
+
+    inline for (cases) |source| {
+        try std.testing.expectError(
+            error.InvalidSyntax,
+            nativeToSExpr(source, std.testing.allocator),
+        );
+    }
+}
+
 test "applyArgs — skip func dans span_a[0]" {
     var store = Store.init(std.testing.allocator);
     defer store.deinit();
