@@ -18,11 +18,31 @@ close_paren (IOk e (HP.TCons HP.TRParen rest)) = IOk e rest
 close_paren (IOk _ _) = IErr "expected close paren"
 close_paren (IErr e) = IErr e
 
+-- Application (juxtaposition) : precedence plus haute que ^
+is_reserved s = (if (= s "+") true (if (= s "-") true (if (= s "*") true (if (= s "/") true (if (= s "%") true (if (= s "^") true (if (= s "<") true (if (= s ">") true (if (= s "<=") true (if (= s ">=") true (if (= s "==") true (if (= s "!=") true (if (= s "then") true (if (= s "else") true (if (= s "in") true false)))))))))))))))
+atom_start (HP.TIntTok _) = true
+atom_start (HP.TStrTok _) = true
+atom_start (HP.TSymTok s) = (if (is_reserved s) false true)
+atom_start HP.TLParen = true
+atom_start _ = false
+mk_app f x = HP.EApply f x
+parse_app toks = start_app (parse_atom toks)
+start_app (IOk a rest) = step_app a rest
+start_app (IErr e) = IErr e
+step_app a (HP.TCons (HP.TIntTok n) rest) = step_app (mk_app a (HP.ELitI n)) rest
+step_app a (HP.TCons (HP.TStrTok s) rest) = step_app (mk_app a (HP.ELitS s)) rest
+step_app a (HP.TCons (HP.TSymTok s) rest) = (if (is_reserved s) (IOk a (HP.TCons (HP.TSymTok s) rest)) (step_app (mk_app a (HP.ESym s)) rest))
+step_app a (HP.TCons HP.TLParen rest) = apply_paren_app a rest
+step_app a rest = IOk a rest
+apply_paren_app a rest = apply_paren_app_res a (open_paren rest)
+apply_paren_app_res a (IOk arg rest2) = step_app (mk_app a arg) rest2
+apply_paren_app_res _ (IErr e) = IErr e
+
 finish_pow a (IOk b rest) = IOk (mk_apply "^" a b) rest
 finish_pow _ (IErr e) = IErr e
 step_pow a (HP.TCons (HP.TSymTok "^") rest) = finish_pow a (parse_pow rest)
 step_pow a rest = IOk a rest
-parse_pow toks = start_pow (parse_atom toks)
+parse_pow toks = start_pow (parse_app toks)
 start_pow (IOk a rest) = step_pow a rest
 start_pow (IErr e) = IErr e
 
