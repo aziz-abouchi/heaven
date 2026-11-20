@@ -271,11 +271,6 @@ fn emitPhiStores(w: anytype, f: *const MirFunction, target: BlockId, pred: Block
                     }
                 }
             },
-            .extern_call => |_| {
-            // WASM n'a pas de libc ; un extern doit passer par WASI
-            // (import fd_write etc.). En attendant, trap explicite.
-            try w.writeAll("    unreachable\n");
-        },
         else => {},
         }
     }

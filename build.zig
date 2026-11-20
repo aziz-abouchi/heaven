@@ -2097,6 +2097,14 @@ pub fn build(b: *std.Build) void {
         \\trap 'rm -f "$TMP_EXPR"' EXIT
         \\printf "# comment\n(+ 10 20)\n(+ 12 30)\n" > "$TMP_EXPR"
         \\test "$(wasmtime run --dir . zig-out/bin/heaven-wasi.wasm --eval-file "$(basename "$TMP_EXPR")")" = "42"
+        \\case "$(wasmtime run zig-out/bin/heaven-wasi.wasm --fuel not_a_number "(+ 1 2)")" in
+        \\  *"error: invalid --fuel value"*) ;;
+        \\  *) echo "unexpected output for invalid --fuel"; exit 1 ;;
+        \\esac
+        \\case "$(wasmtime run zig-out/bin/heaven-wasi.wasm --fuel)" in
+        \\  *"error: missing value for --fuel"*) ;;
+        \\  *) echo "unexpected output for missing --fuel"; exit 1 ;;
+        \\esac
         \\echo "heaven-wasi E2E checks passed"
         ,
     });
