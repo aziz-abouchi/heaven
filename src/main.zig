@@ -451,7 +451,6 @@ pub fn main() !void {
         var http_heaven = try heaven_expr.Heaven.init(allocator);
         defer {
             http_heaven.deinit();
-            allocator.destroy(http_heaven);
         }
         try http_heaven.runHttpServer(port);
         return;
@@ -565,7 +564,6 @@ pub fn main() !void {
     var vessel_heaven = try heaven_expr.Heaven.init(allocator);
     defer {
         vessel_heaven.deinit();
-        allocator.destroy(vessel_heaven);
     }
 
     // Threads

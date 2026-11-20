@@ -79,7 +79,6 @@ pub const Shell = struct {
         self.swarm.deinit();
         self.green.deinit();
         // Puis détruire les structs créés avec alloc.create dans init.zig
-        self.allocator.destroy(self.heaven);
         self.allocator.destroy(self.meta);
         self.allocator.destroy(self.proofs);
         self.allocator.destroy(self.swarm);
