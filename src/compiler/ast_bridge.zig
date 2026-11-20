@@ -5,6 +5,7 @@ const Id = expr.Id;
 const Scope = @import("scope.zig").Scope;
 const TypeInfo = @import("scope.zig").TypeInfo;
 const DiagnosticList = @import("diagnostics.zig").DiagnosticList;
+const Position = @import("diagnostics.zig").Position;
 const platform = @import("platform");
 const ts = platform.ts;
 
@@ -17,6 +18,7 @@ pub const Bridge = struct {
     /// Ids des nœuds top-level réellement définis (pas les fallbacks
     /// tree-sitter `sym(ntype)`). Utilisé par unbound_check.
     roots: std.ArrayListUnmanaged(Id) = .{},
+    node_positions: std.AutoHashMapUnmanaged(Id, Position) = .{},
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -36,6 +38,16 @@ pub const Bridge = struct {
 
     pub fn deinitRoots(self: *Bridge) void {
         self.roots.deinit(self.allocator);
+    }
+
+    pub fn deinitPositions(self: *Bridge) void {
+        self.node_positions.deinit(self.allocator);
+    }
+
+    fn recordPos(self: *Bridge, id: Id, node: ts.TSNode) void {
+        if (id == expr.NULL) return;
+        const pt = ts.ts_node_start_point(node);
+        self.node_positions.put(self.allocator, id, .{ .line = pt.row, .col = pt.column }) catch {};
     }
 
     pub fn buildFile(self: *Bridge, root: ts.TSNode) !void {
@@ -161,6 +173,8 @@ pub const Bridge = struct {
 
         const fn_id = try self.store.lambda(param_names.items, body_id);
         const bind_id = try self.store.bind(name, fn_id);
+        self.recordPos(fn_id, node);
+        self.recordPos(bind_id, node);
         try self.scope.define(name, .{ .type_name = "fn", .expr_id = fn_id, .kind = .function });
         return bind_id;
     }
@@ -456,7 +470,9 @@ pub const Bridge = struct {
                 try args.append(self.allocator, id);
             }
         }
-        return self.store.apply(func_id, args.items);
+        const call_id = try self.store.apply(func_id, args.items);
+        self.recordPos(call_id, node);
+        return call_id;
     }
 
     fn buildLambda(self: *Bridge, node: ts.TSNode) anyerror!Id {

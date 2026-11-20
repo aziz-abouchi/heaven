@@ -8,6 +8,7 @@ const Store = expr.Store;
 const Id = expr.Id;
 const Scope = @import("scope.zig").Scope;
 const DiagnosticList = @import("diagnostics.zig").DiagnosticList;
+const Position = @import("diagnostics.zig").Position;
 
 pub const Typer = struct {
     store: *const Store,
@@ -17,6 +18,7 @@ pub const Typer = struct {
     type_env: std.StringHashMapUnmanaged(Type) = .{},
     fn_arity: std.StringHashMapUnmanaged(u32) = .{},
     msg_pool: std.ArrayListUnmanaged([]const u8) = .{},
+    node_positions: ?*const std.AutoHashMapUnmanaged(Id, Position) = null,
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator, store: *const Store, diags: *DiagnosticList) Typer {
@@ -103,7 +105,10 @@ pub const Typer = struct {
                         if (self.fn_arity.get(fname)) |expected| {
                             const got: u32 = @intCast(args.len);
                             if (got != expected) {
-                                const span = node.span_a;
+                                const pos: Position = if (self.node_positions) |map|
+                                    map.get(id) orelse .{ .line = 0, .col = 0 }
+                                else
+                                    .{ .line = 0, .col = 0 };
                                 const m_opt = std.fmt.allocPrint(
                                     self.allocator,
                                     "arity mismatch: '{s}' attend {d} argument(s), reçu {d}",
@@ -113,7 +118,7 @@ pub const Typer = struct {
                                 if (m_opt) |allocated| {
                                     self.msg_pool.append(self.allocator, allocated) catch {};
                                 }
-                                self.diags.err(span.start, 0, msg);
+                                self.diags.err(pos.line, pos.col, msg);
                             }
                         }
                     }
@@ -225,4 +230,30 @@ test "typer reports arity mismatch on apply and inside bind body" {
 
     try std.testing.expectEqual(@as(usize, 1), diags.items.items.len);
     try std.testing.expect(std.mem.indexOf(u8, diags.items.items[0].message, "arity mismatch") != null);
+}
+
+test "typer uses node_positions for arity mismatch diagnostics" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    var diags = DiagnosticList.init(allocator);
+    defer diags.deinit();
+
+    var positions = std.AutoHashMapUnmanaged(Id, Position){};
+    defer positions.deinit(allocator);
+
+    const fn_lam = try store.lambda(&.{ "x" }, try store.int(0));
+    _ = try store.bind("id1", fn_lam);
+    const call_id = try store.apply(try store.sym("id1"), &.{});
+    try positions.put(allocator, call_id, .{ .line = 11, .col = 4 });
+
+    var typer = Typer.init(allocator, &store, &diags);
+    defer typer.deinit();
+    typer.node_positions = &positions;
+    typer.checkAll();
+
+    try std.testing.expectEqual(@as(usize, 1), diags.items.items.len);
+    try std.testing.expectEqual(@as(u32, 11), diags.items.items[0].start.line);
+    try std.testing.expectEqual(@as(u32, 4), diags.items.items[0].start.col);
 }

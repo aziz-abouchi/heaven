@@ -40,10 +40,12 @@ pub fn runCheck(allocator: std.mem.Allocator, file_path: []const u8) !void {
 
     var bridge = Bridge.init(allocator, &store, &scope, &diags, source);
     defer bridge.deinitRoots();
+    defer bridge.deinitPositions();
     try bridge.buildFile(root);
 
     var typer = Typer.init(allocator, &store, &diags);
     defer typer.deinit();
+    typer.node_positions = &bridge.node_positions;
     typer.checkAll();
 
     // v2 : walker unbound. Opt-in via HEAVEN_CHECK_STRICT=1.
