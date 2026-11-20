@@ -212,3 +212,46 @@ pub fn runCompileC(allocator: std.mem.Allocator, src_path: []const u8, out_path:
         .{ qbe_ssa.len, wat_src.len, out_path },
     );
 }
+test "infix juxtaposition precedence over caret and error sentinel" {
+    const allocator = std.testing.allocator;
+    var heaven = try heaven_expr.Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const import_msg = try heaven.eval("import \"lib/parse/infix.hvn\" as Inf");
+    defer allocator.free(import_msg);
+    try std.testing.expect(!isImportFailureMessage(import_msg));
+
+    // f x ^ 2 doit parser (f x) ^ 2 : la tête externe est ^, et son opérande gauche est (f x)
+    const call_id = try heaven.parseExpression("(Inf.parse_infix \"f x ^ 2\")");
+    const eval_id = try heaven.engine.eval(call_id);
+    const ast_repr = try expr.toStringInfix(heaven.store, eval_id, allocator);
+    defer allocator.free(ast_repr);
+
+    const trimmed = std.mem.trim(u8, ast_repr, " \t\r\n");
+    try std.testing.expect(std.mem.indexOf(u8, trimmed, "PARSE_ERR") == null);
+
+    const parsed_id = try heaven.parseExpression(trimmed);
+    const lowered_id = try lowerHpToStore(allocator, heaven.store, parsed_id);
+    const root_node = heaven.store.get(lowered_id);
+    try std.testing.expectEqual(expr.Tag.apply, root_node.tag);
+
+    const outer_callee = heaven.store.get(root_node.payload);
+    try std.testing.expectEqual(expr.Tag.sym, outer_callee.tag);
+    try std.testing.expectEqualStrings("^", heaven.store.interner.resolve(outer_callee.payload));
+
+    const outer_args = heaven.store.applyArgs(root_node);
+    try std.testing.expectEqual(@as(usize, 2), outer_args.len);
+
+    const left_node = heaven.store.get(outer_args[0]);
+    try std.testing.expectEqual(expr.Tag.apply, left_node.tag);
+    const inner_callee = heaven.store.get(left_node.payload);
+    try std.testing.expectEqual(expr.Tag.sym, inner_callee.tag);
+    try std.testing.expectEqualStrings("f", heaven.store.interner.resolve(inner_callee.payload));
+
+    // Une expression invalide doit produire PARSE_ERR
+    const bad_call = try heaven.parseExpression("(Inf.parse_infix \"1 + * 2\")");
+    const bad_eval = try heaven.engine.eval(bad_call);
+    const bad_repr = try expr.toStringInfix(heaven.store, bad_eval, allocator);
+    defer allocator.free(bad_repr);
+    try std.testing.expect(std.mem.indexOf(u8, bad_repr, "PARSE_ERR") != null);
+}
