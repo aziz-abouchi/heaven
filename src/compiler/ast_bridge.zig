@@ -271,6 +271,7 @@ pub const Bridge = struct {
                 // l'ancienne boucle skippait 'identifier' AVANT de tester
                 // seen_eq, donc un body comme 't1' tombait en fallback.
                 body_id = try self.buildExpr(child);
+                self.recordPos(body_id, child);
                 continue;
             }
             if (std.mem.eql(u8, ct, "pattern")) {
