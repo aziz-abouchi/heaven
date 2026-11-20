@@ -65,6 +65,7 @@ jobs:
           zig build -Dnetwork=false
           bash tests/diff/run.sh
           bash tests/diff/reject.sh
+          bash tests/depth_guard.sh
 
       - name: Name collisions between lib/parse modules and heaven_parse
         run: bash scripts/check_name_collisions.sh

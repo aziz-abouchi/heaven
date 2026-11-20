@@ -216,7 +216,12 @@ pub fn main() !void {
     // Inherited by subprocesses (runTestDir spawn). Default 8 MB → SIGSEGV.
     // Cf. docs/spec/_bigint_d20_stack.md.
     if (@import("builtin").os.tag != .freestanding and @import("builtin").os.tag != .wasi) {
-        std.posix.setrlimit(.STACK, .{ .cur = 64 * 1024 * 1024, .max = 64 * 1024 * 1024 }) catch {};
+        std.posix.setrlimit(.STACK, .{ .cur = 512 * 1024 * 1024, .max = 512 * 1024 * 1024 }) catch {};
+        // Garde explicite : RecursionLimitExceeded avant le SIGSEGV (marge 4 Mo).
+        if (std.posix.getrlimit(.STACK)) |rl| {
+            if (rl.cur != std.math.maxInt(@TypeOf(rl.cur)) and rl.cur > 8 * 1024 * 1024)
+                @import("engine_expr").stack_budget = @intCast(rl.cur - 4 * 1024 * 1024);
+        } else |_| {}
     }
     const args = std.process.argsAlloc(allocator) catch return error.OutOfMemory;
 

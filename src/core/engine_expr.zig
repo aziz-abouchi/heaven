@@ -376,6 +376,10 @@ fn sigalrmHandler(_: i32) callconv(.c) void {
 const Timeval = extern struct { sec: i64, usec: i64 };
 const Itimerval = extern struct { interval: Timeval, value: Timeval };
 
+/// Octets de pile utilisables par evaluate() avant RecursionLimitExceeded.
+/// 0 = garde désactivée. Fixé par main après setrlimit(STACK).
+pub var stack_budget: usize = 0;
+
 pub const PreemptMode = enum { both, fuel, timer };
 
 /// Arme la preemption. 2026-10-27 (E4 3.3-pre) : ajout du mode.
@@ -433,6 +437,8 @@ pub const Engine = struct {
     io_handler: ?IOHandler = null,
     in_handle: bool = false,
     fuel: u64 = 1_000_000,
+    /// Adresse de pile au premier evaluate() de ce moteur (0 = pas encore fixée).
+    stack_base: usize = 0,
     preempt_armed: bool = false,
     /// Fallback coopératif temps : timestamp du dernier SuspendRequested
     /// par le check temps (10ms). Porte sur wasm (pas de SIGALRM).
@@ -1022,6 +1028,15 @@ pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) E
     }
 
     if (depth > 1000) return error.RecursionLimitExceeded;
+    // Garde de pile : `depth` repart à 0 à chaque evalFunction, donc il ne voit
+    // pas la récursion de fonctions. On mesure l'adresse de pile réelle (valable
+    // en Debug comme en Release) et on échoue proprement avant le SIGSEGV.
+    if (stack_budget != 0) {
+        const here = @frameAddress();
+        if (engine.stack_base == 0) engine.stack_base = here;
+        if (engine.stack_base > here and engine.stack_base - here > stack_budget)
+            return error.RecursionLimitExceeded;
+    }
     const node = store.get(id);
 
     // A3B2_MOVE_PUSH : push apres store.get(id) pour inclure kind.
