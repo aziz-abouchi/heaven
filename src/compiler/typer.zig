@@ -266,3 +266,24 @@ test "typer uses node_positions for arity mismatch diagnostics" {
     try std.testing.expectEqual(@as(u32, 11), diags.items.items[0].start.line);
     try std.testing.expectEqual(@as(u32, 4), diags.items.items[0].start.col);
 }
+
+test "typer checkAll deduplicates arity mismatch inside bind body" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    var diags = DiagnosticList.init(allocator);
+    defer diags.deinit();
+
+    const fn_lam = try store.lambda(&.{ "x", "y" }, try store.int(0));
+    _ = try store.bind("add2", fn_lam);
+    const bad_call = try store.apply(try store.sym("add2"), &.{ try store.int(1) });
+    _ = try store.bind("bad", bad_call);
+
+    var typer = Typer.init(allocator, &store, &diags);
+    defer typer.deinit();
+    typer.checkAll();
+
+    try std.testing.expectEqual(@as(usize, 1), diags.items.items.len);
+    try std.testing.expect(std.mem.indexOf(u8, diags.items.items[0].message, "arity mismatch") != null);
+}
