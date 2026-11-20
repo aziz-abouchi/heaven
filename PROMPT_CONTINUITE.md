@@ -507,3 +507,11 @@ présent. CI clone + compile from cache au lieu de télécharger.
 - **Lancer `zig build test` après chaque commit** (règle `b323c41`,
   déjà appliquée sur 4 commits aujourd'hui).
 
+
+## Session 2026-11-18/19
+
+- Double-free thunks/captures ferme (82c95e9, bbfbf56), 51 -> 0.
+- MIR multi-clauses compile (d0558c5..c880598), 6 tests differentiels. Pas un verrou de correction contrairement a l'audit 2026-11-17.
+- Infixe unifie via MirFunction (5be0266), lib/codegen/c.hvn supprime.
+- Parse collision ferme (cc37f53, df520d1, dbc3bb4).
+- Dettes: form-head infixe (07-streams, 16-free-monads), :derive x*sin(x), doctest 152->147, 22 WIP racine stale.

@@ -270,14 +270,14 @@ _concurrency.md, _continuations.md, _ontology.md, _bench.md, _serialize.md).
 
 ## Tests
 
-    zig build test              # tests unitaires Zig (<!-- DOCGEN:tests_zig -->467<!-- /DOCGEN -->)
+    zig build test              # tests unitaires Zig (<!-- DOCGEN:tests_zig -->483<!-- /DOCGEN -->)
     zig build test-regression   # tests Heaven core (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN -->)
-    zig build test-files        # tests/*.hvn, <!-- DOCGEN:test_files_count -->152<!-- /DOCGEN --> fichiers (<!-- DOCGEN:test_files -->1492/1492<!-- /DOCGEN --> ; 1 skip en Debug, cf. DEBUG_SKIP_FILES)
+    zig build test-files        # tests/*.hvn, <!-- DOCGEN:test_files_count -->152<!-- /DOCGEN --> fichiers (<!-- DOCGEN:test_files -->1502/1502<!-- /DOCGEN --> ; 1 skip en Debug, cf. DEBUG_SKIP_FILES)
 
-<!-- DOCGEN:tests_zig -->467<!-- /DOCGEN --> tests Zig passent, ainsi que
-<!-- DOCGEN:tests_heaven -->1590<!-- /DOCGEN --> tests Heaven
+<!-- DOCGEN:tests_zig -->483<!-- /DOCGEN --> tests Zig passent, ainsi que
+<!-- DOCGEN:tests_heaven -->1600<!-- /DOCGEN --> tests Heaven
 (<!-- DOCGEN:test_regression -->98/98<!-- /DOCGEN --> via `test-regression`
-+ <!-- DOCGEN:test_files -->1492/1492<!-- /DOCGEN --> via `test-files`).
++ <!-- DOCGEN:test_files -->1502/1502<!-- /DOCGEN --> via `test-files`).
 Mesure <!-- DOCGEN:date -->2026-11-19<!-- /DOCGEN -->.
 
 ---

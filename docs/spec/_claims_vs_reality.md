@@ -438,3 +438,6 @@ fuites mesurées plus tôt. Chantier de design : spec du magic + tracker.
 - Fuites réelles : 3 (toutes raw_alloc, site 2020)
 - Dettes restantes : 5 (D-SIGSEGV, D-RAWALLOC, D-PIN, D-DOCGEN, D-COVERAGE)
 - Aucune nouvelle dette introduite
+
+<- mf.blocks.items[entry].terminator = .{ .ret = result } SESSION-2026-11-18-19 -->
+Session 2026-11-18/19: double-free ferme (82c95e9, bbfbf56). MIR multi-clauses pas un verrou de correction (audit 2026-11-17 errone). Infixe unifie (5be0266). Parse collision ferme.
