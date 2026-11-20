@@ -69,7 +69,7 @@ Ce document est la **vérité terrain** pour planifier — pas le livre.
 | S2 | `@puts`/`@printf`/`@getenv`/`@strcmp` | extern_call glibc | OK |
 | S3 | `@argv N` (ABI SysV) | wrapper `l $main(l, l)` | OK |
 | S4 | Dispatch CLI | `@strcmp` + cascade `if` (V0.6) | OK |
-| S5 | Multi-clauses `dispatch 0=0 \| ...` | exclu de `precompileUserFns` ; appel → `error.UnsupportedCall` (rejet explicite depuis `31b5ba1`) | G.25 |
+| S5 | Multi-clauses `dispatch 0=0 \| ...` | **Compilées** par MIR (variables, entiers, jokers, gardes, bool, ADT n-aires) en QBE et WASM ; vérifié par `tests/diff` 12–20 (interpréteur = QBE = wasmtime). Rejet explicite (`UnsupportedCall`) seulement hors de ces formes (chaînes, flottants) | ✅ MIR + QBE + WASM |
 | S6 | `@argv` dans fn user | segfault (`argv_sym` local) | G.33 |
 | S7 | `@strcmp "str"` dans fn user | `undef fN` (`str_pool` local) | G.34 |
 | S8 | WASM selfhost (`mir_wat`) | primitives non émises | TODO |
@@ -439,5 +439,20 @@ fuites mesurées plus tôt. Chantier de design : spec du magic + tracker.
 - Dettes restantes : 5 (D-SIGSEGV, D-RAWALLOC, D-PIN, D-DOCGEN, D-COVERAGE)
 - Aucune nouvelle dette introduite
 
-<- mf.blocks.items[entry].terminator = .{ .ret = result } SESSION-2026-11-18-19 -->
+<!-- SESSION-2026-11-18-19 -->
 Session 2026-11-18/19: double-free ferme (82c95e9, bbfbf56). MIR multi-clauses pas un verrou de correction (audit 2026-11-17 errone). Infixe unifie (5be0266). Parse collision ferme.
+
+<!-- SESSION-2026-11-20 -->
+## Session 2026-11-19/20 : fondations et soudure CI
+
+| # | Affirmation | Réalité (mesurée) | Statut |
+|---|---|---|---|
+| T1 | Les fermetures capturent leur environnement | **Oui** : `closeFree` substitue les variables libres à l'évaluation d'un `.lambda` (K, S, flip, compose, trois niveaux, combinateur Z : `tests/test_closures.hvn`, 16 tests). Avant `1fd05af`, `.lambda => return id` : la capture échouait | ✅ Corrigé |
+| T2 | Les backends natifs sont protégés des régressions silencieuses | **Oui, depuis la CI** : `tests/diff` (interpréteur vs QBE vs wasmtime, `REQUIRE_WASM=1`) et `reject.sh` tournent en CI. La régression `9d83aef` (QBE/WASM renvoyaient 0 partout) n'avait été attrapée que par ce harnais | ✅ En CI |
+| T3 | Récursion profonde = erreur explicite | **Oui** (`d2dce28`) : `depth` repartait à 0 à chaque `evalFunction`, la garde `depth > 1000` ne voyait pas la récursion de fonctions ; la pile (64 Mo, frames Debug ~116 Ko) débordait vers 160 niveaux → SIGSEGV muet. Garde sur l'adresse de pile + pile 512 Mo : `sum_to 1200` OK, `sum_to 1000000` → `RecursionLimitExceeded` (`tests/depth_guard.sh`) | ✅ Corrigé |
+| T4 | `test_bigint_d20` échoue sur main | Passe en Debug après T3 (mesuré) ; cause = pile, non analysée plus avant | ✅ Constaté |
+| T5 | Pas de fuite à la redéfinition de `fn` | **Faux avant `2825280`** : `evalFnDef` dupliquait le nom à chaque `fn f` redéfini (`put` garde l'ancienne clé). Corrigé ; `tests/leak_guard.sh` (détecteur actif) | ✅ Corrigé |
+| T6 | `:derive x^2 + 1` | **Faux avant `4f939f9`** : `splitExprVar` prenait `1` pour la variable (`expr="x^2 +"`). Corrigé, 8 cas testés | ✅ Corrigé |
+| T7 | WASM gère le tas (`cons`, `pair`, ADT) | **Non** : `unreachable` ; `WASM_UNSUPPORTED` dans `tests/diff/run.sh` (05-list, 20-eq-adt-nary, 21-builtin-heap) | ❌ TODO |
+
+**Méthode** : seuls les chiffres exécutés sont notés « mesuré » ; les builds sont Debug (temps pessimistes). Hypothèses rejetées : « l'environnement n'est pas capturé » (la cause était `.lambda => return id`) ; « grep `unreachable` ⇒ WASM non supporté » (le prélude en contient toujours).
