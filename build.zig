@@ -1952,6 +1952,13 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }) });
     test_step.dependOn(&b.addRunArtifact(test_mcp_label).step);
+    const test_split_expr_var = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/runtime/shell/split_expr_var.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+    test_step.dependOn(&b.addRunArtifact(test_split_expr_var).step);
+
 
     // proof_status helpers (Phase B1, 2026-11-16)
     const test_proof_status = b.addTest(.{ .root_module = b.createModule(.{
