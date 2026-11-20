@@ -935,6 +935,79 @@ pub const Engine = struct {
     }
 };
 
+/// Remplace chaque variable libre de `id` liee dans `env` par sa valeur.
+/// `bound` = variables liees par les binders traverses (lambda, bind, letrec).
+/// Ne touche ni aux noms de fonctions globales (`engine.fns`) ni au placeholder
+/// de `letrec` (la recursion locale reste resolue a l'appel).
+fn closeFree(store: *Store, env: *Env, engine: *Engine, id: Id, bound: *std.ArrayListUnmanaged(Sym)) EvalError!Id {
+    const node = store.get(id);
+    switch (node.tag) {
+        .sym => {
+            const s = node.payload;
+            for (bound.items) |b| {
+                if (b == s) return id;
+            }
+            const v = env.get(s) orelse return id;
+            if (v == id) return id;
+            if (engine.fns.get(store.interner.resolve(s)) != null) return id;
+            const vn = store.get(v);
+            if (vn.tag == .sym and std.mem.eql(u8, store.interner.resolve(vn.payload), "__letrec_placeholder__")) return id;
+            return v;
+        },
+        .lit => return id,
+        .apply => {
+            const old_args = try store.copyPoolSlice(store.spanSliceConst(node.span_a));
+            defer store.allocator.free(old_args);
+            const new_func = try closeFree(store, env, engine, node.payload, bound);
+            var changed = new_func != node.payload;
+            const new_args = try store.allocator.alloc(Id, old_args.len);
+            defer store.allocator.free(new_args);
+            for (old_args, 0..) |child, i| {
+                new_args[i] = try closeFree(store, env, engine, child, bound);
+                if (new_args[i] != child) changed = true;
+            }
+            if (!changed) return id;
+            return try store.addNode(.{
+                .tag = .apply,
+                .payload = new_func,
+                .aux = node.aux,
+                .span_a = try store.pushSpan(new_args),
+                .span_b = node.span_b,
+            });
+        },
+        .lambda, .bind, .letrec, .relation => {
+            const old_kids = try store.copyPoolSlice(store.spanSliceConst(node.span_a));
+            defer store.allocator.free(old_kids);
+            // Premier enfant sous la portée du binder : lambda/letrec -> 0, bind -> 1.
+            const binds_from: usize = switch (node.tag) {
+                .lambda, .letrec => 0,
+                .bind => 1,
+                else => old_kids.len,
+            };
+            const new_kids = try store.allocator.alloc(Id, old_kids.len);
+            defer store.allocator.free(new_kids);
+            var changed = false;
+            for (old_kids, 0..) |child, i| {
+                const pushed = i >= binds_from;
+                if (pushed) try bound.append(engine.allocator, node.payload);
+                const r = closeFree(store, env, engine, child, bound);
+                if (pushed) _ = bound.pop();
+                new_kids[i] = try r;
+                if (new_kids[i] != child) changed = true;
+            }
+            if (!changed) return id;
+            return try store.addNode(.{
+                .tag = node.tag,
+                .payload = node.payload,
+                .aux = node.aux,
+                .span_a = try store.pushSpan(new_kids),
+                .span_b = node.span_b,
+            });
+        },
+        else => return id,
+    }
+}
+
 /// Évaluateur à 6 branches (primitives fondamentales uniquement).
 pub fn evaluate(store: *Store, env: *Env, engine: *Engine, id: Id, depth: u32) EvalError!Id {
     // Safepoint (3a-3) : budget de reductions. A 0 -> suspend.
@@ -1199,7 +1272,13 @@ return try evalMagic(store, env, engine, op_name, args, depth);
                 val;
         },
         .lambda => {
-            return id;
+            // Fermeture : la lambda emporte les valeurs courantes de ses variables
+            // libres liees dans l'env (substitution AST, comme la beta-reduction).
+            // Sans cela, `((lambda n (lambda m (+ n m))) 3)` renvoyait
+            // `(lambda m (+ n m))` : le `n` lie par le bind etait perdu a sa sortie.
+            var bound = std.ArrayListUnmanaged(Sym){};
+            defer bound.deinit(engine.allocator);
+            return try closeFree(store, env, engine, id, &bound);
         },
         .relation => {
             if (node.span_a.len != 2) return error.ArityMismatch;

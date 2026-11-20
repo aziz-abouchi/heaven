@@ -1,0 +1,24 @@
+-- Fermetures : une lambda renvoyee par une autre lambda (ou par un let/bind)
+-- doit garder les variables liees de son contexte de creation.
+-- Avant : `(((lambda n (lambda m (+ n m))) 3) 4)` valait `(+ n m)` (terme non
+-- evalue, sans erreur) : le n lie etait perdu quand le bind se terminait.
+
+make_adder n = (lambda m (+ n m))
+
+test "closure_adder_curried": (((lambda n (lambda m (+ n m))) 3) 4) == 7
+test "closure_adder_simultaneous": ((lambda n (lambda m (+ n m))) 3 4) == 7
+test "closure_K": (((lambda x (lambda y x)) 1) 2) == 1
+test "closure_KI": (((lambda x (lambda y y)) 1) 2) == 2
+test "closure_flip": ((((lambda f (lambda a (lambda b ((f b) a)))) (lambda x (lambda y (- x y)))) 1) 10) == 9
+test "closure_compose": ((((lambda f (lambda g (lambda x (f (g x))))) (lambda a (+ a 1))) (lambda b (* b 2))) 5) == 11
+test "closure_S": (((((lambda f (lambda g (lambda x ((f x) (g x))))) (lambda a (lambda b a))) (lambda c c)) 9)) == 9
+test "closure_named_maker": ((make_adder 3) 4) == 7
+test "closure_named_maker_two_instances": (+ ((make_adder 1) 10) ((make_adder 100) 10)) == 121
+test "closure_let_bound": (let many f = (lambda n (lambda m (+ n m))) in ((f 3) 4)) == 7
+test "closure_let_captures_local": (let many y = 10 in ((lambda x (+ x y)) 5)) == 15
+test "closure_shadowing": (((lambda x ((lambda x x) 5)) 1)) == 5
+test "closure_inner_shadow_keeps_outer": (((lambda x (lambda x x)) 1) 2) == 2
+test "closure_three_levels": ((((lambda a (lambda b (lambda c (+ a (+ b c))))) 1) 20) 300) == 321
+
+-- Point fixe anonyme (Z, appel par valeur) : factorielle sans recursion nommee.
+test "closure_Z_combinator_fact": ((lambda fix ((fix (lambda self (lambda n (if (= n 0) 1 (* n (self (- n 1))))))) 5)) (lambda f ((lambda x (f (lambda v ((x x) v)))) (lambda x (f (lambda v ((x x) v))))))) == 120
