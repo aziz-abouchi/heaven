@@ -1625,6 +1625,18 @@ pub fn build(b: *std.Build) void {
         test_he_imports.append(b.allocator, .{ .name = "lowering", .module = lowering_mod }) catch unreachable;
     }
 
+    const test_prolog = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/runtime/prolog_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "prolog", .module = prolog_mod },
+                .{ .name = "matrix_lib", .module = matrix_mod },
+            },
+        }),
+    });
+
     const test_heaven_expr = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/core/heaven_expr.zig"),
@@ -2026,6 +2038,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(test_codegen_c).step);
     test_step.dependOn(&b.addRunArtifact(test_codegen_latex).step);
     test_step.dependOn(&b.addRunArtifact(test_engine).step);
+    test_step.dependOn(&b.addRunArtifact(test_prolog).step);
     test_step.dependOn(&b.addRunArtifact(test_heaven_expr).step);
     test_step.dependOn(&b.addRunArtifact(test_types).step);
     test_step.dependOn(&b.addRunArtifact(test_proof).step);
