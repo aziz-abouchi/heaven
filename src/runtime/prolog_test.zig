@@ -236,23 +236,81 @@ test "Prolog loadFromMatrix annule le chargement après une insertion partielle"
         var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
         defer engine.deinit();
 
-        try std.testing.expectError(
-            error.InvalidFact,
-            engine.loadFromMatrix(&matrix),
-        );
-        try std.testing.expect(!engine.loaded);
-        try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+        const existing_args = [_][]const u8{"preserved"};
+        try engine.addFactDup("existing", &existing_args);
 
         try std.testing.expectError(
             error.InvalidFact,
             engine.loadFromMatrix(&matrix),
         );
         try std.testing.expect(!engine.loaded);
-        try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+        try std.testing.expectEqual(@as(usize, 1), engine.clauses.items.len);
+        try std.testing.expectEqualStrings("existing", engine.clauses.items[0].head.pred);
+        try std.testing.expectEqualStrings("preserved", engine.clauses.items[0].head.args[0]);
+
+        try std.testing.expectError(
+            error.InvalidFact,
+            engine.loadFromMatrix(&matrix),
+        );
+        try std.testing.expect(!engine.loaded);
+        try std.testing.expectEqual(@as(usize, 1), engine.clauses.items.len);
+        try std.testing.expectEqualStrings("existing", engine.clauses.items[0].head.pred);
+        try std.testing.expectEqualStrings("preserved", engine.clauses.items[0].head.args[0]);
 
         exercised_rollback = true;
         break;
     }
 
     try std.testing.expect(exercised_rollback);
+}
+
+
+fn allocationFailureLoadFromMatrix(allocator: std.mem.Allocator) !void {
+    // La matrice utilise l'allocateur normal : seuls les appels du moteur
+    // Prolog sont soumis à l'injection d'échecs.
+    var matrix = matrix_lib.Matrix.init(std.testing.allocator);
+    defer matrix.deinit();
+
+    for (0..32) |i| {
+        var buf: [64]u8 = undefined;
+        const label = try std.fmt.bufPrint(
+            &buf,
+            "FACT:allocation_{d}(ada,bob)",
+            .{i},
+        );
+        _ = try matrix.addUniqueSymbol(label);
+    }
+
+    _ = try matrix.addUniqueSymbol(
+        "RULE:grandparent(X,Z) :- parent(X,Y), parent(Y,Z)",
+    );
+
+    var engine = prolog_lib.PrologEngine.init(allocator);
+    defer engine.deinit();
+
+    const existing_args = [_][]const u8{"preserved"};
+    try engine.addFactDup("existing", &existing_args);
+
+    engine.loadFromMatrix(&matrix) catch |err| {
+        if (err != error.OutOfMemory) return err;
+
+        try std.testing.expect(!engine.loaded);
+        try std.testing.expectEqual(@as(usize, 1), engine.clauses.items.len);
+        try std.testing.expectEqualStrings("existing", engine.clauses.items[0].head.pred);
+        try std.testing.expectEqualStrings("preserved", engine.clauses.items[0].head.args[0]);
+        return err;
+    };
+
+    try std.testing.expect(engine.loaded);
+    try std.testing.expectEqual(@as(usize, 34), engine.clauses.items.len);
+    try std.testing.expectEqualStrings("existing", engine.clauses.items[0].head.pred);
+    try std.testing.expectEqualStrings("preserved", engine.clauses.items[0].head.args[0]);
+}
+
+test "Prolog loadFromMatrix gere tous les echecs d allocation" {
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        allocationFailureLoadFromMatrix,
+        .{},
+    );
 }
