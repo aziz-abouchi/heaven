@@ -489,15 +489,15 @@ pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: *Blo
 
             if (args.len == 2 and (std.mem.eql(u8, op_name, "==") or std.mem.eql(u8, op_name, "eq") or
                 std.mem.eql(u8, op_name, "!=") or std.mem.eql(u8, op_name, "neq") or
-                std.mem.eql(u8, op_name, "lt") or std.mem.eql(u8, op_name, "<") or std.mem.eql(u8, op_name, "gt") or std.mem.eql(u8, op_name, ">") or
-                std.mem.eql(u8, op_name, "le") or std.mem.eql(u8, op_name, "<=") or std.mem.eql(u8, op_name, "ge") or std.mem.eql(u8, op_name, ">=") or
-                std.mem.eql(u8, op_name, "<") or std.mem.eql(u8, op_name, ">") or
-                std.mem.eql(u8, op_name, "<=") or std.mem.eql(u8, op_name, ">=") or
-                std.mem.eql(u8, op_name, "add") or std.mem.eql(u8, op_name, "+") or std.mem.eql(u8, op_name, "sub") or std.mem.eql(u8, op_name, "-") or
-                std.mem.eql(u8, op_name, "mul") or std.mem.eql(u8, op_name, "*") or std.mem.eql(u8, op_name, "div") or std.mem.eql(u8, op_name, "/") or
-                std.mem.eql(u8, op_name, "rem") or std.mem.eql(u8, op_name, "%") or
-                std.mem.eql(u8, op_name, "+") or std.mem.eql(u8, op_name, "-") or
-                std.mem.eql(u8, op_name, "*") or std.mem.eql(u8, op_name, "/")))
+                std.mem.eql(u8, op_name, "lt") or std.mem.eql(u8, op_name, "<") or
+                std.mem.eql(u8, op_name, "gt") or std.mem.eql(u8, op_name, ">") or
+                std.mem.eql(u8, op_name, "le") or std.mem.eql(u8, op_name, "<=") or
+                std.mem.eql(u8, op_name, "ge") or std.mem.eql(u8, op_name, ">=") or
+                std.mem.eql(u8, op_name, "add") or std.mem.eql(u8, op_name, "+") or
+                std.mem.eql(u8, op_name, "sub") or std.mem.eql(u8, op_name, "-") or
+                std.mem.eql(u8, op_name, "mul") or std.mem.eql(u8, op_name, "*") or
+                std.mem.eql(u8, op_name, "div") or std.mem.eql(u8, op_name, "/") or
+                std.mem.eql(u8, op_name, "rem") or std.mem.eql(u8, op_name, "%")))
             {
                 const lhs = try self.compileExpr(store, args[0], target_block, locals);
                 const rhs = try self.compileExpr(store, args[1], target_block, locals);
