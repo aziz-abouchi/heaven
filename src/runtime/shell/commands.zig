@@ -16,7 +16,10 @@ const QV = struct { name: []const u8, id: u32 };
 
 pub fn cmdAsk(self: *Shell, query_str: []const u8) void {
     if (query_str.len == 0) return;
-    self.prolog.loadFromMatrix(self.matrix);
+    self.prolog.loadFromMatrix(self.matrix) catch |err| {
+        platform.debug.print("prolog load error: {s}\n", .{@errorName(err)});
+        return;
+    };
     const parsed = self.prolog.parseAtom(query_str) orelse return;
 
     var solutions = self.prolog.solve(parsed, self.allocator);
@@ -1617,7 +1620,10 @@ pub fn cmdPrologRule(self: *Shell, input: []const u8) void {
         platform.debug.print("parse error: ':-' attendu\n", .{});
         return;
     }
-    self.prolog.parseRule(trimmed);
+    self.prolog.parseRule(trimmed) catch |err| {
+        platform.debug.print("p-rule error: {s}\n", .{@errorName(err)});
+        return;
+    };
     platform.debug.print("\u{2713} p-rule enregistree\n", .{});
 }
 

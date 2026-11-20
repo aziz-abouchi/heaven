@@ -50,7 +50,7 @@ test "Prolog charge les faits et règles depuis Matrix" {
     var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
     defer engine.deinit();
 
-    engine.loadFromMatrix(&matrix);
+    try engine.loadFromMatrix(&matrix);
 
     try std.testing.expect(engine.loaded);
     try std.testing.expectEqual(@as(usize, 2), engine.clauses.items.len);
@@ -71,4 +71,53 @@ test "Prolog charge les faits et règles depuis Matrix" {
 
     try std.testing.expect(found_fact);
     try std.testing.expect(found_rule);
+}
+
+
+test "Prolog addFactDup rejette plus de huit arguments sans insertion" {
+    var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
+    defer engine.deinit();
+
+    const args = [_][]const u8{"a", "b", "c", "d", "e", "f", "g", "h", "i"};
+    try std.testing.expectError(error.TooManyArguments, engine.addFactDup("nine", &args));
+    try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+}
+
+test "Prolog parseRule rejette une règle mal formée sans insertion" {
+    var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
+    defer engine.deinit();
+
+    try std.testing.expectError(error.InvalidRule, engine.parseRule("parent(X,Y) :- father(X,Y),"));
+    try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+}
+
+test "Prolog parseRule rejette plus de huit atomes dans le corps" {
+    var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
+    defer engine.deinit();
+
+    try std.testing.expectError(
+        error.TooManyBodyAtoms,
+        engine.parseRule("target(X) :- a(X), b(X), c(X), d(X), e(X), f(X), g(X), h(X), i(X)"),
+    );
+    try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+}
+
+test "Prolog loadFromMatrix annule le chargement en cas de label invalide" {
+    var matrix = matrix_lib.Matrix.init(std.testing.allocator);
+    defer matrix.deinit();
+
+    _ = try matrix.addUniqueSymbol("FACT:valid(ada,bob)");
+    _ = try matrix.addUniqueSymbol("FACT:malformed");
+
+    var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
+    defer engine.deinit();
+
+    try std.testing.expectError(error.InvalidFact, engine.loadFromMatrix(&matrix));
+    try std.testing.expect(!engine.loaded);
+    try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+
+    // Un nouvel essai ne doit pas considérer la base comme déjà chargée.
+    try std.testing.expectError(error.InvalidFact, engine.loadFromMatrix(&matrix));
+    try std.testing.expect(!engine.loaded);
+    try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
 }

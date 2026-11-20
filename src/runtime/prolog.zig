@@ -87,129 +87,151 @@ pub const PrologEngine = struct {
         return .{ .clauses = .{}, .allocator = alloc, .loaded = false, .rename_counter = 0, .rename_bufs = undefined };
     }
 
-    pub fn loadFromMatrix(self: *PrologEngine, matrix: *matrix_lib.Matrix) void {
+    fn freeAtom(self: *PrologEngine, atom: PrologAtom) void {
+        self.allocator.free(atom.pred);
+        for (atom.args[0..atom.arity]) |arg| {
+            self.allocator.free(arg);
+        }
+    }
+
+    fn freeClause(self: *PrologEngine, clause: Clause) void {
+        self.freeAtom(clause.head);
+        for (clause.body[0..clause.body_len]) |atom| {
+            self.freeAtom(atom);
+        }
+    }
+
+    fn dupeAtom(self: *PrologEngine, source: PrologAtom) !PrologAtom {
+        if (source.arity > 8) return error.TooManyArguments;
+
+        const pred = try self.allocator.dupe(u8, source.pred);
+        errdefer self.allocator.free(pred);
+
+        var result: PrologAtom = .{
+            .pred = pred,
+            .args = undefined,
+            .arity = source.arity,
+        };
+        var copied: usize = 0;
+        errdefer {
+            for (result.args[0..copied]) |arg| self.allocator.free(arg);
+        }
+
+        while (copied < source.arity) : (copied += 1) {
+            result.args[copied] = try self.allocator.dupe(u8, source.args[copied]);
+        }
+        while (copied < 8) : (copied += 1) result.args[copied] = "";
+
+        return result;
+    }
+
+    pub fn loadFromMatrix(self: *PrologEngine, matrix: *matrix_lib.Matrix) !void {
         if (self.loaded) return;
-        self.loaded = true;
+
+        const initial_len = self.clauses.items.len;
+        errdefer {
+            while (self.clauses.items.len > initial_len) {
+                const last = self.clauses.items[self.clauses.items.len - 1];
+                self.freeClause(last);
+                self.clauses.items = self.clauses.items[0 .. self.clauses.items.len - 1];
+            }
+        }
 
         var it = matrix.symbol_index.iterator();
         while (it.next()) |entry| {
             const sym = entry.key_ptr.*;
             if (std.mem.startsWith(u8, sym, "FACT:")) {
-                self.parseFact(sym[5..]);
+                try self.parseFact(sym[5..]);
             } else if (std.mem.startsWith(u8, sym, "RULE:")) {
-                self.parseRule(sym[5..]);
+                try self.parseRule(sym[5..]);
             }
         }
+
+        self.loaded = true;
     }
 
-    fn parseFact(self: *PrologEngine, text: []const u8) void {
-        const atom_raw = self.parseAtomStr(text) orelse return;
-        // Dupliquer les strings (qui viennent de Matrix ou d'un buffer
-        // ephemere) pour pouvoir les liberer dans deinit().
-        const pred_copy = self.allocator.dupe(u8, atom_raw.pred) catch return;
-        var atom: PrologAtom = .{ .pred = pred_copy, .args = undefined, .arity = atom_raw.arity };
-        var i: usize = 0;
-        while (i < atom_raw.arity) : (i += 1) {
-            atom.args[i] = self.allocator.dupe(u8, atom_raw.args[i]) catch return;
-        }
-        while (i < 8) : (i += 1) atom.args[i] = "";
-        self.clauses.append(self.allocator, .{ .head = atom, .body = undefined, .body_len = 0 }) catch {};
+    fn parseFact(self: *PrologEngine, text: []const u8) !void {
+        const atom_raw = self.parseAtomStr(text) orelse return error.InvalidFact;
+        const atom = try self.dupeAtom(atom_raw);
+        errdefer self.freeAtom(atom);
+        try self.clauses.append(self.allocator, .{
+            .head = atom,
+            .body = undefined,
+            .body_len = 0,
+        });
     }
 
     /// Libere toutes les clauses (pred + args). A appeler dans Shell.deinit.
     pub fn deinit(self: *PrologEngine) void {
         for (self.clauses.items) |clause| {
-            self.allocator.free(clause.head.pred);
-            for (clause.head.args[0..clause.head.arity]) |a| {
-                self.allocator.free(a);
-            }
-            for (clause.body[0..clause.body_len]) |b| {
-                self.allocator.free(b.pred);
-                for (b.args[0..b.arity]) |a| {
-                    self.allocator.free(a);
-                }
-            }
+            self.freeClause(clause);
         }
         self.clauses.deinit(self.allocator);
     }
 
-    pub fn parseRule(self: *PrologEngine, text: []const u8) void {
-        const sep = std.mem.indexOf(u8, text, ":-") orelse return;
-        const head_str = std.mem.trim(u8, text[0..sep], " ");
-        const body_str = std.mem.trim(u8, text[sep + 2 ..], " ");
+    pub fn parseRule(self: *PrologEngine, text: []const u8) !void {
+        const sep = std.mem.indexOf(u8, text, ":-") orelse return error.InvalidRule;
+        const head_str = std.mem.trim(u8, text[0..sep], " \t");
+        var rest_body = std.mem.trim(u8, text[sep + 2 ..], " \t");
 
-        const head_raw = self.parseAtomStr(head_str) orelse return;
-        const head_pred_copy = self.allocator.dupe(u8, head_raw.pred) catch return;
-        var head: PrologAtom = .{ .pred = head_pred_copy, .args = undefined, .arity = head_raw.arity };
-        {
-            var i: usize = 0;
-            while (i < head_raw.arity) : (i += 1) {
-                head.args[i] = self.allocator.dupe(u8, head_raw.args[i]) catch return;
-            }
-            while (i < 8) : (i += 1) head.args[i] = "";
+        const head_raw = self.parseAtomStr(head_str) orelse return error.InvalidRule;
+        const head = try self.dupeAtom(head_raw);
+        var clause: Clause = .{
+            .head = head,
+            .body = undefined,
+            .body_len = 0,
+        };
+        errdefer {
+            self.freeAtom(clause.head);
+            for (clause.body[0..clause.body_len]) |atom| self.freeAtom(atom);
         }
-        var clause: Clause = .{ .head = head, .body = undefined, .body_len = 0 };
 
-        var rest_body = body_str;
+        if (rest_body.len == 0) return error.InvalidRule;
+
         while (rest_body.len > 0) {
-            const close = std.mem.indexOfScalar(u8, rest_body, ')') orelse break;
-            const atom_str = std.mem.trim(u8, rest_body[0 .. close + 1], " ");
+            if (clause.body_len >= 8) return error.TooManyBodyAtoms;
 
-            if (close + 1 < rest_body.len) {
-                const after = rest_body[close + 1 ..];
-                const comma = std.mem.indexOfScalar(u8, after, ',');
-                if (comma) |ci| {
-                    rest_body = std.mem.trim(u8, after[ci + 1 ..], " ");
-                } else {
-                    rest_body = "";
-                }
-            } else {
-                rest_body = "";
-            }
+            const close = std.mem.indexOfScalar(u8, rest_body, ')') orelse return error.InvalidRule;
+            const atom_text = std.mem.trim(u8, rest_body[0 .. close + 1], " \t");
+            const atom_raw = self.parseAtomStr(atom_text) orelse return error.InvalidRule;
+            const atom = try self.dupeAtom(atom_raw);
 
-            if (self.parseAtomStr(atom_str)) |atom_raw2| {
-                // Dupliquer les strings du body
-                const body_pred_copy = self.allocator.dupe(u8, atom_raw2.pred) catch break;
-                var atom: PrologAtom = .{ .pred = body_pred_copy, .args = undefined, .arity = atom_raw2.arity };
-                {
-                    var bi: usize = 0;
-                    while (bi < atom_raw2.arity) : (bi += 1) {
-                        atom.args[bi] = self.allocator.dupe(u8, atom_raw2.args[bi]) catch break;
-                    }
-                    while (bi < 8) : (bi += 1) atom.args[bi] = "";
-                }
-                if (clause.body_len < 8) {
-                    clause.body[clause.body_len] = atom;
-                    clause.body_len += 1;
-                }
-            }
+            clause.body[clause.body_len] = atom;
+            clause.body_len += 1;
+
+            const after = std.mem.trim(u8, rest_body[close + 1 ..], " \t");
+            if (after.len == 0) break;
+            if (after[0] != ',') return error.InvalidRule;
+            rest_body = std.mem.trim(u8, after[1..], " \t");
+            if (rest_body.len == 0) return error.InvalidRule;
         }
 
-        self.clauses.append(self.allocator, clause) catch {};
+        try self.clauses.append(self.allocator, clause);
     }
 
     fn parseAtomStr(self: *PrologEngine, str: []const u8) ?PrologAtom {
         _ = self;
-        const paren_start = std.mem.indexOf(u8, str, "(") orelse return null;
-        const paren_end = std.mem.lastIndexOf(u8, str, ")") orelse return null;
-        if (paren_end <= paren_start) return null;
+        const input = std.mem.trim(u8, str, " \t");
+        const paren_start = std.mem.indexOf(u8, input, "(") orelse return null;
+        const paren_end = std.mem.lastIndexOf(u8, input, ")") orelse return null;
+        if (paren_end <= paren_start or paren_end != input.len - 1) return null;
 
-        const pred = std.mem.trim(u8, str[0..paren_start], " ");
+        const pred = std.mem.trim(u8, input[0..paren_start], " \t");
         if (pred.len == 0) return null;
 
-        const args_str = str[paren_start + 1 .. paren_end];
-
+        const args_str = input[paren_start + 1 .. paren_end];
         var atom: PrologAtom = .{ .pred = pred, .args = undefined, .arity = 0 };
-        var ai: usize = 0;
-        while (ai < 8) : (ai += 1) atom.args[ai] = "";
+        for (&atom.args) |*arg| arg.* = "";
 
-        var arg_it = std.mem.tokenizeAny(u8, args_str, ",");
-        while (arg_it.next()) |arg| {
-            if (atom.arity >= 8) break;
-            atom.args[atom.arity] = std.mem.trim(u8, arg, " ");
+        if (args_str.len == 0) return atom;
+
+        var it = std.mem.splitScalar(u8, args_str, ',');
+        while (it.next()) |part| {
+            const arg = std.mem.trim(u8, part, " \t");
+            if (arg.len == 0 or atom.arity >= 8) return null;
+            atom.args[atom.arity] = arg;
             atom.arity += 1;
         }
-
         return atom;
     }
 
@@ -217,33 +239,55 @@ pub const PrologEngine = struct {
     /// faits ajoutes interactivement, dont les slices peuvent etre
     /// ephemeres).
     pub fn addFactDup(self: *PrologEngine, pred: []const u8, args: []const []const u8) !void {
-        const pred_copy = try self.allocator.dupe(u8, pred);
-        errdefer self.allocator.free(pred_copy);
-        var atom: PrologAtom = .{ .pred = pred_copy, .args = undefined, .arity = @intCast(args.len) };
-        for (args, 0..) |a, i| {
-            atom.args[i] = try self.allocator.dupe(u8, a);
+        if (args.len > 8) return error.TooManyArguments;
+        var raw: PrologAtom = .{ .pred = pred, .args = undefined, .arity = @intCast(args.len) };
+        for (args, 0..) |arg, i| raw.args[i] = arg;
+        var i = args.len;
+        while (i < 8) : (i += 1) raw.args[i] = "";
+
+        const atom = try self.dupeAtom(raw);
+        errdefer self.freeAtom(atom);
+        try self.clauses.append(self.allocator, .{
+            .head = atom,
+            .body = undefined,
+            .body_len = 0,
+        });
+    }
+
+    pub fn addFact(self: *PrologEngine, pred: []const u8, args: []const []const u8) !void {
+        return self.addFactDup(pred, args);
+    }
+
+    pub fn addRule(self: *PrologEngine, pred: []const u8, head_args: []const []const u8, body: []const PrologAtom) !void {
+        if (head_args.len > 8) return error.TooManyArguments;
+        if (body.len > 8) return error.TooManyBodyAtoms;
+
+        var raw_head: PrologAtom = .{
+            .pred = pred,
+            .args = undefined,
+            .arity = @intCast(head_args.len),
+        };
+        for (head_args, 0..) |arg, i| raw_head.args[i] = arg;
+        var i = head_args.len;
+        while (i < 8) : (i += 1) raw_head.args[i] = "";
+
+        const head = try self.dupeAtom(raw_head);
+        var clause: Clause = .{
+            .head = head,
+            .body = undefined,
+            .body_len = 0,
+        };
+        errdefer {
+            self.freeAtom(clause.head);
+            for (clause.body[0..clause.body_len]) |atom| self.freeAtom(atom);
         }
-        var i: usize = args.len;
-        while (i < 8) : (i += 1) atom.args[i] = "";
-        try self.clauses.append(self.allocator, .{ .head = atom, .body = undefined, .body_len = 0 });
-    }
 
-    pub fn addFact(self: *PrologEngine, pred: []const u8, args: []const []const u8) void {
-        var atom: PrologAtom = .{ .pred = pred, .args = undefined, .arity = @intCast(args.len) };
-        for (args, 0..) |a, i| atom.args[i] = a;
-        var i: usize = args.len;
-        while (i < 8) : (i += 1) atom.args[i] = "";
-        self.clauses.append(self.allocator, .{ .head = atom, .body = undefined, .body_len = 0 }) catch {};
-    }
-
-    pub fn addRule(self: *PrologEngine, pred: []const u8, head_args: []const []const u8, body: []const PrologAtom) void {
-        var head: PrologAtom = .{ .pred = pred, .args = undefined, .arity = @intCast(head_args.len) };
-        for (head_args, 0..) |a, i| head.args[i] = a;
-        var i: usize = head_args.len;
-        while (i < 8) : (i += 1) head.args[i] = "";
-        var clause: Clause = .{ .head = head, .body = undefined, .body_len = @intCast(body.len) };
-        for (body, 0..) |b, bi| clause.body[bi] = b;
-        self.clauses.append(self.allocator, clause) catch {};
+        for (body) |source| {
+            const atom = try self.dupeAtom(source);
+            clause.body[clause.body_len] = atom;
+            clause.body_len += 1;
+        }
+        try self.clauses.append(self.allocator, clause);
     }
 
     pub fn parseAtom(self: *PrologEngine, str: []const u8) ?PrologAtom {
