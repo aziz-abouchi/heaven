@@ -377,6 +377,7 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
         } else {
             const owned_name = try cmds.engine.allocator.dupe(u8, name);
             cmds.engine.fns.put(cmds.engine.allocator, owned_name, def) catch |err| {
+                cmds.engine.allocator.free(owned_name);
                 return std.fmt.allocPrint(cmds.engine.allocator, "registration error: {s}", .{@errorName(err)});
             };
         }
@@ -469,10 +470,17 @@ pub fn evalFnDef(cmds: anytype, input: []const u8) anyerror![]u8 {
         // `fn name(args) = body` REMPLACE la def (nouvelle version).
         // `name args = body` (multi-clause) AJOUTE une clause.
         if (is_fn_keyword) {
-            const owned_name = try cmds.engine.allocator.dupe(u8, name);
-            cmds.engine.fns.put(cmds.engine.allocator, owned_name, def) catch |err| {
-                return std.fmt.allocPrint(cmds.engine.allocator, "registration error: {s}", .{@errorName(err)});
-            };
+            // Redéfinition : `put` conserve l'ancienne clé, donc on réutilise
+            // son nom (un nouveau dupe fuirait).
+            if (cmds.engine.fns.getPtr(name)) |existing| {
+                existing.* = def;
+            } else {
+                const owned_name = try cmds.engine.allocator.dupe(u8, name);
+                cmds.engine.fns.put(cmds.engine.allocator, owned_name, def) catch |err| {
+                    cmds.engine.allocator.free(owned_name);
+                    return std.fmt.allocPrint(cmds.engine.allocator, "registration error: {s}", .{@errorName(err)});
+                };
+            }
         } else if (cmds.engine.fns.getPtr(name)) |existing| {
             const clause = def.clauses[0];
             existing.addClause(clause.patterns[0..clause.num_patterns], clause.body) catch |err| {
