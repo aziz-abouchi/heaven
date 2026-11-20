@@ -287,3 +287,32 @@ test "typer checkAll deduplicates arity mismatch inside bind body" {
     try std.testing.expectEqual(@as(usize, 1), diags.items.items.len);
     try std.testing.expect(std.mem.indexOf(u8, diags.items.items[0].message, "arity mismatch") != null);
 }
+test "typer checkAll deduplicates repeated references with node_positions" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    var diags = DiagnosticList.init(allocator);
+    defer diags.deinit();
+
+    var positions = std.AutoHashMapUnmanaged(Id, Position){};
+    defer positions.deinit(allocator);
+
+    const fn_lam = try store.lambda(&.{ "x", "y" }, try store.int(0));
+    _ = try store.bind("add2", fn_lam);
+
+    const bad_call = try store.apply(try store.sym("add2"), &.{ try store.int(1) });
+    try positions.put(allocator, bad_call, .{ .line = 7, .col = 9 });
+
+    _ = try store.bind("first_use", bad_call);
+    _ = try store.bind("second_use", bad_call);
+
+    var typer = Typer.init(allocator, &store, &diags);
+    defer typer.deinit();
+    typer.node_positions = &positions;
+    typer.checkAll();
+
+    try std.testing.expectEqual(@as(usize, 1), diags.items.items.len);
+    try std.testing.expectEqual(@as(u32, 7), diags.items.items[0].start.line);
+    try std.testing.expectEqual(@as(u32, 9), diags.items.items[0].start.col);
+}

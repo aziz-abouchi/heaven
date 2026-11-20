@@ -147,6 +147,32 @@ test "Prolog addFactDup rejette plus de huit arguments sans insertion" {
     try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
 }
 
+fn allocationFailureParseRule(allocator: std.mem.Allocator) !void {
+    var engine = prolog_lib.PrologEngine.init(allocator);
+    defer engine.deinit();
+
+    engine.parseRule("grandparent(X,Z) :- parent(X,Y), parent(Y,Z)") catch |err| {
+        if (err != error.OutOfMemory) return err;
+        try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+        return err;
+    };
+
+    try std.testing.expectEqual(@as(usize, 1), engine.clauses.items.len);
+    try std.testing.expectEqual(@as(u8, 2), engine.clauses.items[0].head.arity);
+    try std.testing.expectEqual(@as(u8, 2), engine.clauses.items[0].body_len);
+    try std.testing.expectEqualStrings("grandparent", engine.clauses.items[0].head.pred);
+    try std.testing.expectEqualStrings("parent", engine.clauses.items[0].body[0].pred);
+    try std.testing.expectEqualStrings("parent", engine.clauses.items[0].body[1].pred);
+}
+
+test "Prolog parseRule gere tous les echecs d allocation" {
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        allocationFailureParseRule,
+        .{},
+    );
+}
+
 test "Prolog parseRule rejette une règle mal formée sans insertion" {
     var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
     defer engine.deinit();
