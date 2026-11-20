@@ -92,7 +92,6 @@ pub fn runBenchInterp(
     var heaven = heaven_expr.Heaven.init(alloc) catch return error.HeavenInit;
     defer {
         heaven.deinit();
-        alloc.destroy(heaven);
     }
 
     // 1. Eval des definitions (peuple engine.fns), on garde la

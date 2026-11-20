@@ -99,7 +99,6 @@ pub fn runTestFile(allocator: std.mem.Allocator, path: []const u8) !bool {
     var heaven = heaven_expr_mod.Heaven.init(allocator) catch @panic("Failed to init Heaven");
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const file = try platform.fs.cwd().openFile(path, .{});
@@ -262,7 +261,6 @@ pub fn runEvalFile(allocator: std.mem.Allocator, path: []const u8) !void {
     var heaven = heaven_expr_mod.Heaven.init(allocator) catch @panic("Failed to init Heaven");
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const file = try platform.fs.cwd().openFile(path, .{});

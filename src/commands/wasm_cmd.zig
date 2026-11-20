@@ -117,7 +117,6 @@ pub fn runCompileWasm(
     var heaven = heaven_expr.Heaven.init(alloc) catch return error.HeavenInit;
     defer {
         heaven.deinit();
-        alloc.destroy(heaven);
     }
 
     const body = try parseLastExpr(alloc, heaven, source);
@@ -191,7 +190,6 @@ pub fn runBenchWasm(
         var heaven = heaven_expr.Heaven.init(alloc) catch return error.HeavenInit;
         defer {
             heaven.deinit();
-            alloc.destroy(heaven);
         }
         const body = try parseLastExpr(alloc, heaven, source);
         var mf = try compileRoot(alloc, heaven.store, &heaven.engine, body);

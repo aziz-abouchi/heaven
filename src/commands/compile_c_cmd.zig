@@ -166,7 +166,6 @@ pub fn runCompileC(allocator: std.mem.Allocator, src_path: []const u8, out_path:
     var heaven = heaven_expr.Heaven.init(allocator) catch return error.HeavenInit;
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const import_msg = try heaven.eval("import \"lib/parse/infix.hvn\" as Inf");

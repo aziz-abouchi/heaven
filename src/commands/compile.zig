@@ -26,7 +26,6 @@ pub fn runCompile(allocator: std.mem.Allocator, file_path: []const u8) !void {
     var heaven = heaven_expr.Heaven.init(allocator) catch return error.HeavenInit;
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     var parser = parse.Parser.init(heaven.store, &heaven.engine, heaven.env, allocator);

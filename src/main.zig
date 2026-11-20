@@ -56,7 +56,6 @@ fn swarmWorkerLoop(allocator: std.mem.Allocator, swarm: *swarm_runtime.SwarmRunt
     var heaven = heaven_expr.Heaven.init(allocator) catch @panic("Failed to init Heaven");
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     platform.dbg("[SWARM] Worker thread started (Bob:{d})\n", .{swarm.self_port});

@@ -366,7 +366,6 @@ pub fn runCompileQbe(
     var heaven = heaven_expr.Heaven.init(alloc) catch return error.HeavenInit;
     defer {
         heaven.deinit();
-        alloc.destroy(heaven);
     }
 
     const body = try parseLastExpr(alloc, heaven, source);
@@ -536,7 +535,6 @@ pub fn runBenchQbe(
         var heaven = heaven_expr.Heaven.init(alloc) catch return error.HeavenInit;
         defer {
             heaven.deinit();
-            alloc.destroy(heaven);
         }
         const body = try parseLastExpr(alloc, heaven, source);
         var mf = try compileRoot(alloc, heaven.store, &heaven.engine, body);
