@@ -130,7 +130,7 @@ l'AST en maintenant une pile d'entiers :
     run_eval (Pure _) stack = (if (null stack) 0 (head stack))
     run_eval (Push n rest) stack = (run_eval rest (cons n stack))
     run_eval (Add rest) stack =
-      (run_eval rest (cons (head stack) + (head (tail stack))
+      (run_eval rest (cons (+ (head stack) (head (tail stack)))
                            (tail (tail stack))))
     ...
 
