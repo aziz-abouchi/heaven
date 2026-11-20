@@ -418,3 +418,43 @@ test "qbe — non-terminal if inside break expression" {
 
     try oracleCheck(alloc, &store, loop_expr, 42);
 }
+
+test "qbe — orphaned phi with only tco incoming emits copy 0" {
+    const alloc = std.testing.allocator;
+    var mf = MirFunction.init(alloc);
+    defer mf.deinit();
+
+    const sym_f: u32 = 10;
+    var fn_mir = MirFunction.init(alloc);
+    const b0 = try fn_mir.newBlock();
+    const b1 = try fn_mir.newBlock();
+    const cond_r = fn_mir.newReg();
+    const call_r = fn_mir.newReg();
+    const phi_r = fn_mir.newReg();
+    const zero_r = fn_mir.newReg();
+
+    try fn_mir.blocks.items[b0].instrs.append(alloc, .{ .const_int = .{ .dest = cond_r, .value = 0 } });
+    try fn_mir.blocks.items[b0].instrs.append(alloc, .{ .call_user = .{ .dest = call_r, .name = sym_f, .args = &.{} } });
+    fn_mir.blocks.items[b0].terminator = .{ .jump = b1 };
+
+    const incoming = try alloc.alloc(mir.PhiEntry, 1);
+    incoming[0] = .{ .block = b0, .value = call_r };
+    try fn_mir.blocks.items[b1].instrs.append(alloc, .{ .phi = .{ .dest = phi_r, .incoming = incoming } });
+    fn_mir.blocks.items[b1].terminator = .{ .ret = phi_r };
+
+    try mf.fn_defs.put(sym_f, .{
+        .fn_mir = fn_mir,
+        .param_names = &.{},
+        .param_regs = &.{},
+    });
+
+    const entry = try mf.newBlock();
+    const root_call_r = mf.newReg();
+    try mf.blocks.items[entry].instrs.append(alloc, .{ .const_int = .{ .dest = zero_r, .value = 0 } });
+    try mf.blocks.items[entry].instrs.append(alloc, .{ .call_user = .{ .dest = root_call_r, .name = sym_f, .args = &.{} } });
+    mf.blocks.items[entry].terminator = .{ .ret = root_call_r };
+
+    const ssa = try qbe.emitQbe(alloc, &mf);
+    defer alloc.free(ssa);
+    try std.testing.expect(has(ssa, "=l copy 0"));
+}
