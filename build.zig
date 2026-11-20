@@ -2081,6 +2081,27 @@ pub fn build(b: *std.Build) void {
         .install_subdir = "docs",
     }).step);
 
+    const wasi_e2e_step = b.step("test-wasi-e2e", "Build heaven-wasi and run wasmtime E2E checks if available");
+    const wasi_e2e_cmd = b.addSystemCommand(&.{
+        "sh",
+        "-c",
+        \\set -e
+        \\zig build -Dtarget=wasm32-wasi
+        \\if ! command -v wasmtime >/dev/null 2>&1; then
+        \\  echo "wasmtime not found in PATH; skipping runtime E2E assertions"
+        \\  exit 0
+        \\fi
+        \\test "$(wasmtime run zig-out/bin/heaven-wasi.wasm "(+ 17 25)")" = "42"
+        \\test "$(wasmtime run zig-out/bin/heaven-wasi.wasm --fuel 10000 "(* 6 7)")" = "42"
+        \\TMP_EXPR=$(mktemp "./.tmp_wasi_e2e_XXXXXX.hvn")
+        \\trap 'rm -f "$TMP_EXPR"' EXIT
+        \\printf "# comment\n(+ 10 20)\n(+ 12 30)\n" > "$TMP_EXPR"
+        \\test "$(wasmtime run --dir . zig-out/bin/heaven-wasi.wasm --eval-file "$(basename "$TMP_EXPR")")" = "42"
+        \\echo "heaven-wasi E2E checks passed"
+        ,
+    });
+    wasi_e2e_step.dependOn(&wasi_e2e_cmd.step);
+
     const check_step = b.step("check", "Run all tests and regression suite");
     check_step.dependOn(test_step);
     check_step.dependOn(&run_tests_cmd.step);

@@ -26,10 +26,21 @@ pub fn main() !void {
 
     while (i < args.len) {
         const a = args[i];
-        if (std.mem.eql(u8, a, "--fuel") and i + 1 < args.len) {
-            fuel = try std.fmt.parseInt(u64, args[i + 1], 10);
+        if (std.mem.eql(u8, a, "--fuel")) {
+            if (i + 1 >= args.len) {
+                platform.io.printOut("error: missing value for --fuel\n", .{});
+                return;
+            }
+            fuel = std.fmt.parseInt(u64, args[i + 1], 10) catch {
+                platform.io.printOut("error: invalid --fuel value '{s}'\n", .{args[i + 1]});
+                return;
+            };
             i += 2;
-        } else if (std.mem.eql(u8, a, "--eval-file") and i + 1 < args.len) {
+        } else if (std.mem.eql(u8, a, "--eval-file")) {
+            if (i + 1 >= args.len) {
+                platform.io.printOut("error: missing path for --eval-file\n", .{});
+                return;
+            }
             eval_file = args[i + 1];
             i += 2;
         } else break;
