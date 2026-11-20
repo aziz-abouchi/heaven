@@ -138,6 +138,75 @@ test "Prolog charge les faits et règles depuis Matrix" {
 }
 
 
+test "Prolog addFactDup rejette un predicat vide sans insertion" {
+    var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
+    defer engine.deinit();
+
+    const args = [_][]const u8{"ada"};
+    try std.testing.expectError(error.InvalidFact, engine.addFactDup("", &args));
+    try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+}
+
+test "Prolog addFactDup rejette un argument vide sans insertion" {
+    var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
+    defer engine.deinit();
+
+    const args = [_][]const u8{"ada", ""};
+    try std.testing.expectError(error.InvalidFact, engine.addFactDup("parent", &args));
+    try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+}
+
+test "Prolog addRule rejette un predicat vide sans insertion" {
+    var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
+    defer engine.deinit();
+
+    const head_args = [_][]const u8{"X"};
+    const body = [_]prolog_lib.PrologAtom{
+        .{
+            .pred = "parent",
+            .args = .{ "X", "", "", "", "", "", "", "" },
+            .arity = 1,
+        },
+    };
+
+    try std.testing.expectError(error.InvalidRule, engine.addRule("", &head_args, &body));
+    try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+}
+
+test "Prolog addRule rejette un argument vide dans le corps sans insertion" {
+    var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
+    defer engine.deinit();
+
+    const head_args = [_][]const u8{"X"};
+    const body = [_]prolog_lib.PrologAtom{
+        .{
+            .pred = "parent",
+            .args = .{ "X", "", "", "", "", "", "", "" },
+            .arity = 2,
+        },
+    };
+
+    try std.testing.expectError(error.InvalidRule, engine.addRule("target", &head_args, &body));
+    try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+}
+
+test "Prolog rejette les predicats et arguments espaces ou tabulations" {
+    var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
+    defer engine.deinit();
+
+    const no_args = [_][]const u8{};
+    const tab_arg = [_][]const u8{"\t"};
+
+    try std.testing.expectError(error.InvalidFact, engine.addFactDup(" \t", &no_args));
+    try std.testing.expectError(error.InvalidFact, engine.addFactDup("parent", &tab_arg));
+
+    const head_args = [_][]const u8{"\t"};
+    const body = [_]prolog_lib.PrologAtom{};
+
+    try std.testing.expectError(error.InvalidRule, engine.addRule("target", &head_args, &body));
+    try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+}
+
 test "Prolog addFactDup rejette plus de huit arguments sans insertion" {
     var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
     defer engine.deinit();

@@ -103,6 +103,13 @@ pub const PrologEngine = struct {
 
     fn dupeAtom(self: *PrologEngine, source: PrologAtom) !PrologAtom {
         if (source.arity > 8) return error.TooManyArguments;
+        if (std.mem.trim(u8, source.pred, " \t").len == 0)
+            return error.InvalidAtom;
+
+        for (source.args[0..source.arity]) |arg| {
+            if (std.mem.trim(u8, arg, " \t").len == 0)
+                return error.InvalidAtom;
+        }
 
         const pred = try self.allocator.dupe(u8, source.pred);
         errdefer self.allocator.free(pred);
@@ -240,6 +247,12 @@ pub const PrologEngine = struct {
     /// ephemeres).
     pub fn addFactDup(self: *PrologEngine, pred: []const u8, args: []const []const u8) !void {
         if (args.len > 8) return error.TooManyArguments;
+        if (std.mem.trim(u8, pred, " \t").len == 0) return error.InvalidFact;
+        for (args) |arg| {
+            if (std.mem.trim(u8, arg, " \t").len == 0)
+                return error.InvalidFact;
+        }
+
         var raw: PrologAtom = .{ .pred = pred, .args = undefined, .arity = @intCast(args.len) };
         for (args, 0..) |arg, i| raw.args[i] = arg;
         var i = args.len;
@@ -261,6 +274,21 @@ pub const PrologEngine = struct {
     pub fn addRule(self: *PrologEngine, pred: []const u8, head_args: []const []const u8, body: []const PrologAtom) !void {
         if (head_args.len > 8) return error.TooManyArguments;
         if (body.len > 8) return error.TooManyBodyAtoms;
+        if (std.mem.trim(u8, pred, " \t").len == 0) return error.InvalidRule;
+
+        for (head_args) |arg| {
+            if (std.mem.trim(u8, arg, " \t").len == 0)
+                return error.InvalidRule;
+        }
+        for (body) |source| {
+            if (std.mem.trim(u8, source.pred, " \t").len == 0)
+                return error.InvalidRule;
+            if (source.arity > 8) return error.TooManyArguments;
+            for (source.args[0..source.arity]) |arg| {
+                if (std.mem.trim(u8, arg, " \t").len == 0)
+                    return error.InvalidRule;
+            }
+        }
 
         var raw_head: PrologAtom = .{
             .pred = pred,

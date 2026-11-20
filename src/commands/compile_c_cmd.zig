@@ -255,3 +255,78 @@ test "infix juxtaposition precedence over caret and error sentinel" {
     defer allocator.free(bad_repr);
     try std.testing.expect(std.mem.indexOf(u8, bad_repr, "PARSE_ERR") != null);
 }
+test "infix application chain, caret right-associativity, and unclosed paren" {
+    const allocator = std.testing.allocator;
+    var heaven = try heaven_expr.Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const import_msg = try heaven.eval("import \"lib/parse/infix.hvn\" as Inf");
+    defer allocator.free(import_msg);
+    try std.testing.expect(!isImportFailureMessage(import_msg));
+
+    // Associativite a gauche de la juxtaposition : f x y => ((f x) y)
+    {
+        const call_id = try heaven.parseExpression("(Inf.parse_infix \"f x y\")");
+        const eval_id = try heaven.engine.eval(call_id);
+        const ast_repr = try expr.toStringInfix(heaven.store, eval_id, allocator);
+        defer allocator.free(ast_repr);
+
+        const trimmed = std.mem.trim(u8, ast_repr, " \t\r\n");
+        try std.testing.expect(std.mem.indexOf(u8, trimmed, "PARSE_ERR") == null);
+
+        const parsed_id = try heaven.parseExpression(trimmed);
+        const lowered_id = try lowerHpToStore(allocator, heaven.store, parsed_id);
+        const root = heaven.store.get(lowered_id);
+        try std.testing.expectEqual(expr.Tag.apply, root.tag);
+
+        const root_args = heaven.store.applyArgs(root);
+        try std.testing.expectEqual(@as(usize, 1), root_args.len);
+        const last_arg = heaven.store.get(root_args[0]);
+        try std.testing.expectEqual(expr.Tag.sym, last_arg.tag);
+        try std.testing.expectEqualStrings("y", heaven.store.interner.resolve(last_arg.payload));
+
+        const inner = heaven.store.get(root.payload);
+        try std.testing.expectEqual(expr.Tag.apply, inner.tag);
+        const inner_callee = heaven.store.get(inner.payload);
+        try std.testing.expectEqual(expr.Tag.sym, inner_callee.tag);
+        try std.testing.expectEqualStrings("f", heaven.store.interner.resolve(inner_callee.payload));
+    }
+
+    // Associativite a droite de ^ : a ^ b ^ c => ^ a (^ b c)
+    {
+        const call_id = try heaven.parseExpression("(Inf.parse_infix \"a ^ b ^ c\")");
+        const eval_id = try heaven.engine.eval(call_id);
+        const ast_repr = try expr.toStringInfix(heaven.store, eval_id, allocator);
+        defer allocator.free(ast_repr);
+
+        const trimmed = std.mem.trim(u8, ast_repr, " \t\r\n");
+        try std.testing.expect(std.mem.indexOf(u8, trimmed, "PARSE_ERR") == null);
+
+        const parsed_id = try heaven.parseExpression(trimmed);
+        const lowered_id = try lowerHpToStore(allocator, heaven.store, parsed_id);
+        const root = heaven.store.get(lowered_id);
+        try std.testing.expectEqual(expr.Tag.apply, root.tag);
+
+        const op_sym = heaven.store.get(root.payload);
+        try std.testing.expectEqualStrings("^", heaven.store.interner.resolve(op_sym.payload));
+
+        const args = heaven.store.applyArgs(root);
+        try std.testing.expectEqual(@as(usize, 2), args.len);
+        const lhs = heaven.store.get(args[0]);
+        try std.testing.expectEqualStrings("a", heaven.store.interner.resolve(lhs.payload));
+
+        const rhs = heaven.store.get(args[1]);
+        try std.testing.expectEqual(expr.Tag.apply, rhs.tag);
+        const rhs_op = heaven.store.get(rhs.payload);
+        try std.testing.expectEqualStrings("^", heaven.store.interner.resolve(rhs_op.payload));
+    }
+
+    // Parenthese non fermee => PARSE_ERR
+    {
+        const bad_call = try heaven.parseExpression("(Inf.parse_infix \"(1 + 2\")");
+        const bad_eval = try heaven.engine.eval(bad_call);
+        const bad_repr = try expr.toStringInfix(heaven.store, bad_eval, allocator);
+        defer allocator.free(bad_repr);
+        try std.testing.expect(std.mem.indexOf(u8, bad_repr, "PARSE_ERR") != null);
+    }
+}
