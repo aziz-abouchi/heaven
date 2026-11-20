@@ -642,6 +642,7 @@ pub const Heaven = struct {
         }
         self.type_aliases.deinit(self.allocator);
         self.hole_state.deinit();
+        self.allocator.destroy(self);
     }
 
     pub fn ensureInit(self: *Heaven) void {
@@ -4635,7 +4636,6 @@ test "parseExpression — lambda courte λx.x" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const id = try heaven.parseExpression("(λx.x)");
@@ -4649,7 +4649,6 @@ test "parseExpression — application sur lambda courte" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const id = try heaven.parseExpression("((λx.x) 42)");
@@ -4662,7 +4661,6 @@ test "parseExpression — ')' orpheline → InvalidSyntax (garde anti-récursion
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
     // RCA segfault 'lambda courte' : une ')' orpheline faisait boucler le
     // fallback juxtaposition (~1670 frames, +3 chars/tour) → SIGSEGV.
@@ -4675,7 +4673,6 @@ test "tactics v1.5 — rewrite a=b dans la cible" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -4732,7 +4729,6 @@ test "tactics v1.5 — apply P->Q crée un sous-but P" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -4783,7 +4779,6 @@ test "ProofSession — interactif pas à pas" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     // Déclare un théorème
@@ -4809,7 +4804,6 @@ test "tactics v3 — assumption matche une hypothèse" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -4849,7 +4843,6 @@ test "tactics v3.5 — apply H : x = x match f(a) = f(a)" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -4898,7 +4891,6 @@ test "tactics v3.5 — reflexivity unifie via evar explicite" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -4941,7 +4933,6 @@ test "tactics v3.5 — reflexivity échoue sur a = b" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -4982,7 +4973,6 @@ test "tactics v3.5 — apply H : P -> Q -> P" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -5031,7 +5021,6 @@ test "tactics v4 — cases sur Nat génère base + step" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -5075,7 +5064,6 @@ test "tactics v4 — auto résout x * 1 = x par simplify" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -5116,7 +5104,6 @@ test "module v0 — theorem aliasé sous M.name" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const m = try heaven.eval("module M");
@@ -5141,7 +5128,6 @@ test "module v0 — sans module, pas d'alias" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const thm = try heaven.eval("theorem t_no_mod : x + 0 = x");
@@ -5157,7 +5143,6 @@ test "type-dep v0 — data Vec (n : Nat) s'enregistre" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const res = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
@@ -5184,7 +5169,6 @@ test "type-dep v0 — data simple sans params" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const res = try heaven.eval("data Color = Red | Green | Blue");
@@ -5202,7 +5186,6 @@ test "type-dep v0 — le registre reste compatible avec l'existant" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     // Déclare Vec puis vérifie que les constructeurs sont utilisables
@@ -5218,7 +5201,6 @@ test "import v0.5 — fn aliasé sous M.name + appel M.inc" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r = try heaven.eval("import \"tests/imports/import_test.hvn\" as M");
@@ -5243,7 +5225,6 @@ test "import v0.5 — nom déduit sans 'as'" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r = try heaven.eval("import \"tests/imports/import_test.hvn\"");
@@ -5258,7 +5239,6 @@ test "module v1 — import transitif (parent → child)" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r = try heaven.eval("import \"tests/imports/trans_parent.hvn\" as P");
@@ -5288,7 +5268,6 @@ test "module v1 — détection de cycle" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r = try heaven.eval("import \"tests/imports/cyc_a.hvn\" as A");
@@ -5308,7 +5287,6 @@ test "module v1 — fichier introuvable donne un message clair" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r = try heaven.eval("import \"tests/nonexistent_xyz.hvn\" as X");
@@ -5323,7 +5301,6 @@ test "type-dep v0 — ctor_arity propagée dans engine.fns" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const res = try heaven.eval("data Stream a = Cons a (Stream a) | End");
@@ -5349,7 +5326,6 @@ test "module v2a — export filtre les alias" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r = try heaven.eval("import \"tests/imports/exp_util.hvn\" as U");
@@ -5376,7 +5352,6 @@ test "module v2a — sans export, tout est aliasé (compat v0.5)" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r = try heaven.eval("import \"tests/imports/exp_noexport.hvn\" as N");
@@ -5391,7 +5366,6 @@ test "module v2b — import idempotent" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r1 = try heaven.eval("import \"tests/imports/exp_noexport.hvn\" as N");
@@ -5408,7 +5382,6 @@ test "type-dep v1a — data Pair a b = Pair a b" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r = try heaven.eval("data Pair a b = Pair a b");
@@ -5430,7 +5403,6 @@ test "type-dep v1a — data Foo (n : Nat) (m : Nat)" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r = try heaven.eval("data Foo (n : Nat) (m : Nat) = MkFoo n m");
@@ -5450,7 +5422,6 @@ test "type-dep v1a — mix param typé + non typé" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r = try heaven.eval("data Vec2 a (n : Nat) = VNil | VCons a (Vec2 a n)");
@@ -5471,7 +5442,6 @@ test "type-dep v1a — param imbriqué (n : Vec a)" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     // Le type du param contient des parenthèses imbriquées.
@@ -5490,7 +5460,6 @@ test "type-dep v2e -- subst_v2d non vide sur type parametre" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r1 = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
@@ -5511,7 +5480,6 @@ test "type-dep v2e -- pas de subst sur type non parametre" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r1 = try heaven.eval("data Color = Red | Green | Blue");
@@ -5531,7 +5499,6 @@ test "logic v1 -- fact puis query trouve les faits" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r1 = try heaven.eval("fact human socrate");
@@ -5552,7 +5519,6 @@ test "logic v1 -- query sans solution" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r1 = try heaven.eval("fact human socrate");
@@ -5568,7 +5534,6 @@ test "eval — (* 3 6) == 18" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
     const r = try heaven.eval("(* 3 6)");
     defer allocator.free(r);
@@ -5580,7 +5545,6 @@ test "eval — (* (+ 1 2) 6) == 18" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
     const r = try heaven.eval("(* (+ 1 2) 6)");
     defer allocator.free(r);
@@ -5592,7 +5556,6 @@ test "eval — beta reduce : ((\\x.x) 42) == 42" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
     const r = try heaven.eval("((\\x.x) 42)");
     defer allocator.free(r);
@@ -5605,7 +5568,6 @@ test "eval — beta reduce : (\\x.x) 42 == 42" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
     const r = try heaven.eval("(\\x.x) 42");
     defer allocator.free(r);
@@ -5617,7 +5579,6 @@ test "eval — beta reduce : (\\x. x + 1) 5 == 6" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
     const r = try heaven.eval("(\\x. x + 1) 5");
     defer allocator.free(r);
@@ -5629,7 +5590,6 @@ test "type-dep v2d — ctor_results peuplé (Nil→zero, Cons→succ)" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
@@ -5656,7 +5616,6 @@ test "type-dep v2d — end-to-end : head (Cons 42 _) évalue 42" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r1 = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
@@ -5680,7 +5639,6 @@ test "type-dep v2d — head _ (Cons x _) = x accepté, v2d actif" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r1 = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
@@ -5708,7 +5666,6 @@ test "type-dep v2d — non-régression v2c : head _ Nil rejeté" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r1 = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
@@ -5729,7 +5686,6 @@ test "type-dep v2d — type non paramétré : absent de ctor_results" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r = try heaven.eval("data Color = Red | Green | Blue");
@@ -5747,7 +5703,6 @@ test "type-dep v2c — base/step incompatible (Nil vs Vec (succ n))" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const r1 = try heaven.eval("data Vec (n : Nat) = Nil | Cons a (Vec n)");
@@ -5776,7 +5731,6 @@ test "hole — fresh hole has unique id" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     // Capture l'état initial : Heaven.init() charge les std, dont les
@@ -5794,7 +5748,6 @@ test "hole — _ parses to a hole node" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const id = try heaven.parseExpression("_");
@@ -5807,7 +5760,6 @@ test "hole — refine and describe" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const hole_node_id = try heaven.freshHole();
@@ -5826,7 +5778,6 @@ test "hole — hasUnresolvedHoles" {
     var heaven = try Heaven.init(allocator);
     defer {
         heaven.deinit();
-        allocator.destroy(heaven);
     }
 
     const h = try heaven.freshHole();

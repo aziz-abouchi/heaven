@@ -57,14 +57,18 @@ pub fn main() !void {
             if (trimmed[0] == '#') continue;
             if (std.mem.startsWith(u8, trimmed, "//")) continue;
 
+            const r = heaven.eval(trimmed) catch |err| {
+                if (own_last) {
+                    allocator.free(last);
+                    own_last = false;
+                }
+                platform.io.printOut("eval error on line: {s} -> {s}\n", .{ trimmed, @errorName(err) });
+                return;
+            };
             if (own_last) {
                 allocator.free(last);
                 own_last = false;
             }
-            const r = heaven.eval(trimmed) catch |err| {
-                platform.io.printOut("eval error on line: {s} -> {s}\n", .{ trimmed, @errorName(err) });
-                return;
-            };
             last = r;
             own_last = true;
         }
