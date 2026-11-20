@@ -122,13 +122,13 @@ pub const Typer = struct {
             },
             .bind => {
                 const name = self.store.interner.resolve(node.payload);
-                const val_type = self.infer(node.aux);
-                self.type_env.put(self.allocator, name, val_type) catch {};
-                // bind stocke val en span_a[0] (cf. Store.bind l. 919-925)
+                var val_type: Type = self.infer(node.aux);
+                // bind stocke val en span_a[0] (cf. Store.bind l. 926-932)
                 const bind_span = self.store.spanSliceConst(node.span_a);
                 if (bind_span.len > 0) {
                     const val_id = bind_span[0];
                     if (val_id != expr.NULL and val_id < self.store.len()) {
+                        val_type = self.infer(val_id);
                         const vnode = self.store.get(val_id);
                         if (vnode.tag == .lambda) {
                             const arity = self.countLambdaParams(val_id);
@@ -136,6 +136,7 @@ pub const Typer = struct {
                         }
                     }
                 }
+                self.type_env.put(self.allocator, name, val_type) catch {};
                 return val_type;
             },
             .relation => return 0,
@@ -199,3 +200,29 @@ pub const Typer = struct {
         };
     }
 };
+
+test "typer reports arity mismatch on apply and inside bind body" {
+    const allocator = std.testing.allocator;
+    var store = Store.init(allocator);
+    defer store.deinit();
+
+    var diags = DiagnosticList.init(allocator);
+    defer diags.deinit();
+
+    const body_ok = try store.int(1);
+    const fn_lam = try store.lambda(&.{ "x", "y" }, body_ok);
+    _ = try store.bind("add2", fn_lam);
+
+    const a1 = try store.int(10);
+    const a2 = try store.int(20);
+    const bad_call = try store.apply(try store.sym("add2"), &.{ a1 });
+    _ = try store.bind("caller", bad_call);
+    _ = try store.apply(try store.sym("add2"), &.{ a1, a2 });
+
+    var typer = Typer.init(allocator, &store, &diags);
+    defer typer.deinit();
+    typer.checkAll();
+
+    try std.testing.expectEqual(@as(usize, 1), diags.items.items.len);
+    try std.testing.expect(std.mem.indexOf(u8, diags.items.items[0].message, "arity mismatch") != null);
+}
