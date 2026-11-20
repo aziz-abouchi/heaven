@@ -19,6 +19,7 @@ pub const Typer = struct {
     fn_arity: std.StringHashMapUnmanaged(u32) = .{},
     msg_pool: std.ArrayListUnmanaged([]const u8) = .{},
     node_positions: ?*const std.AutoHashMapUnmanaged(Id, Position) = null,
+    inferred: std.AutoHashMapUnmanaged(Id, Type) = .{},
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator, store: *const Store, diags: *DiagnosticList) Typer {
@@ -40,6 +41,7 @@ pub const Typer = struct {
         self.fn_arity.deinit(self.allocator);
         for (self.msg_pool.items) |m| self.allocator.free(m);
         self.msg_pool.deinit(self.allocator);
+        self.inferred.deinit(self.allocator);
     }
 
     pub fn freshVar(self: *Typer) Type {
@@ -72,7 +74,14 @@ pub const Typer = struct {
     pub fn infer(self: *Typer, id: Id) Type {
         if (id == expr.NULL) return 0;
         if (id >= self.store.len()) return 0;
+        if (self.inferred.get(id)) |cached| return cached;
 
+        const ty = self.inferUncached(id);
+        self.inferred.put(self.allocator, id, ty) catch {};
+        return ty;
+    }
+
+    fn inferUncached(self: *Typer, id: Id) Type {
         const node = self.store.get(id);
         switch (node.tag) {
             .lit => {

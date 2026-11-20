@@ -306,7 +306,10 @@ pub fn main() !void {
     }
     if (args.len >= 3 and std.mem.eql(u8, args[1], "check")) {
         const check_cmd = @import("commands/check.zig");
-        try check_cmd.runCheck(allocator, args[2]);
+        check_cmd.runCheck(allocator, args[2]) catch |err| switch (err) {
+            error.HasDiagnostics => std.process.exit(1),
+            else => return err,
+        };
         return;
     }
     if (std.mem.eql(u8, args[1], "build")) {
