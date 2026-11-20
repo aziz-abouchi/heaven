@@ -1,7 +1,7 @@
 # wasm32-wasi : ecart avec la cible reelle
 
 **Date** : 2026-10-15
-**Statut** : identifie, non implemente. Session dediee requise.
+**Statut** : `src/platform/wasm32_wasi.zig` implémente les appels WASI preview1 (`fd_write`, `fd_read`, `path_open`, `clock_time_get`, `random_get`) et `zig build -Dtarget=wasm32-wasi` compile ; tests d'exécution `wasmtime` bout-en-bout sur `heaven-wasi` à compléter.
 
 ## Etat actuel
 

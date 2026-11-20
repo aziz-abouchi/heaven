@@ -56,8 +56,7 @@ Sélection **explicite** : flag compile-time + profil runtime.
    contenu computationnel des termes CIC **après effacement des
    preuves/quotients** (`class x` → `local.get`, `lift f p` émet `f`
    et jette la preuve). Ébauche (157 l.), fichier gelé.
-3. **MIR → WASM** (futur, jalon M2) : codegen des programmes Heaven
-   depuis le MIR. N'existe pas.
+3. **MIR → WAT / WASM** (`src/backend/mir_wat.zig`, `src/platform/wasm32_wasi.zig`, `src/vessel/wasi_main.zig`, mis à jour 2026-11-20) : émission WAT avec tas linéaire 8 octets (`memory.grow`, `i64.load`/`i64.store`) et compilation croisée `-Dtarget=wasm32-wasi` vérifiée.
 
 ## 5. État réel (audité 2026-09-29)
 

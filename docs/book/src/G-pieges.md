@@ -168,9 +168,9 @@ Bug sémantique `runTestDir` (fixé). Vérifier la version.
 
 Fixé dans `mir_qbe.zig`.
 
-### G.22 — WASM ne supporte pas heap (session future)
+### G.22 — Heap WAT linéaire implémenté (2026-11-20)
 
-`mir_wat.zig` rejette `alloc`/`load_at`/`store_at`. Émet `unreachable`.
+`mir_wat.zig` émet `(memory (export "memory") 1)` et un pointeur `$heap_ptr` aligné sur 8 octets avec `memory.grow` automatique sur `.alloc`, `.load_at` et `.store_at` (sémantique alignée sur `mir_qbe.zig`).
 
 ## Référence
 

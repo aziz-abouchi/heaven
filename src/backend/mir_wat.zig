@@ -32,7 +32,7 @@ pub fn emitWatLoop(
     var buf: std.ArrayList(u8) = .empty;
     errdefer buf.deinit(allocator);
     const w = buf.writer(allocator);
-    try w.writeAll("(module\n");
+    try w.writeAll("(module\n(memory (export \"memory\") 1)\n(global $heap_ptr (mut i32) (i32.const 8))\n");
 
     var global_set = std.AutoHashMap(u32, void).init(allocator);
     defer global_set.deinit();
@@ -217,18 +217,23 @@ fn emitInstr(w: anytype, inst: Instr, fdefs: *const FnDefs) !void {
             // (import fd_write etc.). En attendant, trap explicite.
             try w.writeAll("    unreachable\n");
         },
-        // 2026-10-30 : heap non supporté en WASM. Emit unreachable au
-        // lieu de fail (sinon precompileUserFns des std fns avec pairs
-        // bloque la compilation de tout programme). Les programmes qui
-        // utilisent vraiment pair/fst trapent au runtime — acceptable
-        // tant que WASM heap n'est pas implémenté.
         .alloc => |a| {
-            try w.print("(local.set $r{d} (i64.const 0))\n(unreachable)\n", .{a.dest});
+            const aligned_sz: u32 = if (a.size == 0) 8 else ((a.size + 7) & ~@as(u32, 7));
+            try w.print("(local.set $r{d} (i64.extend_i32_u (global.get $heap_ptr)))\n", .{a.dest});
+            try w.print("(global.set $heap_ptr (i32.add (global.get $heap_ptr) (i32.const {d})))\n", .{aligned_sz});
+            try w.writeAll("(if (i32.gt_u (global.get $heap_ptr) (i32.mul (memory.size) (i32.const 65536)))\n");
+            try w.writeAll("  (then\n");
+            try w.writeAll("    (if (i32.lt_s (memory.grow (i32.add (i32.shr_u (i32.sub (global.get $heap_ptr) (i32.mul (memory.size) (i32.const 65536))) (i32.const 16)) (i32.const 1))) (i32.const 0))\n");
+            try w.writeAll("      (then (unreachable)))\n");
+            try w.writeAll("  )\n");
+            try w.writeAll(")\n");
         },
         .load_at => |l| {
-            try w.print("(local.set $r{d} (i64.const 0))\n(unreachable)\n", .{l.dest});
+            try w.print("(local.set $r{d} (i64.load (i32.add (i32.wrap_i64 (local.get $r{d})) (i32.const {d}))))\n", .{ l.dest, l.base, l.offset });
         },
-        .store_at => |_| try w.writeAll("unreachable\n"),
+        .store_at => |st| {
+            try w.print("(i64.store (i32.add (i32.wrap_i64 (local.get $r{d})) (i32.const {d})) (local.get $r{d}))\n", .{ st.base, st.offset, st.src });
+        },
         .phi, .jump, .branch, .ret => unreachable, // filtrés en amont
     }
 }

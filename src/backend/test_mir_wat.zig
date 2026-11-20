@@ -363,3 +363,79 @@ test "wat — non-terminal if inside break expression" {
     defer alloc.free(out_wat);
     try std.testing.expect(out_wat.len > 0);
 }
+
+test "wat — heap : alloc, store_at et load_at (offsets 0 et 8)" {
+    const alloc = std.testing.allocator;
+    var mf = MirFunction.init(alloc);
+    defer mf.deinit();
+
+    const entry = try mf.newBlock();
+    const base_r = mf.newReg();
+    const v0_r = mf.newReg();
+    const v1_r = mf.newReg();
+    const l0_r = mf.newReg();
+    const l1_r = mf.newReg();
+    const sum_r = mf.newReg();
+
+    try mf.blocks.items[entry].instrs.append(alloc, .{ .alloc = .{ .dest = base_r, .size = 16 } });
+    try mf.blocks.items[entry].instrs.append(alloc, .{ .const_int = .{ .dest = v0_r, .value = 17 } });
+    try mf.blocks.items[entry].instrs.append(alloc, .{ .const_int = .{ .dest = v1_r, .value = 25 } });
+    try mf.blocks.items[entry].instrs.append(alloc, .{ .store_at = .{ .base = base_r, .offset = 0, .src = v0_r } });
+    try mf.blocks.items[entry].instrs.append(alloc, .{ .store_at = .{ .base = base_r, .offset = 8, .src = v1_r } });
+    try mf.blocks.items[entry].instrs.append(alloc, .{ .load_at = .{ .dest = l0_r, .base = base_r, .offset = 0 } });
+    try mf.blocks.items[entry].instrs.append(alloc, .{ .load_at = .{ .dest = l1_r, .base = base_r, .offset = 8 } });
+    try mf.blocks.items[entry].instrs.append(alloc, .{ .add = .{ .dest = sum_r, .lhs = l0_r, .rhs = l1_r } });
+    mf.blocks.items[entry].terminator = .{ .ret = sum_r };
+
+    const out = try wat.emitWat(alloc, &mf);
+    defer alloc.free(out);
+
+    try std.testing.expect(has(out, "(memory (export \"memory\") 1)"));
+    try std.testing.expect(has(out, "$heap_ptr"));
+    try std.testing.expect(has(out, "i64.store"));
+    try std.testing.expect(has(out, "i64.load"));
+
+    const got = try runWasmtime(alloc, out);
+    try std.testing.expectEqual(@as(i64, 42), got);
+}
+
+test "wasi — execution bout-en-bout du binaire heaven-wasi (wasmtime / wasmer)" {
+    const alloc = std.testing.allocator;
+    const wasm_path = "zig-out/bin/heaven-wasi.wasm";
+    std.fs.cwd().access(wasm_path, .{}) catch return error.SkipZigTest;
+
+    const runner: ?[]const u8 = blk: {
+        for ([_][]const u8{ "wasmtime", "wasmer" }) |cmd| {
+            var child = std.process.Child.init(&.{ cmd, "--version" }, alloc);
+            child.stdout_behavior = .Ignore;
+            child.stderr_behavior = .Ignore;
+            if (child.spawnAndWait()) |term| {
+                switch (term) {
+                    .Exited => |code| if (code == 0) break :blk cmd,
+                    else => {},
+                }
+            } else |_| {}
+        }
+        break :blk null;
+    };
+    const bin = runner orelse return error.SkipZigTest;
+
+    const argv: []const []const u8 = if (std.mem.eql(u8, bin, "wasmtime"))
+        &.{ bin, "run", wasm_path, "(+ 17 25)" }
+    else
+        &.{ bin, "run", wasm_path, "--", "(+ 17 25)" };
+
+    const res = try std.process.Child.run(.{
+        .allocator = alloc,
+        .argv = argv,
+    });
+    defer alloc.free(res.stdout);
+    defer alloc.free(res.stderr);
+
+    try std.testing.expectEqual(@as(u8, 0), switch (res.term) {
+        .Exited => |c| c,
+        else => 1,
+    });
+    const trimmed = std.mem.trim(u8, res.stdout, " \t\r\n");
+    try std.testing.expectEqualStrings("42", trimmed);
+}

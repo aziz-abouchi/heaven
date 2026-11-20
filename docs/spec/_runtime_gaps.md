@@ -534,7 +534,7 @@ Fonctionne car on saute les 37 fns std.
 1. [Partiellement adressé en `9d83aef`] Propagation de `*BlockId` dans `compileExpr` /
    `compileIf` (`merge_block` en fallthrough) et blocs finaux `b_body` / `b_target` dans
    `compileWhile` / `compileBreak` ; re-valider sur l'ensemble des `fn std` précompilées.
-2. Split mir.zig types/compile (30 min) — rebuild de 60s à 10s
+2. [Fait — 2026-11-20] Split `mir.zig` en `src/core/mir/types.zig` et `src/core/mir/compile.zig`
 3. WASM backend (3-4 sessions)
 
 **Perf dette** : mir.zig importé par 10 modules (mir_qbe, mir_wat,
@@ -583,8 +583,7 @@ Un patch de `compile.zig` ne recompile que `mir.zig` (facade) + 2-3 modules.
 
 **Ce qui marche** :
 - `mir_wat.zig` émet le WAT pour arith/if/fns user
-- Patch heap : `alloc`/`load_at`/`store_at` → `unreachable` trap
-  (au lieu d'erreur bloquante au build)
+- [Fait — 2026-11-20] Heap WAT linéaire : `(memory (export "memory") 1)`, `$heap_ptr` aligné 8 octets et `memory.grow` automatique sur `.alloc` / `.load_at` / `.store_at` (testé dans `test_mir_wat.zig`)
 
 **Ce qui échoue** :
 - `(+ 1 2)` → `UnsupportedCall` (checkCallUsers fail, pas de stubs)
@@ -594,7 +593,7 @@ Un patch de `compile.zig` ne recompile que `mir.zig` (facade) + 2-3 modules.
 1. Skip `checkCallUsers` en warn + stubs `(func $fN (result i64) (i64.const 0))`
    (même pattern que mir_qbe) — 1h, 1 build 2m41s
 2. Entry `_start` WASI + fd_write pour printf — 1 session
-3. Heap WASM (memory.grow, load/store WASI) — 1 session
+3. [Fait — 2026-11-20] Heap WASM (`memory.grow`, `i64.load`/`i64.store` sur offsets octets alignés `mir_wat.zig`)
 4. Strings/bytes + tests — 1 session
 
 **Prérequis** : split `mir.zig` en types/compile (45 min). Sinon 2m41s/iteration.

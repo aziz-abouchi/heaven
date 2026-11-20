@@ -2932,17 +2932,29 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
     // shadow local, rattrapage d'erreur) sans toucher au noyau.
 
     if (std.mem.eql(u8, op, "bracket")) {
-        // bracket(setup, body, teardown) → résultat de body
-        // Évalue setup, body, teardown dans l'ordre. Retourne le
-        // résultat de body. Si teardown échoue, l'erreur remonte
-        // (le résultat de body est perdu).
+        // bracket(setup, body, teardown) → résultat de body.
+        // Évalue setup, puis body, puis teardown en sortie de portée
+        // (succès, erreur ou suspension) afin de préserver la
+        // composition avec handle_rec / SuspendRequested.
         if (args_snap.len != 3) {
             return error.ArityMismatch;
         }
         _ = try evaluate(store, env, engine, args_snap[0], depth + 1);
-        const body_result = try evaluate(store, env, engine, args_snap[1], depth + 1);
-        _ = try evaluate(store, env, engine, args_snap[2], depth + 1);
-        return body_result;
+        const body_res = evaluate(store, env, engine, args_snap[1], depth + 1);
+        const teardown_res = evaluate(store, env, engine, args_snap[2], depth + 1);
+        if (body_res) |val| {
+            _ = try teardown_res;
+            return val;
+        } else |body_err| {
+            if (teardown_res) |_| {
+                return body_err;
+            } else |td_err| {
+                // Préserver SuspendRequested si l'un des deux a demandé
+                // une suspension (en privilégiant body_err si SuspendRequested).
+                if (body_err == error.SuspendRequested) return body_err;
+                return td_err;
+            }
+        }
     }
 
     if (std.mem.eql(u8, op, "local")) {
@@ -2962,7 +2974,7 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         } else if (name_node.tag == .lit) {
             const lit = store.lits.items[name_node.aux];
             if (lit == .str) {
-                sym = store.interner.lookup(store.interner.resolve(lit.str));
+                sym = try store.interner.intern(store.interner.resolve(lit.str));
             }
         }
         if (sym == null) return error.InvalidInput;
@@ -2984,11 +2996,12 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
 
     if (std.mem.eql(u8, op, "catch")) {
         // catch(body, default) → résultat de body, ou résultat de
-        // default si body lève une erreur.
-        // Catch-all : y compris OutOfMemory, RecursionLimitExceeded,
-        // etc. (comme un try/catch runtime).
+        // default si body lève une erreur runtime.
+        // Ne capture jamais error.SuspendRequested : les continuations
+        // / handle_rec / yield / @throw doivent pouvoir remonter.
         if (args_snap.len != 2) return error.ArityMismatch;
-        const body_result = evaluate(store, env, engine, args_snap[0], depth + 1) catch {
+        const body_result = evaluate(store, env, engine, args_snap[0], depth + 1) catch |err| {
+            if (err == error.SuspendRequested) return err;
             return try evaluate(store, env, engine, args_snap[1], depth + 1);
         };
         return body_result;
