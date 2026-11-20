@@ -73,6 +73,8 @@ pub const Shell = struct {
         // Appeler deinit sur les objets qui allouent de la mémoire
         self.prolog.deinit();
         self.triple_store.deinit();
+        self.memo.deinit();
+        self.skills.deinit();
         self.heaven.deinit();
         self.meta.deinit();
         self.proofs.deinit();
