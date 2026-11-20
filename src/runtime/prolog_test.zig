@@ -2,6 +2,70 @@ const std = @import("std");
 const prolog_lib = @import("prolog");
 const matrix_lib = @import("matrix_lib");
 
+
+fn allocationFailureAddFactDup(allocator: std.mem.Allocator) !void {
+    var engine = prolog_lib.PrologEngine.init(allocator);
+    defer engine.deinit();
+
+    const args = [_][]const u8{"ada", "bob", "carol"};
+
+    engine.addFactDup("allocation_test", &args) catch |err| {
+        if (err != error.OutOfMemory) return err;
+        try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+        return err;
+    };
+
+    try std.testing.expectEqual(@as(usize, 1), engine.clauses.items.len);
+    try std.testing.expectEqual(@as(u8, 3), engine.clauses.items[0].head.arity);
+}
+
+fn allocationFailureAddRule(allocator: std.mem.Allocator) !void {
+    var engine = prolog_lib.PrologEngine.init(allocator);
+    defer engine.deinit();
+
+    const head_args = [_][]const u8{"X", "Z"};
+    const body = [_]prolog_lib.PrologAtom{
+        .{
+            .pred = "parent",
+            .args = .{ "X", "Y", "", "", "", "", "", "" },
+            .arity = 2,
+        },
+        .{
+            .pred = "parent",
+            .args = .{ "Y", "Z", "", "", "", "", "", "" },
+            .arity = 2,
+        },
+    };
+
+    engine.addRule("grandparent", &head_args, &body) catch |err| {
+        if (err != error.OutOfMemory) return err;
+        try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+        return err;
+    };
+
+    try std.testing.expectEqual(@as(usize, 1), engine.clauses.items.len);
+    try std.testing.expectEqual(@as(u8, 2), engine.clauses.items[0].head.arity);
+    try std.testing.expectEqual(@as(u8, 2), engine.clauses.items[0].body_len);
+    try std.testing.expectEqualStrings("grandparent", engine.clauses.items[0].head.pred);
+    try std.testing.expectEqualStrings("parent", engine.clauses.items[0].body[1].pred);
+}
+
+test "Prolog addRule gere tous les echecs d allocation" {
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        allocationFailureAddRule,
+        .{},
+    );
+}
+
+test "Prolog addFactDup gere tous les echecs d allocation" {
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        allocationFailureAddFactDup,
+        .{},
+    );
+}
+
 test "Prolog addFactDup accepte huit arguments" {
     var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
     defer engine.deinit();
@@ -102,22 +166,67 @@ test "Prolog parseRule rejette plus de huit atomes dans le corps" {
     try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
 }
 
-test "Prolog loadFromMatrix annule le chargement en cas de label invalide" {
-    var matrix = matrix_lib.Matrix.init(std.testing.allocator);
-    defer matrix.deinit();
+test "Prolog loadFromMatrix annule le chargement après une insertion partielle" {
+    var exercised_rollback = false;
 
-    _ = try matrix.addUniqueSymbol("FACT:valid(ada,bob)");
-    _ = try matrix.addUniqueSymbol("FACT:malformed");
+    for (0..1024) |attempt| {
+        var matrix = matrix_lib.Matrix.init(std.testing.allocator);
+        defer matrix.deinit();
 
-    var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
-    defer engine.deinit();
+        for (0..64) |i| {
+            var valid_buf: [64]u8 = undefined;
+            const valid_label = try std.fmt.bufPrint(
+                &valid_buf,
+                "FACT:valid_{d}(ada,bob)",
+                .{i},
+            );
+            _ = try matrix.addUniqueSymbol(valid_label);
+        }
 
-    try std.testing.expectError(error.InvalidFact, engine.loadFromMatrix(&matrix));
-    try std.testing.expect(!engine.loaded);
-    try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+        var invalid_buf: [64]u8 = undefined;
+        const invalid_label = try std.fmt.bufPrint(
+            &invalid_buf,
+            "FACT:malformed_{d}",
+            .{attempt},
+        );
+        _ = try matrix.addUniqueSymbol(invalid_label);
 
-    // Un nouvel essai ne doit pas considérer la base comme déjà chargée.
-    try std.testing.expectError(error.InvalidFact, engine.loadFromMatrix(&matrix));
-    try std.testing.expect(!engine.loaded);
-    try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+        var valid_seen = false;
+        var invalid_after_valid = false;
+        var it = matrix.symbol_index.iterator();
+
+        while (it.next()) |entry| {
+            const sym = entry.key_ptr.*;
+            if (std.mem.startsWith(u8, sym, "FACT:valid_")) {
+                valid_seen = true;
+            } else if (std.mem.startsWith(u8, sym, "FACT:malformed_")) {
+                invalid_after_valid = valid_seen;
+                break;
+            }
+        }
+
+        if (!invalid_after_valid) continue;
+
+        var engine = prolog_lib.PrologEngine.init(std.testing.allocator);
+        defer engine.deinit();
+
+        try std.testing.expectError(
+            error.InvalidFact,
+            engine.loadFromMatrix(&matrix),
+        );
+        try std.testing.expect(!engine.loaded);
+        try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+
+        try std.testing.expectError(
+            error.InvalidFact,
+            engine.loadFromMatrix(&matrix),
+        );
+        try std.testing.expect(!engine.loaded);
+        try std.testing.expectEqual(@as(usize, 0), engine.clauses.items.len);
+
+        exercised_rollback = true;
+        break;
+    }
+
+    try std.testing.expect(exercised_rollback);
 }
