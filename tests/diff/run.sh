@@ -19,7 +19,10 @@ for f in tests/diff/*.hvn; do
     # Normalisation : interp affiche true/false (bool), QBE affiche 1/0 (int)
     a_norm=$(echo "$a" | sed 's/^true$/1/; s/^false$/0/')
     if [ "$a_norm" = "$b" ]; then echo "OK  $n"; P=$((P+1)); else echo "FAIL $n: i='$a' q='$b'"; F=$((F+1)); fi
-    if command -v wasmtime >/dev/null 2>&1; then
+    if ! command -v wasmtime >/dev/null 2>&1 && [ "${REQUIRE_WASM:-0}" = "1" ]; then
+        # CI : l'absence de wasmtime ne doit pas desactiver la jambe WASM en silence.
+        echo "  FAIL wasm: wasmtime requis (REQUIRE_WASM=1) mais absent"; F=$((F+1))
+    elif command -v wasmtime >/dev/null 2>&1; then
         "$H" compile-wasm "$f" -o "/tmp/$n.wat" >/dev/null 2>&1
         if [ ! -f "/tmp/$n.wat" ]; then
             echo "  FAIL wasm: compile-wasm n'a pas produit de .wat"; F=$((F+1))

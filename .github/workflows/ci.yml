@@ -56,6 +56,19 @@ jobs:
           HEAVEN_STRICT_QBE: "1"
         run: zig build -Dnetwork=false test
 
+      - name: Differential suite (interpreteur vs QBE vs wasmtime) + rejets explicites
+        # Les regressions natives silencieuses (QBE/WASM renvoyant 0, head -> tag)
+        # passaient les tests Zig : seule cette suite les detecte. Bloquant.
+        env:
+          REQUIRE_WASM: "1"
+        run: |
+          zig build -Dnetwork=false
+          bash tests/diff/run.sh
+          bash tests/diff/reject.sh
+
+      - name: Name collisions between lib/parse modules and heaven_parse
+        run: bash scripts/check_name_collisions.sh
+
       - name: Run functional test suite
         run: zig build -Dnetwork=false run -- --run-test core/test_suite.hvn
 
