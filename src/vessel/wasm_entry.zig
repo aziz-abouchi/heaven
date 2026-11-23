@@ -640,6 +640,10 @@ export fn heavenProof(len: u32) u32 {
     return output_len;
 }
 
+// DEAD CODE: no caller in vessel/, site/, or src/vessel/public/ as of
+// 2026-11-23. Kept for a future vessel theorem-list panel. Uses
+// proof_status.displayLabel (status enum, Phase E). If you wire this,
+// also harmonize axioms below with the same label style.
 export fn heavenTheorems(_: u32) u32 {
     var buf: [4096]u8 = undefined;
     var pos: usize = 0;
@@ -648,7 +652,7 @@ export fn heavenTheorems(_: u32) u32 {
     pos += header1.len;
     for (0..axiom_count) |i| {
         const e = axiom_list[i];
-        const pre = " axiom ";
+        const pre = " [AXIOM] axiom ";
         @memcpy(buf[pos .. pos + pre.len], pre);
         pos += pre.len;
         @memcpy(buf[pos .. pos + e.name_len], e.name[0..e.name_len]);
