@@ -43,3 +43,31 @@ the only one.
 With 0 errors, the CI step can switch from `--warn-only` to `--check`
 (blocking). Any regression in the book will fail CI at the exact
 command. Same discipline as `tests/proofs/false_theorems.sh`.
+
+## Update 2026-11-23: src-v2/ also covered
+
+As of 3af5b4e, `doctest.py` covers both `docs/book/src/` and
+`docs/book/src-v2/`. The v2 book was previously uncovered by CI:
+121 commands with 11 errors across 5 chapters, never run.
+
+After the same fix patterns as v1 (colorName Green+Blue, hanoi outer
+parens, filter outer parens + even def, skip-file for p1/p2/p3,
+import + mk + inc), the count is:
+
+| Book | Commands | Errors |
+|---|---|---|
+| src/ (v1) | 147 | 0 |
+| src-v2/ (v2) | 124 | 0 |
+| **Total** | **271** | **0** |
+
+The "152 -> 147" gap mentioned in earlier notes was not a bug:
+the 5 commands were in chapters moved to skip-file (09-real-world,
+16-free-monads) during the v1 fixes (c31ee45, 2f40be6). No command
+was lost.
+
+## Verification
+
+    python3 scripts/doctest.py --check      # 271 commands, 0 errors
+
+The CI step `Doctest book (0 known failures, see _doctest_known_failures.md)`
+is blocking; any regression in either book fails at the exact command.
