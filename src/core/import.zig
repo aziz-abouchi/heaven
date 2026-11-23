@@ -204,18 +204,25 @@ pub fn evalImport(heaven: anytype, src: []const u8) ImportError![]u8 {
             var prescan = std.mem.splitScalar(u8, source, '\n');
             while (prescan.next()) |line| {
                 const t = std.mem.trim(u8, line, " \t\r");
+                if (t.len == 0) continue;
+                if (t[0] == '#' or std.mem.startsWith(u8, t, "--") or std.mem.startsWith(u8, t, "//") or std.mem.startsWith(u8, t, ";;")) continue;
                 if (!std.mem.startsWith(u8, t, "export ")) continue;
                 const names = std.mem.trim(u8, t["export ".len..], " \t");
+                if (names.len == 0) continue;
                 var nit = std.mem.tokenizeAny(u8, names, " \t,");
+                var added_any = false;
                 while (nit.next()) |n| {
-                    const owned = heaven.allocator.dupe(u8, n) catch continue;
-                    const gop = import_state.exports.getOrPut(heaven.allocator, owned) catch {
-                        heaven.allocator.free(owned);
-                        continue;
-                    };
-                    if (gop.found_existing) heaven.allocator.free(owned);
+                    const gop = import_state.exports.getOrPut(heaven.allocator, n) catch continue;
+                    if (!gop.found_existing) {
+                        const owned = heaven.allocator.dupe(u8, n) catch {
+                            _ = import_state.exports.remove(n);
+                            continue;
+                        };
+                        gop.key_ptr.* = owned;
+                    }
+                    added_any = true;
                 }
-                import_state.saw_export = true;
+                if (added_any) import_state.saw_export = true;
             }
         }
 
