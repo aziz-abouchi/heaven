@@ -1,0 +1,3 @@
+-- Parent : importe un enfant contenant beaucoup de fonctions
+import "tests/imports/trans_child_growth.hvn" as Child
+p_val x = x + 10

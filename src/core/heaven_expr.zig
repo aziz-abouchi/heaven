@@ -5234,6 +5234,26 @@ test "import v0.5 — nom déduit sans 'as'" {
     try std.testing.expect(heaven.engine.fns.get("import_test.inc") != null);
 }
 
+test "module v1 — re-prefixage transitif avec croissance de la map" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const r = try heaven.eval(
+        "import \"tests/imports/trans_parent_growth.hvn\" as P",
+    );
+    defer allocator.free(r);
+
+    try std.testing.expect(heaven.engine.fns.get("Child.c_000") != null);
+    try std.testing.expect(heaven.engine.fns.get("Child.c_256") != null);
+    try std.testing.expect(heaven.engine.fns.get("Child.c_511") != null);
+    try std.testing.expect(heaven.engine.fns.get("P.p_val") != null);
+
+    const call = try heaven.eval("Child.c_511 1");
+    defer allocator.free(call);
+    try std.testing.expect(std.mem.indexOf(u8, call, "512") != null);
+}
+
 test "module v1 — import transitif (parent → child)" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
