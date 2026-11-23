@@ -164,114 +164,6 @@ fn substituteStrings(
     return out.toOwnedSlice(alloc);
 }
 
-const ClauseInfo = struct {
-    pattern: []const u8,
-    body: []const u8,
-};
-
-fn parseClause(trimmed: []const u8) ?struct { name: []const u8, info: ClauseInfo } {
-    const eq_idx = std.mem.indexOfScalar(u8, trimmed, '=') orelse return null;
-    if (eq_idx + 1 < trimmed.len and trimmed[eq_idx + 1] == '=') return null;
-    const lhs = std.mem.trim(u8, trimmed[0..eq_idx], " \t");
-    const rhs = std.mem.trim(u8, trimmed[eq_idx + 1..], " \t\r");
-    if (rhs.len == 0) return null;
-    if (std.mem.startsWith(u8, lhs, "fn ") or std.mem.startsWith(u8, lhs, "let ")) return null;
-    if (std.mem.startsWith(u8, lhs, "data ")) return null;
-    const space_idx = std.mem.indexOfScalar(u8, lhs, ' ') orelse return null;
-    const name = std.mem.trim(u8, lhs[0..space_idx], " \t");
-    const pattern = std.mem.trim(u8, lhs[space_idx + 1..], " \t");
-    if (name.len == 0 or pattern.len == 0) return null;
-    if (std.mem.indexOfScalar(u8, pattern, ' ') != null) return null;
-    if (std.mem.eql(u8, name, "main")) return null;
-    if (std.mem.eql(u8, pattern, "true") or std.mem.eql(u8, pattern, "false")) return null;
-    if (std.ascii.isUpper(pattern[0])) return null;
-    return .{ .name = name, .info = .{ .pattern = pattern, .body = rhs } };
-}
-
-/// Enregistre les clauses d'origine telles quelles dans l'engine.
-/// precompileUserFns (mir.zig) desugare celles qui sont eligibles et
-/// rejette explicitement les autres (UnsupportedCall), au lieu de
-/// fabriquer une reponse par defaut.
-fn registerClausesRaw(
-    alloc: std.mem.Allocator,
-    heaven: *heaven_expr.Heaven,
-    name: []const u8,
-    clauses: []const ClauseInfo,
-) !void {
-    for (clauses) |c| {
-        var cb: std.ArrayList(u8) = .empty;
-        defer cb.deinit(alloc);
-        try cb.writer(alloc).print("{s} {s} = {s}", .{ name, c.pattern, c.body });
-        const m2 = heaven.eval(cb.items) catch |e2| {
-            platform.debug.print("[compile-qbe] warn: clause {s} {s} rejetee ({s})\n", .{ name, c.pattern, @errorName(e2) });
-            continue;
-        };
-        alloc.free(m2);
-    }
-}
-
-fn flushPendingClauses(
-    alloc: std.mem.Allocator,
-    heaven: *heaven_expr.Heaven,
-    pending: *std.StringHashMap(std.ArrayListUnmanaged(ClauseInfo)),
-) !void {
-    var it = pending.iterator();
-    while (it.next()) |entry| {
-        const name = entry.key_ptr.*;
-        const clauses = entry.value_ptr.items;
-        if (clauses.len == 0) continue;
-        var buf: std.ArrayList(u8) = .empty;
-        defer buf.deinit(alloc);
-        const w = buf.writer(alloc);
-        var catch_all: ?ClauseInfo = null;
-        var n_ifs: usize = 0;
-        try w.print("{s} __x = ", .{name});
-        for (clauses) |c| {
-            const is_str = c.pattern.len >= 2 and c.pattern[0] == '"';
-            const is_int = c.pattern.len > 0 and (c.pattern[0] == '-' or std.ascii.isDigit(c.pattern[0]));
-            if (!is_str and !is_int) { catch_all = c; continue; }
-            if (is_str) try w.print("(if (= (@strcmp __x {s}) 0) {s} ", .{ c.pattern, c.body })
-            else try w.print("(if (= __x {s}) {s} ", .{ c.pattern, c.body });
-            n_ifs += 1;
-        }
-        if (catch_all) |ca| {
-            var j: usize = 0;
-            while (j < ca.body.len) {
-                if (std.mem.startsWith(u8, ca.body[j..], ca.pattern)) {
-                    const end = j + ca.pattern.len;
-                    const wc = if (end < ca.body.len) ca.body[end] else ' ';
-                    if (!std.ascii.isAlphanumeric(wc) and wc != '_') {
-                        try w.writeAll("__x");
-                        j = end;
-                        continue;
-                    }
-                }
-                try w.writeByte(ca.body[j]);
-                j += 1;
-            }
-        } else {
-            // Pas de clause generale : l'ancienne fusion retournait 0 en
-            // silence (reponse fausse vs interpreteur). On n'invente plus de
-            // valeur par defaut : repli sur l'engine, rejet explicite si
-            // non desugarable.
-            platform.debug.print("[compile-qbe] warn: {s} sans clause generale -> pas de valeur par defaut\n", .{name});
-            try registerClausesRaw(alloc, heaven, name, clauses);
-            continue;
-        }
-        for (0..n_ifs) |_| try w.writeByte(')');
-        const merged = buf.items;
-        const msg = heaven.eval(merged) catch |e| {
-            platform.debug.print("[compile-qbe] warn: merge texte {s} echoue ({s}) -> clauses enregistrees telles quelles (MIR multi-clauses)\n", .{ name, @errorName(e) });
-            try registerClausesRaw(alloc, heaven, name, clauses);
-            continue;
-        };
-        alloc.free(msg);
-    }
-    var it2 = pending.valueIterator();
-    while (it2.next()) |lst| lst.deinit(alloc);
-    pending.clearRetainingCapacity();
-}
-
 fn processAccumulatedStmt(
     alloc: std.mem.Allocator,
     heaven: *heaven_expr.Heaven,
@@ -279,21 +171,9 @@ fn processAccumulatedStmt(
     stmt: []const u8,
     last: *?expr.Id,
     str_consts: *std.StringHashMap([]const u8),
-    pending: *std.StringHashMap(std.ArrayListUnmanaged(ClauseInfo)),
 ) !void {
     const trimmed = std.mem.trim(u8, stmt, " \t\r");
     if (trimmed.len == 0) return;
-
-    if (parseClause(trimmed)) |cd| {
-        const gop = try pending.getOrPut(cd.name);
-        if (!gop.found_existing) {
-            gop.key_ptr.* = try alloc.dupe(u8, cd.name);
-            gop.value_ptr.* = .{};
-        }
-        try gop.value_ptr.append(alloc, cd.info);
-        return;
-    }
-    try flushPendingClauses(alloc, heaven, pending);
 
     if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_idx| {
         const lhs = std.mem.trim(u8, trimmed[0..eq_idx], " \t");
@@ -357,15 +237,6 @@ fn parseLastExpr(
         }
         str_consts.deinit();
     }
-    var pending = std.StringHashMap(std.ArrayListUnmanaged(ClauseInfo)).init(alloc);
-    defer {
-        var p_it = pending.iterator();
-        while (p_it.next()) |entry| {
-            alloc.free(entry.key_ptr.*);
-            entry.value_ptr.deinit(alloc);
-        }
-        pending.deinit();
-    }
 
     var stmt_buf: std.ArrayListUnmanaged(u8) = .{};
     defer stmt_buf.deinit(alloc);
@@ -377,7 +248,7 @@ fn parseLastExpr(
         const is_indented = line.len > 0 and (line[0] == ' ' or line[0] == '\t');
 
         if (stmt_buf.items.len > 0 and !is_indented) {
-            try processAccumulatedStmt(alloc, heaven, &parser, stmt_buf.items, &last, &str_consts, &pending);
+            try processAccumulatedStmt(alloc, heaven, &parser, stmt_buf.items, &last, &str_consts);
             stmt_buf.clearRetainingCapacity();
         }
 
@@ -388,11 +259,11 @@ fn parseLastExpr(
     }
 
     if (stmt_buf.items.len > 0) {
-        try processAccumulatedStmt(alloc, heaven, &parser, stmt_buf.items, &last, &str_consts, &pending);
+        try processAccumulatedStmt(alloc, heaven, &parser, stmt_buf.items, &last, &str_consts);
     }
-    try flushPendingClauses(alloc, heaven, &pending);
     return last orelse error.NoExpression;
 }
+
 /// Compile `<src_path>` en binaire natif `<out_path>`.
 pub fn runCompileQbe(
     alloc: std.mem.Allocator,
