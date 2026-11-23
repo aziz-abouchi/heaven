@@ -5321,6 +5321,29 @@ test "type-dep v0 — ctor_arity propagée dans engine.fns" {
     try std.testing.expectEqual(@as(u8, 0), end_def.ctor_arity);
 }
 
+test "module v2a — export parent préservé après import imbriqué" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const r = try heaven.eval(
+        "import \"tests/imports/trans_parent_export.hvn\" as P",
+    );
+    defer allocator.free(r);
+
+    // L'export du parent doit rester appliqué après le retour de l'enfant.
+    try std.testing.expect(heaven.engine.fns.get("P.parent_public") != null);
+    try std.testing.expect(heaven.engine.fns.get("P.parent_secret") == null);
+
+    // Le filtre d'export de l'enfant doit rester indépendant.
+    try std.testing.expect(heaven.engine.fns.get("Child.public") != null);
+    try std.testing.expect(heaven.engine.fns.get("Child.secret") == null);
+
+    // Les définitions originales restent accessibles sans qualification.
+    try std.testing.expect(heaven.engine.fns.get("parent_public") != null);
+    try std.testing.expect(heaven.engine.fns.get("parent_secret") != null);
+}
+
 test "module v2a — export filtre les alias" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);

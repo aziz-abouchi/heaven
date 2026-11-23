@@ -196,8 +196,9 @@ pub fn evalImport(heaven: anytype, src: []const u8) ImportError![]u8 {
         // ─── v2a : pré-scan des `export` du fichier ───
         var import_state = ImportState.init(heaven.allocator);
         defer import_state.deinit();
+        const previous_import_state = heaven.import_state;
         heaven.import_state = &import_state;
-        defer heaven.import_state = null;
+        defer heaven.import_state = previous_import_state;
 
         {
             var prescan = std.mem.splitScalar(u8, source, '\n');

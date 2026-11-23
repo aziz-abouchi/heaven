@@ -1,0 +1,5 @@
+-- Parent : l'import enfant ne doit pas effacer son contexte export
+import "tests/imports/exp_util.hvn" as Child
+parent_secret x = x + 11
+parent_public x = x + 22
+export parent_public
