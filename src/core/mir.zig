@@ -718,10 +718,19 @@ pub const MirFunction = struct {
                 }
             }
 
+            // Une seule condition 0/1 par clause (tests imbriques qui rendent 0
+            // ou 1) et UN SEUL `(if cond corps reste)` : `result` (le reste de
+            // la chaine) n'apparait qu'une fois. Un `if` par test dupliquait
+            // `result` et rendait la compilation exponentielle en nombre de
+            // clauses (2^k : 14 clauses -> 1M lignes de WAT).
+            // Ordre d'evaluation (inchange) : scalaires -> pointeur -> tag -> garde.
+            const one = try store.int(1);
+            const zero = try store.int(0);
+            var test_cond: ?Id = null;
+
             if (c.guard) |g| {
                 if (!have_result) return error.UnsupportedExpr;
-                const lg = try store.lowerRec(g);
-                inner_body = try store.apply(try store.sym("if"), &.{ lg, inner_body, result });
+                test_cond = try store.lowerRec(g);
             }
 
             var pi_tag: usize = c.num_patterns;
@@ -735,7 +744,7 @@ pub const MirFunction = struct {
                 const loaded_tag = try store.apply(try store.sym("__mir_load_at"), &.{ arg_tag, zero_off });
                 const expected_tag = try store.int(@intCast(nc.tag));
                 const tag_eq = try store.binop("=", loaded_tag, expected_tag);
-                inner_body = try store.apply(try store.sym("if"), &.{ tag_eq, inner_body, result });
+                test_cond = try store.apply(try store.sym("if"), &.{ tag_eq, test_cond orelse one, zero });
             }
 
             var pi_ptr: usize = c.num_patterns;
@@ -747,7 +756,7 @@ pub const MirFunction = struct {
                 const arg_ptr = try store.sym(store.interner.resolve(psym));
                 const min_ptr = try store.int(4096);
                 const is_ptr = try store.binop(">=", arg_ptr, min_ptr);
-                inner_body = try store.apply(try store.sym("if"), &.{ is_ptr, inner_body, result });
+                test_cond = try store.apply(try store.sym("if"), &.{ is_ptr, test_cond orelse one, zero });
             }
 
             var cond: ?Id = null;
@@ -760,7 +769,11 @@ pub const MirFunction = struct {
             }
             if (cond) |cnd| {
                 if (!have_result) return error.UnsupportedExpr;
-                inner_body = try store.apply(try store.sym("if"), &.{ cnd, inner_body, result });
+                test_cond = try store.apply(try store.sym("if"), &.{ cnd, test_cond orelse one, zero });
+            }
+
+            if (test_cond) |tc| {
+                inner_body = try store.apply(try store.sym("if"), &.{ tc, inner_body, result });
             }
 
             var pi: usize = c.num_patterns;

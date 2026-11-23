@@ -1,0 +1,23 @@
+data T = N | K1 x | K2 x | K3 x | K4 x | K5 x | K6 x | K7 x | K8 x | K9 x | K10 x | K11 x | K12 x | K13 x | K14 x | K15 x | K16 x | K17 x | K18 x | K19 x | K20 x
+g (K1 a) = a + 1
+g (K2 a) = a + 2
+g (K3 a) = a + 3
+g (K4 a) = a + 4
+g (K5 a) = a + 5
+g (K6 a) = a + 6
+g (K7 a) = a + 7
+g (K8 a) = a + 8
+g (K9 a) = a + 9
+g (K10 a) = a + 10
+g (K11 a) = a + 11
+g (K12 a) = a + 12
+g (K13 a) = a + 13
+g (K14 a) = a + 14
+g (K15 a) = a + 15
+g (K16 a) = a + 16
+g (K17 a) = a + 17
+g (K18 a) = a + 18
+g (K19 a) = a + 19
+g (K20 a) = a + 20
+g _ = 0
+(+ (g (K3 30)) (+ (g (K20 4)) (g N)))
