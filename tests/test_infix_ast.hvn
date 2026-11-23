@@ -5,3 +5,4 @@ test "add": Inf.parse_infix "1 + 2" == HP.EApply (HP.EApply (HP.ESym "+") (HP.EL
 test "mul prec": Inf.parse_infix "1 + 2 * 3" == HP.EApply (HP.EApply (HP.ESym "+") (HP.ELitI 1)) (HP.EApply (HP.EApply (HP.ESym "*") (HP.ELitI 2)) (HP.ELitI 3))
 test "cmp": Inf.parse_infix "1 < 2" == HP.EApply (HP.EApply (HP.ESym "<") (HP.ELitI 1)) (HP.ELitI 2)
 test "if": Inf.parse_infix "if 1 < 2 then 3 else 4" == HP.EApply (HP.EApply (HP.EApply (HP.ESym "if") (HP.EApply (HP.EApply (HP.ESym "<") (HP.ELitI 1)) (HP.ELitI 2))) (HP.ELitI 3)) (HP.ELitI 4)
+test "form_head_add": Inf.parse_infix "(force t) + (force t)" == HP.EApply (HP.EApply (HP.ESym "+") (HP.EApply (HP.ESym "force") (HP.ESym "t"))) (HP.EApply (HP.ESym "force") (HP.ESym "t"))
