@@ -1,0 +1,1 @@
+data Left = Shared Int | LeftOnly

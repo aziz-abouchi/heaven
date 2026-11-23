@@ -5435,6 +5435,127 @@ test "module v2b — import idempotent" {
     try std.testing.expect(std.mem.indexOf(u8, r2, "déjà importé") != null);
 }
 
+
+test "module collision — même fichier importé sous deux alias" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const r1 = try heaven.eval(
+        "import \"tests/imports/alias_shared.hvn\" as A",
+    );
+    defer allocator.free(r1);
+
+    const r2 = try heaven.eval(
+        "import \"tests/imports/alias_shared.hvn\" as B",
+    );
+    defer allocator.free(r2);
+
+    try std.testing.expect(heaven.engine.fns.get("A.shared_value") != null);
+    try std.testing.expect(heaven.engine.fns.get("B.shared_value") == null);
+    try std.testing.expect(std.mem.indexOf(u8, r2, "déjà importé") != null);
+}
+
+test "module collision — deux fonctions homonymes sous le même alias" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const r1 = try heaven.eval(
+        "import \"tests/imports/collision_fn_a.hvn\" as M",
+    );
+    defer allocator.free(r1);
+
+    const r2 = try heaven.eval(
+        "import \"tests/imports/collision_fn_b.hvn\" as M",
+    );
+    defer allocator.free(r2);
+
+    const def = heaven.engine.fns.get("M.f") orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expectEqual(@as(u8, 2), def.num_clauses);
+
+    // Le moteur parcourt les clauses dans leur ordre d'enregistrement.
+    const call = try heaven.eval("M.f 1");
+    defer allocator.free(call);
+    try std.testing.expect(std.mem.indexOf(u8, call, "11") != null);
+}
+
+test "module collision — constructeurs homonymes entre modules stricts" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const strict_on = try heaven.eval("strict on");
+    defer allocator.free(strict_on);
+
+    const r1 = try heaven.eval(
+        "import \"tests/imports/strict_ctor_left.hvn\" as A",
+    );
+    defer allocator.free(r1);
+
+    const r2 = try heaven.eval(
+        "import \"tests/imports/strict_ctor_right.hvn\" as B",
+    );
+    defer allocator.free(r2);
+
+    const strict_off = try heaven.eval("strict off");
+    defer allocator.free(strict_off);
+
+    const left = heaven.engine.fns.get("A.Shared") orelse
+        return error.TestUnexpectedResult;
+    const right = heaven.engine.fns.get("B.Shared") orelse
+        return error.TestUnexpectedResult;
+
+    try std.testing.expectEqual(@as(?u8, 1), left.ctor_arity);
+    try std.testing.expectEqual(@as(?u8, 0), left.ctor_tag);
+    try std.testing.expectEqual(@as(?u8, 2), right.ctor_arity);
+    try std.testing.expectEqual(@as(?u8, 1), right.ctor_tag);
+
+    // Les métadonnées non qualifiées sont globales et suivent
+    // la dernière déclaration du constructeur homonyme.
+    try std.testing.expectEqual(@as(?u8, 2), heaven.ctor_arities.get("Shared"));
+    try std.testing.expectEqualStrings(
+        "Right",
+        heaven.ctor_parents.get("Shared").?,
+    );
+}
+
+test "module collision — constructeur homonyme sous le même alias" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const strict_on = try heaven.eval("strict on");
+    defer allocator.free(strict_on);
+
+    const r1 = try heaven.eval(
+        "import \"tests/imports/strict_ctor_same_a.hvn\" as M",
+    );
+    defer allocator.free(r1);
+
+    const r2 = try heaven.eval(
+        "import \"tests/imports/strict_ctor_same_b.hvn\" as M",
+    );
+    defer allocator.free(r2);
+
+    const strict_off = try heaven.eval("strict off");
+    defer allocator.free(strict_off);
+
+    const shared = heaven.engine.fns.get("M.Shared") orelse
+        return error.TestUnexpectedResult;
+
+    // Le tag du premier constructeur est conservé, mais son arité
+    // est remplacée par celle de la seconde déclaration.
+    try std.testing.expectEqual(@as(?u8, 1), shared.ctor_tag);
+    try std.testing.expectEqual(@as(?u8, 2), shared.ctor_arity);
+    try std.testing.expectEqualStrings(
+        "Second",
+        heaven.ctor_parents.get("Shared").?,
+    );
+}
+
+
 test "type-dep v1a — data Pair a b = Pair a b" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
@@ -5641,6 +5762,31 @@ test "eval — beta reduce : (\\x. x + 1) 5 == 6" {
     const r = try heaven.eval("(\\x. x + 1) 5");
     defer allocator.free(r);
     try std.testing.expect(std.mem.indexOf(u8, r, "6") != null);
+}
+
+test "module collision — ctor_results conservé après redéclaration non paramétrée" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const r1 = try heaven.eval("data Indexed (n : Nat) = Shared Int");
+    defer allocator.free(r1);
+
+    const before = heaven.ctor_results.get("Shared") orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("Indexed (succ _)", before);
+
+    const r2 = try heaven.eval("data Plain = Shared");
+    defer allocator.free(r2);
+
+    // La nouvelle déclaration remplace les métadonnées globales,
+    // mais le résultat dépendant de l'ancienne déclaration subsiste.
+    try std.testing.expectEqual(@as(u8, 0), heaven.ctor_arities.get("Shared").?);
+    try std.testing.expectEqualStrings("Plain", heaven.ctor_parents.get("Shared").?);
+
+    const after = heaven.ctor_results.get("Shared") orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expectEqualStrings("Indexed (succ _)", after);
 }
 
 test "type-dep v2d — ctor_results peuplé (Nil→zero, Cons→succ)" {
@@ -5861,6 +6007,13 @@ test "toutes les fixtures d'import existent" {
         "tests/imports/trans_child.hvn",
         "tests/imports/cyc_a.hvn",
         "tests/imports/cyc_b.hvn",
+        "tests/imports/alias_shared.hvn",
+        "tests/imports/collision_fn_a.hvn",
+        "tests/imports/collision_fn_b.hvn",
+        "tests/imports/strict_ctor_left.hvn",
+        "tests/imports/strict_ctor_right.hvn",
+        "tests/imports/strict_ctor_same_a.hvn",
+        "tests/imports/strict_ctor_same_b.hvn",
     };
     for (fixtures) |f| {
         std.fs.cwd().access(f, .{}) catch |err| {
