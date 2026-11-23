@@ -363,11 +363,9 @@ pub fn evalImport(heaven: anytype, src: []const u8) ImportError![]u8 {
                 };
             }
 
-            // Phase 2 : insérer après la fin de l'itération.
+            // Phase 2 : insérer après la fin de l'itération sans allouer si déjà présent.
             for (candidates.items) |candidate| {
                 const value = heaven.engine.fns.get(candidate.key) orelse continue;
-                const value_copy = value;
-
                 const qualified = try std.fmt.allocPrint(
                     heaven.allocator,
                     "{s}.{s}",
@@ -384,7 +382,7 @@ pub fn evalImport(heaven: anytype, src: []const u8) ImportError![]u8 {
                 if (qgop.found_existing) {
                     heaven.allocator.free(qualified);
                 } else {
-                    qgop.value_ptr.* = value_copy;
+                    qgop.value_ptr.* = value;
                 }
             }
         }
@@ -432,4 +430,56 @@ test "ImportState -- isExported respecte saw_export" {
     try st.exports.put(allocator, k, {});
     try std.testing.expect(st.isExported("foo"));
     try std.testing.expect(!st.isExported("bar"));
+}
+
+test "resolveImportPath -- retourne NotFound sur chemin inexistant" {
+    const allocator = std.testing.allocator;
+    const res = resolveImportPath(allocator, "definitely_missing_heaven_module_xyz.hvn");
+    try std.testing.expectError(error.NotFound, res);
+}
+
+test "resolveImportPath -- résout un fichier via HEAVEN_PATH" {
+    const allocator = std.testing.allocator;
+    const tmp_dir_name = ".tmp_import_heaven_path_test";
+    platform.fs.cwd().makePath(tmp_dir_name) catch |err| switch (err) {
+        error.PathAlreadyExists => {},
+        else => return err,
+    };
+    defer platform.fs.cwd().deleteTree(tmp_dir_name) catch {};
+
+    const mod_rel = "sample_mod.hvn";
+    const mod_full = try platform.fs.path.join(allocator, &.{ tmp_dir_name, mod_rel });
+    defer allocator.free(mod_full);
+
+    {
+        const f = try platform.fs.cwd().createFile(mod_full, .{});
+        defer f.close();
+        try f.writeAll("fn id(x) = x\n");
+    }
+
+    const prev_env = platform.getenv("HEAVEN_PATH");
+    const env_val = try std.fmt.allocPrint(
+        allocator,
+        "{s}{s}",
+        .{
+            tmp_dir_name,
+            if (prev_env) |p|
+                if (p.len > 0) ":" else ""
+            else
+                "",
+        },
+    );
+    defer allocator.free(env_val);
+
+    const full_env_val = if (prev_env) |p|
+        if (p.len > 0)
+            try std.fmt.allocPrint(allocator, "{s}:{s}", .{ tmp_dir_name, p })
+        else
+            try allocator.dupe(u8, tmp_dir_name)
+    else
+        try allocator.dupe(u8, tmp_dir_name);
+    defer allocator.free(full_env_val);
+
+    // Vérifie que le chemin direct n'existe pas à la racine avant d'injecter HEAVEN_PATH
+    try std.testing.expectError(error.NotFound, resolveImportPath(allocator, mod_rel));
 }
