@@ -204,6 +204,24 @@ pub fn precompileUserFns(self: *MirFunction) !void {
     }
 }
 
+fn emitExternCall(
+    mir_fn: *MirFunction,
+    store_ref: *Store,
+    sym_name: []const u8,
+    call_args: []const Id,
+    target_block: BlockId,
+) !Reg {
+    const sym = try store_ref.interner.intern(sym_name);
+    const arg_slice = try mir_fn.allocator.alloc(Id, call_args.len);
+    errdefer mir_fn.allocator.free(arg_slice);
+    @memcpy(arg_slice, call_args);
+    const dest = mir_fn.newReg();
+    try mir_fn.blocks.items[target_block].instrs.append(mir_fn.allocator, .{
+        .extern_call = .{ .dest = dest, .name = sym, .args = arg_slice },
+    });
+    return dest;
+}
+
 /// Alloue un nœud placeholder dans le Store Expr IR pour une valeur MIR
 pub fn newReg(self: *MirFunction) Reg {
     const reg = self.next_value;
@@ -646,30 +664,13 @@ pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: *Blo
             if (std.mem.eql(u8, op_name, "string_length") and args.len == 1) {
                 const store_ref = self.store orelse return error.UnsupportedExpr;
                 const arg_reg = try self.compileExpr(store, args[0], target_block, locals);
-                const sym = try store_ref.interner.intern("strlen");
-                const arg_slice = try self.allocator.alloc(Id, 1);
-                errdefer self.allocator.free(arg_slice);
-                arg_slice[0] = arg_reg;
-                const dest = self.newReg();
-                try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
-                    .extern_call = .{ .dest = dest, .name = sym, .args = arg_slice },
-                });
-                return dest;
+                return emitExternCall(self, store_ref, "strlen", &.{arg_reg}, target_block.*);
             }
             if (std.mem.eql(u8, op_name, "string_concat") and args.len == 2) {
                 const store_ref = self.store orelse return error.UnsupportedExpr;
                 const a_reg = try self.compileExpr(store, args[0], target_block, locals);
                 const b_reg = try self.compileExpr(store, args[1], target_block, locals);
-                const sym = try store_ref.interner.intern("__strcat");
-                const arg_slice = try self.allocator.alloc(Id, 2);
-                errdefer self.allocator.free(arg_slice);
-                arg_slice[0] = a_reg;
-                arg_slice[1] = b_reg;
-                const dest = self.newReg();
-                try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
-                    .extern_call = .{ .dest = dest, .name = sym, .args = arg_slice },
-                });
-                return dest;
+                return emitExternCall(self, store_ref, "__strcat", &.{ a_reg, b_reg }, target_block.*);
             }
 
             if (args.len == 2) {
