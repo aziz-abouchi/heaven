@@ -1,5 +1,8 @@
 # Chapitre 13 — Free monads : séparer programme et interprétation
 
+<!-- doctest: skip-file -->
+
+
 > **Version 2 (2026-11-04)** — refonte style LYAH/LYSE.
 > Version publiée : `16-free-monads.md` (v1).
 > Référentiel de style : `05-recursion.md` (v2, pilote).

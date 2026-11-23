@@ -226,9 +226,9 @@ La solution est **récursive**, et elle est d'une élégance rare :
     ✓ clause enregistrée pour 'hanoi'
 
     heaven> hanoi n from to via =
-              append (hanoi (n - 1) from via to)
-                     (cons (pair from to)
-                           hanoi (n - 1) via to from)
+              (append (hanoi (n - 1) from via to)
+                      (cons (pair from to)
+                            (hanoi (n - 1) via to from)))
     ✓ clause enregistrée pour 'hanoi'
 
 Trois idées, en une définition :

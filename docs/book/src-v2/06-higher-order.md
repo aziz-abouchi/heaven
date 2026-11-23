@@ -80,10 +80,12 @@ Ceux qui satisfont un prédicat sont gardés ; les autres sont jetés.
     ✓ clause enregistrée pour 'filter'
 
     heaven> filter p (cons x xs) =
-              if (p x)
-                 (cons x (filter p xs))
-                 (filter p xs)
+              (if (p x)
+                  (cons x (filter p xs))
+                  (filter p xs))
     ✓ clause enregistrée pour 'filter'
+
+    heaven> even x = (x % 2) == 0
 
     heaven> filter even maListe
     (cons 2 (cons 4 nil))

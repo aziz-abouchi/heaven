@@ -25,6 +25,7 @@ import sys
 from pathlib import Path
 
 BOOK_DIR = Path("docs/book/src")
+BOOK_V2_DIR = Path("docs/book/src-v2")
 HEAVEN_BIN = "./zig-out/bin/heaven"
 
 # Ligne `    heaven> commande` (indent >= 4 espaces)
@@ -121,7 +122,7 @@ def main():
     args = ap.parse_args()
 
     targets = ([Path(f) for f in args.files] if args.files
-               else sorted(BOOK_DIR.glob("*.md")))
+               else sorted(BOOK_DIR.glob("*.md")) + sorted(BOOK_V2_DIR.glob("*.md")))
 
     total_cmds = 0
     total_errors = 0
