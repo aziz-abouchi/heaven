@@ -1,0 +1,5 @@
+-- export phantom_commented
+// export another_commented
+priv_fn x = x + 1
+pub_fn x = x * 2
+export pub_fn, pub_fn

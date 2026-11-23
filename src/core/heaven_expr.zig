@@ -5341,6 +5341,21 @@ test "type-dep v0 — ctor_arity propagée dans engine.fns" {
     try std.testing.expectEqual(@as(u8, 0), end_def.ctor_arity);
 }
 
+test "module v2a — export ignore commentaires et déduplique les noms" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const r = try heaven.eval(
+        "import \"tests/imports/exp_comment_and_dup.hvn\" as Mod",
+    );
+    defer allocator.free(r);
+
+    try std.testing.expect(heaven.engine.fns.get("Mod.pub_fn") != null);
+    try std.testing.expect(heaven.engine.fns.get("Mod.priv_fn") == null);
+    try std.testing.expect(heaven.engine.fns.get("priv_fn") != null);
+}
+
 test "module v2a — export parent préservé après import imbriqué" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
