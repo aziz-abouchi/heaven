@@ -85,6 +85,52 @@ pub fn emitWatLoop(
         \\  (i64.extend_i32_s (i32.sub (local.get $ca) (local.get $cb))))
         \\
     );
+    try w.writeAll(
+        \\(func $__strlen (param $s i64) (result i64)
+        \\  (local $p i32) (local $n i32)
+        \\  (local.set $p (i32.wrap_i64 (local.get $s)))
+        \\  (block $done (loop $l
+        \\    (br_if $done (i32.eqz (i32.load8_u (i32.add (local.get $p) (local.get $n)))))
+        \\    (local.set $n (i32.add (local.get $n) (i32.const 1)))
+        \\    (br $l)))
+        \\  (i64.extend_i32_u (local.get $n)))
+        \\
+        \\(func $__strcat (param $a i64) (param $b i64) (result i64)
+        \\  (local $pa i32) (local $pb i32) (local $la i32) (local $lb i32)
+        \\  (local $dst i32) (local $i i32) (local $need i32)
+        \\  (local.set $pa (i32.wrap_i64 (local.get $a)))
+        \\  (local.set $pb (i32.wrap_i64 (local.get $b)))
+        \\  (block $da (loop $la_l
+        \\    (br_if $da (i32.eqz (i32.load8_u (i32.add (local.get $pa) (local.get $la)))))
+        \\    (local.set $la (i32.add (local.get $la) (i32.const 1)))
+        \\    (br $la_l)))
+        \\  (block $db (loop $lb_l
+        \\    (br_if $db (i32.eqz (i32.load8_u (i32.add (local.get $pb) (local.get $lb)))))
+        \\    (local.set $lb (i32.add (local.get $lb) (i32.const 1)))
+        \\    (br $lb_l)))
+        \\  (local.set $dst (global.get $heap_ptr))
+        \\  (local.set $need (i32.add (i32.add (local.get $la) (local.get $lb)) (i32.const 1)))
+        \\  (global.set $heap_ptr (i32.add (local.get $dst) (local.get $need)))
+        \\  (if (i32.gt_u (global.get $heap_ptr) (i32.mul (memory.size) (i32.const 65536)))
+        \\    (then
+        \\      (if (i32.lt_s (memory.grow (i32.add (i32.shr_u (i32.sub (global.get $heap_ptr) (i32.mul (memory.size) (i32.const 65536))) (i32.const 16)) (i32.const 1))) (i32.const 0))
+        \\        (then (unreachable)))))
+        \\  (local.set $i (i32.const 0))
+        \\  (block $ca_done (loop $ca_l
+        \\    (br_if $ca_done (i32.ge_u (local.get $i) (local.get $la)))
+        \\    (i32.store8 (i32.add (local.get $dst) (local.get $i)) (i32.load8_u (i32.add (local.get $pa) (local.get $i))))
+        \\    (local.set $i (i32.add (local.get $i) (i32.const 1)))
+        \\    (br $ca_l)))
+        \\  (local.set $i (i32.const 0))
+        \\  (block $cb_done (loop $cb_l
+        \\    (br_if $cb_done (i32.ge_u (local.get $i) (local.get $lb)))
+        \\    (i32.store8 (i32.add (i32.add (local.get $dst) (local.get $la)) (local.get $i)) (i32.load8_u (i32.add (local.get $pb) (local.get $i))))
+        \\    (local.set $i (i32.add (local.get $i) (i32.const 1)))
+        \\    (br $cb_l)))
+        \\  (i32.store8 (i32.add (i32.add (local.get $dst) (local.get $la)) (local.get $lb)) (i32.const 0))
+        \\  (i64.extend_i32_u (local.get $dst)))
+        \\
+    );
 
     var global_set = std.AutoHashMap(u32, void).init(allocator);
     defer global_set.deinit();
@@ -272,6 +318,14 @@ fn emitInstr(w: anytype, ctx: *const Ctx, inst: Instr, fdefs: *const FnDefs) !vo
             const bare = if (nm.len > 0 and nm[0] == '@') nm[1..] else nm;
             if (std.mem.eql(u8, bare, "strcmp") and c.args.len == 2) {
                 try w.print("(local.set $r{d} (call $__strcmp (local.get $r{d}) (local.get $r{d})))\n", .{ c.dest, c.args[0], c.args[1] });
+                return;
+            }
+            if ((std.mem.eql(u8, bare, "strlen") or std.mem.eql(u8, bare, "__strlen")) and c.args.len == 1) {
+                try w.print("(local.set $r{d} (call $__strlen (local.get $r{d})))\n", .{ c.dest, c.args[0] });
+                return;
+            }
+            if (std.mem.eql(u8, bare, "__strcat") and c.args.len == 2) {
+                try w.print("(local.set $r{d} (call $__strcat (local.get $r{d}) (local.get $r{d})))\n", .{ c.dest, c.args[0], c.args[1] });
                 return;
             }
             try w.writeAll("    unreachable\n");

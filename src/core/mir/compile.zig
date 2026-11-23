@@ -643,6 +643,35 @@ pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: *Blo
                 return dest;
             }
 
+            if (std.mem.eql(u8, op_name, "string_length") and args.len == 1) {
+                const store_ref = self.store orelse return error.UnsupportedExpr;
+                const arg_reg = try self.compileExpr(store, args[0], target_block, locals);
+                const sym = try store_ref.interner.intern("strlen");
+                const arg_slice = try self.allocator.alloc(Id, 1);
+                errdefer self.allocator.free(arg_slice);
+                arg_slice[0] = arg_reg;
+                const dest = self.newReg();
+                try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
+                    .extern_call = .{ .dest = dest, .name = sym, .args = arg_slice },
+                });
+                return dest;
+            }
+            if (std.mem.eql(u8, op_name, "string_concat") and args.len == 2) {
+                const store_ref = self.store orelse return error.UnsupportedExpr;
+                const a_reg = try self.compileExpr(store, args[0], target_block, locals);
+                const b_reg = try self.compileExpr(store, args[1], target_block, locals);
+                const sym = try store_ref.interner.intern("__strcat");
+                const arg_slice = try self.allocator.alloc(Id, 2);
+                errdefer self.allocator.free(arg_slice);
+                arg_slice[0] = a_reg;
+                arg_slice[1] = b_reg;
+                const dest = self.newReg();
+                try self.blocks.items[target_block.*].instrs.append(self.allocator, .{
+                    .extern_call = .{ .dest = dest, .name = sym, .args = arg_slice },
+                });
+                return dest;
+            }
+
             if (args.len == 2) {
                 const lhs = try self.compileExpr(store, args[0], target_block, locals);
                 const rhs = try self.compileExpr(store, args[1], target_block, locals);

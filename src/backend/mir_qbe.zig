@@ -142,6 +142,47 @@ pub fn emitQbeLoop(
         for (bytes) |b| try w.print("b {d}, ", .{b});
         try w.writeAll("b 0 }\n");
     }
+    if (!no_libc) {
+        try w.writeAll(
+            \\function l $__strcat(l %a, l %b) {
+            \\@start
+            \\    %la =l call $strlen(l %a)
+            \\    %lb =l call $strlen(l %b)
+            \\    %sum =l add %la, %lb
+            \\    %cap =l add %sum, 1
+            \\    %buf =l call $malloc(l %cap)
+            \\    %ia =l copy 0
+            \\@copy_a
+            \\    %ca =w csltl %ia, %la
+            \\    jnz %ca, @step_a, @done_a
+            \\@step_a
+            \\    %sa =l add %a, %ia
+            \\    %ba =w loadub %sa
+            \\    %da =l add %buf, %ia
+            \\    storeb %ba, %da
+            \\    %ia =l add %ia, 1
+            \\    jmp @copy_a
+            \\@done_a
+            \\    %ib =l copy 0
+            \\@copy_b
+            \\    %cb =w csltl %ib, %lb
+            \\    jnz %cb, @step_b, @done_b
+            \\@step_b
+            \\    %sb =l add %b, %ib
+            \\    %bb =w loadub %sb
+            \\    %off_b =l add %la, %ib
+            \\    %db =l add %buf, %off_b
+            \\    storeb %bb, %db
+            \\    %ib =l add %ib, 1
+            \\    jmp @copy_b
+            \\@done_b
+            \\    %end_p =l add %buf, %sum
+            \\    storeb 0, %end_p
+            \\    ret %buf
+            \\}
+            \\
+        );
+    }
     try w.writeAll("function l $heaven_main() {\n");
     try emitBody(w, root, null, null);
     try w.writeAll("}\n");
