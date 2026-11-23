@@ -392,6 +392,9 @@ test "wat — heap : alloc, store_at et load_at (offsets 0 et 8)" {
 
     try std.testing.expect(has(out, "(memory (export \"memory\") 1)"));
     try std.testing.expect(has(out, "$heap_ptr"));
+    // Invariant MIR : pointeur de tas >= 4096 (sinon ADT n-aire mal filtre).
+    try std.testing.expect(wat.heap_base >= 4096);
+    try std.testing.expect(has(out, "(global $heap_ptr (mut i32) (i32.const 4096))"));
     try std.testing.expect(has(out, "i64.store"));
     try std.testing.expect(has(out, "i64.load"));
 

@@ -14,6 +14,9 @@ const Reg = mir.Reg;
 const BasicBlock = mir.BasicBlock;
 const FnDefs = std.AutoHashMap(u32, FnDef);
 
+/// Adresse de depart du tas WAT (>= seuil pointeur du MIR, voir emitWatLoop).
+pub const heap_base: u32 = 4096;
+
 /// Émet le module WAT complet : globals (union des load/store),
 /// une fonction WASM par fn_def, et $main exporté → i64.
 pub fn emitWat(allocator: std.mem.Allocator, root: *const MirFunction) ![]u8 {
@@ -32,7 +35,11 @@ pub fn emitWatLoop(
     var buf: std.ArrayList(u8) = .empty;
     errdefer buf.deinit(allocator);
     const w = buf.writer(allocator);
-    try w.writeAll("(module\n(memory (export \"memory\") 1)\n(global $heap_ptr (mut i32) (i32.const 8))\n");
+    // Invariant MIR : un pointeur de tas est >= 4096 ; les constructeurs sans
+    // argument sont des entiers immediats < 4096 (cf. `>= 4096` dans la
+    // compilation des clauses ADT, mir.zig). Le tas WAT demarre donc a 4096,
+    // pas a 8 : sinon un noeud ICons serait pris pour un constructeur nul.
+    try w.print("(module\n(memory (export \"memory\") 1)\n(global $heap_ptr (mut i32) (i32.const {d}))\n", .{heap_base});
 
     var global_set = std.AutoHashMap(u32, void).init(allocator);
     defer global_set.deinit();

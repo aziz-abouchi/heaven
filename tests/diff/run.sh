@@ -6,7 +6,7 @@ P=0; F=0
 # quand le tas WASM existera). Un .wat contient toujours des `unreachable`
 # (fonctions du prelude utilisant des paires), donc on ne peut pas le deduire
 # du fichier genere.
-WASM_UNSUPPORTED="05-list 20-eq-adt-nary 21-builtin-heap"
+WASM_UNSUPPORTED=""
 for f in tests/diff/*.hvn; do
     n=$(basename "$f" .hvn)
     # Le harnais compare des VALEURS : on desactive le leak-check de l'interpreteur

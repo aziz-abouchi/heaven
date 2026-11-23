@@ -453,6 +453,6 @@ Session 2026-11-18/19: double-free ferme (82c95e9, bbfbf56). MIR multi-clauses p
 | T4 | `test_bigint_d20` échoue sur main | Passe en Debug après T3 (mesuré) ; cause = pile, non analysée plus avant | ✅ Constaté |
 | T5 | Pas de fuite à la redéfinition de `fn` | **Faux avant `2825280`** : `evalFnDef` dupliquait le nom à chaque `fn f` redéfini (`put` garde l'ancienne clé). Corrigé ; `tests/leak_guard.sh` (détecteur actif) | ✅ Corrigé |
 | T6 | `:derive x^2 + 1` | **Faux avant `4f939f9`** : `splitExprVar` prenait `1` pour la variable (`expr="x^2 +"`). Corrigé, 8 cas testés | ✅ Corrigé |
-| T7 | WASM gère le tas (`cons`, `pair`, ADT) | **Non** : `unreachable` ; `WASM_UNSUPPORTED` dans `tests/diff/run.sh` (05-list, 20-eq-adt-nary, 21-builtin-heap) | ❌ TODO |
+| T7 | WASM gère le tas (`cons`, `pair`, ADT) | **Oui** (tas linéaire `a7754ab`, mesuré 2026-11-23) : `05-list`, `20-eq-adt-nary`, `21-builtin-heap` passent interpréteur = QBE = wasmtime. Un défaut silencieux subsistait : le tas WAT démarrait à 8 alors que le MIR distingue pointeur/constructeur nul par `>= 4096` → `20-eq-adt-nary` renvoyait 0 au lieu de 63 sans trap. Tas démarré à 4096 (`mir_wat.heap_base`), `WASM_UNSUPPORTED` vidé. Reste hors périmètre : `const_str`/`@puts` en WAT (`unreachable`) | ✅ Corrigé |
 
 **Méthode** : seuls les chiffres exécutés sont notés « mesuré » ; les builds sont Debug (temps pessimistes). Hypothèses rejetées : « l'environnement n'est pas capturé » (la cause était `.lambda => return id`) ; « grep `unreachable` ⇒ WASM non supporté » (le prélude en contient toujours).
