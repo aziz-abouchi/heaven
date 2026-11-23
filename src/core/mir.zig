@@ -572,8 +572,22 @@ pub const MirFunction = struct {
         return switch (store.lits.items[n.aux]) {
             .int => lp,
             .boolean => |b| try store.int(if (b) 1 else 0),
+            // Chaine : la comparaison se fait par contenu (strcmp), pas par
+            // adresse ; voir patternTest.
+            .str => lp,
             else => null,
         };
+    }
+
+    /// Test d'un motif scalaire contre `arg` : egalite pour les entiers et
+    /// booleens, `(@strcmp arg "lit") = 0` pour les chaines (contenu).
+    fn patternTest(store: *Store, arg: Id, lp: Id) !Id {
+        const n = store.get(lp);
+        if (n.tag == .lit and store.lits.items[n.aux] == .str) {
+            const cmp = try store.apply(try store.sym("@strcmp"), &.{ arg, lp });
+            return try store.binop("=", cmp, try store.int(0));
+        }
+        return try store.binop("=", arg, lp);
     }
 
     /// Soundness : on ne compile que ce qu'on sait traduire fidelement.
@@ -741,7 +755,7 @@ pub const MirFunction = struct {
                 const lp = (try self.scalarPatternLit(store, c.patterns[i])) orelse continue;
                 const psym = try multiParamSym(store, i);
                 const arg = try store.sym(store.interner.resolve(psym));
-                const t = try store.binop("=", arg, lp);
+                const t = try patternTest(store, arg, lp);
                 cond = if (cond) |prev| try store.binop("*", prev, t) else t;
             }
             if (cond) |cnd| {

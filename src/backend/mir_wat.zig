@@ -14,8 +14,26 @@ const Reg = mir.Reg;
 const BasicBlock = mir.BasicBlock;
 const FnDefs = std.AutoHashMap(u32, FnDef);
 
-/// Adresse de depart du tas WAT (>= seuil pointeur du MIR, voir emitWatLoop).
+/// Adresse minimale de depart du tas WAT (>= seuil pointeur du MIR, voir
+/// emitWatLoop). Les donnees (chaines) sont placees a partir de cette adresse
+/// et le tas demarre apres elles, aligne sur 8.
 pub const heap_base: u32 = 4096;
+
+/// Adresses des chaines litterales (index = root.str_pool) et debut du tas.
+const StrLayout = struct { addrs: []u32, heap_start: u32 };
+
+fn layoutStrings(allocator: std.mem.Allocator, root: *const MirFunction) !StrLayout {
+    const addrs = try allocator.alloc(u32, root.str_pool.items.len);
+    var at: u32 = heap_base;
+    for (root.str_pool.items, 0..) |bytes, i| {
+        addrs[i] = at;
+        at += @as(u32, @intCast(bytes.len)) + 1; // NUL final
+    }
+    return .{ .addrs = addrs, .heap_start = (at + 7) & ~@as(u32, 7) };
+}
+
+/// Contexte d'emission partage par emitBody/emitInstr.
+const Ctx = struct { str_addrs: []const u32, store: @FieldType(MirFunction, "store") };
 
 /// Émet le module WAT complet : globals (union des load/store),
 /// une fonction WASM par fn_def, et $main exporté → i64.
@@ -39,7 +57,34 @@ pub fn emitWatLoop(
     // argument sont des entiers immediats < 4096 (cf. `>= 4096` dans la
     // compilation des clauses ADT, mir.zig). Le tas WAT demarre donc a 4096,
     // pas a 8 : sinon un noeud ICons serait pris pour un constructeur nul.
-    try w.print("(module\n(memory (export \"memory\") 1)\n(global $heap_ptr (mut i32) (i32.const {d}))\n", .{heap_base});
+    const lay = try layoutStrings(allocator, root);
+    defer allocator.free(lay.addrs);
+    const ctx = Ctx{ .str_addrs = lay.addrs, .store = root.store };
+    const pages: u32 = @max(1, (lay.heap_start + 65535) / 65536);
+    try w.print("(module\n(memory (export \"memory\") {d})\n(global $heap_ptr (mut i32) (i32.const {d}))\n", .{ pages, lay.heap_start });
+    // Chaines litterales : segments de donnees (NUL final implicite : memoire a 0).
+    for (root.str_pool.items, 0..) |bytes, i| {
+        try w.print("(data (i32.const {d}) \"", .{lay.addrs[i]});
+        for (bytes) |b| try w.print("\\{x:0>2}", .{b});
+        try w.writeAll("\\00\")\n");
+    }
+    // strcmp libc : difference des premiers octets distincts (0 si egales).
+    try w.writeAll(
+        \\(func $__strcmp (param $a i64) (param $b i64) (result i64)
+        \\  (local $pa i32) (local $pb i32) (local $ca i32) (local $cb i32)
+        \\  (local.set $pa (i32.wrap_i64 (local.get $a)))
+        \\  (local.set $pb (i32.wrap_i64 (local.get $b)))
+        \\  (block $done (loop $l
+        \\    (local.set $ca (i32.load8_u (local.get $pa)))
+        \\    (local.set $cb (i32.load8_u (local.get $pb)))
+        \\    (br_if $done (i32.ne (local.get $ca) (local.get $cb)))
+        \\    (br_if $done (i32.eqz (local.get $ca)))
+        \\    (local.set $pa (i32.add (local.get $pa) (i32.const 1)))
+        \\    (local.set $pb (i32.add (local.get $pb) (i32.const 1)))
+        \\    (br $l)))
+        \\  (i64.extend_i32_s (i32.sub (local.get $ca) (local.get $cb))))
+        \\
+    );
 
     var global_set = std.AutoHashMap(u32, void).init(allocator);
     defer global_set.deinit();
@@ -69,19 +114,19 @@ pub fn emitWatLoop(
             try w.print("(param $p{d} i64) ", .{i});
         }
         try w.writeAll("(result i64)\n");
-        try emitBody(w, &def.fn_mir, &def, &root.fn_defs, sym);
+        try emitBody(w, &ctx, &def.fn_mir, &def, &root.fn_defs, sym);
         try w.writeAll(")\n");
     }
 
     if (loop_count <= 1) {
         // Wrapper simple : $main est le corps du root, inchange.
         try w.writeAll("(func $main (export \"main\") (result i64)\n");
-        try emitBody(w, root, null, &root.fn_defs, null);
+        try emitBody(w, &ctx, root, null, &root.fn_defs, null);
         try w.writeAll(")\n)\n");
     } else {
         // $heaven_main : le corps du root.
         try w.writeAll("(func $heaven_main (result i64)\n");
-        try emitBody(w, root, null, &root.fn_defs, null);
+        try emitBody(w, &ctx, root, null, &root.fn_defs, null);
         try w.writeAll(")\n");
         // $main : boucle loop_count fois sur $heaven_main.
         try w.writeAll("(func $main (export \"main\") (result i64)\n");
@@ -106,7 +151,7 @@ pub fn emitWatLoop(
 /// params→regs, dispatch trampoline — (loop $dispatch) + chaîne de
 /// (if $cur==k). Correct pour tout CFG ; O(nb blocs) par
 /// branchement. Le relooping structuré est un chantier M3+.
-fn emitBody(w: anytype, f: *const MirFunction, def: ?*const FnDef, fdefs: *const FnDefs, cur_sym: ?u32) !void {
+fn emitBody(w: anytype, ctx: *const Ctx, f: *const MirFunction, def: ?*const FnDef, fdefs: *const FnDefs, cur_sym: ?u32) !void {
     if (f.blocks.items.len == 0) {
         try w.writeAll("(i64.const 0)\n");
         return;
@@ -168,7 +213,7 @@ fn emitBody(w: anytype, f: *const MirFunction, def: ?*const FnDef, fdefs: *const
             for (blk.instrs.items[0 .. blk.instrs.items.len - 1]) |inst| {
                 switch (inst) {
                     .phi => {},
-                    else => try emitInstr(w, inst, fdefs),
+                    else => try emitInstr(w, ctx, inst, fdefs),
                 }
             }
             // WASM tail-call natif : return_call $fN arg0 arg1 ...
@@ -186,7 +231,7 @@ fn emitBody(w: anytype, f: *const MirFunction, def: ?*const FnDef, fdefs: *const
             switch (inst) {
                 .phi => {}, // émis par les prédécesseurs (contrat §4)
                 .jump, .branch, .ret => return error.TerminatorInBody,
-                else => try emitInstr(w, inst, fdefs),
+                else => try emitInstr(w, ctx, inst, fdefs),
             }
         }
         try emitTerminator(w, f, blk, bid);
@@ -196,10 +241,10 @@ fn emitBody(w: anytype, f: *const MirFunction, def: ?*const FnDef, fdefs: *const
     try w.writeAll("(i64.const 0)\n");
 }
 
-fn emitInstr(w: anytype, inst: Instr, fdefs: *const FnDefs) !void {
+fn emitInstr(w: anytype, ctx: *const Ctx, inst: Instr, fdefs: *const FnDefs) !void {
     switch (inst) {
         .const_int => |c| try w.print("(local.set $r{d} (i64.const {d}))\n", .{ c.dest, c.value }),
-        .const_str => |_| try w.writeAll("    unreachable ;; const_str not yet in WAT\n"),
+        .const_str => |c| try w.print("(local.set $r{d} (i64.const {d}))\n", .{ c.dest, ctx.str_addrs[c.sym] }),
         .add => |a| try w.print("(local.set $r{d} (i64.add (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
         .sub => |a| try w.print("(local.set $r{d} (i64.sub (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
         .mul => |a| try w.print("(local.set $r{d} (i64.mul (local.get $r{d}) (local.get $r{d})))\n", .{ a.dest, a.lhs, a.rhs }),
@@ -219,9 +264,16 @@ fn emitInstr(w: anytype, inst: Instr, fdefs: *const FnDefs) !void {
                 try w.writeAll("))\n");
             }
         },
-        .extern_call => |_| {
-            // WASM n'a pas de libc ; un extern doit passer par WASI
-            // (import fd_write etc.). En attendant, trap explicite.
+        .extern_call => |c| {
+            // strcmp est fourni en WAT ($__strcmp). Les autres externs
+            // (libc, I/O) doivent passer par WASI : trap explicite en attendant.
+            const st = ctx.store;
+            const nm = if (st) |sx| sx.interner.resolve(c.name) else "";
+            const bare = if (nm.len > 0 and nm[0] == '@') nm[1..] else nm;
+            if (std.mem.eql(u8, bare, "strcmp") and c.args.len == 2) {
+                try w.print("(local.set $r{d} (call $__strcmp (local.get $r{d}) (local.get $r{d})))\n", .{ c.dest, c.args[0], c.args[1] });
+                return;
+            }
             try w.writeAll("    unreachable\n");
         },
         .alloc => |a| {

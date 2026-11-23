@@ -442,3 +442,31 @@ test "wasi — execution bout-en-bout du binaire heaven-wasi (wasmtime / wasmer)
     const trimmed = std.mem.trim(u8, res.stdout, " \t\r\n");
     try std.testing.expectEqualStrings("42", trimmed);
 }
+
+test "wat — chaines : segments de donnees, tas apres les donnees, strcmp en WAT" {
+    const alloc = std.testing.allocator;
+    var mf = MirFunction.init(alloc);
+    defer mf.deinit();
+    try mf.str_pool.append(alloc, "ab"); // 4096..4098 (NUL inclus)
+    try mf.str_pool.append(alloc, "abc"); // 4099..4102
+    const entry = try mf.newBlock();
+    const a = mf.newReg();
+    const b = mf.newReg();
+    try mf.blocks.items[entry].instrs.append(alloc, .{ .const_str = .{ .dest = a, .sym = 0 } });
+    try mf.blocks.items[entry].instrs.append(alloc, .{ .const_str = .{ .dest = b, .sym = 1 } });
+    mf.blocks.items[entry].terminator = .{ .ret = b };
+
+    const out = try wat.emitWat(alloc, &mf);
+    defer alloc.free(out);
+
+    // Donnees a partir de heap_base, une chaine apres l'autre (NUL final).
+    try std.testing.expect(has(out, "(data (i32.const 4096) \"\\61\\62\\00\")"));
+    try std.testing.expect(has(out, "(data (i32.const 4099) \"\\61\\62\\63\\00\")"));
+    // const_str = adresse de la donnee, plus de trap.
+    try std.testing.expect(has(out, "(i64.const 4096)"));
+    try std.testing.expect(has(out, "(i64.const 4099)"));
+    try std.testing.expect(!has(out, "const_str not yet"));
+    // Le tas demarre apres les donnees (4103 arrondi a 8 = 4104), >= 4096.
+    try std.testing.expect(has(out, "(global $heap_ptr (mut i32) (i32.const 4104))"));
+    try std.testing.expect(has(out, "$__strcmp"));
+}
