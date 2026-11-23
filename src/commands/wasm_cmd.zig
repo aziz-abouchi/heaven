@@ -61,6 +61,42 @@ fn isSkippable(line: []const u8) bool {
     return false;
 }
 
+fn processWasmStmt(
+    alloc: std.mem.Allocator,
+    heaven: *heaven_expr.Heaven,
+    parser: *parse.Parser,
+    stmt: []const u8,
+    last: *?expr.Id,
+) !void {
+    const trimmed = std.mem.trim(u8, stmt, " \t\r");
+    if (trimmed.len == 0) return;
+
+    if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_idx| {
+        const lhs = std.mem.trim(u8, trimmed[0..eq_idx], " \t");
+        if (std.mem.eql(u8, lhs, "main")) {
+            const rhs = std.mem.trim(u8, trimmed[eq_idx + 1 ..], " \t\r");
+            if (rhs.len == 0) return;
+            const parsed = try parser.parseSExpr(rhs);
+            last.* = try heaven.store.lowerRec(parsed);
+            return;
+        }
+    }
+
+    if (qbe_cmd.isDefinition(trimmed)) {
+        const msg = heaven.eval(trimmed) catch |e| {
+            platform.debug.print(
+                "[compile-wasm] warn: definition ignoree ({s}): {s}\n",
+                .{ @errorName(e), trimmed[0..@min(trimmed.len, 60)] },
+            );
+            return;
+        };
+        alloc.free(msg);
+        return;
+    }
+    const parsed = try parser.parseSExpr(trimmed);
+    last.* = try heaven.store.lowerRec(parsed);
+}
+
 fn parseLastExpr(
     alloc: std.mem.Allocator,
     heaven: *heaven_expr.Heaven,
@@ -70,42 +106,31 @@ fn parseLastExpr(
     defer parser.deinit();
 
     var last: ?expr.Id = null;
+    var stmt_buf: std.ArrayListUnmanaged(u8) = .{};
+    defer stmt_buf.deinit(alloc);
+
     var lines = std.mem.splitScalar(u8, source, '\n');
     while (lines.next()) |line| {
         if (isSkippable(line)) continue;
         const trimmed = std.mem.trim(u8, line, " \t\r");
+        const is_indented = line.len > 0 and (line[0] == ' ' or line[0] == '\t');
 
-        // G.36 : `main = EXPR` -> EXPR cible la compilation (avant
-        // isDefinition qui retourne true pour `name = ...`). Port du
-        // fix eda3c24 de qbe_cmd.zig.
-        if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_idx| {
-            const lhs = std.mem.trim(u8, trimmed[0..eq_idx], " \t");
-            if (std.mem.eql(u8, lhs, "main")) {
-                const rhs = std.mem.trim(u8, trimmed[eq_idx + 1 ..], " \t\r");
-                if (rhs.len == 0) continue;
-                const parsed = try parser.parseSExpr(rhs);
-                last = try heaven.store.lowerRec(parsed);
-                continue;
-            }
+        if (stmt_buf.items.len > 0 and !is_indented) {
+            try processWasmStmt(alloc, heaven, &parser, stmt_buf.items, &last);
+            stmt_buf.clearRetainingCapacity();
         }
 
-        if (qbe_cmd.isDefinition(trimmed)) {
-            const msg = heaven.eval(trimmed) catch |e| {
-                platform.debug.print(
-                    "[compile-wasm] warn: definition ignoree ({s}): {s}\n",
-                    .{ @errorName(e), trimmed[0..@min(trimmed.len, 60)] },
-                );
-                continue;
-            };
-            alloc.free(msg);
-            continue;
+        if (stmt_buf.items.len > 0) {
+            try stmt_buf.append(alloc, ' ');
         }
-        const parsed = try parser.parseSExpr(trimmed);
-        last = try heaven.store.lowerRec(parsed);
+        try stmt_buf.appendSlice(alloc, trimmed);
+    }
+
+    if (stmt_buf.items.len > 0) {
+        try processWasmStmt(alloc, heaven, &parser, stmt_buf.items, &last);
     }
     return last orelse error.NoExpression;
 }
-
 pub fn runCompileWasm(
     alloc: std.mem.Allocator,
     src_path: []const u8,

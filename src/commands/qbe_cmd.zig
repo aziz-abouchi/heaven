@@ -272,6 +272,73 @@ fn flushPendingClauses(
     pending.clearRetainingCapacity();
 }
 
+fn processAccumulatedStmt(
+    alloc: std.mem.Allocator,
+    heaven: *heaven_expr.Heaven,
+    parser: *parse.Parser,
+    stmt: []const u8,
+    last: *?expr.Id,
+    str_consts: *std.StringHashMap([]const u8),
+    pending: *std.StringHashMap(std.ArrayListUnmanaged(ClauseInfo)),
+) !void {
+    const trimmed = std.mem.trim(u8, stmt, " \t\r");
+    if (trimmed.len == 0) return;
+
+    if (parseClause(trimmed)) |cd| {
+        const gop = try pending.getOrPut(cd.name);
+        if (!gop.found_existing) {
+            gop.key_ptr.* = try alloc.dupe(u8, cd.name);
+            gop.value_ptr.* = .{};
+        }
+        try gop.value_ptr.append(alloc, cd.info);
+        return;
+    }
+    try flushPendingClauses(alloc, heaven, pending);
+
+    if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_idx| {
+        const lhs = std.mem.trim(u8, trimmed[0..eq_idx], " \t");
+        if (std.mem.eql(u8, lhs, "main")) {
+            const rhs = std.mem.trim(u8, trimmed[eq_idx + 1 ..], " \t\r");
+            if (rhs.len == 0) return;
+            const rhs_subst = try substituteStrings(alloc, rhs, str_consts);
+            defer alloc.free(rhs_subst);
+            const parsed = try parser.parseSExpr(rhs_subst);
+            last.* = try heaven.store.lowerRec(parsed);
+            return;
+        }
+    }
+
+    if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_idx| {
+        const lhs0 = std.mem.trim(u8, trimmed[0..eq_idx], " \t");
+        const rhs0 = std.mem.trim(u8, trimmed[eq_idx + 1 ..], " \t\r");
+        if (lhs0.len > 0 and rhs0.len >= 2 and rhs0[0] == '"' and rhs0[rhs0.len - 1] == '"') {
+            const gop = try str_consts.getOrPut(lhs0);
+            if (!gop.found_existing) {
+                gop.key_ptr.* = try alloc.dupe(u8, lhs0);
+            } else {
+                alloc.free(gop.value_ptr.*);
+            }
+            gop.value_ptr.* = try alloc.dupe(u8, rhs0);
+            return;
+        }
+    }
+
+    if (isDefinition(trimmed)) {
+        const msg = heaven.eval(trimmed) catch |e| {
+            platform.debug.print(
+                "[compile-qbe] warn: definition ignoree ({s}): {s}\n",
+                .{ @errorName(e), trimmed[0..@min(trimmed.len, 60)] },
+            );
+            return;
+        };
+        alloc.free(msg);
+        return;
+    }
+
+    const parsed = try parser.parseSExpr(trimmed);
+    last.* = try heaven.store.lowerRec(parsed);
+}
+
 fn parseLastExpr(
     alloc: std.mem.Allocator,
     heaven: *heaven_expr.Heaven,
@@ -282,75 +349,50 @@ fn parseLastExpr(
 
     var last: ?expr.Id = null;
     var str_consts = std.StringHashMap([]const u8).init(alloc);
-    defer str_consts.deinit();
+    defer {
+        var str_it = str_consts.iterator();
+        while (str_it.next()) |entry| {
+            alloc.free(entry.key_ptr.*);
+            alloc.free(entry.value_ptr.*);
+        }
+        str_consts.deinit();
+    }
     var pending = std.StringHashMap(std.ArrayListUnmanaged(ClauseInfo)).init(alloc);
-    defer pending.deinit();
+    defer {
+        var p_it = pending.iterator();
+        while (p_it.next()) |entry| {
+            alloc.free(entry.key_ptr.*);
+            entry.value_ptr.deinit(alloc);
+        }
+        pending.deinit();
+    }
+
+    var stmt_buf: std.ArrayListUnmanaged(u8) = .{};
+    defer stmt_buf.deinit(alloc);
+
     var lines = std.mem.splitScalar(u8, source, '\n');
     while (lines.next()) |line| {
         if (isSkippable(line)) continue;
         const trimmed = std.mem.trim(u8, line, " \t\r");
+        const is_indented = line.len > 0 and (line[0] == ' ' or line[0] == '\t');
 
-        // G.25 : clause multi-args `name pattern = body` ?
-        if (parseClause(trimmed)) |cd| {
-            const gop = try pending.getOrPut(cd.name);
-            if (!gop.found_existing) gop.value_ptr.* = .{};
-            try gop.value_ptr.append(alloc, cd.info);
-            continue;
-        }
-        try flushPendingClauses(alloc, heaven, &pending);
-
-        // Cas special : `main = EXPR` → EXPR est la cible de compilation.
-        // Doit etre teste AVANT isDefinition (qui retourne true pour tout
-        // `name = ...`). Sinon main est evalue+ignore → NoExpression.
-        if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_idx| {
-            const lhs = std.mem.trim(u8, trimmed[0..eq_idx], " \t");
-            if (std.mem.eql(u8, lhs, "main")) {
-                const rhs = std.mem.trim(u8, trimmed[eq_idx + 1 ..], " \t\r");
-                if (rhs.len == 0) continue;
-                // G.28 : substituer les string bindings connus dans rhs
-                const rhs_subst = try substituteStrings(alloc, rhs, &str_consts);
-                defer alloc.free(rhs_subst);
-                const parsed = try parser.parseSExpr(rhs_subst);
-                last = try heaven.store.lowerRec(parsed);
-                continue;
-            }
+        if (stmt_buf.items.len > 0 and !is_indented) {
+            try processAccumulatedStmt(alloc, heaven, &parser, stmt_buf.items, &last, &str_consts, &pending);
+            stmt_buf.clearRetainingCapacity();
         }
 
-        // G.28 : string binding top-level (`version = "..."`).
-        // Stocke pour substitution inline dans main. Ne pas eval (le
-        // store ne sait pas créer un global QBE initialisé à un string).
-        if (std.mem.indexOfScalar(u8, trimmed, '=')) |eq_idx| {
-            const lhs0 = std.mem.trim(u8, trimmed[0..eq_idx], " \t");
-            const rhs0 = std.mem.trim(u8, trimmed[eq_idx + 1 ..], " \t\r");
-            if (lhs0.len > 0 and rhs0.len >= 2 and rhs0[0] == '"' and rhs0[rhs0.len - 1] == '"') {
-                try str_consts.put(lhs0, rhs0);
-                continue;
-            }
+        if (stmt_buf.items.len > 0) {
+            try stmt_buf.append(alloc, ' ');
         }
-
-        // Les definitions sont EVALUEES (pour peupler engine.fns) puis
-        // ignorees pour la compilation MIR. eval() retourne un message
-        // alloue qu'il faut liberer.
-        if (isDefinition(trimmed)) {
-            const msg = heaven.eval(trimmed) catch |e| {
-                platform.debug.print(
-                    "[compile-qbe] warn: definition ignoree ({s}): {s}\n",
-                    .{ @errorName(e), trimmed[0..@min(trimmed.len, 60)] },
-                );
-                continue;
-            };
-            alloc.free(msg);
-            continue;
-        }
-
-        // Expression : parse + lower. La derniere gagne (le programme
-        // compile est l'unique expression resultat).
-        const parsed = try parser.parseSExpr(trimmed);
-        last = try heaven.store.lowerRec(parsed);
+        try stmt_buf.appendSlice(alloc, trimmed);
     }
+
+    if (stmt_buf.items.len > 0) {
+        try processAccumulatedStmt(alloc, heaven, &parser, stmt_buf.items, &last, &str_consts, &pending);
+    }
+    try flushPendingClauses(alloc, heaven, &pending);
     return last orelse error.NoExpression;
 }
-
 /// Compile `<src_path>` en binaire natif `<out_path>`.
 pub fn runCompileQbe(
     alloc: std.mem.Allocator,
