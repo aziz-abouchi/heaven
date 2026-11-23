@@ -218,6 +218,24 @@ pub fn evalImport(heaven: anytype, src: []const u8) ImportError![]u8 {
             }
         }
 
+        // FOSSILE #4 : snapshot des cles avant eval, pour re-prefixer
+        // les cles nouvelles (sous-imports) en `A.B.x`.
+        var fns_before = std.StringHashMapUnmanaged(void){};
+        defer {
+            var kit = fns_before.keyIterator();
+            while (kit.next()) |k| {
+                heaven.allocator.free(k.*);
+            }
+            fns_before.deinit(heaven.allocator);
+        }
+        {
+            var it = heaven.engine.fns.keyIterator();
+            while (it.next()) |k| {
+                const owned = try heaven.allocator.dupe(u8, k.*);
+                try fns_before.put(heaven.allocator, owned, {});
+            }
+        }
+
         // ─── Push mod_name sur la pile de chargement ───
         const owned_mod = try heaven.allocator.dupe(u8, mod_name);
         try heaven.loading_modules.append(heaven.allocator, owned_mod);
@@ -298,6 +316,37 @@ pub fn evalImport(heaven: anytype, src: []const u8) ImportError![]u8 {
         // Reste eventuel.
         if (try flush.call(heaven.allocator, &accumulate_buffer, heaven, path, &count)) |err_msg| {
             return err_msg;
+        }
+
+        // FOSSILE #4 : re-prefixer les cles nouvelles.
+        // Si mod_name = "A" et qu'un sous-import a cree `B.b_val`,
+        // on ajoute `A.B.b_val` (shallow copy safe, FunctionDef est
+        // un struct inline sans slice owned).
+        {
+            const prefix = try std.fmt.allocPrint(heaven.allocator, "{s}.", .{mod_name});
+            defer heaven.allocator.free(prefix);
+
+            var it = heaven.engine.fns.iterator();
+            while (it.next()) |entry| {
+                const key = entry.key_ptr.*;
+                if (fns_before.contains(key)) continue;
+                if (std.mem.startsWith(u8, key, prefix)) continue;
+
+                const base_name = if (std.mem.lastIndexOfScalar(u8, key, '.')) |dot_idx|
+                    key[dot_idx + 1 ..]
+                else
+                    key;
+                if (!import_state.isExported(base_name)) continue;
+
+                // Nouvelle cle : ajouter mod_name.key
+                const qualified = try std.fmt.allocPrint(heaven.allocator, "{s}.{s}", .{ mod_name, key });
+                const qgop = try heaven.engine.fns.getOrPut(heaven.allocator, qualified);
+                if (qgop.found_existing) {
+                    heaven.allocator.free(qualified);
+                } else {
+                    qgop.value_ptr.* = entry.value_ptr.*;
+                }
+            }
         }
 
         // ─── v2b : enregistrer dans le cache ───

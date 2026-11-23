@@ -330,3 +330,45 @@ test "infix application chain, caret right-associativity, and unclosed paren" {
         try std.testing.expect(std.mem.indexOf(u8, bad_repr, "PARSE_ERR") != null);
     }
 }
+
+test "infix mixed precedence a + b * c ^ d and lowering" {
+    const allocator = std.testing.allocator;
+    var heaven = try heaven_expr.Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const import_msg = try heaven.eval("import \"lib/parse/infix.hvn\" as Inf");
+    defer allocator.free(import_msg);
+    try std.testing.expect(!isImportFailureMessage(import_msg));
+
+    const call_id = try heaven.parseExpression("(Inf.parse_infix \"a + b * c ^ d\")");
+    const eval_id = try heaven.engine.eval(call_id);
+    const ast_repr = try expr.toStringInfix(heaven.store, eval_id, allocator);
+    defer allocator.free(ast_repr);
+
+    const trimmed = std.mem.trim(u8, ast_repr, " \t\r\n");
+    try std.testing.expect(std.mem.indexOf(u8, trimmed, "PARSE_ERR") == null);
+
+    const parsed_id = try heaven.parseExpression(trimmed);
+    const lowered_id = try lowerHpToStore(allocator, heaven.store, parsed_id);
+    const root = heaven.store.get(lowered_id);
+    try std.testing.expectEqual(expr.Tag.apply, root.tag);
+
+    const root_op = heaven.store.get(root.payload);
+    try std.testing.expectEqualStrings("+", heaven.store.interner.resolve(root_op.payload));
+
+    const add_args = heaven.store.applyArgs(root);
+    try std.testing.expectEqual(@as(usize, 2), add_args.len);
+    try std.testing.expectEqualStrings("a", heaven.store.interner.resolve(heaven.store.get(add_args[0]).payload));
+
+    const mul_node = heaven.store.get(add_args[1]);
+    try std.testing.expectEqual(expr.Tag.apply, mul_node.tag);
+    try std.testing.expectEqualStrings("*", heaven.store.interner.resolve(heaven.store.get(mul_node.payload).payload));
+
+    const mul_args = heaven.store.applyArgs(mul_node);
+    try std.testing.expectEqual(@as(usize, 2), mul_args.len);
+    try std.testing.expectEqualStrings("b", heaven.store.interner.resolve(heaven.store.get(mul_args[0]).payload));
+
+    const pow_node = heaven.store.get(mul_args[1]);
+    try std.testing.expectEqual(expr.Tag.apply, pow_node.tag);
+    try std.testing.expectEqualStrings("^", heaven.store.interner.resolve(heaven.store.get(pow_node.payload).payload));
+}
