@@ -5512,6 +5512,20 @@ test "module collision — constructeurs homonymes entre modules stricts" {
     try std.testing.expectEqual(@as(?u8, 2), right.ctor_arity);
     try std.testing.expectEqual(@as(?u8, 1), right.ctor_tag);
 
+    // Le dispatch runtime doit conserver l'arité propre à chaque
+    // constructeur qualifié, malgré la collision des noms courts.
+    const call_a = try heaven.eval("A.Shared 7");
+    defer allocator.free(call_a);
+    try std.testing.expect(std.mem.indexOf(u8, call_a, "A.Shared") != null);
+
+    const call_b = try heaven.eval("B.Shared 7 8");
+    defer allocator.free(call_b);
+    try std.testing.expect(std.mem.indexOf(u8, call_b, "B.Shared") != null);
+
+    // Les arités incorrectes doivent être rejetées par le dispatch qualifié.
+    try std.testing.expectError(error.ArityMismatch, heaven.eval("A.Shared 7 8"));
+    try std.testing.expectError(error.ArityMismatch, heaven.eval("B.Shared 7"));
+
     // Les métadonnées non qualifiées sont globales et suivent
     // la dernière déclaration du constructeur homonyme.
     try std.testing.expectEqual(@as(?u8, 2), heaven.ctor_arities.get("Shared"));
