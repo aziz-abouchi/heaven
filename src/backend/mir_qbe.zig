@@ -142,6 +142,17 @@ pub fn emitQbeLoop(
         for (bytes) |b| try w.print("b {d}, ", .{b});
         try w.writeAll("b 0 }\n");
     }
+    // peek_byte : octet non signe a p+i (pas de libc).
+    try w.writeAll(
+        \\function l $__peek_byte(l %p, l %i) {
+        \\@start
+        \\    %a =l add %p, %i
+        \\    %b =w loadub %a
+        \\    %r =l extuw %b
+        \\    ret %r
+        \\}
+        \\
+    );
     if (!no_libc) {
         try w.writeAll(
             \\function l $__strcat(l %a, l %b) {

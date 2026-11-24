@@ -1,0 +1,3 @@
+byte_at s i = (peek_byte (string_ptr s) i)
+sum_bytes s i acc = (if (>= i (string_length s)) acc (sum_bytes s (+ i 1) (+ acc (byte_at s i))))
+(+ (byte_at "A" 0) (+ (* 1000 (sum_bytes "abc" 0 0)) (* 1000000 (byte_at "ab" 2))))

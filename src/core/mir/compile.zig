@@ -666,6 +666,18 @@ pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: *Blo
                 const arg_reg = try self.compileExpr(store, args[0], target_block, locals);
                 return emitExternCall(self, store_ref, "strlen", &.{arg_reg}, target_block.*);
             }
+            // string_ptr : une chaine est deja son adresse en natif -> identite.
+            if (std.mem.eql(u8, op_name, "string_ptr") and args.len == 1) {
+                return try self.compileExpr(store, args[0], target_block, locals);
+            }
+            // peek_byte p i : octet non signe a p+i, sans test de borne
+            // (meme semantique que l'interpreteur).
+            if (std.mem.eql(u8, op_name, "peek_byte") and args.len == 2) {
+                const store_ref = self.store orelse return error.UnsupportedExpr;
+                const p_reg = try self.compileExpr(store, args[0], target_block, locals);
+                const i_reg = try self.compileExpr(store, args[1], target_block, locals);
+                return emitExternCall(self, store_ref, "__peek_byte", &.{ p_reg, i_reg }, target_block.*);
+            }
             if (std.mem.eql(u8, op_name, "string_concat") and args.len == 2) {
                 const store_ref = self.store orelse return error.UnsupportedExpr;
                 const a_reg = try self.compileExpr(store, args[0], target_block, locals);

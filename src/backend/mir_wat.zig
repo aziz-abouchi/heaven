@@ -95,6 +95,9 @@ pub fn emitWatLoop(
         \\    (br $l)))
         \\  (i64.extend_i32_u (local.get $n)))
         \\
+        \\(func $__peek_byte (param $p i64) (param $i i64) (result i64)
+        \\  (i64.extend_i32_u (i32.load8_u (i32.wrap_i64 (i64.add (local.get $p) (local.get $i))))))
+        \\
         \\(func $__strcat (param $a i64) (param $b i64) (result i64)
         \\  (local $pa i32) (local $pb i32) (local $la i32) (local $lb i32)
         \\  (local $dst i32) (local $i i32) (local $need i32)
@@ -322,6 +325,10 @@ fn emitInstr(w: anytype, ctx: *const Ctx, inst: Instr, fdefs: *const FnDefs) !vo
             }
             if ((std.mem.eql(u8, bare, "strlen") or std.mem.eql(u8, bare, "__strlen")) and c.args.len == 1) {
                 try w.print("(local.set $r{d} (call $__strlen (local.get $r{d})))\n", .{ c.dest, c.args[0] });
+                return;
+            }
+            if (std.mem.eql(u8, bare, "__peek_byte") and c.args.len == 2) {
+                try w.print("(local.set $r{d} (call $__peek_byte (local.get $r{d}) (local.get $r{d})))\n", .{ c.dest, c.args[0], c.args[1] });
                 return;
             }
             if (std.mem.eql(u8, bare, "__strcat") and c.args.len == 2) {
