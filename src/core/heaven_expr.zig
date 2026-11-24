@@ -18,7 +18,6 @@ inline fn debugTrace(comptime fmt: []const u8, args: anytype) void {
     platform.debug.print(fmt, args);
 }
 
-
 const expr = @import("expr");
 const hole_mod = @import("hole");
 const engine_expr = @import("engine_expr");
@@ -480,7 +479,7 @@ pub const Heaven = struct {
             while (i < def.num_clauses) : (i += 1) {
                 const clause = def.clauses[i];
                 self.registerClause(name, clause.patterns[0..clause.num_patterns], clause.body) catch |err| {
-                    debugPrint("[registerClause] '{s}' failed: {s}\n", .{name, @errorName(err)});
+                    debugPrint("[registerClause] '{s}' failed: {s}\n", .{ name, @errorName(err) });
                 };
             }
         }
@@ -813,11 +812,9 @@ pub const Heaven = struct {
                     const src_off = offsets[idx] + @as(u32, @intCast(src_byte * 8));
                     const dst_shift = @as(u32, @intCast(k * 8));
                     const term = if (dst_shift == 0)
-                        try std.fmt.allocPrint(allocator,
-                            "(band (shr __bs {d}) 255)", .{src_off})
+                        try std.fmt.allocPrint(allocator, "(band (shr __bs {d}) 255)", .{src_off})
                     else
-                        try std.fmt.allocPrint(allocator,
-                            "(shl (band (shr __bs {d}) 255) {d})", .{ src_off, dst_shift });
+                        try std.fmt.allocPrint(allocator, "(shl (band (shr __bs {d}) 255) {d})", .{ src_off, dst_shift });
                     defer allocator.free(term);
                     try expr_buf.appendSlice(allocator, term);
                     if (k + 1 < B) try expr_buf.append(allocator, ' ');
@@ -827,17 +824,14 @@ pub const Heaven = struct {
                     try expr_buf.append(allocator, ')');
                 }
 
-                const let_str = try std.fmt.allocPrint(allocator,
-                    "let {s} = {s} in ", .{ nm, expr_buf.items });
+                const let_str = try std.fmt.allocPrint(allocator, "let {s} = {s} in ", .{ nm, expr_buf.items });
                 defer allocator.free(let_str);
                 try buf.appendSlice(allocator, let_str);
                 continue;
             }
 
             const mask: u64 = if (sz >= 64) ~@as(u64, 0) else (@as(u64, 1) << @intCast(sz)) - 1;
-            const let_str = try std.fmt.allocPrint(allocator,
-                "let {s} = (band (shr __bs {d}) {d}) in ",
-                .{ nm, offsets[idx], mask });
+            const let_str = try std.fmt.allocPrint(allocator, "let {s} = (band (shr __bs {d}) {d}) in ", .{ nm, offsets[idx], mask });
             defer allocator.free(let_str);
             try buf.appendSlice(allocator, let_str);
         }
@@ -849,7 +843,11 @@ pub const Heaven = struct {
         var i: usize = 0;
         while (i < src.len) {
             const c = src[i];
-            if (c == '"') { in_string = !in_string; i += 1; continue; }
+            if (c == '"') {
+                in_string = !in_string;
+                i += 1;
+                continue;
+            }
             if (!in_string and i + kw.len <= src.len) {
                 if (std.mem.eql(u8, src[i .. i + kw.len], kw)) return true;
             }
@@ -857,7 +855,6 @@ pub const Heaven = struct {
         }
         return false;
     }
-
 
     fn normalizeLetChain(self: *Heaven, src: []const u8) HeavenError![]u8 {
         const trimmed = std.mem.trim(u8, src, " \t\r\n");
@@ -895,7 +892,10 @@ pub const Heaven = struct {
                     const prev: u8 = if (p > 0) trimmed[p - 1] else 0;
                     const next: u8 = if (p + 1 < trimmed.len) trimmed[p + 1] else 0;
                     const is_cmp = prev == '=' or prev == '!' or prev == '<' or prev == '>';
-                    if (!is_cmp and next != '=') { eq_pos = p; break; }
+                    if (!is_cmp and next != '=') {
+                        eq_pos = p;
+                        break;
+                    }
                     scan = p + 1;
                 }
                 if (eq_pos > 1) {
@@ -908,8 +908,7 @@ pub const Heaven = struct {
                         if (std.mem.lastIndexOfScalar(u8, prev_lhs, '|')) |bar| {
                             base_lhs = std.mem.trim(u8, prev_lhs[0..bar], " \t");
                         }
-                        const joined = try std.fmt.allocPrint(
-                            self.allocator, "{s} | {s}", .{ base_lhs, guard });
+                        const joined = try std.fmt.allocPrint(self.allocator, "{s} | {s}", .{ base_lhs, guard });
                         defer self.allocator.free(joined);
                         const result = try self.evalEquation(joined, body);
                         try self.setLastEqLhs(joined);
@@ -919,8 +918,7 @@ pub const Heaven = struct {
             }
             // '|' en tete sans precedent ou mal forme -> erreur propre,
             // pas de repli silencieux (convention #5).
-            return self.allocator.dupe(u8,
-                "\u{2717} continuation de garde sans clause precedente");
+            return self.allocator.dupe(u8, "\u{2717} continuation de garde sans clause precedente");
         }
 
         // ─── v3a : mode strict — refus des noms cachés ───
@@ -1302,7 +1300,10 @@ pub const Heaven = struct {
                         depth -|= 1;
                         if (depth == 0 and si + 1 < trimmed.len) {
                             const next = std.mem.trimLeft(u8, trimmed[si + 1 ..], " \t\n\r");
-                            if (next.len > 0 and next[0] == '(') { split_pos = si + 1; break; }
+                            if (next.len > 0 and next[0] == '(') {
+                                split_pos = si + 1;
+                                break;
+                            }
                         }
                     }
                 }
@@ -1935,17 +1936,29 @@ pub const Heaven = struct {
                 }
             }
 
-            // v2a : peupler ctor_arities (nom → arité) — inconditionnel.
-            // Utilisé par evalEquation pour vérifier la forme des patterns.
+            // Les métadonnées suivent la qualification du constructeur
+            // en mode strict. Hors mode strict, conserver les noms courts.
+            const metadata_name = if (in_strict_module)
+                try std.fmt.allocPrint(
+                    self.allocator,
+                    "{s}.{s}",
+                    .{ self.current_module.?, ctor_name },
+                )
+            else
+                ctor_name;
+            defer if (in_strict_module) self.allocator.free(metadata_name);
+
+            // v2a : arité du constructeur.
             {
-                const k = try self.allocator.dupe(u8, ctor_name);
+                const k = try self.allocator.dupe(u8, metadata_name);
                 const g = try self.ctor_arities.getOrPut(self.allocator, k);
                 if (g.found_existing) self.allocator.free(k);
                 g.value_ptr.* = arity;
             }
-            // v2b : parent du ctor (nom du type déclaré).
+
+            // v2b : type parent du constructeur.
             {
-                const k = try self.allocator.dupe(u8, ctor_name);
+                const k = try self.allocator.dupe(u8, metadata_name);
                 const v = try self.allocator.dupe(u8, type_name);
                 const g = try self.ctor_parents.getOrPut(self.allocator, k);
                 if (g.found_existing) {
@@ -1957,17 +1970,14 @@ pub const Heaven = struct {
                 }
             }
 
-            // v2d : forme du résultat du ctor pour les types
-            // paramétrés (convention pour types à un seul paramètre
-            // indexé, ex. Vec) :
-            //   arity 0  → "<TypeName> zero"
-            //   arity >0 → "<TypeName> (succ _)"
+            // v2d : forme du résultat pour les types paramétrés.
+            // Une redéclaration non paramétrée invalide l'ancien résultat.
             if (params.items.len >= 1) {
                 const result_str = if (arity == 0)
                     try std.fmt.allocPrint(self.allocator, "{s} zero", .{type_name})
                 else
                     try std.fmt.allocPrint(self.allocator, "{s} (succ _)", .{type_name});
-                const k = try self.allocator.dupe(u8, ctor_name);
+                const k = try self.allocator.dupe(u8, metadata_name);
                 const g = try self.ctor_results.getOrPut(self.allocator, k);
                 if (g.found_existing) {
                     self.allocator.free(k);
@@ -1976,6 +1986,9 @@ pub const Heaven = struct {
                 } else {
                     g.value_ptr.* = result_str;
                 }
+            } else if (self.ctor_results.fetchRemove(metadata_name)) |kv| {
+                self.allocator.free(kv.key);
+                self.allocator.free(@constCast(kv.value));
             }
         }
 
@@ -1996,6 +2009,25 @@ pub const Heaven = struct {
 
     const CtorKind = enum { base, step, unparam };
     const DomainKind = enum { base, step, any, unparam };
+
+    /// Résout un nom de constructeur pour consulter ses métadonnées.
+    /// En module strict, un nom court appartient au module courant ;
+    /// un nom déjà qualifié reste explicite. Aucun repli global.
+    /// Hors module strict, conserve l'indexation historique.
+    fn resolveCtorMetadataName(self: *Heaven, name: []const u8) HeavenError![]u8 {
+        if (self.strict_modules) {
+            if (self.current_module) |module| {
+                if (std.mem.indexOfScalar(u8, name, '.') == null) {
+                    return std.fmt.allocPrint(
+                        self.allocator,
+                        "{s}.{s}",
+                        .{ module, name },
+                    );
+                }
+            }
+        }
+        return self.allocator.dupe(u8, name);
+    }
 
     /// v2c : classifie un ctor d'un type paramétré.
     /// - arity 0 → base (`Nil : Vec zero`)
@@ -2061,11 +2093,10 @@ pub const Heaven = struct {
         };
     }
 
-    
     fn desugarFor(self: *Heaven, line: []const u8) !?[]const u8 {
         const FOR = "(for ";
         const pos = std.mem.indexOf(u8, line, FOR) orelse return null;
-        
+
         var depth: usize = 0;
         var end: usize = pos;
         var i = pos;
@@ -2073,11 +2104,14 @@ pub const Heaven = struct {
             if (line[i] == '(') depth += 1;
             if (line[i] == ')') {
                 depth -|= 1;
-                if (depth == 0) { end = i + 1; break; }
+                if (depth == 0) {
+                    end = i + 1;
+                    break;
+                }
             }
         }
         if (end <= pos) return null;
-        
+
         const inner = line[pos + 5 .. end - 1];
 
         var parts: [3][]const u8 = undefined;
@@ -2088,11 +2122,17 @@ pub const Heaven = struct {
             if (c == '(') d += 1;
             if (c == ')') d -= 1;
             if (c == ' ' and d == 0) {
-                if (np < 3 and j > start) { parts[np] = inner[start..j]; np += 1; }
+                if (np < 3 and j > start) {
+                    parts[np] = inner[start..j];
+                    np += 1;
+                }
                 start = j + 1;
             }
         }
-        if (np < 3 and inner.len > start) { parts[np] = inner[start..]; np += 1; }
+        if (np < 3 and inner.len > start) {
+            parts[np] = inner[start..];
+            np += 1;
+        }
         if (np < 2) return null;
 
         const gen = std.mem.trim(u8, parts[0], " ");
@@ -2132,141 +2172,142 @@ pub const Heaven = struct {
         return result;
     }
 
-/// Parse un body d'equation. Si le rhs est un S-expr (`(f ...)` ou
-/// `f (- n 1)` : symbole suivi d'un argument non-operateur), utiliser
-/// parseSExpr apres normalisation des operateurs. Sinon parseExpression.
-///
-/// Corrige : `f n = f (- n 1)` -> parseExpression (tree-sitter)
-/// produit apply(apply(f, [-]), [n, 1]) au lieu de apply(f, [apply(-, [n, 1])]).
-/// Convertit `let x = v in body` en S-expr `(let x v body)`.
-/// Recurse sur body. Gere strings (ignorer '=' et ' in ' dedans).
-fn convertLetIn(self: *Heaven, src: []const u8) HeavenError![]u8 {
-    const trimmed = std.mem.trim(u8, src, " \t\r\n");
-    if (!std.mem.startsWith(u8, trimmed, "let ")) {
-        return self.allocator.dupe(u8, trimmed);
-    }
-    var eq_pos: ?usize = null;
-    var i: usize = 4;
-    while (i < trimmed.len) : (i += 1) {
-        const c = trimmed[i];
-        if (c == '"') {
-            i += 1;
-            while (i < trimmed.len and trimmed[i] != '"') : (i += 1) {
-                if (trimmed[i] == '\\' and i + 1 < trimmed.len) i += 1;
-            }
-            continue;
+    /// Parse un body d'equation. Si le rhs est un S-expr (`(f ...)` ou
+    /// `f (- n 1)` : symbole suivi d'un argument non-operateur), utiliser
+    /// parseSExpr apres normalisation des operateurs. Sinon parseExpression.
+    ///
+    /// Corrige : `f n = f (- n 1)` -> parseExpression (tree-sitter)
+    /// produit apply(apply(f, [-]), [n, 1]) au lieu de apply(f, [apply(-, [n, 1])]).
+    /// Convertit `let x = v in body` en S-expr `(let x v body)`.
+    /// Recurse sur body. Gere strings (ignorer '=' et ' in ' dedans).
+    fn convertLetIn(self: *Heaven, src: []const u8) HeavenError![]u8 {
+        const trimmed = std.mem.trim(u8, src, " \t\r\n");
+        if (!std.mem.startsWith(u8, trimmed, "let ")) {
+            return self.allocator.dupe(u8, trimmed);
         }
-        if (c == '=') {
-            const prev: u8 = if (i > 0) trimmed[i - 1] else 0;
-            const next: u8 = if (i + 1 < trimmed.len) trimmed[i + 1] else 0;
-            const is_cmp = prev == '=' or prev == '<' or prev == '>' or prev == '!';
-            if (!is_cmp and next != '=') {
-                eq_pos = i;
-                break;
-            }
-        }
-    }
-    const eq = eq_pos orelse return self.allocator.dupe(u8, trimmed);
-    const name = std.mem.trim(u8, trimmed[4..eq], " \t\r\n");
-    var in_pos: ?usize = null;
-    {
-        var depth: i32 = 0;
-        var j: usize = eq + 1;
-        while (j < trimmed.len) {
-            const c = trimmed[j];
+        var eq_pos: ?usize = null;
+        var i: usize = 4;
+        while (i < trimmed.len) : (i += 1) {
+            const c = trimmed[i];
             if (c == '"') {
-                j += 1;
-                while (j < trimmed.len and trimmed[j] != '"') : (j += 1) {
-                    if (trimmed[j] == '\\' and j + 1 < trimmed.len) j += 1;
+                i += 1;
+                while (i < trimmed.len and trimmed[i] != '"') : (i += 1) {
+                    if (trimmed[i] == '\\' and i + 1 < trimmed.len) i += 1;
                 }
-                j += 1;
                 continue;
             }
-            if (c == '(') depth += 1;
-            if (c == ')') depth -|= 1;
-            // Chercher " in" suivi de whitespace ou fin de chaine.
-            // (le body peut suivre sur la ligne suivante : 'let x = 5 in\n  x')
-            if (depth == 0 and j + 3 <= trimmed.len and
-                std.mem.eql(u8, trimmed[j..j + 3], " in"))
-            {
-                const after = j + 3;
-                const is_boundary = after == trimmed.len or
-                    trimmed[after] == ' ' or trimmed[after] == '\t' or
-                    trimmed[after] == '\n' or trimmed[after] == '\r';
-                if (is_boundary) {
-                    in_pos = j;
+            if (c == '=') {
+                const prev: u8 = if (i > 0) trimmed[i - 1] else 0;
+                const next: u8 = if (i + 1 < trimmed.len) trimmed[i + 1] else 0;
+                const is_cmp = prev == '=' or prev == '<' or prev == '>' or prev == '!';
+                if (!is_cmp and next != '=') {
+                    eq_pos = i;
                     break;
                 }
             }
-            j += 1;
         }
-    }
-    const ip = in_pos orelse return self.allocator.dupe(u8, trimmed);
-    const val_raw = std.mem.trim(u8, trimmed[eq + 1 .. ip], " \t\r\n");
-    const rest_raw = std.mem.trim(u8, trimmed[ip + 3 ..], " \t\r\n");
-    const val_conv = try convertLetIn(self, val_raw);
-    defer self.allocator.free(val_conv);
-    const rest_conv = try convertLetIn(self, rest_raw);
-    defer self.allocator.free(rest_conv);
-    // Wrapper la valeur ET le rest si ce sont des applications multi-tokens.
-    const val_wrapped = if (val_conv.len > 0 and
-        (val_conv[0] == '(' or std.mem.indexOfScalar(u8, val_conv, ' ') == null))
-        try self.allocator.dupe(u8, val_conv)
-    else
-        try std.fmt.allocPrint(self.allocator, "({s})", .{val_conv});
-    defer self.allocator.free(val_wrapped);
-    const rest_wrapped = if (rest_conv.len > 0 and
-        (rest_conv[0] == '(' or std.mem.indexOfScalar(u8, rest_conv, ' ') == null))
-        try self.allocator.dupe(u8, rest_conv)
-    else
-        try std.fmt.allocPrint(self.allocator, "({s})", .{rest_conv});
-    defer self.allocator.free(rest_wrapped);
-    return std.fmt.allocPrint(self.allocator, "(let {s} {s} {s})", .{ name, val_wrapped, rest_wrapped });
-}
-
-fn parseBodySmart(self: *Heaven, rhs_raw: []const u8) HeavenError!Id {
-    const rhs = std.mem.trim(u8, rhs_raw, " \t\r\n");
-    if (rhs.len == 0) return error.InvalidSyntax;
-    // Haskell-style : `let x = v in body` -> convertir en S-expr.
-    if (std.mem.startsWith(u8, rhs, "let ")) {
-        const converted = try convertLetIn(self, rhs);
-        defer self.allocator.free(converted);
-        return self.parseExpression(converted);
-    }
-    // Si le body est deja un S-expr, parseExpression suffit (il
-    // reconnait '(...)' au premier caractere).
-    if (rhs[0] == '(') return self.parseExpression(rhs);
-
-    // Detection du style `sym arg1 arg2...` : symbole alphanumerique
-    // suivi d'un espace puis d'un argument (alphanum, '_', '(').
-    // Cas typique : `f (- n 1)`.
-    var looks_like_application = false;
-    {
-        var i: usize = 0;
-        while (i < rhs.len and (std.ascii.isAlphanumeric(rhs[i]) or
-               rhs[i] == '_' or rhs[i] == '?' or rhs[i] == '.')) : (i += 1) {}
-        if (i > 0 and i < rhs.len and rhs[i] == ' ') {
-            var j = i;
-            while (j < rhs.len and rhs[j] == ' ') : (j += 1) {}
-            if (j < rhs.len) {
-                const c = rhs[j];
-                looks_like_application = std.ascii.isAlphanumeric(c) or
-                    c == '_' or c == '(' or c == '?';
+        const eq = eq_pos orelse return self.allocator.dupe(u8, trimmed);
+        const name = std.mem.trim(u8, trimmed[4..eq], " \t\r\n");
+        var in_pos: ?usize = null;
+        {
+            var depth: i32 = 0;
+            var j: usize = eq + 1;
+            while (j < trimmed.len) {
+                const c = trimmed[j];
+                if (c == '"') {
+                    j += 1;
+                    while (j < trimmed.len and trimmed[j] != '"') : (j += 1) {
+                        if (trimmed[j] == '\\' and j + 1 < trimmed.len) j += 1;
+                    }
+                    j += 1;
+                    continue;
+                }
+                if (c == '(') depth += 1;
+                if (c == ')') depth -|= 1;
+                // Chercher " in" suivi de whitespace ou fin de chaine.
+                // (le body peut suivre sur la ligne suivante : 'let x = 5 in\n  x')
+                if (depth == 0 and j + 3 <= trimmed.len and
+                    std.mem.eql(u8, trimmed[j .. j + 3], " in"))
+                {
+                    const after = j + 3;
+                    const is_boundary = after == trimmed.len or
+                        trimmed[after] == ' ' or trimmed[after] == '\t' or
+                        trimmed[after] == '\n' or trimmed[after] == '\r';
+                    if (is_boundary) {
+                        in_pos = j;
+                        break;
+                    }
+                }
+                j += 1;
             }
         }
+        const ip = in_pos orelse return self.allocator.dupe(u8, trimmed);
+        const val_raw = std.mem.trim(u8, trimmed[eq + 1 .. ip], " \t\r\n");
+        const rest_raw = std.mem.trim(u8, trimmed[ip + 3 ..], " \t\r\n");
+        const val_conv = try convertLetIn(self, val_raw);
+        defer self.allocator.free(val_conv);
+        const rest_conv = try convertLetIn(self, rest_raw);
+        defer self.allocator.free(rest_conv);
+        // Wrapper la valeur ET le rest si ce sont des applications multi-tokens.
+        const val_wrapped = if (val_conv.len > 0 and
+            (val_conv[0] == '(' or std.mem.indexOfScalar(u8, val_conv, ' ') == null))
+            try self.allocator.dupe(u8, val_conv)
+        else
+            try std.fmt.allocPrint(self.allocator, "({s})", .{val_conv});
+        defer self.allocator.free(val_wrapped);
+        const rest_wrapped = if (rest_conv.len > 0 and
+            (rest_conv[0] == '(' or std.mem.indexOfScalar(u8, rest_conv, ' ') == null))
+            try self.allocator.dupe(u8, rest_conv)
+        else
+            try std.fmt.allocPrint(self.allocator, "({s})", .{rest_conv});
+        defer self.allocator.free(rest_wrapped);
+        return std.fmt.allocPrint(self.allocator, "(let {s} {s} {s})", .{ name, val_wrapped, rest_wrapped });
     }
 
-    if (!looks_like_application) return self.parseExpression(rhs);
+    fn parseBodySmart(self: *Heaven, rhs_raw: []const u8) HeavenError!Id {
+        const rhs = std.mem.trim(u8, rhs_raw, " \t\r\n");
+        if (rhs.len == 0) return error.InvalidSyntax;
+        // Haskell-style : `let x = v in body` -> convertir en S-expr.
+        if (std.mem.startsWith(u8, rhs, "let ")) {
+            const converted = try convertLetIn(self, rhs);
+            defer self.allocator.free(converted);
+            return self.parseExpression(converted);
+        }
+        // Si le body est deja un S-expr, parseExpression suffit (il
+        // reconnait '(...)' au premier caractere).
+        if (rhs[0] == '(') return self.parseExpression(rhs);
 
-    // Entourer de parentheses et confier a parseExpression : il gere
-    // correctement les operateurs infix en contexte parenthese
-    // (verifie avec u2 : `f n = (f (- n 1))` marche).
-    const wrapped = try std.fmt.allocPrint(self.allocator, "({s})", .{rhs});
-    defer self.allocator.free(wrapped);
-    return self.parseExpression(wrapped);
-}
+        // Detection du style `sym arg1 arg2...` : symbole alphanumerique
+        // suivi d'un espace puis d'un argument (alphanum, '_', '(').
+        // Cas typique : `f (- n 1)`.
+        var looks_like_application = false;
+        {
+            var i: usize = 0;
+            while (i < rhs.len and (std.ascii.isAlphanumeric(rhs[i]) or
+                rhs[i] == '_' or rhs[i] == '?' or rhs[i] == '.')) : (i += 1)
+            {}
+            if (i > 0 and i < rhs.len and rhs[i] == ' ') {
+                var j = i;
+                while (j < rhs.len and rhs[j] == ' ') : (j += 1) {}
+                if (j < rhs.len) {
+                    const c = rhs[j];
+                    looks_like_application = std.ascii.isAlphanumeric(c) or
+                        c == '_' or c == '(' or c == '?';
+                }
+            }
+        }
 
-fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
+        if (!looks_like_application) return self.parseExpression(rhs);
+
+        // Entourer de parentheses et confier a parseExpression : il gere
+        // correctement les operateurs infix en contexte parenthese
+        // (verifie avec u2 : `f n = (f (- n 1))` marche).
+        const wrapped = try std.fmt.allocPrint(self.allocator, "({s})", .{rhs});
+        defer self.allocator.free(wrapped);
+        return self.parseExpression(wrapped);
+    }
+
+    fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u8 {
         // NB : setLastEqLhs est appelé en FIN de parcours (juste avant le
         // return de succès), PAS en tête -- la forme alignée lit
         // last_eq_lhs pendant son exécution ; le libérer en cours de
@@ -2346,13 +2387,17 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
                 // (let-in imbrique, perform/handle) et le parser les envoie
                 // parfois a evalEquation a cause d'un `=` dans la ligne
                 // (ex: `g x = if c (let y = ...) 0` a 3 `=`).
-                "raw_syscall", "raw_syscall6",
-                "string_ptr", "string_length", "string_concat",
-                "int_to_string", "peek_byte", "poke_byte",
-                "peek_int64", "poke_int64", "memset", "raw_alloc",
-                "raw_free", "target_os", "string_of_bytes",
-                "handle_rec", "__handle_rec_k", "add_task", "schedule",
-                "yield", "task_state",
+                "raw_syscall",     "raw_syscall6",
+                "string_ptr",      "string_length",
+                "string_concat",   "int_to_string",
+                "peek_byte",       "poke_byte",
+                "peek_int64",      "poke_int64",
+                "memset",          "raw_alloc",
+                "raw_free",        "target_os",
+                "string_of_bytes", "handle_rec",
+                "__handle_rec_k",  "add_task",
+                "schedule",        "yield",
+                "task_state",
             };
             for (magics_reserves) |m| {
                 if (std.mem.eql(u8, name, m)) {
@@ -2422,7 +2467,6 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
             }
         }
 
-
         // ─── v2a : vérification d'arité / forme des patterns ───
         // Si une signature a été déclarée via `sig name : ...`, vérifier :
         //  1. le nombre de patterns = arité attendue
@@ -2444,7 +2488,9 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
             const head_node = self.store.get(pn.payload);
             if (head_node.tag != .sym) continue;
             const head_name = self.store.interner.resolve(head_node.payload);
-            if (self.ctor_arities.get(head_name)) |ctor_arity| {
+            const metadata_name = try self.resolveCtorMetadataName(head_name);
+            defer self.allocator.free(metadata_name);
+            if (self.ctor_arities.get(metadata_name)) |ctor_arity| {
                 const n_args = p_all.len - 1;
                 if (n_args != ctor_arity) {
                     return std.fmt.allocPrint(
@@ -2465,14 +2511,20 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
                 const p_id = patterns.items[idx];
                 const pn2 = self.store.get(p_id);
                 var p_ctor_name: ?[]const u8 = null;
+                var resolved_ctor_name: ?[]u8 = null;
+                defer if (resolved_ctor_name) |n| self.allocator.free(n);
                 if (pn2.tag == .sym) {
                     const nm = self.store.interner.resolve(pn2.payload);
-                    if (self.ctor_parents.contains(nm)) p_ctor_name = nm;
+                    resolved_ctor_name = try self.resolveCtorMetadataName(nm);
+                    if (self.ctor_parents.contains(resolved_ctor_name.?))
+                        p_ctor_name = resolved_ctor_name.?;
                 } else if (pn2.tag == .apply) {
                     const fn2 = self.store.get(pn2.payload);
                     if (fn2.tag == .sym) {
                         const nm = self.store.interner.resolve(fn2.payload);
-                        if (self.ctor_parents.contains(nm)) p_ctor_name = nm;
+                        resolved_ctor_name = try self.resolveCtorMetadataName(nm);
+                        if (self.ctor_parents.contains(resolved_ctor_name.?))
+                            p_ctor_name = resolved_ctor_name.?;
                     }
                 }
                 if (p_ctor_name) |cn| {
@@ -2497,14 +2549,20 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
                 const p_id = patterns.items[idx];
                 const pn3 = self.store.get(p_id);
                 var p_ctor_name: ?[]const u8 = null;
+                var resolved_ctor_name: ?[]u8 = null;
+                defer if (resolved_ctor_name) |n| self.allocator.free(n);
                 if (pn3.tag == .sym) {
                     const nm = self.store.interner.resolve(pn3.payload);
-                    if (self.ctor_parents.contains(nm)) p_ctor_name = nm;
+                    resolved_ctor_name = try self.resolveCtorMetadataName(nm);
+                    if (self.ctor_parents.contains(resolved_ctor_name.?))
+                        p_ctor_name = resolved_ctor_name.?;
                 } else if (pn3.tag == .apply) {
                     const fn3 = self.store.get(pn3.payload);
                     if (fn3.tag == .sym) {
                         const nm = self.store.interner.resolve(fn3.payload);
-                        if (self.ctor_parents.contains(nm)) p_ctor_name = nm;
+                        resolved_ctor_name = try self.resolveCtorMetadataName(nm);
+                        if (self.ctor_parents.contains(resolved_ctor_name.?))
+                            p_ctor_name = resolved_ctor_name.?;
                     }
                 }
                 if (p_ctor_name) |cn| {
@@ -2543,14 +2601,20 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
                 const p_id_v2d = patterns.items[idx_v2d];
                 const pn_v2d = self.store.get(p_id_v2d);
                 var ctor_name_v2d: ?[]const u8 = null;
+                var resolved_ctor_name_v2d: ?[]u8 = null;
+                defer if (resolved_ctor_name_v2d) |n| self.allocator.free(n);
                 if (pn_v2d.tag == .sym) {
                     const nm = self.store.interner.resolve(pn_v2d.payload);
-                    if (self.ctor_results.contains(nm)) ctor_name_v2d = nm;
+                    resolved_ctor_name_v2d = try self.resolveCtorMetadataName(nm);
+                    if (self.ctor_results.contains(resolved_ctor_name_v2d.?))
+                        ctor_name_v2d = resolved_ctor_name_v2d.?;
                 } else if (pn_v2d.tag == .apply) {
                     const fn_v2d = self.store.get(pn_v2d.payload);
                     if (fn_v2d.tag == .sym) {
                         const nm = self.store.interner.resolve(fn_v2d.payload);
-                        if (self.ctor_results.contains(nm)) ctor_name_v2d = nm;
+                        resolved_ctor_name_v2d = try self.resolveCtorMetadataName(nm);
+                        if (self.ctor_results.contains(resolved_ctor_name_v2d.?))
+                            ctor_name_v2d = resolved_ctor_name_v2d.?;
                     }
                 }
                 if (ctor_name_v2d) |cn| {
@@ -2686,7 +2750,7 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
             const payload = std.mem.trim(u8, stmt, " \t\r\n");
             if (payload.len == 0) continue;
             const r = self.eval(payload) catch |err| {
-                debugPrint("[http_run] eval stmt failed: {any} stmt={s}\n", .{err, payload});
+                debugPrint("[http_run] eval stmt failed: {any} stmt={s}\n", .{ err, payload });
                 continue;
             };
             alloc.free(r);
@@ -2735,110 +2799,109 @@ fn evalEquation(self: *Heaven, lhs: []const u8, rhs: []const u8) HeavenError![]u
         return self.parseExpression(src);
     }
 
+    /// HEAVEN:tuple-comma (wasi-polish-2) — reecrit (a, b) -> (tuple a b).
+    /// Retourne une copie (alloc) ; la caller doit free.
+    /// Skip : chaines "..." et prefixes lambda λ / \.
+    fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
+        if (std.mem.indexOfScalar(u8, input, '(') == null) return allocator.dupe(u8, input);
+        if (std.mem.indexOfScalar(u8, input, ',') == null) return allocator.dupe(u8, input);
 
-/// HEAVEN:tuple-comma (wasi-polish-2) — reecrit (a, b) -> (tuple a b).
-/// Retourne une copie (alloc) ; la caller doit free.
-/// Skip : chaines "..." et prefixes lambda λ / \.
-fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
-    if (std.mem.indexOfScalar(u8, input, '(') == null) return allocator.dupe(u8, input);
-    if (std.mem.indexOfScalar(u8, input, ',') == null) return allocator.dupe(u8, input);
+        var buf = std.ArrayListUnmanaged(u8){};
+        errdefer buf.deinit(allocator);
 
-    var buf = std.ArrayListUnmanaged(u8){};
-    errdefer buf.deinit(allocator);
+        const MaxDepth = 64;
+        var open_pos: [MaxDepth]usize = undefined;
+        var is_tuple: [MaxDepth]bool = undefined;
+        var skip_tuple: [MaxDepth]bool = undefined;
+        var depth: usize = 0;
+        var i: usize = 0;
+        var in_string = false;
+        var in_bitstring = false;
 
-    const MaxDepth = 64;
-    var open_pos: [MaxDepth]usize = undefined;
-    var is_tuple: [MaxDepth]bool = undefined;
-    var skip_tuple: [MaxDepth]bool = undefined;
-    var depth: usize = 0;
-    var i: usize = 0;
-    var in_string = false;
-    var in_bitstring = false;
-
-    while (i < input.len) {
-        const c = input[i];
-        if (in_bitstring) {
-            try buf.append(allocator, c);
-            if (c == '>' and i + 1 < input.len and input[i + 1] == '>') {
-                try buf.append(allocator, '>');
-                in_bitstring = false;
-                i += 2;
-                continue;
-            }
-            i += 1;
-            continue;
-        }
-        if (in_string) {
-            try buf.append(allocator, c);
-            if (c == '\\' and i + 1 < input.len) {
-                try buf.append(allocator, input[i + 1]);
-                i += 2;
-                continue;
-            }
-            if (c == '"') in_string = false;
-            i += 1;
-            continue;
-        }
-        switch (c) {
-            '"' => {
+        while (i < input.len) {
+            const c = input[i];
+            if (in_bitstring) {
                 try buf.append(allocator, c);
-                in_string = true;
-                i += 1;
-            },
-            '(' => {
-                var j = i;
-                while (j > 0 and (input[j - 1] == ' ' or input[j - 1] == '\t')) j -= 1;
-                const before_is_lambda = j > 0 and (input[j - 1] == '\\' or
-                    (j >= 2 and input[j - 2] == 0xCE and input[j - 1] == 0xBB));
-                if (depth < MaxDepth) {
-                    open_pos[depth] = buf.items.len;
-                    is_tuple[depth] = false;
-                    skip_tuple[depth] = before_is_lambda;
-                }
-                try buf.append(allocator, c);
-                depth += 1;
-                i += 1;
-            },
-            ')' => {
-                if (depth == 0) {
-                    try buf.append(allocator, c);
-                    i += 1;
-                    continue;
-                }
-                depth -|= 1;
-                if (depth < MaxDepth and is_tuple[depth]) {
-                    try buf.insertSlice(allocator, open_pos[depth] + 1, "tuple ");
-                }
-                try buf.append(allocator, c);
-                i += 1;
-            },
-            ',' => {
-                if (depth > 0 and depth <= MaxDepth and !skip_tuple[depth - 1]) {
-                    if (!is_tuple[depth - 1]) is_tuple[depth - 1] = true;
-                    try buf.append(allocator, ' ');
-                } else {
-                    try buf.append(allocator, c);
-                }
-                i += 1;
-            },
-            '<' => {
-                try buf.append(allocator, c);
-                if (i + 1 < input.len and input[i + 1] == '<') {
-                    try buf.append(allocator, '<');
-                    in_bitstring = true;
+                if (c == '>' and i + 1 < input.len and input[i + 1] == '>') {
+                    try buf.append(allocator, '>');
+                    in_bitstring = false;
                     i += 2;
                     continue;
                 }
                 i += 1;
-            },
-            else => {
+                continue;
+            }
+            if (in_string) {
                 try buf.append(allocator, c);
+                if (c == '\\' and i + 1 < input.len) {
+                    try buf.append(allocator, input[i + 1]);
+                    i += 2;
+                    continue;
+                }
+                if (c == '"') in_string = false;
                 i += 1;
-            },
+                continue;
+            }
+            switch (c) {
+                '"' => {
+                    try buf.append(allocator, c);
+                    in_string = true;
+                    i += 1;
+                },
+                '(' => {
+                    var j = i;
+                    while (j > 0 and (input[j - 1] == ' ' or input[j - 1] == '\t')) j -= 1;
+                    const before_is_lambda = j > 0 and (input[j - 1] == '\\' or
+                        (j >= 2 and input[j - 2] == 0xCE and input[j - 1] == 0xBB));
+                    if (depth < MaxDepth) {
+                        open_pos[depth] = buf.items.len;
+                        is_tuple[depth] = false;
+                        skip_tuple[depth] = before_is_lambda;
+                    }
+                    try buf.append(allocator, c);
+                    depth += 1;
+                    i += 1;
+                },
+                ')' => {
+                    if (depth == 0) {
+                        try buf.append(allocator, c);
+                        i += 1;
+                        continue;
+                    }
+                    depth -|= 1;
+                    if (depth < MaxDepth and is_tuple[depth]) {
+                        try buf.insertSlice(allocator, open_pos[depth] + 1, "tuple ");
+                    }
+                    try buf.append(allocator, c);
+                    i += 1;
+                },
+                ',' => {
+                    if (depth > 0 and depth <= MaxDepth and !skip_tuple[depth - 1]) {
+                        if (!is_tuple[depth - 1]) is_tuple[depth - 1] = true;
+                        try buf.append(allocator, ' ');
+                    } else {
+                        try buf.append(allocator, c);
+                    }
+                    i += 1;
+                },
+                '<' => {
+                    try buf.append(allocator, c);
+                    if (i + 1 < input.len and input[i + 1] == '<') {
+                        try buf.append(allocator, '<');
+                        in_bitstring = true;
+                        i += 2;
+                        continue;
+                    }
+                    i += 1;
+                },
+                else => {
+                    try buf.append(allocator, c);
+                    i += 1;
+                },
+            }
         }
+        return buf.toOwnedSlice(allocator);
     }
-    return buf.toOwnedSlice(allocator);
-}
 
     pub fn parseExpression(self: *Heaven, input: []const u8) HeavenError!Id {
         const rewritten = rewriteTupleCommas(self.allocator, input) catch return error.OutOfMemory;
@@ -3229,8 +3292,7 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
     /// Session 46, correctif de 2d8d8d2.
     pub fn listTheorems(self: *Heaven) HeavenError![]u8 {
         const pc = self.proof_core_inst orelse
-            return self.allocator.dupe(u8,
-                "═══ Theorems ═══\n(no theorems declared yet)\n");
+            return self.allocator.dupe(u8, "═══ Theorems ═══\n(no theorems declared yet)\n");
         // formatAll retourne error{OutOfMemory} uniquement (ArrayList).
         // Pas d'else — Zig refuse (unreachable prong).
         return pc.formatAll(self.allocator) catch error.OutOfMemory;
@@ -3572,7 +3634,7 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
                         if (pn5.tag == .sym and on5.tag == .sym) {
                             // Substituer x par args[0]. MULTI-ARG apply(sym_+, [5, 1])
                             // reduit direct a 6 (vs curryfie qui reste partiel).
-                            const bf5 = try self.store.apply(lam_args[3], &.{args[0], lam_args[4]});
+                            const bf5 = try self.store.apply(lam_args[3], &.{ args[0], lam_args[4] });
                             return self.interpForAssert(bf5) catch id;
                         }
                     }
@@ -3876,16 +3938,12 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
             if (self.store.get(ls_raw).tag == .lambda) {
                 const s_str = expr.toStringInfix(self.store, lhs, self.allocator) catch "?";
                 defer self.allocator.free(s_str);
-                return std.fmt.allocPrint(self.allocator,
-                    "✗ test {s}: partial application (lambda result) at lhs = {s}\n  = hint: missing argument? check arity of the function",
-                    .{ if (std.mem.startsWith(u8, input, "test \"")) @as([]const u8, "test") else @as([]const u8, "assert_eq"), s_str });
+                return std.fmt.allocPrint(self.allocator, "✗ test {s}: partial application (lambda result) at lhs = {s}\n  = hint: missing argument? check arity of the function", .{ if (std.mem.startsWith(u8, input, "test \"")) @as([]const u8, "test") else @as([]const u8, "assert_eq"), s_str });
             }
             if (self.store.get(rs_raw).tag == .lambda) {
                 const s_str = expr.toStringInfix(self.store, rhs, self.allocator) catch "?";
                 defer self.allocator.free(s_str);
-                return std.fmt.allocPrint(self.allocator,
-                    "✗ test {s}: partial application (lambda result) at rhs = {s}\n  = hint: missing argument? check arity of the function",
-                    .{ if (std.mem.startsWith(u8, input, "test \"")) @as([]const u8, "test") else @as([]const u8, "assert_eq"), s_str });
+                return std.fmt.allocPrint(self.allocator, "✗ test {s}: partial application (lambda result) at rhs = {s}\n  = hint: missing argument? check arity of the function", .{ if (std.mem.startsWith(u8, input, "test \"")) @as([]const u8, "test") else @as([]const u8, "assert_eq"), s_str });
             }
 
             const ls = ls_raw;
@@ -3973,42 +4031,42 @@ fn rewriteTupleCommas(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
         return null;
     }
 
-const ArityDiagKind = enum { arity, non_fn, partial };
-const ArityDiag = struct {
-    kind: ArityDiagKind,
-    name: []const u8,
-    expected: u32,
-    found: u32,
-};
+    const ArityDiagKind = enum { arity, non_fn, partial };
+    const ArityDiag = struct {
+        kind: ArityDiagKind,
+        name: []const u8,
+        expected: u32,
+        found: u32,
+    };
 
-fn checkCallArity(store: *Store, engine: *engine_expr.Engine, id: expr.Id) ?ArityDiag {
-    if (id >= store.len()) return null;
-    const node = store.get(id);
-    if (node.tag == .lambda) {
-        return .{ .kind = .partial, .name = "lambda", .expected = 0, .found = 0 };
-    }
-    if (node.tag != .apply) return null;
-    const fn_id = node.payload;
-    if (fn_id >= store.len()) return null;
-    const fn_node = store.get(fn_id);
-    const slice = store.spanSliceConst(node.span_a);
-    const args_len: u32 = if (slice.len > 0) @intCast(slice.len - 1) else 0;
-    if (fn_node.tag == .lit) {
-        return .{ .kind = .non_fn, .name = "litteral", .expected = 0, .found = args_len };
-    }
-    if (fn_node.tag == .sym) {
-        const name = store.interner.resolve(fn_node.payload);
-        if (engine.fns.get(name)) |fn_def| {
-            if (fn_def.num_clauses > 0 and fn_def.clauses[0].num_patterns > 0) {
-                const expected: u32 = fn_def.clauses[0].num_patterns;
-                if (expected != args_len) {
-                    return .{ .kind = .arity, .name = name, .expected = expected, .found = args_len };
+    fn checkCallArity(store: *Store, engine: *engine_expr.Engine, id: expr.Id) ?ArityDiag {
+        if (id >= store.len()) return null;
+        const node = store.get(id);
+        if (node.tag == .lambda) {
+            return .{ .kind = .partial, .name = "lambda", .expected = 0, .found = 0 };
+        }
+        if (node.tag != .apply) return null;
+        const fn_id = node.payload;
+        if (fn_id >= store.len()) return null;
+        const fn_node = store.get(fn_id);
+        const slice = store.spanSliceConst(node.span_a);
+        const args_len: u32 = if (slice.len > 0) @intCast(slice.len - 1) else 0;
+        if (fn_node.tag == .lit) {
+            return .{ .kind = .non_fn, .name = "litteral", .expected = 0, .found = args_len };
+        }
+        if (fn_node.tag == .sym) {
+            const name = store.interner.resolve(fn_node.payload);
+            if (engine.fns.get(name)) |fn_def| {
+                if (fn_def.num_clauses > 0 and fn_def.clauses[0].num_patterns > 0) {
+                    const expected: u32 = fn_def.clauses[0].num_patterns;
+                    if (expected != args_len) {
+                        return .{ .kind = .arity, .name = name, .expected = expected, .found = args_len };
+                    }
                 }
             }
         }
+        return null;
     }
-    return null;
-}
 
     fn evalAssertionNative(self: *Heaven, input: []const u8) HeavenError![]u8 {
         // ─── test "name": body ───
@@ -4040,14 +4098,14 @@ fn checkCallArity(store: *Store, engine: *engine_expr.Engine, id: expr.Id) ?Arit
                 return switch (d.kind) {
                     .arity => std.fmt.allocPrint(self.allocator, "✗ test {s}: arity '{s}': expected {d}, found {d}", .{ name, d.name, d.expected, d.found }),
                     .non_fn => std.fmt.allocPrint(self.allocator, "✗ test {s}: apply non-function '{s}'", .{ name, d.name }),
-                    .partial => std.fmt.allocPrint(self.allocator, "✗ test {s}: test body is a lambda (partial application?)", .{ name }),
+                    .partial => std.fmt.allocPrint(self.allocator, "✗ test {s}: test body is a lambda (partial application?)", .{name}),
                 };
             }
             if (checkCallArity(self.store, &self.engine, rhs)) |d| {
                 return switch (d.kind) {
                     .arity => std.fmt.allocPrint(self.allocator, "✗ test {s}: arity '{s}': expected {d}, found {d}", .{ name, d.name, d.expected, d.found }),
                     .non_fn => std.fmt.allocPrint(self.allocator, "✗ test {s}: apply non-function '{s}'", .{ name, d.name }),
-                    .partial => std.fmt.allocPrint(self.allocator, "✗ test {s}: test body is a lambda (partial application?)", .{ name }),
+                    .partial => std.fmt.allocPrint(self.allocator, "✗ test {s}: test body is a lambda (partial application?)", .{name}),
                 };
             }
             const ls = try self.interpForAssert(lhs);
@@ -5435,7 +5493,6 @@ test "module v2b — import idempotent" {
     try std.testing.expect(std.mem.indexOf(u8, r2, "déjà importé") != null);
 }
 
-
 test "module collision — même fichier importé sous deux alias" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
@@ -5526,13 +5583,13 @@ test "module collision — constructeurs homonymes entre modules stricts" {
     try std.testing.expectError(error.ArityMismatch, heaven.eval("A.Shared 7 8"));
     try std.testing.expectError(error.ArityMismatch, heaven.eval("B.Shared 7"));
 
-    // Les métadonnées non qualifiées sont globales et suivent
-    // la dernière déclaration du constructeur homonyme.
-    try std.testing.expectEqual(@as(?u8, 2), heaven.ctor_arities.get("Shared"));
-    try std.testing.expectEqualStrings(
-        "Right",
-        heaven.ctor_parents.get("Shared").?,
-    );
+    // En mode strict, chaque module possède ses propres métadonnées.
+    try std.testing.expectEqual(@as(?u8, 1), heaven.ctor_arities.get("A.Shared"));
+    try std.testing.expectEqual(@as(?u8, 2), heaven.ctor_arities.get("B.Shared"));
+    try std.testing.expectEqualStrings("Left", heaven.ctor_parents.get("A.Shared").?);
+    try std.testing.expectEqualStrings("Right", heaven.ctor_parents.get("B.Shared").?);
+    try std.testing.expect(!heaven.ctor_arities.contains("Shared"));
+    try std.testing.expect(!heaven.ctor_parents.contains("Shared"));
 }
 
 test "module collision — constructeur homonyme sous le même alias" {
@@ -5565,10 +5622,106 @@ test "module collision — constructeur homonyme sous le même alias" {
     try std.testing.expectEqual(@as(?u8, 2), shared.ctor_arity);
     try std.testing.expectEqualStrings(
         "Second",
-        heaven.ctor_parents.get("Shared").?,
+        heaven.ctor_parents.get("M.Shared").?,
+    );
+    try std.testing.expect(!heaven.ctor_parents.contains("Shared"));
+}
+
+test "module collision — rejet parent incorrect avec constructeur qualifié" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const strict_on = try heaven.eval("strict on");
+    defer allocator.free(strict_on);
+    const r1 = try heaven.eval("import \"tests/imports/strict_ctor_left.hvn\" as A");
+    defer allocator.free(r1);
+    const r2 = try heaven.eval("import \"tests/imports/strict_ctor_right.hvn\" as B");
+    defer allocator.free(r2);
+    const strict_off = try heaven.eval("strict off");
+    defer allocator.free(strict_off);
+
+    const sig = try heaven.eval("sig probe_wrong_qualified : Left -> Int");
+    defer allocator.free(sig);
+
+    const result = try heaven.eval("probe_wrong_qualified (B.Shared x y) = x");
+    defer allocator.free(result);
+
+    try std.testing.expect(!std.mem.startsWith(u8, result, "✓"));
+    try std.testing.expect(std.mem.indexOf(u8, result, "appartient à Right") != null);
+}
+
+test "module collision — nom court strict sans métadonnée globale" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const strict_on = try heaven.eval("strict on");
+    defer allocator.free(strict_on);
+    const r1 = try heaven.eval("import \"tests/imports/strict_ctor_left.hvn\" as A");
+    defer allocator.free(r1);
+    const r2 = try heaven.eval("import \"tests/imports/strict_ctor_right.hvn\" as B");
+    defer allocator.free(r2);
+    const strict_off = try heaven.eval("strict off");
+    defer allocator.free(strict_off);
+
+    try std.testing.expect(!heaven.ctor_arities.contains("Shared"));
+    try std.testing.expect(!heaven.ctor_parents.contains("Shared"));
+
+    const sig = try heaven.eval("sig probe_wrong_unqualified : Left -> Int");
+    defer allocator.free(sig);
+
+    const result = try heaven.eval("probe_wrong_unqualified (Shared x) = x");
+    defer allocator.free(result);
+
+    // Le nom court est caché : il ne doit pas hériter de l'arité de B.Shared.
+    try std.testing.expect(
+        std.mem.indexOf(u8, result, "attend 2 arg(s)") == null,
     );
 }
 
+test "module strict — pattern court valide son arité locale" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const strict_on = try heaven.eval("strict on");
+    defer allocator.free(strict_on);
+
+    const result = try heaven.eval(
+        "import \"tests/imports/strict_ctor_short_bad_arity.hvn\" as A",
+    );
+    defer allocator.free(result);
+
+    try std.testing.expect(std.mem.startsWith(u8, result, "✗"));
+    try std.testing.expect(
+        std.mem.indexOf(u8, result, "attend 1 arg(s), reçu 2") != null,
+    );
+}
+
+test "module collision — parent qualifié vérifié à arité égale" {
+    const allocator = std.testing.allocator;
+    var heaven = try Heaven.init(allocator);
+    defer heaven.deinit();
+
+    const strict_on = try heaven.eval("strict on");
+    defer allocator.free(strict_on);
+    const r1 = try heaven.eval("import \"tests/imports/strict_ctor_left.hvn\" as A");
+    defer allocator.free(r1);
+    const r2 = try heaven.eval("import \"tests/imports/strict_ctor_right_same_arity.hvn\" as B");
+    defer allocator.free(r2);
+    const strict_off = try heaven.eval("strict off");
+    defer allocator.free(strict_off);
+
+    const sig = try heaven.eval("sig probe_wrong_parent : Left -> Int");
+    defer allocator.free(sig);
+
+    const result = try heaven.eval("probe_wrong_parent (B.Shared x) = x");
+    defer allocator.free(result);
+
+    try std.testing.expect(!std.mem.startsWith(u8, result, "✓"));
+    try std.testing.expect(std.mem.indexOf(u8, result, "appartient à RightSame") != null);
+}
 
 test "type-dep v1a — data Pair a b = Pair a b" {
     const allocator = std.testing.allocator;
@@ -5778,7 +5931,7 @@ test "eval — beta reduce : (\\x. x + 1) 5 == 6" {
     try std.testing.expect(std.mem.indexOf(u8, r, "6") != null);
 }
 
-test "module collision — ctor_results conservé après redéclaration non paramétrée" {
+test "module collision — ctor_results supprimé après redéclaration non paramétrée" {
     const allocator = std.testing.allocator;
     var heaven = try Heaven.init(allocator);
     defer heaven.deinit();
@@ -5793,14 +5946,9 @@ test "module collision — ctor_results conservé après redéclaration non para
     const r2 = try heaven.eval("data Plain = Shared");
     defer allocator.free(r2);
 
-    // La nouvelle déclaration remplace les métadonnées globales,
-    // mais le résultat dépendant de l'ancienne déclaration subsiste.
     try std.testing.expectEqual(@as(u8, 0), heaven.ctor_arities.get("Shared").?);
     try std.testing.expectEqualStrings("Plain", heaven.ctor_parents.get("Shared").?);
-
-    const after = heaven.ctor_results.get("Shared") orelse
-        return error.TestUnexpectedResult;
-    try std.testing.expectEqualStrings("Indexed (succ _)", after);
+    try std.testing.expect(!heaven.ctor_results.contains("Shared"));
 }
 
 test "type-dep v2d — ctor_results peuplé (Nil→zero, Cons→succ)" {
@@ -6026,6 +6174,8 @@ test "toutes les fixtures d'import existent" {
         "tests/imports/collision_fn_b.hvn",
         "tests/imports/strict_ctor_left.hvn",
         "tests/imports/strict_ctor_right.hvn",
+        "tests/imports/strict_ctor_short_bad_arity.hvn",
+        "tests/imports/strict_ctor_right_same_arity.hvn",
         "tests/imports/strict_ctor_same_a.hvn",
         "tests/imports/strict_ctor_same_b.hvn",
     };

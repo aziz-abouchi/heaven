@@ -1,0 +1,3 @@
+data Left = Shared Int | LeftOnly
+sig probe : Left -> Int
+probe (Shared x y) = x

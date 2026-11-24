@@ -1,0 +1,1 @@
+(+ (fst (pair 1 2)) (snd (pair 1 2)))

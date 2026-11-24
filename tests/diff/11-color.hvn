@@ -1,0 +1,5 @@
+data Color = Red | Green
+valOf Red = 10
+valOf Green = 20
+valOf _ = 0
+(valOf Green)

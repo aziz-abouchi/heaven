@@ -410,6 +410,33 @@ en cascade :
 **Test** : `import "deep2b.hvn" as D` puis
 `head3 (D.Cons2 42 D.Nil2)` -> `42`.
 
+### Métadonnées des constructeurs dans les modules stricts
+
+En mode `strict`, les constructeurs déclarés dans un module possèdent
+des métadonnées indexées par leur nom qualifié (`A.Shared`, `B.Shared`),
+comme leurs entrées runtime. Lors des validations de patterns (arité,
+parent, compatibilité base/step et résultat dépendant), un nom court est
+résolu dans le module courant (`Shared` devient `A.Shared`). Un nom déjà
+qualifié reste inchangé. La résolution stricte ne retombe jamais sur une
+métadonnée globale portant le nom court.
+
+Hors module strict, les métadonnées conservent leur indexation historique
+par nom court pour préserver la compatibilité. La représentation des
+patterns et le matcher runtime ne sont pas modifiés par cette résolution.
+
+Une redéclaration d'un constructeur sans paramètres dépendants supprime
+également toute ancienne entrée `ctor_results` de ce constructeur. Cela
+évite de réutiliser une forme de résultat provenant d'une déclaration
+antérieure.
+
+**Limites non traitées ici** :
+- les homonymes déclarés sous un même alias strict peuvent encore partager
+  l'entrée runtime `M.Ctor` ; le `ctor_tag` de la première déclaration
+  reste conservé alors que l'arité peut être remplacée ;
+- le `TypeRegistry` reste indexé par nom de type non qualifié ;
+- les noms courts cachés en mode strict ne sont pas rendus non ambigus
+  par ce correctif.
+
 ### Corrige : variables dans un pattern imbrique (depth >= 2)
 
 **Corrige le 2026-10-08** (commit `matchPatternDeep`). Repro
