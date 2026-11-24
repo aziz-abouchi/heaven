@@ -289,13 +289,20 @@ const splitExprVar = @import("split_expr_var.zig").splitExprVar;
 
 pub fn cmdDerive(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
-    const parts = splitExprVar(input);
-    const result = self.heaven.derive(parts.expr, parts.varname) catch |err| {
+    // 2026-11-24: derive is first-class (magic (derive expr) in engine_expr.zig
+    // uses deriveId with var=x). cmdDerive passes the full input, no split:
+    // splitExprVar cut "x * sin x" into "x * sin" + "x", which derived x*sin
+    // as x*<symbol sin> -> sin instead of sin(x) + x*cos(x).
+    const id = self.heaven.deriveToId(input, "x") catch |err| {
         platform.debug.print(" derive error: {}\n", .{err});
         return;
     };
+    const result = self.heaven.store.formatInfix(id, self.allocator) catch {
+        platform.debug.print(" derive: format error\n", .{});
+        return;
+    };
     defer self.allocator.free(result);
-    platform.debug.print("d/d{s}({s}) = {s}\n", .{ parts.varname, parts.expr, result });
+    platform.debug.print("d/dx({s}) = {s}\n", .{ input, result });
 }
 
 pub fn cmdSolve(self: *Shell, input: []const u8) void {
