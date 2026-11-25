@@ -307,8 +307,7 @@ pub fn cmdDerive(self: *Shell, input: []const u8) void {
 
 pub fn cmdSolve(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
-    const parts = splitExprVar(input);
-    const result = self.heaven.solve(parts.expr, parts.varname) catch {
+    const result = self.heaven.solve(input, "x") catch {
         platform.debug.print(" solve error\n", .{});
         return;
     };
@@ -328,8 +327,7 @@ pub fn cmdExpand(self: *Shell, input: []const u8) void {
 
 pub fn cmdIntegrate(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
-    const parts = splitExprVar(input);
-    const result = self.heaven.integrate(parts.expr, parts.varname) catch {
+    const result = self.heaven.integrate(input, "x") catch {
         platform.debug.print(" integrate error\n", .{});
         return;
     };

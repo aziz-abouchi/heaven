@@ -461,3 +461,21 @@ Session 2026-11-18/19: double-free ferme (82c95e9, bbfbf56). MIR multi-clauses p
 | T12 | Une fonction multi-clauses sans clause finale « attrape-tout » est compilable | **Oui depuis 2026-11-25**, politique modifiée : avant, rejet (règle « pas de valeur inventée »), ce qui bloquait les fonctions exhaustives naturelles (`toks_rev`, `zlen`). Désormais le désucrage termine la chaîne par `@abort` : si aucun motif ne correspond, QBE meurt (exit 134), WASM trappe (exit 1), sans rien imprimer, comme l'erreur de l'interpréteur. `reject.sh` vérifie cette mort bruyante (au lieu du rejet) ; test unitaire inversé ; `tests/diff/31-exhaustive-adt`. Hors périmètre : fonction à une seule clause avec garde (rejet explicite) | ✅ Corrigé (politique à valider) |
 
 **Méthode** : seuls les chiffres exécutés sont notés « mesuré » ; les builds sont Debug (temps pessimistes). Hypothèses rejetées : « l'environnement n'est pas capturé » (la cause était `.lambda => return id`) ; « grep `unreachable` ⇒ WASM non supporté » (le prélude en contient toujours).
+
+<!-- SESSION-2026-11-25-MATH -->
+Session 2026-11-25: :integrate/:solve first-class (magic (integrate expr), etc.)
+
+Fixed:
+- cmdIntegrate/cmdSolve splitExprVar bug (same as :derive before bf8637c)
+- 3 magics added (integrate, solve, expand) alongside derive/simplify
+
+Known bugs (in math module, not wrapper):
+- :integrate x^2 = (* x^2 x) + C, missing the /(n+1) division.
+  Expected (x ^ 3) / 3, got x^2 * x (= x^3). Algo bug.
+- :integrate x*x panics index OOB 6674 / len 483.
+  Real crash, not just wrong output. Site in math.integrate.
+- :expand (x+1)*(x+2) = (x + (* 1) (x) + 2), malformed output.
+  parse/format bug, not algorithm.
+
+These are pre-existing math bugs, surfaced by making :integrate a
+first-class primitive. Not introduced by this session.
