@@ -134,3 +134,4 @@ docs/book-v2/book/
 # Dump de contexte genere localement (6 Mo)
 context_heaven.txt
 !vendor/manifest.lock
+recon_*.txt
