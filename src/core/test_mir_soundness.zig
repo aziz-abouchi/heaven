@@ -142,3 +142,80 @@ test "precompileUserFns — motif constructeur exclu de fn_defs" {
 
     try std.testing.expect(!mf.fn_defs.contains(key_sym));
 }
+
+test "precompileUserFns — multi-clause avec garde exclue (soundness)" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var store = expr.Store.init(alloc);
+    const env = try expr.Env.create(alloc);
+    var engine = engine_expr.Engine.initTest(alloc, &store, env);
+
+    const key_sym = try store.interner.intern("f_multi_guarded");
+    const key = store.interner.resolve(key_sym);
+
+    var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
+    try fd.addClause(&.{try store.int(0)}, try store.int(10));
+    fd.setLastGuard(try store.boolean(true));
+    try fd.addClause(&.{try store.int(1)}, try store.int(20));
+    try engine.fns.put(alloc, key, fd);
+
+    var mf = mir.MirFunction.initWithStore(alloc, &store);
+    defer mf.deinit();
+    mf.engine = &engine;
+
+    try mf.precompileUserFns();
+
+    try std.testing.expect(!mf.fn_defs.contains(key_sym));
+}
+
+test "evalFunction — gardes vraies et fausses (interpréteur)" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var store = expr.Store.init(alloc);
+    const env = try expr.Env.create(alloc);
+    var engine = engine_expr.Engine.initTest(alloc, &store, env);
+
+    const arg = try store.int(7);
+
+    // Garde vraie : la première clause doit gagner.
+    const true_sym = try store.interner.intern("f_guard_true");
+    const true_name = store.interner.resolve(true_sym);
+    var true_fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
+    try true_fd.addClause(&.{try store.sym("n")}, try store.int(10));
+    true_fd.setLastGuard(try store.boolean(true));
+    try true_fd.addClause(&.{try store.sym("n")}, try store.int(20));
+    try engine.fns.put(alloc, true_name, true_fd);
+
+    // Garde fausse : la deuxième clause doit être sélectionnée.
+    const false_sym = try store.interner.intern("f_guard_false");
+    const false_name = store.interner.resolve(false_sym);
+    var false_fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
+    try false_fd.addClause(&.{try store.sym("n")}, try store.int(10));
+    false_fd.setLastGuard(try store.boolean(false));
+    try false_fd.addClause(&.{try store.sym("n")}, try store.int(20));
+    try engine.fns.put(alloc, false_name, false_fd);
+
+    // Les deux fonctions gardées doivent rester hors du MIR précompilé.
+    var mf = mir.MirFunction.initWithStore(alloc, &store);
+    defer mf.deinit();
+    mf.engine = &engine;
+    try mf.precompileUserFns();
+
+    try std.testing.expect(!mf.fn_defs.contains(true_sym));
+    try std.testing.expect(!mf.fn_defs.contains(false_sym));
+
+    // L'interpréteur doit néanmoins les exécuter correctement.
+    const true_result = try engine.evalFunction(env, true_name, &.{arg});
+    const true_node = store.get(true_result);
+    try std.testing.expectEqual(expr.Tag.lit, true_node.tag);
+    try std.testing.expect(store.lits.items[true_node.aux].eql(.{ .int = 10 }));
+
+    const false_result = try engine.evalFunction(env, false_name, &.{arg});
+    const false_node = store.get(false_result);
+    try std.testing.expectEqual(expr.Tag.lit, false_node.tag);
+    try std.testing.expect(store.lits.items[false_node.aux].eql(.{ .int = 20 }));
+}

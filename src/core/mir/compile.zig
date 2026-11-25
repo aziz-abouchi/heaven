@@ -33,6 +33,17 @@ pub fn precompileUserFns(self: *MirFunction) !void {
         if (fn_def_user.ctor_arity != null) continue;
         if (fn_def_user.num_clauses == 0) continue;
         if (fn_def_user.num_clauses > 1) {
+            // Soundness : aucune clause multi-clause gardee ne doit
+            // etre precompilee tant que MIR ne combine pas garde et motifs.
+            var has_guard = false;
+            for (0..fn_def_user.num_clauses) |ci| {
+                if (fn_def_user.clauses[ci].guard != null) {
+                    has_guard = true;
+                    break;
+                }
+            }
+            if (has_guard) continue;
+
             if (!self.multiClauseEligible(&fn_def_user)) continue;
             try eligible.append(self.allocator, name_str);
             continue;
