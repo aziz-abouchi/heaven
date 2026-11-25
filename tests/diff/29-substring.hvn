@@ -1,0 +1,3 @@
+sub_len s st n = (string_length (string_substring s st n))
+sub_byte s st n i = (peek_byte (string_ptr (string_substring s st n)) i)
+(+ (sub_len "hello world" 6 5) (+ (* 10 (sub_byte "hello world" 6 5 0)) (* 10000 (sub_len "abc" 1 0))))

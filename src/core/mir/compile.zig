@@ -666,6 +666,39 @@ pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: *Blo
                 const arg_reg = try self.compileExpr(store, args[0], target_block, locals);
                 return emitExternCall(self, store_ref, "strlen", &.{arg_reg}, target_block.*);
             }
+            // `(let nom val corps)` : magic de l'interpreteur (forme produite par
+            // `f x = let r = v in corps` sans parentheses). Meme abaissement que
+            // `((lambda nom corps) val)` : valeur, liaison locale, corps. `let _`
+            // (trou) evalue la valeur pour son effet et ne lie rien.
+            if (std.mem.eql(u8, op_name, "let") and args.len == 3) {
+                const name_node = store.get(args[0]);
+                if (name_node.tag == .sym or name_node.tag == .hole) {
+                    const val_reg = try self.compileExpr(store, args[1], target_block, locals);
+                    if (name_node.tag == .hole) {
+                        return try self.compileExpr(store, args[2], target_block, locals);
+                    }
+                    var let_locals = try locals.clone();
+                    defer let_locals.deinit();
+                    try let_locals.put(name_node.payload, val_reg);
+                    return try self.compileExpr(store, args[2], target_block, let_locals);
+                }
+            }
+            // Memoire brute et chaines dynamiques (string_substring de la stdlib).
+            // Les trois "unit" (poke_byte, raw_free) rendent 0 en natif.
+            const raw_prims = [_]struct { name: []const u8, arity: usize, ext: []const u8 }{
+                .{ .name = "raw_alloc", .arity = 1, .ext = "__raw_alloc" },
+                .{ .name = "raw_free", .arity = 2, .ext = "__raw_free" },
+                .{ .name = "poke_byte", .arity = 3, .ext = "__poke_byte" },
+                .{ .name = "string_of_bytes", .arity = 2, .ext = "__str_of_bytes" },
+            };
+            for (raw_prims) |rp| {
+                if (std.mem.eql(u8, op_name, rp.name) and args.len == rp.arity) {
+                    const store_ref = self.store orelse return error.UnsupportedExpr;
+                    var regs: [3]Id = undefined;
+                    for (args, 0..) |a, k| regs[k] = try self.compileExpr(store, a, target_block, locals);
+                    return emitExternCall(self, store_ref, rp.ext, regs[0..rp.arity], target_block.*);
+                }
+            }
             // string_ptr : une chaine est deja son adresse en natif -> identite.
             if (std.mem.eql(u8, op_name, "string_ptr") and args.len == 1) {
                 return try self.compileExpr(store, args[0], target_block, locals);

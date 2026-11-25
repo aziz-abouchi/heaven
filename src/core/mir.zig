@@ -676,11 +676,9 @@ pub const MirFunction = struct {
                 return false;
             }
         }
-        const last = def.clauses[n - 1];
-        if (last.guard != null) return false;
-        for (0..last.num_patterns) |i| {
-            if (!self.isVarPattern(store, last.patterns[i])) return false;
-        }
+        // Plus d'exigence de clause finale « attrape-tout » : desugarClauses
+        // termine la chaine par un @abort explicite (echec bruyant si aucun
+        // motif ne correspond), comme l'erreur de l'interpreteur.
         return true;
     }
 
@@ -688,8 +686,12 @@ pub const MirFunction = struct {
     ///   let vars in (if (tests_et_garde) body1 (if ...))
     pub fn desugarClauses(self: *MirFunction, store: *Store, def: *const engine_mod.FunctionDef) !Id {
         const n = def.num_clauses;
-        var result: Id = 0;
-        var have_result = false;
+        // Reste de la chaine par defaut : echec explicite (abort en QBE, trap en
+        // WAT) si aucun motif ne correspond, comme l'erreur de l'interpreteur.
+        // Une clause finale qui attrape tout (sans test) remplace ce reste ; une
+        // clause finale avec tests (liste exhaustive sans `_`) compile donc aussi.
+        var result: Id = try store.apply(try store.sym("@abort"), &.{});
+        var have_result = true;
         var ci: usize = n;
         while (ci > 0) {
             ci -= 1;

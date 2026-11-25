@@ -95,6 +95,39 @@ pub fn emitWatLoop(
         \\    (br $l)))
         \\  (i64.extend_i32_u (local.get $n)))
         \\
+        \\;; Allocateur bump : rend l'adresse d'un bloc de $need octets (jamais libere).
+        \\(func $__bump (param $need i32) (result i32)
+        \\  (local $dst i32)
+        \\  (local.set $dst (global.get $heap_ptr))
+        \\  (global.set $heap_ptr (i32.add (local.get $dst) (local.get $need)))
+        \\  (if (i32.gt_u (global.get $heap_ptr) (i32.mul (memory.size) (i32.const 65536)))
+        \\    (then
+        \\      (if (i32.lt_s (memory.grow (i32.add (i32.shr_u (i32.sub (global.get $heap_ptr) (i32.mul (memory.size) (i32.const 65536))) (i32.const 16)) (i32.const 1))) (i32.const 0))
+        \\        (then (unreachable)))))
+        \\  (local.get $dst))
+        \\
+        \\(func $__raw_alloc (param $n i64) (result i64)
+        \\  (i64.extend_i32_u (call $__bump (i32.and (i32.add (i32.wrap_i64 (local.get $n)) (i32.const 7)) (i32.const -8)))))
+        \\
+        \\;; raw_free : no-op en WAT (bump sans free) ; rend 0 (unit).
+        \\(func $__raw_free (param $p i64) (param $n i64) (result i64) (i64.const 0))
+        \\
+        \\(func $__poke_byte (param $p i64) (param $i i64) (param $v i64) (result i64)
+        \\  (i32.store8 (i32.wrap_i64 (i64.add (local.get $p) (local.get $i))) (i32.wrap_i64 (local.get $v)))
+        \\  (i64.const 0))
+        \\
+        \\(func $__str_of_bytes (param $p i64) (param $n i64) (result i64)
+        \\  (local $dst i32) (local $len i32) (local $i i32)
+        \\  (local.set $len (i32.wrap_i64 (local.get $n)))
+        \\  (local.set $dst (call $__bump (i32.and (i32.add (local.get $len) (i32.const 8)) (i32.const -8))))
+        \\  (block $done (loop $l
+        \\    (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+        \\    (i32.store8 (i32.add (local.get $dst) (local.get $i)) (i32.load8_u (i32.add (i32.wrap_i64 (local.get $p)) (local.get $i))))
+        \\    (local.set $i (i32.add (local.get $i) (i32.const 1)))
+        \\    (br $l)))
+        \\  (i32.store8 (i32.add (local.get $dst) (local.get $len)) (i32.const 0))
+        \\  (i64.extend_i32_u (local.get $dst)))
+        \\
         \\(func $__peek_byte (param $p i64) (param $i i64) (result i64)
         \\  (i64.extend_i32_u (i32.load8_u (i32.wrap_i64 (i64.add (local.get $p) (local.get $i))))))
         \\
@@ -326,6 +359,18 @@ fn emitInstr(w: anytype, ctx: *const Ctx, inst: Instr, fdefs: *const FnDefs) !vo
             if ((std.mem.eql(u8, bare, "strlen") or std.mem.eql(u8, bare, "__strlen")) and c.args.len == 1) {
                 try w.print("(local.set $r{d} (call $__strlen (local.get $r{d})))\n", .{ c.dest, c.args[0] });
                 return;
+            }
+            const raw_names = [_]struct { n: []const u8, k: usize }{
+                .{ .n = "__raw_alloc", .k = 1 },  .{ .n = "__raw_free", .k = 2 },
+                .{ .n = "__poke_byte", .k = 3 },  .{ .n = "__str_of_bytes", .k = 2 },
+            };
+            for (raw_names) |rn| {
+                if (std.mem.eql(u8, bare, rn.n) and c.args.len == rn.k) {
+                    try w.print("(local.set $r{d} (call ${s}", .{ c.dest, rn.n });
+                    for (c.args) |a| try w.print(" (local.get $r{d})", .{a});
+                    try w.writeAll("))\n");
+                    return;
+                }
             }
             if (std.mem.eql(u8, bare, "__peek_byte") and c.args.len == 2) {
                 try w.print("(local.set $r{d} (call $__peek_byte (local.get $r{d}) (local.get $r{d})))\n", .{ c.dest, c.args[0], c.args[1] });

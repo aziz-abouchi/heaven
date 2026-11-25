@@ -1,0 +1,15 @@
+a x =
+  let r = (x + 1) in
+  r
+b x =
+  let _ = (x + 1) in
+  x
+c x =
+  let x = (x + 1) in
+  let x = (x * 10) in
+  x
+d x =
+  let r = (x + 1) in
+  let _ = (x + 2) in
+  (r + x)
+(+ (a 4) (+ (* 10 (b 4)) (+ (* 100 (c 4)) (* 10000 (d 4)))))

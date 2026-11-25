@@ -153,7 +153,53 @@ pub fn emitQbeLoop(
         \\}
         \\
     );
+    // poke_byte p i v : ecrit l'octet bas de v a p+i ; rend 0 (unit).
+    try w.writeAll(
+        \\function l $__poke_byte(l %p, l %i, l %v) {
+        \\@start
+        \\    %a =l add %p, %i
+        \\    %b =w copy %v
+        \\    storeb %b, %a
+        \\    ret 0
+        \\}
+        \\
+    );
     if (!no_libc) {
+        // raw_alloc n / raw_free p n (malloc/free) ; string_of_bytes p n =
+        // copie NUL-terminee de n octets (chaine native).
+        try w.writeAll(
+            \\function l $__raw_alloc(l %n) {
+            \\@start
+            \\    %p =l call $malloc(l %n)
+            \\    ret %p
+            \\}
+            \\function l $__raw_free(l %p, l %n) {
+            \\@start
+            \\    call $free(l %p)
+            \\    ret 0
+            \\}
+            \\function l $__str_of_bytes(l %p, l %n) {
+            \\@start
+            \\    %cap =l add %n, 1
+            \\    %buf =l call $malloc(l %cap)
+            \\    %i =l copy 0
+            \\@loop
+            \\    %c =w csltl %i, %n
+            \\    jnz %c, @step, @done
+            \\@step
+            \\    %s =l add %p, %i
+            \\    %b =w loadub %s
+            \\    %d =l add %buf, %i
+            \\    storeb %b, %d
+            \\    %i =l add %i, 1
+            \\    jmp @loop
+            \\@done
+            \\    %e =l add %buf, %n
+            \\    storeb 0, %e
+            \\    ret %buf
+            \\}
+            \\
+        );
         try w.writeAll(
             \\function l $__strcat(l %a, l %b) {
             \\@start

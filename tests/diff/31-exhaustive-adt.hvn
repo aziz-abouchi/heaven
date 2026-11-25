@@ -1,0 +1,10 @@
+data Zl = ZN | ZC Int Zl
+zrev ZN acc = acc
+zrev (ZC t r) acc = (zrev r (ZC t acc))
+zlen ZN = 0
+zlen (ZC t r) = (+ 1 (zlen r))
+zsum ZN = 0
+zsum (ZC t r) = (+ t (zsum r))
+cls 0 = 10
+cls 1 = 20
+(+ (zlen (zrev (ZC 1 (ZC 2 (ZC 3 ZN))) ZN)) (+ (* 10 (zsum (ZC 4 (ZC 5 ZN)))) (* 1000 (cls 1))))

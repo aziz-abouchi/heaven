@@ -66,7 +66,7 @@ test "precompileUserFns — clause gardée exclue de fn_defs (soundness)" {
 }
 
 
-test "precompileUserFns — multi-clause sans clause generale exclue de fn_defs" {
+test "precompileUserFns — multi-clause sans clause generale compilee avec repli @abort" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
@@ -75,8 +75,10 @@ test "precompileUserFns — multi-clause sans clause generale exclue de fn_defs"
     const env = try expr.Env.create(alloc);
     var engine = engine_expr.Engine.initTest(alloc, &store, env);
 
-    // f 0 = 0 ; f 1 = 1 : aucune clause generale -> pas de valeur par
-    // defaut inventee, la fonction reste hors de fn_defs (rejet explicite).
+    // f 0 = 0 ; f 1 = 1 : aucune clause generale. Pas de valeur par defaut
+    // inventee : la chaine se termine par un @abort explicite (echec bruyant si
+    // aucun motif ne correspond), ce qui permet de compiler les fonctions
+    // exhaustives sans `_` (toks_rev, zlen...). Voir tests/diff/reject.sh.
     const key_sym = try store.interner.intern("f_multi");
     const key = store.interner.resolve(key_sym);
     var fd = engine_expr.FunctionDef{ .clauses = undefined, .num_clauses = 0 };
@@ -89,7 +91,7 @@ test "precompileUserFns — multi-clause sans clause generale exclue de fn_defs"
     mf.engine = &engine;
     try mf.precompileUserFns();
 
-    try std.testing.expect(!mf.fn_defs.contains(key_sym));
+    try std.testing.expect(mf.fn_defs.contains(key_sym));
 }
 
 test "precompileUserFns — multi-clause entier + clause generale compilee" {
