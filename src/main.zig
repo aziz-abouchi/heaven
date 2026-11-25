@@ -186,11 +186,16 @@ pub fn main() !void {
     // Le bug est DebugAllocator-specifique (metadonnees internes),
     // pas un UAF (page_allocator ferait un segfault). Pour debloquer
     // les tests en attendant le fix, on peut desactiver le check.
+    // 2026-11-25 : l'assert "double-mapped pages" venait de retain_metadata=true
+    // (mesure : compile-qbe tests/diff/02-fib.hvn, 20 lancers : 13-17/20 echecs
+    // avec, 0/20 sans, y compris sans ASLR). La detection de fuites reste
+    // active (tests/leak_guard.sh). Seul le diagnostic use-after-free des
+    // gros blocs liberes est perdu.
     var gpa = std.heap.GeneralPurposeAllocator(.{
         .safety = true,
         .thread_safe = true,
         .never_unmap = true,
-        .retain_metadata = true,
+        .retain_metadata = false,
     }){};
     const no_leak_check = platform.getenv("HEAVEN_NO_LEAK_CHECK") != null;
     defer {
