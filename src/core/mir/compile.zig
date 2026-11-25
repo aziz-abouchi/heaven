@@ -728,6 +728,17 @@ pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: *Blo
                 const b_reg = try self.compileExpr(store, args[1], target_block, locals);
                 return emitExternCall(self, store_ref, "__strcat", &.{ a_reg, b_reg }, target_block.*);
             }
+            if (std.mem.eql(u8, op_name, "int_to_string") and args.len == 1) {
+                const store_ref = self.store orelse return error.UnsupportedExpr;
+                const n_reg = try self.compileExpr(store, args[0], target_block, locals);
+                return emitExternCall(self, store_ref, "__int_to_string", &.{n_reg}, target_block.*);
+            }
+            if (std.mem.eql(u8, op_name, "str_eq") and args.len == 2) {
+                const store_ref = self.store orelse return error.UnsupportedExpr;
+                const a_reg = try self.compileExpr(store, args[0], target_block, locals);
+                const b_reg = try self.compileExpr(store, args[1], target_block, locals);
+                return emitExternCall(self, store_ref, "__streq", &.{ a_reg, b_reg }, target_block.*);
+            }
 
             if (args.len == 2) {
                 const lhs = try self.compileExpr(store, args[0], target_block, locals);

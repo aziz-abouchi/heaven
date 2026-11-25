@@ -36,8 +36,8 @@ lex_sym_end s i = (if (>= i (string_length s)) i (if (lex_is_symchar (peek_byte 
 lex_str_end s i = (if (>= i (string_length s)) i (if (= (peek_byte (string_ptr s) i) 34) i (lex_str_end s (+ i 1))))
 
 tok_eq (TIntTok a) (TIntTok b) = (= a b)
-tok_eq (TSymTok a) (TSymTok b) = (= a b)
-tok_eq (TStrTok a) (TStrTok b) = (= a b)
+tok_eq (TSymTok a) (TSymTok b) = (str_eq a b)
+tok_eq (TStrTok a) (TStrTok b) = (str_eq a b)
 tok_eq TLParen TLParen = true
 tok_eq TRParen TRParen = true
 tok_eq _ _ = false
@@ -193,14 +193,14 @@ es_rev ENil acc = acc
 es_rev (ECons e rest) acc = (es_rev rest (ECons e acc))
 
 expr_eq (ELitI a) (ELitI b) = (= a b)
-expr_eq (ELitS a) (ELitS b) = (= a b)
-expr_eq (ESym a) (ESym b) = (= a b)
+expr_eq (ELitS a) (ELitS b) = (str_eq a b)
+expr_eq (ESym a) (ESym b) = (str_eq a b)
 expr_eq (EApply f1 a1) (EApply f2 a2) = (if (expr_eq f1 f2) (expr_eq a1 a2) false)
-expr_eq (EBind n1 b1) (EBind n2 b2) = (if (= n1 n2) (expr_eq b1 b2) false)
-expr_eq (ELambda p1 b1) (ELambda p2 b2) = (if (= p1 p2) (expr_eq b1 b2) false)
-expr_eq (EImport p1 a1) (EImport p2 a2) = (if (= p1 p2) (= a1 a2) false)
-expr_eq (EData a _) (EData b _) = (= a b)
-expr_eq (ETest n1 b1 v1) (ETest n2 b2 v2) = (if (= n1 n2) (if (expr_eq b1 b2) (expr_eq v1 v2) false) false)
+expr_eq (EBind n1 b1) (EBind n2 b2) = (if (str_eq n1 n2) (expr_eq b1 b2) false)
+expr_eq (ELambda p1 b1) (ELambda p2 b2) = (if (str_eq p1 p2) (expr_eq b1 b2) false)
+expr_eq (EImport p1 a1) (EImport p2 a2) = (if (str_eq p1 p2) (str_eq a1 a2) false)
+expr_eq (EData a _) (EData b _) = (str_eq a b)
+expr_eq (ETest n1 b1 v1) (ETest n2 b2 v2) = (if (str_eq n1 n2) (if (expr_eq b1 b2) (expr_eq v1 v2) false) false)
 expr_eq _ _ = false
 
 pok_expr (POk e _) = e

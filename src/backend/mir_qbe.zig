@@ -164,6 +164,31 @@ pub fn emitQbeLoop(
         \\}
         \\
     );
+    // __streq : compare deux chaines NUL-terminees octet par octet ; rend 1 si egales, 0 sinon.
+    try w.writeAll(
+        \\function l $__streq(l %a, l %b) {
+        \\@start
+        \\    %i =l copy 0
+        \\@loop
+        \\    %pa =l add %a, %i
+        \\    %pb =l add %b, %i
+        \\    %ca =w loadub %pa
+        \\    %cb =w loadub %pb
+        \\    %eq =w ceqw %ca, %cb
+        \\    jnz %eq, @check_end, @neq
+        \\@check_end
+        \\    %is_zero =w ceqw %ca, 0
+        \\    jnz %is_zero, @yes, @next
+        \\@next
+        \\    %i =l add %i, 1
+        \\    jmp @loop
+        \\@yes
+        \\    ret 1
+        \\@neq
+        \\    ret 0
+        \\}
+        \\
+    );
     if (!no_libc) {
         // raw_alloc n / raw_free p n (malloc/free) ; string_of_bytes p n =
         // copie NUL-terminee de n octets (chaine native).
@@ -235,6 +260,62 @@ pub fn emitQbeLoop(
             \\@done_b
             \\    %end_p =l add %buf, %sum
             \\    storeb 0, %end_p
+            \\    ret %buf
+            \\}
+            \\
+        );
+        try w.writeAll(
+            \\function l $__int_to_string(l %n) {
+            \\@start
+            \\    %buf =l call $malloc(l 32)
+            \\    %is_zero =w ceql %n, 0
+            \\    jnz %is_zero, @zero, @non_zero
+            \\@zero
+            \\    storeb 48, %buf
+            \\    %z_end =l add %buf, 1
+            \\    storeb 0, %z_end
+            \\    ret %buf
+            \\@non_zero
+            \\    %neg =w csltl %n, 0
+            \\    %pos =l copy 0
+            \\    %val =l copy %n
+            \\    jnz %neg, @make_pos, @digits_init
+            \\@make_pos
+            \\    storeb 45, %buf
+            \\    %pos =l copy 1
+            \\    %val =l sub 0, %n
+            \\@digits_init
+            \\    %idx =l copy %pos
+            \\@digits_loop
+            \\    %done_d =w ceql %val, 0
+            \\    jnz %done_d, @digits_done, @digit_step
+            \\@digit_step
+            \\    %rem =l rem %val, 10
+            \\    %digit =w add %rem, 48
+            \\    %dst =l add %buf, %idx
+            \\    storeb %digit, %dst
+            \\    %idx =l add %idx, 1
+            \\    %val =l div %val, 10
+            \\    jmp @digits_loop
+            \\@digits_done
+            \\    %end_p =l add %buf, %idx
+            \\    storeb 0, %end_p
+            \\    %left =l copy %pos
+            \\    %right =l sub %idx, 1
+            \\@rev_loop
+            \\    %cont =w csltl %left, %right
+            \\    jnz %cont, @rev_step, @rev_done
+            \\@rev_step
+            \\    %lp =l add %buf, %left
+            \\    %rp =l add %buf, %right
+            \\    %lb =w loadub %lp
+            \\    %rb =w loadub %rp
+            \\    storeb %rb, %lp
+            \\    storeb %lb, %rp
+            \\    %left =l add %left, 1
+            \\    %right =l sub %right, 1
+            \\    jmp @rev_loop
+            \\@rev_done
             \\    ret %buf
             \\}
             \\
@@ -517,12 +598,12 @@ fn emitInstr(w: anytype, inst: Instr, tmp: *Reg, store: anytype) !void {
         .div => |a| try w.print("    %r{d} =l div %r{d}, %r{d}\n", .{ a.dest, a.lhs, a.rhs }),
         .rem => |a| try w.print("    %r{d} =l rem %r{d}, %r{d}\n", .{ a.dest, a.lhs, a.rhs }),
         .cmp_lt => |a| {
-            try w.print("    %t{d} =w csltw %r{d}, %r{d}\n", .{ tmp.*, a.lhs, a.rhs });
+            try w.print("    %t{d} =w csltl %r{d}, %r{d}\n", .{ tmp.*, a.lhs, a.rhs });
             try w.print("    %r{d} =l extsw %t{d}\n", .{ a.dest, tmp.* });
             tmp.* += 1;
         },
         .cmp_eq => |a| {
-            try w.print("    %t{d} =w ceqw %r{d}, %r{d}\n", .{ tmp.*, a.lhs, a.rhs });
+            try w.print("    %t{d} =w ceql %r{d}, %r{d}\n", .{ tmp.*, a.lhs, a.rhs });
             try w.print("    %r{d} =l extsw %t{d}\n", .{ a.dest, tmp.* });
             tmp.* += 1;
         },
