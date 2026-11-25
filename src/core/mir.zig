@@ -654,7 +654,11 @@ pub const MirFunction = struct {
         if (arity == 0 or unwound.len != arity) return null;
         const tag = fd.ctor_tag orelse return null;
         for (0..unwound.len) |i| {
-            if (!self.isVarPattern(store, args_buf[i])) return null;
+            const sub = args_buf[i];
+            if (self.isVarPattern(store, sub)) continue;
+            if ((self.scalarPatternLit(store, sub) catch null) != null) continue;
+            if (self.naryCtorPattern(store, sub) != null) continue;
+            return null;
         }
         return .{ .tag = tag, .args = args_buf, .len = unwound.len };
     }
@@ -707,12 +711,34 @@ pub const MirFunction = struct {
                 while (fi > 0) {
                     fi -= 1;
                     const sub = nc.args[fi];
-                    if (store.get(sub).tag != .sym) continue;
-                    const fname = store.interner.resolve(store.get(sub).payload);
-                    if (std.mem.eql(u8, fname, "_")) continue;
                     const arg = try store.sym(store.interner.resolve(psym));
                     const off_id = try store.int(@intCast((fi + 1) * 8));
                     const load_expr = try store.apply(try store.sym("__mir_load_at"), &.{ arg, off_id });
+                    if (self.naryCtorPattern(store, sub)) |sub_nc| {
+                        var sfi: usize = sub_nc.len;
+                        while (sfi > 0) {
+                            sfi -= 1;
+                            const ssub = sub_nc.args[sfi];
+                            if (!self.isVarPattern(store, ssub)) continue;
+                            if (store.get(ssub).tag != .sym) continue;
+                            const sfname = store.interner.resolve(store.get(ssub).payload);
+                            if (std.mem.eql(u8, sfname, "_")) continue;
+                            const sub_arg = try store.sym(store.interner.resolve(psym));
+                            const sub_off_id = try store.int(@intCast((fi + 1) * 8));
+                            const sub_ptr = try store.apply(try store.sym("__mir_load_at"), &.{ sub_arg, sub_off_id });
+                            const soff_id = try store.int(@intCast((sfi + 1) * 8));
+                            const sload_expr = try store.apply(try store.sym("__mir_load_at"), &.{ sub_ptr, soff_id });
+                            const sb = try store.bind(sfname, sload_expr);
+                            const sbn = store.get(sb);
+                            store.pool.items[sbn.span_a.start + 1] = inner_body;
+                            inner_body = sb;
+                        }
+                        continue;
+                    }
+                    if (!self.isVarPattern(store, sub)) continue;
+                    if (store.get(sub).tag != .sym) continue;
+                    const fname = store.interner.resolve(store.get(sub).payload);
+                    if (std.mem.eql(u8, fname, "_")) continue;
                     const b = try store.bind(fname, load_expr);
                     const bn = store.get(b);
                     store.pool.items[bn.span_a.start + 1] = inner_body;
@@ -747,27 +773,57 @@ pub const MirFunction = struct {
                 const expected_tag = try store.int(@intCast(nc.tag));
                 const tag_eq = try store.binop("=", loaded_tag, expected_tag);
                 test_cond = try store.apply(try store.sym("if"), &.{ tag_eq, test_cond orelse one, zero });
+                for (0..nc.len) |fi| {
+                    if (self.naryCtorPattern(store, nc.args[fi])) |sub_nc| {
+                        const s_arg = try store.sym(store.interner.resolve(psym));
+                        const s_off = try store.int(@intCast((fi + 1) * 8));
+                        const s_ptr = try store.apply(try store.sym("__mir_load_at"), &.{ s_arg, s_off });
+                        const s_tag = try store.apply(try store.sym("__mir_load_at"), &.{ s_ptr, try store.int(0) });
+                        const s_eq = try store.binop("=", s_tag, try store.int(@intCast(sub_nc.tag)));
+                        test_cond = try store.apply(try store.sym("if"), &.{ s_eq, test_cond orelse one, zero });
+                    }
+                }
             }
 
             var pi_ptr: usize = c.num_patterns;
             while (pi_ptr > 0) {
                 pi_ptr -= 1;
-                if (self.naryCtorPattern(store, c.patterns[pi_ptr]) == null) continue;
+                const nc = self.naryCtorPattern(store, c.patterns[pi_ptr]) orelse continue;
                 if (!have_result) return error.UnsupportedExpr;
                 const psym = try multiParamSym(store, pi_ptr);
                 const arg_ptr = try store.sym(store.interner.resolve(psym));
                 const min_ptr = try store.int(4096);
                 const is_ptr = try store.binop(">=", arg_ptr, min_ptr);
                 test_cond = try store.apply(try store.sym("if"), &.{ is_ptr, test_cond orelse one, zero });
+                for (0..nc.len) |fi| {
+                    if (self.naryCtorPattern(store, nc.args[fi]) != null) {
+                        const s_arg = try store.sym(store.interner.resolve(psym));
+                        const s_off = try store.int(@intCast((fi + 1) * 8));
+                        const s_ptr = try store.apply(try store.sym("__mir_load_at"), &.{ s_arg, s_off });
+                        const s_is_ptr = try store.binop(">=", s_ptr, try store.int(4096));
+                        test_cond = try store.apply(try store.sym("if"), &.{ s_is_ptr, test_cond orelse one, zero });
+                    }
+                }
             }
 
             var cond: ?Id = null;
             for (0..c.num_patterns) |i| {
-                const lp = (try self.scalarPatternLit(store, c.patterns[i])) orelse continue;
                 const psym = try multiParamSym(store, i);
-                const arg = try store.sym(store.interner.resolve(psym));
-                const t = try patternTest(store, arg, lp);
-                cond = if (cond) |prev| try store.binop("*", prev, t) else t;
+                if (try self.scalarPatternLit(store, c.patterns[i])) |lp| {
+                    const arg = try store.sym(store.interner.resolve(psym));
+                    const t = try patternTest(store, arg, lp);
+                    cond = if (cond) |prev| try store.binop("*", prev, t) else t;
+                } else if (self.naryCtorPattern(store, c.patterns[i])) |nc| {
+                    for (0..nc.len) |fi| {
+                        if (try self.scalarPatternLit(store, nc.args[fi])) |slp| {
+                            const f_arg = try store.sym(store.interner.resolve(psym));
+                            const f_off = try store.int(@intCast((fi + 1) * 8));
+                            const f_val = try store.apply(try store.sym("__mir_load_at"), &.{ f_arg, f_off });
+                            const ft = try patternTest(store, f_val, slp);
+                            cond = if (cond) |prev| try store.binop("*", prev, ft) else ft;
+                        }
+                    }
+                }
             }
             if (cond) |cnd| {
                 if (!have_result) return error.UnsupportedExpr;
