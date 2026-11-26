@@ -289,6 +289,7 @@ pub fn runCompileQbe(
     const body = try parseLastExpr(alloc, heaven, source);
 
     // 3. MIR
+    platform.debug.print("[COMPILE-QBE] Main body id={d}, tag={s}\n", .{ body, @tagName(heaven.store.get(body).tag) });
     var mf = try compileRoot(alloc, heaven.store, &heaven.engine, body);
     defer mf.deinit();
 
