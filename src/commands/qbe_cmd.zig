@@ -99,7 +99,11 @@ fn isSkippable(line: []const u8) bool {
 /// wasm_cmd : deux copies avaient diverge, d'ou des gardes `==` perdues).
 pub fn isDefinition(trimmed: []const u8) bool {
     if (std.mem.startsWith(u8, trimmed, "fn ")) return true;
-    if (std.mem.startsWith(u8, trimmed, "let ")) return true;
+    // `let x = v in body` est une EXPRESSION infix canonique (_style_infix.md),
+    // pas une definition : sinon parseLastExpr ne trouve aucune expression
+    // finale (error.NoExpression) et compile-qbe n'atteint jamais le MIR.
+    if (std.mem.startsWith(u8, trimmed, "let "))
+        return std.mem.indexOf(u8, trimmed, " in ") == null;
     if (std.mem.startsWith(u8, trimmed, "data ")) return true;
     if (std.mem.startsWith(u8, trimmed, "theorem ")) return true;
     if (std.mem.startsWith(u8, trimmed, "actor ")) return true;
