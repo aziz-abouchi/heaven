@@ -317,8 +317,17 @@ pub fn cmdSolve(self: *Shell, input: []const u8) void {
 
 pub fn cmdExpand(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
-    const result = self.heaven.expand(input) catch {
+    const raw = self.heaven.expand(input) catch {
         platform.debug.print("  expand error\n", .{});
+        return;
+    };
+    defer self.allocator.free(raw);
+    const id = self.heaven.parseExpression(raw) catch {
+        platform.debug.print("  expand: parse error\n", .{});
+        return;
+    };
+    const result = self.heaven.store.formatInfix(id, self.allocator) catch {
+        platform.debug.print("  expand: format error\n", .{});
         return;
     };
     defer self.allocator.free(result);
@@ -327,8 +336,18 @@ pub fn cmdExpand(self: *Shell, input: []const u8) void {
 
 pub fn cmdIntegrate(self: *Shell, input: []const u8) void {
     if (input.len == 0) return;
-    const result = self.heaven.integrate(input, "x") catch {
+    const raw = self.heaven.integrate(input, "x") catch {
         platform.debug.print(" integrate error\n", .{});
+        return;
+    };
+    defer self.allocator.free(raw);
+    const trimmed = if (std.mem.endsWith(u8, raw, " + C")) raw[0 .. raw.len - 4] else raw;
+    const id = self.heaven.parseExpression(trimmed) catch {
+        platform.debug.print(" integrate: parse error\n", .{});
+        return;
+    };
+    const result = self.heaven.store.formatInfix(id, self.allocator) catch {
+        platform.debug.print(" integrate: format error\n", .{});
         return;
     };
     defer self.allocator.free(result);

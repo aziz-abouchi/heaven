@@ -197,6 +197,9 @@ pub const FunctionRegistry = struct {
 pub const HeavenVTable = struct {
     parse: *const fn (*anyopaque, []const u8) EvalError!Id,
     deriveId: *const fn (*anyopaque, []const u8, []const u8) EvalError!Id,
+    integrateId: *const fn (*anyopaque, []const u8, []const u8) EvalError!Id,
+    solveId: *const fn (*anyopaque, []const u8, []const u8) EvalError!Id,
+    expandId: *const fn (*anyopaque, []const u8) EvalError!Id,
     simplify: *const fn (*anyopaque, []const u8) EvalError![]const u8,
     /// Appelé par evalMagic pour `(query name arg1 _ ...)`.
     /// Retourne le nombre de solutions comme Id entier.
@@ -210,9 +213,22 @@ pub const HeavenVTable = struct {
 };
 
 // Vtable factice pour les tests (ne devrait jamais être appelée)
+fn testIntegrate(_: *anyopaque, _: []const u8, _: []const u8) EvalError!Id {
+    @panic("testIntegrate called unexpectedly");
+}
+fn testSolve(_: *anyopaque, _: []const u8, _: []const u8) EvalError!Id {
+    @panic("testSolve called unexpectedly");
+}
+fn testExpand(_: *anyopaque, _: []const u8) EvalError!Id {
+    @panic("testExpand called unexpectedly");
+}
+
 const testHeavenVTable = HeavenVTable{
     .parse = testParse,
-    .deriveId = testDerive,
+    .deriveId    = testDerive,
+    .integrateId = testIntegrate,
+    .solveId     = testSolve,
+    .expandId    = testExpand,
     .simplify = testSimplify,
 };
 
@@ -1313,7 +1329,7 @@ return try evalMagic(store, env, engine, op_name, args, depth);
 }
 
 pub fn isMagicSymbol(name: []const u8) bool {
-    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@set_fuel", "@exiting", "@clear_thunks", "@store_stats", "@spawn", "@broadcast", "@runtime_stats", "@process_count", "@process_mem", "@sleep_ms", "@tls_connect", "@tls_read", "@tls_write", "@tls_close", "@hole", "@is_hole", "@assert_no_hole" };
+    const magics = .{ "+", "-", "*", "/", "%", "&", "|", "!", "=", "!=", "<", ">", "<=", ">=", ">>>", "if", "seq", "block", "tuple", "add", "sub", "mul", "div", "mod", "and", "or", "eq", "neq", "lt", "gt", "le", "ge", "raw_syscall", "raw_syscall6", "delay", "force", "string_ptr", "raw_alloc", "raw_free", "target_os", "let", "peek_byte", "poke_byte", "memset", "string_length", "string_concat", "int_to_string", "handle_rec", "__handle_rec_k", "add_task", "schedule", "yield", "task_state", "mpst_trace", "peek_int64", "poke_int64", "string_of_bytes", "@budget_left", "@class_count", "@instance_count", "@resolve_instance", "@dispatch_instance", "band", "bor", "shl", "shr", "unit", "Unit", "@prompt_depth", "@prompt_current", "@prompt", "@throw", "@net_listen", "@net_accept", "@net_read", "@net_write", "@net_close", "@net_socket", "@net_connect", "@net_socket_udp", "@net_sendto", "@net_recvfrom", "@net_set_timeout", "@net_http_respond", "@fs_read", "@egraph_snapshot", "cap_acquire", "@go", "@store_node_count", "@store_node_tag", "@store_node_payload", "@store_node_aux", "@store_interner_resolve", "@char_string", "@arm_preempt", "@disarm_preempt", "@set_fuel", "@exiting", "@clear_thunks", "@store_stats", "@spawn", "@broadcast", "@runtime_stats", "@process_count", "@process_mem", "@sleep_ms", "@tls_connect", "@tls_read", "@tls_write", "@tls_close", "@hole", "@is_hole", "@assert_no_hole", "integrate", "solve", "expand" };
     inline for (magics) |m| {
         if (std.mem.eql(u8, name, m)) return true;
     }
@@ -2484,6 +2500,24 @@ fn evalMagic(store: *Store, env: *Env, engine: *Engine, op: []const u8, args: []
         const expr_str = try expr.toString(store, args_snap[0], engine.allocator);
         defer engine.allocator.free(expr_str);
         return try engine.vtable.deriveId(engine.heaven_ctx, expr_str, "x");
+    }
+    if (std.mem.eql(u8, op, "integrate")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const expr_str = try expr.toString(store, args_snap[0], engine.allocator);
+        defer engine.allocator.free(expr_str);
+        return try engine.vtable.integrateId(engine.heaven_ctx, expr_str, "x");
+    }
+    if (std.mem.eql(u8, op, "solve")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const expr_str = try expr.toString(store, args_snap[0], engine.allocator);
+        defer engine.allocator.free(expr_str);
+        return try engine.vtable.solveId(engine.heaven_ctx, expr_str, "x");
+    }
+    if (std.mem.eql(u8, op, "expand")) {
+        if (args_snap.len != 1) return error.ArityMismatch;
+        const expr_str = try expr.toString(store, args_snap[0], engine.allocator);
+        defer engine.allocator.free(expr_str);
+        return try engine.vtable.expandId(engine.heaven_ctx, expr_str);
     }
     if (std.mem.eql(u8, op, "simplify")) {
         if (args_snap.len != 1) {

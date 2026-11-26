@@ -315,3 +315,29 @@ Ce qui est planifié :
 ## Licence
 
 Apache 2.0
+
+## Magic operations — expand / integrate / solve
+
+Trois *magics* d'algèbre symbolique sont exposés dans le shell, le REPL
+(via --eval-file) et les tests :
+
+    expand(<expr>)     -> develope un polynôme    ex: expand((x+1)^2)
+    integrate(<expr>)  -> primitive en x          ex: integrate(x^2)
+    solve(<expr>)      -> racines du polynôme     ex: solve(x^2 - 4)
+
+Câblage :
+
+- vtable — integrateId, solveId, expandId dans src/core/engine_expr.zig
+  (stubs testIntegrate / testSolve / testExpand pour garder
+  testHeavenVTable complet).
+- backend — integrateIdHeavenExpr / solveIdHeavenExpr / expandIdHeavenExpr
+  dans src/core/heaven_expr.zig : wrappent Heaven.integrate / solve / expand,
+  strippent le suffixe " + C" (integrate), puis parseExpression du résultat.
+- shell — cmdExpand / cmdIntegrate / cmdSolve dans
+  src/runtime/shell/commands.zig : appellent le backend, re-parsent,
+  formatent en infix (store.formatInfix).
+
+Test manuel :
+
+    echo 'expand((x+1)^2)' | heaven --eval-file /dev/stdin
+    # -> (+ (+ (^ x 2) (* 2 x)) 1)

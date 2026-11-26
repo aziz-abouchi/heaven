@@ -335,6 +335,9 @@ pub const Heaven = struct {
         const heaven_vtable = engine_expr.HeavenVTable{
             .parse = parseHeavenExpr,
             .deriveId = deriveIdHeavenExpr,
+            .integrateId = integrateIdHeavenExpr,
+            .solveId = solveIdHeavenExpr,
+            .expandId = expandIdHeavenExpr,
             .simplify = simplifyHeavenExpr,
             .kanren_query = kanrenQueryHeavenExpr,
             .prolog_fact = prologFactHeavenExpr,
@@ -4676,6 +4679,46 @@ fn parseHeavenExpr(ctx: *anyopaque, input: []const u8) engine_expr.EvalError!exp
 fn deriveIdHeavenExpr(ctx: *anyopaque, input: []const u8, var_name: []const u8) engine_expr.EvalError!expr.Id {
     const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));
     return heaven.deriveToId(input, var_name) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.TypeError,
+    };
+}
+
+fn integrateIdHeavenExpr(ctx: *anyopaque, input: []const u8, var_name: []const u8) engine_expr.EvalError!expr.Id {
+    const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));
+    const s = heaven.integrate(input, var_name) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.TypeError,
+    };
+    defer heaven.allocator.free(s);
+    const trimmed = if (std.mem.endsWith(u8, s, " + C")) s[0 .. s.len - 4] else s;
+    return heaven.parseExpression(trimmed) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.TypeError,
+    };
+}
+
+fn solveIdHeavenExpr(ctx: *anyopaque, input: []const u8, var_name: []const u8) engine_expr.EvalError!expr.Id {
+    const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));
+    const s = heaven.solve(input, var_name) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.TypeError,
+    };
+    defer heaven.allocator.free(s);
+    return heaven.parseExpression(s) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.TypeError,
+    };
+}
+
+fn expandIdHeavenExpr(ctx: *anyopaque, input: []const u8) engine_expr.EvalError!expr.Id {
+    const heaven = @as(*Heaven, @ptrCast(@alignCast(ctx)));
+    const s = heaven.expand(input) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.TypeError,
+    };
+    defer heaven.allocator.free(s);
+    return heaven.parseExpression(s) catch |err| switch (err) {
         error.OutOfMemory => return error.OutOfMemory,
         else => return error.TypeError,
     };
