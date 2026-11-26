@@ -142,6 +142,25 @@ sont valables mais non bloquants.
 
 ---
 
+### Piste memoire (apres B3) — a evaluer, pas engagee (2026-11-26)
+
+Inspiration : [Goose](https://github.com/aardappel/goose/wiki) (Aardappel) :
+pas de tas ni de GC, valeurs inline sur des piles de donnees gerees par le
+compilateur, liberation en fin de portee, « racine » inferee par reference,
+references etroites (offsets 1/2/4 octets), pools a freelist. Chiffres de
+performance annonces par le projet (non verifies ici).
+- Transposable : inference de regions dans le MIR (lien avec `consume`/`reuse`
+  et la linearite QTT) ; liberation en bloc ; pools pour `cons`/`pair`.
+  Motivation mesuree : WAT `raw_free` est un no-op (allocateur bump jamais
+  recupere) ; QBE : fuite si le programme n'appelle pas `raw_free`.
+- Layout compact (champs 4 octets) : change la disposition ADT partagee QBE/WAT
+  et la regle « pointeur <=> valeur >= 4096 » : chantier a part.
+- Non transposable tel quel : Goose exclut closures et valeurs extensibles a
+  travers un appel recursif ; Heaven a lambdas et listes immuables partagees
+  (hybride regions + autre mecanisme = recherche).
+- Decision : attendre les mesures de B1/B2 (parseur et evaluateur auto-heberges)
+  avant de choisir ; ecrire alors une note de conception MIR.
+
 ## Specs plus anciennes (v0/v1 fermes, v2+ ouvertes)
 
 
