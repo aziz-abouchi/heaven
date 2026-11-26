@@ -177,3 +177,15 @@ requête.
   à des dimensions physiques (hors scope V0).
 - **ABI C** : mentionnée dans le book, absente du code
   (remplacée par `@nom` + `raw_syscall`).
+
+
+## TODO — Perf mémoire : s'inspirer de Goose
+
+> Piste ouverte par 35488c1 (T13-T15). Objectif : performances Heaven.
+> Statut : TODO non engagé — horizon perf, après Phase A.
+
+- [ ] Lire la gestion mémoire de Goose ; lister les techniques réellement transposables
+      (stratégies d'allocation, réutilisation, lifetimes, arenas — à confirmer par lecture, pas par supposition).
+- [ ] Baseline mesurée : pic ~2,0 Go sur la suite 98 tests incl. tco_deep
+      (binaire Debug, 2026-11-24) ; profiler allocs Store/MIR/EGraph avant toute optimisation.
+- [ ] Contraintes : ne pas casser QTT (linéarité), leak check A4, 98/98 + tests diff verts.
