@@ -1,1 +1,3 @@
-(let f (lambda x (+ x 1)) (f 41))
+-- A2a : closure avec capture de variable libre (infix canonique)
+-- Interp : 42 (mesure). QBE : a implementer (closures MIR).
+let n = 1 in let f = (lambda x (x + n)) in (f 41)
