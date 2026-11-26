@@ -482,3 +482,16 @@ Known bugs (in math module, not wrapper):
 
 These are pre-existing math bugs, surfaced by making :integrate a
 first-class primitive. Not introduced by this session.
+
+
+## Session 2026-11-26 — vérifications
+
+> Mesures réelles, pas des affirmations. HEAD 63113a1.
+
+- Diff interp/QBE/wasmtime : **32/32 OK** (`tests/diff/run.sh`), dont 21-nested_deep (motifs imbriqués 2 niveaux).
+- Zig : `zig build test` vert. Core : **98/98** (`core/test_suite.hvn`).
+- A1 clone neuf : `/tmp/heaven-main` @ 35488c1, `build.sh` + tests verts (2026-11-26). Pins : QBE 1.2 tarball cache tracké, TCC `0fb5430`.
+- Bug WAT `__raw_alloc` (mismatch i64/i32) : **corrigé** à ≥35488c1 (`__bump` i32 + wrap/extend ; `__strcat` ne passe plus i32 à `__raw_alloc`). Les échecs 24/32/33 observés plus tôt venaient d'un exe périmé, pas du code.
+- Stub IA `_a1_qbe_integration.md` (pipeline QBE→C inventé) : **supprimé** (2ed7d00).
+- TODO perf mémoire Goose : enregistré dans `_memory.md` + renvoi ROADMAP:147-158 (Goose exclut closures → non transposable tel quel).
+- **Gaps MIR ouverts** (précompile ; non bloquants pour les diff, bloquants self-hosting) : `raw_syscall6`, `poke_int64`, `force` (UnsupportedExpr), `smap_e_val` (UnsupportedOp).
