@@ -183,6 +183,7 @@ requête.
 
 > Piste ouverte par 35488c1 (T13-T15). Objectif : performances Heaven.
 > Statut : TODO non engagé — horizon perf, après Phase A.
+> Voir aussi docs/ROADMAP.md:147-158 — analyse existante : Goose exclut closures et valeurs extensibles, non transposable tel quel.
 
 - [ ] Lire la gestion mémoire de Goose ; lister les techniques réellement transposables
       (stratégies d'allocation, réutilisation, lifetimes, arenas — à confirmer par lecture, pas par supposition).
