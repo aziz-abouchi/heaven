@@ -495,3 +495,11 @@ first-class primitive. Not introduced by this session.
 - Stub IA `_a1_qbe_integration.md` (pipeline QBE→C inventé) : **supprimé** (2ed7d00).
 - TODO perf mémoire Goose : enregistré dans `_memory.md` + renvoi ROADMAP:147-158 (Goose exclut closures → non transposable tel quel).
 - **Gaps MIR ouverts** (précompile ; non bloquants pour les diff, bloquants self-hosting) : `raw_syscall6`, `poke_int64`, `force` (UnsupportedExpr), `smap_e_val` (UnsupportedOp).
+
+
+## Session 2026-11-26 — A2 réconcilié (infix d'abord)
+
+- **A2b pair : FAIT** — `(+ (fst (pair 1 2)) (snd (pair 3 4)))` = 5 en interp ET QBE (mesuré).
+- **A2c string QBE : FAIT** — diff 27-str-concat / 29-substring verts.
+- Roadmap Session 48 périmé sur A2b/A2c. Le « bug let-chain » concerne la forme préfixe legacy `(let f (lambda …) …)` ; **on privilégie l'infix**, ce n'est pas le chemin canonique.
+- Cible A2a restante : `tests/diff/10-closure.hvn.skip` (closures), à traiter en infix.
