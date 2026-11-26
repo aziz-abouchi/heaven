@@ -3,6 +3,21 @@ const expr_mod = @import("expr");
 const engine_mod = @import("engine_expr");
 const mir_mod = @import("../mir.zig");
 
+const builtin = @import("builtin");
+const platform = @import("platform");
+const is_freestanding = builtin.target.os.tag == .freestanding;
+
+inline fn debugPrint(comptime fmt: []const u8, args: anytype) void {
+    if (comptime is_freestanding) return;
+    platform.debug.print(fmt, args);
+}
+
+inline fn tracePrint(comptime fmt: []const u8, args: anytype) void {
+    if (comptime is_freestanding) return;
+    if (platform.getenv("HEAVEN_DEBUG") == null) return;
+    platform.debug.print(fmt, args);
+}
+
 const Sym = expr_mod.Sym;
 const Store = expr_mod.Store;
 const Id = mir_mod.Id;
@@ -132,7 +147,7 @@ pub fn precompileUserFns(self: *MirFunction) !void {
             self.desugarClauses(store, &fn_def_user)
         else
             store.lowerRec(clause.body)) catch |err| {
-            std.debug.print(
+            debugPrint(
                 "[MIR precompile] lowerRec failed: {s}: {s}\\n",
                 .{ name_str, @errorName(err) },
             );
@@ -146,7 +161,7 @@ pub fn precompileUserFns(self: *MirFunction) !void {
         };
         var blk_zero: BlockId = 0;
         const result = def.fn_mir.compileExpr(store, lowered_body, &blk_zero, locals) catch |err| {
-            std.debug.print(
+            debugPrint(
                 "[MIR precompile] compileExpr failed: {s}: {s}\\n",
                 .{ name_str, @errorName(err) },
             );
@@ -457,6 +472,24 @@ pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: *Blo
             }
             if ((std.mem.eql(u8, op_name, "^") or std.mem.eql(u8, op_name, "pow")) and args.len == 2) {
                 return try self.compilePow(store, args[0], args[1], target_block.*, locals);
+            }
+
+            // Support des lambdas inline parsées comme symboles "λ" ou "lambda"
+            // Format typique : (λ param_names body) ou (λ param type body)
+            if (std.mem.eql(u8, op_name, "λ") or std.mem.eql(u8, op_name, "lambda")) {
+                if (platform.getenv("HEAVEN_DEBUG") != null) {
+                    tracePrint("[MIR] Lambda inline detected, argc={d}\n", .{args.len});
+                    for (args, 0..) |arg_id, i| {
+                        const arg_node = store.get(arg_id);
+                        tracePrint("[MIR]   arg[{d}] tag={s}\n", .{ i, @tagName(arg_node.tag) });
+                    }
+                }
+                // Pour l'instant, on compile juste le corps (args[1] typiquement)
+                // La gestion complète des closures est la priorité A2 de la roadmap
+                if (args.len >= 2) {
+                    return try self.compileExpr(store, args[1], target_block, locals);
+                }
+                return error.UnsupportedExpr;
             }
 
             // 2026-10-30 : builtins heap (pair, fst, snd, cons, head, tail)
@@ -778,11 +811,11 @@ pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: *Blo
                 try self.blocks.items[target_block.*].instrs.append(self.allocator, op);
                 return dest;
             }
-            if (std.posix.getenv("HEAVEN_DEBUG") != null) std.debug.print("[MIR] UnsupportedExpr call op={s} argc={d}\n", .{ op_name, args.len });
+            if (platform.getenv("HEAVEN_DEBUG") != null) tracePrint("[MIR] UnsupportedExpr call op={s} argc={d}\n", .{ op_name, args.len });
             return error.UnsupportedExpr;
         },
         else => {
-            if (std.posix.getenv("HEAVEN_DEBUG") != null) std.debug.print("[MIR] UnsupportedExpr other expr\n", .{});
+            if (platform.getenv("HEAVEN_DEBUG") != null) tracePrint("[MIR] UnsupportedExpr other expr tag={d} ({s}), id={d}\n", .{ @intFromEnum(node.tag), @tagName(node.tag), id });
             return error.UnsupportedExpr;
         },
     }

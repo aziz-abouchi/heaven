@@ -567,6 +567,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "expr", .module = expr_mod },
             .{ .name = "engine_expr", .module = engine_expr_mod },
+            .{ .name = "platform", .module = platform_mod },
         },
     });
 

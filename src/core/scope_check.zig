@@ -8,6 +8,15 @@ const std = @import("std");
 const expr = @import("expr");
 const engine_expr = @import("engine_expr");
 
+const builtin = @import("builtin");
+const platform = @import("platform");
+const is_freestanding = builtin.target.os.tag == .freestanding;
+
+inline fn debugPrint(comptime fmt: []const u8, args: anytype) void {
+    if (comptime is_freestanding) return;
+    platform.debug.print(fmt, args);
+}
+
 pub const Kind = enum { arity, apply_non_function };
 
 pub const Diagnostic = struct {
@@ -36,11 +45,11 @@ pub const Diags = struct {
     pub fn print(self: *const Diags, file_path: []const u8) void {
         for (self.items.items) |d| {
             switch (d.kind) {
-                .arity => std.debug.print(
+                .arity => debugPrint(
                     "{s}: arity mismatch '{s}': expected {d}, found {d}\n",
                     .{ file_path, d.name, d.expected, d.found },
                 ),
-                .apply_non_function => std.debug.print(
+                .apply_non_function => debugPrint(
                     "{s}: applying non-function '{s}' (looks like a literal)\n",
                     .{ file_path, d.name },
                 ),
@@ -244,7 +253,7 @@ fn walkRefsV2(
             if (name.len == 0) return;
             if (defined.contains(name)) return;
             if (isFilteredV2(name)) return;
-            std.debug.print(
+            debugPrint(
                 "{s}: error: unbound variable '{s}'\n",
                 .{ file_path, name },
             );
