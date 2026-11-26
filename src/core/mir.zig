@@ -1,3 +1,4 @@
+const MAX_PATTERN_DEPTH = 8;
 const std = @import("std");
 const expr_mod = @import("expr");
 const engine_mod = @import("engine_expr");

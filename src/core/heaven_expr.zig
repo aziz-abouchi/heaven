@@ -1,4 +1,5 @@
 //! Frontend Heaven - intégration du moteur de simplification EGraph
+pub const MAX_PATTERN_DEPTH = 8;
 const std = @import("std");
 const _is_freestanding: bool = @import("builtin").target.os.tag == .freestanding;
 
