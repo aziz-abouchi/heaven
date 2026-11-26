@@ -8,6 +8,7 @@ Chantier en cours (STATUS item 8).
 - `heaven.md` — la spec proprement dite (Phase 2, à venir).
 - `grammar.ebnf` — EBNF pure (Phase 2, à venir).
 - `errors.md` — catalogue des erreurs (Phase 2, à venir).
+- `_magics.md` — magics d'algebre symbolique (expand/integrate/solve). Livre `b615f69`.
 
 ## Conventions et style
 
@@ -30,8 +31,9 @@ Chantier en cours (STATUS item 8).
 - `_heaven_prove_kernel_bug.md` — `Heaven.evalProve` retourne
   `Ok("Usage: …")` sur input invalide, panic sur tactics block.
   Contournement : `heaven_prove` limité à `a == b`.
-- `_integrate_bug.md` — `Heaven.integrate("x^2")` retourne
-  `(* x^2 x) + C` au lieu de `x^3/3 + C`. Marqué EXPERIMENTAL.
+- ~~`_integrate_bug.md`~~ — ~~`Heaven.integrate("x^2")` retourne
+  `(* x^2 x) + C` au lieu de `x^3/3 + C`. Marqué EXPERIMENTAL.~~
+  **Résolu** (commit `b615f69`, 2026-11-26). Voir `_integrate_bug.md`.
 - `_tool_audit_2026-11-09.md` — audit des 16 outils MCP : 6 stables,
   3 faux, 1 crash, 1 suspect, 5 invisibles via `heaven mcp`.
   `egraph_query` et `heaven_expand` désactivés (`3f878fc`).

@@ -3,7 +3,7 @@
 > **⚠ BÊTA** — Ce livre est en cours d'écriture. Il remplace progressivement
 > le livre v1. Les sections « cible » sont marquées comme telles.
 >
-> **Heaven v0.1.0** — État au 2026-11-10 (nuit). **31 chapitres v2**, ~10 750 lignes.
+> **Heaven v0.1.0** — État au 2026-11-10 (nuit). **32 chapitres v2**, ~10 750 lignes.
 > Voir `docs/spec/_runtime_gaps.md` pour l'état réel du runtime, et
 > l'annexe G (en bas de ce sommaire) pour les pièges.
 
@@ -46,6 +46,7 @@
 - [Chapitre 26 — Outils : Heaven parle à lui-même](26-outils.md)
 - [Chapitre 27 — Selfhost : la preuve de concept, pas le compilateur](27-selfhost.md)
 - [Chapitre 28 — `heaven_eval` : un interpréteur en 96 lignes](28-eval.md)
+- [Chapitre 28b — Algèbre symbolique : expand, integrate, solve](28b-magics.md)
 - [Chapitre 29 — Mémoire : QTT, multiplicités enforced](29-memoire.md)
 - [Chapitre 30 — Conclusion : un langage qui tend](30-conclusion.md)
 - [Chapitre 31 — SICP, quarante ans plus tard](31-sicp.md)

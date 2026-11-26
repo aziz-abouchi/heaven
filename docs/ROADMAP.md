@@ -81,7 +81,9 @@ faire en priorité, quelle que soit la décision.
 ### Ce qui n'est pas prioritaire avant Phase A+B
 
 - **D9 Vessel** — produit, pas langage.
-- **`heaven_integrate` / `heaven_solve`** — EXPERIMENTAL, resultats faux.
+- ~~**`heaven_integrate` / `heaven_solve`** — EXPERIMENTAL, resultats faux.~~
+  **Resolu** (commit `b615f69`, 2026-11-26) : `integrate(x^2)` -> `x^3/3`,
+  `solve(x^2-4)` -> racines `2` et `-2`. Voir `_integrate_bug.md`.
 - **UTCP v1** — 3e interface, apres Phase A stable.
 - **Grammaire tree-sitter** — **necessaire pour B1**. A traiter
   *pendant* B1 (design, pas "puits"). Les cas contextuels restants
@@ -131,8 +133,8 @@ auto-hebergement avant interface et produit.
 6. **C3 preemptif** — infrastructure en place, tests a completer.
 7. **`test_selfparse.hvn`** (4/5) — bug parser Heaven-en-Heaven.
 8. **D9 Vessel** — decouplage et absorption stack HTTP (produit).
-9. **`heaven_integrate` / `heaven_solve`** — EXPERIMENTAL, sessions
-   separees par outil.
+9. **~~`heaven_integrate` / `heaven_solve`~~** — **Resolu** (commit
+   `b615f69`, 2026-11-26). Voir `_integrate_bug.md` et `_magics.md`.
 10. **UTCP v1** — apres Phase A stable.
 11. **Audit `Store.getInt`** (30 min).
 12. **Panic DebugAllocator** (session a froid).
