@@ -694,6 +694,58 @@ pub const MirFunction = struct {
         return true;
     }
 
+    /// Enveloppe `target` des liaisons des variables de champs (ctor, y compris
+    /// imbrique) de la clause `c`. Utilise pour le corps ET pour la garde : une
+    /// garde qui mentionne une variable de champ doit la voir liee (sinon valeur
+    /// inventee). Les chargements ne s'evaluent qu'apres les tests pointeur/tag.
+    fn wrapFieldBinds(self: *MirFunction, store: *Store, c: anytype, target_in: Id) !Id {
+        var target = target_in;
+        var pi_field: usize = c.num_patterns;
+        while (pi_field > 0) {
+            pi_field -= 1;
+            const nc = self.naryCtorPattern(store, c.patterns[pi_field]) orelse continue;
+            const psym = try multiParamSym(store, pi_field);
+            var fi: usize = nc.len;
+            while (fi > 0) {
+                fi -= 1;
+                const sub = nc.args[fi];
+                const arg = try store.sym(store.interner.resolve(psym));
+                const off_id = try store.int(@intCast((fi + 1) * 8));
+                const load_expr = try store.apply(try store.sym("__mir_load_at"), &.{ arg, off_id });
+                if (self.naryCtorPattern(store, sub)) |sub_nc| {
+                    var sfi: usize = sub_nc.len;
+                    while (sfi > 0) {
+                        sfi -= 1;
+                        const ssub = sub_nc.args[sfi];
+                        if (!self.isVarPattern(store, ssub)) continue;
+                        if (store.get(ssub).tag != .sym) continue;
+                        const sfname = store.interner.resolve(store.get(ssub).payload);
+                        if (std.mem.eql(u8, sfname, "_")) continue;
+                        const sub_arg = try store.sym(store.interner.resolve(psym));
+                        const sub_off_id = try store.int(@intCast((fi + 1) * 8));
+                        const sub_ptr = try store.apply(try store.sym("__mir_load_at"), &.{ sub_arg, sub_off_id });
+                        const soff_id = try store.int(@intCast((sfi + 1) * 8));
+                        const sload_expr = try store.apply(try store.sym("__mir_load_at"), &.{ sub_ptr, soff_id });
+                        const sb = try store.bind(sfname, sload_expr);
+                        const sbn = store.get(sb);
+                        store.pool.items[sbn.span_a.start + 1] = target;
+                        target = sb;
+                    }
+                    continue;
+                }
+                if (!self.isVarPattern(store, sub)) continue;
+                if (store.get(sub).tag != .sym) continue;
+                const fname = store.interner.resolve(store.get(sub).payload);
+                if (std.mem.eql(u8, fname, "_")) continue;
+                const b = try store.bind(fname, load_expr);
+                const bn = store.get(b);
+                store.pool.items[bn.span_a.start + 1] = target;
+                target = b;
+            }
+        }
+        return target;
+    }
+
     /// Desugare les clauses en une expression Core :
     ///   let vars in (if (tests_et_garde) body1 (if ...))
     pub fn desugarClauses(self: *MirFunction, store: *Store, def: *const engine_mod.FunctionDef) !Id {
@@ -708,51 +760,7 @@ pub const MirFunction = struct {
         while (ci > 0) {
             ci -= 1;
             const c = def.clauses[ci];
-            var inner_body = try store.lowerRec(c.body);
-
-            var pi_field: usize = c.num_patterns;
-            while (pi_field > 0) {
-                pi_field -= 1;
-                const nc = self.naryCtorPattern(store, c.patterns[pi_field]) orelse continue;
-                const psym = try multiParamSym(store, pi_field);
-                var fi: usize = nc.len;
-                while (fi > 0) {
-                    fi -= 1;
-                    const sub = nc.args[fi];
-                    const arg = try store.sym(store.interner.resolve(psym));
-                    const off_id = try store.int(@intCast((fi + 1) * 8));
-                    const load_expr = try store.apply(try store.sym("__mir_load_at"), &.{ arg, off_id });
-                    if (self.naryCtorPattern(store, sub)) |sub_nc| {
-                        var sfi: usize = sub_nc.len;
-                        while (sfi > 0) {
-                            sfi -= 1;
-                            const ssub = sub_nc.args[sfi];
-                            if (!self.isVarPattern(store, ssub)) continue;
-                            if (store.get(ssub).tag != .sym) continue;
-                            const sfname = store.interner.resolve(store.get(ssub).payload);
-                            if (std.mem.eql(u8, sfname, "_")) continue;
-                            const sub_arg = try store.sym(store.interner.resolve(psym));
-                            const sub_off_id = try store.int(@intCast((fi + 1) * 8));
-                            const sub_ptr = try store.apply(try store.sym("__mir_load_at"), &.{ sub_arg, sub_off_id });
-                            const soff_id = try store.int(@intCast((sfi + 1) * 8));
-                            const sload_expr = try store.apply(try store.sym("__mir_load_at"), &.{ sub_ptr, soff_id });
-                            const sb = try store.bind(sfname, sload_expr);
-                            const sbn = store.get(sb);
-                            store.pool.items[sbn.span_a.start + 1] = inner_body;
-                            inner_body = sb;
-                        }
-                        continue;
-                    }
-                    if (!self.isVarPattern(store, sub)) continue;
-                    if (store.get(sub).tag != .sym) continue;
-                    const fname = store.interner.resolve(store.get(sub).payload);
-                    if (std.mem.eql(u8, fname, "_")) continue;
-                    const b = try store.bind(fname, load_expr);
-                    const bn = store.get(b);
-                    store.pool.items[bn.span_a.start + 1] = inner_body;
-                    inner_body = b;
-                }
-            }
+            var inner_body = try self.wrapFieldBinds(store, c, try store.lowerRec(c.body));
 
             // Une seule condition 0/1 par clause (tests imbriques qui rendent 0
             // ou 1) et UN SEUL `(if cond corps reste)` : `result` (le reste de
@@ -803,7 +811,7 @@ pub const MirFunction = struct {
             }
 
             var test_cond: ?Id = null;
-            if (c.guard) |g| test_cond = try store.lowerRec(g);
+            if (c.guard) |g| test_cond = try self.wrapFieldBinds(store, c, try store.lowerRec(g));
             var si: usize = stages.items.len;
             while (si > 0) {
                 si -= 1;

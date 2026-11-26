@@ -143,7 +143,7 @@ test "precompileUserFns — motif constructeur exclu de fn_defs" {
     try std.testing.expect(!mf.fn_defs.contains(key_sym));
 }
 
-test "precompileUserFns — multi-clause avec garde exclue (soundness)" {
+test "precompileUserFns — multi-clause avec garde compilee (gardes + motifs combines)" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
@@ -167,7 +167,9 @@ test "precompileUserFns — multi-clause avec garde exclue (soundness)" {
 
     try mf.precompileUserFns();
 
-    try std.testing.expect(!mf.fn_defs.contains(key_sym));
+    // desugarClauses combine motifs et garde (tests/diff/18, 24, sonde g1-g9) :
+    // la fonction est precompilee, plus exclue.
+    try std.testing.expect(mf.fn_defs.contains(key_sym));
 }
 
 test "evalFunction — gardes vraies et fausses (interpréteur)" {
@@ -199,16 +201,13 @@ test "evalFunction — gardes vraies et fausses (interpréteur)" {
     try false_fd.addClause(&.{try store.sym("n")}, try store.int(20));
     try engine.fns.put(alloc, false_name, false_fd);
 
-    // Les deux fonctions gardées doivent rester hors du MIR précompilé.
+    // Les fonctions gardées sont précompilées (garde combinée aux motifs).
     var mf = mir.MirFunction.initWithStore(alloc, &store);
     defer mf.deinit();
     mf.engine = &engine;
     try mf.precompileUserFns();
 
-    try std.testing.expect(!mf.fn_defs.contains(true_sym));
-    try std.testing.expect(!mf.fn_defs.contains(false_sym));
-
-    // L'interpréteur doit néanmoins les exécuter correctement.
+    // Précompilation sans effet sur l'interpréteur : résultats inchangés.
     const true_result = try engine.evalFunction(env, true_name, &.{arg});
     const true_node = store.get(true_result);
     try std.testing.expectEqual(expr.Tag.lit, true_node.tag);

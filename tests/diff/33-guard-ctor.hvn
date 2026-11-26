@@ -1,0 +1,8 @@
+data T = E | L x | N l r
+f (N (L a) (L b)) | a > b = a
+f (N (L a) (L b)) = b
+f (L n) | n > 3 = n + 100
+f (L n) = 2
+f E = 0
+f x = 55
+(+ (+ (+ (f (N (L 9) (L 2))) (f (N (L 1) (L 4)))) (+ (f E) (f (L 5)))) (+ (f (L 1)) (f (N E E))))
