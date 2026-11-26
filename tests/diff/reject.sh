@@ -29,5 +29,7 @@ check_dies() {  # nom source
 check_dies nocatch       $'g 0 = 1\ng 1 = 2\n(g 5)'
 check_dies nocatch2      $'g 0 a = 1\ng 1 a = 2\n(g 5 0)'
 check_dies guard_nocatch $'h n | n > 0 = 1\nh n | n < 0 = 2\n(h 0)'
-check nested_ctor   $'data L = Nil | Cons x xs\nlen (Cons (Cons _ _) r) = 1 + len r\nlen _ = 0\n(len (Cons Nil Nil))'
+# Motifs imbriques : profondeur 2 compilee (tests/diff/32-nested-ctor.hvn) ;
+# profondeur 3 non geree -> doit etre REJETE (jamais ignore silencieusement).
+check nested_ctor3  $'data T = E | L x | N l r\nf (N (N (L 0) b) r) = 9\nf (N l r) = 1\nf (L n) = n\nf E = 0\n(f (N (N (L 0) E) E))'
 echo "reject: $fail echec(s)"; exit $fail

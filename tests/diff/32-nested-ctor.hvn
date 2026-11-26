@@ -1,0 +1,8 @@
+data T = E | L x | N l r
+f (N (L 0) (L 1)) = 100
+f (N (N a b) (L 9)) = a + b + 1000
+f (N (L a) (L b)) = a + b + 10
+f (N l r) = 1
+f (L n) = n
+f E = 0
+(+ (+ (+ (f E) (f (N E E))) (+ (f (N (L 0) (L 1))) (f (N (L 5) (L 6))))) (+ (f (N (N 3 4) (L 9))) (f (N (L 0) E))))

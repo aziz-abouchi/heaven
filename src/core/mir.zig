@@ -644,6 +644,14 @@ pub const MirFunction = struct {
     }
 
     fn naryCtorPattern(self: *MirFunction, store: *Store, pat_id: Id) ?NaryCtorPat {
+        return self.naryCtorPatternAt(store, pat_id, true);
+    }
+
+    /// `allow_nested` : un ctor de premier niveau accepte des sous-motifs
+    /// ctor, eux-memes plats (variables / litteraux seulement). Profondeur
+    /// max 2 : desugarClauses ne sait pas tester/lier plus profond, et un
+    /// niveau ignore donnerait une valeur inventee.
+    fn naryCtorPatternAt(self: *MirFunction, store: *Store, pat_id: Id, allow_nested: bool) ?NaryCtorPat {
         var args_buf: [8]Id = undefined;
         const unwound = unwindCurriedApply(store, pat_id, &args_buf) orelse return null;
         const cname = store.interner.resolve(unwound.head_sym);
@@ -657,7 +665,7 @@ pub const MirFunction = struct {
             const sub = args_buf[i];
             if (self.isVarPattern(store, sub)) continue;
             if ((self.scalarPatternLit(store, sub) catch null) != null) continue;
-            if (self.naryCtorPattern(store, sub) != null) continue;
+            if (allow_nested and self.naryCtorPatternAt(store, sub, false) != null) continue;
             return null;
         }
         return .{ .tag = tag, .args = args_buf, .len = unwound.len };
@@ -754,80 +762,52 @@ pub const MirFunction = struct {
             // Ordre d'evaluation (inchange) : scalaires -> pointeur -> tag -> garde.
             const one = try store.int(1);
             const zero = try store.int(0);
-            var test_cond: ?Id = null;
+            // Etapes de test, dans l'ordre d'evaluation. Chaque chargement
+            // memoire suit la verification pointeur + tag de son proprietaire
+            // (un ctor nullaire est un immediat < 4096 : le charger = crash).
+            //   1. scalaires de premier niveau ; 2. par ctor : pointeur, tag,
+            //   puis champs (ctor imbrique : pointeur, tag, champs scalaires ;
+            //   champ scalaire : test) ; 3. garde.
+            var stages: std.ArrayListUnmanaged(Id) = .{};
+            defer stages.deinit(self.allocator);
 
-            if (c.guard) |g| {
-                if (!have_result) return error.UnsupportedExpr;
-                test_cond = try store.lowerRec(g);
-            }
-
-            var pi_tag: usize = c.num_patterns;
-            while (pi_tag > 0) {
-                pi_tag -= 1;
-                const nc = self.naryCtorPattern(store, c.patterns[pi_tag]) orelse continue;
-                if (!have_result) return error.UnsupportedExpr;
-                const psym = try multiParamSym(store, pi_tag);
-                const arg_tag = try store.sym(store.interner.resolve(psym));
-                const zero_off = try store.int(0);
-                const loaded_tag = try store.apply(try store.sym("__mir_load_at"), &.{ arg_tag, zero_off });
-                const expected_tag = try store.int(@intCast(nc.tag));
-                const tag_eq = try store.binop("=", loaded_tag, expected_tag);
-                test_cond = try store.apply(try store.sym("if"), &.{ tag_eq, test_cond orelse one, zero });
-                for (0..nc.len) |fi| {
-                    if (self.naryCtorPattern(store, nc.args[fi])) |sub_nc| {
-                        const s_arg = try store.sym(store.interner.resolve(psym));
-                        const s_off = try store.int(@intCast((fi + 1) * 8));
-                        const s_ptr = try store.apply(try store.sym("__mir_load_at"), &.{ s_arg, s_off });
-                        const s_tag = try store.apply(try store.sym("__mir_load_at"), &.{ s_ptr, try store.int(0) });
-                        const s_eq = try store.binop("=", s_tag, try store.int(@intCast(sub_nc.tag)));
-                        test_cond = try store.apply(try store.sym("if"), &.{ s_eq, test_cond orelse one, zero });
-                    }
-                }
-            }
-
-            var pi_ptr: usize = c.num_patterns;
-            while (pi_ptr > 0) {
-                pi_ptr -= 1;
-                const nc = self.naryCtorPattern(store, c.patterns[pi_ptr]) orelse continue;
-                if (!have_result) return error.UnsupportedExpr;
-                const psym = try multiParamSym(store, pi_ptr);
-                const arg_ptr = try store.sym(store.interner.resolve(psym));
-                const min_ptr = try store.int(4096);
-                const is_ptr = try store.binop(">=", arg_ptr, min_ptr);
-                test_cond = try store.apply(try store.sym("if"), &.{ is_ptr, test_cond orelse one, zero });
-                for (0..nc.len) |fi| {
-                    if (self.naryCtorPattern(store, nc.args[fi]) != null) {
-                        const s_arg = try store.sym(store.interner.resolve(psym));
-                        const s_off = try store.int(@intCast((fi + 1) * 8));
-                        const s_ptr = try store.apply(try store.sym("__mir_load_at"), &.{ s_arg, s_off });
-                        const s_is_ptr = try store.binop(">=", s_ptr, try store.int(4096));
-                        test_cond = try store.apply(try store.sym("if"), &.{ s_is_ptr, test_cond orelse one, zero });
-                    }
-                }
-            }
-
-            var cond: ?Id = null;
             for (0..c.num_patterns) |i| {
+                const lp = (try self.scalarPatternLit(store, c.patterns[i])) orelse continue;
+                const arg = try store.sym(store.interner.resolve(try multiParamSym(store, i)));
+                try stages.append(self.allocator, try patternTest(store, arg, lp));
+            }
+
+            for (0..c.num_patterns) |i| {
+                const nc = self.naryCtorPattern(store, c.patterns[i]) orelse continue;
                 const psym = try multiParamSym(store, i);
-                if (try self.scalarPatternLit(store, c.patterns[i])) |lp| {
-                    const arg = try store.sym(store.interner.resolve(psym));
-                    const t = try patternTest(store, arg, lp);
-                    cond = if (cond) |prev| try store.binop("*", prev, t) else t;
-                } else if (self.naryCtorPattern(store, c.patterns[i])) |nc| {
-                    for (0..nc.len) |fi| {
-                        if (try self.scalarPatternLit(store, nc.args[fi])) |slp| {
-                            const f_arg = try store.sym(store.interner.resolve(psym));
-                            const f_off = try store.int(@intCast((fi + 1) * 8));
-                            const f_val = try store.apply(try store.sym("__mir_load_at"), &.{ f_arg, f_off });
-                            const ft = try patternTest(store, f_val, slp);
-                            cond = if (cond) |prev| try store.binop("*", prev, ft) else ft;
+                const owner = try store.sym(store.interner.resolve(psym));
+                try stages.append(self.allocator, try store.binop(">=", owner, try store.int(4096)));
+                const tag0 = try store.apply(try store.sym("__mir_load_at"), &.{ owner, try store.int(0) });
+                try stages.append(self.allocator, try store.binop("=", tag0, try store.int(@intCast(nc.tag))));
+                for (0..nc.len) |fi| {
+                    const sub = nc.args[fi];
+                    const f_ptr = try store.apply(try store.sym("__mir_load_at"), &.{ owner, try store.int(@intCast((fi + 1) * 8)) });
+                    if (self.naryCtorPattern(store, sub)) |sub_nc| {
+                        try stages.append(self.allocator, try store.binop(">=", f_ptr, try store.int(4096)));
+                        const stag = try store.apply(try store.sym("__mir_load_at"), &.{ f_ptr, try store.int(0) });
+                        try stages.append(self.allocator, try store.binop("=", stag, try store.int(@intCast(sub_nc.tag))));
+                        for (0..sub_nc.len) |sfi| {
+                            const slp = (try self.scalarPatternLit(store, sub_nc.args[sfi])) orelse continue;
+                            const sval = try store.apply(try store.sym("__mir_load_at"), &.{ f_ptr, try store.int(@intCast((sfi + 1) * 8)) });
+                            try stages.append(self.allocator, try patternTest(store, sval, slp));
                         }
+                    } else if (try self.scalarPatternLit(store, sub)) |slp| {
+                        try stages.append(self.allocator, try patternTest(store, f_ptr, slp));
                     }
                 }
             }
-            if (cond) |cnd| {
-                if (!have_result) return error.UnsupportedExpr;
-                test_cond = try store.apply(try store.sym("if"), &.{ cnd, test_cond orelse one, zero });
+
+            var test_cond: ?Id = null;
+            if (c.guard) |g| test_cond = try store.lowerRec(g);
+            var si: usize = stages.items.len;
+            while (si > 0) {
+                si -= 1;
+                test_cond = try store.apply(try store.sym("if"), &.{ stages.items[si], test_cond orelse one, zero });
             }
 
             if (test_cond) |tc| {
