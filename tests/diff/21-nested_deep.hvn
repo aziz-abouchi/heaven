@@ -1,0 +1,5 @@
+-- 2 niveaux d'imbrication — profondeur (convention: expression finale)
+data Tree = Leaf Int | Node Tree Tree
+depth (Leaf _) = 1
+depth (Node l r) = (if (> (depth l) (depth r)) (+ (depth l) 1) (+ (depth r) 1))
+depth (Node (Leaf 1) (Node (Leaf 2) (Leaf 3)))

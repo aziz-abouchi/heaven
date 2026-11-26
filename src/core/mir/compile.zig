@@ -778,9 +778,11 @@ pub fn compileExpr(self: *MirFunction, store: *Store, id: Id, target_block: *Blo
                 try self.blocks.items[target_block.*].instrs.append(self.allocator, op);
                 return dest;
             }
+            if (std.posix.getenv("HEAVEN_DEBUG") != null) std.debug.print("[MIR] UnsupportedExpr call op={s} argc={d}\n", .{ op_name, args.len });
             return error.UnsupportedExpr;
         },
         else => {
+            if (std.posix.getenv("HEAVEN_DEBUG") != null) std.debug.print("[MIR] UnsupportedExpr other expr\n", .{});
             return error.UnsupportedExpr;
         },
     }

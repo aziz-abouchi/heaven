@@ -103,6 +103,7 @@ pub fn isDefinition(trimmed: []const u8) bool {
     if (std.mem.startsWith(u8, trimmed, "data ")) return true;
     if (std.mem.startsWith(u8, trimmed, "theorem ")) return true;
     if (std.mem.startsWith(u8, trimmed, "actor ")) return true;
+    if (std.mem.startsWith(u8, trimmed, "import ")) return true;
     // Pattern `name args = body` (equations multi-clauses, y compris gardes `| cond == val = body`)
     // Chercher le premier `=` autonome (ni `==`, `<=`, `>=`, `!=`).
     var eq_idx_opt: ?usize = null;
