@@ -1359,7 +1359,6 @@ pub const Math = struct {
                     break :blk (lit == .int and lit.int == 1);
                 };
 
-                platform.debug.print("simplifyMath: left_is_zero={}, right_is_zero={}, left_is_one={}, right_is_one={}\n", .{ left_is_zero, right_is_zero, left_is_one, right_is_one });
 
                 // Normalisation des opérateurs
                 const op_norm = blk: {
